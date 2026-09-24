@@ -10,8 +10,9 @@
 //! forward pass that composes only rules the kernel already checks —
 //! `IntegerOrderSubstitution` across cited equalities, `IntegerAffineBound`
 //! over one-step definition witnesses with literal or landed-literal sibling
-//! operands, `IntegerExactAddDefinitionBound` over two proved operand
-//! endpoints, and the total-image bounds `range` already produces.
+//! operands, `IntegerExactAddDefinitionBound` and
+//! `IntegerExactSubtractDefinitionBound` over two proved operand endpoints,
+//! and the total-image bounds `range` already produces.
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
@@ -144,7 +145,7 @@ fn closure(
             substitute_equalities(bound, &equalities, &mut discovered);
         }
         for (index, output, expression) in &definitions {
-            add_definition_bounds(
+            exact_definition_bounds(
                 integer_type,
                 *index,
                 output,
@@ -355,7 +356,7 @@ fn substitute_equalities(bound: &ProofNode, equalities: &[ProofNode], out: &mut 
 
 /// `output = left + right` exactly: two proved operand endpoints compose one
 /// output endpoint through the kernel's exact-add definition rule.
-fn add_definition_bounds(
+fn exact_definition_bounds(
     integer_type: IntegerType,
     definition_axiom: usize,
     output: &ScalarTerm,
@@ -364,20 +365,28 @@ fn add_definition_bounds(
     equalities: &[ProofNode],
     out: &mut Vec<ProofNode>,
 ) {
-    let ScalarTerm::ExactIntegerAdd {
-        scalar_type,
-        left,
-        right,
-    } = expression
-    else {
-        return;
+    // A subtraction is antitone in its right operand: the output's lower
+    // bound spends the subtrahend's upper endpoint.
+    let (scalar_type, left, right, subtract) = match expression {
+        ScalarTerm::ExactIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        } => (scalar_type, left, right, false),
+        ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } => (scalar_type, left, right, true),
+        _ => return,
     };
     if *scalar_type != integer_type {
         return;
     }
     for lower in [true, false] {
+        let right_lower = lower != subtract;
         let left_evidence = operand_evidence(integer_type, left, lower, proofs, equalities);
-        let right_evidence = operand_evidence(integer_type, right, lower, proofs, equalities);
+        let right_evidence = operand_evidence(integer_type, right, right_lower, proofs, equalities);
         for left_bound in &left_evidence {
             for right_bound in &right_evidence {
                 // The kernel resolves the mapped side from endpoint
@@ -385,7 +394,7 @@ fn add_definition_bounds(
                 // carry no direction and the pair must be rejected here
                 // rather than emitted as an invalid node.
                 if !oriented(left_bound, left, integer_type, lower)
-                    && !oriented(right_bound, right, integer_type, lower)
+                    && !oriented(right_bound, right, integer_type, right_lower)
                 {
                     continue;
                 }
@@ -393,14 +402,20 @@ fn add_definition_bounds(
                 else {
                     continue;
                 };
-                let Some(right_literal) = evidence_literal(right_bound, right, integer_type, lower)
+                let Some(right_literal) =
+                    evidence_literal(right_bound, right, integer_type, right_lower)
                 else {
                     continue;
                 };
-                let Some(sum) = add_literals(integer_type, left_literal, right_literal) else {
+                let combined = if subtract {
+                    subtract_literals(integer_type, left_literal, right_literal)
+                } else {
+                    add_literals(integer_type, left_literal, right_literal)
+                };
+                let Some(combined) = combined else {
                     continue;
                 };
-                let Ok(literal) = ScalarTerm::integer(integer_type, sum) else {
+                let Ok(literal) = ScalarTerm::integer(integer_type, combined) else {
                     continue;
                 };
                 let conclusion = if lower {
@@ -408,12 +423,22 @@ fn add_definition_bounds(
                 } else {
                     Proposition::LessOrEqual(output.clone(), literal)
                 };
+                let left_bound = Box::new(left_bound.clone());
+                let right_bound = Box::new(right_bound.clone());
                 out.push(ProofNode {
                     conclusion,
-                    rule: ProofRule::IntegerExactAddDefinitionBound {
-                        left_bound: Box::new(left_bound.clone()),
-                        right_bound: Box::new(right_bound.clone()),
-                        definition_axiom,
+                    rule: if subtract {
+                        ProofRule::IntegerExactSubtractDefinitionBound {
+                            left_bound,
+                            right_bound,
+                            definition_axiom,
+                        }
+                    } else {
+                        ProofRule::IntegerExactAddDefinitionBound {
+                            left_bound,
+                            right_bound,
+                            definition_axiom,
+                        }
                     },
                 });
             }
@@ -674,6 +699,23 @@ fn evidence_literal(
         ),
         _ => None,
     }
+}
+
+fn subtract_literals(
+    integer_type: IntegerType,
+    left: IntegerValue,
+    right: IntegerValue,
+) -> Option<IntegerValue> {
+    let value = match (left, right) {
+        (IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+            IntegerValue::Signed(left.checked_sub(right)?)
+        }
+        (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => {
+            IntegerValue::Unsigned(left.checked_sub(right)?)
+        }
+        _ => return None,
+    };
+    integer_type.admits(value).then_some(value)
 }
 
 fn add_literals(

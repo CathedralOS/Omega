@@ -1482,6 +1482,7 @@ rejects nesting deeper than 256.
 | 23 | ValueEqualityTransport | 1 + counted | — |
 | 24 | IntegerAddOrder | 2 (sum, positive) | — |
 | 25 | IntegerSubtractAntitone | 3 (smaller, larger, order) | — |
+| 26 | IntegerExactSubtractDefinitionBound | 2 (left bound, right bound) | `u32` definition axiom index |
 
 ## Obligation ledger
 

@@ -67,6 +67,7 @@ impl AcceptedProofRule {
             | Self::IntegerSubtractAntitone
             | Self::IntegerAffineBound
             | Self::IntegerExactAddDefinitionBound
+            | Self::IntegerExactSubtractDefinitionBound
             | Self::IntegerCastBound
             | Self::IntegerCorrelatedForbiddenRoots => ProofRuleFoundation::ConstructiveDecidable,
         }
@@ -81,6 +82,7 @@ impl AcceptedProofRule {
             Self::SemanticAxiom
                 | Self::IntegerAffineBound
                 | Self::IntegerExactAddDefinitionBound
+                | Self::IntegerExactSubtractDefinitionBound
                 | Self::IntegerCastBound
                 | Self::IntegerCorrelatedForbiddenRoots
         )
@@ -95,7 +97,7 @@ mod tests {
     /// list here is the audit's completeness check: the exhaustive `match`
     /// in `foundation` forces new rules into the classifier, and this list
     /// forces them into the test assertions.
-    const ALL: [AcceptedProofRule; 25] = [
+    const ALL: [AcceptedProofRule; 26] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -119,6 +121,7 @@ mod tests {
         AcceptedProofRule::IntegerOrderSubstitution,
         AcceptedProofRule::IntegerAffineBound,
         AcceptedProofRule::IntegerExactAddDefinitionBound,
+        AcceptedProofRule::IntegerExactSubtractDefinitionBound,
         AcceptedProofRule::IntegerCastBound,
         AcceptedProofRule::IntegerCorrelatedForbiddenRoots,
     ];
@@ -155,6 +158,7 @@ mod tests {
                     AcceptedProofRule::SemanticAxiom
                         | AcceptedProofRule::IntegerAffineBound
                         | AcceptedProofRule::IntegerExactAddDefinitionBound
+                        | AcceptedProofRule::IntegerExactSubtractDefinitionBound
                         | AcceptedProofRule::IntegerCastBound
                         | AcceptedProofRule::IntegerCorrelatedForbiddenRoots
                 ),

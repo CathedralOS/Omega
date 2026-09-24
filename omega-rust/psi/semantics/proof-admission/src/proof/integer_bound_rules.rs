@@ -1,6 +1,6 @@
 //! The integer bound rules: affine and cast bounds from a root bound, the
-//! exact-add definition bound, and correlated forbidden roots; each records
-//! the semantic axioms its witness cites.
+//! exact-add and exact-subtract definition bounds, and correlated forbidden
+//! roots; each records the semantic axioms its witness cites.
 //!
 //! Each rule's premise/conclusion relation is a `pub(crate)` function that
 //! returns the roster indices its witness cites — in the same order the
@@ -107,17 +107,88 @@ pub(super) fn check_integer_affine_bound(
     Ok(())
 }
 
-/// The `IntegerExactAddDefinitionBound` premise/conclusion relation: the
-/// cited exact-add definition must be a value/`ExactIntegerAdd` equality
-/// over a fixed carrier, and the two proved bounds mapped through its
+/// The exact operation a definition-bound rule maps its two operand bounds
+/// through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExactDefinitionOperation {
+    Add,
+    Subtract,
+}
+
+impl ExactDefinitionOperation {
+    fn definition_label(self) -> &'static str {
+        match self {
+            Self::Add => "integer exact-add definition",
+            Self::Subtract => "integer exact-subtract definition",
+        }
+    }
+
+    fn type_label(self) -> &'static str {
+        match self {
+            Self::Add => "integer exact-add definition type",
+            Self::Subtract => "integer exact-subtract definition type",
+        }
+    }
+
+    fn mapped_label(self) -> &'static str {
+        match self {
+            Self::Add => "integer exact-add mapped bound",
+            Self::Subtract => "integer exact-subtract mapped bound",
+        }
+    }
+
+    fn literal_label(self) -> &'static str {
+        match self {
+            Self::Add => "integer exact-add mapped literal",
+            Self::Subtract => "integer exact-subtract mapped literal",
+        }
+    }
+
+    /// The fixed scalar type and left operand of `expression` when it is
+    /// this operation.
+    fn operands(
+        self,
+        expression: &ScalarTerm,
+    ) -> Option<(semantic_vocabulary::IntegerType, &ScalarTerm)> {
+        match (self, expression) {
+            (
+                Self::Add,
+                ScalarTerm::ExactIntegerAdd {
+                    scalar_type, left, ..
+                },
+            )
+            | (
+                Self::Subtract,
+                ScalarTerm::ExactIntegerSubtract {
+                    scalar_type, left, ..
+                },
+            ) => Some((*scalar_type, left.as_ref())),
+            _ => None,
+        }
+    }
+
+    fn is_mapped_term(self, term: &IntegerMathTerm) -> bool {
+        matches!(
+            (self, term),
+            (Self::Add, IntegerMathTerm::Add(_, _))
+                | (Self::Subtract, IntegerMathTerm::Subtract(_, _))
+        )
+    }
+}
+
+/// The exact-definition bound premise/conclusion relation shared by
+/// `IntegerExactAddDefinitionBound` and `IntegerExactSubtractDefinitionBound`:
+/// the cited definition must be a value/exact-operation equality over a
+/// fixed carrier, and the two proved bounds mapped through the operation's
 /// affine form must land the conclusion on the definition's output.
-pub(crate) fn exact_add_definition_bound_relation(
+pub(crate) fn exact_definition_bound_relation(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
     left_bound: &Proposition,
     right_bound: &Proposition,
     definition_axiom: usize,
     conclusion: &Proposition,
+    operation: ExactDefinitionOperation,
 ) -> Result<(), ProofError> {
     let definition = semantic_axioms
         .get(definition_axiom)
@@ -127,33 +198,32 @@ pub(crate) fn exact_add_definition_bound_relation(
         .map_err(ProofError::MalformedProposition)?;
     let Proposition::Equal(first, second) = definition else {
         return Err(ProofError::RulePremiseMismatch(
-            "integer exact-add definition",
+            operation.definition_label(),
         ));
     };
     let (output, expression) = match (first, second) {
-        (ScalarTerm::Value { .. }, ScalarTerm::ExactIntegerAdd { .. }) => (first, second),
-        (ScalarTerm::ExactIntegerAdd { .. }, ScalarTerm::Value { .. }) => (second, first),
+        (ScalarTerm::Value { .. }, expression) if operation.operands(expression).is_some() => {
+            (first, second)
+        }
+        (expression, ScalarTerm::Value { .. }) if operation.operands(expression).is_some() => {
+            (second, first)
+        }
         _ => {
             return Err(ProofError::RulePremiseMismatch(
-                "integer exact-add definition",
+                operation.definition_label(),
             ));
         }
     };
-    let ScalarTerm::ExactIntegerAdd {
-        scalar_type, left, ..
-    } = expression
-    else {
-        unreachable!("matched exact-add definition")
-    };
+    let (scalar_type, left) = operation
+        .operands(expression)
+        .expect("matched the exact-operation definition");
     if scalar_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-        || output.scalar_type() != semantic_vocabulary::ScalarType::Integer(*scalar_type)
+        || output.scalar_type() != semantic_vocabulary::ScalarType::Integer(scalar_type)
     {
-        return Err(ProofError::RulePremiseMismatch(
-            "integer exact-add definition type",
-        ));
+        return Err(ProofError::RulePremiseMismatch(operation.type_label()));
     }
     let witness = IntegerAffineWitness {
-        root: left.as_ref().clone(),
+        root: left.clone(),
         target: expression.clone(),
         definition_axioms: Vec::new(),
         literal_axioms: Vec::new(),
@@ -164,26 +234,24 @@ pub(crate) fn exact_add_definition_bound_relation(
     let mapped = map_integer_affine_bound(&form, &evidence)
         .map_err(ProofError::IntegerAffineBoundConversion)?;
     let Proposition::IntegerMathLessOrEqual(mapped_left, mapped_right) = mapped else {
-        return Err(ProofError::RulePremiseMismatch(
-            "integer exact-add mapped bound",
-        ));
+        return Err(ProofError::RulePremiseMismatch(operation.mapped_label()));
     };
     let (literal, lower) = match (&mapped_left, &mapped_right) {
-        (IntegerMathTerm::IntegerLiteral(literal), IntegerMathTerm::Add(_, _)) => (literal, true),
-        (IntegerMathTerm::Add(_, _), IntegerMathTerm::IntegerLiteral(literal)) => (literal, false),
+        (IntegerMathTerm::IntegerLiteral(literal), term) if operation.is_mapped_term(term) => {
+            (literal, true)
+        }
+        (term, IntegerMathTerm::IntegerLiteral(literal)) if operation.is_mapped_term(term) => {
+            (literal, false)
+        }
         _ => {
-            return Err(ProofError::RulePremiseMismatch(
-                "integer exact-add mapped bound",
-            ));
+            return Err(ProofError::RulePremiseMismatch(operation.mapped_label()));
         }
     };
     let value = literal
-        .as_integer_value(*scalar_type)
-        .ok_or(ProofError::RulePremiseMismatch(
-            "integer exact-add mapped literal",
-        ))?;
-    let literal = ScalarTerm::integer(*scalar_type, value)
-        .map_err(|_| ProofError::RulePremiseMismatch("integer exact-add mapped literal"))?;
+        .as_integer_value(scalar_type)
+        .ok_or(ProofError::RulePremiseMismatch(operation.literal_label()))?;
+    let literal = ScalarTerm::integer(scalar_type, value)
+        .map_err(|_| ProofError::RulePremiseMismatch(operation.literal_label()))?;
     let expected = if lower {
         Proposition::LessOrEqual(literal, output.clone())
     } else {
@@ -197,34 +265,52 @@ pub(crate) fn exact_add_definition_bound_relation(
     Ok(())
 }
 
-pub(super) fn check_integer_exact_add_definition_bound(
+/// Check an exact-definition bound node: the shared relation for its
+/// operation, recording the rule and its cited definition.
+pub(super) fn check_integer_exact_definition_bound(
     scope: &RuleScope<'_>,
     proof: &ProofNode,
     acceptance: &mut AcceptanceBuilder,
 ) -> Result<(), ProofError> {
-    let ProofRule::IntegerExactAddDefinitionBound {
-        left_bound,
-        right_bound,
-        definition_axiom,
-    } = &proof.rule
-    else {
-        unreachable!("dispatched check_integer_exact_add_definition_bound")
+    let (left_bound, right_bound, definition_axiom, operation, rule) = match &proof.rule {
+        ProofRule::IntegerExactAddDefinitionBound {
+            left_bound,
+            right_bound,
+            definition_axiom,
+        } => (
+            left_bound,
+            right_bound,
+            definition_axiom,
+            ExactDefinitionOperation::Add,
+            AcceptedProofRule::IntegerExactAddDefinitionBound,
+        ),
+        ProofRule::IntegerExactSubtractDefinitionBound {
+            left_bound,
+            right_bound,
+            definition_axiom,
+        } => (
+            left_bound,
+            right_bound,
+            definition_axiom,
+            ExactDefinitionOperation::Subtract,
+            AcceptedProofRule::IntegerExactSubtractDefinitionBound,
+        ),
+        _ => unreachable!("dispatched check_integer_exact_definition_bound"),
     };
     let RuleScope {
         context,
         semantic_axioms,
         ..
     } = *scope;
-    acceptance
-        .rules
-        .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
-    exact_add_definition_bound_relation(
+    acceptance.rules.insert(rule);
+    exact_definition_bound_relation(
         context,
         semantic_axioms,
         &left_bound.conclusion,
         &right_bound.conclusion,
         *definition_axiom,
         &proof.conclusion,
+        operation,
     )?;
     let definition = semantic_axioms
         .get(*definition_axiom)

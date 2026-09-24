@@ -139,6 +139,11 @@ fn retain_original_citations(
                 left_bound: left,
                 right_bound: right,
                 ..
+            }
+            | ProofRule::IntegerExactSubtractDefinitionBound {
+                left_bound: left,
+                right_bound: right,
+                ..
             } => {
                 pending.extend([left.as_mut(), right.as_mut()]);
             }

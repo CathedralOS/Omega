@@ -88,10 +88,10 @@ fn symmetry_codec_rejects_truncation_unknown_rule_and_previous_calculus_marker()
     // Header/envelope use 33 bytes; the Boolean Value equality uses 21.
     assert_eq!(bytes[54], 17);
     let mut unknown = bytes.clone();
-    unknown[54] = 26;
+    unknown[54] = 27;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 26))
+        Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
     for length in 0..bytes.len() {
         assert!(

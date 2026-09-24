@@ -79,10 +79,10 @@ fn transport_roundtrip_preserves_nested_premise_and_ordered_equations() {
         Err(ProofCodecError::UnsupportedProofSystemMarker(4))
     );
     let mut malformed = bytes.clone();
-    malformed[36] = 26;
+    malformed[36] = 27;
     assert_eq!(
         decode_proof_bundle(&malformed),
-        Err(ProofCodecError::InvalidTag("ProofRule", 26))
+        Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
 }
 
@@ -99,10 +99,10 @@ fn transport_counts_are_structural_and_never_preallocate_untrusted_children() {
     assert!(decode_proof_bundle(&oversized).is_err());
     let mut malformed_child =
         encode_proof_bundle(&bundle(transport(leaf(), vec![leaf()]))).unwrap();
-    malformed_child[43] = 26;
+    malformed_child[43] = 27;
     assert_eq!(
         decode_proof_bundle(&malformed_child),
-        Err(ProofCodecError::InvalidTag("ProofRule", 26))
+        Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
 }
 

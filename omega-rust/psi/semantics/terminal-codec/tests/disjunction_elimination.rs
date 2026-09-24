@@ -94,10 +94,10 @@ fn case_analysis_roundtrips_with_explicit_ordered_branches() {
         Err(ProofCodecError::UnsupportedFormatMarker(23))
     );
     let mut unknown = bytes.clone();
-    unknown[34] = 26;
+    unknown[34] = 27;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 26))
+        Err(ProofCodecError::InvalidTag("ProofRule", 27))
     );
     let mut excessive_count = bytes.clone();
     assert_eq!(&excessive_count[50..54], &2_u32.to_le_bytes());
@@ -290,6 +290,16 @@ fn existing_child_order_and_trailing_witness_bytes_are_unchanged() {
                 definition_axiom: 9,
             },
             vec![15],
+            vec![first_bytes, second_bytes],
+            vec![9, 0, 0, 0],
+        ),
+        (
+            ProofRule::IntegerExactSubtractDefinitionBound {
+                left_bound: first(),
+                right_bound: second(),
+                definition_axiom: 9,
+            },
+            vec![26],
             vec![first_bytes, second_bytes],
             vec![9, 0, 0, 0],
         ),

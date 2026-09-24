@@ -258,6 +258,11 @@ fn proof_node_count(node: &ProofNode) -> u64 {
             left_bound,
             right_bound,
             ..
+        }
+        | ProofRule::IntegerExactSubtractDefinitionBound {
+            left_bound,
+            right_bound,
+            ..
         } => proof_node_count(left_bound) + proof_node_count(right_bound),
         ProofRule::IntegerCastBound { root_bound, .. } => proof_node_count(root_bound),
     };

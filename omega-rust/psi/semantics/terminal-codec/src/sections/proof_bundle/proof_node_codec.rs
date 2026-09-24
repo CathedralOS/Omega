@@ -179,6 +179,15 @@ pub(crate) fn encode_proof_node(
                         pending.push(ProofEncodingAction::Node(right_bound, child_depth));
                         pending.push(ProofEncodingAction::Node(left_bound, child_depth));
                     }
+                    ProofRule::IntegerExactSubtractDefinitionBound {
+                        left_bound,
+                        right_bound,
+                        ..
+                    } => {
+                        writer.u8(26);
+                        pending.push(ProofEncodingAction::Node(right_bound, child_depth));
+                        pending.push(ProofEncodingAction::Node(left_bound, child_depth));
+                    }
                     ProofRule::DisjunctionElimination {
                         disjunction,
                         branches,
@@ -298,6 +307,11 @@ fn encode_proof_rule_suffix(
         } => {
             writer.index("integer exact-add definition axiom", *definition_axiom)?;
         }
+        ProofRule::IntegerExactSubtractDefinitionBound {
+            definition_axiom, ..
+        } => {
+            writer.index("integer exact-subtract definition axiom", *definition_axiom)?;
+        }
     }
     Ok(())
 }
@@ -344,7 +358,7 @@ pub(crate) fn decode_proof_node(
             1..=3 | 14 => 0,
             4 => reader.count()?,
             5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 => 1,
-            7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 => 2,
+            7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 | 26 => 2,
             25 => 3,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
@@ -548,6 +562,11 @@ fn decode_proof_rule(
             }
         }
         15 => ProofRule::IntegerExactAddDefinitionBound {
+            left_bound: Box::new(children.next().expect("decoded left bound")),
+            right_bound: Box::new(children.next().expect("decoded right bound")),
+            definition_axiom: reader.index()?,
+        },
+        26 => ProofRule::IntegerExactSubtractDefinitionBound {
             left_bound: Box::new(children.next().expect("decoded left bound")),
             right_bound: Box::new(children.next().expect("decoded right bound")),
             definition_axiom: reader.index()?,
