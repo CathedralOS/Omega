@@ -58,6 +58,11 @@ pub use value_custody::storage_contents::{
     has_stable_observable_contents,
 };
 
+/// The sealed operation an [`AtomicCarrierAccess`] names.
+pub use access_plans::AtomicAccessOperation;
+pub use value_custody::atomic_operations::{
+    AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier, place_is_atomic_storage,
+};
 pub use value_custody::locals::receiver_allows_mutation;
 pub use value_custody::places::{
     LocalScalarRecordField, assignment_target_selectors, collection_length_receiver,

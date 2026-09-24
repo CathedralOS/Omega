@@ -1,5 +1,6 @@
 //! Machines, blocks, operations, and successor edges.
 
+mod atomic;
 mod machines;
 mod operations;
 mod ranking;
@@ -8,6 +9,7 @@ mod scalar_case_field;
 mod termination;
 mod trapping_integer;
 
+pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
 pub use machines::{Block, TerminalMachine};
 pub use operations::{
     Operation, OperationKind, OperationResult, StructuralOperationResult,

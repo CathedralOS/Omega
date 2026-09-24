@@ -127,7 +127,8 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::StructuralCaseLeafCopy { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
-        | OperationKind::EstablishTrivialAffineLocal { .. } => {
+        | OperationKind::EstablishTrivialAffineLocal { .. }
+        | OperationKind::AtomicAccess { .. } => {
             unreachable!("structural/effect operations were validated above")
         }
         OperationKind::BoundaryCall { .. } => {

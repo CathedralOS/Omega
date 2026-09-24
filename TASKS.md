@@ -3793,11 +3793,19 @@ syntax and other terminal services are not prerequisites.
   Owners: Psi event/evidence production and independent Terminal checking;
   Omega event validation, optimization preservation and target refinement.
 
-  The abstract-event checker currently validates bounded single-function
-  reads-from/modification-predecessor claims using sequencing, dominance and
-  reaching writes. Its tests construct abstract events directly; the
-  `atomic_global_order_operations` source fixture stops at checked trees.
-  Neither establishes a concurrent memory model or a connected native producer.
+  A serial load, store, fetch (add/sub/and/or/xor), swap or decisive
+  compare-exchange on a record's atomic field reaches Terminal Psi as one
+  verified `AtomicAccess` event (codec tag 93) at an exact root place, static
+  carrier path and scalar field, with its orderings, operands and observed
+  prior; the interpreter executes it serially. The eight `runtime_atomic_*_exit`
+  canaries verify at Terminal and stop where terminal-to-abstract lowering
+  refuses the event. The abstract-event checker still validates bounded
+  single-function reads-from/modification-predecessor claims only from
+  hand-built events. Unadmitted: atomic cells behind a shared receiver
+  (`shared_receiver_atomic_store`; Terminal types do not mark atomic cells),
+  bounded fields, fences, single-attempt compare-exchange, and scalar-result
+  machines (`atomic_global_order_operations` stops at ordered scalar control).
+  None of this establishes a concurrent memory model.
 
   - Complete independently checkable `sequenced_before`, `reads_from`,
     `modification_order`, `synchronizes_with`, `happens_before` and

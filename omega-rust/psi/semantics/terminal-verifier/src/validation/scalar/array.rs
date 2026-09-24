@@ -17,6 +17,7 @@ pub(in crate::validation) fn validate_uses(
     let direct = match operation.kind {
         OperationKind::PrimitiveScalarRead { source, .. } => Some(source),
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => Some(destination),
+        OperationKind::AtomicAccess { place, .. } => Some(place),
         _ => None,
     };
     if let Some(place) = direct

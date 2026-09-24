@@ -31,6 +31,7 @@ use crate::terminal_identities::{
     allocate_dense, obligation_id, place_id, structural_type_id, value_id,
 };
 
+pub(crate) mod atomic_sources;
 pub(crate) mod byte_sequence_write;
 pub(crate) mod call_source_custody;
 pub(crate) mod operation_emission;

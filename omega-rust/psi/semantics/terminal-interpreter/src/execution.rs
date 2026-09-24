@@ -760,6 +760,15 @@ impl TerminalExecution {
                     OperationKind::TrappingInteger { .. } => {
                         self.execute_trapping_integer(operation)?
                     }
+                    OperationKind::AtomicAccess {
+                        place,
+                        ref path,
+                        field,
+                        event,
+                    } => {
+                        self.execute_atomic_access(operation, place, path, field, event)?;
+                        OperationFlow::Advance
+                    }
                 };
                 match flow {
                     OperationFlow::Advance => {}

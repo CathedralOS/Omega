@@ -422,5 +422,8 @@ pub(super) fn lower(
         | OperationKind::SaturatingIntegerSubtract { .. }
         | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
         OperationKind::TrappingInteger { .. } => trapping_integer::lower(operation, value_types),
+        OperationKind::AtomicAccess { .. } => {
+            Err(LoweringError::UnsupportedAtomicAccess(operation.id))
+        }
     }
 }

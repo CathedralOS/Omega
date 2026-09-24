@@ -56,15 +56,16 @@ pub use terminal_trace_v1::{
 };
 pub(crate) use validation::reconstruct_validated_structural_ownership_frontiers;
 pub use validation::{
-    BoundaryCrashOutcomeError, ContractClauseKind, ModuleError, ServiceCeilingOwner,
-    StructuralSignatureOwner, SuspensionCallPlanError, ValidatedInterpretableTerminalModule,
-    ValidatedOptimizableTerminalModule, ValidatedTerminalModule, VerifiedLiveClaim,
-    VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
-    VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
-    VerifiedTerminalStructuralFrontiers, has_schema_application_in_call_closure,
-    maximum_registered_obligation_id, reconstruct_structural_ownership_frontiers,
-    scalar_block_invariant_scope, substitute_crash_routes, validate_boundary_crash_outcome,
-    validate_module, validate_module_for_interpretation, validate_module_for_optimization,
+    AtomicAccessRefusal, BoundaryCrashOutcomeError, ContractClauseKind, ModuleError,
+    ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
+    ValidatedInterpretableTerminalModule, ValidatedOptimizableTerminalModule,
+    ValidatedTerminalModule, VerifiedLiveClaim, VerifiedMachineStructuralFrontiers,
+    VerifiedOwnedStructuralPlace, VerifiedPartialStructuralCustody,
+    VerifiedStructuralOwnershipFrontier, VerifiedTerminalStructuralFrontiers,
+    has_schema_application_in_call_closure, maximum_registered_obligation_id,
+    reconstruct_structural_ownership_frontiers, scalar_block_invariant_scope,
+    substitute_crash_routes, validate_boundary_crash_outcome, validate_module,
+    validate_module_for_interpretation, validate_module_for_optimization,
     validate_module_representation,
 };
 pub use verification::{

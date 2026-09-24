@@ -329,7 +329,7 @@ fn primitive_leaf(
 /// Literal path segments keep their exact source identity; fields reject an
 /// erased or domain-constrained declaration; a runtime element names its
 /// selector's retained coordinate.
-fn checked_unit_path(
+pub(in crate::execution::terminal_unit) fn checked_unit_path(
     program: &TypedTrees,
     selectors: &super::selectors::TargetSelectors,
     segments: &[facts::PlaceSegment],

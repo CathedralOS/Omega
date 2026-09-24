@@ -762,6 +762,17 @@ pub enum OperationKind {
     TrappingInteger {
         operation: crate::TrappingIntegerOperation,
     },
+    /// One normalized atomic memory event on one relevant scalar `field` of
+    /// the record `path` selects beneath `place` (see `atomic.rs`). The path
+    /// is the same static carrier path `StructuralScalarFieldStore` walks, so
+    /// the event names one location. Observing events define the
+    /// instruction-observed prior as their scalar result; a store is Unit.
+    AtomicAccess {
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        event: crate::AtomicAccessEvent,
+    },
 }
 
 impl OperationKind {
@@ -888,6 +899,7 @@ impl OperationKind {
                 *count = map(*count);
             }
             Self::TrappingInteger { operation } => operation.map_operands(map),
+            Self::AtomicAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,
                 right,

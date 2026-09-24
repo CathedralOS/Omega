@@ -181,6 +181,9 @@ fn operation_leaves_custody(
         } => clears(*destination) && clears(source.place),
         OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::AtomicAccess {
+            place: destination, ..
+        }
         | OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::EstablishByteSequenceLiteral { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. }
@@ -474,6 +477,23 @@ fn cycle_operation_eligible(
                 && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
         }
+        // An atomic event re-arms nothing: its custody is the root's own
+        // access, exactly as for the primitive read and store above.
+        OperationKind::AtomicAccess {
+            place,
+            path,
+            field,
+            event,
+        } => crate::validation::atomic_access::leaf_type(
+            module,
+            machine,
+            operation.id,
+            *place,
+            path,
+            *field,
+            *event,
+        )
+        .is_ok(),
         // Requirement obligations and crash continuations carry no custody:
         // ordinary call validation still checks their arity, substitution and
         // caller coverage symbolically, and obligation reconstruction cuts

@@ -527,6 +527,7 @@ fn validate_owned_reads(
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
         OperationKind::StructuralScalarFieldStore { destination, .. } => Some(destination),
+        OperationKind::AtomicAccess { place, .. } => Some(place),
         _ => None,
     };
     let reads = arguments

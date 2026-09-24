@@ -235,6 +235,9 @@ fn touched_regions(
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => vec![primitive_region(destination, path)],
+        OperationKind::AtomicAccess {
+            place, path, field, ..
+        } => vec![field_region(place, path, *field)],
         OperationKind::StructuralCaseMembership { source, path, .. } => {
             vec![(
                 *source,

@@ -1254,9 +1254,10 @@ pub(super) fn apply_operation(
             check_root_access(machine, live, *source)?
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::StructuralScalarFieldStore { destination, .. } => {
-            check_root_access(machine, live, *destination)?
-        }
+        | OperationKind::StructuralScalarFieldStore { destination, .. }
+        | OperationKind::AtomicAccess {
+            place: destination, ..
+        } => check_root_access(machine, live, *destination)?,
         OperationKind::EstablishPrimitiveLocal { .. } => {
             if let Some(result) = operation.result.structural() {
                 check_root_access(machine, live, result.place)?;

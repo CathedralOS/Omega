@@ -58,6 +58,7 @@ use crate::verification::{
 };
 
 mod affine_cleanup;
+pub(crate) mod atomic_access;
 mod block_views;
 mod borrowed_windows;
 pub(crate) mod byte_sequence;
@@ -93,6 +94,7 @@ mod root_service_reach;
 mod suspension_call_plan;
 pub(crate) mod trapping_integer;
 
+pub use atomic_access::AtomicAccessRefusal;
 use call_graph::validate_call_graph;
 use conformance_applications::validate_closed_conformance_applications;
 pub use error::{ContractClauseKind, ModuleError, SuspensionCallPlanError};

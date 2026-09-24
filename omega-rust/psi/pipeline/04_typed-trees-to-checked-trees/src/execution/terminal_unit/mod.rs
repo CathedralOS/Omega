@@ -177,6 +177,7 @@ use typed_trees::{
     types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode},
 };
 
+mod atomic_operations;
 mod borrowed_windows;
 pub(crate) mod calls;
 mod candidate_closure;
