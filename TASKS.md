@@ -2118,17 +2118,6 @@ syntax and other terminal services are not prerequisites.
     `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
     and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
     structural call binding` on the element copy.
-  - Native legalization accepts only primitive-scalar element views:
-    `established_element_window` in
-    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/element_view.rs`
-    refuses a record element, so `runtime_subslice_range_len_exit`,
-    `runtime_subslice_bounded_range_len_exit`, `runtime_slice_len_transition_exit`
-    and `runtime_local_slice_len_comparison_value_exit` produce verified Terminal
-    Psi over `self.entries.as_slice()` and stop at native
-    `Selection(Legalization(SourceCustodyMismatch))` (`target/unit.rs` custody
-    check on `EstablishElementView`). The `i32` element counterparts
-    `runtime_slice_length_local_binding_exit` and
-    `runtime_slice_length_local_param_binding_exit` run natively.
   - An element read whose bound is only a caller's guard
     (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
     `requires i <= 3`) lowers but has no read proof
