@@ -115,7 +115,7 @@ fn structural_rows_reject_missing_duplicate_reordered_and_same_typed_foreign_sou
             }
             _ => {
                 rows[0].source = CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                    parameter_index: 1,
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: 1 },
                     expression: ExpressionHandle::invalid(),
                 }
             }

@@ -544,6 +544,9 @@ pub(super) fn build_traced(
                     discard_result_on_return: false,
                     ..
                 }
+                // A view-subslice local owns nothing: its shared view ends
+                // with the loan, on every selected edge alike.
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -2011,77 +2014,42 @@ fn successor_bindings(
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
-                && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+                && matches!(program.expression_table.expression(indexed.index), ExpressionNode::Range(_))
             {
                 mark(SuccessorGuard::SubsliceTransfer);
                 let target_parameter = target_parameters.get(target.position as usize)?;
-                let element_view = calls::element_subslice::source(
+                let subslice = calls::view_subslice::admit(
                     program, facts, machine, source, source_structural,
                     target_parameter.type_reference, expression, ordinal as usize,
-                );
-                let is_element_view = element_view.is_some();
-                let (parameter_index, type_identity) = element_view.or_else(|| {
-                    calls::byte_subslice::source(
-                        program, facts, machine, source, source_structural,
-                        target_parameter.type_reference, expression, ordinal as usize,
-                    )
-                })?;
-                if type_identity != target.type_identity {
-                    return None;
-                }
-                let source_parameter = program.state_parameters(source).get(
-                    source_structural.get(parameter_index as usize)?.position as usize,
+                    checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        argument_ordinal: target.position,
+                    },
                 )?;
-                if !matches!(program.expression_table.expression(indexed.collection),
-                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
-                        && path.head_symbol == source_parameter.symbol
-                        && program.expression_table.name_path_members(path.members).len() == 1)
-                {
+                if subslice.range.type_identity != target.type_identity {
                     return None;
-                }
-                for (endpoint, role) in [
-                    (range.start, CheckedScalarExpressionRole::TransitionSubsliceStart {
-                        argument_ordinal: target.position,
-                    }),
-                    (range.end, CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                        argument_ordinal: target.position,
-                    }),
-                ] {
-                    if !endpoint.is_valid() {
-                        continue;
-                    }
-                    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-                        source.symbol, ordinal, role,
-                    )?;
-                    if binding.expression != endpoint || binding.destination.is_valid()
-                        || value.primitive_type() != Some(PrimitiveType::U64)
-                    {
-                        return None;
-                    }
                 }
                 return Some(CheckedStructuralControlTransferPlan {
-                    source: if is_element_view {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                            parameter_index,
-                            expression,
-                        }
-                    } else {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                            parameter_index,
-                            expression,
-                        }
-                    },
+                    source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
             }
-            if target.access == CheckedStructuralAccess::Owned {
+            // A whole view local forwards the view its `let` published: the
+            // target re-borrows that same shared place exactly as a forwarded
+            // view parameter does, so the edge names the local's result
+            // binding just as an owned local's move does.
+            let shared_view = target.access == CheckedStructuralAccess::SharedBorrow
+                && target_parameters.get(target.position as usize).is_some_and(|parameter| {
+                    calls::view_subslice::view_kind(program, parameter.type_reference).is_some()
+                });
+            if target.access == CheckedStructuralAccess::Owned || shared_view {
                 mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
                         CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. } => Some(result),
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
                         _ => None,
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {

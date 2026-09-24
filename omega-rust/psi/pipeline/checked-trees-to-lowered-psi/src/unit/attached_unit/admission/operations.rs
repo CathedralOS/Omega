@@ -56,6 +56,9 @@ pub(super) fn validate<'a>(
                 reference_results::validate_establishment(checked, machine, operation)?;
             }
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+                super::super::view_ranges::binding_local(checked, machine.state, operation)?;
+            }
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source,
                 result,

@@ -296,16 +296,18 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         field_identity: String,
         path: Vec<CheckedUnitStructuralPathSegment>,
     },
-    /// Exclusive borrowed-byte range at the enclosing transition. Endpoint
-    /// facts use its authored target argument position in the scalar plans.
+    /// Exclusive borrowed-byte range at the enclosing transition, rooted at a
+    /// whole byte-view parameter (dense structural index) or an earlier
+    /// byte-view local. Endpoint facts use the `TransitionArgument` subslice
+    /// site at its authored target argument position.
     ByteSequenceSubslice {
-        parameter_index: u32,
+        root: crate::CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
     },
-    /// Exclusive borrowed `&[T]` element range, T != u8. Endpoints share
-    /// the transition subslice scalar roles; the extent counts elements.
+    /// Exclusive borrowed `&[T]` element range, T != u8, rooted and keyed
+    /// exactly as a byte range is; the extent counts elements.
     ElementViewSubslice {
-        parameter_index: u32,
+        root: crate::CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
     },
 }

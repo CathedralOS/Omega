@@ -79,7 +79,7 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
     assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
     assert!(
         matches!(left.as_ref(), CheckedScalarExpression::StructuralParameterByteLength {
-            parameter_position: 0,
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             path,
         } if path.as_slice() == [CheckedStructuralPredicatePathSegment::Field("out".to_owned())])
     );
@@ -90,7 +90,10 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
         };
         assert_eq!(*kind, CheckedIntegerComparisonKind::Equal);
         let CheckedScalarExpression::StructuralParameterIndexedRead {
-            parameter_position,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
             path,
             index: read_index,
             primitive_type,

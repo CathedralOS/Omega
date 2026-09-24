@@ -45,6 +45,8 @@ impl StateGraphEmission<'_, '_> {
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
+            view_locals: Vec::new(),
+            element_views: std::collections::BTreeMap::new(),
             local_cases: Vec::new(),
             record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
                 checked,
@@ -122,6 +124,10 @@ impl StateGraphEmission<'_, '_> {
                 &evaluation.structural_parameters,
                 &self.catalogs.structural_types,
             );
+        evaluation.element_views = crate::expression_preparation::bindings::element_views(
+            &evaluation.structural_parameters,
+            &self.catalogs.structural_types,
+        );
         super::super::super::emission::emit_call_operations(
             checked,
             plan.machine,
@@ -573,6 +579,7 @@ impl StateGraphEmission<'_, '_> {
             )) || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. }
                     )));
             let operation_start = operations.len();
             let staged = if stage {
@@ -661,21 +668,15 @@ impl StateGraphEmission<'_, '_> {
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
                                 )?.place)
                             }
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } => {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
                                 let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                                let source = state_parameters.get(parameter_index as usize).ok_or(
-                                    LoweringError::Unsupported("Unit graph subslice source descriptor disappeared"),
-                                )?;
                                 self.structural_places.push(subslices::emit(
-                                    checked, state, edge.statement_ordinal, target_parameter.position, expression,
-                                    source, destination, &bindings, &edge_values, &mut next_value, &mut operations,
+                                    checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
+                                    &state_parameters, &edge_evaluation.view_locals, destination, &bindings, &edge_values,
+                                    &mut next_value, &mut operations,
                                 )?);
                                 destination
-                            }
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
-                                return unsupported(
-                                    "element view subslice transfer has no Terminal descriptor",
-                                );
                             }
                             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                 ref subject, ref case_identity, ref field_identity, ref path,

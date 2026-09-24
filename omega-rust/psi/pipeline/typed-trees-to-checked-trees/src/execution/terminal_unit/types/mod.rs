@@ -54,6 +54,7 @@ pub(super) fn return_unit_affine_discards(
     {
         let result = match operation {
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }

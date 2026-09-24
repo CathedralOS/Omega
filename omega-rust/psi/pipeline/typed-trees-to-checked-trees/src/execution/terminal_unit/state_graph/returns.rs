@@ -558,17 +558,19 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     };
     let start = Some(endpoint(range.start)?);
     let end = Some(endpoint(range.end)?);
-    let parameter_index = u32::try_from(parameter_index).ok()?;
+    let root = checked_trees::CheckedStorageRoot::Parameter {
+        index: u32::try_from(parameter_index).ok()?,
+    };
     let source = if byte_view {
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index,
+            root,
             expression,
             start,
             end,
         }
     } else {
         CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            parameter_index,
+            root,
             expression,
             start,
             end,

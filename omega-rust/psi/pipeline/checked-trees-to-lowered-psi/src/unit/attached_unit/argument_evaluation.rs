@@ -58,6 +58,16 @@ pub(crate) struct Evaluation {
     pub(crate) structural_value_owners: Vec<StructuralValueOwner>,
     pub(crate) selection_cleanups: Vec<SelectionCleanup>,
     pub(crate) structural_locals: Vec<(symbols::SymbolHandle, StructuralArgument)>,
+    /// The view family of each established immutable view local, so scalar
+    /// observations rooted at one pick its length and read operations.
+    pub(crate) view_locals:
+        Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+    /// Element views among the structural parameters, resolved once where the
+    /// parameters and type roster are bound, so every namespace this
+    /// evaluation builds reads and measures an element-view parameter with
+    /// element operations.
+    pub(crate) element_views:
+        std::collections::BTreeMap<semantic_vocabulary::StructuralTypeId, Option<ScalarType>>,
     pub(crate) local_cases:
         Vec<crate::expression_preparation::bindings::structural_cases::LocalCaseBinding>,
     pub(crate) arrays: Vec<crate::scalar_graph::scalar_computations::arrays::Slot>,
@@ -121,6 +131,8 @@ impl Evaluation {
             structural_value_owners: self.structural_value_owners.clone(),
             selection_cleanups: self.selection_cleanups.clone(),
             structural_locals: self.structural_locals.clone(),
+            view_locals: self.view_locals.clone(),
+            element_views: self.element_views.clone(),
             local_cases: self.local_cases.clone(),
             arrays: self.arrays.clone(),
             cases: self.cases.clone(),
@@ -279,6 +291,23 @@ impl Evaluation {
                     },
                 },
             ));
+            // A view local's published place is what its lengths and element
+            // reads observe; record the family its produced type declares.
+            if let Some(carrier) =
+                crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
+                    produced.structural_type,
+                    structural_types,
+                )
+            {
+                self.view_locals.push(
+                    crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
+                        symbol: local.symbol,
+                        place: produced.place,
+                        structural_type: produced.structural_type,
+                        carrier,
+                    },
+                );
+            }
         }
         if multiplicity == StructuralMultiplicity::Affine {
             self.structural_value_owners.push(StructuralValueOwner {
@@ -534,6 +563,8 @@ impl Evaluation {
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
+            view_locals: Vec::new(),
+            element_views: std::collections::BTreeMap::new(),
             local_cases: Vec::new(),
             arrays: Vec::new(),
             cases: Vec::new(),
@@ -672,7 +703,9 @@ impl Evaluation {
         let source_bindings = source_bindings
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)
-            .with_structural_locals(&self.structural_locals);
+            .with_structural_locals(&self.structural_locals)
+            .with_view_locals(&self.view_locals)
+            .with_element_views(&self.element_views);
         let (coordinate, arguments, boundary) = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 coordinate,
@@ -825,6 +858,8 @@ impl Evaluation {
                 crate::expression_preparation::bindings::ScalarBindings::new(values.len())
             })
             .with_primitive_storage(&self.primitive_storage)
+            .with_view_locals(&self.view_locals)
+            .with_element_views(&self.element_views)
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;

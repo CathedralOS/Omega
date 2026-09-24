@@ -13,6 +13,7 @@ pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
 #[cfg(test)]
 mod tests;
+pub(crate) mod view_locals;
 pub(crate) use structural_fields::StructuralScalarFieldBinding;
 
 #[derive(Clone)]
@@ -26,9 +27,12 @@ pub(crate) struct ScalarBindings {
     local_cases: Vec<structural_cases::LocalCaseBinding>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
-    /// Whole element-view parameters resolved to their scalar element type.
-    /// Only primitive-element views join: `&[u8]` stays on the byte path.
-    element_views: std::collections::BTreeMap<StructuralTypeId, ScalarType>,
+    /// Whole element-view parameters resolved to their scalar element type,
+    /// absent for record elements (which have a length but no scalar read).
+    /// `&[u8]` stays on the byte path.
+    element_views: std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
+    /// Established immutable view locals an observation may root at.
+    view_locals: Vec<view_locals::ViewLocalBinding>,
 }
 
 impl ScalarBindings {
@@ -303,24 +307,19 @@ impl ScalarBindings {
             StructuralScalarFieldBinding::collect(&self.structural_parameters, types);
         self.structural_cases =
             structural_cases::StructuralCaseBinding::collect(&self.structural_parameters, types);
-        self.element_views = self
-            .structural_parameters
-            .iter()
-            .filter_map(|(_, parameter)| {
-                let shape = types
-                    .iter()
-                    .find(|declaration| declaration.id == parameter.structural_type)?;
-                let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
-                    return None;
-                };
-                let element = types.iter().find(|declaration| declaration.id == element)?;
-                let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) = element.shape
-                else {
-                    return None;
-                };
-                Some((parameter.structural_type, scalar_type))
-            })
-            .collect();
+        self.element_views = element_views(&self.structural_parameters, types);
+        self
+    }
+
+    /// Adopt the element views an evaluation resolved for its parameters, so
+    /// a namespace built without its own observations still reads and
+    /// measures an element-view parameter with element operations.
+    pub(crate) fn with_element_views(
+        mut self,
+        views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
+    ) -> Self {
+        self.element_views
+            .extend(views.iter().map(|(view, element)| (*view, *element)));
         self
     }
 
@@ -352,6 +351,7 @@ impl ScalarBindings {
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
+            view_locals: Vec::new(),
         }
     }
 
@@ -366,6 +366,7 @@ impl ScalarBindings {
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
+            view_locals: Vec::new(),
         }
     }
 
@@ -376,7 +377,10 @@ impl ScalarBindings {
         self.structural_parameters = parameters.to_vec();
         self.structural_fields.clear();
         self.structural_cases.clear();
-        self.element_views.clear();
+        // Element views are keyed by structural type, not by parameter: a
+        // type's view family stays true under a rebound parameter list, so a
+        // namespace rebinding its parameters keeps the element views its
+        // observations already resolved.
         self
     }
 
@@ -387,6 +391,13 @@ impl ScalarBindings {
         storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
     ) -> Self {
         self.primitive_storage = storage.to_vec();
+        self
+    }
+
+    /// Retain the view locals the ordinary operation sequence established, so
+    /// a length or element read rooted at one observes its published place.
+    pub(crate) fn with_view_locals(mut self, locals: &[view_locals::ViewLocalBinding]) -> Self {
+        self.view_locals = locals.to_vec();
         self
     }
 
@@ -732,8 +743,37 @@ impl ScalarBindings {
             &self.structural_cases,
             &self.primitive_storage,
             &self.element_views,
+            &self.view_locals,
         )
     }
+}
+
+/// The element views among `parameters`' types, with the scalar each element
+/// read yields (absent for record elements, which have a length but no scalar
+/// read). Byte views stay on the byte path and never appear here.
+pub(crate) fn element_views(
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    types: &[StructuralTypeDeclaration],
+) -> std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>> {
+    parameters
+        .iter()
+        .filter_map(|(_, parameter)| {
+            let shape = types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)?;
+            let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
+                return None;
+            };
+            let element = types.iter().find(|declaration| declaration.id == element)?;
+            let scalar_type = match element.shape {
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                    Some(scalar_type)
+                }
+                _ => None,
+            };
+            Some((parameter.structural_type, scalar_type))
+        })
+        .collect()
 }
 
 pub(crate) fn primitive_storage_place(

@@ -449,7 +449,9 @@ pub(super) fn retain_call_targets<'a>(
                 // A displaced field's move-out and restoring store carry no
                 // callee; the replacing call carries its own dependency.
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {}
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                // A view-subslice local narrows a view the state holds.
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }

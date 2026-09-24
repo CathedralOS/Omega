@@ -58,6 +58,8 @@ pub(crate) fn emit_call_leaf(
         structural_value_owners: Vec::new(),
         selection_cleanups: Vec::new(),
         structural_locals: Vec::new(),
+        view_locals: Vec::new(),
+        element_views: std::collections::BTreeMap::new(),
         local_cases: Vec::new(),
         record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
             checked,

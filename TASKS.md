@@ -2238,10 +2238,42 @@ syntax and other terminal services are not prerequisites.
   `ElementViewRead`, `ElementViewSubslice`, the catalog's `BorrowedSliceView`
   mapping, and `terminal-interpreter/src/element_views.rs`.
 
-  Two distinct source routes remain:
+  A view local (`as_slice` loan or `let tail = view[a..b]`) is an established
+  view place: `CheckedStorageRoot` roots its ranges, lengths and scalar-element
+  reads, every narrowing site shares `CheckedSubsliceSite`, and lowering
+  replays and emits each range through `view_ranges`/`view_subslice`. The
+  remaining routes are:
   - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
     and subslices but reports `unsupported statement kind` at local construction.
     Repair its checked producer and continue through native execution.
+  - Record-element access through a view (`entries[i].value`,
+    `let e: Entry = tail[0]`) has no Terminal operation: `ElementViewRead`
+    yields scalar elements only. `slices/runtime_subslice_dynamic_index_exit`
+    and its end/bounded/nested siblings stop at `state graph: terminator:
+    conditional successors: guard expression` in the callee state;
+    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
+    and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
+    structural call binding` on the element copy.
+  - Native legalization accepts only primitive-scalar element views:
+    `established_element_window` in
+    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/element_view.rs`
+    refuses a record element, so `runtime_subslice_range_len_exit`,
+    `runtime_subslice_bounded_range_len_exit`, `runtime_slice_len_transition_exit`
+    and `runtime_local_slice_len_comparison_value_exit` produce verified Terminal
+    Psi over `self.entries.as_slice()` and stop at native
+    `Selection(Legalization(SourceCustodyMismatch))` (`target/unit.rs` custody
+    check on `EstablishElementView`). The `i32` element counterparts
+    `runtime_slice_length_local_binding_exit` and
+    `runtime_slice_length_local_param_binding_exit` run natively.
+  - An element read whose bound is only a caller's guard
+    (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
+    `requires i <= 3`) lowers but has no read proof
+    (`OperationProofUnavailable`); a non-`u64` index
+    (`runtime_slice_indexed_read_exit`: `s[self.i]` with `i32`) is refused by
+    lowering's exact-`u64` index requirement.
+  - A range over a fixed-array field (`self.source[0..2]` in
+    `runtime_subslice_len_exit`) establishes no view to narrow and stops at
+    `statement sequence: local data: structural call binding`.
   - State forwarding passes Unit-graph admission but reports
     `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
     a reborrow place missing from the successor frontier. Complete that custody

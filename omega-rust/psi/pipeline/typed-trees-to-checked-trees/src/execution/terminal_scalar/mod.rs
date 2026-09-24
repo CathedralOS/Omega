@@ -1224,19 +1224,19 @@ fn structural_place_reads_position(
         return true;
     }
     if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        parameter_index,
+        root,
         start,
         end,
         ..
     }
     | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-        parameter_index,
+        root,
         start,
         end,
         ..
     } = &plan.source
     {
-        return *parameter_index == position
+        return root.parameter() == Some(position)
             || start
                 .as_ref()
                 .is_some_and(|start| scalar_expression_reads_position(start, position))
@@ -1253,17 +1253,13 @@ fn scalar_expression_reads_position(
 ) -> bool {
     use checked_trees::CheckedScalarExpression as Scalar;
     match expression {
-        Scalar::StructuralParameterByteLength {
-            parameter_position, ..
-        }
-        | Scalar::StructuralParameterField {
+        Scalar::StructuralParameterByteLength { root, .. } => root.parameter() == Some(position),
+        Scalar::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == position,
-        Scalar::StructuralParameterIndexedRead {
-            parameter_position,
-            index,
-            ..
-        } => *parameter_position == position || scalar_expression_reads_position(index, position),
+        Scalar::StructuralParameterIndexedRead { root, index, .. } => {
+            root.parameter() == Some(position) || scalar_expression_reads_position(index, position)
+        }
         Scalar::IntegerBinary { left, right, .. } => {
             scalar_expression_reads_position(left, position)
                 || scalar_expression_reads_position(right, position)

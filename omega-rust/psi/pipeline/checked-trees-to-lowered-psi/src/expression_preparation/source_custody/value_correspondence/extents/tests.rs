@@ -316,7 +316,10 @@ fn retained_subslice(
         match source {
             Source::ByteSequenceSubslice {
                 expression,
-                parameter_index,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
                 ..
             } => Some((*expression, *parameter_index)),
             _ => None,
@@ -354,7 +357,10 @@ fn retained_subslice(
     for (_, transfer) in graphs.structural_transfers.iter() {
         if let Transfer::ByteSequenceSubslice {
             expression,
-            parameter_index,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
         } = transfer.source
         {
             return Some((expression, parameter_index));
@@ -386,7 +392,10 @@ fn retained_subslice(
                 for transfer in &successor.transfers {
                     if let Transfer::ByteSequenceSubslice {
                         expression,
-                        parameter_index,
+                        root:
+                            checked_trees::CheckedStorageRoot::Parameter {
+                                index: parameter_index,
+                            },
                     } = transfer.source
                     {
                         return Some((expression, parameter_index));
@@ -409,7 +418,11 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
     };
     fn retire_argument(source: &mut Source) {
         if let Source::ByteSequenceSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         } = *source
         {
             *source = Source::Parameter { parameter_index };
@@ -461,7 +474,11 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
         for successor in successors {
             for transfer in &mut successor.transfers {
                 if let Transfer::ByteSequenceSubslice {
-                    parameter_index, ..
+                    root:
+                        checked_trees::CheckedStorageRoot::Parameter {
+                            index: parameter_index,
+                        },
+                    ..
                 } = transfer.source
                 {
                     transfer.source = Transfer::Parameter {
@@ -474,7 +491,11 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
     let graphs = &mut checked.facts.flow.terminal_scalar_graphs;
     graphs.structural_transfers.for_each_mut(|_, transfer| {
         if let Transfer::ByteSequenceSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         } = transfer.source
         {
             transfer.source = Transfer::Parameter {

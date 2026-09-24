@@ -241,6 +241,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
@@ -365,6 +366,9 @@ pub(super) fn retain_available(
                     // frame; establish/release carry no callee dependency.
                     | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                    // A view-subslice local narrows a view the frame already
+                    // holds; it names no callee.
+                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     // A borrowed-window move/restore pair carries no callee:
                     // the move's result binding and the restore's stored value

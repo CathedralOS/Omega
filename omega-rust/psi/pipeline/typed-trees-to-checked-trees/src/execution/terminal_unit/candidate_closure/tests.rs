@@ -543,6 +543,7 @@ fn retain_available_reference(
                     | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                     | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }

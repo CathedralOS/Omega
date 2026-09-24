@@ -4,16 +4,15 @@
 //! `argument_paths.rs` the projected paths, `boundary_admission.rs` decides
 //! what a boundary call admits, `signatures.rs` the signatures it is checked
 //! against and `affine_locals.rs` the unit's opening affine locals; the
-//! remaining modules cover byte subslices, computation arguments and
-//! reference forwarding.
+//! remaining modules cover view subslices (one admission for every site that
+//! narrows a byte or element view), computation arguments and reference
+//! forwarding.
 
 mod affine_locals;
 mod argument_paths;
 mod boundary_admission;
-pub(in crate::execution) mod byte_subslice;
 mod call_operations;
 mod computation_arguments;
-pub(in crate::execution) mod element_subslice;
 mod reference_forwarding;
 mod result_arguments;
 #[cfg(test)]
@@ -21,6 +20,7 @@ mod scalar_argument_tests;
 mod service_forward;
 mod signatures;
 mod structural_arguments;
+pub(in crate::execution) mod view_subslice;
 
 pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
