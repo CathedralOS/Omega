@@ -18213,10 +18213,10 @@
   "fixture": "pass/core/extent_root_provider_adapter",
   "tier": "pass",
   "status": "rejected",
-  "millis": 20,
+  "millis": 134,
   "expected_satisfied": null,
   "diagnostics": [
-   "provider selection subject `ExtentRootProvider` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family"
+   "linear state-call result __hoist_0 in Harness::forward::forward at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping"
   ]
  },
  {
