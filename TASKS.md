@@ -274,6 +274,19 @@ the complete product bar; focused successes below do not establish that baseline
   `compile_sample_to_checked`. Reuse unchanged checked inputs under their exact
   identities and measure the complete sweep before reporting sample coverage.
 
+  MEASURED SWEEP 2026-09-24: `compiler --test samples_compile` runs 33 and
+  passes 16 in 1116 s. Sixteen of the seventeen failures are one cause, the
+  frontier this file names at the top -- "selected ProgramEntry establishment
+  rejoins 0 Terminal attachment identities; the machine's unit plan was
+  omitted at local construction" -- reached by the `basics`, `gui`,
+  `algorithm` and `game` cohort entries and by the named
+  `temperature_sample_retains_exact_float_operator_evidence`,
+  `fletcher_checksum_checks_its_slice_iteration`,
+  `named_integer_conversion_samples_reach_checked_trees` and
+  `text_padding_accepts_its_projected_text_argument`. Its owner is
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`. Report
+  sample coverage against that number, not against a single customer.
+
   Preserve each algorithm, storage and observable behavior during legitimate
   surface migration. Migrate remaining bare or authored-`Bound` service fields
   under **ENTRY-CONTENT-ROOTS**, without relaxing provider/occurrence checks.
@@ -2927,8 +2940,17 @@ syntax and other terminal services are not prerequisites.
   execution in `compiler --test module_machine_indices` (especially
   `nominal`, `constant_attachments`, `value_dispatch`, `machine_initializers`),
   `compiler --test constant_float_tables`,
-  `terminal-psi-to-abstract-operations --test scalar_array_construction`, and
-  native-differential `scalar_array_results` / `scalar_case_results`.
+  `terminal-psi-to-abstract-operations --test suite scalar_array_construction`
+  (that package has one `suite` target; the module is a filter, not a target),
+  and native-differential `scalar_array_results` / `scalar_case_results`.
+  Measured 2026-09-24: those four are green -- 82 of 82 across `nominal`,
+  `constant_attachments`, `value_dispatch` and `machine_initializers`, 3 of 3
+  in `scalar_array_construction`, 161 of 161 in the two native-differential
+  targets -- so the remaining work above, not the acceptance run, is what
+  keeps this row open. `module_machine_indices` fails only
+  `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`,
+  on an open default-domain invariant window that belongs to the
+  foreign-domain mutable recast row.
   Preserve exact floating bits including signed zero, mixed field/index
   projections, selected arithmetic policies, and all-arm obligations without
   evaluating skipped subjects. Keep zero/wrapping-to-zero, stale operand,
