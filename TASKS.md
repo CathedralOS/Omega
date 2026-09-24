@@ -460,7 +460,9 @@ the complete product bar; focused successes below do not establish that baseline
       candidate_compilation  36.60 s
 
   The 27.5k-line library costs 16.3 s per pass. A fixture without std checks
-  in 14 ms.
+  in 14 ms. With the fresh-arena span path and symbol-first claim-frontier
+  lookup, the optimized binary on macOS arm64 checks `print_squares` in
+  50.0 s against 58.4 s before, std at 22.3 s per pass.
 
   Owner: `packages/manager` `review/candidate/compilation.rs::compile_candidate`,
   which runs `compile_pass` with `&[]` bindings and
@@ -505,9 +507,9 @@ the complete product bar; focused successes below do not establish that baseline
   gate, not the cost.
 
   Acceptance: `omega --check` of that sample checks the library once per
-  invocation, `--timings` reaches the per-pass and per-package attribution
-  that `OMEGA_REVIEW_TIMINGS` already prints, and an owner test compiles its
-  fixture without a second whole-program check of the library.
+  invocation, and an owner test compiles its fixture without a second
+  whole-program check of the library. `--timings` already prints the
+  per-pass and per-package review lines.
 
 ## Automatic service reach
 

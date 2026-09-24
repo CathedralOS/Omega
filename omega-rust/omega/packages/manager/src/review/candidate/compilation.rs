@@ -381,6 +381,7 @@ fn compile_candidate(
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let _requested = timings::requested(preparation.collect_timings);
     let _stage = timings::stage("candidate_compilation");
     preparation.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
