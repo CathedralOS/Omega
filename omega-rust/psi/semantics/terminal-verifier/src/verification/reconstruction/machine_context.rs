@@ -38,6 +38,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::ElementViewSubslice { .. }
                         | OperationKind::StructuralByteSequenceFieldStore { .. }
                         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+                        | OperationKind::StructuralByteSequenceFieldRead { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }

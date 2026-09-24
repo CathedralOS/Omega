@@ -244,6 +244,7 @@ pub(super) fn emit(
         let mut selected_evaluation = evaluation.branch(selected, operations.len());
         let mut selected_values = values.clone();
         operations.byte_lengths.clear();
+        operations.field_byte_lengths.clear();
         let terminator = emit_return(
             checked,
             plan,
@@ -282,6 +283,7 @@ pub(super) fn emit(
         evaluation.operation_start = operations.len();
         operations.structural_values.truncate(retained_bindings);
         operations.byte_lengths.clear();
+        operations.field_byte_lengths.clear();
     }
     let fallback =
         return_values

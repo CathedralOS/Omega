@@ -120,4 +120,76 @@ impl TerminalExecution {
         }
         bytes.replace_byte(byte_index, byte).ok_or_else(invalid)
     }
+
+    /// Read one byte of the field's live extent. Every operand and the
+    /// observed length are checked before the indexed read. A borrowed-view
+    /// field has no runtime backing in this interpreter, so resolution
+    /// rejects it through the same boundary as the byte store.
+    pub(crate) fn execute_structural_byte_sequence_field_read(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index,
+            length,
+            ..
+        } = &operation.kind
+        else {
+            return Err(invalid());
+        };
+        let OperationResult::Scalar(result) = &operation.result else {
+            return Err(invalid());
+        };
+        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
+        if result.scalar_type != ScalarType::Integer(byte_type) {
+            return Err(invalid());
+        }
+        let (source_field, capacity) =
+            self.resolve_structural_byte_sequence_field(*source, path, *field, false)?;
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        let count = |operand| {
+            let TerminalScalarValue::Integer {
+                scalar_type,
+                value: IntegerValue::Unsigned(value),
+            } = self
+                .values
+                .get(&operand)
+                .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+            else {
+                return Err(invalid());
+            };
+            if *scalar_type != count_type {
+                return Err(invalid());
+            }
+            u64::try_from(*value).map_err(|_| invalid())
+        };
+        let byte_index = count(*index)?;
+        let live_length = count(*length)?;
+        if live_length > capacity || byte_index >= live_length {
+            return Err(invalid());
+        }
+        let bytes = self
+            .structural_byte_sequence_fields
+            .get(&source_field)
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                *source,
+            ))?;
+        if u64::try_from(bytes.len()).ok() != Some(live_length) {
+            return Err(invalid());
+        }
+        let byte_index = usize::try_from(byte_index).map_err(|_| invalid())?;
+        let byte = *bytes.get(byte_index).ok_or_else(invalid)?;
+        self.values.insert(
+            result.id,
+            TerminalScalarValue::Integer {
+                scalar_type: byte_type,
+                value: IntegerValue::Unsigned(u128::from(byte)),
+            },
+        );
+        Ok(())
+    }
 }

@@ -2331,5 +2331,6 @@ impl Emission<'_, '_, '_> {
         self.evaluation.current = block;
         self.evaluation.operation_start = self.operations.len();
         self.operations.byte_lengths.clear();
+        self.operations.field_byte_lengths.clear();
     }
 }
