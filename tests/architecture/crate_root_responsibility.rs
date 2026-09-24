@@ -489,7 +489,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["phase", "x86_branch_relaxation"],
     ),
     (
-        "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/08_selected-form-encoding-to-resolved-layout",
         &["resolved_selected_form_layout"],
     ),
     (

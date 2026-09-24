@@ -47,7 +47,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations",
     "omega-rust/omega/backend/machine-emission/src/frame_layout",
     "omega-rust/omega/pipeline/07_post-allocation-machine-to-selected-form-encoding",
-    "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout",
+    "omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout",
     "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout",
     "omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions",
