@@ -1324,7 +1324,7 @@ machine Main::main(&mut self) reaches Boundary {{
         ),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("source-evaluated-macho-{name}-native");
+    builder.application("source_evaluated_macho-{name}-native");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }}
 "#

@@ -13,8 +13,8 @@ use package_compilation::{
 #[test]
 fn generated_dependency_handoff_keeps_build_and_product_occurrences_distinct() {
     let tree = TempTree::new();
-    let producer = tree.package("dual-producer");
-    let consumer = tree.package("dual-consumer");
+    let producer = tree.package("dual_producer");
+    let consumer = tree.package("dual_consumer");
     TempTree::write(producer.join("main.omg"), "// Generated API only.\n");
     TempTree::write(
         producer.join("build.omg"),
@@ -164,8 +164,8 @@ machine build(builder: &mut Build) {
 #[test]
 fn generated_dependency_handoff_requires_both_purposes_even_for_the_same_target() {
     let tree = TempTree::new();
-    let root = tree.package("purpose-consumer");
-    let dependency = tree.package("purpose-producer");
+    let root = tree.package("purpose_consumer");
+    let dependency = tree.package("purpose_producer");
     let inputs = PackageCompilationInputs::new_package(
         identity(95),
         vec![
@@ -227,7 +227,7 @@ fn generated_dependency_handoff_requires_both_purposes_even_for_the_same_target(
 #[test]
 fn build_package_target_must_match_its_admitted_execution_profile() {
     let tree = TempTree::new();
-    let root = tree.package("build-context");
+    let root = tree.package("build_context");
     TempTree::write(root.join("main.omg"), "// Build helper.\n");
     TempTree::write(
         root.join("build.omg"),
@@ -262,8 +262,8 @@ fn build_package_target_must_match_its_admitted_execution_profile() {
 #[test]
 fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
     let tree = TempTree::new();
-    let producer = tree.package("profile-producer");
-    let consumer = tree.package("profile-consumer");
+    let producer = tree.package("profile_producer");
+    let consumer = tree.package("profile_consumer");
     TempTree::write(producer.join("main.omg"), "// Generated API only.\n");
     TempTree::write(
         producer.join("build.omg"),
@@ -441,8 +441,8 @@ data Readings {
 #[test]
 fn compiler_consumes_retained_dependency_generated_source_without_a_physical_file() {
     let tree = TempTree::new();
-    let root = tree.package("root-generated-consumer");
-    let dependency = tree.package("dependency-generated-producer");
+    let root = tree.package("root_generated_consumer");
+    let dependency = tree.package("dependency_generated_producer");
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
@@ -576,8 +576,8 @@ pub machine consume_generated_value() -> u64 {
 #[test]
 fn multi_target_generated_source_failure_is_child_local() {
     let tree = TempTree::new();
-    let root = tree.package("multi-target-generated-consumer");
-    let dependency = tree.package("multi-target-generated-producer");
+    let root = tree.package("multi_target_generated_consumer");
+    let dependency = tree.package("multi_target_generated_producer");
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {

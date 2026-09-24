@@ -988,7 +988,7 @@ fn provider_selection_rejects_conflicting_composition_modes() {
 #[test]
 fn target_provider_default_cannot_request_independent_composition() {
     let tree = TempTree::new();
-    let root = tree.package("independent-target-default");
+    let root = tree.package("independent_target_default");
     let package = identity(65);
     TempTree::write(
         root.join("main.omg"),
@@ -1364,7 +1364,7 @@ fn native_package_product_retains_one_canonical_production_manifest() {
 fn build_entry_imports_resolve_through_build_scope_aliases() {
     let tree = TempTree::new();
     let root = tree.package("root");
-    let host = tree.package("host-tool");
+    let host = tree.package("host_tool");
 
     TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
     TempTree::write(
@@ -1404,7 +1404,7 @@ machine build(builder: &mut Build) {
 fn product_imports_cannot_name_build_scope_aliases() {
     let tree = TempTree::new();
     let root = tree.package("root");
-    let host = tree.package("host-tool");
+    let host = tree.package("host_tool");
 
     TempTree::write(root.join("main.omg"), "use dep::values;\n");
     TempTree::write(
@@ -1504,8 +1504,8 @@ machine build(builder: &mut Build) {
 fn one_alias_answers_product_and_build_scopes_independently() {
     let tree = TempTree::new();
     let root = tree.package("root");
-    let product = tree.package("product-dep");
-    let host = tree.package("host-tool");
+    let product = tree.package("product_dep");
+    let host = tree.package("host_tool");
 
     TempTree::write(
         root.join("main.omg"),
@@ -1587,7 +1587,7 @@ machine build(builder: &mut Build) {
 fn build_scope_extends_through_root_local_helper_imports() {
     let tree = TempTree::new();
     let root = tree.package("root");
-    let host = tree.package("host-tool");
+    let host = tree.package("host_tool");
 
     TempTree::write(root.join("main.omg"), "const RESULT: u32 = 42;\n");
     TempTree::write(

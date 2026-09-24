@@ -305,7 +305,7 @@ impl IndependentFixture {
     fn new(target_name: &'static str) -> Self {
         let tree = TempTree::new();
         let root = tree.package("consumer");
-        let dependency = tree.package("pick-component");
+        let dependency = tree.package("pick_component");
         write_component_package(
             &dependency,
             "pick-component",
