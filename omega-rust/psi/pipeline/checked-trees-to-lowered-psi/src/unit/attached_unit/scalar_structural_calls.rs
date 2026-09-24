@@ -68,25 +68,7 @@ pub(super) fn validate_call_source(
             continue;
         }
         let expression = authored
-            .structural_arguments
-            .iter()
-            .find_map(|(position, expression)| {
-                (*position == parameter.position).then_some(*expression)
-            })
-            .or_else(|| {
-                if !parameter.is_self {
-                    return None;
-                }
-                let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
-                    authored.source_site
-                else {
-                    return None;
-                };
-                match checked.expression_table.expression(expression) {
-                    ExpressionNode::Call(call) => Some(call.receiver),
-                    _ => None,
-                }
-            })
+            .structural_argument(checked, parameter.position, parameter.is_self)
             .ok_or(LoweringError::Unsupported(
                 "scalar wrapper parameter has no exact authored argument",
             ))?;
