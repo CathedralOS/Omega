@@ -899,7 +899,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   public ceilings are not absence proofs.
 
   Owners: `build-evaluation/src/admission/behavior_exclusions.rs`,
-  `02_checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  `compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
 
@@ -2104,7 +2104,7 @@ syntax and other terminal services are not prerequisites.
   proposal validation, native lowering and image replay. Psi's
   `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
   lowering. The remaining exact single-`u64` identity/Unit recognizer is in
-  `02_checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`;
+  `compiler/terminal-artifact/src/native_proposal/mod.rs`;
   native thunk/image consumers also reject call-bearing bodies. Replace those
   shape restrictions with requirement, ABI and call-custody checking, not more
   admitted body families. Close hosted private-stack callback occupancy and

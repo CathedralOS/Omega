@@ -312,7 +312,7 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
 fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
     let repo_root = repo_root();
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
-    let owner_path = repo_root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs");
+    let owner_path = repo_root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let owner = fs::read_to_string(&owner_path)

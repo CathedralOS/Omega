@@ -93,7 +93,7 @@ the family to the admission owner.
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
 | `03_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
 | `08_selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
-| `02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
+| `compiler/terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
 | `02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs` | route doc + driver; per-item translation delegated |
 | `00_source-files-to-tokens/src/lexer.rs`, `symbol-resolved-.../lowerer.rs` | the file IS the stage's mechanism (lexer state machine / per-kind lowering dispatch); not coordinators |
 | `tools/coordination.py`, `claims.py`, `landing.py` | claim/landing fence machinery; sequence-only |

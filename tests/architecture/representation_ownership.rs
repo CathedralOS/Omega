@@ -2366,7 +2366,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
             "assembled-syntax-to-checked-compilation",
         ),
         (
-            "omega/pipeline/02_checked-compilation-to-terminal-artifact",
+            "omega/compiler/terminal-artifact",
             "checked-compilation-to-terminal-artifact",
         ),
     ];

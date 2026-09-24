@@ -45,7 +45,7 @@ the boundary call returns.
   `prepare_entry_receipt`, then `Publication` and `BoundaryOperatorScope`).
   The carrier rides on the produced artifact as `stage_timings`.
 - The Omega side names the rows at merge time:
-  `02_checked-compilation-to-terminal-artifact/terminal_artifact.rs`
+  `compiler/terminal-artifact/terminal_artifact.rs`
   `terminal_production_stage_meta` maps each `TerminalProductionStage` to a
   `StageMeta` with its real input/output form names
   (`terminal-production/machine-selection`: `CheckedTrees → TerminalMachine`,
