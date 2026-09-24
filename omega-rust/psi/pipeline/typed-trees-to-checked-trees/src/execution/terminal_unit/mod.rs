@@ -1,3 +1,113 @@
+//! Executable Unit plans from checked ownership, control and call facts.
+//!
+//! We build executable source plans from already-checked ownership, control, and
+//! call facts. A typed body can be legal without fitting a Terminal producer yet;
+//! these catalogs describe implementation coverage, not additional language rules.
+//! The lowerer must receive a complete plan, never a partly recognized body.
+//!
+//! Start at `build_checked_unit_effect_plans_with_call_frames`, the checking
+//! stage's entry into this module (`build_checked_unit_effect_plans` is its
+//! test-only form without call frames). The cleanup rosters are built
+//! separately by `build_checked_partial_affine_unit_cleanup_plans` and
+//! `build_checked_nominal_affine_unit_cleanup_plans`. We first collect boundary
+//! signatures and ordinary single-state candidates through control.rs. A
+//! single-state body has one producer: control/statement_sequence.rs walks the
+//! authored statements in order and emits each one's operations — stores,
+//! borrowed-window moves and repairs, selected operator and FMA applications,
+//! structural and scalar bindings, calls and completion — after the prefix of
+//! trivial affine locals that calls/affine_locals.rs establishes. Borrowed `self`
+//! is retained exactly when the body uses the receiver as storage
+//! (receiver_calls/observations.rs); ambient attachment serves receiver calls.
+//! We then reconcile implicit receivers, build composed candidates through
+//! composed_control/assembly.rs, and reconcile composed calls against the completed
+//! signatures. The composed builders include specialized control shapes and the
+//! general state_graph.rs route; their current coverage differs, so a failed
+//! candidate is not permission to omit its unsupported statements.
+//!
+//! Local construction is only the first gate. Ordinary and composed entries share
+//! one immutable availability roster. We check operations once, then propagate
+//! unavailable targets through reverse call edges. If A calls B and B calls an
+//! unavailable C, rejecting B also rejects A without rechecking A's body. Checking
+//! only A's own statements, or
+//! pruning each catalog independently, would leave a seemingly complete root with
+//! an unlowerable transitive call. Scalar calls can borrow an ordinary scalar-result
+//! body from this same roster; their argument, claim and contract checks still use
+//! the exact scalar signature. Boundary and structural-result calls retain their
+//! own availability checks. Only after
+//! pruning do we retain the referenced structural types and their transitive shapes.
+//!
+//! When a downstream error says a checked transitive machine plan is missing,
+//! read the record's `omissions` roster first: every checked-body machine without
+//! a plan carries the stage that dropped it (local construction, receiver
+//! reconciliation, builder overlap, or closure pruning with the direct dependency
+//! that was unavailable). Following the closure rows reaches the machine whose own
+//! body failed local construction; the Option-based builders still do not retain
+//! which local requirement failed there, so that machine's body is where to look
+//! before changing lowering.
+//!
+//! # Receiver specialization
+//!
+//! Receiver specialization is the non-obvious ordering constraint. An attached
+//! body can use an ambient attachment without retaining borrowed self, but a callee
+//! that retains self needs the caller's actual loan. control::build_checked_machine
+//! retries with self retained when the ambient plan fails; receiver_calls.rs also
+//! propagates that demand through forwarding callers after signatures exist. We
+//! rebuild those callers with the ordinary planner rather than manually shifting
+//! all their parameter, store, claim, and provider coordinates. Inserting the call's
+//! receiver operand then adjusts existing claim-transfer positions; the loan itself
+//! is not an ownership transfer.
+//!
+//! This is transitional source planning, not native receiver provisioning. Keeping
+//! self unconditionally depends on the ProgramEntry bridge supplying its loan
+//! (ENTRY-CONTENT-ROOTS in TASKS.md). A field on that provisioned receiver does not
+//! require generic source-local array construction merely because it is an array.
+//! Likewise, publishing one of these plans establishes no native execution claim.
+//! Partial and nominal cleanup retain separate plan owners below because their
+//! residual fields and destructor obligations cannot become trivial root discards.
+//!
+//! # Executable companions
+//!
+//! Existing source examples are the executable companions to this explanation:
+//! src/tests/flow/terminal_unit/calls.rs checks mixed case payload/view edges and
+//! affine return disposal. In the sibling checked-trees-to-lowered-psi crate,
+//! src/tests/composed_unit_transitive_internal_calls.rs follows Root::enter through
+//! its helpers and rejects substituted targets and missing plans;
+//! src/tests/byte_write_loop.rs exercises borrowed buffers and scalar-case returns.
+//! Read those controls when widening a route. The owning source/Terminal coverage
+//! contract is ../../compiler/terminal-production/README.md relative to this crate.
+//!
+//! # Erased parameters
+//!
+//! An `[erased]` binding occurrence
+//! (contracts.md#explicit-erased-bindings) stays in the typed signature and in
+//! proof identity but owns no ABI position. Every signature builder here
+//! (calls/signatures.rs, calls/call_operations.rs, ../scalar/mod.rs)
+//! skips it, and every caller-side argument producer
+//! (values/scalar/computations.rs, values/scalar/call_lowering.rs,
+//! flow/transfers/scalar_values/calls.rs) numbers its dense argument ordinals over
+//! the retained positions only, so the two sides agree without a shared table.
+//! `position` and `source_position` stay the authored typed-signature index and
+//! therefore become sparse after a strip: the Terminal consumer rejoins each
+//! retained parameter to `state_parameters(state)[position]` for its type, symbol
+//! and custody, so renumbering densely would bind the wrong source parameter.
+//! Arity checks count `abi_parameter_count`, not `state_parameters(state).len()`,
+//! and `strips_erased_parameter` decides which bindings may be stripped at all.
+//! The dense scalar value namespace that `CheckedScalarExpression::Parameter`
+//! indexes is the same partition: `values::scalar::occupies_scalar_position`
+//! excludes erased bindings there, so a body reading a retained parameter after
+//! an erased one gets the shifted position and a runtime read of the erased one
+//! finds no position. The consumer, checked-trees-to-lowered-psi, reconstructs
+//! every one of these partitions independently from the typed relevance
+//! (unit/attached_unit/parameters.rs, expression_preparation/qualifications.rs,
+//! source_custody/{parameters,direct_calls,replay_source,storage_reads,
+//! successors,computation_calls}, scalar_graph/scalar_computations/calls.rs)
+//! and never trusts the plan's counts. What remains open is a contract that
+//! names an erased binding (`requires n < bound`): Terminal contract
+//! propositions have no proof-only value for it, so
+//! pass/relevance/erased_parameter_proof_only stays a checked-only canary while
+//! its two RUN siblings execute natively (canary_suite layouts_and_pending
+//! erased_parameter_* tests).
+
 use crate::execution::terminal_unit::calls::free_structural_scalar_signature;
 use crate::execution::terminal_unit::cleanup::build_nominal_affine_unit_cleanup_machine;
 #[cfg(test)]
@@ -11,112 +121,6 @@ use crate::execution::terminal_unit::dynamic_scalar_calls::build_checked_dynamic
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, type_graph_requires_nominal_drop,
 };
-/*
-We build executable source plans from already-checked ownership, control, and
-call facts. A typed body can be legal without fitting a Terminal producer yet;
-these catalogs describe implementation coverage, not additional language rules.
-The lowerer must receive a complete plan, never a partly recognized body.
-
-Start with build_checked_unit_effect_plans below. We first collect boundary
-signatures and ordinary single-state candidates through control.rs. A
-single-state body has one producer: control/statement_sequence.rs walks the
-authored statements in order and emits each one's operations — stores,
-borrowed-window moves and repairs, selected operator and FMA applications,
-structural and scalar bindings, calls and completion — after the prefix of
-trivial affine locals that calls/affine_locals.rs establishes. Borrowed `self`
-is retained exactly when the body uses the receiver as storage
-(receiver_calls/observations.rs); ambient attachment serves receiver calls.
-We then reconcile implicit receivers, build composed candidates through
-composed_control/assembly.rs, and reconcile composed calls against the completed
-signatures. The composed builders include specialized control shapes and the
-general state_graph.rs route; their current coverage differs, so a failed
-candidate is not permission to omit its unsupported statements.
-
-Local construction is only the first gate. Ordinary and composed entries share
-one immutable availability roster. We check operations once, then propagate
-unavailable targets through reverse call edges. If A calls B and B calls an
-unavailable C, rejecting B also rejects A without rechecking A's body. Checking
-only A's own statements, or
-pruning each catalog independently, would leave a seemingly complete root with
-an unlowerable transitive call. Scalar calls can borrow an ordinary scalar-result
-body from this same roster; their argument, claim and contract checks still use
-the exact scalar signature. Boundary and structural-result calls retain their
-own availability checks. Only after
-pruning do we retain the referenced structural types and their transitive shapes.
-
-When a downstream error says a checked transitive machine plan is missing,
-read the record's `omissions` roster first: every checked-body machine without
-a plan carries the stage that dropped it (local construction, receiver
-reconciliation, builder overlap, or closure pruning with the direct dependency
-that was unavailable). Following the closure rows reaches the machine whose own
-body failed local construction; the Option-based builders still do not retain
-which local requirement failed there, so that machine's body is where to look
-before changing lowering.
-*/
-
-/*
-Receiver specialization is the non-obvious ordering constraint. An attached
-body can use an ambient attachment without retaining borrowed self, but a callee
-that retains self needs the caller's actual loan. control::build_checked_machine
-retries with self retained when the ambient plan fails; receiver_calls.rs also
-propagates that demand through forwarding callers after signatures exist. We
-rebuild those callers with the ordinary planner rather than manually shifting
-all their parameter, store, claim, and provider coordinates. Inserting the call's
-receiver operand then adjusts existing claim-transfer positions; the loan itself
-is not an ownership transfer.
-
-This is transitional source planning, not native receiver provisioning. Keeping
-self unconditionally depends on the ProgramEntry bridge supplying its loan
-(ENTRY-CONTENT-ROOTS in TASKS.md). A field on that provisioned receiver does not
-require generic source-local array construction merely because it is an array.
-Likewise, publishing one of these plans establishes no native execution claim.
-Partial and nominal cleanup retain separate plan owners below because their
-residual fields and destructor obligations cannot become trivial root discards.
-*/
-
-/*
-Existing source examples are the executable companions to this explanation:
-src/tests/flow/terminal_unit/calls.rs checks mixed case payload/view edges and
-affine return disposal. In the sibling checked-trees-to-lowered-psi crate,
-src/tests/composed_unit_transitive_internal_calls.rs follows Root::enter through
-its helpers and rejects substituted targets and missing plans;
-src/tests/byte_write_loop.rs exercises borrowed buffers and scalar-case returns.
-Read those controls when widening a route. The owning source/Terminal coverage
-contract is ../../compiler/terminal-production/README.md relative to this crate.
-*/
-
-/*
-Erased parameters. An `[erased]` binding occurrence
-(contracts.md#explicit-erased-bindings) stays in the typed signature and in
-proof identity but owns no ABI position. Every signature builder here
-(calls/signatures.rs, calls/call_operations.rs, ../scalar/mod.rs)
-skips it, and every caller-side argument producer
-(values/scalar/computations.rs, values/scalar/call_lowering.rs,
-flow/transfers/scalar_values/calls.rs) numbers its dense argument ordinals over
-the retained positions only, so the two sides agree without a shared table.
-`position` and `source_position` stay the authored typed-signature index and
-therefore become sparse after a strip: the Terminal consumer rejoins each
-retained parameter to `state_parameters(state)[position]` for its type, symbol
-and custody, so renumbering densely would bind the wrong source parameter.
-Arity checks count `abi_parameter_count`, not `state_parameters(state).len()`,
-and `strips_erased_parameter` decides which bindings may be stripped at all.
-The dense scalar value namespace that `CheckedScalarExpression::Parameter`
-indexes is the same partition: `values::scalar::occupies_scalar_position`
-excludes erased bindings there, so a body reading a retained parameter after
-an erased one gets the shifted position and a runtime read of the erased one
-finds no position. The consumer, checked-trees-to-lowered-psi, reconstructs
-every one of these partitions independently from the typed relevance
-(unit/attached_unit/parameters.rs, expression_preparation/qualifications.rs,
-source_custody/{parameters,direct_calls,replay_source,storage_reads,
-successors,computation_calls}, scalar_graph/scalar_computations/calls.rs)
-and never trusts the plan's counts. What remains open is a contract that
-names an erased binding (`requires n < bound`): Terminal contract
-propositions have no proof-only value for it, so
-pass/relevance/erased_parameter_proof_only stays a checked-only canary while
-its two RUN siblings execute natively (canary_suite layouts_and_pending
-erased_parameter_* tests).
-*/
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
@@ -207,239 +211,6 @@ pub(crate) use types::{is_reference, strips_erased_parameter, structural_paramet
 pub(crate) struct ScalarCalleePlans<'plans> {
     pub(crate) boundary_returns: &'plans CheckedBoundaryScalarReturnPlans,
     pub(crate) structural_returns: &'plans CheckedStructuralScalarReturnPlans,
-}
-
-pub(super) fn cleanup_type_is_unit(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    is_unit(program, type_reference)
-}
-
-/// Whether a state's authored parameters fit the scalar graph's structural
-/// carrier contract: owned plain contents, closed primitive arrays, borrowed
-/// slices, and named primitive referees carry; anything else keeps the state
-/// off the graph.
-pub(crate) fn structural_scalar_graph_parameter_admission(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-) -> bool {
-    !program.state_parameters(state).iter().any(|parameter| {
-        if parameter.is_self || parameter.relevance.is_erased() {
-            return false;
-        }
-        // Numeric constraints retain their separate scalar contract owner;
-        // they do not qualify an owned structural carrier.
-        if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
-            return !validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                parameter.type_reference,
-            );
-        }
-        // Whole array payloads include empty dimensions. Their exact recursive
-        // type, not the nominal owned-storage classifier below, admits copying.
-        if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
-            return parameter.is_mutable;
-        }
-        let reference = match program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        {
-            TypeReferenceNode::Reference { referee, .. } => {
-                // A borrowed slice view is a structural carrier in its own
-                // right: its extent is a stored runtime length, not a
-                // declared bound, so the referent stays outside the owned
-                // payload admission this signature applies to plain data.
-                if matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Slice { .. }
-                ) {
-                    return false;
-                }
-                if program.primitive_type_reference(*referee).is_none() {
-                    return true;
-                }
-                *referee
-            }
-            _ => {
-                if parameter.is_mutable
-                    && program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-                {
-                    return true;
-                }
-                if !validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    parameter.type_reference,
-                ) {
-                    return true;
-                }
-                parameter.type_reference
-            }
-        };
-        !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
-        )
-    })
-}
-
-/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
-pub(super) fn structural_scalar_graph_signature(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-    Vec<CheckedUnitStructuralTypePlan>,
-)> {
-    if !structural_scalar_graph_parameter_admission(program, state) {
-        return None;
-    }
-    let mut shapes = ShapeCollector::new(program);
-    let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
-    if structural.iter().any(|parameter| {
-        parameter.is_self
-            || !matches!(
-                (parameter.access, parameter.multiplicity),
-                (_, Multiplicity::Unrestricted)
-                    | (CheckedStructuralAccess::Owned, Multiplicity::Affine)
-            )
-            || !parameter.qualifications.is_empty()
-    }) {
-        return None;
-    }
-    Some((structural, scalar, shapes.types.into_values().collect()))
-}
-
-/// Construction and structural results share the same closed sum admission.
-/// The namespace includes real value types even when no parameter names them.
-pub(super) fn scalar_case_value_shapes(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
-    let mut shapes = ShapeCollector::new(program);
-    state_graph::returns::signature(program, &mut shapes, reference)?;
-    Some(shapes.types.into_values().collect())
-}
-
-/// Scalar control retains complete fresh-record storage in the same declaration
-/// namespace as the ordinary structural value emitter, including nested bounds.
-pub(super) fn scalar_graph_record_shapes(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
-    if !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-        || !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-        || !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
-        )
-    {
-        return None;
-    }
-    let mut shapes = ShapeCollector::new(program);
-    shapes.add_type(reference, &[], &[])?;
-    if !shapes.domains.is_empty()
-        || !shapes.types.values().all(|declaration| {
-            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
-            if fields.iter().all(|field| !field.relevance.is_erased()
-                && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
-                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
-                    | CheckedUnitStructuralFieldType::Structural { .. })))
-        })
-    {
-        return None;
-    }
-    Some(shapes.types.into_values().collect())
-}
-
-/// Reconstruct the exact direct-record shape admitted by the first checked
-/// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
-/// makes the result use the same normalized field/type identities as the
-/// established partial-return residual walker.
-pub(crate) fn exact_two_field_record_projection(
-    program: &TypedTrees,
-    root_type: TypeReferenceHandle,
-    moved_field: SymbolHandle,
-    target_type: TypeReferenceHandle,
-) -> Option<(String, String, String, String)> {
-    let TypeReferenceNode::Named {
-        symbol: root_symbol,
-        ..
-    } = program.type_reference_table.type_reference(root_type)
-    else {
-        return None;
-    };
-    let root = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *root_symbol)?;
-    if root.properties.multiplicity != Multiplicity::Affine
-        || root.properties.carry.is_some()
-        || !root.lifetime_parameters.is_empty()
-        || !program.data_type_parameters(root).is_empty()
-        || type_graph_requires_nominal_drop(program, root_type)
-    {
-        return None;
-    }
-    let members = program.data_members(root);
-    let [DataMember::Field(left), DataMember::Field(right)] = members else {
-        return None;
-    };
-    let source_fields = [left, right];
-    if source_fields.iter().any(|field| {
-        field.relevance.is_erased()
-            || crate::checks::type_multiplicity(program, field.type_reference)
-                != Multiplicity::Affine
-            || type_graph_requires_nominal_drop(program, field.type_reference)
-    }) {
-        return None;
-    }
-
-    let mut shapes = ShapeCollector::new(program);
-    let root_identity = shapes.add_type(root_type, &[], &[])?;
-    let target_identity = shapes.add_type(target_type, &[], &[])?;
-    let root_plan = shapes.types.get(&root_identity)?;
-    let CheckedUnitStructuralTypeShape::Record { fields } = &root_plan.shape else {
-        return None;
-    };
-    let [left_plan, right_plan] = fields.as_slice() else {
-        return None;
-    };
-    let plans = [left_plan, right_plan];
-    let moved_index = source_fields
-        .iter()
-        .position(|field| field.symbol == moved_field)?;
-    let residual_index = 1_usize.checked_sub(moved_index)?;
-    let CheckedUnitStructuralFieldType::Structural {
-        type_identity: moved_type_identity,
-    } = &plans[moved_index].field_type
-    else {
-        return None;
-    };
-    let CheckedUnitStructuralFieldType::Structural {
-        type_identity: residual_type_identity,
-    } = &plans[residual_index].field_type
-    else {
-        return None;
-    };
-    if moved_type_identity != &target_identity {
-        return None;
-    }
-    Some((
-        plans[moved_index].identity.clone(),
-        moved_type_identity.clone(),
-        plans[residual_index].identity.clone(),
-        residual_type_identity.clone(),
-    ))
 }
 
 /// Build the first general structural/Unit terminal plan after ownership and
@@ -1128,4 +899,239 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
         structural_types: shapes.types.into_values().collect(),
         machines,
     }
+}
+
+// Shape and signature admission shared by the plan builders above.
+
+pub(super) fn cleanup_type_is_unit(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    is_unit(program, type_reference)
+}
+
+/// Whether a state's authored parameters fit the scalar graph's structural
+/// carrier contract: owned plain contents, closed primitive arrays, borrowed
+/// slices, and named primitive referees carry; anything else keeps the state
+/// off the graph.
+pub(crate) fn structural_scalar_graph_parameter_admission(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> bool {
+    !program.state_parameters(state).iter().any(|parameter| {
+        if parameter.is_self || parameter.relevance.is_erased() {
+            return false;
+        }
+        // Numeric constraints retain their separate scalar contract owner;
+        // they do not qualify an owned structural carrier.
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            return !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                parameter.type_reference,
+            );
+        }
+        // Whole array payloads include empty dimensions. Their exact recursive
+        // type, not the nominal owned-storage classifier below, admits copying.
+        if validation::is_closed_primitive_array_type(program, parameter.type_reference) {
+            return parameter.is_mutable;
+        }
+        let reference = match program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => {
+                // A borrowed slice view is a structural carrier in its own
+                // right: its extent is a stored runtime length, not a
+                // declared bound, so the referent stays outside the owned
+                // payload admission this signature applies to plain data.
+                if matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Slice { .. }
+                ) {
+                    return false;
+                }
+                if program.primitive_type_reference(*referee).is_none() {
+                    return true;
+                }
+                *referee
+            }
+            _ => {
+                if parameter.is_mutable
+                    && program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+                {
+                    return true;
+                }
+                if !validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    parameter.type_reference,
+                ) {
+                    return true;
+                }
+                parameter.type_reference
+            }
+        };
+        !matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        )
+    })
+}
+
+/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
+pub(super) fn structural_scalar_graph_signature(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<CheckedUnitStructuralTypePlan>,
+)> {
+    if !structural_scalar_graph_parameter_admission(program, state) {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let (structural, scalar) = free_structural_scalar_signature(program, &mut shapes, state, &[])?;
+    if structural.iter().any(|parameter| {
+        parameter.is_self
+            || !matches!(
+                (parameter.access, parameter.multiplicity),
+                (_, Multiplicity::Unrestricted)
+                    | (CheckedStructuralAccess::Owned, Multiplicity::Affine)
+            )
+            || !parameter.qualifications.is_empty()
+    }) {
+        return None;
+    }
+    Some((structural, scalar, shapes.types.into_values().collect()))
+}
+
+/// Construction and structural results share the same closed sum admission.
+/// The namespace includes real value types even when no parameter names them.
+pub(super) fn scalar_case_value_shapes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    let mut shapes = ShapeCollector::new(program);
+    state_graph::returns::signature(program, &mut shapes, reference)?;
+    Some(shapes.types.into_values().collect())
+}
+
+/// Scalar control retains complete fresh-record storage in the same declaration
+/// namespace as the ordinary structural value emitter, including nested bounds.
+pub(super) fn scalar_graph_record_shapes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
+        || !matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        )
+    {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    shapes.add_type(reference, &[], &[])?;
+    if !shapes.domains.is_empty()
+        || !shapes.types.values().all(|declaration| {
+            matches!(&declaration.shape, CheckedUnitStructuralTypeShape::Record { fields }
+            if fields.iter().all(|field| !field.relevance.is_erased()
+                && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                    | CheckedUnitStructuralFieldType::Structural { .. })))
+        })
+    {
+        return None;
+    }
+    Some(shapes.types.into_values().collect())
+}
+
+/// Reconstruct the exact direct-record shape admitted by the first checked
+/// projected-transition cleanup rung. Keeping this next to `ShapeCollector`
+/// makes the result use the same normalized field/type identities as the
+/// established partial-return residual walker.
+pub(crate) fn exact_two_field_record_projection(
+    program: &TypedTrees,
+    root_type: TypeReferenceHandle,
+    moved_field: SymbolHandle,
+    target_type: TypeReferenceHandle,
+) -> Option<(String, String, String, String)> {
+    let TypeReferenceNode::Named {
+        symbol: root_symbol,
+        ..
+    } = program.type_reference_table.type_reference(root_type)
+    else {
+        return None;
+    };
+    let root = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *root_symbol)?;
+    if root.properties.multiplicity != Multiplicity::Affine
+        || root.properties.carry.is_some()
+        || !root.lifetime_parameters.is_empty()
+        || !program.data_type_parameters(root).is_empty()
+        || type_graph_requires_nominal_drop(program, root_type)
+    {
+        return None;
+    }
+    let members = program.data_members(root);
+    let [DataMember::Field(left), DataMember::Field(right)] = members else {
+        return None;
+    };
+    let source_fields = [left, right];
+    if source_fields.iter().any(|field| {
+        field.relevance.is_erased()
+            || crate::checks::type_multiplicity(program, field.type_reference)
+                != Multiplicity::Affine
+            || type_graph_requires_nominal_drop(program, field.type_reference)
+    }) {
+        return None;
+    }
+
+    let mut shapes = ShapeCollector::new(program);
+    let root_identity = shapes.add_type(root_type, &[], &[])?;
+    let target_identity = shapes.add_type(target_type, &[], &[])?;
+    let root_plan = shapes.types.get(&root_identity)?;
+    let CheckedUnitStructuralTypeShape::Record { fields } = &root_plan.shape else {
+        return None;
+    };
+    let [left_plan, right_plan] = fields.as_slice() else {
+        return None;
+    };
+    let plans = [left_plan, right_plan];
+    let moved_index = source_fields
+        .iter()
+        .position(|field| field.symbol == moved_field)?;
+    let residual_index = 1_usize.checked_sub(moved_index)?;
+    let CheckedUnitStructuralFieldType::Structural {
+        type_identity: moved_type_identity,
+    } = &plans[moved_index].field_type
+    else {
+        return None;
+    };
+    let CheckedUnitStructuralFieldType::Structural {
+        type_identity: residual_type_identity,
+    } = &plans[residual_index].field_type
+    else {
+        return None;
+    };
+    if moved_type_identity != &target_identity {
+        return None;
+    }
+    Some((
+        plans[moved_index].identity.clone(),
+        moved_type_identity.clone(),
+        plans[residual_index].identity.clone(),
+        residual_type_identity.clone(),
+    ))
 }
