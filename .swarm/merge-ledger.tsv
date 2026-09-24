@@ -129,3 +129,5 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T02:29:06Z	leaf/transition-self-scalar-guards->main	93d6fd481d z4 index bounds mint minimum-length floors 5277/5277
 2026-09-24T02:48:09Z	leaf/self-view-element-guards->main	62e1857000 z4 strict orderings chain through bounds 5278/5278
 2026-09-24T02:59:15Z	leaf/bounds-boundary-residuals->main	6b55dfb96b z4 expr-k ordering decomposition + len-k proofs 5279/5279
+2026-09-24T03:05:14Z	leaf/guard-arithmetic-bounds->main	f997071dc41 z4 arithmetic index carrier-type 5280/5280
+2026-09-24T03:05:14Z	leaf/receiver-free-view-returns->main	9ab055a1e74 z3 receiver-free view results + Wv build path 7028/7028
