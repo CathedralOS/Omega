@@ -247,11 +247,37 @@ qualified path; `Float` matches `case Float` declarations
 closure. The same commit migrated test fixtures but zero `source/library/`
 files, and its recorded validation ran no std-consuming compile.
 
+Blast radius, measured: `float_unit_ratio_compile` (imports
+core/float_operations, no std) compiles clean — the check fires only when a
+`case Float` declaration is in the program closure, so the breakage covers
+exactly the consumers of `std/calling.omg` (~1,119 of 1,863 pinned-green
+pass fixtures author a std dependency). **Instrument caveat, witnessed:**
+`tools/corpus_gate.py` on the same failing fixture ran clean — the
+reviewed-package-inputs Check route does not observe the package-body
+failure the CLI `--check` produces, so `corpus_outcomes.json` stays green
+while the product path (CLI, samples_compile, native legs) is red. The
+corpus instrument has a package-body coverage gap; the reliable witness is
+`mbx run -p omega -- --check source/library/std/main.omg` = 272 errors.
+
+Gate legs measured at/near HEAD on windows_x86_64 (first measurements ever
+at these revisions): `python tools/fmt.py --check` exit 0;
+`mbx check --workspace --all-targets` exit 0 (1m45s);
+`omega-architecture-test` 608/611 then 611/611 after two catalog repairs
+(landed `f5367fc967`, `a0eecec22f`); `mbx clippy --workspace --all-targets
+-- -D warnings` red at one site — `clippy::question_mark`,
+terminal-semantics `call_composition/fixed_byte_view.rs:145`, crate under
+active claim; `mbx nextest run --workspace --lib` unmeasured. The
+`scoped_lookup_maps` failures recorded on linux recur on main for the same
+family (stale catalog rows from `824c66a762`) — repaired in `a0eecec22f`.
+
 Two consequences for the distance estimate above: every gate recorded
-before `7b9dce26d7` is now optimistic — the live tree is strictly redder
-than any evidence on file; and the `Type::{}` in the diagnostic is a literal
+before `7b9dce26d7` is optimistic on the product path — the live tree is
+strictly redder there than any evidence on file, while the corpus gate
+under-reports it; and the `Type::{}` in the diagnostic is a literal
 placeholder, so the message's suggested carrier path is wrong (a second,
-smaller defect in the same check).
+smaller defect in the same check). Repair of the regression is claimed
+(`LINUX-FLOAT-CASE-QUALIFICATION`); root cause and this caveat were handed
+off through the claims notes.
 
 ## Examined evidence and caveats
 
