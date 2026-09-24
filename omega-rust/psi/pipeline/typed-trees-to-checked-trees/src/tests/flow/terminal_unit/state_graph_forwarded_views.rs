@@ -1,10 +1,11 @@
 //! A free multi-state machine carries each authored state's own structural
 //! roster: a borrowed view formal forwards whole across the edges that reach
-//! its state, bound by the same signature a single-state graph uses.
+//! its state. That forwarding belongs to the Unit state graph; the scalar
+//! graph keeps structural formals to one body.
 use super::{Multiplicity, PrimitiveType};
 use crate::tests::flow::terminal_unit::{checked, machine_named};
 use checked_trees::{
-    CheckedScalarBranchDestination, CheckedScalarStateTerminator, CheckedStructuralAccess,
+    CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlTransferSourcePlan,
 };
 
@@ -30,10 +31,21 @@ const SOURCE: &str = r#"
 fn free_multi_state_machine_forwards_shared_view_formals() {
     let checked = checked(SOURCE);
     let machine = machine_named(&checked, "scan");
-    let plans = &checked.facts.flow.terminal_scalar_graphs;
-    let graph = plans
-        .for_machine(machine)
-        .expect("multi-state free machine with forwarded view formals");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine)
+            .is_none(),
+        "structural formals stay with one scalar-graph body"
+    );
+    let graph = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("the state graph owns the forwarded view formals");
     assert_eq!(graph.states.len(), 3);
     for state in &graph.states {
         let [line] = state.structural_parameters.as_slice() else {
@@ -74,40 +86,39 @@ fn free_multi_state_machine_forwards_shared_view_formals() {
         ),
         (1, PrimitiveType::U64)
     );
-    let CheckedScalarStateTerminator::Jump(entry_edge) = &graph.states[0].terminator else {
+    let CheckedComposedUnitControlTerminatorPlan::Jump { successor } = &graph.states[0].terminator
+    else {
         panic!("entry jumps to its first authored state");
     };
-    let transfers = plans
-        .structural_transfers
-        .span(entry_edge.structural_transfers)
-        .expect("recorded entry transfers");
-    assert!(matches!(transfers, [transfer] if matches!(
+    assert!(
+        matches!(successor.transfers.as_slice(), [transfer] if matches!(
             transfer.source,
             CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
-        ) && transfer.target_parameter_index == 0));
-    let CheckedScalarStateTerminator::Conditional {
-        when_true,
-        when_false,
+        ) && transfer.target_parameter_index == 0)
+    );
+    let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+        jump,
+        return_when_true: false,
         ..
     } = &graph.states[1].terminator
     else {
-        panic!("step branches on its authored guard");
+        panic!("step branches on its authored guard and returns on the false arm");
     };
-    let CheckedScalarBranchDestination::Jump(step_edge) = when_true else {
-        panic!("the guarded arm jumps to finish");
-    };
-    let transfers = plans
-        .structural_transfers
-        .span(step_edge.structural_transfers)
-        .expect("recorded step transfers");
-    assert!(matches!(transfers, [transfer] if matches!(
+    assert_eq!(
+        jump.target_state,
+        checked.machine_states(
+            checked
+                .machines()
+                .iter()
+                .find(|candidate| candidate.symbol == machine)
+                .unwrap(),
+        )[2]
+        .symbol
+    );
+    assert!(matches!(jump.transfers.as_slice(), [transfer] if matches!(
             transfer.source,
             CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 }
         ) && transfer.target_parameter_index == 0));
-    assert!(matches!(
-        when_false,
-        CheckedScalarBranchDestination::Return { .. }
-    ));
 }
 
 #[test]

@@ -25,8 +25,8 @@ use crate::scalar_graph::scalar_graph_lowering::{
 use crate::scalar_graph::{
     CheckedScalarBranchDestination, CheckedScalarExpressionRole, CheckedScalarMachineGraph,
     CheckedScalarStateTerminator, CheckedTrees, ClosedScalarContractValue, LoweringError,
-    Multiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration, allocate_dense,
-    lower_checked_crash_exit, place_id, scalar_carriers, unsupported,
+    Multiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    lower_checked_crash_exit, scalar_carriers, unsupported,
 };
 
 pub(crate) fn prepare_scalar_graph_machine(
@@ -145,10 +145,17 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         "checked scalar control plan must contain an entry state",
     ))?;
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
-    // Only a single-state machine retains its borrowed receiver, on the entry
-    // roster that is the machine signature. Non-entry structural formals
-    // arrive on the edge transfers the checked plan recorded per state.
+    // Structural formals belong to one body (`terminal_scalar::
+    // build_machine_graph`): only a graph of one state carries them, on the
+    // entry roster that is the machine signature. A graph of several states,
+    // a multi-state machine or tail-fused bodies, carries scalar formals
+    // only; a multi-state machine whose non-entry states would bind formals
+    // from their incoming edges belongs to the Unit state graph.
     if entry_state.structural_parameters.len() != structural_parameters.len()
+        || (states.len() != 1
+            && states
+                .iter()
+                .any(|state| !state.structural_parameters.is_empty()))
         || (!primitive_locals.is_empty() && states.len() != 1)
         || states
             .iter()
@@ -157,7 +164,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             != primitive_locals.len()
     {
         return unsupported(
-            "scalar graph requires its exact structural entry namespace; primitive locals remain single-state",
+            "scalar graph requires its exact structural entry namespace; a multi-state graph carries scalar formals only",
         );
     }
     let loop_plan = cycles::prepare(
@@ -167,22 +174,17 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         structural_types,
         next_place,
     )?;
+    // A re-entered body rebinds its roster as the loop header's parameters
+    // (`cycles::prepare`), which checks each back-edge transfer itself.
     let structural_parameters = loop_plan
         .as_ref()
         .map_or(structural_parameters, |plan| plan.parameters.as_slice());
-    // Non-entry structural formals are bound by the whole-parameter transfers
-    // on the edges that reach them, not by the machine roster positionally.
-    // Resolve each state's namespace by tracing those transfers back to the
-    // declarations the machine emitted. A loop-reshaped roster can drop the
-    // entry correspondence, in which case forwarded multi-state stays out of
-    // scope.
-    let state_namespaces = structural_namespaces(
-        checked,
-        states,
-        structural_parameters,
-        loop_plan.is_some(),
-        next_place,
-    )?;
+    let entry_namespace = entry_state
+        .structural_parameters
+        .iter()
+        .zip(structural_parameters)
+        .map(|(source, declaration)| (source.position, declaration.clone()))
+        .collect::<Vec<_>>();
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state.state)?;
     let return_sink = states
@@ -220,6 +222,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .with_fields(&fields);
 
     for (state_index, state) in states.iter().enumerate() {
+        let state_namespace: &[(u32, StructuralParameterDeclaration)] = if state_index == 0 {
+            &entry_namespace
+        } else {
+            &[]
+        };
         computations.refresh_proof_scope(&state.erased_proof_parameters);
         let (parameter_types, state_result_type) =
             qualifications.scalar_state_types(checked, state.state)?;
@@ -244,7 +251,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             parameter_types,
             erased_formal_types,
             &state.erased_proof_parameters,
-            &state_namespaces[state_index],
+            state_namespace,
             primitive_locals,
             structural_types,
             next_place,
@@ -425,7 +432,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         case_dispatch_terminator(
                             source,
                             case,
-                            &state_namespaces[state_index],
+                            state_namespace,
                             structural_types,
                             value_types,
                             (
@@ -477,20 +484,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 }
             }
         };
-        // A non-entry state's head block declares the structural formals its
-        // incoming edges forward — `finish` wraps continuation blocks beneath
-        // it, so the roster lands on the returned state itself. The entry's
-        // roster lives on the machine signature, not the block: an entry
-        // block with a nonempty roster is reserved for owned loop forwarding
-        // custody.
-        let mut lowered_state = prepared.finish(state.state, terminator, &mut computations)?;
-        if state_index != 0 {
-            lowered_state.structural_parameters = state_namespaces[state_index]
-                .iter()
-                .map(|(_, declaration)| declaration.clone())
-                .collect();
-        }
-        lowered_states.push(lowered_state);
+        // The entry's roster lives on the machine signature, not the block:
+        // an entry block with a nonempty roster is reserved for owned loop
+        // forwarding custody.
+        lowered_states.push(prepared.finish(state.state, terminator, &mut computations)?);
     }
 
     if return_sink.is_some() {
@@ -702,200 +699,6 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         partition_compositions,
         loop_plan,
     })
-}
-
-/// The structural namespace each scalar-graph state binds. The entry roster is
-/// the machine's emitted roster in authored order; a non-entry state's formals
-/// are bound by the whole-parameter transfers on the edges that reach it, so
-/// each formal resolves to the declaration its incoming edges forward. Every
-/// incoming edge must agree on one declaration — joins that would bind
-/// different places to the same formal, transfers not originating from a
-/// parameter, and formals with no incoming binding have no lowered shape.
-fn structural_namespaces(
-    checked: &CheckedTrees,
-    states: &[checked_trees::CheckedScalarStateGraph],
-    emitted: &[StructuralParameterDeclaration],
-    loop_owns_entry: bool,
-    next_place: &mut u64,
-) -> Result<Vec<Vec<(u32, StructuralParameterDeclaration)>>, LoweringError> {
-    let mut resolved =
-        Vec::<Vec<Option<StructuralParameterDeclaration>>>::with_capacity(states.len());
-    for (index, state) in states.iter().enumerate() {
-        resolved.push(if index == 0 {
-            state
-                .structural_parameters
-                .iter()
-                .zip(emitted.iter())
-                .map(|(_, declaration)| Some(declaration.clone()))
-                .collect()
-        } else {
-            vec![None; state.structural_parameters.len()]
-        });
-    }
-    let plans = &checked.facts.flow.terminal_scalar_graphs;
-    for _ in 0..states.len() {
-        let mut progress = false;
-        for target_index in 0..states.len() {
-            // A single-state loop re-enters its entry through the loop plan
-            // (`cycles::prepare`), which rebinds the entry roster as loop
-            // header parameters and checks each back-edge transfer itself,
-            // including subslice and projected sources. The entry roster is
-            // the emitted signature either way, so its re-entry edges bind
-            // nothing here.
-            if target_index == 0 && loop_owns_entry {
-                continue;
-            }
-            for formal_index in 0..states[target_index].structural_parameters.len() {
-                let mut declaration: Option<&StructuralParameterDeclaration> = None;
-                let mut resolved_source = false;
-                for (source_index, source_state) in states.iter().enumerate() {
-                    for successor in state_successors(checked, source_state)? {
-                        if successor.target != states[target_index].state {
-                            continue;
-                        }
-                        for transfer in plans
-                            .structural_transfers
-                            .span(successor.structural_transfers)
-                            .ok_or(LoweringError::Unsupported(
-                                "scalar successor transfer span is stale",
-                            ))?
-                            .iter()
-                            .filter(|transfer| {
-                                transfer.target_parameter_index == formal_index as u32
-                            })
-                        {
-                            let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } =
-                                transfer.source
-                            else {
-                                return unsupported(
-                                    "scalar graph structural formals require whole parameter transfers",
-                                );
-                            };
-                            let Some(candidate) = resolved[source_index]
-                                .get(index as usize)
-                                .and_then(Option::as_ref)
-                            else {
-                                continue;
-                            };
-                            resolved_source = true;
-                            match declaration {
-                                Some(existing) if existing.place != candidate.place => {
-                                    return unsupported(
-                                        "scalar graph structural formal has inconsistent edge bindings",
-                                    );
-                                }
-                                Some(_) => {}
-                                None => declaration = Some(candidate),
-                            }
-                        }
-                    }
-                }
-                if resolved_source {
-                    let declaration = declaration.expect("a resolved edge yields a declaration");
-                    if resolved[target_index][formal_index]
-                        .as_ref()
-                        .is_none_or(|existing| existing.place != declaration.place)
-                    {
-                        if target_index == 0 {
-                            return unsupported(
-                                "scalar graph structural formal has inconsistent edge bindings",
-                            );
-                        }
-                        resolved[target_index][formal_index] = Some(declaration.clone());
-                        progress = true;
-                    }
-                }
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-    states
-        .iter()
-        .enumerate()
-        .zip(resolved)
-        .map(|((state_index, state), roster)| {
-            state
-                .structural_parameters
-                .iter()
-                .enumerate()
-                .zip(roster)
-                .map(|((formal_index, source), declaration)| {
-                    declaration
-                        .map(|declaration| {
-                            if state_index == 0 {
-                                return Ok((source.position, declaration));
-                            }
-                            // A non-entry state's formal is a block parameter:
-                            // it roots its own place so the content-place map
-                            // never re-roots a signature place under a block.
-                            // Its position counts the block's declared roster,
-                            // not the machine signature's.
-                            let mut declaration = declaration;
-                            declaration.position = u32::try_from(formal_index).ok().ok_or(
-                                LoweringError::Unsupported(
-                                    "scalar graph block formal position exceeds the host type",
-                                ),
-                            )?;
-                            declaration.is_self = false;
-                            declaration.place = place_id(allocate_dense(next_place)?);
-                            Ok((source.position, declaration))
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar graph state structural formal has no incoming edge binding",
-                        ))?
-                })
-                .collect()
-        })
-        .collect()
-}
-
-/// Every successor a checked scalar state can take, across its terminator
-/// shapes. Crash and return destinations carry no successor rows.
-fn state_successors<'a>(
-    checked: &'a CheckedTrees,
-    state: &'a checked_trees::CheckedScalarStateGraph,
-) -> Result<Vec<&'a checked_trees::CheckedScalarSuccessor>, LoweringError> {
-    let mut successors = Vec::new();
-    let destinations =
-        |destination: &'a CheckedScalarBranchDestination,
-         successors: &mut Vec<&'a checked_trees::CheckedScalarSuccessor>| {
-            if let CheckedScalarBranchDestination::Jump(successor) = destination {
-                successors.push(successor);
-            }
-        };
-    match &state.terminator {
-        CheckedScalarStateTerminator::Jump(successor) => successors.push(successor),
-        CheckedScalarStateTerminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            destinations(when_true, &mut successors);
-            destinations(when_false, &mut successors);
-        }
-        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-            for exit in checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .guarded_exits
-                .span(*arms)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar graph guarded exits have a stale span",
-                ))?
-            {
-                destinations(&exit.destination, &mut successors);
-            }
-            if let Some(fallback) = fallback {
-                destinations(fallback, &mut successors);
-            }
-        }
-        CheckedScalarStateTerminator::Return { .. }
-        | CheckedScalarStateTerminator::Crash { .. } => {}
-    }
-    Ok(successors)
 }
 
 /// A union match over a structural operand reaches scalar lowering as a

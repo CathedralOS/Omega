@@ -129,23 +129,13 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
     let mut erased_proof_arguments = arena::Arena::default();
-    // Resolve all edges before mutating spans or dropping machines: a named
-    // cross-machine target reads its own machine's parameter partition, so
-    // every graph in the completed list stays visible through resolution.
-    let resolved_arguments = machines
-        .iter()
-        .map(|graph| {
-            successors::resolve_arguments(program, expressions, proof_terms, &machines, graph)
-        })
-        .collect::<Vec<_>>();
-    let mut resolved_arguments = resolved_arguments.into_iter();
     machines.retain_mut(|graph| {
-        let rows = resolved_arguments.next().flatten();
         let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
             return false;
         };
         graph.ranked_scc = ranked_scc;
-        let Some(rows) = rows else {
+        let Some(rows) = successors::resolve_arguments(program, expressions, proof_terms, graph)
+        else {
             return false;
         };
         successors::commit_arguments(
@@ -199,20 +189,12 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
-    // Validation reads each successor's own machine graph for cross-machine
-    // targets, so every graph is checked against the completed list before
-    // any machine is dropped.
-    let retained = plans
-        .machines
-        .iter()
-        .map(|graph| {
-            if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
-                return false;
-            }
-            if successors::validate(
+    plans.machines.retain(|graph| {
+        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone())
+            || crate::lookup::machine_by_symbol(program, graph.machine).is_none()
+            || successors::validate(
                 program,
                 expressions,
-                &plans.machines,
                 graph,
                 &plans.structural_transfers,
                 &plans.scalar_arguments,
@@ -220,45 +202,39 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
                 proof_terms,
             )
             .is_none()
-            {
+        {
+            return false;
+        }
+        graph.states.iter().all(|retained| {
+            // A fused graph may retain a state authored under a sibling
+            // machine — custody predicates keep answering through the
+            // state's own owner, not the dispatch machine.
+            let Some((owner, state)) =
+                crate::semantic::calls::find_state_with_machine(program, retained.state)
+            else {
                 return false;
-            }
-            if crate::lookup::machine_by_symbol(program, graph.machine).is_none() {
+            };
+            let Some(transfers) = successors::owned_transfers(
+                program,
+                owner.symbol,
+                state,
+                retained,
+                &plans.structural_transfers,
+            ) else {
                 return false;
-            }
-            graph.states.iter().all(|retained| {
-                // A fused graph may retain a state authored under a sibling
-                // machine — custody predicates keep answering through the
-                // state's own owner, not the dispatch machine.
-                let Some((owner, state)) =
-                    crate::semantic::calls::find_state_with_machine(program, retained.state)
-                else {
-                    return false;
-                };
-                let Some(transfers) = successors::owned_transfers(
-                    program,
-                    owner.symbol,
-                    state,
-                    retained,
-                    &plans.structural_transfers,
-                ) else {
-                    return false;
-                };
-                owned_parameters::validate(
-                    program,
-                    ownership,
-                    computations,
-                    owner.symbol,
-                    state,
-                    &retained.structural_parameters,
-                    &transfers,
-                )
-                .is_some()
-            })
+            };
+            owned_parameters::validate(
+                program,
+                ownership,
+                computations,
+                owner.symbol,
+                state,
+                &retained.structural_parameters,
+                &transfers,
+            )
+            .is_some()
         })
-        .collect::<Vec<_>>();
-    let mut retained = retained.into_iter();
-    plans.machines.retain(|_| retained.next().unwrap_or(false));
+    });
 }
 
 fn build_machine_graph(
@@ -329,21 +305,28 @@ fn build_machine_graph(
         }
         states.push(built);
     }
+    // Structural formals belong to one body: a lone single-state graph binds
+    // them on its entry roster and forwards them only on its own re-entry. A
+    // graph of several states would bind each non-entry state's formals from
+    // the transfers on its incoming edges; that forwarding is the Unit state
+    // graph's, which carries each state's roster and is reachable from Unit
+    // callers (`scalar_targets::registered_structural_graph_target` accepts
+    // only single-state graphs). So a multi-state machine with structural
+    // formals, or a fused graph with any, declines here and the state graph
+    // owns it.
+    if states.len() > 1
+        && states
+            .iter()
+            .any(|(state, _, _)| !state.structural_parameters.is_empty())
+    {
+        return None;
+    }
     // A borrowed `self` is retained as the receiver operand only by a machine
     // of one authored state (`checked_state_graph`); every other state keeps
     // it ambient on the attachment carrier, so it may not read through it.
     // A multi-state machine that does belongs to the Unit state graph, which
     // retains the receiver on its entry roster where every Unit caller
-    // rejoins it (`receiver_calls`). The scalar graph used to retain it too,
-    // shared by every state through the entry roster. That gave the machine
-    // two owners; Unit callers reach only single-state graphs
-    // (`scalar_targets::registered_structural_graph_target`) while the state
-    // graph yields to any graph (`scalar owner precedence`), so the machine
-    // was uncallable. A multi-state machine that never reads `self` keeps a
-    // receiver-free graph, which Unit callers reach as a pure scalar call.
-    // Moving those to the state graph too is the next consolidation step; it
-    // first needs evidence that none relies on a capability only this route
-    // has, such as the natural ranks the state graph does not yet derive.
+    // rejoins it (`receiver_calls`).
     for (&(_, state), (built, ..)) in pending.iter().zip(&states) {
         if built
             .structural_parameters
@@ -446,12 +429,12 @@ fn checked_state_graph(
                 && machine.attached_data.is_some()
                 && (retains_receiver || !receiver)
             {
-                // An attached machine's graph carries the whole mixed
-                // signature per state, with each state's own structural
-                // formals forwarded across the edges that reach it. The
-                // carrier contract stays the ordinary scalar-graph admission,
-                // so a structural parameter the graph cannot carry keeps the
-                // whole machine off the graph.
+                // An attached machine's graph carries its whole mixed
+                // signature, and each re-entry edge forwards the body's own
+                // structural formals back onto it. The carrier contract stays
+                // the ordinary scalar-graph admission, so a structural
+                // parameter the graph cannot carry keeps the machine off the
+                // graph.
                 if !crate::execution::terminal_unit::structural_scalar_graph_parameter_admission(
                     program, state,
                 ) {
@@ -461,14 +444,13 @@ fn checked_state_graph(
                     program, machine, state,
                 )?
             } else if mixed {
-                // Whole structural forwarding, for a free machine or for an
-                // attached one whose receiver stays ambient, resolves each
-                // authored state's own signature: edge binding below forwards
-                // each structural formal onto its incoming transfers.
+                // A free machine, or an attached one whose receiver stays
+                // ambient, carries its ordinary free signature; each re-entry
+                // edge forwards the structural formals back onto it.
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
             } else if retains_receiver {
-                // The single state's roster is the machine's structural
-                // namespace, so the borrowed receiver lands there once.
+                // The state's roster is the machine's structural namespace,
+                // so the borrowed receiver lands there once.
                 crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
                     program, machine, state,
                 )?

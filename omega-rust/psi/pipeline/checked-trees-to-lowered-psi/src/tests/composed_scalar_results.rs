@@ -387,3 +387,159 @@ fn result_guarantees_keep_the_body_out_of_the_state_graph() {
             .all(|plan| checked.symbols.display_path(plan.machine, "::") != "Tally::pick")
     );
 }
+
+/// Observed boundary integers, in effect order.
+#[derive(Default)]
+struct Observed(Vec<u128>);
+
+impl terminal_interpreter::TerminalEffectHandler for Observed {
+    fn handle_effect(
+        &mut self,
+        effect: &terminal_interpreter::TerminalEffect,
+    ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+        let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+            panic!("expected an observation boundary: {effect:?}");
+        };
+        let [
+            TerminalScalarValue::Integer {
+                value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                ..
+            },
+        ] = arguments.as_slice()
+        else {
+            panic!("expected one unsigned observation: {arguments:?}");
+        };
+        self.0.push(*value);
+        Ok(())
+    }
+}
+
+/// A receiver-free multi-state machine whose states forward a borrowed view
+/// formal. The scalar graph keeps structural formals to one body, so the
+/// state graph owns it, and a Unit caller reaches it through the scalar call
+/// lane: `scan(bytes, 4, 9)` forwards the view through `step` into `finish`,
+/// which returns its length, and `scan(bytes, 0, 9)` returns the first
+/// position.
+const FORWARDED_VIEW_CALLEE: &str = r#"
+    boundary trait Output { machine observe(value: u64) reaches Output; }
+    machine scan(line: &[u8], start: u64, end: u64) -> u64 {
+        transition { _ -> step(line, start, end, start) }
+        state step(line: &[u8], start: u64, end: u64, position: u64) -> u64 {
+            transition position < end {
+                true -> finish(line, position)
+                false -> (start)
+            }
+        }
+        state finish(line: &[u8], position: u64) -> u64 {
+            transition position < line.len {
+                true -> (position)
+                _ -> (line.len)
+            }
+        }
+    }
+    machine measure(bytes: &[u8]) reaches Output {
+        let beyond: u64 = scan(bytes, 4, 9);
+        let first: u64 = scan(bytes, 0, 9);
+        Output::observe(beyond);
+        Output::observe(first);
+    }
+    data Root {}
+    machine Root::enter() reaches Output {
+        measure("hi");
+    }
+"#;
+
+#[test]
+fn a_unit_caller_reaches_a_receiver_free_multi_state_view_callee() {
+    let checked = crate::front_end::checked_program(FORWARDED_VIEW_CALLEE);
+    let graph = state_graph(&checked, "scan");
+    assert_eq!(
+        graph.result,
+        CheckedControlResultPlan::Scalar {
+            primitive_type: checked_trees::types::PrimitiveType::U64,
+        }
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(graph.machine)
+            .is_none(),
+        "structural formals stay with one scalar-graph body"
+    );
+    for state in &graph.states {
+        let [line] = state.structural_parameters.as_slice() else {
+            panic!("each state carries its own borrowed view formal");
+        };
+        assert_eq!(
+            line.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        );
+        assert!(!line.is_self);
+    }
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .unwrap_or_else(|error| panic!("the Unit closure lowers: {error:?}"));
+    let mut observed = Observed::default();
+    let result = terminal_interpreter::interpret_terminal_artifact_measured(
+        &terminal_codec::encode_module(&lowered.semantic_module).expect("encode module"),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+        &mut observed,
+    )
+    .expect("the published artifact independently checks and runs");
+    assert_eq!(result.value(), TerminalExecutionResult::Unit);
+    assert_eq!(observed.0, vec![2, 0]);
+}
+
+/// Lower `machine` as the selected root and verify the published module.
+fn lowers_and_verifies(source: &str, machine: &str) {
+    let checked = crate::front_end::checked_program(source);
+    state_graph(&checked, machine);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+        .unwrap_or_else(|error| panic!("{machine} lowers through the state graph: {error:?}"));
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap_or_else(|error| panic!("{machine} verifies: {error:?}"));
+}
+
+/// Each state's shared view formal arrives on its incoming edge as a
+/// whole-parameter `SharedBorrow` transfer: the target re-borrows the source
+/// place instead of taking custody it never had.
+#[test]
+fn forwarded_shared_view_chain_lowers_and_verifies() {
+    lowers_and_verifies(FORWARDED_VIEW_CALLEE, "scan");
+}
+
+/// The `seek -> check -> seek` cycle never re-enters the entry. The scalar
+/// graph's loop plan owned only entry-backed cycles and declined it; the state
+/// graph carries any cycle of states, so the machine lowers and verifies.
+#[test]
+fn forwarded_shared_view_cycle_lowers_and_verifies() {
+    lowers_and_verifies(
+        r#"
+            machine find_equals(line: &[u8], start: u64, end: u64) -> u64 {
+                transition { _ -> seek(line, start, end, start) }
+                state seek(line: &[u8], start: u64, end: u64, position: u64) -> u64 {
+                    transition position < end {
+                        true -> check(line, start, end, position)
+                        false -> (end)
+                    }
+                }
+                state check(line: &[u8], start: u64, end: u64, position: u64) -> u64 {
+                    transition position < line.len && line[position] == 61 {
+                        true -> (position)
+                        _ -> seek(line, start, end, position + 1)
+                    }
+                }
+            }
+        "#,
+        "find_equals",
+    );
+}
