@@ -167,13 +167,28 @@ fn validate_parameter_ranges<'clause>(
                     constraints,
                 } => {
                     for constraint in checked.type_reference_table.constraints(*constraints) {
-                        let TypeConstraintNode::Range {
-                            minimum,
-                            maximum,
-                            end_inclusive,
-                        } = constraint
-                        else {
-                            continue;
+                        // An exactly-interval domain on an integer carrier
+                        // retains the same closed entry range a bracketed
+                        // range does; any other domain carries no range row.
+                        let exact_domain = match constraint {
+                            TypeConstraintNode::Domain(domain) => {
+                                let Some(bounds) = primitive
+                                    .filter(|primitive| integer_scalar_type(*primitive).is_ok())
+                                    .and_then(|primitive| {
+                                        validation::exact_declared_domain_carrier_interval(
+                                            &checked.typed,
+                                            primitive,
+                                            domain,
+                                        )
+                                        .filter(|(minimum, maximum)| minimum <= maximum)
+                                    })
+                                else {
+                                    continue;
+                                };
+                                Some(bounds)
+                            }
+                            TypeConstraintNode::Range { .. } => None,
+                            _ => continue,
                         };
                         let primitive = primitive.ok_or(LoweringError::Unsupported(
                             "scalar range has no primitive carrier",
@@ -188,7 +203,13 @@ fn validate_parameter_ranges<'clause>(
                                 "scalar entry range differs from its exact source bounds",
                             );
                         }
-                        if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                        if let TypeConstraintNode::Range {
+                            minimum,
+                            maximum,
+                            end_inclusive,
+                        } = constraint
+                            && matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+                        {
                             // A floating range is a `FloatRange` clause in
                             // the requires tail: consume that row, then
                             // rejoin it bit-for-bit against the authored
@@ -241,8 +262,16 @@ fn validate_parameter_ranges<'clause>(
                             }
                             continue;
                         }
-                        let (minimum_value, maximum_value) =
-                            validation::closed_integer_range_bound(&checked.typed, *minimum)
+                        let (minimum_value, maximum_value) = match (exact_domain, constraint) {
+                            (Some(bounds), _) => bounds,
+                            (
+                                None,
+                                TypeConstraintNode::Range {
+                                    minimum,
+                                    maximum,
+                                    end_inclusive,
+                                },
+                            ) => validation::closed_integer_range_bound(&checked.typed, *minimum)
                                 .zip(validation::closed_integer_range_maximum(
                                     &checked.typed,
                                     *maximum,
@@ -251,7 +280,11 @@ fn validate_parameter_ranges<'clause>(
                                 .filter(|(low, high)| low <= high)
                                 .ok_or(LoweringError::Unsupported(
                                     "scalar entry range has unavailable or empty source bounds",
-                                ))?;
+                                ))?,
+                            (None, _) => {
+                                return unsupported("scalar entry range lost its constraint");
+                            }
+                        };
                         integer_scalar_type(primitive)?;
                         let Some(RetainedClause::Predicate(CheckedBooleanExpression::And {
                             left,

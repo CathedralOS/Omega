@@ -91,7 +91,7 @@ fn scalar_tag_erasure_composes_inside_arithmetic_and_selected_calls() {
 #[test]
 fn scalar_erasure_does_not_publish_predicate_or_routed_tag_graphs() {
     for declaration in [
-        "domain i64::Tagged requires self > 0;",
+        "domain i64::Tagged requires self != 5;",
         "domain i64::Tagged established by Issuer::issue;
          boundary trait Issuer { machine issue(value: i64) -> i64 ensures result in i64::Tagged; }",
     ] {
@@ -114,6 +114,27 @@ fn scalar_erasure_does_not_publish_predicate_or_routed_tag_graphs() {
         );
         assert!(checked.facts.values.scalar_computations.roots.is_empty());
     }
+}
+
+/// A domain whose membership is exactly an interval bounds the value the
+/// way a bracketed range did and carries no semantic atom, so erasing it is
+/// the ordinary cast the range spelling planned.
+#[test]
+fn interval_domain_erasure_plans_like_a_range() {
+    let checked = checked_source(
+        "domain i64::Positive requires self > 0;
+         machine erase(value: i64 in Positive) -> i64 { value as i64 }",
+        false,
+    );
+    assert!(
+        !checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .is_empty()
+            || !checked.facts.values.scalar_computations.roots.is_empty()
+    );
 }
 
 #[test]

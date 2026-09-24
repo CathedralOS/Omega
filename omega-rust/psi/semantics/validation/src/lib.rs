@@ -22,9 +22,10 @@ pub use machine_calls::static_machine_call_contracts::{
     validate_static_machine_parameter_contracts,
 };
 pub use machine_calls::structural_call_custody::{
-    reconstruct_structural_call_custody, reconstruct_structural_parameter_return_claims,
-    structural_claim_path, structural_result_projected_qualifications,
-    structural_result_qualifications, structural_state_contract_scalar_predicates,
+    StateScalarContractRow, reconstruct_structural_call_custody,
+    reconstruct_structural_parameter_return_claims, structural_claim_path,
+    structural_result_projected_qualifications, structural_result_qualifications,
+    structural_state_contract_scalar_predicates,
     structural_state_contracts_are_parameter_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
@@ -34,7 +35,9 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
-pub use proof_contracts::domains::{scalar_state_contracts_are_qualifications, scalar_type_tags};
+pub use proof_contracts::domains::{
+    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+};
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
 pub use value_custody::claim_frontier::{ClaimFrontierClaim, linear_claim_frontier};
 pub use value_custody::owned_value_source::{

@@ -90,6 +90,16 @@ the complete product bar; focused successes below do not establish that baseline
   Terminal, and native acceptance the declaration had before migration. Do not
   delete domain/proof improvements that remain independently used.
 
+  The corpus gate stops at checking, so it misses a move in lowering or
+  native execution. Three run canaries regressed that way:
+  `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
+  and `arithmetic/runtime_nested_unsigned_witness_exit`. They run again
+  because an exactly-interval domain now means the bracketed range on every
+  execution route: the entry parameter's closed entry range, the scalar
+  graph's membership row, a non-entry state's interval requires row, and a
+  cast out of the domain. Also run each migrated fixture's run canary before
+  keeping it.
+
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,
   result `ensures`, and local flow facts preserve construction, call, write,

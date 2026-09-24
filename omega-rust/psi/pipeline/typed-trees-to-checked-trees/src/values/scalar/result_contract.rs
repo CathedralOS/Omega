@@ -517,6 +517,29 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                     constraints,
                 } => {
                     for constraint in program.type_reference_table.constraints(*constraints) {
+                        // A domain whose membership is exactly an interval
+                        // means what a bracketed range meant, so it lands the
+                        // same closed entry range; any other domain is a
+                        // qualification this roster does not carry.
+                        if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint {
+                            let Some((low, high)) = primitive_type
+                                .filter(|primitive_type| is_integer(*primitive_type))
+                                .and_then(|primitive_type| {
+                                    validation::exact_declared_domain_carrier_interval(
+                                        program,
+                                        primitive_type,
+                                        domain,
+                                    )
+                                    .filter(|(minimum, maximum)| minimum <= maximum)
+                                })
+                            else {
+                                continue;
+                            };
+                            ranges.push_integer(closed_integer_entry_range(
+                                program, parameter, position, low, high,
+                            ));
+                            continue;
+                        }
                         let typed_trees::types::TypeConstraintNode::Range {
                             minimum,
                             maximum,
@@ -526,72 +549,13 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                             continue;
                         };
                         let predicate = || {
-                            // Existing source validation rejects range constraints
-                            // outside Exact: those domains do not enforce stores.
-                            if parameter.is_self
-                                || parameter.is_const
-                                || primitive_type.is_none()
-                                || program
-                                    .arithmetic_domain_for_type_reference(parameter.type_reference)
-                                    != ArithmeticDomain::Exact
-                            {
-                                return None;
-                            }
-                            let primitive_type =
-                                program.primitive_type_reference(parameter.type_reference)?;
-                            if !is_integer(primitive_type) {
-                                return None;
-                            }
                             let low = validation::closed_integer_range_bound(program, *minimum)?;
                             let high = validation::closed_integer_range_maximum(
                                 program,
                                 *maximum,
                                 *end_inclusive,
                             )?;
-                            if low > high {
-                                return None;
-                            }
-                            // Endpoints have already been evaluated under their
-                            // own selected meaning. Land the normalized interval,
-                            // not an exclusive end outside the subject carrier.
-                            let minimum_literal =
-                                validation::land_integer_value(&low, primitive_type)?;
-                            let maximum_literal =
-                                validation::land_integer_value(&high, primitive_type)?;
-                            let minimum = CheckedScalarExpression::IntegerLiteral {
-                                literal: minimum_literal.clone(),
-                            };
-                            let maximum = CheckedScalarExpression::IntegerLiteral {
-                                literal: maximum_literal.clone(),
-                            };
-                            let subject = CheckedScalarExpression::Parameter {
-                                position,
-                                primitive_type,
-                            };
-                            // This is the meaning of TypeConstraintNode::Range,
-                            // not an authored selectable <= operator occurrence.
-                            let predicate = CheckedBooleanExpression::And {
-                                left: Box::new(construct_integer_comparison(
-                                    BinaryOperator::LessOrEqual,
-                                    minimum,
-                                    subject.clone(),
-                                )?),
-                                right: Box::new(construct_integer_comparison(
-                                    BinaryOperator::LessOrEqual,
-                                    subject,
-                                    maximum,
-                                )?),
-                            };
-                            // The retained roster row shares the exact landed
-                            // endpoints the predicate carries so clause and
-                            // evidence can never disagree.
-                            let requirement = checked_trees::ClosedIntegerRangeRequirement {
-                                position,
-                                primitive_type,
-                                minimum: minimum_literal,
-                                maximum: maximum_literal,
-                            };
-                            Some((predicate, requirement))
+                            closed_integer_entry_range(program, parameter, position, low, high)
                         };
                         let requirement = || {
                             // Existing source validation rejects range constraints
@@ -654,29 +618,7 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
                                 }
                             }
                         } else {
-                            match predicate {
-                                Some((predicate, requirement)) => {
-                                    // One authored integer range retains its
-                                    // normalized bounds on the roster while the
-                                    // requires tail keeps the predicate clause.
-                                    // One failed endpoint voids the whole roster
-                                    // so no consumer reads a partial one.
-                                    if let Some(roster) = &mut ranges.integer_entry_ranges {
-                                        roster.push(requirement);
-                                    }
-                                    ranges.scalar_clauses.push(Some(
-                                        checked_trees::ClosedScalarContractValue::Predicate(
-                                            predicate.clone(),
-                                        ),
-                                    ));
-                                    ranges.integer_predicates.push(Some(predicate));
-                                }
-                                None => {
-                                    ranges.integer_entry_ranges = None;
-                                    ranges.scalar_clauses.push(None);
-                                    ranges.integer_predicates.push(None);
-                                }
-                            }
+                            ranges.push_integer(predicate);
                             continue;
                         }
                         ranges
@@ -690,6 +632,128 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
         }
     }
     ranges
+}
+
+impl ParameterRangeRequirements {
+    /// One integer entry range retains its normalized bounds on the roster
+    /// while the requires tail keeps the predicate clause. One failed range
+    /// voids the whole roster so no consumer reads a partial one.
+    fn push_integer(
+        &mut self,
+        range: Option<(
+            CheckedBooleanExpression,
+            checked_trees::ClosedIntegerRangeRequirement,
+        )>,
+    ) {
+        match range {
+            Some((predicate, requirement)) => {
+                if let Some(roster) = &mut self.integer_entry_ranges {
+                    roster.push(requirement);
+                }
+                self.scalar_clauses.push(Some(
+                    checked_trees::ClosedScalarContractValue::Predicate(predicate.clone()),
+                ));
+                self.integer_predicates.push(Some(predicate));
+            }
+            None => {
+                self.integer_entry_ranges = None;
+                self.scalar_clauses.push(None);
+                self.integer_predicates.push(None);
+            }
+        }
+    }
+}
+
+/// A non-entry state's scalar parameter membership in an exactly-interval
+/// domain, as the closed predicate its authored `requires` row would lower
+/// to: the same interval clause a bracketed range produces, indexed in the
+/// state's scalar parameter roster.
+pub(crate) fn lower_state_interval_predicate(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    parameter: symbols::SymbolHandle,
+    minimum: numerics::bignum::BigInt,
+    maximum: numerics::bignum::BigInt,
+) -> Option<CheckedBooleanExpression> {
+    let parameters = program.state_parameters(state);
+    let index = parameters
+        .iter()
+        .position(|candidate| candidate.symbol == parameter)?;
+    let authored = &parameters[index];
+    if authored.relevance.is_erased() {
+        return None;
+    }
+    let position = parameters[..index]
+        .iter()
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
+        .count();
+    closed_integer_entry_range(program, authored, position, minimum, maximum)
+        .map(|(predicate, _)| predicate)
+}
+
+/// The closed `low <= parameter && parameter <= high` clause and its roster
+/// row for one integer parameter's interval, whether a bracketed range or an
+/// exactly-interval domain stated it.
+fn closed_integer_entry_range(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+    position: usize,
+    low: numerics::bignum::BigInt,
+    high: numerics::bignum::BigInt,
+) -> Option<(
+    CheckedBooleanExpression,
+    checked_trees::ClosedIntegerRangeRequirement,
+)> {
+    // Existing source validation rejects range constraints outside Exact:
+    // those domains do not enforce stores.
+    if parameter.is_self
+        || parameter.is_const
+        || program.arithmetic_domain_for_type_reference(parameter.type_reference)
+            != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
+    if !is_integer(primitive_type) || low > high {
+        return None;
+    }
+    // Endpoints have already been evaluated under their own selected meaning.
+    // Land the normalized interval, not an exclusive end outside the carrier.
+    let minimum_literal = validation::land_integer_value(&low, primitive_type)?;
+    let maximum_literal = validation::land_integer_value(&high, primitive_type)?;
+    let minimum = CheckedScalarExpression::IntegerLiteral {
+        literal: minimum_literal.clone(),
+    };
+    let maximum = CheckedScalarExpression::IntegerLiteral {
+        literal: maximum_literal.clone(),
+    };
+    let subject = CheckedScalarExpression::Parameter {
+        position,
+        primitive_type,
+    };
+    // This is the meaning of the interval, not an authored selectable `<=`
+    // operator occurrence.
+    let predicate = CheckedBooleanExpression::And {
+        left: Box::new(construct_integer_comparison(
+            BinaryOperator::LessOrEqual,
+            minimum,
+            subject.clone(),
+        )?),
+        right: Box::new(construct_integer_comparison(
+            BinaryOperator::LessOrEqual,
+            subject,
+            maximum,
+        )?),
+    };
+    // The retained roster row shares the exact landed endpoints the predicate
+    // carries so clause and evidence can never disagree.
+    let requirement = checked_trees::ClosedIntegerRangeRequirement {
+        position,
+        primitive_type,
+        minimum: minimum_literal,
+        maximum: maximum_literal,
+    };
+    Some((predicate, requirement))
 }
 
 /// The integer projection of the authored parameter ranges; floating windows

@@ -1,7 +1,9 @@
 mod scalar_tags;
 #[cfg(test)]
 mod tests;
-pub use scalar_tags::{scalar_state_contracts_are_qualifications, scalar_type_tags};
+pub use scalar_tags::{
+    scalar_interval_domains, scalar_state_contracts_are_qualifications, scalar_type_tags,
+};
 
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::proof_contracts::proof_facts::{ProofFactOwner, validate_domain_fact_payloads};

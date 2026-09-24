@@ -457,6 +457,17 @@ pub(crate) fn type_atoms(
                         // atoms, not a replacement store or overflow judgment.
                         TypeConstraintNode::ArithmeticDomain(_)
                         | TypeConstraintNode::Range { .. } => {}
+                        // A domain whose membership is exactly an interval is
+                        // retained as the same closed entry range a bracketed
+                        // range is, so the range owner carries it too.
+                        TypeConstraintNode::Domain(domain)
+                            if validation::exact_declared_domain_carrier_interval(
+                                &checked.typed,
+                                primitive,
+                                domain,
+                            )
+                            .filter(|(minimum, maximum)| minimum <= maximum)
+                            .is_some() => {}
                         TypeConstraintNode::Domain(domain)
                             if domain.subject == DomainConstraintSubject::Declared
                                 && !domain.predicate_body.is_present() =>
