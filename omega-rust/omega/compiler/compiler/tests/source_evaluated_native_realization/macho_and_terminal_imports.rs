@@ -1293,6 +1293,9 @@ fn macho_scalar_import_fixture(name: &str, member: &str, call: &str) -> Fixture 
     let leaf_name = member.split('(').next().unwrap();
     let signature = &member[leaf_name.len()..];
     let symbol_len = leaf_name.len() + 1;
+    // The case labels read `u64-argument`, but a declared package identity is
+    // snake_case: fold the label's hyphens rather than respelling every case.
+    let package_name = format!("source_evaluated_macho_{}_native", name.replace('-', "_"));
     Fixture::with_source(
         name,
         "macos_arm64",
@@ -1324,7 +1327,7 @@ machine Main::main(&mut self) reaches Boundary {{
         ),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("source_evaluated_macho-{name}-native");
+    builder.application("{package_name}");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }}
 "#
