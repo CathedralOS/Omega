@@ -23,6 +23,12 @@ pub(crate) fn validate_cleanup(
         .ok_or(LoweringError::Unsupported(
             "call cleanup has no preceding consumer",
         ))?;
+    // A field replacement's displaced affine value dies on the replacing
+    // statement's continuation; the roster rule names its exact binding.
+    if super::super::field_replacement::continues_with_cleanup(&caller.operations, operation_index)
+    {
+        return Ok(());
+    }
     if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
         coordinate: producer,
         result,

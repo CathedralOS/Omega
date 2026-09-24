@@ -529,10 +529,12 @@ pub(super) fn build_traced(
                         }
                     )
                     && value.access == CheckedStructuralAccess::Owned => {}
-                // A call result may die on its producing call's continuation.
-                // The cleanup shares the call coordinate rather than consuming
-                // a new authored statement; sequenced stores may sit between
-                // the call and the discard that retires a displaced binding.
+                // A result may die on its producing statement's continuation.
+                // The cleanup shares the producer's coordinate rather than
+                // consuming a new authored statement; sequenced stores may sit
+                // between the producer -- the statement's call, or the
+                // establishment of a construction replacing a field -- and the
+                // discard that retires a displaced binding.
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                     coordinate,
                     affine_discards,
@@ -554,19 +556,28 @@ pub(super) fn build_traced(
                                     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                                         ..
                                     }
+                                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                        ..
+                                    }
                             )
                         })
-                        .is_some_and(|producer| {
-                            matches!(
-                                producer,
-                                CheckedUnitEffectOperationPlan::StructuralCall {
-                                    coordinate: call,
-                                    ..
-                                } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                    coordinate: call,
-                                    ..
-                                } if call == coordinate
-                            )
+                        .is_some_and(|producer| match producer {
+                            CheckedUnitEffectOperationPlan::StructuralCall {
+                                coordinate: call,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                coordinate: call,
+                                ..
+                            } => call == coordinate,
+                            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result,
+                                ..
+                            } => {
+                                result.statement_index == coordinate.statement_index
+                                    && coordinate.call_ordinal == 0
+                            }
+                            _ => false,
                         }) => {}
                 _ => {
                     // Name the operation family whose custody the selected

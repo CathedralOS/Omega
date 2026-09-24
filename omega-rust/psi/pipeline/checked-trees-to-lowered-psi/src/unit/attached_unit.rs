@@ -47,6 +47,7 @@ mod call_closure;
 pub(crate) mod catalog;
 mod claims;
 mod composed_control;
+mod field_replacement;
 mod operation_frame;
 mod ordinary_calls;
 mod ordinary_machine;

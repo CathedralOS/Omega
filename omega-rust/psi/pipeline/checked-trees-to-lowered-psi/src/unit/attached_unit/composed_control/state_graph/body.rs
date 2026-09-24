@@ -320,6 +320,27 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            // `place = <construction>` over the same kind of field: the
+            // establishment replaces the call as the replacing value's
+            // producer, and the rest of the roster is the same window pair.
+            (
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return: false,
+                    ..
+                },
+                StatementNode::Assignment(assignment),
+            ) if result.statement_index as usize == ordinal => {
+                validate_displaced_field_replacement(
+                    checked, machine, source, state, ordinal, assignment,
+                )?;
+                crate::expression_preparation::source_custody::structural::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
@@ -733,13 +754,15 @@ fn call_operation(operation: &CheckedUnitEffectOperationPlan) -> bool {
     )
 }
 
-/// Rejoin `place = call(..)` where the call returns a whole structural value
-/// and `place` is a structural field beneath an exclusive borrowed parameter.
+/// Rejoin `place = value` where `value` is a whole owned structural value and
+/// `place` is a structural field beneath an exclusive borrowed parameter.
 /// The checked sequencer plans it as one statement roster, in this order:
-/// the call binding its result; `MoveStructuralField` binding the displaced
-/// old value and opening the window at `place`; `StoreStructuralField`
-/// closing that exact window with the call's whole owned result; and, for an
-/// affine field, the call continuation discarding the displaced value.
+/// the value's producer -- the statement's call, or the establishment of its
+/// authored construction -- binding the replacing value; `MoveStructuralField`
+/// binding the displaced old value and opening the window at `place`;
+/// `StoreStructuralField` closing that exact window with the whole produced
+/// value; and, for an affine field, the statement's continuation discarding
+/// the displaced value.
 /// Emission reconstructs the window through `BorrowedWindowLedger`; this
 /// check ties every member to the authored assignment so none can be
 /// substituted, reordered, or detached from its place.
@@ -758,14 +781,9 @@ fn validate_displaced_field_replacement(
             authored_statement(operation).map(|index| index as usize) == Some(ordinal)
         })
         .collect::<Vec<_>>();
-    let (produced, moved, place, destination, value, cleanup) = match roster.as_slice() {
+    let (producer, moved, place, destination, value, cleanup) = match roster.as_slice() {
         [
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result: produced,
-                discard_result_on_return: false,
-                ..
-            },
+            producer,
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: moved,
                 source: place,
@@ -774,8 +792,44 @@ fn validate_displaced_field_replacement(
                 destination, value, ..
             },
             cleanup @ ..,
-        ] if coordinate.call_ordinal == 0 => (produced, moved, place, destination, value, cleanup),
-        _ => return unsupported("Unit graph field replacement is not one call and window pair"),
+        ] => (*producer, moved, place, destination, value, cleanup),
+        _ => {
+            return unsupported("Unit graph field replacement is not one producer and window pair");
+        }
+    };
+    // The producer is the value the authored right-hand side denotes: the
+    // statement's own call, or the establishment of its rooted construction.
+    let produced = match (
+        producer,
+        checked.expression_table.expression(assignment.value),
+    ) {
+        (
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return: false,
+                ..
+            },
+            checked_trees::expression::ExpressionNode::Call(_),
+        ) if coordinate.call_ordinal == 0 => result,
+        (
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value: established,
+                discard_result_on_return: false,
+                ..
+            },
+            _,
+        ) if checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(state.state, result.statement_index, assignment.value)
+            .is_some_and(|root| root.root == *established) =>
+        {
+            result
+        }
+        _ => return unsupported("Unit graph field replacement has no authored producer"),
     };
     let identity = &produced.type_identity;
     if place != destination
@@ -827,12 +881,6 @@ fn validate_displaced_field_replacement(
     };
     if !disposal {
         return unsupported("Unit graph displaced field value lost its planned disposal");
-    }
-    if !matches!(
-        checked.expression_table.expression(assignment.value),
-        checked_trees::expression::ExpressionNode::Call(_)
-    ) {
-        return unsupported("Unit graph field replacement has no authored call");
     }
     let target = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
