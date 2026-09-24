@@ -18,8 +18,12 @@ const PIPELINE_DIR: &str = "omega-rust/omega/pipeline";
 /// jurisdictional decision, not an exemption: a crate listed here that gains
 /// an optimizer surface must move into `GOVERNED_ROOTS`, and a pinned crate
 /// that disappears leaves a stale pin the sweep reports.
-const CRATES_WITHOUT_OPTIMIZER_SURFACES: &[&str] =
-    &["omega-rust/omega/compiler/terminal-artifact"];
+///
+/// This sweep's jurisdiction is [`PIPELINE_DIR`], so a crate that LEAVES that
+/// directory leaves this list with it. Terminal artifact packaging did exactly
+/// that in `f5d92bc840`, moving to `omega-rust/omega/compiler/terminal-artifact`,
+/// where the compiler layer's own rules govern it.
+const CRATES_WITHOUT_OPTIMIZER_SURFACES: &[&str] = &[];
 
 pub(super) fn check(audit: &mut Audit) {
     let entries = match fs::read_dir(audit.repository.join(PIPELINE_DIR)) {
