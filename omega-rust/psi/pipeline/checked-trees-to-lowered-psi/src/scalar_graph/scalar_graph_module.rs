@@ -10,10 +10,9 @@ use super::{
     PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange,
     ScalarIntegerRange, ScalarTerm, ScalarType, StructuralArgument, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker, block_id, contract_id, edge_id, lower_checked_crash_route_buckets,
-    merge_content_place_declaration, obligation_id, scalar_source_block, terminal_scalar_type,
-    unsupported, value_id,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id,
+    contract_id, edge_id, lower_checked_crash_route_buckets, merge_content_place_declaration,
+    obligation_id, scalar_source_block, terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -653,33 +652,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
-            scalar_block_invariants: Vec::new(),
-            operation_crash_contracts: Vec::new(),
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: terminal_machine,
-            structural_types: Vec::new(),
-            structural_domains: Vec::new(),
-            services: Vec::new(),
-            root_service_reach: Default::default(),
-            placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
-            reborrow_restored_call_uses: Vec::new(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            float_meaning_projections: Vec::new(),
-            float_meaning_equalities: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            proof_output_calls: Vec::new(),
-            proof_recursive_components: Vec::new(),
-            closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
-            suspension_call_plan_count: 0,
-            suspension_call_sites: Vec::new(),
-            suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 closed_reach_application: None,
                 declared_service_reach: Vec::new(),
@@ -713,6 +685,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     outcome_specific_ensures: Vec::new(),
                 },
             }],
+            ..TerminalModule::for_entry(terminal_machine)
         },
         proof_bundle: ProofBundle {
             crash_obligations: Vec::new(),

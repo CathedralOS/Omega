@@ -30,7 +30,6 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker,
 };
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 

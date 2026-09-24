@@ -9,8 +9,8 @@ use super::{
     LoweringError, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id, edge_id,
-    lookup_type_id, lower_installation_machine_service_ceiling, machine_id, operation_id, place_id,
+    Terminator, ValueDeclaration, allocate_dense, block_id, edge_id, lookup_type_id,
+    lower_installation_machine_service_ceiling, machine_id, operation_id, place_id,
     terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -363,35 +363,12 @@ pub(super) fn lower(
     let source_machine_ids = catalogs.scalar_calls.machine_ids.clone();
     let mut lowered = catalogs.shared_units.take().unwrap_or_else(|| LoweredPsi {
         semantic_module: TerminalModule {
-            scalar_qualifications: Default::default(),
-            scalar_block_invariants: Vec::new(),
-            operation_crash_contracts: Vec::new(),
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: caller_machine,
             structural_types: catalogs.structural_types.into_owned(),
             structural_domains: catalogs.structural_domains.into_owned(),
             services: catalogs.services.into_owned(),
             root_service_reach: catalogs.root_service_reach.into_owned(),
-            placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
-            reborrow_restored_call_uses: Vec::new(),
             boundary_machines: catalogs.boundary_machines.into_owned(),
-            provider_candidates: Vec::new(),
-            float_meaning_projections: Vec::new(),
-            float_meaning_equalities: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            proof_output_calls: Vec::new(),
-            proof_recursive_components: Vec::new(),
-            closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
-            suspension_call_plan_count: 0,
-            suspension_call_sites: Vec::new(),
-            suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
-            machines: Vec::new(),
+            ..TerminalModule::for_entry(caller_machine)
         },
         proof_bundle: ProofBundle {
             crash_obligations: Vec::new(),
