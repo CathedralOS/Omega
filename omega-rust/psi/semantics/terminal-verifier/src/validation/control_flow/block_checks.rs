@@ -1,12 +1,12 @@
 //! One block's operand and successor-binding checks.
 
-use super::super::operations::{require_defined, validate_operation_operands};
-use super::super::{
+use super::definitions::DefinitionSites;
+use crate::validation::operations::{require_defined, validate_operation_operands};
+use crate::validation::{
     BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, ContractClauseKind, MachineId,
     ModuleError, OperationKind, ScalarType, StructuralAccess, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
 };
-use super::definitions::DefinitionSites;
 use semantic_vocabulary::PlaceId;
 
 use super::{validate_structural_case_successors, validate_successor_bindings};
@@ -63,46 +63,55 @@ pub(super) fn validate_block(
     );
     if let Some(mutable) = mutable_views.get(&block_id) {
         available_structural
-            .retain(|place| !super::super::block_views::is_mutable_parameter(machine, *place));
+            .retain(|place| !crate::validation::block_views::is_mutable_parameter(machine, *place));
         available_structural.extend(mutable.iter().copied());
     }
     for operation in &block.operations {
-        super::super::structural::case_membership::validate_available(
+        crate::validation::structural::case_membership::validate_available(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::structural::leaf_copy::validate_available(
+        crate::validation::structural::leaf_copy::validate_available(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::byte_sequence::subslice::validate_uses(
+        crate::validation::byte_sequence::subslice::validate_uses(
             module,
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::element_view::establishment::validate_uses(
+        crate::validation::element_view::establishment::validate_uses(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::element_view::subslice::validate_uses(
+        crate::validation::element_view::subslice::validate_uses(
             module,
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
-        super::super::record::validate_uses(module, machine, operation, &available_structural)?;
-        super::super::scalar::case::validate_uses(
+        crate::validation::primitive_storage::validate_uses(
+            machine,
+            operation,
+            &available_primitives,
+        )?;
+        crate::validation::record::validate_uses(
             module,
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::references::validate_uses(machine, operation, &available_structural)?;
+        crate::validation::scalar::case::validate_uses(
+            module,
+            machine,
+            operation,
+            &available_structural,
+        )?;
+        crate::validation::references::validate_uses(machine, operation, &available_structural)?;
         validate_operation_operands(
             module,
             machine,
@@ -122,7 +131,7 @@ pub(super) fn validate_block(
             },
             &defined,
         )?;
-        super::super::scalar::array::validate_uses(
+        crate::validation::scalar::array::validate_uses(
             operation,
             scalar_array_definitions,
             &available_arrays,
@@ -158,7 +167,7 @@ pub(super) fn validate_block(
             ..
         } => {
             validate_successor_bindings(*edge, *target, arguments, blocks, value_types, &defined)?;
-            super::super::block_views::validate_successor(
+            crate::validation::block_views::validate_successor(
                 module,
                 machine,
                 *edge,
@@ -185,7 +194,7 @@ pub(super) fn validate_block(
                 });
             }
             for successor in [when_true, when_false] {
-                super::super::block_views::validate_successor(
+                crate::validation::block_views::validate_successor(
                     module,
                     machine,
                     successor.edge,
@@ -221,7 +230,7 @@ pub(super) fn validate_block(
                 });
             }
             for successor in cases {
-                super::super::block_views::validate_successor(
+                crate::validation::block_views::validate_successor(
                     module,
                     machine,
                     successor.edge,
@@ -234,7 +243,7 @@ pub(super) fn validate_block(
                 )?;
             }
             let source_signature =
-                super::super::structural::result_contracts::source_signature(machine, *source)
+                crate::validation::structural::result_contracts::source_signature(machine, *source)
                     .ok_or(ModuleError::StructuralCaseSourceUnknown {
                         machine: machine.id,
                         block: block.id,
@@ -308,7 +317,7 @@ pub(super) fn validate_block(
             }
         }
         Terminator::ReturnStructural { source, .. } => {
-            let block_parameter = super::super::block_views::parameter(machine, *source);
+            let block_parameter = crate::validation::block_views::parameter(machine, *source);
             // A result can be copyable without being available on this path.
             // Every local producer, not only arrays or block parameters,
             // must dominate the return independently of disposal custody.
@@ -327,8 +336,10 @@ pub(super) fn validate_block(
                     place: *source,
                 });
             }
-            if super::super::byte_sequence::subslice::borrowed_result(machine, *source).is_some()
-                || super::super::element_view::subslice::borrowed_result(machine, *source).is_some()
+            if crate::validation::byte_sequence::subslice::borrowed_result(machine, *source)
+                .is_some()
+                || crate::validation::element_view::subslice::borrowed_result(machine, *source)
+                    .is_some()
                 || block_parameter
                     .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
             {

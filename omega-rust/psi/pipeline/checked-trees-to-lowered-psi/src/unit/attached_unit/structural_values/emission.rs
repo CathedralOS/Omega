@@ -662,7 +662,7 @@ impl Emission<'_, '_, '_> {
                     },
                     continuation,
                 )?;
-                return Ok(continuation.place);
+                Ok(continuation.place)
             }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
@@ -880,7 +880,7 @@ impl Emission<'_, '_, '_> {
                 let zero = emit_scalar_leaf(
                     OperationKind::IntegerConstant { value },
                     scalar_type,
-                    &mut self.next_value,
+                    self.next_value,
                     self.operations,
                 );
                 self.values.push(ValueDeclaration {

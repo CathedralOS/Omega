@@ -154,19 +154,14 @@ impl StateGraphEmission<'_, '_> {
             }
             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 jump,
-                return_arm,
+                return_arm: CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
                 return_when_true,
                 ..
-            } => match return_arm {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                    Some(if *return_when_true {
-                        result.statement_index
-                    } else {
-                        jump.statement_ordinal
-                    })
-                }
-                _ => None,
-            },
+            } => Some(if *return_when_true {
+                result.statement_index
+            } else {
+                jump.statement_ordinal
+            }),
             _ => None,
         };
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {

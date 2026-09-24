@@ -109,30 +109,25 @@ fn view_result_qualifications(
     mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<Vec<language_semantics::SemanticDomainId>> {
     let mut qualifications = Vec::new();
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let retained = checked.type_reference_table.constraints(*constraints);
-                if retained.len() != constraints.len() {
-                    return None;
-                }
-                for constraint in retained {
-                    let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint
-                    else {
-                        return None;
-                    };
-                    if !domain.semantic_id.is_valid() {
-                        return None;
-                    }
-                    qualifications.push(domain.semantic_id);
-                }
-                reference = *base_type;
-            }
-            _ => break,
+    while let checked_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = checked.type_reference_table.type_reference(reference)
+    {
+        let retained = checked.type_reference_table.constraints(*constraints);
+        if retained.len() != constraints.len() {
+            return None;
         }
+        for constraint in retained {
+            let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint else {
+                return None;
+            };
+            if !domain.semantic_id.is_valid() {
+                return None;
+            }
+            qualifications.push(domain.semantic_id);
+        }
+        reference = *base_type;
     }
     qualifications.sort_by_key(|domain| domain.0);
     qualifications.dedup();

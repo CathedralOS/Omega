@@ -103,13 +103,7 @@ pub(super) fn validate_bindings(
         .flow
         .terminal_structural_control_cleanups
         .for_edge(plan.machine, state.state, edge.statement_ordinal)
-        .map(|cleanup| {
-            cleanup
-                .trivial_affine_discard_parameter_positions
-                .iter()
-                .copied()
-                .collect::<Vec<_>>()
-        })
+        .map(|cleanup| cleanup.trivial_affine_discard_parameter_positions.to_vec())
         .unwrap_or_default();
     if evidence != edge.trivial_affine_discard_parameter_positions {
         return unsupported("Unit graph successor discards disagree with cleanup evidence");
