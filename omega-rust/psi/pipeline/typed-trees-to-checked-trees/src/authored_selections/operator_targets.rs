@@ -447,56 +447,88 @@ pub(crate) fn authored_operand_descriptor(
     if let Some(type_reference) = authored_operand_type(program, expression) {
         return OperandType::Reference(type_reference);
     }
-    if authored_operand_is_boolean(program, expression) {
-        return OperandType::Primitive(typed_trees::types::PrimitiveType::Bool);
-    }
-    OperandType::Unknown
+    authored_operand_carrier(program, expression)
+        .map_or(OperandType::Unknown, OperandType::Primitive)
 }
 
-/// Whether the operand's value is exactly the builtin `bool` carrier. A
-/// comparison qualifies only where no authored operator supplies its meaning:
-/// a declared `less` may return anything its author wrote.
-fn authored_operand_is_boolean(
+/// The primitive carrier an operand's VALUE has, for an operand that names no
+/// type reference. An operation's own result is such a value: a comparison
+/// produces `bool`, and an arithmetic or bitwise operation produces the
+/// carrier its operands share.
+///
+/// Each answer holds only where no authored operator supplies a different
+/// meaning: a declared `less` may return a mask, a declared `add` may return
+/// another carrier entirely. Candidates that ALL return the same carrier
+/// settle it whichever one is selected, and no candidate at all leaves the
+/// builtin operation.
+fn authored_operand_carrier(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
+) -> Option<typed_trees::types::PrimitiveType> {
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    use typed_trees::operator::OperandType;
+    use typed_trees::types::PrimitiveType;
+
+    /// The carrier a descriptor names, reducing a retained reference through
+    /// its shells.
+    fn operand_carrier(
+        program: &TypedTrees,
+        operand: OperandType,
+    ) -> Option<typed_trees::types::PrimitiveType> {
+        match operand {
+            OperandType::Reference(reference) => program.primitive_type_reference(reference),
+            OperandType::Primitive(primitive) => Some(primitive),
+            OperandType::Unknown => None,
+        }
+    }
+
     match program.expression_table.expression(expression) {
-        ExpressionNode::Boolean(_) => true,
-        ExpressionNode::Binary(binary) => match binary.operator {
+        ExpressionNode::Boolean(_) => Some(PrimitiveType::Bool),
+        ExpressionNode::Binary(binary) => {
             // `&&`, `||` and `is` bind no authored spelling at all, so their
             // result is the builtin one whatever the operands are.
-            BinaryOperator::And | BinaryOperator::Or | BinaryOperator::CaseMembership => true,
-            // No candidate leaves the builtin comparison, and candidates that
-            // all return `bool` settle on `bool` whichever one is selected.
-            // Only a declared comparison returning something else -- a mask,
-            // an ordering -- makes the result unknowable here.
-            BinaryOperator::Equal
-            | BinaryOperator::NotEqual
-            | BinaryOperator::Less
-            | BinaryOperator::LessOrEqual
-            | BinaryOperator::Greater
-            | BinaryOperator::GreaterOrEqual => {
-                typed_operator_authored_selection_candidate_operators(program, expression)
-                    .iter()
-                    .all(|candidate| {
-                        program.primitive_type_reference(candidate.operator.return_type)
-                            == Some(typed_trees::types::PrimitiveType::Bool)
-                    })
+            if matches!(
+                binary.operator,
+                BinaryOperator::And | BinaryOperator::Or | BinaryOperator::CaseMembership
+            ) {
+                return Some(PrimitiveType::Bool);
             }
-            BinaryOperator::Add
-            | BinaryOperator::Subtract
-            | BinaryOperator::Multiply
-            | BinaryOperator::Divide
-            | BinaryOperator::Modulo
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
-            | BinaryOperator::ShiftLeft
-            | BinaryOperator::ShiftRight => false,
+            let left = authored_operand_descriptor(program, binary.left);
+            let right = authored_operand_descriptor(program, binary.right);
+            let carrier = match binary.operator {
+                BinaryOperator::Equal
+                | BinaryOperator::NotEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual
+                | BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual => PrimitiveType::Bool,
+                // The operands' shared carrier. One unknown side is answered
+                // by the other; two KNOWN sides that disagree are a mixed
+                // operation this reader does not settle.
+                _ => match (
+                    operand_carrier(program, left),
+                    operand_carrier(program, right),
+                ) {
+                    (Some(left), Some(right)) if left == right => left,
+                    (Some(carrier), None) | (None, Some(carrier)) => carrier,
+                    _ => return None,
+                },
+            };
+            candidate_operators(program, expression, &[left, right])
+                .iter()
+                .all(|candidate| {
+                    program.primitive_type_reference(candidate.operator.return_type)
+                        == Some(carrier)
+                })
+                .then_some(carrier)
+        }
+        ExpressionNode::Unary(unary) => match unary.operator {
+            UnaryOperator::LogicalNot => Some(PrimitiveType::Bool),
+            UnaryOperator::BitwiseNot => {
+                operand_carrier(program, authored_operand_descriptor(program, unary.operand))
+            }
         },
-        ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
-        _ => false,
+        _ => None,
     }
 }
 
@@ -685,6 +717,18 @@ fn typed_operator_authored_selection_candidate_operators<'program>(
     program: &'program TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
+    candidate_operators(program, expression, &[])
+}
+
+/// [`typed_operator_authored_selection_candidate_operators`] for a caller that
+/// already holds a BINARY expression's two operand descriptors. Deriving them
+/// again would walk each operand once per enclosing operation, which turns a
+/// nested arithmetic expression's carrier into an exponential walk.
+fn candidate_operators<'program>(
+    program: &'program TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+    binary_operands: &[typed_trees::operator::OperandType],
+) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
     use language_core::OperatorSpelling;
     pub(crate) use typed_trees::expression::BinaryOperator;
 
@@ -713,10 +757,13 @@ fn typed_operator_authored_selection_candidate_operators<'program>(
             };
             (
                 spelling,
-                vec![
-                    authored_operand_descriptor(program, binary.left),
-                    authored_operand_descriptor(program, binary.right),
-                ],
+                match binary_operands {
+                    [left, right] => vec![*left, *right],
+                    _ => vec![
+                        authored_operand_descriptor(program, binary.left),
+                        authored_operand_descriptor(program, binary.right),
+                    ],
+                },
             )
         }
         ExpressionNode::Indexed(indexed) => {
@@ -1023,6 +1070,82 @@ mod nested_comparison_operand_probes {
                 OperandType::Reference(_)
             ),
             "a field operand carries its declared type reference"
+        );
+    }
+
+    /// `(self.left / 64) + (self.right % 64)` in a body, beside `declaration`.
+    fn arithmetic_program_with(declaration: &str) -> TypedTrees {
+        typed_program(&format!(
+            r#"
+            {declaration}
+            data Main {{ left: u64; right: u64; }}
+            machine Main::main(&mut self) {{
+                let folded: u64 = (self.left / 64) + (self.right % 64);
+            }}
+        "#
+        ))
+    }
+
+    /// The outer `+` of the arithmetic body: its operands are themselves
+    /// arithmetic.
+    fn outer_addition(program: &TypedTrees) -> ExpressionHandle {
+        program
+            .expression_table
+            .iter_expressions()
+            .find_map(|(expression, node)| {
+                matches!(node, ExpressionNode::Binary(binary)
+                    if binary.operator == BinaryOperator::Add)
+                .then_some(expression)
+            })
+            .expect("the body adds two arithmetic results")
+    }
+
+    /// The arithmetic twin of the comparison case: a declared `f32` addition
+    /// cannot apply to two `u64` results, but neither result names a type.
+    #[test]
+    fn a_declared_float_addition_leaves_the_integer_arithmetic_builtin() {
+        let program =
+            arithmetic_program_with("operator + Reading::add(left: f32, right: f32) -> f32;");
+        let addition = outer_addition(&program);
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(addition) else {
+            unreachable!("guarded binary")
+        };
+        assert_eq!(
+            authored_operand_descriptor(&program, binary.left),
+            OperandType::Primitive(typed_trees::types::PrimitiveType::U64),
+            "a division of `u64` operands produces `u64`"
+        );
+        assert!(
+            typed_operator_has_no_authored_selection(&program, addition),
+            "no declared `f32` addition accepts two `u64` results"
+        );
+    }
+
+    /// The control: a declared addition over the operands' own carrier is a
+    /// real candidate, and the arithmetic result must not be attributed to the
+    /// builtin operator.
+    #[test]
+    fn a_declared_integer_addition_keeps_the_arithmetic_authored() {
+        let program =
+            arithmetic_program_with("operator + Total::add(left: u64, right: u64) -> u64;");
+        assert!(
+            !typed_operator_has_no_authored_selection(&program, outer_addition(&program)),
+            "a declared `u64` addition is a real candidate for two `u64` results"
+        );
+    }
+
+    /// The second control: a declared addition returning another carrier
+    /// leaves the nested result unknowable, exactly as a declared comparison
+    /// returning a non-`bool` does.
+    #[test]
+    fn a_declared_addition_returning_another_carrier_reports_an_unknown_operand() {
+        let program =
+            arithmetic_program_with("operator + Total::add(left: u64, right: u64) -> u32;");
+        assert_eq!(
+            authored_operand_descriptor(&program, outer_addition(&program)),
+            OperandType::Unknown,
+            "a declared `u64` addition returning `u32` leaves ITS OWN result unknown, because \
+             the selected meaning decides the carrier"
         );
     }
 
