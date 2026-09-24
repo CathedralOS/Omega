@@ -45,6 +45,14 @@ fn unqualified_case_values_do_not_infer_their_owner_from_the_expected_type() {
 }
 
 #[test]
+fn qualified_path_heads_sharing_case_spellings_are_not_case_values() {
+    resolve(&[
+        "data Light { case Off; case Float; } machine Float::add() -> u64 { 1 } machine read() -> u64 { Float::add() }",
+    ])
+    .expect("a qualified-path head is a namespace segment, not a bare case value");
+}
+
+#[test]
 fn qualified_payload_free_case_values_resolve_to_constructors() {
     let resolved =
         resolve(&["data Light { case Off; case On; } machine read() -> Light { Light::On }"])
