@@ -4332,7 +4332,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 17 | `recast_views` | ProgramEntry/Terminal attachment |
   | 9 | `plan_laid_repeated_runtime` | claimed elsewhere |
   | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
-  | 3 | `private_joint_progress` | progress-premise propagation |
+  | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
   | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
   | 2 | `source_evaluated_native_realization` | import custody, Linux dynamic leg |
@@ -4341,7 +4341,6 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
   | 1 | `runtime_value_generics` | specialization identity |
   | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
-  | 1 | `literal_dispatch_unit_plan_stops` | omission stop moved earlier |
   | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
 
   Read that table before picking work. 89 need a host and 23 --
@@ -4371,6 +4370,34 @@ but report the missing runtime leg explicitly; it does not close that host row.
   state-parameter conjunct shared the `&&`, and runtime ranking admission not
   recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
   attached machine, as the tail arrival its bare form was.
+
+  `private_joint_progress` keeps three, and they are ONE missing rule: a
+  private call component does not retain an UNDECLARED external requirement as
+  a premise. The four that pass do so because the caller DECLARES the
+  requirement it forwards -- `Main::b` declares `requires forwarded.scheduler
+  in WeakFair` and calls `wait`, which requires exactly that. The three that
+  fail call something whose requirement the caller does not declare, and the
+  contract checker rejects at `checks/contracts/calls.rs` before the progress
+  machinery in `checks/termination/progress/` can retain anything:
+
+  - `independent_external_premises_converge_as_a_set` calls `wait_backup`,
+    needing `forwarded.backup in WeakFair`; the test asserts the component
+    retains BOTH premises (`premises.len() == 2`).
+  - `recursively_projected_requirements_do_not_become_a_finite_promise` needs
+    a nested projection, `forwarded.next.scheduler in WeakFair`.
+  - `private_external_wrapper_can_be_solved_after_the_cycle` compiles but
+    `Main::a` retains `NoGuarantee` where the test expects the external
+    premise with the caller's parameter root.
+
+  `WeakFair` is ROUTED (`established by SchedulerAdmission::grant`), so this is
+  not the predicate-only gap; the requirement genuinely cannot be proved inside
+  the component and is meant to become the component's own published premise
+  for its caller to discharge. An independent survey of every
+  `TransitionTargetNode::Named` reader reached the same place: no
+  ProgressProfile-aware rule exists under `checks/contracts/`, and `FactOrigin`
+  has no premise-derived variant. The three tests are the acceptance
+  specification; the soundness question to settle first is who discharges a
+  retained premise at the component's boundary.
 
   `package_compilation_inputs` keeps one, diagnosed: the preliminary
   finalization allowance is keyed on SOURCE PROVENANCE, not on whether the
