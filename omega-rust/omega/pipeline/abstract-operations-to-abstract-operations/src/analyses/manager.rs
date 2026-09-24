@@ -80,14 +80,17 @@ impl AnalysisManager {
         }
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub const fn revision(&self) -> OptimizationUnitIdentity {
         self.revision
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn cached_kinds(&self) -> impl Iterator<Item = AnalysisKind> + '_ {
         self.cache.keys().copied()
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn require(
         &mut self,
         unit: &PsiOptimizationUnit,
@@ -100,6 +103,7 @@ impl AnalysisManager {
 
     /// Resolve a request set in canonical `AnalysisKind::ALL` order. Caller
     /// insertion order cannot influence dependency or output order.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn require_all(
         &mut self,
         unit: &PsiOptimizationUnit,
@@ -114,6 +118,7 @@ impl AnalysisManager {
 
     /// Cold independent computation suitable for validation and parallel
     /// scheduling. Results are always returned in canonical kind order.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn compute_cold_parallel(
         unit: &PsiOptimizationUnit,
         requested: AnalysisSet,

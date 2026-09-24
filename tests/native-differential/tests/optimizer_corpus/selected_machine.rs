@@ -1,5 +1,5 @@
 use abstract_operations::AbstractOperation;
-use abstract_operations_to_abstract_operations::WrappingIntegerAddConstantsRule;
+use abstract_operations_to_abstract_operations::test_support::WrappingIntegerAddConstantsRule;
 use abstract_operations_to_target_operations::*;
 use machine_code::{NonAuthoritativeCalleeSaveStoragePolicy, TargetFrameLayoutPolicy};
 use machine_emission::frame_layout::{
@@ -309,7 +309,7 @@ struct PsiEvidence {
     unit: optimization_core::OptimizationUnitIdentity,
     identity_bundle: optimization_core::OptimizationIdentityBundle,
     pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    commits: Vec<abstract_operations_to_abstract_operations::test_support::PsiOptimizationCommit>,
     ledger: optimization_unit::PsiTransformationLedger,
     pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
 }
@@ -319,7 +319,7 @@ struct MachineEvidence {
     unit: optimization_core::OptimizationUnitIdentity,
     identity_bundle: optimization_core::OptimizationIdentityBundle,
     pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    commits: Vec<abstract_operations_to_abstract_operations::test_support::PsiOptimizationCommit>,
     ledger: optimization_unit::PsiTransformationLedger,
     pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
     post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,
@@ -335,7 +335,7 @@ struct AtomicMachineEvidence {
     unit: optimization_core::OptimizationUnitIdentity,
     identity_bundle: optimization_core::OptimizationIdentityBundle,
     pass_manifests: Vec<optimization_core::OptimizationPassManifestRecord>,
-    commits: Vec<abstract_operations_to_abstract_operations::PsiOptimizationCommit>,
+    commits: Vec<abstract_operations_to_abstract_operations::test_support::PsiOptimizationCommit>,
     ledger: optimization_unit::PsiTransformationLedger,
     pre_manifest: optimization_unit::PrePhysicalOptimizationManifest,
     post_manifest: selected_instructions_to_register_homes::PostAllocationOptimizationManifest,

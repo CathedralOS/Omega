@@ -14,22 +14,27 @@ mod external_policy;
 
 use optimization_core::TargetCostModelIdentity;
 
+#[cfg(any(test, feature = "test-support"))]
+use crate::validation::ValidatedOptimizerRankingCertificates;
 use crate::validation::{
-    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_transformed_psi_cycle_components, validate_verified_psi_cycle_components,
+    ValidatedOptimizerCycleComponents, validate_transformed_psi_cycle_components,
+    validate_verified_psi_cycle_components,
 };
+use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
+#[cfg(any(test, feature = "test-support"))]
 use crate::{
-    AnalysisManagerError, CountdownInvariantConstantAnalysisError,
-    CountdownInvariantConstantAnalysisSnapshot, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
+    CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountedLoopAnalysisError,
-    CountedLoopAnalysisSnapshot, RuleProposalError, RuleRegistryError,
-    ValidatedCountdownInvariantConstantAnalysis,
+    CountedLoopAnalysisSnapshot, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
-pub(crate) use execution::{run_registries, run_registries_with_external_decisions};
+pub(crate) use execution::run_registries;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use execution::run_registries_with_external_decisions;
 pub(crate) use external_policy::validate_external_decision_recording;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
@@ -69,6 +74,9 @@ mod tests;
 pub struct VerifiedPsiOptimizationSession {
     input: VerifiedPsiOptimizationInput,
     unit: PsiOptimizationUnit,
+    /// Validated at construction in every build, so malformed cycle topology
+    /// rejects the session; only the test-support loop analyses read it back.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     cycle_components: ValidatedOptimizerCycleComponents,
 }
 
@@ -107,6 +115,15 @@ impl VerifiedPsiOptimizationSession {
         &self.unit
     }
 
+    pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {
+        (self.input, self.unit)
+    }
+}
+
+/// Countdown loop analyses over the session, reached only by tests and the
+/// `test-support` feature: no production optimization pass consumes them.
+#[cfg(any(test, feature = "test-support"))]
+impl VerifiedPsiOptimizationSession {
     /// Canonical SCC topology authorized for optimizer analysis only.
     pub const fn cycle_components(&self) -> &ValidatedOptimizerCycleComponents {
         &self.cycle_components
@@ -203,10 +220,6 @@ impl VerifiedPsiOptimizationSession {
             &invariants,
             candidate,
         )
-    }
-
-    pub fn into_parts(self) -> (VerifiedPsiOptimizationInput, PsiOptimizationUnit) {
-        (self.input, self.unit)
     }
 }
 

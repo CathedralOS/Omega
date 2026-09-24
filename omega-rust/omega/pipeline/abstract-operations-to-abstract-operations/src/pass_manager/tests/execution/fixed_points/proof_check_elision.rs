@@ -98,7 +98,7 @@ fn named_proof_check_elision_materializes_self_remainder_zero_at_fixed_point() {
     assert_eq!(manifest.ordered_rules().len(), 12);
     assert_eq!(
         manifest.decisions()[0].rule(),
-        crate::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
     );
     assert_eq!(
         commits[0].declaration.consumed_facts(),
@@ -145,7 +145,7 @@ fn named_proof_check_elision_materializes_self_divide_one_at_fixed_point() {
     assert_eq!(manifest.ordered_rules().len(), 12);
     assert_eq!(
         manifest.decisions()[0].rule(),
-        crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
     );
     assert_eq!(
         commits[0].declaration.consumed_facts(),
@@ -191,7 +191,7 @@ fn named_proof_check_elision_materializes_remainder_by_one_zero_at_fixed_point()
     assert_eq!(manifest.ordered_rules().len(), 12);
     assert_eq!(
         manifest.decisions()[0].rule(),
-        crate::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
     );
     assert_eq!(commits[0].declaration.consumed_facts().len(), 2);
     assert!(matches!(
@@ -234,7 +234,7 @@ fn named_proof_check_elision_materializes_signed_remainder_by_negative_one_zero(
     assert_eq!(manifest.ordered_rules().len(), 12);
     assert_eq!(
         manifest.decisions()[0].rule(),
-        crate::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
+        crate::rules::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
             .identity()
     );
     assert_eq!(commits[0].declaration.consumed_facts().len(), 2);
@@ -277,7 +277,7 @@ fn named_proof_check_elision_elides_exact_signed_negative_one_shift_right() {
     assert_eq!(manifest.ordered_rules().len(), 12);
     assert_eq!(
         manifest.decisions()[0].rule(),
-        crate::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule::contract()
+        crate::rules::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule::contract()
             .identity()
     );
     assert_eq!(commits[0].declaration.consumed_facts().len(), 2);

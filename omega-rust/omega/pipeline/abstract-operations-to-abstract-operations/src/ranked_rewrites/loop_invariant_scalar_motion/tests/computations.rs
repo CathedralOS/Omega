@@ -4,10 +4,10 @@
 //! multi-entry preheaders.
 
 use crate::VerifiedPsiOptimizationSession;
+use crate::ranked_rewrites::{LoopInvariantNodeResult, LoopInvariantScalarRelocation};
 use crate::{
-    LoopInvariantNodeResult, LoopInvariantScalarMotionError, LoopInvariantScalarRelocation,
-    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
-    validate_loop_invariant_scalar_motion,
+    LoopInvariantScalarMotionError, apply_loop_invariant_scalar_motion,
+    propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
 use abstract_operations::AbstractOperation;
 use optimization_unit::{
@@ -502,7 +502,7 @@ fn bypassed_member_computation_is_speculation_and_stays_inside() {
     // relocation roster and a different candidate identity.
     let mut forged = candidate.clone();
     forged.relocations.push(LoopInvariantScalarRelocation {
-        node: crate::LoopInvariantScalarNode {
+        node: crate::ranked_rewrites::LoopInvariantScalarNode {
             psi_operation: addition_operation,
             result: match addition.definitions.as_slice() {
                 [definition] => LoopInvariantNodeResult::Scalar {

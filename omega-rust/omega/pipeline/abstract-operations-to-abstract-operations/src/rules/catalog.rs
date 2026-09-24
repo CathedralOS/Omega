@@ -16,14 +16,8 @@ use crate::{OrderedRuleRegistry, PsiOptimizationRule, RuleRegistryError};
 
 type RuleCatalog = fn() -> Vec<BuiltInRuleRegistration>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PsiPassTargetApplicability {
-    TargetIndependent,
-}
-
 #[derive(Clone, Copy)]
 struct PsiPassCatalogPayload {
-    target: PsiPassTargetApplicability,
     rule_catalog: RuleCatalog,
 }
 
@@ -38,19 +32,12 @@ impl PsiPassCatalogEntry {
     const fn new(optimization: PsiOptimization, rule_catalog: RuleCatalog) -> Self {
         Self {
             optimization,
-            payload: PsiPassCatalogPayload {
-                target: PsiPassTargetApplicability::TargetIndependent,
-                rule_catalog,
-            },
+            payload: PsiPassCatalogPayload { rule_catalog },
         }
     }
 
     pub const fn optimization(self) -> PsiOptimization {
         self.optimization
-    }
-
-    pub const fn target_applicability(self) -> PsiPassTargetApplicability {
-        self.payload.target
     }
 
     fn registrations(self) -> Vec<BuiltInRuleRegistration> {
@@ -92,18 +79,6 @@ pub const PSI_PASS_CATALOG: [PsiPassCatalogEntry; 8] = [
         PsiOptimization::RepresentationSpecialization,
         representation_specialization_rule_registrations,
     ),
-];
-
-/// Compatibility view derived from [`PSI_PASS_CATALOG`], never a second table.
-pub const ORDERED_PSI_PASSES: [PsiOptimization; 8] = [
-    PSI_PASS_CATALOG[0].optimization(),
-    PSI_PASS_CATALOG[1].optimization(),
-    PSI_PASS_CATALOG[2].optimization(),
-    PSI_PASS_CATALOG[3].optimization(),
-    PSI_PASS_CATALOG[4].optimization(),
-    PSI_PASS_CATALOG[5].optimization(),
-    PSI_PASS_CATALOG[6].optimization(),
-    PSI_PASS_CATALOG[7].optimization(),
 ];
 
 pub(crate) fn registry_for_optimization(

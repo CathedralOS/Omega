@@ -31,14 +31,14 @@ fn cases() -> Vec<Case> {
     vec![
         Case {
             unit: dead_exact_add_unit(),
-            rule: crate::ProofCertifiedDeadScalarEliminationRule::contract().identity(),
+            rule: crate::rules::ProofCertifiedDeadScalarEliminationRule::contract().identity(),
             validator: validator(b"omega.validator.dead-unused-proof-certified-scalar-node.v1"),
             evaluations: 13,
             consumes_constant: false,
         },
         Case {
             unit: live_exact_add_zero_unit(),
-            rule: crate::LiveProofCertifiedIntegerIdentityEliminationRule::contract().identity(),
+            rule: crate::rules::LiveProofCertifiedIntegerIdentityEliminationRule::contract().identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-identity-elimination.v1",
             ),
@@ -59,7 +59,7 @@ fn cases() -> Vec<Case> {
                     }
                 },
             ),
-            rule: crate::LiveProofCertifiedIntegerDivideByOneEliminationRule::contract().identity(),
+            rule: crate::rules::LiveProofCertifiedIntegerDivideByOneEliminationRule::contract().identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1",
             ),
@@ -68,7 +68,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_exact_multiply_by_zero_unit(unsigned, false),
-            rule: crate::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
@@ -90,7 +90,7 @@ fn cases() -> Vec<Case> {
                     }
                 },
             ),
-            rule: crate::LiveProofCertifiedIntegerZeroDividendEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedIntegerZeroDividendEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1",
@@ -100,7 +100,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_exact_zero_value_shift_unit(unsigned, true),
-            rule: crate::LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
@@ -110,7 +110,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_exact_self_subtract_unit(unsigned),
-            rule: crate::LiveProofCertifiedExactIntegerSelfSubtractEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedExactIntegerSelfSubtractEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-exact-integer-self-subtract-elimination.v1",
@@ -120,7 +120,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_self_remainder_unit(unsigned, SelfRemainderPolicy::Exact),
-            rule: crate::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-self-remainder-elimination.v1",
@@ -130,7 +130,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_self_divide_unit(unsigned, SelfDividePolicy::Exact),
-            rule: crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity(),
+            rule: crate::rules::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-self-divide-elimination.v1",
             ),
@@ -139,7 +139,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             unit: live_remainder_by_one_unit(unsigned, SelfRemainderPolicy::Exact),
-            rule: crate::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract()
+            rule: crate::rules::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract()
                 .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-remainder-by-one-elimination.v1",
@@ -153,7 +153,7 @@ fn cases() -> Vec<Case> {
                 SelfRemainderPolicy::Exact,
             ),
             rule:
-                crate::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
+                crate::rules::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
                     .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
@@ -164,7 +164,7 @@ fn cases() -> Vec<Case> {
         Case {
             unit: live_exact_signed_negative_one_shift_right_unit(signed),
             rule:
-                crate::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule::contract()
+                crate::rules::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule::contract()
                     .identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-exact-signed-integer-negative-one-value-shift-right-elimination.v1",

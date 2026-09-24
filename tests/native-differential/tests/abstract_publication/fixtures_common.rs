@@ -252,7 +252,7 @@ pub(super) fn run(
     selections: OptimizationSelections,
 ) -> OptimizationRun {
     let registry = built_in_psi_registry(&selections).unwrap();
-    abstract_operations_to_abstract_operations::run_psi_registry(
+    abstract_operations_to_abstract_operations::test_support::run_psi_registry(
         verified,
         &selections,
         &registry,

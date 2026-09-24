@@ -194,6 +194,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   `abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
   Keep independent admission/replay in `src/validation/`, including invariant
   operand substitution and the existing topology-based non-speculation gate.
+  No Psi optimization selection runs the rewrite today: it and the countdown
+  loop analyses compile only for tests and the crate's `test-support`
+  feature, so a selected pass must reach it from `optimize_abstract_operations`
+  before an extension changes any compiled program.
 
   Remaining boundaries:
   - Establishment/custody families not covered by current relocation.
