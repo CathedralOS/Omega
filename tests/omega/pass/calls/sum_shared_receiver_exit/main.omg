@@ -1,0 +1,45 @@
+// A multi-case sum spelled as a local stays a shared `&self` receiver: the
+// `r.get(9)` call site names the whole nominal sum below a shared boundary
+// rather than declining at the shared case-operand gate.
+//
+// Regression shape this pins: `shared_nominal_argument` only admitted a
+// whole Unrestricted scalar sum at the root of the operand; a projected or
+// affine-position multi-case sum with non-erased payload members declined
+// with "shared case operand requires a whole scalar sum".
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Resp {
+    case Results(v: u64, w: u64);
+    case Empty;
+}
+
+machine Resp::get(&self, position: u64) -> u64 {
+    transition self {
+        Resp::Results { v, w } -> (v)
+        _ -> (position)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition {
+        _ -> observe()
+    }
+
+    state observe(&mut self) {
+        let r: Resp = Resp::Results { v: 41, w: 7 };
+        let answer: u64 = r.get(9);
+
+        transition answer == 41 {
+            true -> passed()
+            false -> failed()
+        }
+    }
+
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(1); }
+}
