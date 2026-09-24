@@ -99,280 +99,280 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "ControlFlowCleanup",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "positive_threads_the_single_predecessor_empty_block",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "boundary_declines_a_real_join_with_distinct_returns",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/control_flow_cleanup.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "SparseConditionalConstantPropagation",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "positive_folds_the_certified_exact_add_constants",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "boundary_declines_an_add_over_unknown_parameters",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/sparse_conditional_constant_propagation.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "CopyPropagation",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "positive_eliminates_the_redundant_merge_parameter",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "boundary_declines_a_parameter_with_a_distinct_false_arm_source",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/copy_propagation.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "GlobalValueNumbering",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "positive_unifies_the_commuted_proof_certified_pair",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "boundary_declines_a_lone_expression_with_no_duplicate",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/global_value_numbering.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "DeadPureScalarElimination",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "positive_eliminates_unused_scalar_literals",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "boundary_declines_scalar_work_whose_results_all_live",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/dead_pure_scalar_elimination.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "ProofCheckElision",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "positive_elides_the_certified_self_divide_obligation",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "boundary_declines_a_certified_obligation_no_rule_covers",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/proof_check_elision.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "StateSpecialization",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "positive_fuses_the_constant_supplied_dispatch_edge",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "boundary_declines_an_all_constant_dispatch",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/state_specialization.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },
     RuleCoverage {
         rule: "RepresentationSpecialization",
         positive: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "positive_folds_the_proven_membership_observations",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "negative_leaves_an_empty_unit_untouched",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "boundary_declines_an_unproven_parameter_membership",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "disabled_sibling_selection_leaves_the_unit_untouched",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "measured_budget_admits_exact_usage_and_refuses_one_less",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "repeated_runs_are_deterministic",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "published_unit_is_a_legal_second_input_fixed_point",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/tests/evidence_matrix/representation_specialization.rs",
             "forged_run_axes_fail_publication_replay",
         ),
     },

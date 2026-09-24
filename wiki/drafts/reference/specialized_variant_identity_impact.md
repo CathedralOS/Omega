@@ -24,7 +24,7 @@ and [artifact verification](../../spec/terminal-psi/verification.md).
 - The specialization chain binds those identities honestly. The independent
   validator re-realizes the plan and recomputes the output identity and the
   candidate identity from it
-  (`abstract-operations-to-abstract-operations/src/state_specialization/validate.rs`);
+  (`04_abstract-operations-to-abstract-operations/src/state_specialization/validate.rs`);
   application rejects stale candidates (`StaleCandidateRevision`) and output
   mismatches (`OutputIdentityMismatch`), and the transformation ledger records
   rule, candidate, validator, input and output (`apply.rs`). Replay cannot

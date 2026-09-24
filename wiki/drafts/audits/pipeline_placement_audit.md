@@ -114,7 +114,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 
 **Reviewed, not row-1 hits** (name-shape matches, different semantics)
 
-- `abstract-operations-to-abstract-operations/.../global_value_numbering/identities/*`
+- `04_abstract-operations-to-abstract-operations/.../global_value_numbering/identities/*`
   and `proof_check_elision/scalar_identities.rs` — `*IdentityRule` structs are
   algebraic rule names, not durable content identities; no Sha256 producer.
 - `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —

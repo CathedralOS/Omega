@@ -2747,7 +2747,7 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
 fn optimization_projection_stops_before_target_realization() {
     let root = workspace_root();
     let projection_root =
-        root.join("omega-rust/omega/pipeline/abstract-operations-to-abstract-operations");
+        root.join("omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations");
     let manifest_path = projection_root.join("Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
@@ -5452,7 +5452,7 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
 fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     let root = workspace_root();
     let replay_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction",
     );
     for relative in ["replay.rs", "region.rs"] {
         let path = replay_root.join(relative);
@@ -5501,7 +5501,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     // the verifier's Terminal component surface. Losing a leg here restores the
     // weakening this guardrail exists to forbid.
     let custody_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
     );
     let ordinary = std::fs::read_to_string(custody_root.join("ordinary.rs"))
         .expect("read ranked-cycle component custody leaf");
@@ -5567,7 +5567,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
 fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant replay leaf");
@@ -5646,7 +5646,7 @@ fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
 fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant placement replay leaf");
@@ -5707,7 +5707,7 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
 fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
     let root = workspace_root();
     let rewrite_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation",
     );
     let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
         .expect("read countdown invariant-constant relocation validator");
@@ -5779,7 +5779,7 @@ fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
 fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
     let root = workspace_root();
     let rewrite_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
     );
     let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
         .expect("read loop-invariant scalar motion validator");
@@ -5850,7 +5850,7 @@ fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
 fn countdown_ranking_constant_resolution_is_internal_and_independent() {
     let root = workspace_root();
     let ranking_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
     );
     let resolver = std::fs::read_to_string(
         ranking_root.join("countdown_ranking/current/invariant_constants.rs"),
@@ -5908,7 +5908,7 @@ fn countdown_ranking_constant_resolution_is_internal_and_independent() {
 fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
     let root = workspace_root();
     let freeze_root = root.join(
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
     );
     let normalization = std::fs::read_to_string(freeze_root.join("relocated_scalars.rs"))
         .expect("read ranked-component normalization leaf");

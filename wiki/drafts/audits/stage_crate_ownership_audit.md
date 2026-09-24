@@ -127,7 +127,7 @@ artifacts (`include_str!`/`include_bytes!`).
   `SPILL-REALIZATION` board item, not misplaced ownership. The replay codecs
   inside it (`logical_spill_operations/codec`, `stack_slot_coloring/codec`)
   are transform-owned replay evidence, distinct from F2's durable manifest.
-- `abstract-operations-to-abstract-operations/representation_specialization`:
+- `04_abstract-operations-to-abstract-operations/representation_specialization`:
   an X-to-X pass family — correctly placed transform; the
   `REPRESENTATION-SPECIALIZATION` board item owns its remaining gaps.
 - `00_source-files-to-assembled-syntax/source_assembly.rs` constructor blocks

@@ -13,9 +13,9 @@
       "item": "REPRESENTATION-SPECIALIZATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization",
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization",
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/representation_specialization",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/field_value_specialization",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/state_specialization",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates"
       ],
       "suggested_first_slice": "extend field/variant relevance beyond the landed specialization cases per the item text; GENERAL-LICM holds ranked_rewrites/loop_invariant_scalar_motion and validation/invariant_* in the same crate \u2014 stay inside the claimed dirs and report blocked if a slice needs them.",

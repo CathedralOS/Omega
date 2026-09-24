@@ -258,7 +258,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "STATE-SPECIALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization"
+    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/state_specialization"
    ],
    "suggested_first_slice": "The wired Boolean state-argument specialization declines cyclic components, non-Boolean state arguments, conditional incoming edges, and result specialization. Take ONE bounded extension: admit a conditional incoming edge (non-unanimous dispatch) or a non-Boolean state argument family \u2014 the pass already selects by exact name and replays independently, so extend the admission + keep forged/stale edge-provenance and disabled-selection controls honest. Coordinator holds only licm/validation dirs in this crate \u2014 disjoint. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1

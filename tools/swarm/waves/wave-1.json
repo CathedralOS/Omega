@@ -34,8 +34,8 @@
       "item": "BOUNDARY-QUALIFICATION-PRESERVATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation",
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/unit_validation"
       ]
     },

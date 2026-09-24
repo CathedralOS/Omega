@@ -105,9 +105,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "GENERAL-LICM",
    "owning_paths": [
-    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
-    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/invariant_calls.rs",
-    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/invariant_operations.rs"
+    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/invariant_calls.rs",
+    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/invariant_operations.rs"
    ],
    "suggested_first_slice": "Boundary-extension leg: 49468aee46 relocates crash-continuation scalar calls through the authenticated shared-source preheader with callee-contract-derived rosters. Still open: call motion carrying claim transfers, requirement obligations or selected evidence lacks reconstruction; affine/linear argument transfers need custody the boundary cannot re-express. Take ONE bounded step extending motion to one such family with independent reconstruction of the relationship it carries, preserving the topology non-speculation gate and cyclic freeze. Review parked WIP swarm/macw6-general-licm (46a232ec0a, call-invariance test scaffolding) first - reuse or discard honestly. Fenced: a2a src/{analyses,field_value_specialization,representation_specialization,state_specialization,pass_manager,publication,rules}, validation files other than invariant_{calls,operations}.rs. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [
