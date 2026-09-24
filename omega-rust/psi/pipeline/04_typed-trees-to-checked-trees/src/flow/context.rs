@@ -167,6 +167,13 @@ pub(super) struct FlowBuildContext<'plans> {
         HashMap<(SymbolHandle, SymbolHandle), Rc<Vec<(SymbolHandle, SymbolHandle)>>>,
     reference_candidate_places:
         HashMap<(SymbolHandle, usize, SymbolHandle), Option<Rc<Vec<crate::flow::CanonicalPlace>>>>,
+    /// Statement storage-write places per site: the answer is program-pure on
+    /// (state, statement index) -- the machine and statement are implied by
+    /// the key and the shared call-frame resolver is the same `call_frames`
+    /// the whole build shares -- so the enumeration runs at most once per
+    /// site rather than once per pass.
+    statement_storage_writes:
+        HashMap<(SymbolHandle, usize), Option<Rc<Vec<crate::flow::CanonicalPlace>>>>,
     /// Declared root type for a transfer-correspondence place: another
     /// program-immutable lookup over machines, states, and statement tables.
     pub(super) correspondence_root_types: HashMap<
@@ -251,6 +258,7 @@ impl<'plans> FlowBuildContext<'plans> {
             transition_call_targets: HashMap::new(),
             entry_origin_chains: HashMap::new(),
             reference_candidate_places: HashMap::new(),
+            statement_storage_writes: HashMap::new(),
             correspondence_root_types: HashMap::new(),
             expression_occurrences: HashMap::new(),
             proof_fact_occurrences: HashMap::new(),
@@ -524,6 +532,35 @@ impl<'plans> FlowBuildContext<'plans> {
                     state_symbol,
                     statement_index,
                     root,
+                    self.call_frames,
+                )
+                .map(Rc::new)
+            })
+            .clone()
+    }
+
+    /// Storage-write places for one statement site. The enumeration walks
+    /// local origins, origin paths, and alias closures per statement, all
+    /// program-pure on (state, index): the statement sits at that index in
+    /// that state, its machine is implied, and the call-frame resolver is
+    /// the shared one the whole build carries.
+    pub(super) fn statement_storage_writes_at(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+        statement_index: usize,
+        statement: &checked_trees::statement::StatementNode,
+    ) -> Option<Rc<Vec<crate::flow::CanonicalPlace>>> {
+        self.statement_storage_writes
+            .entry((state_symbol, statement_index))
+            .or_insert_with(|| {
+                crate::flow::statement_storage_writes(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                    statement_index,
+                    statement,
                     self.call_frames,
                 )
                 .map(Rc::new)
