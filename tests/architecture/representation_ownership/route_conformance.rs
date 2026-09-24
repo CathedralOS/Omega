@@ -297,7 +297,7 @@ fn omega_pipeline_directories_follow_route_order() {
         "03_target-operations-to-selected-instructions",
         "04_selected-instructions-to-selected-instructions",
         "05_selected-instructions-to-register-homes",
-        "09_register-homes-to-post-allocation-machine",
+        "06_register-homes-to-post-allocation-machine",
         "10_post-allocation-machine-to-selected-form-encoding",
         "11_selected-form-encoding-to-resolved-layout",
         "12_resolved-layout-to-resolved-layout",
