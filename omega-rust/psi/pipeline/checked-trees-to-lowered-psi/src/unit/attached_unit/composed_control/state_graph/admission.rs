@@ -411,7 +411,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                edges::validate_fallback(checked, true_source, false_source)?;
+                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 if checked.facts.values.scalar_expressions.expression_at(
                     state.state,
                     u32::try_from(terminator_ordinal)
@@ -472,7 +472,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     StatementNode::Transition(false_source),
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
-                edges::validate_fallback(checked, true_source, false_source)?;
+                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
                 if checked.facts.values.scalar_expressions.expression_at(
                     state.state,
                     u32::try_from(terminator_ordinal)

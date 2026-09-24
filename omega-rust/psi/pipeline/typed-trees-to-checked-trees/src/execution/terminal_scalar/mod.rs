@@ -72,7 +72,6 @@ use typed_trees::{
 
 mod constructions;
 mod guarded_exits;
-mod guards;
 mod owned_parameters;
 pub(super) mod primitive_locals;
 mod unit_operations;
@@ -930,7 +929,12 @@ pub(super) fn checked_terminator(
             StatementNode::Transition(when_false),
         ] if matches!(when_true.guard, TransitionGuardNode::When(_))
             && (when_false.guard == TransitionGuardNode::Always
-                || guards::complementary(expressions, state.symbol, terminator_ordinal))
+                || crate::execution::guard_complement::complementary(
+                    program,
+                    expressions,
+                    state,
+                    terminator_ordinal,
+                ))
             && !when_true.continuation.is_valid()
             && !when_false.continuation.is_valid() =>
         {

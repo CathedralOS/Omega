@@ -34,6 +34,7 @@ pub(crate) fn lower(
     fallback: &CheckedScalarBranchDestination,
     computations: &mut computations::Expansion<'_>,
 ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
+    validate_second_guard(checked, state, statement)?;
     if is_computed(checked, state, statement)
         || matches!(fallback, CheckedScalarBranchDestination::Crash { .. })
     {
@@ -154,6 +155,36 @@ pub(crate) fn evaluate(
     })
 }
 
+/// An authored second guard replaces the unconditional fallback only when it
+/// holds exactly where the first fails: the lowered branch never evaluates it.
+fn validate_second_guard(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+) -> Result<(), LoweringError> {
+    use crate::expression_preparation::source_custody;
+    use checked_trees::statement::{StatementNode, TransitionGuardNode};
+
+    let (_, source) = source_custody::authored_state(checked, state)?;
+    match checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(statement as usize..)
+    {
+        Some(
+            [
+                StatementNode::Transition(_),
+                StatementNode::Transition(second),
+            ],
+        ) if matches!(second.guard, TransitionGuardNode::When(_))
+            && !source_custody::guard_complement::complementary(checked, state, statement)? =>
+        {
+            unsupported("scalar guard fallback is not the exact complement of its guard")
+        }
+        _ => Ok(()),
+    }
+}
+
 fn validate_fallback(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -199,6 +230,8 @@ fn validate_fallback(
                 && guard.continuation.is_valid()
                 && guard.exit == TransitionExit::Ordinary
         }
+        // A guarded fallback is the exact complement `validate_second_guard`
+        // already established.
         [
             StatementNode::Transition(guard),
             StatementNode::Transition(fallback),
@@ -211,7 +244,6 @@ fn validate_fallback(
                 } else {
                     fallback.exit == TransitionExit::Ordinary
                 })
-                && fallback.guard == TransitionGuardNode::Always
         }
         [
             StatementNode::Transition(guard),

@@ -2221,16 +2221,6 @@ syntax and other terminal services are not prerequisites.
   arrangements to a family below. Widen the general route and delete the
   family instead. Ranked targets, measured 2026-09-24 against `3f797950ea`:
 
-  1. The guard-complement check exists in six places and the two graph
-     families admit different pairs. Unit graphs take `x==true/x==false`,
-     builtin `==`/`!=` operand pairs and two-variant case pairs. Scalar
-     graphs take only Boolean polarity. The producers are
-     `terminal_unit/composed_control/topology.rs::exact_false_fallback` and
-     `terminal_scalar/guards/mod.rs::complementary`; the lowering mirrors are
-     `state_graph/edges.rs::validate_fallback` and
-     `source_custody/guarded_exits.rs::complementary`. The Unit side compares
-     authored trees and the scalar side compares checked Boolean rows, so
-     unify on checked rows first.
   2. Scalar machines take three routes: the shared-catalog Unit closure, a
      single-member scalar graph, and the scalar call closure.
      `closure.len() == 1` changes the contract mode (float reflexivity) and
@@ -2240,6 +2230,9 @@ syntax and other terminal services are not prerequisites.
      against `unit.rs`, forwarded-helper resolvers). The two-predecessor
      join is already one lowering over `join.rs::JoinedDynamicCall`. The
      checked side has the matching `forwarded_calls.rs` against `unit.rs`.
+     Its join (`composed_control/dynamic_join.rs`) still requires an
+     authored `_` fallback; other graphs accept an exact-complement pair
+     through `execution::guard_complement::complementary`.
   4. Composed-graph states re-emit operations through
      `composed_control/emission.rs`, a narrower copy of
      `attached_unit/ordinary_machine` emission.

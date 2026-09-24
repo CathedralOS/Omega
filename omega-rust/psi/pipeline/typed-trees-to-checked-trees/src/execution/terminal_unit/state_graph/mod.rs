@@ -721,9 +721,13 @@ pub(super) fn build_traced(
                     StatementNode::Transition(when_true),
                     StatementNode::Transition(when_false),
                 ] if matches!(when_true.guard, TransitionGuardNode::When(_))
-                    && composed_control::topology::exact_false_fallback(
-                        program, facts, when_true, when_false,
-                    ) =>
+                    && (when_false.guard == TransitionGuardNode::Always
+                        || crate::execution::guard_complement::complementary(
+                            program,
+                            &facts.values.scalar_expressions,
+                            state,
+                            ordinal,
+                        )) =>
                 {
                     trace
                         .phase("state graph: terminator: conditional successors: guard expression");

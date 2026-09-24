@@ -23,6 +23,7 @@ pub use structural_values::{
 };
 mod array_construction_source;
 pub use array_construction_source::CheckedArrayConstructionSource;
+pub mod guard_complement;
 
 #[cfg(test)]
 mod tests;

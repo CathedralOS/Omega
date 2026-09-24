@@ -1,4 +1,4 @@
-//! Exact authored successor operands and Boolean fallback pairing.
+//! Exact authored successor operands and exact-complement fallback pairing.
 use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity,
@@ -588,203 +588,28 @@ fn validate_cleanup(
     Ok(())
 }
 
+/// A guarded second arm stands in for the unconditional fallback only when it
+/// holds exactly where the first guard fails.
 pub(super) fn validate_fallback(
     checked: &CheckedTrees,
-    when_true: &TableTransition,
+    state: symbols::SymbolHandle,
+    guard_ordinal: usize,
     when_false: &TableTransition,
 ) -> Result<(), LoweringError> {
     if when_false.guard == TransitionGuardNode::Always {
         return Ok(());
     }
-    let (TransitionGuardNode::When(true_expression), TransitionGuardNode::When(false_expression)) =
-        (when_true.guard, when_false.guard)
-    else {
-        return unsupported("Unit graph has no exact Boolean fallback");
-    };
-    let subject = |expression| {
-        let ExpressionNode::Binary(binary) = checked.expression_table.expression(expression) else {
-            return None;
-        };
-        if binary.operator != checked_trees::expression::BinaryOperator::Equal {
-            return None;
-        }
-        if let ExpressionNode::Boolean(value) = checked.expression_table.expression(binary.right) {
-            return Some((binary.left, *value));
-        }
-        if let ExpressionNode::Boolean(value) = checked.expression_table.expression(binary.left) {
-            return Some((binary.right, *value));
-        }
-        None
-    };
-    if let (Some((first, first_value)), Some((second, second_value))) =
-        (subject(true_expression), subject(false_expression))
-        && first_value != second_value
-    {
-        return if checked
-            .expression_table
-            .expressions_structurally_equal(first, second)
-        {
-            Ok(())
-        } else {
-            unsupported("Unit graph branch labels inspect different source values")
-        };
+    let guard_ordinal = u32::try_from(guard_ordinal)
+        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
+    if crate::expression_preparation::source_custody::guard_complement::complementary(
+        checked,
+        state,
+        guard_ordinal,
+    )? {
+        Ok(())
+    } else {
+        unsupported("Unit graph fallback is not the exact complement of its guard")
     }
-    if builtin_equality_complement(checked, true_expression, false_expression)
-        || closed_case_complement(checked, true_expression, false_expression)
-    {
-        return Ok(());
-    }
-    unsupported("Unit graph fallback is not the inverse source label")
-}
-
-/// The producer side's closed-case mirror: `subject == A` paired with
-/// `subject == B` over one two-variant sum is the authored exhaustive split,
-/// so the second arm holds exactly where the first fails. A sum with more
-/// variants leaves cases the pair never names, and a repeated case splits
-/// nothing. The subject is re-read for the second guard, so it must
-/// re-evaluate to the value the first guard observed.
-fn closed_case_complement(
-    checked: &CheckedTrees,
-    true_expression: checked_trees::expression::ExpressionHandle,
-    false_expression: checked_trees::expression::ExpressionHandle,
-) -> bool {
-    let (Some((true_subject, true_case)), Some((false_subject, false_case))) = (
-        super::cases::case_test(checked, true_expression),
-        super::cases::case_test(checked, false_expression),
-    ) else {
-        return false;
-    };
-    if true_case == false_case
-        || !checked
-            .expression_table
-            .expressions_structurally_equal(true_subject, false_subject)
-        || !reevaluation_stable(checked, true_subject)
-    {
-        return false;
-    }
-    let variant_owner = |case| {
-        checked.data_definitions().iter().find(|definition| {
-            checked.data_members(definition).iter().any(|member| {
-                matches!(
-                    member,
-                    checked_trees::data::DataMember::Variant(variant) if variant.symbol == case
-                )
-            })
-        })
-    };
-    let (Some(owner), Some(other)) = (variant_owner(true_case), variant_owner(false_case)) else {
-        return false;
-    };
-    owner.symbol == other.symbol
-        && checked.data_members(owner).iter().all(|member| {
-            matches!(
-                member,
-                checked_trees::data::DataMember::Variant(variant)
-                    if variant.symbol == true_case || variant.symbol == false_case
-            )
-        })
-}
-
-/// The producer side's `exact_false_fallback` mirror: builtin `L == R` paired
-/// with `L != R` over identical operands is the authored `!(L == R)` — an
-/// exact complement for integer, Boolean, and float subjects alike (NaN makes
-/// `!=` true where `==` is false). Ordered pairs stay out: NaN falsifies both
-/// directions. The second arm is skipped when the first guard holds, so its
-/// operands must re-evaluate to the values the first guard observed — calls,
-/// atomic observations, and deferred match arms cannot.
-fn builtin_equality_complement(
-    checked: &CheckedTrees,
-    true_expression: checked_trees::expression::ExpressionHandle,
-    false_expression: checked_trees::expression::ExpressionHandle,
-) -> bool {
-    let (ExpressionNode::Binary(true_binary), ExpressionNode::Binary(false_binary)) = (
-        checked.expression_table.expression(true_expression),
-        checked.expression_table.expression(false_expression),
-    ) else {
-        return false;
-    };
-    if !matches!(
-        (true_binary.operator, false_binary.operator),
-        (
-            checked_trees::expression::BinaryOperator::Equal,
-            checked_trees::expression::BinaryOperator::NotEqual
-        ) | (
-            checked_trees::expression::BinaryOperator::NotEqual,
-            checked_trees::expression::BinaryOperator::Equal
-        )
-    ) {
-        return false;
-    }
-    checked
-        .expression_table
-        .expressions_structurally_equal(true_binary.left, false_binary.left)
-        && checked
-            .expression_table
-            .expressions_structurally_equal(true_binary.right, false_binary.right)
-        && builtin_operator(checked, true_expression)
-        && builtin_operator(checked, false_expression)
-        && reevaluation_stable(checked, true_binary.left)
-        && reevaluation_stable(checked, true_binary.right)
-}
-
-fn builtin_operator(
-    checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> bool {
-    checked
-        .facts
-        .operators
-        .expression_use(expression)
-        .is_none_or(|operator_use| {
-            operator_use.status == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        })
-}
-
-fn reevaluation_stable(
-    checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> bool {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(node) = pending.pop() {
-        if !node.is_valid() || visited.contains(&node) {
-            continue;
-        }
-        visited.push(node);
-        match checked.expression_table.expression(node) {
-            ExpressionNode::Match(_) | ExpressionNode::Atomic(_) | ExpressionNode::Call(_) => {
-                return false;
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Range(range) => pending.extend(
-                [range.start, range.end]
-                    .into_iter()
-                    .filter(|value| value.is_valid()),
-            ),
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend_from_slice(checked.expression_table.expression_handles(*values))
-            }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                checked
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Name(_)
-            | ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
-        }
-    }
-    true
 }
 
 /// Reconstruct the remaining whole-parameter drops at an ordinary return.

@@ -2,7 +2,6 @@
 //! Coverage is separate from evaluation: a final case guard is not a wildcard.
 use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode, TypedTrees};
 use crate::execution::terminal_scalar::checked_branch_destination;
-use crate::execution::terminal_scalar::guards;
 use checked_trees::{CheckedScalarGuardedExit, CheckedScalarGuardedTail};
 
 pub(super) fn build(
@@ -122,7 +121,12 @@ fn tail(
     }
     let complementary_pair = arms.len() == 2
         && fallback.is_none()
-        && guards::complementary(expressions, state.symbol, u32::try_from(prefix).ok()?);
+        && crate::execution::guard_complement::complementary(
+            program,
+            expressions,
+            state,
+            u32::try_from(prefix).ok()?,
+        );
     if fallback.is_none() && !complementary_pair {
         if !exact_cases {
             return None;

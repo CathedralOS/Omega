@@ -555,7 +555,7 @@ pub(super) fn fixed_index_element_type(
     }
 }
 
-pub(super) fn structural_data(
+pub(crate) fn structural_data(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
