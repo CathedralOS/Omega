@@ -84,7 +84,29 @@ fn static_persistent_paths_at_state_entries(
 ) -> Vec<Vec<StaticPersistentPath>> {
     let mut entries = vec![None::<Vec<StaticPersistentPath>>; states.len()];
     if !states.is_empty() {
-        entries[0] = Some(Vec::new());
+        // Construction seeds persistent provenance for attached-data fields:
+        // a `data Main<'a>` value arrives fully populated by the caller, so
+        // every borrow-carrying field holds an 'a-scoped loan that outlives
+        // this machine's execution — persistent by definition. A borrow
+        // stored into another persistent field from such a source needs no
+        // additional edge transport. Machine-owned data is seeded by its
+        // authored initial value instead, whose provenance is no better than
+        // that expression's — it is deliberately not seeded here. Later
+        // writes and call frames still invalidate the established paths
+        // normally.
+        let mut entry = Vec::new();
+        for (field, _, field_type) in attached_persistent_fields(program, machine) {
+            if !crate::borrow::view_link::returns_borrow(program, field_type) {
+                continue;
+            }
+            let path = StaticPersistentPath {
+                field,
+                segments: Vec::new(),
+            };
+            entry.push(path.clone());
+            add_static_borrow_frontier(program, path, field_type, &mut entry);
+        }
+        entries[0] = Some(entry);
     }
 
     loop {
@@ -1070,11 +1092,11 @@ fn persistent_target_type<'program>(
         })
 }
 
-fn persistent_storage<'program>(
+fn attached_persistent_fields<'program>(
     program: &'program typed_trees::TypedTrees,
     machine: &'program typed_trees::machine::Machine,
 ) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
-    let attached = machine
+    machine
         .attached_data
         .as_ref()
         .and_then(|name| {
@@ -1090,8 +1112,16 @@ fn persistent_storage<'program>(
                 Some((field.symbol, field.name.as_str(), field.type_reference))
             }
             typed_trees::data::DataMember::Variant(_) => None,
-        });
-    attached
+        })
+        .collect()
+}
+
+fn persistent_storage<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+) -> Vec<(SymbolHandle, &'program str, TypeReferenceHandle)> {
+    attached_persistent_fields(program, machine)
+        .into_iter()
         .chain(
             program
                 .machine_owned_data(machine)
