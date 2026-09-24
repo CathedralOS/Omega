@@ -130,7 +130,7 @@ artifacts (`include_str!`/`include_bytes!`).
 - `abstract-operations-to-abstract-operations/representation_specialization`:
   an X-to-X pass family — correctly placed transform; the
   `REPRESENTATION-SPECIALIZATION` board item owns its remaining gaps.
-- `source-files-to-assembled-syntax/source_assembly.rs` constructor blocks
+- `00_source-files-to-assembled-syntax/source_assembly.rs` constructor blocks
   and `build_vocabulary` (~300 lines): coordinator-scope audit F1/F2 already
   recorded them; `source/` and `frontend/` are private working state.
 - `assembled-syntax-to-checked-compilation/checking/compile_thread.rs`:

@@ -127,7 +127,7 @@ set, normalizes supported aliases, deduplicates and orders exact profiles by the
 trusted catalog, and rejects wildcards, empty or unknown selections. It neither
 infers targets nor certifies platform support.
 
-[Source preparation](../../pipeline/source-files-to-assembled-syntax/src/source_assembly/checkpoint.rs) retains immutable
+[Source preparation](../../pipeline/00_source-files-to-assembled-syntax/src/source_assembly/checkpoint.rs) retains immutable
 physical sources, unconditional imports and parse results once. Import discovery
 retains each authored occurrence's resolved destination and module requirement;
 symbol binding joins those destinations to parsed source IDs without reopening
