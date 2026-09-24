@@ -155,33 +155,6 @@ pub(super) fn lower<Call: DynamicCall>(
         return unsupported("joined dynamic conformances do not expose one exact interface");
     }
 
-    // Values 2 and 3 bind the branch results of a scalar lane; helper and
-    // realization identities follow the caller's three blocks, two branch
-    // calls and four edges.
-    let mut next_block = 4_u64;
-    let mut next_place = 2_u64;
-    let mut next_operation = 3_u64;
-    let mut next_value = 2_u64;
-    let mut next_edge = 5_u64;
-    let result_type = first.result_type()?;
-    let branch_results = [
-        branch_result(result_type, &mut next_value)?,
-        branch_result(result_type, &mut next_value)?,
-    ];
-    let helper_ids = forwarded_helper_chain_ids(
-        first,
-        &lowered_realizations,
-        &mut next_block,
-        &mut next_operation,
-        &mut next_value,
-        &mut next_edge,
-    )?;
-    let first_helper = helper_ids.first().ok_or(LoweringError::Unsupported(
-        "joined dynamic control has no forwarded helper",
-    ))?;
-    let (first_helper_machine, first_helper_operation) =
-        (first_helper.machine, first_helper.operation);
-    let [true_result, false_result] = branch_results;
     // Dense scalar parameter identities follow the borrowed self place; a
     // guard reading only retained fields needs none of them.
     let scalar_parameters = control
@@ -205,6 +178,39 @@ pub(super) fn lower<Call: DynamicCall>(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let next_parameter_value = u64::try_from(scalar_parameters.len())
+        .map_err(|_| LoweringError::Unsupported("joined dynamic parameter count exceeds u64"))?
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "joined dynamic parameter identity overflowed",
+        ))?;
+    // The identities past the scalar parameters bind the branch results of a
+    // scalar lane; helper and realization identities follow the caller's
+    // three blocks, two branch calls and four edges.
+    let mut next_block = 4_u64;
+    let mut next_place = 2_u64;
+    let mut next_operation = 3_u64;
+    let mut next_value = next_parameter_value;
+    let mut next_edge = 5_u64;
+    let result_type = first.result_type()?;
+    let branch_results = [
+        branch_result(result_type, &mut next_value)?,
+        branch_result(result_type, &mut next_value)?,
+    ];
+    let helper_ids = forwarded_helper_chain_ids(
+        first,
+        &lowered_realizations,
+        &mut next_block,
+        &mut next_operation,
+        &mut next_value,
+        &mut next_edge,
+    )?;
+    let first_helper = helper_ids.first().ok_or(LoweringError::Unsupported(
+        "joined dynamic control has no forwarded helper",
+    ))?;
+    let (first_helper_machine, first_helper_operation) =
+        (first_helper.machine, first_helper.operation);
+    let [true_result, false_result] = branch_results;
     let structural_parameters = [(caller_self.position, caller_self.clone())];
     let (guard_operations, guard_value) = lower_join_guard(
         &control.guard,
@@ -461,16 +467,17 @@ fn validate_join_control_plan<Call: DynamicCall>(
     {
         return unsupported("joined dynamic control plan drifted from checked custody");
     }
-    let scalar_parameter = match control.scalar_parameters.as_slice() {
-        [] => None,
-        [parameter] if parameter.source_position == 1 => Some(parameter),
-        _ => {
-            return unsupported(
-                "joined dynamic control admits at most one scalar parameter at position 1",
-            );
-        }
-    };
-    if !join_guard_is_supported(scalar_parameter, &control.guard) {
+    if !control
+        .scalar_parameters
+        .iter()
+        .enumerate()
+        .all(|(position, parameter)| parameter.source_position as usize == position + 1)
+    {
+        return unsupported(
+            "joined dynamic control scalar parameters must be authored positionally",
+        );
+    }
+    if !join_guard_is_supported(&control.scalar_parameters, &control.guard) {
         return unsupported("joined dynamic control guard drifted from its checked input");
     }
     let states = checked
@@ -638,27 +645,27 @@ fn joined_source_call_occurrences<Call: DynamicCall>(
     )
 }
 /// The guard grammar the joined caller's entry block can evaluate — mirrors
-/// the t2c `exact_guard` allowlist clause for clause: the sole scalar
-/// parameter at authored position 1 (when present), retained `self` fields,
-/// literals, equality and integer-equality over those operand roots, and
-/// their negations. Everything the lowered emission path emits is admitted
-/// here, and nothing else.
+/// the t2c `exact_guard` allowlist clause for clause: the scalar parameters,
+/// retained `self` fields, literals, equality and integer-equality over
+/// those operand roots, and their negations. Everything the lowered emission
+/// path emits is admitted here, and nothing else.
 fn join_guard_is_supported(
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     guard: &CheckedScalarExpression,
 ) -> bool {
     let CheckedScalarExpression::Boolean(expression) = guard else {
         return false;
     };
-    join_boolean_guard_is_supported(scalar_parameter, expression)
+    join_boolean_guard_is_supported(scalar_parameters, expression)
 }
 
 fn join_boolean_guard_is_supported(
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     expression: &CheckedBooleanExpression,
 ) -> bool {
     match expression {
-        CheckedBooleanExpression::Parameter { position: 0 } => scalar_parameter
+        CheckedBooleanExpression::Parameter { position } => scalar_parameters
+            .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
         CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
@@ -666,11 +673,11 @@ fn join_boolean_guard_is_supported(
         } => retained_field_subject(*parameter_position, path),
         CheckedBooleanExpression::Equal { left, right } => {
             (boolean_subject(left) || boolean_subject(right))
-                && boolean_operand(left, scalar_parameter)
-                && boolean_operand(right, scalar_parameter)
+                && boolean_operand(left, scalar_parameters)
+                && boolean_operand(right, scalar_parameters)
         }
         CheckedBooleanExpression::Not(inner) => {
-            join_boolean_guard_is_supported(scalar_parameter, inner)
+            join_boolean_guard_is_supported(scalar_parameters, inner)
         }
         CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
@@ -678,8 +685,8 @@ fn join_boolean_guard_is_supported(
             right,
         } => {
             (integer_subject(left) || integer_subject(right))
-                && integer_operand(left, scalar_parameter)
-                && integer_operand(right, scalar_parameter)
+                && integer_operand(left, scalar_parameters)
+                && integer_operand(right, scalar_parameters)
         }
         _ => false,
     }
@@ -701,14 +708,15 @@ fn retained_field_subject(
         })
 }
 
-/// One Boolean operand of a joined equality: the sole Boolean parameter, a
+/// One Boolean operand of a joined equality: a Boolean parameter, a
 /// retained `self` field, or a Boolean literal.
 fn boolean_operand(
     expression: &CheckedBooleanExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
-        CheckedBooleanExpression::Parameter { position: 0 } => scalar_parameter
+        CheckedBooleanExpression::Parameter { position } => scalar_parameters
+            .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
         CheckedBooleanExpression::Constant(_) => true,
         CheckedBooleanExpression::StructuralParameterField {
@@ -719,17 +727,19 @@ fn boolean_operand(
     }
 }
 
-/// One integer operand of a joined equality: the sole scalar parameter
-/// (typed to match it), a retained `self` field, or an integer literal.
+/// One integer operand of a joined equality: a scalar parameter (typed to
+/// match it), a retained `self` field, or an integer literal.
 fn integer_operand(
     expression: &CheckedScalarExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
         CheckedScalarExpression::Parameter {
-            position: 0,
+            position,
             primitive_type,
-        } => scalar_parameter.is_some_and(|parameter| parameter.primitive_type == *primitive_type),
+        } => scalar_parameters
+            .get(*position)
+            .is_some_and(|parameter| parameter.primitive_type == *primitive_type),
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
@@ -740,12 +750,12 @@ fn integer_operand(
     }
 }
 
-/// Whether an equality operand names a runtime subject — the joined
+/// Whether an equality operand names a runtime subject — a joined
 /// parameter or a retained field — rather than a pair of literals.
 fn boolean_subject(expression: &CheckedBooleanExpression) -> bool {
     matches!(
         expression,
-        CheckedBooleanExpression::Parameter { position: 0 }
+        CheckedBooleanExpression::Parameter { .. }
             | CheckedBooleanExpression::StructuralParameterField { .. }
     )
 }
@@ -753,7 +763,7 @@ fn boolean_subject(expression: &CheckedBooleanExpression) -> bool {
 fn integer_subject(expression: &CheckedScalarExpression) -> bool {
     matches!(
         expression,
-        CheckedScalarExpression::Parameter { position: 0, .. }
+        CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. }
     )
 }

@@ -19,13 +19,14 @@ pub(in crate::execution::terminal_unit) struct DynamicJoinControlTopology {
 }
 
 /// Reuse the ordinary composed-control topology proof for the dynamic join
-/// lane. The entry accepts an implicit borrowed `self`, at most one scalar
-/// entry parameter at authored position 1, and two custody-free leaves; the
-/// leaf operations are owned by the dynamic call plans instead of the general
-/// effect planner. Which (parameter type, guard shape) pairs compose is
-/// decided by `exact_guard`, not here — a Boolean parameter admits the
-/// bare/equality/negated forms, an integer parameter the comparison forms,
-/// and a retained `self` field the field-read forms.
+/// lane. The entry accepts an implicit borrowed `self`, scalar entry
+/// parameters in contiguous authored positions starting at 1, and two
+/// custody-free leaves; the leaf operations are owned by the dynamic call
+/// plans instead of the general effect planner. Which (parameter type,
+/// guard shape) pairs compose is decided by `exact_guard`, not here — a
+/// Boolean parameter admits the bare/equality/negated forms, an integer
+/// parameter the comparison forms, and a retained `self` field the
+/// field-read forms.
 pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -42,11 +43,13 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
         structural_scalar_signature(program, shapes, machine, when_true_state, &binders, false)?;
     let (false_attachment, false_structural, false_scalar) =
         structural_scalar_signature(program, shapes, machine, when_false_state, &binders, false)?;
-    let scalar_parameter = match scalar_parameters.as_slice() {
-        [] => None,
-        [parameter] if parameter.source_position == 1 => Some(parameter),
-        _ => return None,
-    };
+    if !scalar_parameters
+        .iter()
+        .enumerate()
+        .all(|(position, parameter)| parameter.source_position as usize == position + 1)
+    {
+        return None;
+    }
     if [entry, when_true_state, when_false_state]
         .iter()
         .any(|state| {
@@ -102,7 +105,7 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
             0,
             CheckedScalarExpressionRole::Guard,
         )?,
-        scalar_parameter,
+        &scalar_parameters,
         &[],
     )?;
     let successors = [
