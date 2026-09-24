@@ -4146,16 +4146,30 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
   Remaining, re-measured on macOS arm64 after the repairs below:
 
-  | n | target | n | target |
-  | --- | --- | --- | --- |
-  | 89 | `native_filesystem_canaries` | 2 | `source_evaluated_native_realization` |
-  | 17 | `recast_views` | 2 | `service_operational_contracts` |
-  | 10 | `runtime_value_generics` | 2 | `callback_terminal_custody` |
-  | 9 | `plan_laid_repeated_runtime` | 1 | `joint_call_rankings` |
-  | 6 | `build_target_activation` | 1 | `literal_dispatch_unit_plan_stops` |
-  | 3 | `module_machine_indices` | 1 | `package_compilation_inputs` |
-  | 3 | `private_joint_progress` | 1 | `rank_remainder_endpoints` |
-  | 3 | `subslice_runtime_end_bounds` | 2 | `optimizer_opt_in` |
+  | n | target | what it is |
+  | --- | --- | --- |
+  | 89 | `native_filesystem_canaries` | host provider; should skip, not fail |
+  | 17 | `recast_views` | ProgramEntry/Terminal attachment |
+  | 9 | `plan_laid_repeated_runtime` | claimed elsewhere |
+  | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
+  | 3 | `private_joint_progress` | progress-premise propagation |
+  | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
+  | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
+  | 2 | `source_evaluated_native_realization` | import custody, Linux dynamic leg |
+  | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
+  | 2 | `optimizer_opt_in` | claimed elsewhere |
+  | 1 | `module_machine_indices` | foreign-domain mutable recast |
+  | 1 | `runtime_value_generics` | specialization identity |
+  | 1 | `package_compilation_inputs` | unresolved Call declaration selection |
+  | 1 | `literal_dispatch_unit_plan_stops` | omission stop moved earlier |
+  | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
+
+  Read that table before picking work. 89 need a host and 23 --
+  `recast_views` and `build_target_activation` together -- are ONE cause, the
+  "selected ProgramEntry establishment rejoins 0 Terminal attachment
+  identities" frontier this file names at the top; none of those 23 is a test
+  defect. Fourteen more are claimed by other lanes or blocked on Q6. What is
+  left unclaimed and unblocked is nine tests across seven targets.
 
   Cleared: `access_plans`, `application_type_equations`,
   `bounded_slice_selectors`, `build_named_inputs`, `build_snapshot_outputs`,
