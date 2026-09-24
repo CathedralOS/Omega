@@ -476,6 +476,7 @@ impl StateGraphEmission<'_, '_> {
                 _ => values.clone(),
             };
             operations.byte_lengths.clear();
+<<<<<<< HEAD
             operations.field_byte_lengths.clear();
             let terminator = match return_arm {
                 checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
@@ -561,6 +562,42 @@ impl StateGraphEmission<'_, '_> {
                     }
                 }
             };
+||||||| cc52d33521
+            let terminator = super::super::guarded::emit_return(
+                checked,
+                plan,
+                state,
+                return_arm,
+                self.catalogs,
+                &state_parameters,
+                &self.claims.source_claims,
+                &mut arm_evaluation,
+                &mut arm_values,
+                &self.state_erased[position],
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+            )?;
+=======
+            operations.field_byte_lengths.clear();
+            let terminator = super::super::guarded::emit_return(
+                checked,
+                plan,
+                state,
+                return_arm,
+                self.catalogs,
+                &state_parameters,
+                &self.claims.source_claims,
+                &mut arm_evaluation,
+                &mut arm_values,
+                &self.state_erased[position],
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+            )?;
+>>>>>>> origin/leaf/borrowed-view-element-read
             arm_evaluation.remap_transported_call_operands(&mut operations);
             arm_evaluation.blocks.push(Block {
                 id: arm_evaluation.current,
@@ -1275,6 +1312,7 @@ impl StateGraphEmission<'_, '_> {
                     _ => unreachable!(),
                 };
                 if let Some((planned, guard_values)) = &planned_guard {
+<<<<<<< HEAD
                     emit_short_circuit_decision(
                         planned,
                         guard_values,
@@ -1294,6 +1332,186 @@ impl StateGraphEmission<'_, '_> {
                         &mut next_edge,
                         &mut operations,
                     )?
+||||||| cc52d33521
+                    // Successor staging runs only after selection. Its length
+                    // observations cannot be reused while evaluating the guard.
+                    operations.byte_lengths = inherited_lengths.clone();
+                    // The shared decision emitter carries scalar arguments only.
+                    // These outcome blocks retain the original successor edges,
+                    // including structural transfers, cleanup and ranking identity.
+                    let true_block = block_id(allocate_dense(&mut next_block)?);
+                    let false_block = block_id(allocate_dense(&mut next_block)?);
+                    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
+                        if let Some(rank) = current_rank {
+                            self.block_ranks.insert(id, rank);
+                        }
+                        edge_blocks.push(Block {
+                            id,
+                            parameters: Vec::new(),
+                            erased_scalar_formals: self.state_erased[position].clone(),
+                            erased_proof_formals:
+                                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                                    &self.state_erased_proof[position],
+                                ),
+                            structural_parameters: Vec::new(),
+                            operations: Vec::new(),
+                            terminator: Terminator::Jump {
+                                edge: successor.edge,
+                                target: successor.target,
+                                arguments: successor.arguments,
+                                erased_arguments: successor.erased_arguments,
+                                erased_proof_arguments: successor.erased_proof_arguments.clone(),
+                                structural_arguments: successor.structural_arguments,
+                                trivial_affine_discards: successor.trivial_affine_discards,
+                                residual_affine_discards: Vec::new(),
+                            },
+                        });
+                    }
+                    let decision = &planned.decision;
+                    let tests =
+                        crate::emission::boolean_control::boolean_decision_test_count(decision);
+                    let decision_block = block_id(next_block);
+                    next_block = next_block
+                        .checked_add(u64::try_from(tests).map_err(|_| {
+                            LoweringError::Unsupported("guard decision count exceeds identities")
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "guard decision identities overflow",
+                        ))?;
+                    let (root, nested) =
+                        crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
+                            decision,
+                            guard_values,
+                            Vec::new(),
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+                                block: true_block,
+                                arguments: Vec::new(),
+                            },
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+                                block: false_block,
+                                arguments: Vec::new(),
+                            },
+                            decision_block,
+                            block_id(decision_block.get().checked_add(1).ok_or(
+                                LoweringError::Unsupported("guard decision identities overflow"),
+                            )?),
+                            &mut next_value,
+                            &mut next_edge,
+                            &mut operations,
+                        );
+                    evaluation.blocks.push(root);
+                    evaluation.blocks.extend(nested);
+                    let edge = edge_id(allocate_dense(&mut next_edge)?);
+                    if let Some(rank) = current_rank {
+                        self.rank_edges.insert(
+                            edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        );
+                    }
+                    Terminator::Jump {
+                        edge,
+                        target: decision_block,
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    }
+=======
+                    // Successor staging runs only after selection. Its length
+                    // observations cannot be reused while evaluating the guard.
+                    operations.byte_lengths = inherited_lengths.clone();
+                    operations.field_byte_lengths = inherited_field_lengths.clone();
+                    // The shared decision emitter carries scalar arguments only.
+                    // These outcome blocks retain the original successor edges,
+                    // including structural transfers, cleanup and ranking identity.
+                    let true_block = block_id(allocate_dense(&mut next_block)?);
+                    let false_block = block_id(allocate_dense(&mut next_block)?);
+                    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
+                        if let Some(rank) = current_rank {
+                            self.block_ranks.insert(id, rank);
+                        }
+                        edge_blocks.push(Block {
+                            id,
+                            parameters: Vec::new(),
+                            erased_scalar_formals: self.state_erased[position].clone(),
+                            erased_proof_formals:
+                                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                                    &self.state_erased_proof[position],
+                                ),
+                            structural_parameters: Vec::new(),
+                            operations: Vec::new(),
+                            terminator: Terminator::Jump {
+                                edge: successor.edge,
+                                target: successor.target,
+                                arguments: successor.arguments,
+                                erased_arguments: successor.erased_arguments,
+                                erased_proof_arguments: successor.erased_proof_arguments.clone(),
+                                structural_arguments: successor.structural_arguments,
+                                trivial_affine_discards: successor.trivial_affine_discards,
+                                residual_affine_discards: Vec::new(),
+                            },
+                        });
+                    }
+                    let decision = &planned.decision;
+                    let tests =
+                        crate::emission::boolean_control::boolean_decision_test_count(decision);
+                    let decision_block = block_id(next_block);
+                    next_block = next_block
+                        .checked_add(u64::try_from(tests).map_err(|_| {
+                            LoweringError::Unsupported("guard decision count exceeds identities")
+                        })?)
+                        .ok_or(LoweringError::Unsupported(
+                            "guard decision identities overflow",
+                        ))?;
+                    let (root, nested) =
+                        crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
+                            decision,
+                            guard_values,
+                            Vec::new(),
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+                                block: true_block,
+                                arguments: Vec::new(),
+                            },
+                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+                                block: false_block,
+                                arguments: Vec::new(),
+                            },
+                            decision_block,
+                            block_id(decision_block.get().checked_add(1).ok_or(
+                                LoweringError::Unsupported("guard decision identities overflow"),
+                            )?),
+                            &mut next_value,
+                            &mut next_edge,
+                            &mut operations,
+                        );
+                    evaluation.blocks.push(root);
+                    evaluation.blocks.extend(nested);
+                    let edge = edge_id(allocate_dense(&mut next_edge)?);
+                    if let Some(rank) = current_rank {
+                        self.rank_edges.insert(
+                            edge,
+                            (
+                                rank,
+                                terminal_psi::TerminalNaturalRankComparison::Preserving,
+                            ),
+                        );
+                    }
+                    Terminator::Jump {
+                        edge,
+                        target: decision_block,
+                        arguments: Vec::new(),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    }
+>>>>>>> origin/leaf/borrowed-view-element-read
                 } else {
                     Terminator::Conditional {
                         condition: condition.ok_or(LoweringError::Unsupported(

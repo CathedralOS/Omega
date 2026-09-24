@@ -410,6 +410,7 @@ pub(crate) fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
         },
+<<<<<<< HEAD
         Direct::IndexedPrimitiveRead {
             source,
             path,
@@ -434,6 +435,22 @@ pub(crate) fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
         },
+||||||| cc52d33521
+=======
+        Direct::ByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index,
+            scalar_type,
+        } => Direct::ByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index: Box::new(substitute_direct(*index, bound)),
+            scalar_type,
+        },
+>>>>>>> origin/leaf/borrowed-view-element-read
         Direct::IntegerBinary {
             kind,
             scalar_type,
@@ -556,10 +573,20 @@ fn collect_direct_case_reads<'e>(
                 reads.push((*source, path));
             }
         }
+<<<<<<< HEAD
         Direct::ByteSequenceRead { index, .. }
         | Direct::ElementViewRead { index, .. }
         | Direct::IndexedPrimitiveRead { index, .. }
         | Direct::ByteSequenceFieldRead { index, .. } => collect_direct_case_reads(index, reads),
+||||||| cc52d33521
+        Direct::ByteSequenceRead { index, .. } | Direct::ElementViewRead { index, .. } => {
+            direct_case_reads(index, reads)
+        }
+=======
+        Direct::ByteSequenceRead { index, .. }
+        | Direct::ElementViewRead { index, .. }
+        | Direct::ByteSequenceFieldRead { index, .. } => direct_case_reads(index, reads),
+>>>>>>> origin/leaf/borrowed-view-element-read
         Direct::IntegerBinary { left, right, .. } => {
             collect_direct_case_reads(left, reads);
             collect_direct_case_reads(right, reads);

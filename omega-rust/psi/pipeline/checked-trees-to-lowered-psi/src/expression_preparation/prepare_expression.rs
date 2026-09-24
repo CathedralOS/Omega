@@ -442,6 +442,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             index,
             primitive_type,
         } => {
+<<<<<<< HEAD
             let (source, carrier) = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
@@ -523,6 +524,50 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     return unsupported("element-view reads of record elements yield no scalar");
                 }
             };
+||||||| cc52d33521
+            if !path.is_empty() {
+                return unsupported("indexed reads require a whole view parameter");
+            }
+            let parameter =
+                view_observation_parameter(*parameter_position, structural_parameters, false)?;
+            let element_scalar = element_views.get(&parameter.structural_type).copied();
+=======
+            if !path.is_empty() {
+                // An indexed read landing on a byte-sequence record field
+                // borrows the field's own dominating length observation, so
+                // bounded-owned and borrowed-view carriers share one read.
+                if *primitive_type != PrimitiveType::U8 {
+                    return unsupported("indexed field reads require a u8 element");
+                }
+                let (source, path, field) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_byte_length(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                    )?;
+                let index = lower_checked_scalar_expression_with_parameters(
+                    index,
+                    structural_parameters,
+                    structural_fields,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
+                )?;
+                if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
+                    return unsupported("view indexed reads require an exact u64 index");
+                }
+                return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    index: Box::new(index),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                });
+            }
+            let parameter =
+                view_observation_parameter(*parameter_position, structural_parameters, false)?;
+            let element_scalar = element_views.get(&parameter.structural_type).copied();
+>>>>>>> origin/leaf/borrowed-view-element-read
             if element_scalar.is_none() && *primitive_type != PrimitiveType::U8 {
                 return unsupported("indexed reads require a whole byte-view parameter");
             }
