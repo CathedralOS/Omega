@@ -77,6 +77,32 @@ the complete product bar; focused successes below do not establish that baseline
   `in D` cannot satisfy a callee `x in D`, and stale-write invalidation
   does not reach contract admission.
 
+  Two more gaps, witnessed by the `pass/wire` + `pass/control_flow` leg:
+
+  - A parameter of a BUILD-TIME EVALUATED machine cannot carry `in D`. The
+    two `runtime_wire_policy_authored_*` policies keep `fuel: u64 [1..=128]`
+    because `fuel: u64 in Fuel128` makes it an authored `requires` premise and
+    `CompactBinary::plan -> CompactBinary::evaluate` then rejects with
+    "pre-check semantic evaluation has no checked invocation proof for that
+    premise", even though the only call passes the literal 128.
+  - A local suffix NARROWER than the field it reads has no target.
+    `copy_enum_cycle_edge_write_frame` reads `limit: u64 [0..=8]` into
+    `let index: u64 [0..=3]` and indexes a length-4 array; dropping the local
+    suffix loses the bound and the field's domain cannot supply it. That
+    field also cannot take a domain on its own: `self.output.limit = 3` does
+    not establish `u64::Limit` despite 3 satisfying the predicate.
+
+  What DOES migrate cleanly, with the gate as witness: fields, array element
+  types (`[i32 in Sample; 2]`), case payloads, and a signature-local
+  parameter bound rewritten as `requires`. A fuel parameter carrying
+  `terminates by fuel` also accepts `in D` when the machine is NOT build-time
+  evaluated.
+
+  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not the
+  canary filter: `OMEGA_PASS_CANARY_FILTER` reported PASS for two fixtures the
+  gate showed moving checked -> rejected, because dedicated exact-native
+  coverage elides them from the canary run.
+
   Acceptance: Squalr's alignment machine returns plain `u64` with
   `ensures result >= 1 && result <= 8` or an explicit domain; its plain local
   retains those facts through calls and joins for division/remainder. An
