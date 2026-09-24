@@ -2339,7 +2339,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     // The omega-side frontend boundary route that feeds that chain across
     // build evaluation (pipeline.md "Omega frontend stages").
     const FRONTEND_ROUTE: &[&str] = &[
-        "omega/pipeline/source-files-to-assembled-syntax",
+        "omega/pipeline/00_source-files-to-assembled-syntax",
         "omega/pipeline/assembled-syntax-to-checked-compilation",
         "omega/pipeline/checked-compilation-to-terminal-artifact",
     ];

@@ -87,7 +87,7 @@ test-only channels are cataloged, not flagged.
 | `CanonicalTerminalArtifact` | psi/semantics/terminal-codec | 8 | 8 | 0 | 0 |
 | `ProgramEntryTerminalArtifact` | omega/pipeline/checked-compilation-to-terminal-artifact | 3 | 3 | 0 | 0 |
 | `CompileReport` | omega/compiler/compilation-report | 37 | 30 | 4 | 2 |
-| `RetainedGeneratedSyntaxExtension` | omega/pipeline/source-files-to-assembled-syntax | 3 | 3 | 0 | 0 |
+| `RetainedGeneratedSyntaxExtension` | omega/pipeline/00_source-files-to-assembled-syntax | 3 | 3 | 0 | 0 |
 
 Four outputs (`LoweredPsi`, `AbstractOperationPlan`,
 `AbstractOperationPlanWithPlacedViewInputs`, `TargetOperationPlan`) are
