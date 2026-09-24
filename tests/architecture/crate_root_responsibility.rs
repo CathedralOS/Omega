@@ -254,7 +254,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "psi/pipeline/lowered-psi-to-lowered-psi",
+        "psi/pipeline/06_lowered-psi-to-lowered-psi",
         &[
             "control_flow_cleanup",
             "copy_propagation",

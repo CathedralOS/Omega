@@ -2116,7 +2116,7 @@ fn preterminal_stages_consume_representation_data_without_producer_dependencies(
 
 #[test]
 fn psi_optimizer_retention_policy_is_independent_of_pass_dispatch() {
-    let root = workspace_root().join("omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src");
+    let root = workspace_root().join("omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi/src");
     let retained = recursive_rust_source(&root.join("retained_identities"));
     for owner in [
         "psi_optimization",

@@ -21,7 +21,7 @@ retains selection and report requests.
 computes effective selection before artifact production without changing the
 authored selection.
 
-The [Psi X-to-X entrance](psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs)
+The [Psi X-to-X entrance](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
 [Psi-local catalog](psi/representations/optimization/src/optimization_selections/catalog.rs)

@@ -99,7 +99,7 @@
       "item": "PSI-PRE-TERMINAL-OPTIMIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/dead_scalar_elimination"
+        "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi/src/dead_scalar_elimination"
       ],
       "suggested_first_slice": "Add one dead pure scalar elimination case to the existing lowered-Psi rewrite and validation path, leaving copy propagation for a separate slice."
     },
