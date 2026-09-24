@@ -39,7 +39,7 @@ machine Main::append_exit(
 requires room.exit_count < 4
 {
     let exits: &mut [Exit] = room.exits.as_mut_slice();
-    let index: u32 [0..=3] = room.exit_count;
+    let index: u32 = room.exit_count;
 
     exits[index] = Exit { destination: destination };
     room.exit_count = index + 1;

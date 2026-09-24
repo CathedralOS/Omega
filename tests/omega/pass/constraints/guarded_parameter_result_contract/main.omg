@@ -1,4 +1,4 @@
-machine bounded(ignored: bool, input: u16 [0..256]) -> u16
+machine bounded(ignored: bool, input: u16) -> u16
 requires input <= 255u16
 ensures result == input || result < input
 {
