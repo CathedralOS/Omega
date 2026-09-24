@@ -776,3 +776,256 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
         "joined dynamic control plan drifted from checked custody",
     );
 }
+
+/// Joined callers whose split guard is more than a bare Boolean parameter:
+/// the entry block must evaluate the checked guard expression and branch on
+/// its Boolean result. These sources mirror `JOINED_DYNAMIC_BOOLEAN_SOURCE`
+/// with each admitted non-trivial guard spelling.
+const JOINED_INTEGER_EQUALITY_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        transition pick == 5 {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+const JOINED_INTEGER_INEQUALITY_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        transition pick != 5 {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+const JOINED_NEGATED_EQUALITY_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, choose_first: bool) {
+        transition choose_first != false {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+fn lower_joined_guard_caller(source: &str) -> terminal_psi::TerminalMachine {
+    let checked = crate::front_end::checked_program(source);
+    let checked_catalog = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [Scalar(Joined { .. })] = checked_catalog.calls.as_slice() else {
+        panic!("one checked dynamic join expected: {checked_catalog:#?}")
+    };
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("joined dynamic control lowers");
+    terminal_verifier::validate_module(&lowered.semantic_module)
+        .expect("joined dynamic module verifies");
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Main::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("joined dynamic module encodes canonically")
+    .into_artifact();
+    assert_eq!(
+        terminal_codec::decode_module(artifact.semantic_bytes())
+            .expect("joined dynamic module decodes"),
+        lowered.semantic_module,
+    );
+    let entry_id = lowered.semantic_module.entry;
+    lowered
+        .semantic_module
+        .machines
+        .into_iter()
+        .find(|machine| machine.id == entry_id)
+        .expect("joined dynamic caller machine")
+}
+
+fn joined_entry_condition(caller: &terminal_psi::TerminalMachine) -> semantic_vocabulary::ValueId {
+    let Terminator::Conditional { condition, .. } = &caller.blocks[0].terminator else {
+        panic!("joined caller entry must end in a conditional")
+    };
+    *condition
+}
+
+#[test]
+fn lowers_joined_integer_equality_guard_into_entry_comparison() {
+    let caller = lower_joined_guard_caller(JOINED_INTEGER_EQUALITY_GUARD_SOURCE);
+    let [parameter] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps its one integer parameter")
+    };
+    assert!(matches!(
+        parameter.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(_)
+    ));
+    let [constant, comparison] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "integer guard lowers to a constant plus a comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let OperationKind::IntegerEqual { left, right } = comparison.kind else {
+        panic!("integer equality guard lowers to IntegerEqual: {comparison:?}")
+    };
+    assert_eq!(left, parameter.id);
+    assert_eq!(right, constant.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}
+
+#[test]
+fn lowers_joined_integer_inequality_guard_into_negated_comparison() {
+    let caller = lower_joined_guard_caller(JOINED_INTEGER_INEQUALITY_GUARD_SOURCE);
+    let [constant, comparison, negation] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "integer inequality lowers to constant, comparison, negation: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    assert!(matches!(
+        comparison.kind,
+        OperationKind::IntegerEqual { .. }
+    ));
+    let OperationKind::BooleanNot { operand } = negation.kind else {
+        panic!("negated integer guard ends in BooleanNot: {negation:?}")
+    };
+    assert_eq!(operand, comparison.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        negation.result.expect_scalar().id
+    );
+}
+
+#[test]
+fn lowers_joined_negated_equality_guard_into_entry_operations() {
+    let caller = lower_joined_guard_caller(JOINED_NEGATED_EQUALITY_GUARD_SOURCE);
+    let [parameter] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps its one Boolean parameter")
+    };
+    assert_eq!(
+        parameter.scalar_type,
+        semantic_vocabulary::ScalarType::Boolean
+    );
+    let [constant, equality, negation] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "negated equality lowers to constant, equality, negation: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::BooleanConstant { value: false }
+    ));
+    assert!(matches!(equality.kind, OperationKind::BooleanEqual { .. }));
+    let OperationKind::BooleanNot { operand } = negation.kind else {
+        panic!("negated equality guard ends in BooleanNot: {negation:?}")
+    };
+    assert_eq!(operand, equality.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        negation.result.expect_scalar().id
+    );
+}
