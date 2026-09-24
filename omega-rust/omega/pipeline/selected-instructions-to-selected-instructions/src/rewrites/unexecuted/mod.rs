@@ -32,6 +32,24 @@
 //! `commuting_*` families prove ordering under memory commutation, a
 //! different audit, and interchange swaps two runs rather than moving one.
 //!
+//! `scheduled_relocation` is a second general member-run mechanism, not a
+//! per-shape family: it admits the dominance-based sink `relocation` refuses,
+//! where a traversal stops executing the run and `dead_path` proves nothing
+//! observes what the run wrote, at the cost of a narrower subject — pure
+//! register and condition-state work, cross-block only. Neither subsumes the
+//! other, so both stay until one module carries both admissions. It was
+//! declared under `local_schedule`, the in-block pair interchange, and read
+//! nothing from that parent.
+//!
+//! The scheduling families divide by granularity and by memory rule rather
+//! than by anything else: `local_schedule` interchanges two members,
+//! `member_run_interchange` a member against a run, `run_interchange` two
+//! runs, and each `commuting_*` name is the same geometry with the roster
+//! rule widened from "at most one accounted actor" to "every pair of rows
+//! that newly trades order commutes". A member is a run of one and the
+//! widened rule holds vacuously when only one side carries rows, so those
+//! six are one operation.
+//!
 //! - `address_fold` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `arm_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -52,6 +70,7 @@
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `local_schedule` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
+//! - `scheduled_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`condition_materialization`, `copied_call_operand`,
 //!   `projected_access`, `terminator_pair`) — staged, owner row
@@ -92,6 +111,7 @@ pub mod peepholes;
 mod place_storage;
 mod relocation;
 mod run_interchange;
+mod scheduled_relocation;
 mod store_motion;
 
 pub use address_fold::{
@@ -175,9 +195,8 @@ pub use load_forwarding::{
     forward_selected_stored_load, validate_stored_load_forwarding,
 };
 pub use local_schedule::{
-    LocalScheduleError, LocalScheduleReceipt, ScheduledRelocationError, ScheduledRelocationReceipt,
-    ValidatedLocalSchedule, ValidatedScheduledRelocation, relocate_scheduled_run,
-    schedule_selected_pair, validate_local_schedule, validate_scheduled_relocation,
+    LocalScheduleError, LocalScheduleReceipt, ValidatedLocalSchedule, schedule_selected_pair,
+    validate_local_schedule,
 };
 pub use member_run_interchange::{
     MemberRunInterchangeError, MemberRunInterchangeReceipt, ValidatedMemberRunInterchange,
@@ -190,6 +209,10 @@ pub use relocation::{
 pub use run_interchange::{
     RunInterchangeError, RunInterchangeReceipt, ValidatedRunInterchange, interchange_selected_runs,
     validate_run_interchange,
+};
+pub use scheduled_relocation::{
+    ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation,
+    relocate_scheduled_run, validate_scheduled_relocation,
 };
 pub use store_motion::{
     StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion,

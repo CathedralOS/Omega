@@ -272,6 +272,10 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
+        module: "scheduled_relocation",
+        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
+    },
+    RewriteModuleRow {
         module: "store_motion",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },

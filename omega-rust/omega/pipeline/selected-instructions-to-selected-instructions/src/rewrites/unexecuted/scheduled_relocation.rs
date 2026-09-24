@@ -1,13 +1,24 @@
-//! Scheduling relocation admission: one mechanism over a member run and a
-//! destination point on the selected CFG.
+//! Dominance-based relocation of a member run whose written locations die on
+//! every abandoned path, on the selected CFG.
 //!
-//! The cross-boundary families — `rewrites/edge_relocation`,
-//! `rewrites/fork_relocation`, `rewrites/diamond_relocation`, and the
-//! converging and bypassed shapes beside them — each locate their own
-//! window: one shape per family, each repeated for a contiguous run. This
-//! admission replaces the per-shape location logic with the path-derived
-//! window the families share: given a contiguous run of members in one
-//! block's body and a destination position in a different block, it derives
+//! This is the second general member-run mechanism in this area, and the two
+//! divide by what they prove rather than by CFG shape. `super::relocation`
+//! proves that the move changes no traversal, in either direction, for any
+//! run, including the in-block case; it refuses a move whose gained or lost
+//! traversal set is nonempty. This admission takes the moves it refuses that
+//! are still sound: a sink into a block its own block dominates, where some
+//! traversal no longer executes the run at all and the `dead_path` audit
+//! proves nothing observes the locations the run wrote. The price is a
+//! narrower subject — pure register and condition-state work, cross-block
+//! only — so neither mechanism subsumes the other, and merging them means
+//! one module with two admissions rather than one admission.
+//!
+//! This module lived under `local_schedule`, which is the in-block pair
+//! interchange, and nothing here ever read that parent. It sits beside
+//! `relocation` because that is the operation it performs.
+//!
+//! Given a contiguous run of members in one block's body and a destination
+//! position in a different block, it derives
 //! every simple control-flow path between them, and from those paths the
 //! crossed positions (the tail or head of the run's own block, each
 //! traversed block's whole stream, and the destination block's share on
