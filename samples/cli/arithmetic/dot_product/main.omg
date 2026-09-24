@@ -15,14 +15,13 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain i32::I320To3 requires self >= 0 && self <= 3;
 data Main {
     console: Binding<Console>;
     // Wrapping DECLARED: the products/sum consume array elements, which carry
     // no range facts yet, so the multiply-accumulate cannot prove its bounds.
     a: [i32; 3] in Wrapping;
     b: [i32; 3] in Wrapping;
-    i: i32 in I320To3;
+    i: i32;
     sum: i32 in Wrapping;
     pause: [u8; 256];
 }

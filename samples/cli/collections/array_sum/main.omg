@@ -15,11 +15,10 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
-domain i32::I320To2 requires self >= 0 && self <= 2;
 data Main {
     console: Binding<Console>;
     nums: [i32; 2];
-    i: i32 in I320To2;
+    i: i32;
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
     pause: [u8; 256];
 }
