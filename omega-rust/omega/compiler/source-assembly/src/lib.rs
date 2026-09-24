@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! Source files to one assembled syntax forest.
+//! Compiler orchestration from source files to one assembled syntax forest.
 //!
-//! Start at `source_assembly.rs`. This stage discovers the project's roots
+//! Start at `source_assembly.rs`. This compiler preparation discovers the project's roots
 //! and imports, loads and lexes and parses every source with its package
 //! custody, injects the build prelude, and returns the forest the next stage
 //! resolves. It re-enters once per build that generates source, appending

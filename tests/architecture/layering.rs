@@ -3009,7 +3009,7 @@ fn retained_native_product_enters_only_terminal_realization() {
 fn shared_frontend_stages_stop_at_checked_psi() {
     let root = workspace_root();
     let frontend_paths = [
-        root.join("omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs"),
+        root.join("omega-rust/omega/compiler/source-assembly/src/source_assembly.rs"),
         root.join(
             "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs",
         ),

@@ -290,20 +290,19 @@ fn psi_pipeline_directories_follow_route_order() {
 
 #[test]
 fn omega_pipeline_directories_follow_route_order() {
-    const EXPECTED_PACKAGES: &[&str] = &[
-        "source-files-to-assembled-syntax",
-        "assembled-syntax-to-checked-compilation",
-        "checked-compilation-to-terminal-artifact",
-        "terminal-psi-to-abstract-operations",
-        "abstract-operations-to-abstract-operations",
-        "abstract-operations-to-target-operations",
-        "target-operations-to-selected-instructions",
-        "selected-instructions-to-selected-instructions",
-        "selected-instructions-to-register-homes",
-        "register-homes-to-post-allocation-machine",
-        "post-allocation-machine-to-selected-form-encoding",
-        "selected-form-encoding-to-resolved-layout",
-        "resolved-layout-to-resolved-layout",
+    const EXPECTED_DIRECTORIES: &[&str] = &[
+        "01_assembled-syntax-to-checked-compilation",
+        "02_checked-compilation-to-terminal-artifact",
+        "03_terminal-psi-to-abstract-operations",
+        "04_abstract-operations-to-abstract-operations",
+        "05_abstract-operations-to-target-operations",
+        "06_target-operations-to-selected-instructions",
+        "07_selected-instructions-to-selected-instructions",
+        "08_selected-instructions-to-register-homes",
+        "09_register-homes-to-post-allocation-machine",
+        "10_post-allocation-machine-to-selected-form-encoding",
+        "11_selected-form-encoding-to-resolved-layout",
+        "12_resolved-layout-to-resolved-layout",
     ];
     let mut directory_names: Vec<String> = pipeline_crates()
         .into_iter()
@@ -312,23 +311,7 @@ fn omega_pipeline_directories_follow_route_order() {
         })
         .collect();
     directory_names.sort();
-    assert_eq!(directory_names.len(), EXPECTED_PACKAGES.len());
-
-    for (position, directory_name) in directory_names.iter().enumerate() {
-        let (ordering_prefix, _) = directory_name.split_once('_').unwrap_or_else(|| {
-            panic!("Omega pipeline directory {directory_name} is missing its two-digit prefix")
-        });
-        assert_eq!(
-            ordering_prefix,
-            format!("{position:02}"),
-            "Omega pipeline directories must follow their declared order"
-        );
-        assert_eq!(
-            pipeline_package_name(directory_name),
-            EXPECTED_PACKAGES[position],
-            "Omega pipeline prefix {ordering_prefix} names the wrong stage"
-        );
-    }
+    assert_eq!(directory_names, EXPECTED_DIRECTORIES);
 }
 
 /// The placement rule's other direction: `omega-rust/{psi,omega}/pipeline/` is
