@@ -4002,6 +4002,37 @@ but report the missing runtime leg explicitly; it does not close that host row.
      turns green until `ObjectiveC` has a selected Fused provider on
      macos_arm64.
 
+  AND THE GAP HAS A NAMED SHAPE. The canonical toolchain provider-settlement
+  mechanism exists and is the right one -- `build-evaluation`'s
+  `provider_settlement/` mints a plan per selected target from a reviewed
+  table, joined through `with_toolchain_settled_plan` -- but it covers exactly
+  TWO boundaries (`canonical_filesystem_host.rs`, `canonical_time_host.rs`)
+  and each maps exactly ONE target:
+
+      fn toolchain_*_leaves(target_name) { "linux_x86_64" => ..., _ => &[] }
+
+  There is no settlement at all for `Console`, `ObjectiveC`, `Gui`, `Input`,
+  `Clock` or `Disk`, and none for macos_arm64 on the two that exist. So every
+  macOS host boundary fails the same way by construction, which is why 89
+  canaries fail uniformly.
+
+  Adding darwin rows is not filling in a table, and this is the part worth
+  knowing before someone starts: both leaf types are
+  `{ method: &str, number: i64 }` -- a SYSCALL NUMBER. Darwin's realizations
+  are dylib symbol imports, several needing an injected constant argument
+  (`_clock_gettime_nsec_np` with a clockid, `objc_msgSend` with a selector),
+  and `canonical_time_host.rs`'s own header already says the per-target
+  constants "stay uncovered until a constant binding kind exists". So the
+  blocking work is a leaf representation that can name a dylib symbol import
+  and a constant, not a data entry.
+
+  That single missing representation is the root of: these 89
+  `native_filesystem_canaries`, the 9 `Binding field` corpus members,
+  `time/runtime_time_host_native_darwin_exit`, and the macOS half of the
+  release-gate targets on this row. `e76de8e15f2` (2026-09-19) did not cause
+  any of it -- it replaced the zero-attachment symptom with a diagnosis naming
+  the missing selection, and said so.
+
   So the 89 are one gap, and it is the same gap the 9 `Binding field` corpus
   members name. Fixing provider selection for these host boundaries is worth
   far more than its row currently suggests: it is 89 tests here plus 9 in the
