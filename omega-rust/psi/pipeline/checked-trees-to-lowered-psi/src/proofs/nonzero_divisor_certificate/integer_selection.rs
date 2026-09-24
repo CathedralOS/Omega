@@ -23,6 +23,8 @@ mod shift;
 mod substitution;
 mod wrapping;
 
+pub(super) use logical::{prove_conjunction, prove_disjunction};
+
 pub(super) fn build(
     context: &PropositionContext,
     goal: &Proposition,
