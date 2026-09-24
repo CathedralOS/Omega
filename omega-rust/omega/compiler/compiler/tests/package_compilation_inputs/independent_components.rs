@@ -259,7 +259,7 @@ fn write_consuming_root_unselected(directory: &Path, target_name: &str) {
         &format!(
             r#"machine build(builder: &mut Build) {{
     builder.application("independent_consumer");
-    builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
+    builder.depend_as("dep", Source::Path {{ location: "../pick_component" }});
     builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#
@@ -282,7 +282,7 @@ fn write_consuming_root_selecting(
         &format!(
             r#"machine build(builder: &mut Build) {{
     builder.application("independent_consumer");
-    builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
+    builder.depend_as("dep", Source::Path {{ location: "../pick_component" }});
     builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::{composition_mode});
 {extra_build}    builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
@@ -308,7 +308,7 @@ impl IndependentFixture {
         let dependency = tree.package("pick_component");
         write_component_package(
             &dependency,
-            "pick-component",
+            "pick_component",
             target_name,
             "Pick",
             "PickProvider",
@@ -364,7 +364,7 @@ impl IndependentFixture {
         std::fs::create_dir(&directory).expect("create unrelated component directory");
         write_component_package(
             &directory,
-            "other-component",
+            "other_component",
             self.target_name,
             "Other",
             "VtableOther",
@@ -384,7 +384,7 @@ impl IndependentFixture {
     fn rewrite_dependency_with(&self, source: &str, extra_build: &str) {
         write_component_package_with(
             &self.dependency,
-            "pick-component",
+            "pick_component",
             self.target_name,
             "Pick",
             "PickProvider",
@@ -977,7 +977,7 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
         return;
     };
     let fixture = IndependentFixture::new(target_name);
-    let other_directory = fixture._tree.0.join("other-component");
+    let other_directory = fixture._tree.0.join("other_component");
     std::fs::create_dir(&other_directory).expect("create second dependency directory");
     TempTree::write(other_directory.join("other.omg"), SECOND_COMPONENT_SOURCE);
     TempTree::write(
@@ -1000,8 +1000,8 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
         &format!(
             r#"machine build(builder: &mut Build) {{
     builder.application("independent_consumer");
-    builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
-    builder.depend_as("dep2", Source::Path {{ location: "../other-component" }});
+    builder.depend_as("dep", Source::Path {{ location: "../pick_component" }});
+    builder.depend_as("dep2", Source::Path {{ location: "../other_component" }});
     builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::Independent);
     builder.select_provider<dep2::Other, dep2::OtherProvider>(CompositionMode::Independent);
     builder.roots.bind({target_name}::ProgramEntry, Main::main);
