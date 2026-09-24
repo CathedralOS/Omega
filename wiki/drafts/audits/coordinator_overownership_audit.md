@@ -83,7 +83,7 @@ sibling board items, or when a later sweep supersedes it.
 ## Cataloged, not flagged
 
 - `run_on_compile_thread`
-  (`01_assembled-syntax-to-checked-compilation/src/checking/compile_thread.rs`):
+  (`compiler/checked-compilation/src/checking/compile_thread.rs`):
   a 256 MiB-stack spawn helper whose own docstring admits "host execution
   infrastructure, not a compiler stage". It is shared by `compiler` and
   `compiler::package` and lives inside a stage crate — a generic-orchestration

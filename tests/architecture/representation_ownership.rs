@@ -2362,7 +2362,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
             "source-files-to-assembled-syntax",
         ),
         (
-            "omega/pipeline/01_assembled-syntax-to-checked-compilation",
+            "omega/compiler/checked-compilation",
             "assembled-syntax-to-checked-compilation",
         ),
         (

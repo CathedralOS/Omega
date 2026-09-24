@@ -133,7 +133,7 @@ artifacts (`include_str!`/`include_bytes!`).
 - `compiler/source-assembly/source_assembly.rs` constructor blocks
   and `build_vocabulary` (~300 lines): coordinator-scope audit F1/F2 already
   recorded them; `source/` and `frontend/` are private working state.
-- `01_assembled-syntax-to-checked-compilation/checking/compile_thread.rs`:
+- `compiler/checked-compilation/checking/compile_thread.rs`:
   the 256 MiB-stack spawn helper cataloged by the over-ownership audit —
   host infrastructure in a stage crate, relocation optional.
 - Replay-evidence codecs (`sis2sis/rewrites/allocation_recovery/fixed_view_copy/codec`,

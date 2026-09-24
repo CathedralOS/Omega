@@ -46,7 +46,7 @@ typing against the retained base.
 | Input → output | Owner |
 | --- | --- |
 | Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/source-assembly/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/checked-compilation/src/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs) |
 
 All three consume build-layer crates and are compiler preparation rather than

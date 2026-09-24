@@ -291,7 +291,6 @@ fn psi_pipeline_directories_follow_route_order() {
 #[test]
 fn omega_pipeline_directories_follow_route_order() {
     const EXPECTED_DIRECTORIES: &[&str] = &[
-        "01_assembled-syntax-to-checked-compilation",
         "02_checked-compilation-to-terminal-artifact",
         "03_terminal-psi-to-abstract-operations",
         "04_abstract-operations-to-abstract-operations",

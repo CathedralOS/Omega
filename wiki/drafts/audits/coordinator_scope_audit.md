@@ -87,7 +87,7 @@ the family to the admission owner.
 | `pass_manager/{mod,entry,execution,model,accounting}.rs` | entry owns 4 run/replay APIs; execution owns dispatch; accounting owns convergence; model owns carriers — exemplary split |
 | `native_pipeline/{mod,report}.rs` + `physical_pipeline/mod.rs` | pure sequence: selections → instruction selection → optimization → allocation → machine → realization |
 | `abstract_operation_optimization/mod.rs` | entrance + re-exports only |
-| `01_assembled-syntax-to-checked-compilation/src/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
+| `compiler/checked-compilation/src/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
 | `04_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
 | `05_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |

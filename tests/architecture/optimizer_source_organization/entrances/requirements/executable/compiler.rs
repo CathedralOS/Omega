@@ -10,7 +10,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "fn install(base: &str)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs",
+        path: "omega-rust/omega/compiler/checked-compilation/src/optimization/checked_handoff/mod.rs",
         coordination_marker: "fn retain(",
     },
     RequiredCoordinationEntrance {
@@ -18,7 +18,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn prepare_native_product(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
+        path: "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs",
         coordination_marker: "fn settle(",
     },
 ];
