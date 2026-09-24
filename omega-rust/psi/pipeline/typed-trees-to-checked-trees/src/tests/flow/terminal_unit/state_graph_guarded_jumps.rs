@@ -43,7 +43,9 @@ fn state_graph_retains_ordered_literal_dispatch_chain() {
     for arm in arms {
         assert!(matches!(
             &arm.guard,
-            checked_trees::CheckedScalarExpression::Boolean(_)
+            checked_trees::CheckedCallScalarArgument::Pure(
+                checked_trees::CheckedScalarExpression::Boolean(_)
+            )
         ));
     }
 }

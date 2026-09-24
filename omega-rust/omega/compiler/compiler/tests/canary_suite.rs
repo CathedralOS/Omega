@@ -2455,6 +2455,7 @@ fn compile_rooted_canary_for_target(
 // exercise production entry selection and may not substitute the legacy entry
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
+    "calls/runtime_guard_call_vs_call_exit",
     "entry/service_intrinsic_carrier_establishment",
     "expressions/token_bound_machine_operand_selection",
     "core/content_projection_owner",
@@ -4036,6 +4037,9 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    // A guard comparing two value calls is one computation root the
+    // composed Unit graph evaluates before choosing an edge.
+    "calls/runtime_guard_call_vs_call_exit",
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
     // A token-bound `machine + Wrapped::add` reaches a native exit: both the
     // token route (`left + right`) and the named route
@@ -5107,7 +5111,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "traits/runtime_dyn_varying_field_rejected",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/param_receiver_method_rejected",
-    "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
     "calls/value_call_param_effect_arm_rejected",
     // Inherited trait laws must reject a satisfier whose concrete ensures

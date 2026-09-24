@@ -1554,11 +1554,11 @@ impl StateGraphEmission<'_, '_> {
         }
         self.blocks.extend(evaluation.blocks);
         self.blocks.extend(edge_blocks);
-        self.occurrences.extend(operations.source_calls);
         self.catalogs.next_value = next_value;
         self.catalogs.next_block = next_block;
         self.catalogs.next_edge = next_edge;
         self.catalogs.next_operation = operations.next_identity;
+        self.occurrences.retain(operations);
         Ok(())
     }
 }

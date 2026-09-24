@@ -747,12 +747,8 @@ pub(super) fn build_traced(
                 {
                     trace
                         .phase("state graph: terminator: conditional successors: guard expression");
-                    let guard = facts
-                        .values
-                        .scalar_expressions
-                        .expression_at(state.symbol, ordinal, CheckedScalarExpressionRole::Guard)?
-                        .clone();
-                    if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                    let guard = retained_guard(facts, machine.symbol, state.symbol, ordinal)?;
+                    if !guard_is_boolean(facts, &guard) {
                         trace.phase("state graph: terminator: conditional successors: guard type");
                         return None;
                     }
@@ -899,16 +895,9 @@ pub(super) fn build_traced(
                             "state graph: terminator: guarded jump successors: guard expression",
                         );
                         trace.statement(Some(arm_ordinal));
-                        let guard = facts
-                            .values
-                            .scalar_expressions
-                            .expression_at(
-                                state.symbol,
-                                arm_ordinal,
-                                CheckedScalarExpressionRole::Guard,
-                            )?
-                            .clone();
-                        if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                        let guard =
+                            retained_guard(facts, machine.symbol, state.symbol, arm_ordinal)?;
+                        if !guard_is_boolean(facts, &guard) {
                             return None;
                         }
                         let successor = edge(transition, arm_ordinal, SuccessorEdge::GuardedJump)?;
@@ -1275,6 +1264,52 @@ pub(super) fn build_traced(
     plan.natural_ranks = natural_ranks;
     plan.result = result;
     Some(plan)
+}
+
+/// The exact Boolean value one authored guard retains at its `Guard`
+/// coordinate: the pure expression, or the unique computation root this
+/// machine owns there (a selected comparison, a call, or any other checked
+/// computation). The computation producer records a root only where no pure
+/// expression exists, so the coordinate names at most one of the two forms.
+fn retained_guard(
+    facts: &CheckFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    statement_ordinal: u32,
+) -> Option<checked_trees::CheckedCallScalarArgument> {
+    let role = CheckedScalarExpressionRole::Guard;
+    if let Some(expression) =
+        facts
+            .values
+            .scalar_expressions
+            .expression_at(state, statement_ordinal, role)
+    {
+        return Some(checked_trees::CheckedCallScalarArgument::Pure(
+            expression.clone(),
+        ));
+    }
+    let computations = &facts.values.scalar_computations;
+    let root = computations.root_at(state, statement_ordinal, role)?;
+    (root.machine == machine && computations.nodes.is_valid(root.root)).then_some(
+        checked_trees::CheckedCallScalarArgument::Computation(root.root),
+    )
+}
+
+fn guard_is_boolean(facts: &CheckFacts, guard: &checked_trees::CheckedCallScalarArgument) -> bool {
+    match guard {
+        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+            matches!(expression, CheckedScalarExpression::Boolean(_))
+        }
+        checked_trees::CheckedCallScalarArgument::Computation(root) => {
+            facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(*root)
+                .primitive_type
+                == PrimitiveType::Bool
+        }
+    }
 }
 
 /// The pure scalar initializers ahead of the first computation, tracing the

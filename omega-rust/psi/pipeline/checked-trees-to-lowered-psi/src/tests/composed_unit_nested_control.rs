@@ -808,9 +808,9 @@ fn balanced_control_rejects_guard_drift() {
     else {
         unreachable!()
     };
-    *guard = CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Parameter {
-        position: 1,
-    }));
+    *guard = checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(
+        Box::new(CheckedBooleanExpression::Parameter { position: 1 }),
+    ));
     assert!(matches!(
         lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
