@@ -105,10 +105,14 @@ impl RangeFacts<'_> {
                 self.prove_non_negative(name);
             }
         }
-        for (lower, upper) in self.proven_orderings.clone() {
+        for (lower, upper, strict) in self.proven_orderings.clone() {
             let lower = reanchor(&lower).unwrap_or(lower);
             let upper = reanchor(&upper).unwrap_or(upper);
-            self.prove_at_most(lower, upper);
+            if strict {
+                self.prove_strictly_less(lower, upper);
+            } else {
+                self.prove_at_most(lower, upper);
+            }
         }
     }
 
@@ -148,11 +152,11 @@ impl RangeFacts<'_> {
         {
             self.prove_range_bound(collection, alias.to_owned());
         }
-        for (lower, upper) in self
+        for (lower, upper, strict) in self
             .proven_orderings
             .clone()
             .into_iter()
-            .filter(|(lower, upper)| lower == original || upper == original)
+            .filter(|(lower, upper, _)| lower == original || upper == original)
         {
             let lower = if lower == original {
                 alias.to_owned()
@@ -164,7 +168,11 @@ impl RangeFacts<'_> {
             } else {
                 upper
             };
-            self.prove_at_most(lower, upper);
+            if strict {
+                self.prove_strictly_less(lower, upper);
+            } else {
+                self.prove_at_most(lower, upper);
+            }
         }
     }
 }

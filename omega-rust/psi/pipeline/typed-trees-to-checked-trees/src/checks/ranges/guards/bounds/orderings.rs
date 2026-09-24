@@ -3,16 +3,23 @@ use typed_trees::expression::ExpressionHandle;
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
 
+/// Mints the ordering fact for a comparison: `strict` records `<` vs `<=`
+/// verbatim — a strict ordering lets the bound-chaining consumers accept an
+/// upper bound one element higher (`index < j <= len` proves `index < len`).
 pub(in crate::checks::ranges::guards) fn seed_at_most_fact(
     program: &typed_trees::TypedTrees,
     facts: &mut RangeFacts<'_>,
     lower: ExpressionHandle,
     upper: ExpressionHandle,
+    strict: bool,
 ) {
-    facts.prove_at_most(
-        program.expression_table.display_name(lower),
-        program.expression_table.display_name(upper),
-    );
+    let lower = program.expression_table.display_name(lower);
+    let upper = program.expression_table.display_name(upper);
+    if strict {
+        facts.prove_strictly_less(lower, upper);
+    } else {
+        facts.prove_at_most(lower, upper);
+    }
 }
 
 /// Seeds `subject >= 0` from a guard that bounds `subject` below by a constant:

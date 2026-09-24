@@ -12,6 +12,7 @@ impl RangeFacts<'_> {
             })
         {
             self.proven_indexes.push((collection, index));
+            self.close_ordering_bounds();
         }
     }
 
@@ -121,20 +122,84 @@ impl RangeFacts<'_> {
         self.proven_non_negatives.iter().any(|known| known == name)
     }
 
-    pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
-        if !self
+    fn record_ordering(&mut self, lower: String, upper: String, strict: bool) {
+        if let Some((_, _, known_strict)) = self
             .proven_orderings
-            .iter()
-            .any(|(known_lower, known_upper)| known_lower == &lower && known_upper == &upper)
+            .iter_mut()
+            .find(|(known_lower, known_upper, _)| known_lower == &lower && known_upper == &upper)
         {
-            self.proven_orderings.push((lower, upper));
+            // A strict ordering subsumes the same pair seeded non-strict.
+            *known_strict |= strict;
+        } else {
+            self.proven_orderings.push((lower, upper, strict));
         }
+        self.close_ordering_bounds();
+    }
+
+    /// Forward-chains collection bounds through ordering facts until
+    /// fixpoint. `index <= pivot && pivot < len` proves `index < len` (a
+    /// proven index pair); `index < pivot && pivot <= len` proves the same
+    /// (strictness pays the one element); `index <= pivot && pivot <= len`
+    /// proves `index <= len` (a proven range bound). Minting the derived
+    /// pair eagerly — rather than only answering it at query time — is what
+    /// lets the proof ride the parameter-position transport across a state
+    /// edge: the transported fact is the (collection, index) pair, not the
+    /// ordering. Every minted fact is a true consequence of its premises,
+    /// so eager closure cannot make an unsound read provable.
+    fn close_ordering_bounds(&mut self) {
+        loop {
+            let mut grown = false;
+            let orderings = self.proven_orderings.clone();
+            for (lower, upper, strict) in orderings {
+                for (collection, _) in self
+                    .proven_indexes
+                    .clone()
+                    .into_iter()
+                    .filter(|(_, known_index)| known_index == &upper)
+                {
+                    if !self.index_is_proven(&collection, &lower) {
+                        self.proven_indexes.push((collection, lower.clone()));
+                        grown = true;
+                    }
+                }
+                for (collection, _) in self
+                    .proven_range_bounds
+                    .clone()
+                    .into_iter()
+                    .filter(|(_, known_bound)| known_bound == &upper)
+                {
+                    if strict {
+                        if !self.index_is_proven(&collection, &lower) {
+                            self.proven_indexes.push((collection, lower.clone()));
+                            grown = true;
+                        }
+                    } else if !self.range_bound_is_proven(&collection, &lower) {
+                        self.proven_range_bounds.push((collection, lower.clone()));
+                        grown = true;
+                    }
+                }
+            }
+            if !grown {
+                break;
+            }
+        }
+    }
+
+    pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
+        self.record_ordering(lower, upper, false);
+    }
+
+    /// `lower < upper` — the strict counterpart of `prove_at_most`. Every
+    /// consumer that accepts `<=` also accepts `<` (it is the stronger fact);
+    /// only the bound-chaining consumers below read the flag.
+    pub(in crate::checks::ranges) fn prove_strictly_less(&mut self, lower: String, upper: String) {
+        self.record_ordering(lower, upper, true);
     }
 
     pub(in crate::checks::ranges) fn at_most_is_proven(&self, lower: &str, upper: &str) -> bool {
         self.proven_orderings
             .iter()
-            .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
+            .any(|(known_lower, known_upper, _)| known_lower == lower && known_upper == upper)
     }
 
     /// Proves `index < length` by chaining an ordering with a bound: if
@@ -148,12 +213,30 @@ impl RangeFacts<'_> {
     pub(in crate::checks::ranges) fn index_upper_bound_is_proven_via_ordering(
         &self,
         index: &str,
+        collection: &str,
         length: usize,
     ) -> bool {
         self.proven_orderings
             .iter()
-            .filter(|(lower, _)| lower == index)
-            .any(|(_, upper)| self.index_upper_bound_is_proven(upper, length))
+            .filter(|(lower, _, _)| lower == index)
+            .any(|(_, upper, strict)| {
+                if *strict {
+                    // index < upper: `upper < length` (a proven index) or
+                    // `upper <= length` (a proven range bound, or an
+                    // exclusive integer bound sitting one higher) all
+                    // prove index < length — strictness pays the one
+                    // element the non-strict form cannot.
+                    self.index_is_proven(collection, upper)
+                        || self.range_bound_is_proven(collection, upper)
+                        || self.index_upper_bound_is_proven(upper, length.saturating_add(1))
+                } else {
+                    // index <= upper: upper's own strict proof — a proven
+                    // index (`upper < length`) or an exclusive bound —
+                    // carries index under the wire.
+                    self.index_is_proven(collection, upper)
+                        || self.index_upper_bound_is_proven(upper, length)
+                }
+            })
     }
 
     /// Proves `index < len` for an UNKNOWN-extent collection from a label-keyed
@@ -185,8 +268,28 @@ impl RangeFacts<'_> {
     ) -> bool {
         self.proven_orderings
             .iter()
-            .filter(|(lower, _)| lower == index)
-            .any(|(_, pivot)| self.index_upper_bound_within_length_floor(pivot, collection))
+            .filter(|(lower, _, _)| lower == index)
+            .any(|(_, pivot, strict)| {
+                if *strict {
+                    // index < pivot: `pivot < len` (a proven index) or
+                    // `pivot <= len` (a proven range bound) close it
+                    // directly; otherwise pivot's exclusive bound may meet
+                    // the floor inclusively — pivot <= floor <= len gives
+                    // index < len. `range_bound_value_is_proven` checks
+                    // `pivot's bound - 1 <= floor`, i.e. `bound <= floor + 1`.
+                    self.index_is_proven(collection, pivot)
+                        || self.range_bound_is_proven(collection, pivot)
+                        || self.proven_index_upper_bound(pivot).is_some_and(|upper| {
+                            self.range_bound_value_is_proven(collection, upper - 1)
+                        })
+                } else {
+                    // index <= pivot: only pivot's strict `< len` facts — a
+                    // proven index pair or an exclusive bound meeting the
+                    // floor — carry index under the wire.
+                    self.index_is_proven(collection, pivot)
+                        || self.index_upper_bound_within_length_floor(pivot, collection)
+                }
+            })
     }
 
     /// Proves `index >= 0` by chaining an ordering with non-negativity: if `x <= index`
@@ -203,8 +306,8 @@ impl RangeFacts<'_> {
     ) -> bool {
         self.proven_orderings
             .iter()
-            .filter(|(_, upper)| upper == index)
-            .any(|(lower, _)| self.non_negative_is_proven(lower))
+            .filter(|(_, upper, _)| upper == index)
+            .any(|(lower, _, _)| self.non_negative_is_proven(lower))
     }
 
     pub(in crate::checks::ranges) fn prove_range_bound(
@@ -220,6 +323,7 @@ impl RangeFacts<'_> {
             })
         {
             self.proven_range_bounds.push((collection, bound));
+            self.close_ordering_bounds();
         }
     }
 
