@@ -645,6 +645,157 @@ fn unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts() {
     }
 }
 
+/// Indexed-member guards: `self.<array-field>[index]` inside transitions and
+/// state bodies discharges through the same bound lanes as parameters — a
+/// literal index against the fixed extent, a prior transition's `<`/`<=`
+/// bound on a field or transported state argument, a member slice's `.len`
+/// bound, and a `requires` clause. The collection lives on `self` rather
+/// than in a parameter position, but the label-keyed proof facts are the
+/// same ones the parameter fixtures exercise.
+#[test]
+fn member_index_guards_meet_guard_and_state_bounds() {
+    for (fields, machine, accepted) in [
+        // Constant index against the member's fixed extent.
+        (
+            "control: [u8; 64];",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition self.control[3] >= 48 { true -> (1) false -> (0) }
+            }",
+            true,
+        ),
+        // A constant index past the extent stays rejected.
+        (
+            "control: [u8; 64];",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition self.control[64] >= 48 { true -> (1) false -> (0) }
+            }",
+            false,
+        ),
+        // An unbounded index stays rejected.
+        (
+            "control: [u8; 64];",
+            "machine Queryer::probe(&mut self, i: u64) -> u64 {
+                transition self.control[i] >= 48 { true -> (1) false -> (0) }
+            }",
+            false,
+        ),
+        // A `pos < N` transition bound carries the field index into the
+        // guarded state's reads and stores (squalr's `put_leaf` shape).
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition self.pos < 64 { true -> store() false -> out() }
+                state store(&mut self) -> u64 {
+                    self.control[self.pos] = 1;
+                    self.control[self.pos]
+                }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            true,
+        ),
+        // The inclusive spelling `pos <= N - 1` reaches the same bound.
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition self.pos <= 63 { true -> read() false -> out() }
+                state read(&mut self) -> u64 { self.control[self.pos] }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            true,
+        ),
+        // The same bound survives an unconditional hop through an
+        // intermediate state (the facts transport).
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition self.pos < 64 { true -> mid() false -> out() }
+                state mid(&mut self) {
+                    transition { _ -> read() }
+                }
+                state read(&mut self) -> u64 {
+                    transition self.control[self.pos] >= 48 { true -> (1) false -> (0) }
+                }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            true,
+        ),
+        // A `pos < len` bound on a borrowed member slice discharges the
+        // member-slice index (boyer-moore `self.table[i]` shape).
+        (
+            "pos: u64;",
+            "machine Queryer::probe(&mut self, table: &[u8]) -> u64 {
+                transition self.pos < table.len { true -> read(table) false -> out() }
+                state read(&mut self, table: &[u8]) -> u64 { table[self.pos] }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            true,
+        ),
+        // A machine-level `requires` bound discharges the member index.
+        (
+            "control: [u8; 64];",
+            "machine Queryer::probe(&mut self, i: u64) -> u64
+            requires
+                i < 64
+            {
+                transition self.control[i] >= 48 { true -> (1) false -> (0) }
+            }",
+            true,
+        ),
+        // A state-parameter declared range discharges the member index (the
+        // caller hands a literal already inside it).
+        (
+            "control: [u8; 64];",
+            "machine Queryer::probe(&mut self) -> u64 {
+                transition { _ -> read(12) }
+                state read(&mut self, i: u64 [0..64]) -> u64 { self.control[i] }
+            }",
+            true,
+        ),
+        // A scalar statement binding established before the transition.
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self) -> u64 {
+                self.pos = 12;
+                transition self.control[self.pos] >= 48 { true -> (1) false -> (0) }
+            }",
+            true,
+        ),
+    ] {
+        let source = format!("data Queryer {{ {fields} }} {machine}");
+        match (check_source(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{fields} | {machine}: {messages:?}"
+            ),
+            (result, _) => panic!("{fields} | {machine}: {result:?}"),
+        }
+    }
+    // `index < collection.len` seeded on a transition carries the proven-index
+    // pair across the state's argument transport (squalr's needle_copy ->
+    // needle_store -> needle_store_raw shape): the transported slice parameter
+    // keeps its proven element index whether the index is a transported
+    // parameter or a bounded field.
+    for source in [
+        "machine Queryer::probe(&mut self, arr: &[u8], i: u64) -> u64 {
+            transition i < arr.len { true -> read(arr, i) false -> out() }
+            state read(&mut self, arr: &[u8], i: u64) -> u64 { arr[i] }
+            state out(&mut self) -> u64 { 0 }
+        }",
+        "data Queryer { pos: u64; }
+        machine Queryer::probe(&mut self, arr: &[u8]) -> u64 {
+            transition self.pos < arr.len { true -> read(arr) false -> out() }
+            state read(&mut self, arr: &[u8]) -> u64 { arr[self.pos] }
+            state out(&mut self) -> u64 { 0 }
+        }",
+    ] {
+        let result = check_source(source);
+        assert!(result.is_ok(), "{source}: {result:?}");
+    }
+}
+
 /// A `len - offset` subtrahend under an exclusive range end reads the offset's
 /// ensured call bounds too: the ensured `>= 0` conjunct supplies the
 /// non-negativity a signed offset still owes, and the ensured inclusive high

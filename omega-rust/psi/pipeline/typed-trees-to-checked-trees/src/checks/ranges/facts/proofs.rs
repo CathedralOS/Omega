@@ -23,6 +23,29 @@ impl RangeFacts<'_> {
             })
     }
 
+    /// The index labels proven valid inside `collection`, in seed order. Edge
+    /// transport re-keys these pairs onto the callee's parameter names.
+    pub(in crate::checks::ranges) fn proven_index_labels<'a>(
+        &'a self,
+        collection: &'a str,
+    ) -> impl Iterator<Item = &'a String> + 'a {
+        self.proven_indexes
+            .iter()
+            .filter(move |(known_collection, _)| known_collection == collection)
+            .map(|(_, index)| index)
+    }
+
+    /// The collection labels `index` is proven inside, in seed order.
+    pub(in crate::checks::ranges) fn proven_collections_for_index<'a>(
+        &'a self,
+        index: &'a str,
+    ) -> impl Iterator<Item = &'a String> + 'a {
+        self.proven_indexes
+            .iter()
+            .filter(move |(_, known_index)| known_index == index)
+            .map(|(collection, _)| collection)
+    }
+
     pub(in crate::checks::ranges) fn prove_index_upper_bound(
         &mut self,
         index: String,
