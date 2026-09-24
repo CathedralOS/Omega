@@ -45,14 +45,41 @@ fn stage_crates(root: &Path) -> Vec<(String, PathBuf)> {
             .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
         {
             let path = entry.unwrap().path();
-            if path.is_dir() && path.join("Cargo.toml").is_file() {
-                let name = path.file_name().unwrap().to_str().unwrap().to_owned();
-                crates.push((name, path));
+            let manifest = path.join("Cargo.toml");
+            if path.is_dir() && manifest.is_file() {
+                crates.push((package_name(&manifest), path));
             }
         }
     }
     crates.sort();
     crates
+}
+
+/// The `[package] name` a stage crate declares.
+///
+/// The CRATE name is what encodes the transform; a directory may carry an
+/// ordering prefix (`00_source-files-to-tokens`) that is a reading aid for the
+/// file tree and no part of the pipeline's name.
+fn package_name(manifest: &Path) -> String {
+    let source = std::fs::read_to_string(manifest)
+        .unwrap_or_else(|error| panic!("read {}: {error}", manifest.display()));
+    let mut in_package = false;
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            in_package = trimmed == "[package]";
+            continue;
+        }
+        if in_package && let Some(value) = trimmed.strip_prefix("name") {
+            return value
+                .trim_start()
+                .trim_start_matches('=')
+                .trim()
+                .trim_matches('"')
+                .to_owned();
+        }
+    }
+    panic!("{} declares no [package] name", manifest.display())
 }
 
 fn transform_pair(name: &str) -> (&str, &str) {
@@ -365,7 +392,13 @@ fn pipeline_ownership_document_links_every_stage_crate() {
         );
         linked.insert(link.split('/').nth(2).unwrap().to_owned());
     }
-    let on_disk: BTreeSet<String> = crates.iter().map(|(name, _)| name.clone()).collect();
+    // The links name DIRECTORIES, which may carry an ordering prefix the crate
+    // name does not (`00_source-files-to-tokens`), so this one compares the
+    // folders rather than `stage_crates`' package names.
+    let on_disk: BTreeSet<String> = crates
+        .iter()
+        .map(|(_, path)| path.file_name().unwrap().to_str().unwrap().to_owned())
+        .collect();
     assert_eq!(
         linked, on_disk,
         "pipeline.md stage-crate links differ from the on-disk pipeline crates"
