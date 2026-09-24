@@ -198,5 +198,5 @@ unrepresentable origin or incomplete recursive summary uses the conservative
 ownership ceiling, never an empty write set. Frame inference grants no borrow
 authority and cannot preserve facts through unmodeled external writes.
 Current analysis bounds belong beside
-[checking](../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md),
+[checking](../../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md),
 not in the language's dependent-value limits.

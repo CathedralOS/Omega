@@ -43,7 +43,7 @@ terminal-fixed-fuel = { path = "../../semantics/terminal-fixed-fuel" }
 terminal-interpreter = { path = "../../semantics/terminal-interpreter" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 typed-trees = { path = "../../representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../04_typed-trees-to-checked-trees" }
 
 [[test]]
 name = "suite"

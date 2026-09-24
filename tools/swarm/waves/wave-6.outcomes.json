@@ -43,7 +43,7 @@
       "item_closed": false,
       "commits": [],
       "acus_consumed": null,
-      "notes": "Next slice lives in typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/, claimed by macw4-value-generics-2 (RUNTIME-VALUE-GENERICS, lease to 2026-09-15T03:20Z). Re-offer after that claim clears."
+      "notes": "Next slice lives in 04_typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/, claimed by macw4-value-generics-2 (RUNTIME-VALUE-GENERICS, lease to 2026-09-15T03:20Z). Re-offer after that claim clears."
     },
     {
       "name": "foreign-retained-args",

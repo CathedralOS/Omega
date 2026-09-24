@@ -79,7 +79,7 @@ format, selected occurrence, and result evidence through Psi's
 `execution/terminal_unit/selected_ieee_float.rs` and Omega's shared graph/provider
 route. Widening store admission is not the repair.
 
-**Current producer state.** `typed-trees-to-checked-trees/src/execution/
+**Current producer state.** `04_typed-trees-to-checked-trees/src/execution/
 unit/selected_ieee_float.rs` only emits `SelectedIeeeFloatFusedMultiplyAdd`
 for intrinsic FMA applications bound to `LocalInitializer` locals with
 literal operands (`ieee_format_for_primitive` gates F32/F64). The missing

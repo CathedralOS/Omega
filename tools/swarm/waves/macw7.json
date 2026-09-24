@@ -44,7 +44,7 @@
             "item": "TERMINATION-RANKING-CHECKS",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+                "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
                 "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
                 "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles/runtime_ranking",
                 "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",
@@ -125,7 +125,7 @@
             "host": "local",
             "layer": 1,
             "owning_paths": [
-                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs",
+                "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs",
                 "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
                 "omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs",
                 "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc",
@@ -159,7 +159,7 @@
             "item": "PLACED-ACCESS-NATIVE-OPS",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/primitive_store.rs",
+                "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/primitive_store.rs",
                 "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission",
                 "omega-rust/psi/semantics/terminal-interpreter/tests/unit"
             ],

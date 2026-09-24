@@ -69,7 +69,7 @@ Each family has a named board owner and an unblocked repair path.
 1. **Unit-plan omission → `ProgramEntry establishment rejoins 0 Terminal
    attachment identities`.** ~533–549 of the ~750–770 `_runs` failures on
    both recorded hosts, 72/173 rostered pass failures, ~75–79 stops in the
-   samples run. **One mechanism**: `typed-trees-to-checked-trees/src/
+   samples run. **One mechanism**: `04_typed-trees-to-checked-trees/src/
    execution/terminal_unit/` omits a machine's Unit plan whenever a
    statement's shape falls outside a per-site recognizer set — the
    compositional-lowering defect AGENTS.md warns about, quantified. Largest

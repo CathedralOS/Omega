@@ -28,7 +28,7 @@
       "item": "TERMINATION-RANKING-CHECKS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
         "omega-rust/psi/semantics/validation/src/call_cycles/runtime_ranking"
       ],
       "suggested_first_slice": "one computed-only path with auxiliary-only multi-parameter arithmetic: exact arrival mapping plus its missing-premise rejection"
@@ -49,7 +49,7 @@
       "item": "STRUCTURAL-GENERIC-MATCHING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/monomorphization",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/monomorphization",
         "tests/omega/pass/generics/declared_range_endpoint_inference"
       ],
       "suggested_first_slice": "range_arguments.rs inference for one named computation endpoint through shared semantic evaluation, not the i64 interval evaluator"
@@ -60,8 +60,8 @@
       "item": "CRASH-CONTRACT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/facts/operator_crashes.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/expression.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts/operator_crashes.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests"
       ],
       "suggested_first_slice": "reuse the scalar boundary requirement contract for one selected operator, retaining exact occurrence and saved actuals"

@@ -33,7 +33,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_sourc
 
 Custody reconstruction lives in `validation/src/structural_call_custody.rs`;
 ordinary binding and completion belong to
-`typed-trees-to-checked-trees/src/execution/unit/control/statement_sequence.rs`.
+`04_typed-trees-to-checked-trees/src/execution/unit/control/statement_sequence.rs`.
 Whole-root linear input-origin forwarding uses the existing `CallStructural`
 and `CallStructuralWithScalarArguments` operations. Both encodings share claim
 and content verification; scalar operand collection does not depend on the

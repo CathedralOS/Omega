@@ -60,7 +60,7 @@ result-to-input relation. A template-dependent frontier is not an empty one;
 discarding the result cannot excuse missing call admission. General outlives
 syntax and broader multiple-source result relations are not supplied by the
 single-source elision rule. Current source-checker restrictions are recorded
-[beside checking](../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md#lifetime-source-correspondence),
+[beside checking](../../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence),
 not additional permissions to omit unresolved loans.
 
 ## Carried-loan transport

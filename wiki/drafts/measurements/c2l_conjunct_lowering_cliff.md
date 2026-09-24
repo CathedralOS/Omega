@@ -76,7 +76,7 @@ Four compounding centres, none in `proof/src/checker`:
 3. **Per-certificate kernel cost linear in chain length** —
    `mathematical_core::typing::infer_type` recurses past depth 260 on one
    certificate from this program.
-4. **Checking-stage scans** — `typed-trees-to-checked-trees/src/authored_selections/operator_targets.rs:56`
+4. **Checking-stage scans** — `04_typed-trees-to-checked-trees/src/authored_selections/operator_targets.rs:56`
    scanned per operator-by-fact pair and `member_targets.rs:369-381` tested
    membership with a `Vec` linear scan (16% of the run).
    **Closed at `4003c703186`**: visited-set + per-operator scan repair took

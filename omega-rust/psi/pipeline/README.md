@@ -426,7 +426,7 @@ Scalar result annotations are established in the producing body: ordinary exits
 prove the machine and state result obligations from live exact membership or the
 arithmetic prover, closed indices retain their declaration binders, and routed
 qualifications require authorized provenance
-(`typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
+(`04_typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -822,7 +822,7 @@ that separation. Nested evidence applications retain every non-lifetime slot;
 an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
-[Authored selections](typed-trees-to-checked-trees/authored_selections.md) owns
+[Authored selections](04_typed-trees-to-checked-trees/authored_selections.md) owns
 the shared capture/finalization contract. Capture source statement calls before
 table rebuilding and recursively retain static declaration paths; unresolved
 paths remain explicit late obligations. Partition trait-default copies by exact
@@ -837,5 +837,5 @@ calls/operators and inferred evidence. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
 See [generated continuation](../../omega/compiler/compiler/generated_source.md)
-for append-only source execution and [checking](typed-trees-to-checked-trees/README.md)
+for append-only source execution and [checking](04_typed-trees-to-checked-trees/README.md)
 for the proof, flow and ownership boundary.

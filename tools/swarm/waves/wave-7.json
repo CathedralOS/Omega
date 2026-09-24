@@ -44,10 +44,10 @@
       "owning_paths": [
         "omega-rust/psi/semantics/validation/src/places.rs",
         "omega-rust/psi/semantics/validation/src/slice_ranking.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/borrows",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/ranges",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/ranges"
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/borrows",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/ranges",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/borrow",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/ranges"
       ],
       "suggested_first_slice": "Extend range-premise read dependencies to one selected call, indexing operator, or atomic read with established complete footprint and operation stability. The wave-6 run located the next slice in checks/ranges/facts/dependencies/."
     },

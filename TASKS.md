@@ -223,7 +223,7 @@ the complete product bar; focused successes below do not establish that baseline
   match. Preserve signatures, receiver storage, rendering and effects under
   [provider selection](wiki/spec/build/provider_selection.md).
 
-  Compiler dependencies: `typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs`
+  Compiler dependencies: `04_typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs`
   admits one provider field, while this entry needs four; lowered
   `attached_unit/providers.rs` excludes scalar-result provider candidates
   needed by window/input/clock operations. Retain one occurrence-owned concrete
@@ -317,7 +317,7 @@ the complete product bar; focused successes below do not establish that baseline
   Tight starting groups are structural-call bindings in `recast`, pure-source
   field stores in `float`, and conditional guards/call operations in
   `filesystem`. Their shared owner is
-  `typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
 
   Distinct remaining probes include
@@ -428,7 +428,7 @@ the complete product bar; focused successes below do not establish that baseline
 
 - **TERMINATION-RANKING-CHECKS.** Finish exact rank-range transport under the
   [termination contract](wiki/spec/language/termination.md). Owners:
-  `typed-trees-to-checked-trees/src/checks/termination/ranking/`,
+  `04_typed-trees-to-checked-trees/src/checks/termination/ranking/`,
   validation's `proof_contracts/contract_entailment/ranking_range/`, and
   `machine_calls/call_cycles/runtime_ranking/`.
 
@@ -1726,7 +1726,7 @@ syntax and other terminal services are not prerequisites.
     the controls below, including member-call target resolution inside
     mathematical definitions and ordering over non-integer operands.
     Replace authored-name sort classification in
-    `typed-trees-to-checked-trees/src/proof/mathematical_{declarations,signature}.rs`
+    `04_typed-trees-to-checked-trees/src/proof/mathematical_{declarations,signature}.rs`
     with canonical symbol identity and supply the fixed `core::Level`,
     `Type`, `Strict` and `Squash` declarations.
   - Replace the surviving `proposition`/hidden-witness routes, including
@@ -1785,7 +1785,7 @@ syntax and other terminal services are not prerequisites.
 - **PROOF-CERTIFICATION-BRIDGE.** Check functional guarantees against generated
   loops, independently of termination, under the
   [publication contract](wiki/spec/proofs/publication.md). Owners:
-  `typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`,
+  `04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`,
   `checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
   and their independent Terminal verifier.
 
@@ -1855,7 +1855,7 @@ syntax and other terminal services are not prerequisites.
   Reuse static checked-shape record/sum formals through `ProofTerm::Scalar`
   and the `erased_record_parameter_exit` control; array-field carriers remain
   unsupported. The dynamic gap is
-  `typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
+  `04_typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
   rejecting erased formals on dynamic requirements because their dispatch
   plans carry no proof actuals. These refusals diagnose missing support; they
   do not complete the specified feature.
@@ -1936,7 +1936,7 @@ syntax and other terminal services are not prerequisites.
 - **WRITE-ONLY-BORROW.** Finish `&write T` under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority),
   preserving original referents and exact place/loan custody. Owners:
-  `typed-trees-to-checked-trees/src/execution/`, `checked-trees-to-lowered-psi`
+  `04_typed-trees-to-checked-trees/src/execution/`, `checked-trees-to-lowered-psi`
   and native reference preparation in instruction legalization.
 
   Remaining source-to-native work: general aggregate and `[copy]` sum
@@ -2001,7 +2001,7 @@ syntax and other terminal services are not prerequisites.
 - **BORROW-PROOF-CONVERGENCE.** Carry ordinary borrow compatibility from
   checked certificates to independent portable replay under
   [loans](wiki/spec/terminal-psi/loans.md).
-  Owners: `typed-trees-to-checked-trees/src/checks/borrows/`,
+  Owners: `04_typed-trees-to-checked-trees/src/checks/borrows/`,
   `checked-trees/src/checked_trees/borrow.rs`, checked-to-lowered publication
   and Terminal verification. Current checking supports immutable normalized
   bounds, requires/domain predicates, incoming guards, immutable whole-result
@@ -2582,7 +2582,7 @@ syntax and other terminal services are not prerequisites.
   subject's authored position by `cases.rs`). The three
   `optimization-unit-semantics structural_cases::owned_results` tests pass
   again. Remaining: the evidence producer,
-  `typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs::build_state_plan`,
+  `04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs::build_state_plan`,
   still names the subject on each arm because a dispatch moves no place.
   Treat a closed-sum `transition subject { .. }` over an owned parameter as
   that statement's consumption there, then drop the subtraction in lowering
@@ -3222,7 +3222,7 @@ syntax and other terminal services are not prerequisites.
   another recognizer per reference spelling or replace a complete-or-opaque
   summary with a guessed write set.
 
-  Acceptance: extend `typed-trees-to-checked-trees/src/tests/termination/`
+  Acceptance: extend `04_typed-trees-to-checked-trees/src/tests/termination/`
   `write_frame_*` coverage through full source checking, not only typed-tree
   resolver probes. A helper choosing either mutable input, writing through its
   result in a value expression, must preserve a disjoint index-bound fact and
@@ -3244,7 +3244,7 @@ syntax and other terminal services are not prerequisites.
   or similarly shaped row cannot mint a premise.
 
   Extend the shared backward provenance trace and finite lineage partitions in
-  `typed-trees-to-checked-trees/src/checks/termination/progress/`
+  `04_typed-trees-to-checked-trees/src/checks/termination/progress/`
   (`origins.rs`, `lineage.rs`, `lineage/places.rs`) and `flow/value_origins.rs`.
   Owned loads through references and exact written callee projections already
   recover their actual replacement input. Remaining gaps are additional reference
@@ -3298,7 +3298,7 @@ syntax and other terminal services are not prerequisites.
   under [ordinary mutable-receiver contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
   and close the dungeon checking customer. `&mut self` is an ordinary `&mut T`
   argument; this is implementation cleanup, not an owner-blocked design choice.
-  Owners: `typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`,
+  Owners: `04_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`,
   `checks/contracts/`, and `flow/call_phases/referents.rs`.
 
   Consolidate receiver and named mutable-argument domain obligations across
@@ -3346,7 +3346,7 @@ syntax and other terminal services are not prerequisites.
   Abandoned partial construction/staging cleans its established prefix in
   reverse establishment order, as the [language rule](wiki/spec/language/ownership.md#construction-and-disposal-order) requires.
   Crash/abort/process-exit abandonment has no cleanup successor.
-  Owners: `typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
+  Owners: `04_typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
   and `execution/terminal_unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
   and Omega's `abstract-operations-to-target-operations/src/lowering/`.
 
@@ -3404,7 +3404,7 @@ syntax and other terminal services are not prerequisites.
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
   Retain exact producer, parameter position, result owner and loan activation;
   **CML4** owns residual cleanup. Start at the actual omission in
-  `typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
 
@@ -3588,7 +3588,7 @@ syntax and other terminal services are not prerequisites.
   - Compose contextual requirements and dying local owners through ordinary
     cleanup edges. `checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
     still excludes nonempty caller/hook prerequisites, and
-    `typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
+    `04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
     rejects nominal-drop locals left owned at return. Retain independently
     checked exact-place prerequisites; never infer new caller demands.
   - Complete erased-bearing record construction without runtime evidence
@@ -4270,7 +4270,7 @@ syntax and other terminal services are not prerequisites.
   [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
   Catalog/checking coverage is not executable support.
 
-  Resume at `typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs`:
+  Resume at `04_typed-trees-to-checked-trees/src/execution/unit/calls/call_operations.rs`:
   dedicated asm-call planning handles `AsmPortOut`, while
   `asm_value_intrinsic_result_types_reach_the_call_operation_frontier` pins
   missing operation plans for value intrinsics. Complete checked plans,

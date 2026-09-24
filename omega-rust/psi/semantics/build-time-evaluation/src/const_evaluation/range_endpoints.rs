@@ -10,7 +10,7 @@
 //!
 //! Folding here, in the typed trees, is what lets every later reader agree on
 //! one value: declaration validation, structural generic inference in
-//! `typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`,
+//! `04_typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`,
 //! proof, and layout all read an ordinary literal endpoint. The
 //! context-free `i64` interval evaluator in `validation` never sees the call,
 //! so it cannot become the identity of a named computation.

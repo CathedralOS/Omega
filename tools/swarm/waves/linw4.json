@@ -9,9 +9,9 @@
    "item": "STRUCTURAL-BORROW-IDENTITY",
    "owning_paths": [
     "omega-rust/psi/representations/checked-trees/src/checked_trees/values/structural_values.rs",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/receiver_calls",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/calls/computation_arguments",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow/receiver_access.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/receiver_calls",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/computation_arguments",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/borrow/receiver_access.rs",
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations"
    ],
    "suggested_first_slice": "Next leg after RuntimeIndex (c6c43812ae) and borrowed-byte-view scalar-return (931a37193a): the remaining src/tests/borrow/receiver_access.rs pins cover local-rooted indexed receivers and runtime-indexed parameter receivers/explicit shared arguments. Take ONE bounded step: repair one remaining omission pin so the pinned receiver shape admits and executes, keeping RuntimeIndex custody/bounds evidence exact. Owned-root and construction-local admission are separate obligations - do not fold them in; coordinate any bracketed-range fixture migration with REMOVE-BRACKETED-RANGE-ANNOTATIONS. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."

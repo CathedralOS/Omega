@@ -1188,15 +1188,15 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "CheckedTreeProductPruning",
         positive: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "unreachable_checked_body_machine_is_pruned",
         ),
         negative: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "unknown_root_is_rejected_before_pruning",
         ),
         boundary: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "boundary_machines_are_interface_surface_not_pruning_candidates",
         ),
         disabled: covered(
@@ -1205,15 +1205,15 @@ const COVERAGE: &[RuleCoverage] = &[
         ),
         budget: NO_STEP_BUDGET,
         determinism: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "pruning_is_deterministic_for_the_same_plan",
         ),
         fixed_point: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "the_pruned_product_is_a_fixed_point_for_the_same_plan",
         ),
         corruption: covered(
-            "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs",
+            "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "independent_product_validation_rejects_roster_corruption",
         ),
     },

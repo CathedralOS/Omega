@@ -31,7 +31,7 @@ or dropped.
   opened directly on `mod cli;`. It now documents its dispatch role.
 
 - **F2 — implementation details in a stage root, REPAIRED.**
-  `psi/pipeline/typed-trees-to-checked-trees/src/lib.rs` defined 22 free
+  `psi/pipeline/04_typed-trees-to-checked-trees/src/lib.rs` defined 22 free
   helper functions at the crate root (`typed_operator_has_no_authored_selection`,
   `typed_build_provider_selection`, `late_bound_member_declaration_from_exact_owner`,
   `resolve_checked_builtin_float_operator_requirement`, …) beside the stage

@@ -16,7 +16,7 @@ than acquiring an alternate source-to-native route.
   boundaries. Transform crates have literal `X-to-Y` names; optimizations are
   `X-to-X`, not new pre/post-optimized representations.
 - [Source frontend](pipeline/README.md): lexing through typing;
-  [checking](pipeline/typed-trees-to-checked-trees/README.md) owns proof,
+  [checking](pipeline/04_typed-trees-to-checked-trees/README.md) owns proof,
   flow and ownership settlement.
 - [Source representations](representations/README.md): durable semantic shape
   and the links between increasingly resolved forms.

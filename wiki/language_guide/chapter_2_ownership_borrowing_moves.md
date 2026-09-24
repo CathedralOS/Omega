@@ -328,7 +328,7 @@ correspondence. A dynamic index conservatively includes all possible sources.
 
 The [lifetime specification](../spec/language/lifetimes.md) owns binder syntax,
 elision and carried-loan transport. The compiler's current multiple-input and
-generic returned-view limitations are documented [beside checking](../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
+generic returned-view limitations are documented [beside checking](../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
 Those limitations are not permission to forget unresolved borrows.
 
 ## Storage Carried By Placed Views

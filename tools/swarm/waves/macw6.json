@@ -13,12 +13,12 @@
       "item": "FINITE-GENERIC-DISPATCH",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs",
         "omega-rust/psi/representations/terminal-psi/src/terminal_module/boundary/dynamic_dispatch.rs",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/finite_family.rs",
         "omega-rust/psi/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/dynamic_conformances",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/dynamic_conformances",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
@@ -94,8 +94,8 @@
       "item": "CML4",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering"
@@ -112,7 +112,7 @@
       "item": "TERMINATION-RANKING-CHECKS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
         "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
         "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles/runtime_ranking",
         "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",

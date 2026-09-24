@@ -241,7 +241,7 @@ admits only primitives, `[copy]` data and `[copy]`-bounded type parameters as
 fields of `[copy]` data. It rejects "references, slices, owned text, dyn traits"
 "until a ruling extends the set". The value planner already treats a stored
 `&'a [T]` view leaf as `Unrestricted`
-(`typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs::copied_place_type`).
+(`04_typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs::copied_place_type`).
 
 **Problem:** Nine pass canaries copy a record with a shared view field, e.g.
 `data Room { label: &[u8] in Utf8; }`, out of `&mut self` storage by value

@@ -119,8 +119,8 @@
       "item": "TPR6",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress.rs",
         "omega-rust/psi/semantics/validation/src/calls/expression_scanning"
       ],
       "suggested_first_slice": "One bounded slice: per-field arrivals through an opaque-reference, recursive-proof, or unresolved-generic leaf with exact provenance (progress/{origins,lineage}.rs), or realizing one projected nested value-call operand via validation/src/calls/expression_scanning/result_realization.rs. checks/termination/ranking, validation/src/lib.rs, and flow/ are claimed until ~04:37-06:15Z \u2014 steer to owned paths."
@@ -280,8 +280,8 @@
       "item": "TERMINATION-RANKING-CHECKS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking.rs",
         "omega-rust/omega/compiler/validation/src/call_cycles/runtime_ranking",
         "omega-rust/omega/compiler/validation/src/call_cycles/runtime_ranking.rs"
       ],
@@ -320,7 +320,7 @@
       "item": "CALLBACK-PRIVATE-MATERIALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/terminal_unit"
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/terminal_unit"
       ],
       "suggested_first_slice": "Retry of the blocked w8 slot \u2014 its recorded evidence is exact: admit each Machine{Nominal} signature type parameter joined to a nominal_machine_use at the exact site (ordinal plus satisfaction row) without requiring an ABI native callback parameter \u2014 the PrivateCallbackSlot conformance supplies the destination. The blocker was admitted_native_callback_telescope in flow/terminal_unit/calls.rs; NOMINAL-FIELD-FLOW's claim on flow/ has expired, so the seam is free. Reuse the blocked session's instrumented gate: only the telescope condition fired \u2014 receiver routing, presentation, mutability, result checks all admit.",
       "backfill_for": "target-semantic-applications"

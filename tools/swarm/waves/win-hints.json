@@ -36,10 +36,10 @@
       "item": "NOMINAL-FIELD-FLOW",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/field_domain.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values/bounds",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/field_domain.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values/bounds",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
         "omega-rust/psi/representations/flow-effects",
         "samples/cli/games/dungeon_crawler_cli"
       ],
@@ -73,7 +73,7 @@
       "item": "CRASH-GUARD-COST",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/crashes.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/crashes.rs",
         "wiki/drafts/test_cycle_measurements.md"
       ],
       "suggested_first_slice": "Measure cumulative phase costs on the documented package-review route on this Windows host and attribute the repeated classification named in the item. Land either the measurement evidence (appended to test_cycle_measurements.md) or a bounded repeated-work removal in checks/crashes.rs that preserves crash-guard outcomes."

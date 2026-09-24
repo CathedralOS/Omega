@@ -118,7 +118,7 @@ The taxonomy above fixes what a snapshot *is*; this section fixes how an
 authored boundary *names* it, end to end through the pipeline. Surveyed
 state at `b90ac7155d47` (linux x86-64):
 
-- **Checker.** `typed-trees-to-checked-trees/src/checks/content/
+- **Checker.** `04_typed-trees-to-checked-trees/src/checks/content/
   retained_custody.rs` derives custody from the authored contract: one
   consumed owned source records moved retention;
   `lifetime_bound_borrow_custody` emits `RetainedBorrowCustodyFact` for

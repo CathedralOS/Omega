@@ -15,7 +15,7 @@ language-semantics = { path = "../../../psi/foundation/language-semantics" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 
 [dev-dependencies]
 arena = { path = "../../../psi/foundation/arena" }
