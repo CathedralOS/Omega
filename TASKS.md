@@ -2295,6 +2295,19 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **BORROWED-VIEW-CARRIER-ACCESS.** (new-scope) Terminal's
+  `ByteSequenceCarrier::BorrowedView` (and the checked
+  `CheckedByteSequenceCarrier::BorrowedView`) records no access, so a
+  `&'r mut [u8]` record field and a shared `&'r [u8]` one are the same
+  carrier after checking. de4ee7b382 admitted byte stores through any
+  borrowed-view field in `terminal-verifier/.../structural/byte_sequence_fields.rs`
+  on the strength of the checked planner's mint gate; the verifier cannot
+  check that, so the write admission is withdrawn and
+  `borrowed_view_member_calls::mutable_view_field_element_store_waits_for_carrier_access`
+  pins the refusal. Carry the view's access on both carriers (codec tag and
+  encoding spec included), admit the store only for a mutable view, and turn
+  that test back into `..._lowers_and_verifies`.
+
 - **LOWERING-ROUTE-CONSOLIDATION.** (new-scope) Checked-to-lowered Psi picks
   one of seven whole-module producers per machine
   (`machine_lowering/machine_dispatch.rs::lower_selected_machine`), and the
