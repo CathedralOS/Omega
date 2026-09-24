@@ -6,9 +6,12 @@
 // comparison and its occurrence reached the end of checking unresolved --
 // the float semantic twins rejected on exactly this shape. The mirrored and
 // negated forms pin the same carrier arriving through a second comparison
-// and through `!`. The core float surface is imported so a DECLARED `==`
-// over `f32` is in scope: with no operator declaration at all the reader
-// never needed the operands to reach its answer.
+// and through `!`. The ARITHMETIC form is the same reader's other half: an
+// addition whose operands are themselves arithmetic produces the carrier they
+// share, and without it a declared `f32` addition stayed a wildcard candidate
+// for `(count / 4) + (count % 4)`. The core float surface is imported so a
+// DECLARED `==` and `+` over `f32` are in scope: with no operator declaration
+// at all the reader never needed the operands to reach its answer.
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -17,14 +20,19 @@ data Main {
     console: Binding<Console>;
     left: f32;
     right: f32;
+    count: u64;
+    folded: u64;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.left = 1.5;
     self.right = 2.5;
+    self.count = 5;
+    self.folded = (self.count / 4) + (self.count % 4) + self.count * 2;
     transition (self.left == self.right) == false
         && (self.left < self.right) == (self.right > self.left)
-        && !(self.left == self.right) == true {
+        && !(self.left == self.right) == true
+        && self.folded == 7 {
         true -> proven()
         _ -> broken()
     }
