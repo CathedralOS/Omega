@@ -485,7 +485,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["plan", "post_allocation_machine"],
     ),
     (
-        "omega/pipeline/12_resolved-layout-to-resolved-layout",
+        "omega/pipeline/09_resolved-layout-to-resolved-layout",
         &["phase", "x86_branch_relaxation"],
     ),
     (
