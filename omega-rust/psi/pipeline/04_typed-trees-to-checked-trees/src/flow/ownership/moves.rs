@@ -43,7 +43,9 @@ pub(super) fn append_move_events_for_expression(
         return;
     }
 
-    if type_references::intrinsic_enum_equality(program, state_symbol, expression) {
+    if type_references::intrinsic_enum_equality(program, state_symbol, expression)
+        || selected_meaning_borrows_operands(program, expression)
+    {
         let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
             unreachable!()
         };
@@ -293,6 +295,48 @@ pub(super) fn append_move_events_for_expression(
 
 /// Evaluate nested call operands using their declared ownership policy.
 /// Static type/module receivers name declarations rather than runtime storage.
+/// A binary expression whose authored selection resolved to a machine that
+/// takes every operand by shared reference observes its operands, exactly as
+/// a call to that machine lends its arguments: `a.equals(&b)` over a derived
+/// `Equatable` lowers to such an `a == b`, and neither side moves.
+fn selected_meaning_borrows_operands(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> bool {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Binary(_)
+    ) {
+        return false;
+    }
+    let mut targets = program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| program.authored_declaration_selections().get(occurrence))
+        .map(|selection| match selection.target() {
+            Target::Resolved(target) => Some(target.selected_symbol()),
+            _ => None,
+        });
+    let (Some(Some(target)), None) = (targets.next(), targets.next()) else {
+        return false;
+    };
+    super::calls::call_target_parameters(program, target).is_some_and(|parameters| {
+        parameters.len() == 2
+            && parameters.iter().all(|parameter| {
+                matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference {
+                        access: language_semantics::ReferenceAccess::Shared,
+                        ..
+                    }
+                )
+            })
+    })
+}
+
 fn append_move_events_for_call_arguments(
     program: &typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,

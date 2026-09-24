@@ -10,6 +10,31 @@ fn intrinsic_enum_equality_observes_two_borrowed_fields() {
     }
 }
 
+/// A derived `equals(&self, other: &Self)` lends both operands exactly as
+/// `==` observes them: neither receiver field nor argument field is moved out
+/// of `&mut self`, so a following boundary call sees both present.
+#[test]
+fn derived_equals_call_observes_its_borrowed_receiver_and_argument() {
+    for data in [
+        "data Kind { case A; case B; }",
+        "data Kind { case A; case B(value: i32); }",
+    ] {
+        let source = format!(
+            "boundary trait Trace {{ machine observe(value: bool); }}
+             trait Equatable {{ machine equals(&self, other: &Self) -> bool; }}
+             {data}
+             KindEquatable: Kind satisfies Equatable;
+             data Pair {{ left: Kind; right: Kind; }}
+             machine Pair::run(&mut self) reaches Trace {{
+                 let same: bool = self.left.equals(&self.right);
+                 Trace::observe(same);
+             }}"
+        );
+        checked_program_result(&source)
+            .unwrap_or_else(|errors| panic!("{data}: equals borrows its operands: {errors:?}"));
+    }
+}
+
 #[test]
 fn borrowed_operator_result_preserves_owned_argument_consumption() {
     let source = r#"
