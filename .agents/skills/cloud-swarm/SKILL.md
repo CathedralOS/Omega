@@ -101,6 +101,18 @@ merge to push its next lane) and merge after. When idle, sweep all worker
 statuses with `devin_session_interact get` — a `waiting_for_user` or
 `suspended` worker you didn't park is a bug in your own loop.
 
+**Inactivity-suspend mid-leg is a silent settle.** Workers sometimes end
+their turn mid-leg with no verdict and no pushed lane; the session then
+suspends for inactivity and NO settle notification fires, so the slot goes
+dark. On the sweep, distinguish parked-by-you from inactivity-suspended:
+a worker suspended while it held an uncompleted leg gets a resume+nudge
+on the SAME leg (its worktree and un-pushed edits survive the suspend —
+"your leg is still live; branch state carried; report verdict or `blocked`
+with a named gate, do not go idle"), never a sleep into the reserve. If it
+had already posted a verdict you missed, read the tail first and merge
+before re-dispatching. Re-arm `notify_on_response` on the resume so the
+next settle actually wakes you.
+
 **Coordinator merge cycle (per landed lane).**
 
 1. `git fetch origin`; `git checkout -B merge-check origin/main` in the
