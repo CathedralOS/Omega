@@ -70,6 +70,11 @@ pub(crate) fn evaluate_known_scalar_graph(
                 when_true_target,
                 when_false_target,
                 ..
+            }
+            | LoweredScalarBranchTerminator::CaseDispatch {
+                when_true_target,
+                when_false_target,
+                ..
             } => vec![*when_true_target, *when_false_target],
             LoweredScalarBranchTerminator::Return { .. }
             | LoweredScalarBranchTerminator::Crash(_) => Vec::new(),
@@ -140,6 +145,24 @@ pub(crate) fn evaluate_known_scalar_graph(
                     );
                 }
             },
+            // The dispatch's selected payload parameters evaluate as
+            // unknown here; both outcomes still propagate known arguments.
+            LoweredScalarBranchTerminator::CaseDispatch {
+                when_true_target,
+                when_true_arguments,
+                when_false_target,
+                when_false_arguments,
+                ..
+            } => {
+                merge_known_parameters(
+                    &mut known_parameters[*when_true_target],
+                    evaluate_arguments(when_true_arguments),
+                );
+                merge_known_parameters(
+                    &mut known_parameters[*when_false_target],
+                    evaluate_arguments(when_false_arguments),
+                );
+            }
             LoweredScalarBranchTerminator::Return { expression } => {
                 return_values.push(evaluate_direct_expression(expression, &values));
             }

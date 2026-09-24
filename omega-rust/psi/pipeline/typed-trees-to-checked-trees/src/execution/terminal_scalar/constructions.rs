@@ -97,6 +97,24 @@ pub(super) fn retain_record_locals(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
+        if local.name.as_str().starts_with("__arm_destructure#") {
+            // A destructure marker carries provenance about the matched
+            // operand, not a runtime construction: it keeps the unit
+            // sentinel and establishes no structural value. Admit it when
+            // the authored subject resolves to a canonical rooted place.
+            if local.is_mutable
+                || crate::flow::contextual_canonical_place_from_expression(
+                    program,
+                    state.symbol,
+                    ordinal,
+                    local.initial_value,
+                )
+                .is_none()
+            {
+                return None;
+            }
+            continue;
+        }
         if program
             .primitive_type_reference(local.type_reference)
             .is_some()

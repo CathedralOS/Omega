@@ -117,20 +117,36 @@ pub(super) fn prepare(
                 .guard_statement_ordinal
         }
     };
-    if state.bindings.len() + state.unit_operations.len() != authored_prefix
+    // Destructure markers occupy authored prefix slots but carry only the
+    // match's provenance: they produce neither a scalar binding nor a unit
+    // operation, so the row parity counts everything else.
+    let statement_rows = checked
+        .statement_table
+        .statements(source_state.statement_nodes);
+    let operational_prefix = statement_rows[..authored_prefix]
+        .iter()
+        .filter(|statement| {
+            !matches!(
+                statement,
+                checked_trees::statement::StatementNode::LocalData(local)
+                    if local.name.as_str().starts_with("__arm_destructure#")
+            )
+        })
+        .count();
+    if state.bindings.len() + state.unit_operations.len() != operational_prefix
         || usize::try_from(terminator_ordinal).ok() != Some(authored_prefix)
     {
         return unsupported("scalar graph lost its complete authored binding prefix");
     }
-    let statements = checked
-        .statement_table
-        .statements(source_state.statement_nodes);
+    let statements = statement_rows;
     let mut binding_rows = state.bindings.iter();
     let mut unit_rows = state.unit_operations.iter().peekable();
     for (ordinal, statement) in statements[..authored_prefix].iter().enumerate() {
         let ordinal = u32::try_from(ordinal)
             .map_err(|_| LoweringError::Unsupported("scalar statement ordinal exceeds u32"))?;
         match statement {
+            checked_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__arm_destructure#") => {}
             checked_trees::statement::StatementNode::Call(_) => {
                 let operation = unit_rows.next().ok_or(LoweringError::Unsupported(
                     "scalar graph lost an authored Unit call",
@@ -204,9 +220,22 @@ pub(super) fn prepare(
                 .map(|parameter| (parameter.position, parameter.clone())),
         );
     }
+    // States whose prefix carries `__arm_destructure` markers destructure case
+    // payloads under a membership guard: their payload reads stay deferred so
+    // the guard's case dispatch can bind them at the exact case it selects.
+    let destructures = statements[..authored_prefix].iter().any(|statement| {
+        matches!(
+            statement,
+            checked_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__arm_destructure#")
+        )
+    });
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
         .with_structural_parameters(&structural_namespace)
         .with_structural_observations(structural_types);
+    if destructures {
+        scalar_bindings = scalar_bindings.with_deferred_case_payloads();
+    }
     for parameter in source_custody::parameter_storage(checked, machine, state)? {
         scalar_bindings.initialize_parameter(
             parameter.symbol,

@@ -26607,7 +26607,15 @@
   "fixture": "pass/structural/local_record_receivers",
   "tier": "pass",
   "status": "checked",
-  "millis": 44,
+  "millis": 8,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/structural/union_match_scalar_payload_result",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 4,
   "expected_satisfied": null,
   "diagnostics": []
  },
