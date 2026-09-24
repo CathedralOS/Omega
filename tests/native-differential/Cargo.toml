@@ -49,7 +49,7 @@ machine-emission = { path = "../../omega-rust/omega/backend/machine-emission", f
 machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
 image-emission = { path = "../../omega-rust/omega/backend/images/image-emission", features = ["test-support"] }
 installation-evidence = { path = "../../omega-rust/omega/representations/installation-evidence" }
-terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations" }
 native-realization = { path = "../../omega-rust/omega/compiler/native-realization", features = ["test-support"] }
 native-artifact = { path = "../../omega-rust/omega/backend/artifacts/native-artifact", features = ["test-support"] }
 component-candidate = { path = "../../omega-rust/omega/backend/artifacts/component-candidate" }

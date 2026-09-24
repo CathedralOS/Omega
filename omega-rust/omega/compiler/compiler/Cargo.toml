@@ -90,7 +90,7 @@ terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 image = { path = "../../backend/images/image" }
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support", "installed-artifact"] }
 machine-code = { path = "../../representations/machine-code" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 executable-installation = { path = "../../backend/runtime/executable-installation" }
 external-roots = { path = "../../backend/runtime/external-roots" }

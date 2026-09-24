@@ -54,7 +54,7 @@ executable-installation = { path = "../../runtime/executable-installation" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 register-model = { path = "../../../representations/register-model" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/05_abstract-operations-to-target-operations" }
-terminal-psi-to-abstract-operations = { path = "../../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
 machine-emission = { path = "../../machine-emission" }
 native-realization = { path = "../../../compiler/native-realization" }
 optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }

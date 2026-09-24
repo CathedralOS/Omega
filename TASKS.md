@@ -1202,7 +1202,7 @@ syntax and other terminal services are not prerequisites.
   under [content conservation](wiki/spec/resources/content_custody.md).
   Reuse `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
   Terminal frontier verification and
-  `03_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
+  `00_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
   normalized equations and partition lowering already exist.
 
   Replace the empty entries in `core/content_conservation_contract` and
