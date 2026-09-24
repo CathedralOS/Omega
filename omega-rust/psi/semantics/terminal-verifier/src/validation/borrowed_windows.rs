@@ -20,8 +20,8 @@
 //! whole-place loans on a disjoint place namespace, and no view is ever a
 //! restoration target.
 
-use super::structural_operations::{canonical_field_path, structural_field_store_write_path};
-use super::structural_result_contracts::source_signature;
+use super::structural::operations::{canonical_field_path, structural_field_store_write_path};
+use super::structural::result_contracts::source_signature;
 use super::{
     BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, EdgeId, ModuleError,
     OperationKind, PlaceId, StructuralAccess, StructuralFieldType, StructuralMultiplicity,

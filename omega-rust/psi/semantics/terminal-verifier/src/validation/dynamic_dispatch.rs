@@ -25,7 +25,7 @@ use terminal_psi::{
 
 use super::ModuleError;
 use super::foundation::resolve_structural_path;
-use super::structural_operations::validate_structural_arguments;
+use super::structural::operations::validate_structural_arguments;
 
 pub(super) fn validate_dynamic_dispatches(
     module: &TerminalModule,
@@ -319,7 +319,7 @@ fn validate_stored_dynamic_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
+            super::structural::operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         if !ordered_in_one_block
             || !exact_call

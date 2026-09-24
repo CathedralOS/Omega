@@ -333,7 +333,7 @@ pub(super) fn validate_structural_scalar_field_store(
         unreachable!("dispatched validate_structural_scalar_field_store")
     };
     require_defined(value, value_types, defined)?;
-    let expected = super::super::structural_scalar_fields::structural_scalar_field_store_type(
+    let expected = super::super::structural::scalar_fields::structural_scalar_field_store_type(
         module,
         machine,
         operation.id,
@@ -342,7 +342,7 @@ pub(super) fn validate_structural_scalar_field_store(
         field,
     )?;
     let actual = value_types[&value];
-    if super::super::structural_scalar_fields::structural_scalar_field_store_range(
+    if super::super::structural::scalar_fields::structural_scalar_field_store_range(
         module, machine, operation,
     )
     .is_some()

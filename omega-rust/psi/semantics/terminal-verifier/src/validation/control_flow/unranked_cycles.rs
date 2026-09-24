@@ -7,11 +7,13 @@ use super::super::{
     BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
 };
-use super::super::{block_views, byte_sequence_subslice, primitive_storage, scalar_array};
+use super::super::{block_views, primitive_storage};
 use super::{
     ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator,
 };
+use crate::validation::byte_sequence::subslice;
+use crate::validation::scalar::array;
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
@@ -33,7 +35,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         ) && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
-            && super::super::scalar_case::plain_type(module, result.structural_type)
+            && super::super::scalar::case::plain_type(module, result.structural_type)
     });
     if (machine.result.structural().is_some() && !scalar_case_result)
         || !claims_pinned_at_entry(machine, &claim_roots)
@@ -101,7 +103,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 || scalar_case_result && matches!(&block.terminator,
                     Terminator::ReturnStructural { source, returned_claims, .. }
                     if returned_claims.is_empty()
-                        && super::super::scalar_case::plain_return_source(module, machine, *source));
+                        && super::super::scalar::case::plain_return_source(module, machine, *source));
         let operations_eligible = block
             .operations
             .iter()
@@ -346,7 +348,7 @@ fn cycle_operation_eligible(
 ) -> bool {
     match &operation.kind {
         OperationKind::EstablishScalarCase { .. } => {
-            super::super::scalar_case::fields(module, machine, operation).is_ok()
+            super::super::scalar::case::fields(module, machine, operation).is_ok()
                 && operation.result.structural().is_some_and(|result| {
                     matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
@@ -369,7 +371,7 @@ fn cycle_operation_eligible(
                     || matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
                     || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                        && (super::super::scalar_case::plain_return_source(
+                        && (super::super::scalar::case::plain_return_source(
                             module,
                             machine,
                             result.place,
@@ -377,7 +379,11 @@ fn cycle_operation_eligible(
                             module,
                             machine,
                             result.place,
-                        ) || scalar_array::plain_return_source(module, machine, result.place)))
+                        ) || crate::validation::scalar::array::plain_return_source(
+                            module,
+                            machine,
+                            result.place,
+                        )))
             })
         }
         // Ordinary scalar calls retain their complete signature,
@@ -422,10 +428,10 @@ fn cycle_operation_eligible(
                 .result
                 .structural()
                 .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
-                && super::super::structural_case::fields(module, machine, operation).is_ok()
+                && super::super::structural::case::fields(module, machine, operation).is_ok()
         }
         // A complete unrestricted scalar-array establishment is the record
-        // arm's primitive-leaf sibling: `scalar_array::shape` proves the fresh
+        // arm's primitive-leaf sibling: `crate::validation::scalar::array::shape` proves the fresh
         // `OperationResult` place, the element count against the declared
         // leaf shape, and a claim-free result, while the unrestricted payload
         // never carries a per-iteration disposal obligation. Re-entering the
@@ -434,7 +440,7 @@ fn cycle_operation_eligible(
         // The ordinary operand, availability, and frontier checks still run
         // after this fence.
         OperationKind::EstablishScalarArray { .. } => {
-            super::super::scalar_array::shape(module, machine, operation).is_ok()
+            super::super::scalar::array::shape(module, machine, operation).is_ok()
         }
         // A trivial affine local establishment is the direct spelling of
         // the empty-record arm's declaration: the destination is a
@@ -451,7 +457,7 @@ fn cycle_operation_eligible(
         // still run after eligibility.
         OperationKind::EstablishTrivialAffineLocal { .. } => {
             operation.result == OperationResult::Unit
-                && super::super::structural_operations::validate_establish_trivial_affine_local(
+                && super::super::structural::operations::validate_establish_trivial_affine_local(
                     module, machine, operation,
                 )
                 .is_ok()
@@ -503,7 +509,7 @@ fn cycle_operation_eligible(
                         && ((argument.access != StructuralAccess::Owned
                             && primitive_storage::local_result(machine, argument.place).is_some())
                             || (argument.access == StructuralAccess::SharedBorrow
-                                && super::super::element_view_subslice::borrowed_result(
+                                && super::super::element_view::subslice::borrowed_result(
                                     machine,
                                     argument.place,
                                 )
@@ -554,12 +560,12 @@ fn cycle_operation_eligible(
                                             StructuralPlaceKind::ByteSequenceLiteral { .. }
                                         )
                                 })
-                                || byte_sequence_subslice::borrowed_result(
+                                || crate::validation::byte_sequence::subslice::borrowed_result(
                                     machine,
                                     argument.place,
                                 )
                                 .is_some()
-                                || super::super::element_view_subslice::borrowed_result(
+                                || super::super::element_view::subslice::borrowed_result(
                                     machine,
                                     argument.place,
                                 )
@@ -585,7 +591,7 @@ fn cycle_operation_eligible(
                                 && primitive_storage::local_result(machine, argument.place)
                                     .is_some())
                             || (argument.access == StructuralAccess::SharedBorrow
-                                && (super::super::byte_sequence_length::validate_source(
+                                && (super::super::byte_sequence::length::validate_source(
                                     module,
                                     machine,
                                     operation,
@@ -596,7 +602,7 @@ fn cycle_operation_eligible(
                                     },
                                 )
                                 .is_ok()
-                                    || super::super::element_view_length::validate_source(
+                                    || super::super::element_view::length::validate_source(
                                         module,
                                         machine,
                                         operation,
@@ -613,12 +619,13 @@ fn cycle_operation_eligible(
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                byte_sequence_subslice::borrowed_result(machine, result.place) == Some(result)
+                crate::validation::byte_sequence::subslice::borrowed_result(machine, result.place)
+                    == Some(result)
             })
         }
         OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                super::super::element_view_subslice::borrowed_result(machine, result.place)
+                super::super::element_view::subslice::borrowed_result(machine, result.place)
                     == Some(result)
             })
         }
@@ -743,7 +750,7 @@ fn owned_argument(
                                 && result.projected_qualifications.is_empty()
                                 && result.claims.is_empty()
                         })
-                        && scalar_array::shape(module, machine, operation).is_ok()
+                        && crate::validation::scalar::array::shape(module, machine, operation).is_ok()
                 }))
 }
 
@@ -764,7 +771,7 @@ fn byte_field_boundary_loan(
     else {
         return false;
     };
-    if super::super::structural_operations::is_unrestricted_shared_subloan(
+    if super::super::structural::operations::is_unrestricted_shared_subloan(
         module, machine, expected, argument,
     ) {
         return terminal_semantics::shared_boundary_buffer_capacity(
@@ -782,7 +789,7 @@ fn byte_field_boundary_loan(
             )
             .is_some();
     }
-    let mutable_subloan = super::super::structural_operations::is_unrestricted_mutable_subloan(
+    let mutable_subloan = super::super::structural::operations::is_unrestricted_mutable_subloan(
         module, machine, expected, argument,
     );
     if mutable_subloan {

@@ -47,7 +47,7 @@ pub(crate) fn argument_owns_references(
     argument: &StructuralArgument,
 ) -> bool {
     argument.access == StructuralAccess::Owned
-        && super::structural_result_contracts::source_signature(machine, argument.place)
+        && super::structural::result_contracts::source_signature(machine, argument.place)
             .is_some_and(|source| contains_reference(module, source.structural_type))
 }
 
@@ -204,7 +204,7 @@ fn projected_carrier_type(
     let (StructuralPathSegment::Referent, fields) = source.path.split_last()? else {
         return None;
     };
-    let current = super::structural_result_contracts::source_signature(machine, source.place)?
+    let current = super::structural::result_contracts::source_signature(machine, source.place)?
         .structural_type;
     leaf_referent(module, current, fields)
 }
@@ -285,7 +285,7 @@ pub(super) fn carrier_type(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralTypeId> {
-    let signature = super::structural_result_contracts::source_signature(machine, place)?;
+    let signature = super::structural::result_contracts::source_signature(machine, place)?;
     referent(module, signature.structural_type)
 }
 
@@ -403,7 +403,7 @@ pub(super) fn validate_machine(
             .iter()
             .chain(conditional_arguments.into_iter().flatten())
             .any(|argument| {
-                super::structural_result_contracts::source_signature(machine, argument.place)
+                super::structural::result_contracts::source_signature(machine, argument.place)
                     .is_some_and(|source| contains_reference(module, source.structural_type))
             })
         {
@@ -733,7 +733,7 @@ pub(super) fn validate_call(
         .result
         .structural()
         .ok_or_else(|| invalid(machine, "reference call result is absent"))?;
-    if !super::structural_result_contracts::call_result_matches(actual, result)
+    if !super::structural::result_contracts::call_result_matches(actual, result)
         || !claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
         || !callee.entry_claims.is_empty()
@@ -746,10 +746,10 @@ pub(super) fn validate_call(
             "reference call does not match its complete callee interface",
         ));
     }
-    super::structural_operations::validate_structural_arguments(module, machine, structural_arguments, &callee.structural_parameters, operation.id, true,
-        super::structural_operations::StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)?;
-    super::structural_operations::validate_unit_call_contract_places(callee, operation.id)?;
-    super::structural_operations::validate_unit_call_claim_transfers(
+    super::structural::operations::validate_structural_arguments(module, machine, structural_arguments, &callee.structural_parameters, operation.id, true,
+        super::structural::operations::StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)?;
+    super::structural::operations::validate_unit_call_contract_places(callee, operation.id)?;
+    super::structural::operations::validate_unit_call_claim_transfers(
         module,
         machine,
         callee,
@@ -757,12 +757,12 @@ pub(super) fn validate_call(
         claim_transfers,
         operation.id,
     )?;
-    super::structural_operations::validate_service_reach(
+    super::structural::operations::validate_service_reach(
         operation.id,
         &machine.published_service_ceiling,
         &callee.published_service_ceiling,
     )?;
-    super::structural_operations::validate_unit_call_crash_continuations(
+    super::structural::operations::validate_unit_call_crash_continuations(
         module,
         machine,
         callee,
@@ -855,7 +855,7 @@ pub(super) fn establishment_moves_leaf(
     if leaf.parent != ReferenceParent::Root(leaf.root.clone()) {
         return None;
     }
-    let signature = super::structural_result_contracts::source_signature(machine, source.place)?;
+    let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
     if matches!(
         module
             .structural_types
@@ -908,7 +908,7 @@ pub(super) fn discard_owned(
     live: &mut Vec<LiveReference>,
     source: PlaceId,
 ) -> Result<(), ModuleError> {
-    let Some(signature) = super::structural_result_contracts::source_signature(machine, source)
+    let Some(signature) = super::structural::result_contracts::source_signature(machine, source)
     else {
         return Ok(());
     };
@@ -985,7 +985,7 @@ fn establish_record(
             continue;
         };
         let signature =
-            super::structural_result_contracts::source_signature(machine, argument.place)
+            super::structural::result_contracts::source_signature(machine, argument.place)
                 .ok_or_else(|| invalid(machine, "record operand has no structural source"))?;
         let paths = leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
             invalid(
@@ -1034,7 +1034,7 @@ fn establish_structural_case(
     operation: &terminal_psi::Operation,
     live: &mut [LiveReference],
 ) -> Result<(), ModuleError> {
-    let declarations = super::structural_case::fields(module, machine, operation)?;
+    let declarations = super::structural::case::fields(module, machine, operation)?;
     let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind else {
         return Err(invalid(
             machine,
@@ -1060,7 +1060,7 @@ fn establish_structural_case(
             continue;
         };
         let signature =
-            super::structural_result_contracts::source_signature(machine, argument.place)
+            super::structural::result_contracts::source_signature(machine, argument.place)
                 .ok_or_else(|| invalid(machine, "case operand has no structural source"))?;
         let paths = leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
             invalid(
@@ -1179,7 +1179,7 @@ pub(super) fn apply_operation(
                 ));
             }
             let signature =
-                super::structural_result_contracts::source_signature(machine, argument.place)
+                super::structural::result_contracts::source_signature(machine, argument.place)
                     .ok_or_else(|| invalid(machine, "owned reference argument has no source"))?;
             // A projected owned argument moves the complete leaf roster of
             // the declared record subtree it names: every edge must resolve
@@ -1250,7 +1250,7 @@ pub(super) fn apply_operation(
             }
             continue;
         }
-        if super::structural_result_contracts::source_signature(machine, argument.place)
+        if super::structural::result_contracts::source_signature(machine, argument.place)
             .is_some_and(|source| contains_reference(module, source.structural_type))
             || live
                 .iter()
@@ -1424,7 +1424,7 @@ pub(super) fn transfer_return(
     source: PlaceId,
     live: &mut Vec<LiveReference>,
 ) -> Result<bool, ModuleError> {
-    let Some(signature) = super::structural_result_contracts::source_signature(machine, source)
+    let Some(signature) = super::structural::result_contracts::source_signature(machine, source)
     else {
         return Ok(false);
     };

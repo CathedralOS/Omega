@@ -51,27 +51,27 @@ pub(super) fn validate_operation_operands(
         _ => &[],
     };
     for argument in structural_arguments {
-        if super::scalar_array::owned_payload_source(module, machine, argument.place)
+        if super::scalar::array::owned_payload_source(module, machine, argument.place)
             && (matches!(operation.kind, OperationKind::BoundaryCall { .. })
                 || argument.access != StructuralAccess::Owned
                 || !argument.path.is_empty()
-                || !super::scalar_array::plain_return_source(module, machine, argument.place))
+                || !super::scalar::array::plain_return_source(module, machine, argument.place))
         {
             return Err(ModuleError::ScalarArrayResultMismatch(operation.id));
         }
     }
     match &operation.kind {
         OperationKind::EstablishScalarArray { .. } => {
-            super::scalar_array::operands(module, machine, operation, value_types, defined)
+            super::scalar::array::operands(module, machine, operation, value_types, defined)
         }
         OperationKind::EstablishScalarCase { .. } => {
-            super::scalar_case::operands(module, machine, operation, value_types, defined)
+            super::scalar::case::operands(module, machine, operation, value_types, defined)
         }
         OperationKind::EstablishRecord { .. } => {
             super::record::operands(module, machine, operation, value_types, defined)
         }
         OperationKind::EstablishStructuralCase { .. } => {
-            super::structural_case::operands(module, machine, operation, value_types, defined)
+            super::structural::case::operands(module, machine, operation, value_types, defined)
         }
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             storage_operands::validate_structural_byte_sequence_field_byte_store(

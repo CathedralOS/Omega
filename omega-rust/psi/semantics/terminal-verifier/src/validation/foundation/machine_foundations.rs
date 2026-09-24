@@ -1,7 +1,7 @@
 //! One machine's structural declarations: literals, locals, places, result
 //! and parameters.
 
-use super::super::structural_qualification_rosters::validate_projected_qualification_roster;
+use super::super::structural::qualification_rosters::validate_projected_qualification_roster;
 use super::super::{
     BTreeMap, BTreeSet, BlockId, MachineId, ModuleError, OperationKind, ServiceId,
     StructuralAccess, StructuralDomainId, StructuralMultiplicity, StructuralPlaceDeclaration,
@@ -445,7 +445,7 @@ pub(super) fn validate_result_declaration(
         TerminalMachineResult::Structural(result) => {
             let exact_unrestricted_payloadless_result =
                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && super::super::structural_result_contracts::has_empty_qualification_rosters(
+                    && super::super::structural::result_contracts::has_empty_qualification_rosters(
                         &result.qualifications,
                         &result.projected_qualifications,
                     )
@@ -497,7 +497,7 @@ pub(super) fn validate_result_declaration(
                                     && parameter.access
                                         == StructuralAccess::SharedBorrow
                                     && parameter.qualifications.is_empty()
-                                    && super::super::structural_result_contracts::borrowed_view_shape(
+                                    && super::super::structural::result_contracts::borrowed_view_shape(
                                         module,
                                         result.structural_type,
                                     )
@@ -529,7 +529,7 @@ pub(super) fn validate_result_declaration(
                                 (matches!(
                                     &operation.kind,
                                     OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
-                                ) || super::super::structural_operations::exact_payloadless_structural_call(
+                                ) || super::super::structural::operations::exact_payloadless_structural_call(
                                     module,
                                     operation,
                                     machines,
@@ -540,7 +540,7 @@ pub(super) fn validate_result_declaration(
                                                 == result.structural_type
                                             && operation_result.multiplicity
                                                 == StructuralMultiplicity::Unrestricted
-                                            && super::super::structural_result_contracts::has_empty_qualification_rosters(
+                                            && super::super::structural::result_contracts::has_empty_qualification_rosters(
                                                 &operation_result.qualifications,
                                                 &operation_result.projected_qualifications,
                                             )
@@ -566,7 +566,7 @@ pub(super) fn validate_result_declaration(
                                     | OperationKind::CallDynamicParameterScalar { .. }
                                     | OperationKind::BoundaryCall { .. }
                             ) && (!matches!(operation.kind, OperationKind::CallStructural { .. })
-                                || super::super::structural_operations::exact_payloadless_structural_call(
+                                || super::super::structural::operations::exact_payloadless_structural_call(
                                     module,
                                     operation,
                                     machines,
@@ -588,7 +588,7 @@ pub(super) fn validate_result_declaration(
                             ..
                         } => {
                             returned_claims.is_empty()
-                                && super::super::scalar_array::plain_return_source(
+                                && super::super::scalar::array::plain_return_source(
                                     module, machine, *source,
                                 )
                         }
@@ -603,13 +603,13 @@ pub(super) fn validate_result_declaration(
                             ..
                         } => {
                             returned_claims.is_empty()
-                                && (((super::super::scalar_case::plain_type(
+                                && (((super::super::scalar::case::plain_type(
                                     module,
                                     result.structural_type,
                                 ) || super::super::record::plain_type(
                                     module,
                                     result.structural_type,
-                                )) && (super::super::scalar_case::plain_return_source(
+                                )) && (super::super::scalar::case::plain_return_source(
                                     module, machine, *source,
                                 ) || super::super::record::plain_return_source(
                                     module, machine, *source,
@@ -619,7 +619,7 @@ pub(super) fn validate_result_declaration(
                                     // A leaf copy is fresh owned storage by
                                     // construction: an `Unrestricted` result
                                     // may publish it whatever the leaf shape.
-                                    || super::super::structural_leaf_copy::copied_return_source(
+                                    || super::super::structural::leaf_copy::copied_return_source(
                                         machine, *source,
                                     ))
                         }

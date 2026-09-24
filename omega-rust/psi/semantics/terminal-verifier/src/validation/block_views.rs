@@ -123,7 +123,7 @@ pub(super) fn plain_owned_return_source(
             )
             && parameter.qualifications.is_empty()
             && parameter.projected_qualifications.is_empty()
-            && super::structural_result_contracts::has_plain_owned_shape(
+            && super::structural::result_contracts::has_plain_owned_shape(
                 module,
                 parameter.structural_type,
             )
@@ -254,8 +254,8 @@ pub(super) fn validate_successor(
             // A copied case-payload leaf is the same fresh owned constructor:
             // the op publishes its exact unqualified type the way a record or
             // scalar-case constructor does.
-            (super::scalar_case::plain_return_source(module, machine, argument.place)
-                || super::structural_leaf_copy::copied_return_source(machine, argument.place)
+            (super::scalar::case::plain_return_source(module, machine, argument.place)
+                || super::structural::leaf_copy::copied_return_source(machine, argument.place)
                 || super::record::plain_return_source(module, machine, argument.place))
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)
@@ -328,7 +328,7 @@ fn shared_loan_root(
             parameter(machine, argument.place).filter(|_| available.contains(&argument.place))
         })
     {
-        return (super::structural_operations::structural_access_can_supply(
+        return (super::structural::operations::structural_access_can_supply(
             parameter.access,
             StructuralAccess::SharedBorrow,
         ) && parameter.multiplicity != StructuralMultiplicity::Linear
@@ -342,8 +342,8 @@ fn shared_loan_root(
         return Some(result.structural_type);
     }
     if argument.path.is_empty() {
-        return super::byte_sequence_subslice::borrowed_result(machine, argument.place)
-            .or_else(|| super::element_view_subslice::borrowed_result(machine, argument.place))
+        return super::byte_sequence::subslice::borrowed_result(machine, argument.place)
+            .or_else(|| super::element_view::subslice::borrowed_result(machine, argument.place))
             .filter(|_| available.contains(&argument.place))
             .map(|result| result.structural_type);
     }

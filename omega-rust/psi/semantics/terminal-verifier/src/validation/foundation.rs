@@ -16,7 +16,7 @@ mod provider_candidates;
 mod services;
 mod structural_types;
 
-use super::structural_qualification_rosters::validate_projected_qualification_roster;
+use super::structural::qualification_rosters::validate_projected_qualification_roster;
 use super::{
     BTreeMap, BTreeSet, BoundaryMachineDeclaration, BoundaryMachineId,
     CanonicalStructuralPathSegment, ClaimId, ContentProjectionExpression, ContentProjectionScalar,

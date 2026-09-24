@@ -13,7 +13,7 @@ pub(super) fn append(
     axioms: &mut Vec<Proposition>,
     obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
-    let declarations = crate::validation::structural_case::fields(module, machine, operation)?;
+    let declarations = crate::validation::structural::case::fields(module, machine, operation)?;
     let OperationKind::EstablishStructuralCase {
         result_case,
         fields,

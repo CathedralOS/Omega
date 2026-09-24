@@ -183,15 +183,15 @@ fn carries_owned_frontier(
     match declaration.kind {
         StructuralPlaceKind::TrivialAffineLocal { .. } => true,
         StructuralPlaceKind::OperationResult { .. } => {
-            super::super::byte_sequence_subslice::borrowed_result(machine, place).is_none()
-                && super::super::element_view_subslice::borrowed_result(machine, place).is_none()
+            super::super::byte_sequence::subslice::borrowed_result(machine, place).is_none()
+                && super::super::element_view::subslice::borrowed_result(machine, place).is_none()
                 && super::super::primitive_storage::local_result(machine, place).is_none()
-                && !super::super::scalar_array::plain_return_source(module, machine, place)
-                && !(super::super::structural_result_contracts::source_signature(machine, place)
+                && !super::super::scalar::array::plain_return_source(module, machine, place)
+                && !(super::super::structural::result_contracts::source_signature(machine, place)
                     .is_some_and(|source| {
                         source.multiplicity == StructuralMultiplicity::Unrestricted
                     })
-                    && (super::super::scalar_case::plain_return_source(module, machine, place)
+                    && (super::super::scalar::case::plain_return_source(module, machine, place)
                         || super::super::record::plain_return_source(module, machine, place)))
         }
         _ => false,

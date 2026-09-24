@@ -167,8 +167,8 @@ fn writable_signature<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
     writing: bool,
-) -> Option<super::structural_result_contracts::StructuralResultSignature<'a>> {
-    let signature = super::structural_result_contracts::source_signature(machine, place)?;
+) -> Option<super::structural::result_contracts::StructuralResultSignature<'a>> {
+    let signature = super::structural::result_contracts::source_signature(machine, place)?;
     if !matches!(
         signature.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -225,7 +225,7 @@ fn writable_signature<'a>(
             return None;
         }
         if super::record::completed_source(module, machine, place).is_none()
-            && !super::scalar_array::plain_return_source(module, machine, place)
+            && !super::scalar::array::plain_return_source(module, machine, place)
         {
             return None;
         }

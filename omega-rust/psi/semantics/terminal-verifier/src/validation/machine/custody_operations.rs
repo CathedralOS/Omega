@@ -1,7 +1,7 @@
 //! Operations registered by the structural custody and obligations their
 //! kind owns.
 
-use super::super::structural_operations::validate_unit_operation_static;
+use super::super::structural::operations::validate_unit_operation_static;
 use super::super::{
     BTreeMap, BoundaryMachineResult, BoundaryStructuralResultDeclaration, IdRegistry, MachineId,
     ModuleError, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
@@ -127,7 +127,7 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::EstablishScalarCase { fields, .. } = &operation.kind {
-        super::super::scalar_case::fields(module, machine, operation)?;
+        super::super::scalar::case::fields(module, machine, operation)?;
         for obligation in fields.iter().filter_map(|field| field.range_obligation) {
             insert_unique(
                 &mut registry.obligations,
@@ -154,7 +154,7 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind {
-        super::super::structural_case::fields(module, machine, operation)?;
+        super::super::structural::case::fields(module, machine, operation)?;
         for obligation in fields.iter().filter_map(|field| match field.value {
             terminal_psi::RecordFieldValue::Scalar {
                 range_obligation, ..
@@ -197,7 +197,7 @@ pub(super) fn register_custody_operation(
         element,
     } = &operation.kind
     {
-        super::super::element_view_establishment::validate_establishment(
+        super::super::element_view::establishment::validate_establishment(
             module,
             machine,
             operation,
@@ -311,7 +311,9 @@ pub(super) fn register_custody_operation(
         ..
     } = operation.kind
     {
-        super::super::byte_sequence_subslice::validate(module, machine, operation, source, length)?;
+        super::super::byte_sequence::subslice::validate(
+            module, machine, operation, source, length,
+        )?;
         insert_unique(
             &mut registry.obligations,
             obligation,
@@ -326,7 +328,7 @@ pub(super) fn register_custody_operation(
         ..
     } = operation.kind
     {
-        super::super::element_view_subslice::validate(module, machine, operation, source, length)?;
+        super::super::element_view::subslice::validate(module, machine, operation, source, length)?;
         insert_unique(
             &mut registry.obligations,
             obligation,
@@ -335,11 +337,11 @@ pub(super) fn register_custody_operation(
         return Ok(true);
     }
     if let OperationKind::StructuralLeafCopy { source, path, .. } = &operation.kind {
-        super::super::structural_leaf_copy::validate(module, machine, operation, *source, path)?;
+        super::super::structural::leaf_copy::validate(module, machine, operation, *source, path)?;
         return Ok(true);
     }
     if let OperationKind::StructuralCaseLeafCopy { source, path, .. } = &operation.kind {
-        super::super::structural_leaf_copy::validate_case_leaf_copy(
+        super::super::structural::leaf_copy::validate_case_leaf_copy(
             module, machine, operation, *source, path,
         )?;
         return Ok(true);
