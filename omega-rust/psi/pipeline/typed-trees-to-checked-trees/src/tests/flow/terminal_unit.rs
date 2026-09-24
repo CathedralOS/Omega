@@ -26,6 +26,7 @@ mod discarded_results;
 mod free_scalar_parameters;
 mod linear_local_consumers;
 mod nested_boundary_results;
+mod outer_calls;
 mod primitive_locals;
 mod receiver_stores;
 mod repro_cyclic;
