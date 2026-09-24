@@ -459,14 +459,7 @@ fn authored_indexed_primitive_read(
     let Some(primitive) =
         validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
             .and_then(|reference| {
-                let checked_trees::types::TypeReferenceNode::Named { symbol, name } =
-                    checked.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
-                (checked.symbols.builtin_type_atom(*symbol)?.symbol_name() == name.as_str())
-                    .then(|| checked.primitive_type_reference(reference))
-                    .flatten()
+                validation::unrestricted_builtin_primitive(&checked.typed, reference)
             })
             .filter(|primitive| supported_mutable_parameter(*primitive))
     else {

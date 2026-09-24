@@ -665,19 +665,13 @@ pub(super) fn lower_structural_parameter_field(
         path.last(),
         Some(CheckedStructuralPredicatePathSegment::FixedIndex(_))
     ) {
-        // The primitive-storage endpoint is an array's primitive declaration.
-        // Qualified leaves retain their existing indexed-byte/proof route;
-        // scalar record fields remain owned by field operations. An indexed
-        // carrier that continues into a record field (`maps[1].value`) instead
-        // resolves its scalar leaf through primitive_type_reference below.
-        let TypeReferenceNode::Named { symbol, name } =
-            program.type_reference_table.type_reference(type_reference)
-        else {
-            return None;
-        };
-        if program.symbols.builtin_type_atom(*symbol)?.symbol_name() != name.as_str() {
-            return None;
-        }
+        // The primitive-storage endpoint is an array's primitive declaration,
+        // bare or qualified only by an arithmetic policy. Membership-qualified
+        // leaves retain their existing indexed-byte/proof route; scalar record
+        // fields remain owned by field operations. An indexed carrier that
+        // continues into a record field (`maps[1].value`) instead resolves its
+        // scalar leaf through primitive_type_reference below.
+        validation::unrestricted_builtin_primitive(program, type_reference)?;
     }
     let primitive_type = program.primitive_type_reference(type_reference)?;
     if primitive_type == PrimitiveType::Bool {

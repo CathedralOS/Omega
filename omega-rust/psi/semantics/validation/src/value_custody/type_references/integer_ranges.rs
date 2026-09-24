@@ -60,6 +60,30 @@ pub fn is_arithmetic_policy_only_integer(
         })
 }
 
+/// The builtin primitive a place stores when its declaration adds no
+/// membership restriction: a bare builtin, or an integer qualified only by an
+/// arithmetic policy (`i32 in Wrapping`), which governs later operations on
+/// the payload rather than which payloads it holds.
+pub fn unrestricted_builtin_primitive(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    let table = &program.type_reference_table;
+    if !table.contains_type_reference(reference) {
+        return None;
+    }
+    let unrestricted = match table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, name } => program
+            .symbols
+            .builtin_type_atom(*symbol)
+            .is_some_and(|atom| atom.symbol_name() == name.as_str()),
+        _ => is_arithmetic_policy_only_integer(program, reference),
+    };
+    unrestricted
+        .then(|| program.primitive_type_reference(reference))
+        .flatten()
+}
+
 /// Describe a closed scalar output refinement without granting its proposition.
 /// Consumers must publish the corresponding result guarantee and prove every
 /// returning path. Other qualifications cannot disappear behind a range query.

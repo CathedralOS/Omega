@@ -178,3 +178,23 @@ fn indexed_array_field_read_with_unbounded_signed_index_rejects() {
         "Table::entry",
     );
 }
+
+#[test]
+fn a_literal_index_into_a_policy_qualified_element_reads_its_element() {
+    // An arithmetic policy governs later operations, not storage: elements of
+    // `[i32 in Wrapping; 4]` read through the same fixed-index projection as
+    // `[i32; 4]`, which the authored place must rejoin. A generic `[T; N]`
+    // instance substitutes into this shape.
+    verify(
+        r#"
+        data Buffer { items: [i32 in Wrapping; 4]; }
+        data Main { buffer: Buffer; }
+        machine Main::last(&mut self) -> i32 in Wrapping {
+            self.buffer.items[3] = 70;
+            let result: i32 in Wrapping = self.buffer.items[3];
+            transition { _ -> (result) }
+        }
+        "#,
+        "Main::last",
+    );
+}
