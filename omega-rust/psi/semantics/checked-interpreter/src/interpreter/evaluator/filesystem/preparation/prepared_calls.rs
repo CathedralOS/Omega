@@ -1,17 +1,17 @@
 //! The prepared filesystem call and the argument cursor that builds it.
 
 use crate::FilesystemRootedPathOperandResolution;
-use crate::interpreter::evaluator::filesystem_preparation::MAX_FILESYSTEM_TRANSFER_BYTES;
-use crate::interpreter::evaluator::filesystem_preparation::logical_handle_plans::{
+use crate::interpreter::evaluator::filesystem::preparation::MAX_FILESYSTEM_TRANSFER_BYTES;
+use crate::interpreter::evaluator::filesystem::preparation::logical_handle_plans::{
     FilesystemLogicalHandleResultSuccess, FilesystemLogicalHandleRetirementSuccess,
     PreparedFilesystemLogicalHandleInput, PreparedFilesystemLogicalHandleOutput,
     PreparedFilesystemLogicalHandlePlan, PreparedFilesystemLogicalHandleRetirement,
 };
-use crate::interpreter::evaluator::filesystem_preparation::prepared_outputs::{
+use crate::interpreter::evaluator::filesystem::preparation::prepared_outputs::{
     PreparedByteOutput, PreparedI64Output, PreparedMutableByteInput, PreparedTransferCount,
     prepared_byte,
 };
-use crate::interpreter::evaluator::filesystem_preparation::{
+use crate::interpreter::evaluator::filesystem::preparation::{
     FILETIME_BYTES, FIND_DATA_OUTPUT_BYTES, FilesystemTransferCountError, OVERLAPPED_BYTES,
     PATH_MAX_OUTPUT_BYTES, STAT_OUTPUT_BYTES, TIMESPEC_PAIR_BYTES, check_byte_len,
     check_filesystem_arity, checked_filesystem_transfer_count, checked_relative_component,
@@ -19,8 +19,7 @@ use crate::interpreter::evaluator::filesystem_preparation::{
 };
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, FilesystemLogicalHandleKind,
-    Frame, Halt, Value, real_filesystem, rooted_build_path_parts, trap, unsupported,
-    validate_build_relative_path,
+    Frame, Halt, Value, rooted_build_path_parts, trap, unsupported, validate_build_relative_path,
 };
 
 /// Every canonical authored operand is represented, including ABI-shape
@@ -633,7 +632,7 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                     .evaluator
                     .real_fs
                     .as_ref()
-                    .is_some_and(real_filesystem::RealFs::is_scoped)
+                    .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped)
             {
                 return Err(Halt::Trap(
                     "package build filesystem paths must come from BuildSource::resolve or BuildOutput::resolve"

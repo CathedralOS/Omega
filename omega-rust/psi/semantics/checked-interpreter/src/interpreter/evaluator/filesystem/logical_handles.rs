@@ -7,7 +7,7 @@ use crate::interpreter::evaluator::{
     FilesystemLogicalHandleKind, FilesystemLogicalHandleOutput,
     FilesystemLogicalHandleOutputSource, Halt, PreparedFilesystemCall,
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan,
-    filesystem_logical_handles, trap,
+    filesystem::logical_handle_store, trap,
 };
 
 impl<'program> Evaluator<'program> {
@@ -262,9 +262,9 @@ impl<'program> Evaluator<'program> {
 }
 
 fn filesystem_logical_handle_halt(
-    error: filesystem_logical_handles::FilesystemLogicalHandleError,
+    error: logical_handle_store::FilesystemLogicalHandleError,
 ) -> Halt {
-    use filesystem_logical_handles::FilesystemLogicalHandleError as Error;
+    use crate::interpreter::evaluator::filesystem::logical_handle_store::FilesystemLogicalHandleError as Error;
     match error {
         Error::IdentityExhausted => {
             Halt::Resource("filesystem logical-handle identity space exhausted".to_owned())

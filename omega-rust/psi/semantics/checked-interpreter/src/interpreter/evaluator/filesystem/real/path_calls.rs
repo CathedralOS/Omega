@@ -1,15 +1,18 @@
 //! Operations addressed by path: opens and creates, removals, renames,
 //! links, permissions, ownership, canonicalization and path metadata.
 
-use super::super::{
-    EvalResult, FilesystemGrantRefusalReason, PreparedFilesystemCall, host_open_flags,
-};
 use super::{
     EACCES, EBADF, EINVAL, ENOENT, io_errno, open_options_for, open_real, real_os_bytes, real_path,
 };
+use crate::interpreter::evaluator::{
+    EvalResult, FilesystemGrantRefusalReason, PreparedFilesystemCall,
+};
 
-impl<'program> super::super::Evaluator<'program> {
-    pub(super) fn real_create(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    pub(in crate::interpreter::evaluator) fn real_create(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Create { path, mode: _ } = call else {
             unreachable!("dispatched real_create")
         };
@@ -30,7 +33,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_open_create(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_open_create(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::OpenCreate { path, flags, mode } = call else {
             unreachable!("dispatched real_open_create")
         };
@@ -41,15 +47,15 @@ impl<'program> super::super::Evaluator<'program> {
             let access = flags & 0x3;
             let wants_write = access == 1
                 || access == 2
-                || host_open_flags::o_creat(flags)
-                || host_open_flags::o_trunc(flags)
-                || host_open_flags::o_append(flags);
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
             match self.authorized_path(&path, wants_write, 0) {
                 Some(path) => {
                     let prepared = self.prepare_sponsored_open(
                         &path,
-                        host_open_flags::o_creat(flags),
-                        host_open_flags::o_trunc(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                         wants_write,
                     )?;
                     let options = open_options_for(flags, mode as u32, true);
@@ -57,7 +63,7 @@ impl<'program> super::super::Evaluator<'program> {
                     self.finish_real_open(
                         opened,
                         path,
-                        host_open_flags::o_append(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
                         prepared,
                         false,
                     )?
@@ -67,7 +73,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_open_path_handle(
+    pub(in crate::interpreter::evaluator) fn real_open_path_handle(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
@@ -105,7 +111,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_remove(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_remove(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let (PreparedFilesystemCall::Remove { path } | PreparedFilesystemCall::RemoveName { path }) =
             call
         else {
@@ -123,7 +132,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_remove_dir(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_remove_dir(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let (PreparedFilesystemCall::RemoveDir { path }
         | PreparedFilesystemCall::RemoveDirName { path }) = call
         else {
@@ -141,7 +153,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_rename(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_rename(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Rename { from, to } = call else {
             unreachable!("dispatched real_rename")
         };
@@ -162,7 +177,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_canonicalize(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_canonicalize(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Canonicalize { path, buffer } = call else {
             unreachable!("dispatched real_canonicalize")
         };
@@ -192,7 +210,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_hard_link(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_hard_link(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::HardLink { original, link } = call else {
             unreachable!("dispatched real_hard_link")
         };
@@ -215,7 +236,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_create_hard_link(
+    pub(in crate::interpreter::evaluator) fn real_create_hard_link(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
@@ -247,7 +268,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_symlink(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_symlink(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Symlink { target, link } = call else {
             unreachable!("dispatched real_symlink")
         };
@@ -278,7 +302,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_read_link(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_read_link(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::ReadLink {
             path,
             buffer,
@@ -311,7 +338,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_set_permissions(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_set_permissions(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::SetPermissions { path, mode } = call else {
             unreachable!("dispatched real_set_permissions")
         };
@@ -339,7 +369,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_change_owner(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_change_owner(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::ChangeOwner { path, uid, gid } = call else {
             unreachable!("dispatched real_change_owner")
         };
@@ -368,7 +401,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_unlink_at(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_unlink_at(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::UnlinkAt { dirfd, name, flags } = call else {
             unreachable!("dispatched real_unlink_at")
         };
@@ -410,7 +446,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_open_at(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_open_at(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::OpenAt { dirfd, name, flags } = call else {
             unreachable!("dispatched real_open_at")
         };
@@ -420,9 +459,9 @@ impl<'program> super::super::Evaluator<'program> {
             let access = flags & 0x3;
             let wants_write = access == 1
                 || access == 2
-                || host_open_flags::o_creat(flags)
-                || host_open_flags::o_trunc(flags)
-                || host_open_flags::o_append(flags);
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
+                || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
             let joined = match self.real_fs_mut().files.get(&dirfd) {
                 Some(entry) => match real_path(&name) {
                     Some(name) => entry.path.join(name),
@@ -445,8 +484,8 @@ impl<'program> super::super::Evaluator<'program> {
                 Some(path) => {
                     let prepared = self.prepare_sponsored_open(
                         &path,
-                        host_open_flags::o_creat(flags),
-                        host_open_flags::o_trunc(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                         wants_write,
                     )?;
                     let options = open_options_for(flags, 0, false);
@@ -454,7 +493,7 @@ impl<'program> super::super::Evaluator<'program> {
                     self.finish_real_open(
                         opened,
                         path,
-                        host_open_flags::o_append(flags),
+                        crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
                         prepared,
                         false,
                     )?

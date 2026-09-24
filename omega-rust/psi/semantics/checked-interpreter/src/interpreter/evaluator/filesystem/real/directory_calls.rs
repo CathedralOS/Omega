@@ -1,10 +1,13 @@
 //! Directory enumeration: `readdir` windows and the Win32 find cursor.
 
-use super::super::{EvalResult, PreparedFilesystemCall};
 use super::{DirectoryEntrySnapshotKind, EBADF, ENOENT, real_directory_entries};
+use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall};
 
-impl<'program> super::super::Evaluator<'program> {
-    pub(super) fn real_read_dir(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    pub(in crate::interpreter::evaluator) fn real_read_dir(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::ReadDir {
             fd,
             buffer,
@@ -34,10 +37,11 @@ impl<'program> super::super::Evaluator<'program> {
             }?;
             match listed {
                 Ok(entries) => {
-                    let records = super::super::pack_dirent_records(&entries)?;
+                    let records = crate::interpreter::evaluator::pack_dirent_records(&entries)?;
                     let start = position.initial.max(0) as usize;
-                    let (chunk, next_position) =
-                        super::super::dirent_record_chunk(&records, start, count.host);
+                    let (chunk, next_position) = crate::interpreter::evaluator::dirent_record_chunk(
+                        &records, start, count.host,
+                    );
                     if chunk.is_empty() {
                         0
                     } else {
@@ -55,7 +59,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_find_first(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_find_first(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::FindFirst { pattern, data } = call else {
             unreachable!("dispatched real_find_first")
         };
@@ -98,7 +105,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_find_next(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_find_next(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::FindNext { handle, data } = call else {
             unreachable!("dispatched real_find_next")
         };
@@ -119,7 +129,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_find_close(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_find_close(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::FindClose { handle } = call else {
             unreachable!("dispatched real_find_close")
         };

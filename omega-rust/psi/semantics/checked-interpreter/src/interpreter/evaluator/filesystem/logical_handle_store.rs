@@ -5,7 +5,7 @@ use crate::{
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug)]
-pub(super) enum FilesystemLogicalHandleError {
+pub(in crate::interpreter::evaluator) enum FilesystemLogicalHandleError {
     IdentityExhausted,
     LiveProviderTokenCollision {
         kind: FilesystemLogicalHandleKind,
@@ -17,7 +17,7 @@ pub(super) enum FilesystemLogicalHandleError {
 }
 
 #[derive(Debug)]
-pub(super) struct FilesystemLogicalHandles {
+pub(in crate::interpreter::evaluator) struct FilesystemLogicalHandles {
     next_identity: u64,
     descriptors: BTreeMap<i64, FilesystemLogicalHandleIdentity>,
     native_handles: BTreeMap<i64, FilesystemLogicalHandleIdentity>,
@@ -39,7 +39,7 @@ impl Default for FilesystemLogicalHandles {
 }
 
 impl FilesystemLogicalHandles {
-    pub(super) fn resolve(
+    pub(in crate::interpreter::evaluator) fn resolve(
         &self,
         kind: FilesystemLogicalHandleKind,
         raw: i64,
@@ -59,7 +59,7 @@ impl FilesystemLogicalHandles {
     /// Providers may share a physical integer table across ABI handle kinds;
     /// this check prevents that representation detail from authorizing a
     /// wrong-domain operation before the provider is entered.
-    pub(super) fn conflicts_with_live_domain(
+    pub(in crate::interpreter::evaluator) fn conflicts_with_live_domain(
         &self,
         expected: FilesystemLogicalHandleKind,
         raw: i64,
@@ -77,7 +77,7 @@ impl FilesystemLogicalHandles {
         .any(|kind| kind != expected && self.map(kind).contains_key(&raw))
     }
 
-    pub(super) fn create(
+    pub(in crate::interpreter::evaluator) fn create(
         &mut self,
         kind: FilesystemLogicalHandleKind,
         raw: i64,
@@ -90,7 +90,7 @@ impl FilesystemLogicalHandles {
         Ok(identity)
     }
 
-    pub(super) fn borrow_native(
+    pub(in crate::interpreter::evaluator) fn borrow_native(
         &mut self,
         raw: i64,
         source: FilesystemLogicalHandleIdentity,
@@ -110,7 +110,7 @@ impl FilesystemLogicalHandles {
     /// Retire one successful close target plus every alias whose lifetime the
     /// close invalidates. Returned identities are globally sorted so evidence
     /// order never depends on provider-token ordering or map implementation.
-    pub(super) fn retire(
+    pub(in crate::interpreter::evaluator) fn retire(
         &mut self,
         kind: FilesystemLogicalHandleKind,
         identity: FilesystemLogicalHandleIdentity,
@@ -201,7 +201,7 @@ fn remove_identity(
 
 #[cfg(test)]
 mod tests {
-    use super::{
+    use crate::interpreter::evaluator::{
         FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
         FilesystemLogicalHandles,
     };

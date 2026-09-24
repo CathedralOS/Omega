@@ -2,7 +2,7 @@
 /// requirement. This is evaluator ABI schema, not provider behavior: even an
 /// operand a modeled provider does not use must be prepared exactly once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FilesystemHostOperandKind {
+pub(in crate::interpreter::evaluator) enum FilesystemHostOperandKind {
     PathBytes,
     Bytes,
     I32,
@@ -14,7 +14,7 @@ pub(super) enum FilesystemHostOperandKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FilesystemHostResultKind {
+pub(in crate::interpreter::evaluator) enum FilesystemHostResultKind {
     I32,
     I64,
 }

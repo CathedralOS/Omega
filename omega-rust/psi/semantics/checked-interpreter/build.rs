@@ -155,7 +155,7 @@ fn render_operations(operations: &[Operation]) -> String {
 
     writeln!(
         generated,
-        "    #[cfg(test)]\n    pub(super) const ALL: [Self; {}] = [",
+        "    #[cfg(test)]\n    pub(in crate::interpreter::evaluator) const ALL: [Self; {}] = [",
         operations.len()
     )
     .unwrap();
@@ -165,7 +165,7 @@ fn render_operations(operations: &[Operation]) -> String {
     generated.push_str("    ];\n\n");
 
     generated.push_str(
-        "    pub(super) fn from_canonical_name(name: &str) -> Option<Self> {\n        Some(match name {\n",
+        "    pub(in crate::interpreter::evaluator) fn from_canonical_name(name: &str) -> Option<Self> {\n        Some(match name {\n",
     );
     for operation in operations {
         writeln!(
@@ -177,11 +177,11 @@ fn render_operations(operations: &[Operation]) -> String {
     }
     generated.push_str("            _ => return None,\n        })\n    }\n\n");
     generated.push_str(
-        "    pub(super) const fn operation_tag(self) -> u16 {\n        self as u16\n    }\n\n",
+        "    pub(in crate::interpreter::evaluator) const fn operation_tag(self) -> u16 {\n        self as u16\n    }\n\n",
     );
 
     generated.push_str(
-        "    pub(super) const fn operand_kinds(self) -> &'static [FilesystemHostOperandKind] {\n        use FilesystemHostOperandKind as K;\n        match self {\n",
+        "    pub(in crate::interpreter::evaluator) const fn operand_kinds(self) -> &'static [FilesystemHostOperandKind] {\n        use FilesystemHostOperandKind as K;\n        match self {\n",
     );
     for operation in operations {
         let operands = operation
@@ -200,7 +200,7 @@ fn render_operations(operations: &[Operation]) -> String {
     generated.push_str("        }\n    }\n\n");
 
     generated.push_str(
-        "    pub(super) const fn result_kind(self) -> FilesystemHostResultKind {\n        use FilesystemHostResultKind as R;\n        match self {\n",
+        "    pub(in crate::interpreter::evaluator) const fn result_kind(self) -> FilesystemHostResultKind {\n        use FilesystemHostResultKind as R;\n        match self {\n",
     );
     for operation in operations {
         writeln!(
@@ -213,7 +213,7 @@ fn render_operations(operations: &[Operation]) -> String {
     generated.push_str("        }\n    }\n\n");
 
     generated.push_str(
-        "    pub(super) const fn canonical_name(self) -> &'static str {\n        match self {\n",
+        "    pub(in crate::interpreter::evaluator) const fn canonical_name(self) -> &'static str {\n        match self {\n",
     );
     for operation in operations {
         writeln!(
