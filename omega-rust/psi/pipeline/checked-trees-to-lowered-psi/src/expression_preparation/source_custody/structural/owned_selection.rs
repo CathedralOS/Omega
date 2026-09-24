@@ -515,17 +515,22 @@ pub(super) fn validate_projection(
                 cursor = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Integer(index) =
-                    checked.expression_table.expression(indexed.index)
-                else {
-                    return unsupported("projected selection requires a literal fixed index");
-                };
-                let index = index
-                    .value_bignum()
-                    .and_then(|value| value.to_u64())
-                    .ok_or(LoweringError::Unsupported(
-                        "projected selection index exceeds u64",
-                    ))?;
+                // Checking folds a constant index to the ordinal it denotes
+                // (`items[0 + 1]` is the checked `FixedIndex(1)`, 94430ca464),
+                // so the replay applies the same fold rather than demanding
+                // the literal spelling.
+                let index = match checked.expression_table.expression(indexed.index) {
+                    ExpressionNode::Integer(index) => {
+                        index.value_bignum().and_then(|value| value.to_u64())
+                    }
+                    _ => checked
+                        .expression_table
+                        .constant_integer_value(indexed.index)
+                        .and_then(|value| u64::try_from(value).ok()),
+                }
+                .ok_or(LoweringError::Unsupported(
+                    "projected selection requires a constant fixed index",
+                ))?;
                 let reference = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
