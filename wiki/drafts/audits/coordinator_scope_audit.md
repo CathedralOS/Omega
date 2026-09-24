@@ -53,7 +53,7 @@ index → validate → per-function `lower_function` dispatch →
 post-validation. Original finding text retained below for the audit
 trail.
 
-`omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination.rs`
+`omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination.rs`
 (166 lines) inlines ~100 lines of fail-closed roster validation over
 `settlements_by_boundary`, `installed_by_call`, and `boundary_calls`:
 Duplicate/Unknown/OverlapsInstalledProvider/PartialInstalledProvider/

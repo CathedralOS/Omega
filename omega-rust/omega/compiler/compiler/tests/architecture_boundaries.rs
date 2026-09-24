@@ -38,7 +38,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "abstract-operations-to-target-operations",
-            "../../pipeline/05_abstract-operations-to-target-operations",
+            "../../pipeline/02_abstract-operations-to-target-operations",
         ),
         (
             "machine-emission/Cargo.toml",

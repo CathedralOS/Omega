@@ -50,27 +50,27 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn project_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering.rs",
         coordination_marker: "pub fn lower_to_target_operations(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation/whole_plan.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/whole_plan.rs",
         coordination_marker: "pub fn validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
         coordination_marker: "pub(super) fn reject_unsupported",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/mod.rs",
         coordination_marker: "AbstractToTargetTranslationValidationError",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/mod.rs",
         coordination_marker: "AbstractToTargetFunctionRosterReceipt",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/function/mod.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/function/mod.rs",
         coordination_marker: "pub(super) fn lower_function",
     },
 ];

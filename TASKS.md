@@ -3410,7 +3410,7 @@ syntax and other terminal services are not prerequisites.
   Crash/abort/process-exit abandonment has no cleanup successor.
   Owners: `04_typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
   and `execution/terminal_unit/cleanup/`, `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
-  and Omega's `05_abstract-operations-to-target-operations/src/lowering/`.
+  and Omega's `02_abstract-operations-to-target-operations/src/lowering/`.
 
   Bounded parameter/local/result partial moves already reach encoded Terminal
   execution. Multiple ordinary or boundary-produced projected temporaries can
@@ -3568,7 +3568,7 @@ syntax and other terminal services are not prerequisites.
     `OpenWindows::replace` (move-out, store, continuation discard of an
     affine displaced value) in both ordinary and state-graph lowering, and
     native target lowering realizes that window pair as two extent copies
-    (`05_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
+    (`02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
     It still refuses a reference-bearing field, a field of a `Mixed` parent,
     and a store whose value has no activation home (an owned parameter or
     block arrival stored directly). An empty-record local reaches native
@@ -3633,7 +3633,7 @@ syntax and other terminal services are not prerequisites.
   Remaining work:
 
   - Realize executable cleanup in the common native graph:
-    `05_abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
+    `02_abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
     rejects `InvokeNominal`. Preserve the exact receiver, hook contract,
     action order, result homes and continuation across the real call;
     no-code disposal is not a substitute. **CML4** owns residual partitions

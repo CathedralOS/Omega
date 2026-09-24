@@ -32,9 +32,9 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "projected structural qualification target admission",
         paths: &[
-            "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination.rs",
-            "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
-            "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/model.rs",
+            "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination.rs",
+            "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination/projected_qualifications/mod.rs",
+            "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/model.rs",
         ],
     },
 ];

@@ -2881,7 +2881,7 @@ fn optimization_projection_stops_before_target_realization() {
     }
 
     let realization_root =
-        root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
+        root.join("omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src");
     let realization_entrance_path = realization_root.join("lowering/optimized.rs");
     let realization_entrance =
         std::fs::read_to_string(&realization_entrance_path).unwrap_or_else(|error| {
@@ -4418,7 +4418,7 @@ fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes(
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage =
-        root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
+        root.join("omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src");
     let validation = recursive_rust_source(&stage.join("validation"));
     for forbidden in [
         "crate::lowering",
@@ -4678,7 +4678,7 @@ fn native_publication_has_no_countdown_execution_fork() {
     let common = std::fs::read_to_string(image.join("src/function_fragments/replay.rs")).unwrap();
     assert!(common.contains("validate_function_fragment_object_artifact(&replay.0, artifact)"));
     for path in [
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
         "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
         "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/ranked_scc.rs",

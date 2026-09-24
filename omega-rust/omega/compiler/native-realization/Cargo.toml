@@ -34,7 +34,7 @@ provider-planning = { path = "../../build/provider-planning" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
 image-emission = { path = "../../backend/images/image-emission" }
 installation-evidence = { path = "../../representations/installation-evidence" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
