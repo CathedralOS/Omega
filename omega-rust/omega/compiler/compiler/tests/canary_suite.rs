@@ -392,6 +392,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // A single-state union match producing a scalar result: the checked
     // witness for the scalar graph's case dispatch. It carries no entry.
     "structural/union_match_scalar_payload_result",
+    // A comparison result is a `bool` operand for operator selection: the
+    // checked witness that `(a == b) == false` resolves its outer `==`.
+    "operators/nested_comparison_result_equality",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
     // Routed scalar-domain establishment: the source compiles through
