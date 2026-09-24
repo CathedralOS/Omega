@@ -220,6 +220,50 @@ fn different_machines_prepare_their_own_context_once() {
     .unwrap();
 }
 
+// The `as u8` cast obligation on `48 + (remaining % 10)` needs the wrapping
+// chain `sum = WrapAdd(48, remainder)` to carry the remainder's synthesized
+// `<= 9` bound into `sum <= 57`, then relax through transitivity to 255.
+// Before operand-derived seeds joined the wrapping transport the machine
+// declined with OperationProofUnavailable.
+#[test]
+fn wrapping_add_chain_carries_remainder_bound_to_cast_obligation() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Text {
+            bytes: [u8; 16];
+            len: u64;
+        }
+        machine Text::put_digits_reversed(&mut self, remaining: u64, digit_index: u64) {
+            transition digit_index < 4 {
+                true -> store_digit(remaining, digit_index)
+                false -> done()
+            }
+            state store_digit(&mut self, remaining: u64, digit_index: u64) {
+                self.bytes[digit_index] = (((48 as u64 in Wrapping) + ((remaining % 10) as u64 as u64 in Wrapping)) as u64) as u8;
+                self.len = (((digit_index as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64);
+                transition remaining >= 10 {
+                    true -> self.put_digits_reversed(remaining / 10, (((digit_index as u64 in Wrapping) + (1 as u64 in Wrapping)) as u64))
+                    false -> done()
+                }
+            }
+            state done(&mut self) {
+            }
+        }
+        "#,
+    );
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Text::put_digits_reversed"),
+    )
+    .unwrap();
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+}
+
 #[test]
 fn parallel_failures_keep_the_first_pending_obligation_and_publish_nothing() {
     let mut lowered = fixture(17);
