@@ -145,7 +145,7 @@ pub(crate) fn structural_computation_argument(
         return Some(argument);
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
-    if super::super::primitive_store::primitive_local_before(
+    if super::super::structural_scalar_store::primitive_local_before(
         program,
         state,
         call.statement_index,
@@ -960,7 +960,7 @@ pub(super) fn primitive_local_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let local = super::super::primitive_store::primitive_local_before(
+    let local = super::super::structural_scalar_store::primitive_local_before(
         program,
         state,
         call.statement_index,

@@ -54,10 +54,10 @@ fn computed_value_stores_through_a_guard_bounded_index() {
         }
     "#;
     let stores = stores(source, 1).expect("retained cast chain stores");
-    let Some(CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { value, .. }) =
+    let Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { value, .. }) =
         stores.first()
     else {
-        panic!("indexed store leads the sequence");
+        panic!("element store leads the sequence");
     };
     assert!(matches!(
         value,

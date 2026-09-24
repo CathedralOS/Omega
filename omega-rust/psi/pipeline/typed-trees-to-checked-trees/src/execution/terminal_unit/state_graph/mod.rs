@@ -477,7 +477,6 @@ pub(super) fn build_traced(
                 // destination, RHS, and complete write frame. Crossing a state
                 // edge does not turn that non-observing write into a new family.
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 // The window pair the sequencer itself joined — a move-out
                 // binding the displaced field value and the exact restoration

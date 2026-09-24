@@ -5,10 +5,9 @@ use super::{
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use checked_trees::types::PrimitiveType;
 
-/// An index read off a state-carried parameter cannot cite the entry
-/// contract's integer ranges: the selector's own declared integer range is
-/// the bound, so `self.cells[position]` in a non-entry state stores through
-/// the indexed op with the selector kept as an operand.
+/// An index read off a state-carried parameter stores through the primitive
+/// store whose path ends at the selected element: `self.cells[position]` is
+/// `[cells, RuntimeIndex(AssignmentIndex)]`, never the selector as an operand.
 #[test]
 fn state_carried_declared_range_index_stores_through_receiver_array_field() {
     let source = r#"
@@ -48,18 +47,17 @@ fn state_carried_declared_range_index_stores_through_receiver_array_field() {
         0,
         None,
     )
-    .expect("declared-range state index produces an indexed store");
+    .expect("declared-range state index produces a primitive element store");
     let [
-        CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             destination,
             path,
-            index,
             value,
             ..
         },
     ] = stores.as_slice()
     else {
-        panic!("one indexed store");
+        panic!("one primitive store");
     };
     assert!(matches!(
         destination,
@@ -67,14 +65,12 @@ fn state_carried_declared_range_index_stores_through_receiver_array_field() {
     ));
     assert!(matches!(
         path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)] if identity == "cells"
-    ));
-    assert!(matches!(
-        index,
-        checked_trees::CheckedScalarExpression::Parameter {
-            position: 0,
-            primitive_type: PrimitiveType::U64,
-        }
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity),
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex
+            ),
+        ] if identity == "cells"
     ));
     assert!(matches!(
         value,
@@ -87,11 +83,13 @@ fn state_carried_declared_range_index_stores_through_receiver_array_field() {
     ));
 }
 
-/// Bounds the declaration does not carry stay declined in a non-entry
-/// state: a plain `u64` selector and declared ranges whose maximum does
-/// not fit the array both fail closed.
+/// The planner proves no bound for a runtime element: a plain `u64`
+/// selector and declared ranges whose maximum does not fit the array (the
+/// checker accepts them here through the literal argument's meet) still
+/// retain the element, and Terminal re-proves `index < extent` from the
+/// facts that reach the store or rejects it.
 #[test]
-fn state_carried_index_without_a_fitting_declared_bound_stays_declined() {
+fn state_carried_index_retains_its_runtime_element_whatever_its_declared_bound() {
     for position in ["u64", "u64 [0..=4]", "u64 [0..5]"] {
         let source = format!(
             r#"
@@ -123,19 +121,24 @@ fn state_carried_index_without_a_fitting_declared_bound_stays_declined() {
             true,
         )
         .expect("attached state signature");
+        let stores = build_structural_scalar_field_store_sequence(
+            program,
+            &checked.facts,
+            machine,
+            state,
+            &structural,
+            &scalar,
+            0,
+            None,
+        )
+        .unwrap_or_else(|| panic!("position: {position} retains its runtime element"));
         assert!(
-            build_structural_scalar_field_store_sequence(
-                program,
-                &checked.facts,
-                machine,
-                state,
-                &structural,
-                &scalar,
-                0,
-                None,
-            )
-            .is_none(),
-            "position: {position} cannot prove index < extent in a non-entry state",
+            matches!(
+                stores.as_slice(),
+                [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. }]
+                    if matches!(path.last(), Some(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
+            ),
+            "position: {position} stores through its runtime element: {stores:#?}"
         );
     }
 }

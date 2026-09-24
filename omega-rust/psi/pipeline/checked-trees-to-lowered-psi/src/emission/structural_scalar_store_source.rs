@@ -61,10 +61,6 @@ pub(crate) fn validate(
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: ordinal,
                     ..
-                }
-                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-                    statement_index: ordinal,
-                    ..
                 } => *ordinal == statement_index,
                 _ => false,
             }) {
@@ -129,8 +125,7 @@ pub(crate) fn validate(
                 .iter()
                 .any(|scalar| scalar.statement_index == statement_index)
                 || plan.operations.iter().any(|operation| matches!(operation,
-                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. }
-                    | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index))
+                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index))
             {
                 return unsupported("assignment has both byte and scalar store custody");
             }
@@ -144,8 +139,7 @@ pub(crate) fn validate(
             continue;
         }
         let primitive_stores = plan.operations.iter().filter(|operation| {
-            matches!(operation, CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index)
+            matches!(operation, CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index)
         }).count();
         if primitive_stores != 0 {
             if primitive_stores != 1
@@ -210,36 +204,6 @@ pub(crate) fn validate(
         }
     }
     for operation in &plan.operations {
-        if let CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-            statement_index,
-            destination,
-            path,
-            index,
-            value,
-        } = operation
-        {
-            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                destination
-            else {
-                return unsupported("indexed primitive store has no parameter destination");
-            };
-            let destination = plan
-                .structural_parameters
-                .get(*parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "indexed primitive store destination is absent",
-                ))?;
-            crate::emission::primitive_store::validate_indexed_assignment(
-                checked,
-                plan.machine,
-                plan.state,
-                *statement_index,
-                destination,
-                path,
-                index,
-                value,
-            )?;
-        }
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,
             destination,

@@ -305,7 +305,7 @@ pub(crate) fn structural_call_arguments(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
-        if crate::execution::terminal_unit::primitive_store::primitive_local_before(
+        if crate::execution::terminal_unit::structural_scalar_store::primitive_local_before(
             program,
             caller_state,
             statement_index,

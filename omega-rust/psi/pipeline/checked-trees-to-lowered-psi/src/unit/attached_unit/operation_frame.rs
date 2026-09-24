@@ -423,7 +423,6 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -454,19 +453,6 @@ impl OperationFrame<'_, '_> {
                 path,
                 value,
             } => self.write_only_primitive_store(*statement_index, destination, path, value),
-            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-                statement_index,
-                destination,
-                path,
-                index,
-                value,
-            } => self.write_only_indexed_primitive_store(
-                *statement_index,
-                destination,
-                path,
-                index,
-                value,
-            ),
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
                 self.structural_byte_sequence_field_store(store)
             }
@@ -585,54 +571,6 @@ impl OperationFrame<'_, '_> {
             self.state,
             statement_index,
             destination,
-            value,
-            self.evaluation,
-            self.source_value_count,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-            self.calls,
-        )?;
-        self.push_unit(kind);
-        Ok(())
-    }
-
-    fn write_only_indexed_primitive_store(
-        &mut self,
-        statement_index: u32,
-        destination: &checked_trees::CheckedPrimitiveStoreDestination,
-        path: &[checked_trees::CheckedUnitStructuralPathSegment],
-        index: &checked_trees::CheckedScalarExpression,
-        value: &checked_trees::CheckedCallScalarArgument,
-    ) -> Result<(), LoweringError> {
-        // Runtime-indexed stores only ever select a borrowed parameter's
-        // fixed array; the producer rejects local destinations on the
-        // projected lane.
-        let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-            destination
-        else {
-            return unsupported("indexed primitive store has a local destination");
-        };
-        let parameter =
-            self.parameters
-                .get(*parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "indexed primitive store parameter is absent",
-                ))?;
-        let destination = crate::emission::primitive_store::indexed_parameter_destination(
-            parameter,
-            path,
-            self.structural_types.declarations(),
-        )?;
-        let kind = crate::emission::primitive_store::emit_indexed_assignment(
-            self.checked,
-            self.machine,
-            self.state,
-            statement_index,
-            destination,
-            index,
             value,
             self.evaluation,
             self.source_value_count,

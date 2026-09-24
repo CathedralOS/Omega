@@ -18,8 +18,18 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 /// exclusive parameter projection and evaluates exactly one authored RHS.
 pub(crate) struct Destination {
     pub(crate) place: PlaceId,
-    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
+    pub(crate) path: Vec<ProjectionStep>,
     pub(crate) scalar_type: ScalarType,
+}
+
+/// One resolved step of a primitive destination: a static Terminal segment,
+/// or the assignment's runtime element, whose selector the emitter evaluates
+/// (before the stored value) into a `RuntimeIndex { index, obligation }`
+/// segment. The store owns that obligation, which the verifier reconstructs
+/// as `index < extent` for the array the step selects from.
+pub(crate) enum ProjectionStep {
+    Static(terminal_psi::StructuralPathSegment),
+    AssignmentIndex,
 }
 
 pub(crate) fn parameter_destination(
@@ -36,7 +46,7 @@ pub(crate) fn parameter_destination(
     {
         return unsupported("primitive store parameter lost its exclusive custody");
     }
-    let (path, scalar_type) = lower_path(parameter.structural_type, path, types)?;
+    let (path, scalar_type) = lower_destination_path(parameter.structural_type, path, types)?;
     Ok(Destination {
         place: parameter.place,
         path,
@@ -61,6 +71,38 @@ pub(crate) fn emit_assignment(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<OperationKind, LoweringError> {
+    // A runtime element's selector is evaluated before the stored value, in
+    // the same scalar evaluator; its `u64` coordinate joins the path once the
+    // value is complete, so the store's own obligation follows every
+    // obligation the operands allocated.
+    let mut indexes = Vec::new();
+    for step in &destination.path {
+        if let ProjectionStep::AssignmentIndex = step {
+            let source = assignment_index_source(checked, state, statement_index)?;
+            let index = evaluation.source_value(
+                checked,
+                machine,
+                state,
+                statement_index,
+                CheckedScalarExpressionRole::AssignmentIndex,
+                &source,
+                source_value_count,
+                values,
+                next_value,
+                next_block,
+                next_edge,
+                operations,
+                calls,
+            )?;
+            indexes.push(super::emit_u64_coordinate(
+                index.id,
+                index.scalar_type,
+                next_value,
+                &mut calls.next_obligation_identity,
+                operations,
+            )?);
+        }
+    }
     let value = evaluation.source_value(
         checked,
         machine,
@@ -79,109 +121,58 @@ pub(crate) fn emit_assignment(
     if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
         return unsupported("primitive store RHS differs from its destination carrier");
     }
+    let mut indexes = indexes.into_iter();
+    let mut path = Vec::with_capacity(destination.path.len());
+    for step in destination.path {
+        path.push(match step {
+            ProjectionStep::Static(segment) => segment,
+            ProjectionStep::AssignmentIndex => terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: indexes.next().ok_or(LoweringError::Unsupported(
+                    "primitive store lost an evaluated runtime element",
+                ))?,
+                obligation: calls.allocate_requirement()?,
+            },
+        });
+    }
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         destination: destination.place,
-        path: destination.path,
+        path,
         value: value.id,
     })
 }
 
-/// The resolved array-carrier endpoint for a runtime-indexed store: the
-/// retained path stops at the fixed array itself, so its element type is the
-/// store's scalar carrier, and the evaluated index joins the path as its
-/// `RuntimeIndex` segment.
-pub(crate) struct IndexedDestination {
-    pub(crate) place: PlaceId,
-    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
-    pub(crate) scalar_type: ScalarType,
-}
-
-/// A runtime-indexed store is always a projected write into exclusive
-/// borrowed storage; it never stores the parameter whole.
-pub(crate) fn indexed_parameter_destination(
-    parameter: &StructuralParameterDeclaration,
-    path: &[CheckedUnitStructuralPathSegment],
-    types: &[StructuralTypeDeclaration],
-) -> Result<IndexedDestination, LoweringError> {
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-    {
-        return unsupported("indexed primitive store parameter lost its exclusive custody");
-    }
-    let (path, scalar_type) = lower_indexed_path(parameter.structural_type, path, types)?;
-    Ok(IndexedDestination {
-        place: parameter.place,
-        path,
-        scalar_type,
-    })
-}
-
-/// Emit a runtime-indexed primitive store: the retained index lowers to the
-/// `u64` coordinate (with the ordinary exact-cast obligation when the carrier
-/// needs conversion), the RHS shares `emit_assignment`'s source evaluation,
-/// and the bounds obligation certifies the checked `index < extent` proof.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn emit_indexed_assignment(
+/// The retained source of the assignment's `AssignmentIndex` coordinate: its
+/// bound pure expression, or the computation root the scalar evaluator
+/// completes. The checked producer admitted the runtime element only when
+/// exactly one of them names the target's selector.
+fn assignment_index_source(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement_index: u32,
-    destination: IndexedDestination,
-    index: &CheckedScalarExpression,
-    value: &checked_trees::CheckedCallScalarArgument,
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    source_value_count: usize,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-    calls: &mut CallEmissionContext<'_>,
-) -> Result<OperationKind, LoweringError> {
-    let index = lower_checked_scalar_expression(index)?;
-    if direct_expression_contains_short_circuit(&index) {
-        return unsupported("indexed primitive store index has unexpanded control");
+) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
+    let role = CheckedScalarExpressionRole::AssignmentIndex;
+    if let Some((_, expression)) =
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(state, statement_index, role)
+    {
+        return Ok(checked_trees::CheckedCallScalarArgument::Pure(
+            expression.clone(),
+        ));
     }
-    let index = super::emit_byte_index(
-        &index,
-        values,
-        next_value,
-        &mut calls.next_obligation_identity,
-        operations,
-    )?;
-    let value = evaluation.source_value(
-        checked,
-        machine,
-        state,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
-        value,
-        source_value_count,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        calls,
-    )?;
-    if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
-        return unsupported("primitive store RHS differs from its destination carrier");
-    }
-    // The runtime element is one more path segment; the store owns its
-    // obligation, which the verifier reconstructs as `index < extent`.
-    let mut path = destination.path;
-    path.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
-        index,
-        obligation: calls.allocate_requirement()?,
-    });
-    Ok(OperationKind::WriteOnlyPrimitiveStore {
-        destination: destination.place,
-        path,
-        value: value.id,
-    })
+    let root = checked
+        .facts
+        .values
+        .scalar_computations
+        .root_at(state, statement_index, role)
+        .ok_or(LoweringError::Unsupported(
+            "primitive store runtime element lost its retained selector",
+        ))?;
+    Ok(checked_trees::CheckedCallScalarArgument::Computation(
+        root.root,
+    ))
 }
 
 pub(crate) fn validate_assignment(
@@ -241,99 +232,7 @@ pub(crate) fn validate_symbol_assignment(
     validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
 }
 
-/// Source custody for a runtime-indexed primitive store. The authored target
-/// is one `Indexed` whose collection resolves to the destination parameter's
-/// retained static path; the retained `AssignmentIndex` binding must carry
-/// exactly the plan's scalar operand, and the RHS shares the ordinary
-/// assignment-value checks.
-pub(crate) fn validate_indexed_assignment(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
-    statement_index: u32,
-    destination: &CheckedUnitStructuralParameterPlan,
-    path: &[CheckedUnitStructuralPathSegment],
-    index: &CheckedScalarExpression,
-    value: &checked_trees::CheckedCallScalarArgument,
-) -> Result<(), LoweringError> {
-    use checked_trees::{expression::ExpressionNode, statement::StatementNode};
-    let (owner, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
-    let Some(StatementNode::Assignment(assignment)) = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(statement_index as usize)
-    else {
-        return unsupported("indexed primitive store has no authored assignment");
-    };
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(assignment.target)
-    else {
-        return unsupported("indexed primitive store lost its authored indexed target");
-    };
-    if owner.symbol != machine
-        || matches!(
-            checked.expression_table.expression(indexed.index),
-            ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-        )
-        || !validation::place_has_builtin_coordinates(
-            &checked.typed,
-            owner,
-            Some(state),
-            assignment.target,
-        )
-    {
-        return unsupported("indexed primitive store requires exact builtin indexed custody");
-    }
-    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine,
-        state_symbol,
-        Some(statement_index as usize),
-        indexed.collection,
-    )?;
-    let parameter = checked
-        .state_parameters(state)
-        .get(destination.position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "indexed primitive store lost its authored destination",
-        ))?;
-    if source.root != parameter.symbol || source.path != path {
-        return unsupported(
-            "indexed primitive store destination differs from its authored parameter",
-        );
-    }
-    let (index_binding, retained_index) = checked
-        .facts
-        .values
-        .scalar_expressions
-        .bound_expression_at(
-            state_symbol,
-            statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "indexed primitive store lost a scalar source binding",
-        ))?;
-    if index_binding.expression != indexed.index || retained_index != index {
-        return unsupported("indexed primitive store substituted its evaluated index operand");
-    }
-    crate::expression_preparation::source_custody::validate_pure(
-        checked,
-        index_binding,
-        terminal_scalar_type(
-            crate::expression_preparation::source_custody::locate(
-                checked,
-                state_symbol,
-                statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
-            )?
-            .primitive_type,
-        )?,
-    )?;
-    validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
-}
-
-/// The authored-RHS custody shared by static and runtime-indexed stores.
+/// The authored-RHS custody of a primitive store.
 fn validate_assignment_value(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
@@ -576,34 +475,46 @@ pub(crate) fn emit_value(
     })
 }
 
-/// Resolve the complete storage projection against the emitted declarations.
-/// Unlike a scalar-field operation this endpoint is the primitive itself, so
-/// an array element needs no synthetic field identity.
-pub(crate) fn lower_path(
+/// Resolve a destination's complete storage projection against the emitted
+/// declarations. Unlike a scalar-field operation this endpoint is the
+/// primitive itself, so an array element needs no synthetic field identity.
+/// Fields, literal elements, and the assignment's runtime element compose in
+/// one walk.
+pub(crate) fn lower_destination_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    let (result, structural_type) = walk_path(structural_type, path, types)?;
+) -> Result<(Vec<ProjectionStep>, ScalarType), LoweringError> {
+    let (steps, structural_type) = walk_path(structural_type, path, types)?;
     let StructuralTypeShape::PrimitiveScalar(scalar_type) =
         unique_type(types, structural_type)?.shape
     else {
         return unsupported("primitive projection does not end at a primitive scalar");
     };
-    Ok((result, scalar_type))
+    Ok((steps, scalar_type))
 }
 
-/// The static prefix of a runtime-indexed primitive leaf ends at the fixed
-/// array itself; the emitter appends the `RuntimeIndex` segment once it has
+/// A static projection to a primitive leaf, for observations that name no
+/// runtime element.
+pub(crate) fn lower_path(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
+    let (steps, scalar_type) = lower_destination_path(structural_type, path, types)?;
+    Ok((static_segments(steps)?, scalar_type))
+}
+
+/// The static prefix of a runtime-indexed primitive read ends at the fixed
+/// array itself; the reader appends the `RuntimeIndex` segment once it has
 /// evaluated the selector and allocated the segment's obligation. The element
-/// must be a primitive scalar — a record or nested-array element keeps its
-/// own store owners.
+/// must be a primitive scalar.
 pub(crate) fn lower_indexed_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    let (result, structural_type) = walk_path(structural_type, path, types)?;
+    let (steps, structural_type) = walk_path(structural_type, path, types)?;
     let StructuralTypeShape::FixedArray { element, .. } =
         unique_type(types, structural_type)?.shape
     else {
@@ -613,17 +524,32 @@ pub(crate) fn lower_indexed_path(
     else {
         return unsupported("indexed primitive projection's element is not a primitive scalar");
     };
-    Ok((result, scalar_type))
+    Ok((static_segments(steps)?, scalar_type))
 }
 
-/// Walk literal field/index segments from the destination root, returning the
-/// structural path, each field resolved against its declared record, and the
-/// structural type it selects.
+fn static_segments(
+    steps: Vec<ProjectionStep>,
+) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
+    steps
+        .into_iter()
+        .map(|step| match step {
+            ProjectionStep::Static(segment) => Ok(segment),
+            ProjectionStep::AssignmentIndex => {
+                unsupported("an observation path names an assignment's runtime element")
+            }
+        })
+        .collect()
+}
+
+/// Walk the checked segments from the destination root, resolving each field
+/// against its declared record, and return the steps and the structural
+/// type they select. Only the target's own selector has a retained scalar
+/// coordinate, so a path spells at most one runtime element.
 fn walk_path(
     mut structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<terminal_psi::StructuralPathSegment>, StructuralTypeId), LoweringError> {
+) -> Result<(Vec<ProjectionStep>, StructuralTypeId), LoweringError> {
     use terminal_psi::StructuralPathSegment as Segment;
     let mut result = Vec::with_capacity(path.len());
     let mut visited = Vec::new();
@@ -655,14 +581,28 @@ fn walk_path(
                 let StructuralFieldType::Structural(child) = field.field_type else {
                     return unsupported("primitive projection requires a structural carrier field");
                 };
-                result.push(Segment::Field(field.identity.clone()));
+                result.push(ProjectionStep::Static(Segment::Field(
+                    field.identity.clone(),
+                )));
                 child
             }
             (
                 CheckedUnitStructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => {
-                result.push(Segment::FixedIndex(*index));
+                result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
+                *element
+            }
+            (
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                ),
+                StructuralTypeShape::FixedArray { element, .. },
+            ) if !result
+                .iter()
+                .any(|step| matches!(step, ProjectionStep::AssignmentIndex)) =>
+            {
+                result.push(ProjectionStep::AssignmentIndex);
                 *element
             }
             _ => {

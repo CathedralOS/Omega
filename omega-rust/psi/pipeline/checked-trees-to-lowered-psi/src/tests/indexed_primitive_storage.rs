@@ -241,3 +241,146 @@ fn indexed_primitive_read_receiver_rejects_changed_source_path() {
         );
     }
 }
+
+const RUNTIME_ELEMENT_SOURCE: &str = "data Buffer { bytes: [u8; 8]; at: u64; }
+    machine Buffer::update(&mut self) {
+        self.at = 3;
+        self.bytes[self.at] = 65;
+    }";
+
+/// A selector read from a stored field is the store's runtime element: the
+/// Terminal store's path ends in `RuntimeIndex { index, obligation }` whose
+/// index is the evaluated field read, verification re-proves `index < 8` from
+/// the preceding store, and execution writes exactly the selected element.
+#[test]
+fn field_read_selector_stores_through_a_runtime_element() {
+    let checked = checked_source_with_core_service(RUNTIME_ELEMENT_SOURCE);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a field-read selector produces verified Terminal")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let stores = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::WriteOnlyPrimitiveStore { path, .. } => Some(path),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        matches!(
+            stores.as_slice(),
+            [path] if matches!(
+                path.as_slice(),
+                [
+                    StructuralPathSegment::Field(_),
+                    StructuralPathSegment::RuntimeIndex { .. }
+                ]
+            )
+        ),
+        "one element store over the runtime element: {stores:#?}"
+    );
+    let structural_type = entry.structural_parameters[0].structural_type;
+    drop(checked);
+    let path = vec![StructuralPathSegment::Field("bytes".into())];
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            byte_arrays: &[terminal_interpreter::TerminalStructuralByteArrayValue {
+                argument_index: 0,
+                path: path.clone(),
+                bytes: vec![7; 8],
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::unbounded(),
+                &mut AcceptTerminalEffects
+            )
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(
+        execution.structural_byte_array(700, &path).unwrap(),
+        [7, 7, 7, 65, 7, 7, 7, 7],
+        "only the selected element changes"
+    );
+}
+
+/// The store's runtime element is custody, not a hint: substituting a literal
+/// element, or a second runtime element, for the authored selector rejects.
+#[test]
+fn runtime_element_store_rejects_a_substituted_path() {
+    let checked = checked_source_with_core_service(RUNTIME_ELEMENT_SOURCE);
+    lower_machine(&checked, TerminalMachineSelection::Name("Buffer::update")).unwrap();
+    for substitute in [
+        vec![CheckedUnitStructuralPathSegment::FixedIndex(3)],
+        vec![
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+            ),
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+            ),
+        ],
+        vec![CheckedUnitStructuralPathSegment::RuntimeIndex(
+            checked_trees::CheckedRuntimeIndex::Parameter { position: 0 },
+        )],
+    ] {
+        let mut changed = checked.clone();
+        let path = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|plan| &mut plan.operations)
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. } => Some(path),
+                _ => None,
+            })
+            .expect("the element store is planned");
+        assert!(matches!(
+            path.as_slice(),
+            [
+                CheckedUnitStructuralPathSegment::Field(_),
+                CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                )
+            ]
+        ));
+        path.truncate(1);
+        path.extend(substitute.iter().cloned());
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Buffer::update")).is_err(),
+            "substituted element path {substitute:?}"
+        );
+    }
+}

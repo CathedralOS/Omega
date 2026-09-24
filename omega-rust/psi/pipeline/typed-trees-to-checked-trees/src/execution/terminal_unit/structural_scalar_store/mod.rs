@@ -30,9 +30,14 @@ use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_fie
 use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_record};
 use value::AssignmentSource;
 
+pub(in crate::execution::terminal_unit) use primitive::{
+    primitive_local_before, scalar_custody_is_exact,
+};
+
 mod byte_stores;
 mod destination;
 mod frame;
+mod primitive;
 #[cfg(test)]
 mod tests;
 mod value;
@@ -111,7 +116,7 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         let statement_index = u32::try_from(statement_index).ok()?;
         trace.phase("scalar field store sequence: assignment store");
         trace.statement(Some(statement_index));
-        if let Some(store) = super::primitive_store::build_primitive_store_at(
+        if let Some(store) = primitive::store_at(
             program,
             facts,
             machine,

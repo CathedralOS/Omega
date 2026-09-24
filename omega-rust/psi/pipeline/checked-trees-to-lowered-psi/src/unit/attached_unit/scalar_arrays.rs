@@ -226,9 +226,6 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
         }
-        | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-            statement_index, ..
-        }
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index, ..
         } => Some(*statement_index),

@@ -126,12 +126,32 @@ pub(crate) fn emit_byte_index(
     next_obligation: &mut u64,
     operations: &mut operation_emission::buffer::OperationBuffer,
 ) -> Result<ValueId, LoweringError> {
-    let ScalarType::Integer(source_type) = expression.scalar_type() else {
+    let operand = emit_direct_expression(expression, values, next_value, operations);
+    emit_u64_coordinate(
+        operand,
+        expression.scalar_type(),
+        next_value,
+        next_obligation,
+        operations,
+    )
+}
+
+/// Convert an already-evaluated integer to Terminal's `u64` count
+/// coordinate: a `u64` is used as is, a narrower unsigned carrier widens, and
+/// any other carrier takes the ordinary exact cast, whose obligation proves
+/// fit (including signed nonnegativity).
+pub(crate) fn emit_u64_coordinate(
+    operand: ValueId,
+    source: ScalarType,
+    next_value: &mut u64,
+    next_obligation: &mut u64,
+    operations: &mut operation_emission::buffer::OperationBuffer,
+) -> Result<ValueId, LoweringError> {
+    let ScalarType::Integer(source_type) = source else {
         return unsupported("byte index requires an integer carrier");
     };
-    let operand = emit_direct_expression(expression, values, next_value, operations);
     let coordinate_type = terminal_scalar_type(PrimitiveType::U64)?;
-    if expression.scalar_type() == coordinate_type {
+    if source == coordinate_type {
         return Ok(operand);
     }
     let ScalarType::Integer(target_type) = coordinate_type else {

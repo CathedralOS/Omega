@@ -792,9 +792,6 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-            statement_index, ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
@@ -1373,7 +1370,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         if binding.expression != local.initial_value
                             || binding.destination != local.symbol
                             || crate::values::scalar_expression_type(value) != Some(primitive_type)
-                            || !super::super::primitive_store::scalar_custody_is_exact(
+                            || !super::super::structural_scalar_store::scalar_custody_is_exact(
                                 program,
                                 facts,
                                 state,

@@ -164,6 +164,55 @@ fn resolve_source(
                 });
                 cursor = member.receiver;
             }
+            // An assignment destination's own selector is the statement's
+            // `AssignmentIndex` scalar: the target's runtime element, which
+            // the store evaluates and whose bound Terminal re-proves.
+            ExpressionNode::Indexed(indexed)
+                if !require_endpoint_stamp
+                    && cursor == expression
+                    && is_assignment_target(checked, state, statement_index, expression)
+                    && !matches!(
+                        checked.expression_table.expression(indexed.index),
+                        ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                    ) =>
+            {
+                if !validation::place_has_builtin_coordinates(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    cursor,
+                ) {
+                    return unsupported("store destination index has no builtin address meaning");
+                }
+                let reference = validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    indexed.collection,
+                )
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "store destination index has no declared collection",
+                ))?;
+                if !matches!(
+                    checked.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::FixedArray {
+                        length: checked_trees::types::FixedArrayLength::Literal(_),
+                        ..
+                    }
+                ) {
+                    return unsupported("store destination index has no literal array length");
+                }
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                ));
+                captured_segments.push(facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                });
+                cursor = indexed.collection;
+            }
             ExpressionNode::Indexed(indexed) => {
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)
@@ -327,6 +376,28 @@ fn resolve_source(
         },
         erased_alias,
     })
+}
+
+/// Whether `expression` is the target of the statement's assignment. A
+/// read of the same shape elsewhere in the statement names no
+/// `AssignmentIndex` coordinate.
+fn is_assignment_target(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    statement_index: Option<(usize, bool)>,
+    expression: ExpressionHandle,
+) -> bool {
+    statement_index
+        .and_then(|(statement_index, _)| {
+            checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(statement_index)
+        })
+        .is_some_and(|statement| {
+            matches!(statement, checked_trees::statement::StatementNode::Assignment(assignment)
+                if assignment.target == expression)
+        })
 }
 
 fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {

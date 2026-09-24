@@ -410,10 +410,6 @@ pub(super) fn validate_unit_operation_sequence(
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index, ..
             }
-            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-                statement_index,
-                ..
-            }
             | CheckedUnitEffectOperationPlan::StoreStructuralField {
                 statement_index, ..
             } => checked_trees::CheckedUnitCallCoordinate {
