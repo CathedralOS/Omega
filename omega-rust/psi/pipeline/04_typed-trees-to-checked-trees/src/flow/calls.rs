@@ -493,11 +493,20 @@ fn append_call_parameter_domain_facts<'plans>(
         borrow_call.target_symbol,
     );
     let mut refs = HandleSpan::empty();
-    for (position, domain_symbol, semantic_domain) in claims.iter() {
-        // Only routed domains carry provenance the checker rejoins; a
-        // predicate-domain parameter claim is vacuous there and would only
-        // add an invalidatable fact the call never minted.
-        if !crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol) {
+    for (position, domain_symbol, semantic_domain, declared) in claims.iter() {
+        // An ENSURED claim publishes only for a routed domain: that is the
+        // provenance the checker rejoins, and a predicate-domain `ensures`
+        // would only add an invalidatable fact the call never minted.
+        //
+        // A DECLARED claim is the other direction. It comes from a mutable
+        // reference parameter's own type, so every write the callee makes
+        // through it owes that domain and its entry required it -- the
+        // caller's argument holds it again on return. Without this the
+        // mutation retires the caller's fact and nothing restores it, so an
+        // out parameter could never carry a domain at all.
+        if !declared
+            && !crate::facts::field_domain::domain_requires_provenance(program, *domain_symbol)
+        {
             continue;
         }
         let Some(&argument) = arguments.get(*position) else {
@@ -707,10 +716,18 @@ pub(crate) fn call_result_qualification_identities(
 /// callable's signature contracts, keyed by the named non-self parameter's
 /// argument position. The reserved `result` subject belongs to the result
 /// obligation vocabulary above and is not repeated here.
+/// The domains a call's parameters carry on RETURN, each with the parameter
+/// position and whether the claim came from the parameter's declared type
+/// rather than an authored `ensures`.
 pub(crate) fn call_parameter_qualification_identities(
     program: &typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
+) -> Vec<(
+    usize,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+    bool,
+)> {
     let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
         return Vec::new();
     };
@@ -750,7 +767,41 @@ pub(crate) fn call_parameter_qualification_identities(
                 position,
                 membership.domain_symbol,
                 membership.semantic_domain,
+                false,
             );
+            if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+    }
+    // A mutable reference parameter's DECLARED domain is the callee's
+    // postcondition as much as its precondition: the write check owes it on
+    // every write through the reference, and entry required it of the caller.
+    // A shared reference cannot be written, so its declared domain says
+    // nothing the caller did not already have to prove.
+    let mut position = 0;
+    for parameter in parameters {
+        if parameter.is_self {
+            continue;
+        }
+        let argument_position = position;
+        position += 1;
+        if !matches!(
+            program
+                .type_reference_table
+                .type_reference(parameter.type_reference),
+            typed_trees::types::TypeReferenceNode::Reference { access, .. }
+                if access.is_exclusive()
+        ) {
+            continue;
+        }
+        for (domain_symbol, semantic_domain) in
+            crate::facts::field_domain::domain_constraint_identities(
+                program,
+                parameter.type_reference,
+            )
+        {
+            let row = (argument_position, domain_symbol, semantic_domain, true);
             if !rows.contains(&row) {
                 rows.push(row);
             }
