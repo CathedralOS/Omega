@@ -47,7 +47,7 @@ fn requires_establishes_entry_and_exact_backedge_reproves_fixed_endpoints() {
 fn nonzero_floor_uses_requires_without_a_declared_parameter_range() {
     let source = "machine walk(n: u64) requires 5 <= n && n <= 10; terminates by n -> Nat::Descending in 5..=10; -> u64 { transition n > 5 { true -> walk(n - 1) false -> n } }";
     prove(source);
-    reject(&source.replace("n > 5", "n >= 5"));
+    super::reject_descent(&source.replace("n > 5", "n >= 5"));
     reject(&source.replace("in 5..=10", "in 6..=10"));
     reject(&source.replace("in 5..=10", "in 5..10"));
 }
@@ -180,14 +180,14 @@ fn selected_arithmetic_and_every_evaluated_prefix_keep_builtin_custody() {
         "operator - u64::subtract(left: u64, right: u64) -> u64;",
         "operator > u64::greater(left: u64, right: u64) -> bool;",
     ] {
-        reject(&format!(
+        super::reject_descent(&format!(
             "{operator} {declaration} {{ transition n > 5 {{ true -> walk(n - 1) false -> n }} }}"
         ));
     }
-    reject(&format!(
+    super::reject_descent(&format!(
         "operator == u64::equal(left: u64, right: u64) -> bool; {declaration} {{ transition {{ n == 7 && true -> n n > 5 -> walk(n - 1) _ -> n }} }}"
     ));
-    reject(&format!(
+    super::reject_descent(&format!(
         "operator + u64::add(left: u64, right: u64) -> u64; {declaration} {{ let unrelated: u64 = n + 0; transition n > 5 {{ true -> walk(n - 1) false -> n }} }}"
     ));
 }

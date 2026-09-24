@@ -69,6 +69,7 @@ pub(crate) use integer_ranges::{
     validate_anonymous_integer_range, validate_value_range,
 };
 pub(crate) use interval::Interval;
+pub(crate) use invariant_bounds::immutable_integer_expression_interval;
 pub use invariant_bounds::{
     declared_integer_expression_lands, enforced_integer_type_bounds,
     immutable_integer_expression_bounds,
