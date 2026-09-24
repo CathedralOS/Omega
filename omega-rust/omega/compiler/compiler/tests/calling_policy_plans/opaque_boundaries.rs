@@ -204,12 +204,12 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .expect("TimerRoot service schema");
     assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
-    assert_eq!(selected.name, "TimerProvider::satisfies::TimerRoot");
+    assert_eq!(selected.name, "macos_arm64::TimerProvider::satisfies::TimerRoot");
     let mask_plan =
         selected_plan_for_external_root(checked.selected_provider_plans(), "InterruptMaskControl");
     assert_eq!(
         mask_plan.name,
-        "MaskProvider::satisfies::InterruptMaskControl"
+        "macos_arm64::MaskProvider::satisfies::InterruptMaskControl"
     );
     let [mask_save] = mask_plan.schema.methods.as_slice() else {
         panic!("mask provider must publish one save-and-mask requirement");
@@ -250,7 +250,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         selected_plan_for_external_root(checked.selected_provider_plans(), "LookalikeMaskControl");
     assert_eq!(
         lookalike_plan.name,
-        "LookalikeMaskProvider::satisfies::LookalikeMaskControl"
+        "macos_arm64::LookalikeMaskProvider::satisfies::LookalikeMaskControl"
     );
     let [lookalike_save] = lookalike_plan.schema.methods.as_slice() else {
         panic!("look-alike provider must publish one requirement");
@@ -410,7 +410,7 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         selected_plan_for_external_root(checked.selected_provider_plans(), "LookalikeEntry");
     assert_eq!(
         lookalike_entry_plan.name,
-        "LookalikeEntryProvider::satisfies::LookalikeEntry"
+        "macos_arm64::LookalikeEntryProvider::satisfies::LookalikeEntry"
     );
     let [lookalike_entry] = lookalike_entry_plan.schema.methods.as_slice() else {
         panic!("look-alike entry provider must publish one requirement");
