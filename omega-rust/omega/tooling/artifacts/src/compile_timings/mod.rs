@@ -69,6 +69,31 @@ pub const TYPED_TREES_TO_CHECKED_TREES: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
+/// Build evaluation and the checked continuation it drives; this step
+/// contains Stage 01 through Stage 05, so its row is their sum plus the
+/// build's own evaluation.
+pub const BUILD_AND_CHECKED_CONTINUATION: StageMeta = StageMeta::new(
+    "Step: build",
+    "AssembledSyntax",
+    "CheckedTrees (contains Stage 01-05)",
+    TimingCategory::Pipeline,
+);
+
+/// Package closure resolution and per-target source assembly, before build
+/// evaluation; contains Stage 01 through Stage 04 when they run there.
+pub const SOURCE_ASSEMBLY: StageMeta = StageMeta::new(
+    "Step: assemble",
+    "PreparedSources",
+    "AssembledSyntax",
+    TimingCategory::Pipeline,
+);
+
+pub const EXECUTION_SETTLEMENT: StageMeta = StageMeta::new(
+    "Step: settle",
+    "CheckedTrees",
+    "SelectedExecution",
+    TimingCategory::Pipeline,
+);
 use crate::allocations::AllocationDelta;
 use diagnostics::Diagnostic;
 use std::time::Instant;
