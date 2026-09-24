@@ -4416,7 +4416,8 @@ fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes(
 #[test]
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
-    let stage = root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
+    let stage =
+        root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
     let validation = recursive_rust_source(&stage.join("validation"));
     for forbidden in [
         "crate::lowering",
@@ -4496,8 +4497,9 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
 #[test]
 fn ordinary_structural_transport_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
-    let selection = root
-        .join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection");
+    let selection = root.join(
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection",
+    );
     let validation = recursive_rust_source(&selection.join("validation"));
     for forbidden in [
         "crate::selection::construction",
