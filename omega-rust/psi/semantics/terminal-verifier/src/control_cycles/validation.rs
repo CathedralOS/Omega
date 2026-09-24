@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
-    BlockId, IntegerCarrier, IntegerSign, PlaceId, ScalarType, StructuralPlaceKind, ValueId,
+    BlockId, IntegerCarrier, PlaceId, ScalarType, StructuralPlaceKind, ValueId,
 };
 use terminal_psi::{
     OperationKind, TerminalMachine, TerminalNaturalRankComparison, TerminalRankedScc, Terminator,
@@ -25,8 +25,11 @@ pub(crate) fn validate_natural_cycles(
     }
     let outgoing = control_graph::successors(machine);
     for (component, members) in components.iter().zip(topology) {
+        // Any fixed-width carrier is a finite total order, so strict descent
+        // on every cycle is well founded for signed ranks too: a signed
+        // countdown ranks its own subject rather than a converted copy, and
+        // the sign enters the relation identity. Address carriers stay out.
         if component.rank_type.carrier() != IntegerCarrier::Fixed
-            || component.rank_type.sign() != IntegerSign::Unsigned
             || component
                 .ranks
                 .iter()

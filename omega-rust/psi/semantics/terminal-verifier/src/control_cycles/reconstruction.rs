@@ -7,8 +7,8 @@ use proof_admission::{
     RecursiveEdgeObligation,
 };
 use semantic_vocabulary::{
-    BlockId, CycleComponentId, EdgeId, ObligationId, Proposition, PsiSemanticId, RankingRelationId,
-    ScalarTerm, ScalarType,
+    BlockId, CycleComponentId, EdgeId, IntegerSign, ObligationId, Proposition, PsiSemanticId,
+    RankingRelationId, ScalarTerm, ScalarType,
 };
 use sha2::{Digest, Sha256};
 use terminal_psi::{
@@ -249,15 +249,20 @@ fn question_commitment(machine: &TerminalMachine, component: &TerminalNaturalCyc
 
 fn natural_relation(component: &TerminalNaturalCycle) -> RankingRelationId {
     let mut digest = Sha256::new();
-    digest.update(b"psi.control-cycle.fixed-unsigned-natural-order.v1\0");
+    digest.update(match component.rank_type.sign() {
+        IntegerSign::Unsigned => b"psi.control-cycle.fixed-unsigned-natural-order.v1\0".as_slice(),
+        IntegerSign::Signed => b"psi.control-cycle.fixed-signed-integer-order.v1\0".as_slice(),
+    });
     digest.update(component.rank_type.bits().to_le_bytes());
     semantic_id(&digest.finalize().into())
 }
 
 fn natural_well_foundedness(component: &TerminalNaturalCycle) -> CertificateObligation {
-    // Validation admits only fixed unsigned carriers. Their mathematical
-    // interpretation embeds in the naturals; strict decrease is well founded.
-    // This citation says nothing about callee progress or a concrete fuel bound.
+    // Validation admits only fixed carriers. An unsigned carrier embeds in the
+    // naturals; a signed one, shifted by its minimum, embeds in a finite
+    // initial segment of them. Either way strict decrease is well founded.
+    // The sign enters the relation identity, so the two orders never share a
+    // citation. This says nothing about callee progress or a fuel bound.
     let mut digest = Sha256::new();
     digest.update(b"psi.control-cycle.natural-well-foundedness.v1\0");
     digest.update(natural_relation(component).get().to_le_bytes());

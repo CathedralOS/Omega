@@ -144,7 +144,18 @@ fn erased_observed_receiver_is_rejected_after_checking() {
 
 #[test]
 fn natural_ranked_unit_callee_preserves_ordinary_projected_calls() {
-    for (primitive, bits) in [("u8", 8), ("u16", 16), ("u32", 32), ("u64", 64)] {
+    // A signed countdown ranks its own subject in its signed carrier; the
+    // verifier's fixed-integer order is well founded for either sign.
+    use semantic_vocabulary::IntegerSign::{Signed, Unsigned};
+    for (primitive, sign, bits) in [
+        ("u8", Unsigned, 8),
+        ("u16", Unsigned, 16),
+        ("u32", Unsigned, 32),
+        ("u64", Unsigned, 64),
+        ("i8", Signed, 8),
+        ("i32", Signed, 32),
+        ("i64", Signed, 64),
+    ] {
         let artifact = produce(
             &SOURCE
                 .replace("RANKING", "terminates by remaining -> Nat::Descending;")
@@ -162,11 +173,7 @@ fn natural_ranked_unit_callee_preserves_ordinary_projected_calls() {
             {
                 assert!(components.iter().all(|component| {
                     component.rank_type
-                        == semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            bits,
-                        )
-                        .unwrap()
+                        == semantic_vocabulary::IntegerType::new(sign, bits).unwrap()
                 }));
             }
         }
@@ -197,7 +204,7 @@ fn natural_rank_subject_measure_and_carrier_cannot_be_substituted() {
             }
             "carrier" => {
                 plan.natural_ranks[0].measure =
-                    checked_trees::CheckedNaturalRankMeasure::UnsignedParameter {
+                    checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
                         primitive_type: typed_trees::types::PrimitiveType::U32,
                     }
             }

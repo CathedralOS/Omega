@@ -62,6 +62,10 @@ pub struct CheckedScalarCaseFieldPlan {
     pub expression: CheckedScalarExpression,
 }
 
+/// One cyclic state's rank, stated over that state's own parameters. Emission
+/// evaluates the same measure on the state's entry and, from the actual
+/// arguments, on every arriving successor edge; the verifier substitutes one
+/// into the other and proves each edge's comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
@@ -70,10 +74,16 @@ pub struct CheckedStateNaturalRank {
     pub measure: CheckedNaturalRankMeasure,
 }
 
+/// The measures the termination checker proves, each a total function of
+/// one state's parameters. A new order the checker learns belongs here as
+/// one more measure, not as another producer route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedNaturalRankMeasure {
+    /// `Slice::Length`: the subject slice's live byte length.
     ByteSequenceLength,
-    UnsignedParameter { primitive_type: PrimitiveType },
+    /// `Nat::Descending`: the fixed-width integer subject itself, signed or
+    /// unsigned. The checker proves it descends on every cyclic edge.
+    IntegerParameter { primitive_type: PrimitiveType },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

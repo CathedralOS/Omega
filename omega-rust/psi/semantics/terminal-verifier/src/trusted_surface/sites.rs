@@ -639,12 +639,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/control_cycles/reconstruction.rs",
-        sha256: Some("cff52ac8323039e588f62cd2f7cfb867004f51d678bc8dca7c9edb6f3a36936e"),
+        sha256: Some("95ac1fcb07416039030baf1e8f48a672bfcf3e000e7c756bd9b6e087f598e11f"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/control_cycles/validation.rs",
-        sha256: Some("2e4d6e43ebd95787acf6c87975785c24f5015d677b73230523cfd73a50346d1b"),
+        sha256: Some("7add546601e7a6823c2bd3021108a41ba3a18b3e20bb644b3f69c063ecdb6756"),
         inventory_machinery: false,
     },
     ImplementationSite {

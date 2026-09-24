@@ -24,14 +24,21 @@ pub(super) fn plan(
         // The Nat countdown is only one ranking order. A cyclic machine proven
         // under another order (`Slice::Length`, struct views) leaves its
         // judgment in the shared natural ranks; this lane publishes a ranked
-        // SCC plan only for the countdown shape it can spell exactly.
+        // SCC plan only for the countdown shape it can spell exactly. An
+        // integer rank it cannot spell (a signed or multi-state countdown)
+        // declines the machine, so the state graph, reading the same shared
+        // ranks, owns it instead of an unranked loop here.
         return if crate::checks::termination::proven_state_natural_ranks_with_call_frames(
             program,
             machine,
             call_frames,
         )
-        .is_some_and(|ranks| !ranks.is_empty())
-        {
+        .is_some_and(|ranks| {
+            !ranks.is_empty()
+                && ranks.iter().all(|rank| {
+                    rank.measure == checked_trees::CheckedNaturalRankMeasure::ByteSequenceLength
+                })
+        }) {
             Some(None)
         } else {
             None
