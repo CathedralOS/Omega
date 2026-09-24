@@ -183,8 +183,11 @@ fn record_literal_field_store_rejects_a_non_literal_record_source() {
     );
 }
 
+/// A nested record member has no scalar computation to store, so the literal
+/// does not decompose into field stores; it is established whole and replaces
+/// the field through the structural window pair instead.
 #[test]
-fn record_literal_field_store_rejects_structural_members() {
+fn record_literal_with_structural_members_replaces_the_whole_field() {
     let plan = plan(&format!(
         r#"
         {HOST}
@@ -197,8 +200,27 @@ fn record_literal_field_store_rejects_structural_members() {
         }}
     "#
     ));
+    let plan = plan.expect("the whole record replaces its field");
     assert!(
-        plan.is_none(),
-        "a nested record member needs structural transport, not scalar stores"
+        !plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                if store.statement_index == 0
+        )),
+        "a nested record member is not decomposed into scalar stores: {plan:#?}"
+    );
+    assert!(
+        plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                if result.statement_index == 0
+        )) && plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StoreStructuralField {
+                statement_index: 0,
+                ..
+            }
+        )),
+        "the literal is established and stored whole: {plan:#?}"
     );
 }

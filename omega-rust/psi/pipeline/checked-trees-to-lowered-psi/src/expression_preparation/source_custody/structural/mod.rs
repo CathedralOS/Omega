@@ -54,6 +54,22 @@ pub(crate) fn validate(
             (local.initial_value, local.type_reference)
         }
         Some(StatementNode::Expression(expression)) => (*expression, source.return_type),
+        // `place = <construction>` establishes the value that replaces a
+        // structural field; its destination type is the authored place's own
+        // declared type, reconstructed here rather than read from the root.
+        Some(StatementNode::Assignment(assignment)) => (
+            assignment.value,
+            validation::declared_place_type_raw(
+                &checked.typed,
+                owner,
+                Some(source),
+                assignment.target,
+            )
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .ok_or(LoweringError::Unsupported(
+                "structural construction lost its authored destination",
+            ))?,
+        ),
         Some(StatementNode::Transition(transition))
             if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
         {

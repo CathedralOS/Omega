@@ -143,11 +143,19 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         // the other calls, and the store consuming that result is appended
         // there; it deliberately produces no row here. A whole structural
         // local as the source is likewise the sequence's own business: it is
-        // the repair store of a borrowed-storage window.
+        // the repair store of a borrowed-storage window. A constructed
+        // structural value the stores above do not decompose is established
+        // by the sequence too, and replaces its field through the same window
+        // pair a structural call result uses.
         if matches!(
             program.expression_table.expression(assignment.value),
             ExpressionNode::Call(_)
         ) || restores_structural_local(program, state, assignment)
+            || facts
+                .values
+                .structural_values
+                .root_for_expression(state.symbol, statement_index, assignment.value)
+                .is_some()
         {
             trace.restore(&baseline);
             continue;

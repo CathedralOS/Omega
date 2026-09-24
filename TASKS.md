@@ -3333,16 +3333,21 @@ syntax and other terminal services are not prerequisites.
     guarantees independently of claim identity.
     `effects/structural_callback_reach/projected.omg` supplies a whole-array
     forwarding baseline, not extracted-projection or native closure.
-  - Complete aggregate field replacement: nonliteral aggregate sources,
-    nested sums, borrowed case observation and whole nominal receiver
-    replacement, including match-assigned values. The customer is
-    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`.
-    `execution/terminal_unit/structural_scalar_store/tests/record_literal_fields.rs`
-    pins rejection of nonliteral records and structural members; scalar-field
-    decomposition is not aggregate replacement. `borrowed_windows.rs`'s
-    `StoreStructuralField` repairs an opened hole, not general overwrites.
-    Coordinate **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
-    **NOMINAL-FIELD-FLOW**; do not dispose a moved value twice.
+  - Complete aggregate field replacement for nonliteral sources (whole
+    places, match-assigned values), fixed-index element holes
+    (`samples/cli/algorithms/dutch_flag`'s `self.items[0] = Color::White`)
+    and whole nominal receiver replacement. Constructions and structural call
+    results already replace a record field through `OpenWindows::replace`
+    (move-out, store, continuation discard of an affine displaced value) in
+    both ordinary and state-graph lowering. The customer is
+    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`. Case-payload
+    reads of a replaced field then stop in lowering at `runtime field
+    observation requires a record-only field path`
+    (`data/runtime_case_reassignment_exit`,
+    `structs/deep_nested_write_paths_exit`): Terminal field observations admit
+    no case step. Coordinate **FILESYSTEM-RELEASE-CONTRACT**,
+    **WRITE-ONLY-BORROW** and **NOMINAL-FIELD-FLOW**; do not dispose a moved
+    value twice.
   - Complete borrowed local record calls and subsequent observations without
     the root-expression shape gate in
     `values/scalar/computations/structural_values.rs::is_record_value`.

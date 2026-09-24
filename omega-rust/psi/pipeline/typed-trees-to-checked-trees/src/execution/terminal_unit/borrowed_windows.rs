@@ -8,10 +8,10 @@
 use std::collections::BTreeMap;
 
 use super::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    StatementNode, SymbolHandle, TypedTrees,
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, Multiplicity, StatementNode, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -382,10 +382,103 @@ impl OpenWindows {
         })
     }
 
+    /// `root.field... = value` replacing an initialized structural field of
+    /// exclusive borrowed storage with the owned binding `produced`. The
+    /// displaced value moves out into binding `displaced_ordinal`, `produced`
+    /// closes that hole within the same statement, and an affine displaced
+    /// value dies on the statement's continuation. Whether a call or a
+    /// construction produced the value does not change the replacement.
+    /// Overwriting a linear field would drop a live obligation, and a hole a
+    /// move-out local already opened belongs to that local's restore.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn replace(
+        &self,
+        program: &TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        statement_index: u32,
+        assignment: &typed_trees::statement::TableAssignment,
+        produced: &CheckedUnitStructuralResultBindingPlan,
+        displaced_ordinal: u32,
+    ) -> Option<FieldReplacement> {
+        if produced.multiplicity == Multiplicity::Linear {
+            return None;
+        }
+        let index = usize::try_from(statement_index).ok()?;
+        let destination_place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            assignment.target,
+        )?;
+        let (position, path) = window_place(
+            program,
+            machine,
+            state,
+            program.statement_table.statements(state.statement_nodes),
+            index,
+            structural_parameters,
+            &destination_place,
+        )?;
+        if self.open.contains_key(&(position, path.clone())) {
+            return None;
+        }
+        let place = CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: position,
+            },
+            path,
+            type_identity: produced.type_identity.clone(),
+            access: CheckedStructuralAccess::Owned,
+        };
+        Some(FieldReplacement {
+            move_out: CheckedUnitEffectOperationPlan::MoveStructuralField {
+                result: CheckedUnitStructuralResultBindingPlan {
+                    statement_index,
+                    binding_ordinal: displaced_ordinal,
+                    type_identity: produced.type_identity.clone(),
+                    multiplicity: produced.multiplicity,
+                },
+                source: place.clone(),
+            },
+            store: CheckedUnitEffectOperationPlan::StoreStructuralField {
+                statement_index,
+                destination: place,
+                value: CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: produced.binding_ordinal,
+                    },
+                    path: Vec::new(),
+                    type_identity: produced.type_identity.clone(),
+                    access: CheckedStructuralAccess::Owned,
+                },
+            },
+            displaced_discard: (produced.multiplicity == Multiplicity::Affine).then(|| {
+                CheckedUnitPartialAffineDiscardPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: displaced_ordinal,
+                    },
+                    path: Vec::new(),
+                    type_identity: produced.type_identity.clone(),
+                }
+            }),
+        })
+    }
+
     /// Every opened window must be repaired before the body completes; the
     /// checker already rejects an open window at the state's exits, so a
     /// leftover here is a sequencing fault rather than a language decision.
     pub(super) fn is_closed(&self) -> bool {
         self.open.is_empty() && self.locals.is_empty()
     }
+}
+
+/// The window pair of one field replacement: the displaced value's move-out,
+/// the store of the replacing value into the opened hole, and the displaced
+/// value's disposal when it is affine.
+pub(super) struct FieldReplacement {
+    pub(super) move_out: CheckedUnitEffectOperationPlan,
+    pub(super) store: CheckedUnitEffectOperationPlan,
+    pub(super) displaced_discard: Option<CheckedUnitPartialAffineDiscardPlan>,
 }

@@ -891,6 +891,26 @@ pub(crate) fn validate_usage(
             disposed = true;
             continue;
         }
+        // A field replacement's store moves the whole produced value into the
+        // hole its move-out opened: the value's one consuming use. A copy
+        // value is copied there and keeps owing nothing.
+        if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = operation
+            && value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+        {
+            if consumed
+                || disposed
+                || operation_index <= producer.operation_index
+                || !value.path.is_empty()
+                || value.access != checked_trees::CheckedStructuralAccess::Owned
+                || value.type_identity != result.type_identity
+            {
+                return unsupported(
+                    "Unit structural result is consumed before production or twice",
+                );
+            }
+            consumed = result.multiplicity != Multiplicity::Unrestricted;
+            continue;
+        }
         let (CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             structural_arguments,

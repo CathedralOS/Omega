@@ -389,10 +389,12 @@ pub(crate) fn build_checked_value_computation_plans(
                     }
                 }
                 if let StatementNode::Assignment(assignment) = statement {
-                    // A whole-record assignment value is the same structural
-                    // constructor a `let` initializer roots: each scalar field
-                    // initializer keeps its own `RecordField` computation
-                    // coordinate for the decomposed store route to consume.
+                    // A constructed assignment value is the same structural
+                    // constructor a `let` initializer roots. Each scalar field
+                    // initializer of a record keeps its own `RecordField`
+                    // computation coordinate for the decomposed store route;
+                    // a case literal is established whole and replaces its
+                    // field through the statement sequence's window pair.
                     if let Some(expected) = crate::flow::expression_type_reference_in_state(
                         program,
                         state.symbol,
@@ -400,7 +402,17 @@ pub(crate) fn build_checked_value_computation_plans(
                         assignment.target,
                     )
                     .and_then(|reference| validation::unwrapped_type_reference(program, reference))
-                        && structural_values::is_record_value(program, assignment.value, expected)
+                        && (structural_values::is_record_value(program, assignment.value, expected)
+                            || validation::is_scalar_case_value(
+                                program,
+                                assignment.value,
+                                expected,
+                            )
+                            || structural_values::is_structural_case_value(
+                                program,
+                                assignment.value,
+                                expected,
+                            ))
                         && let Some(root) = builder.structural_value(
                             assignment.value,
                             expected,

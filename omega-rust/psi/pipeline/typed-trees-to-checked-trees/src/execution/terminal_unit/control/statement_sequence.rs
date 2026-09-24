@@ -911,6 +911,93 @@ pub(in crate::execution::terminal_unit) fn build(
                     operations.push(store);
                     continue;
                 }
+                // `place = <constructed value>` over a structural field:
+                // establish the value as an owned binding, exactly as a local
+                // initializer would, then replace the field through the same
+                // window pair a structural call result uses.
+                assignment_phase("statement sequence: assignment: structural value field store");
+                if let Some(root) = facts.values.structural_values.root_for_expression(
+                    state.symbol,
+                    statement_index,
+                    assignment.value,
+                ) {
+                    if root.machine != machine.symbol {
+                        return None;
+                    }
+                    let calls = structural_operands::value_calls(
+                        program,
+                        facts,
+                        scalar_callees,
+                        shapes,
+                        machine,
+                        state,
+                        structural_parameters,
+                        trivial_affine_locals,
+                        entry_claims,
+                        &structural_results,
+                        &mut structural_count,
+                        root.root,
+                        trace,
+                    )?;
+                    if facts
+                        .flow
+                        .ownership
+                        .owned_selection_at(state.symbol, statement_index)
+                        .is_some()
+                    {
+                        retain_selected_sources(
+                            facts,
+                            state.symbol,
+                            statement_index,
+                            &structural_results,
+                            &mut operations,
+                        )?;
+                    } else {
+                        consume_value_places(facts, root.root, &structural_results, &mut operations)?;
+                    }
+                    for call in &calls {
+                        consume_results(&mut operations, call.operation())?;
+                    }
+                    let mut produced =
+                        checked_structural_result_type(program, shapes, root.type_reference, &binders)?;
+                    produced.statement_index = statement_index;
+                    produced.binding_ordinal = u32::try_from(structural_count).ok()?;
+                    let replacement = windows.replace(
+                        program,
+                        machine,
+                        state,
+                        structural_parameters,
+                        statement_index,
+                        assignment,
+                        &produced,
+                        produced.binding_ordinal.checked_add(1)?,
+                    )?;
+                    structural_count = structural_count.checked_add(2)?;
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
+                        result: produced,
+                        value: root.root,
+                        calls,
+                        operand_source: None,
+                    });
+                    operations.push(replacement.move_out);
+                    // The store consumes the whole constructed value, retiring
+                    // the establishment's own disposal debt.
+                    consume_results(&mut operations, &replacement.store)?;
+                    operations.push(replacement.store);
+                    if let Some(discard) = replacement.displaced_discard {
+                        // The displaced value dies on this statement's
+                        // continuation, as it does after a replacing call.
+                        operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                            coordinate: checked_trees::CheckedUnitCallCoordinate {
+                                statement_index,
+                                call_ordinal: 0,
+                            },
+                            affine_discards: vec![discard],
+                        });
+                    }
+                    continue;
+                }
                 // The store sequence deliberately left this assignment to the
                 // ordinary call route: its right-hand side is the call this
                 // statement performs, not an authored scalar value.
@@ -958,85 +1045,30 @@ pub(in crate::execution::terminal_unit) fn build(
                 } else if is_unit(program, result_type) {
                     return None;
                 } else {
-                    // A structural call result stores into the field through
-                    // the ordinary window pair: move the displaced established
-                    // value out, then store the call's whole result into the
-                    // opened hole — the structural twin of the scalar
+                    // A structural call result replaces the field through the
+                    // ordinary window pair — the structural twin of the scalar
                     // call-result store above.
                     assignment_phase(
                         "statement sequence: assignment: structural call result field store",
                     );
                     let mut result =
                         checked_structural_result_type(program, shapes, result_type, &binders)?;
-                    // Overwriting a linear field would drop a live linear
-                    // obligation; that needs a consumption story, not a
-                    // displacement.
-                    if result.multiplicity == Multiplicity::Linear {
-                        return None;
-                    }
                     result.statement_index = statement_index;
-                    let binding_ordinal = u32::try_from(structural_count).ok()?;
-                    let moved_ordinal = binding_ordinal.checked_add(1)?;
-                    let destination_place = crate::flow::canonical_place_from_expression_in_state(
-                        program,
-                        state.symbol,
-                        index,
-                        assignment.target,
-                    )?;
-                    let (position, path) = super::super::borrowed_windows::window_place(
+                    result.binding_ordinal = u32::try_from(structural_count).ok()?;
+                    let replacement = windows.replace(
                         program,
                         machine,
                         state,
-                        program.statement_table.statements(state.statement_nodes),
-                        index,
                         structural_parameters,
-                        &destination_place,
-                    )?;
-                    call_result_stores.push(CheckedUnitEffectOperationPlan::MoveStructuralField {
-                        result: CheckedUnitStructuralResultBindingPlan {
-                            statement_index,
-                            binding_ordinal: moved_ordinal,
-                            type_identity: result.type_identity.clone(),
-                            multiplicity: result.multiplicity,
-                        },
-                        source: CheckedUnitStructuralArgumentPlan {
-                            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                parameter_index: position,
-                            },
-                            path: path.clone(),
-                            type_identity: result.type_identity.clone(),
-                            access: CheckedStructuralAccess::Owned,
-                        },
-                    });
-                    call_result_stores.push(CheckedUnitEffectOperationPlan::StoreStructuralField {
                         statement_index,
-                        destination: CheckedUnitStructuralArgumentPlan {
-                            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                parameter_index: position,
-                            },
-                            path,
-                            type_identity: result.type_identity.clone(),
-                            access: CheckedStructuralAccess::Owned,
-                        },
-                        value: CheckedUnitStructuralArgumentPlan {
-                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            },
-                            path: Vec::new(),
-                            type_identity: result.type_identity.clone(),
-                            access: CheckedStructuralAccess::Owned,
-                        },
-                    });
+                        assignment,
+                        &result,
+                        result.binding_ordinal.checked_add(1)?,
+                    )?;
+                    call_result_stores.push(replacement.move_out);
+                    call_result_stores.push(replacement.store);
                     structural_store_bindings = 1;
-                    if result.multiplicity == Multiplicity::Affine {
-                        displaced_discard = Some(CheckedUnitPartialAffineDiscardPlan {
-                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal: moved_ordinal,
-                            },
-                            path: Vec::new(),
-                            type_identity: result.type_identity.clone(),
-                        });
-                    }
+                    displaced_discard = replacement.displaced_discard;
                     // The store consumes this call's whole result, so the
                     // binding stays anonymous: no local claims it, and the
                     // discard gate below must not retire it before the store

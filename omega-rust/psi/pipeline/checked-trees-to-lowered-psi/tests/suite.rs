@@ -29,6 +29,7 @@ mod case_payload_guard_observation;
 mod composed_call_arguments_source;
 mod composed_internal_call_arguments_source;
 mod composed_unit_scalar_crashes_source;
+mod constructed_field_replacement_source;
 mod crash_member_source;
 mod direct_primitive_store_source;
 mod entry_requirement_crash_coverage;
