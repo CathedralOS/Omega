@@ -58,11 +58,18 @@ pub(super) fn register_structural_types(
                 if !types.contains_key(referent) {
                     return Err(ModuleError::UnknownStructuralType(*referent));
                 }
-                if *access != StructuralAccess::MutableBorrow
-                    || !matches!(
+                let named_referent = matches!(
+                    types[referent].shape,
+                    StructuralTypeShape::Record { .. }
+                        | StructuralTypeShape::Sum { .. }
+                        | StructuralTypeShape::Mixed { .. }
+                );
+                if !(*access == StructuralAccess::MutableBorrow
+                    && matches!(
                         types[referent].shape,
                         StructuralTypeShape::PrimitiveScalar(_)
-                    )
+                    ))
+                    && !(*access == StructuralAccess::SharedBorrow && named_referent)
                 {
                     return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
                 }

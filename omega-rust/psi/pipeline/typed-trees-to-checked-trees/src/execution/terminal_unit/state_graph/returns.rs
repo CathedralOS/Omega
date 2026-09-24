@@ -39,8 +39,10 @@ pub(in crate::execution::terminal_unit) fn signature(
     // Borrowed slice views are the reference family's other custody kind: a
     // `&[T]` result borrows its carrier's storage rather than owning fresh
     // contents, so the owned-contents and nominal-drop gates do not apply.
+    // `&'a V` named results are the same custody kind over a record carrier.
     let view_result =
-        crate::execution::terminal_unit::types::borrowed_slice_view(program, reference);
+        crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
+            || crate::execution::terminal_unit::types::borrowed_named_view(program, reference);
     if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
@@ -52,7 +54,18 @@ pub(in crate::execution::terminal_unit) fn signature(
     {
         return None;
     }
-    let type_identity = shapes.add_type(reference, &[], &[])?;
+    // A borrowed named view spells its `&'a V` type reference in the plan —
+    // the reference custody is exactly what the result type carries — and its
+    // result is an affine view loan rather than an unrestricted owned value.
+    let (type_identity, multiplicity) =
+        if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
+            (
+                shapes.add_named_view_type(reference, &[])?,
+                Multiplicity::Affine,
+            )
+        } else {
+            (shapes.add_type(reference, &[], &[])?, multiplicity)
+        };
     // Nested named carriers carry as one structural member: their own fields
     // stay inside the member's identity, so the result plan admits the member
     // by identity alone.
@@ -67,22 +80,26 @@ pub(in crate::execution::terminal_unit) fn signature(
                 )
         })
     };
-    let valid = match &shapes.types.get(&type_identity)?.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
-        CheckedUnitStructuralTypeShape::Sum { cases } => {
-            !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
-        }
-        // Borrowed view results carry no payload fields; the reference's
-        // stored extent is their whole runtime shape.
-        CheckedUnitStructuralTypeShape::ByteSequence(
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView,
-        )
-        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
-        // By-value scalar results stay scalar-graph owned: their graph
-        // carries the computation expansion and block-invariant machinery
-        // the composed route does not model.
-        _ => false,
-    };
+    // A borrowed named view (`&'a V`) carries the peeled record shape, but the
+    // result borrows the referent rather than establishing field custody — the
+    // owned-contents field-kind check does not apply to it.
+    let valid = view_result
+        || match &shapes.types.get(&type_identity)?.shape {
+            CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
+            CheckedUnitStructuralTypeShape::Sum { cases } => {
+                !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
+            }
+            // Borrowed view results carry no payload fields; the reference's
+            // stored extent is their whole runtime shape.
+            CheckedUnitStructuralTypeShape::ByteSequence(
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+            )
+            | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
+            // By-value scalar results stay scalar-graph owned: their graph
+            // carries the computation expansion and block-invariant machinery
+            // the composed route does not model.
+            _ => false,
+        };
     // Whole linear forwarding does not inspect or construct payload fields.
     // Its exact input-origin claims are admitted by the completion/call joins.
     if !valid && multiplicity != Multiplicity::Linear {
@@ -326,6 +343,17 @@ pub(super) fn return_value_operation(
             expression,
         );
     }
+    if crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type) {
+        return named_view_result_operation(
+            program,
+            shapes,
+            state,
+            parameters,
+            count,
+            statement_ordinal,
+            expression,
+        );
+    }
     let root = facts.values.structural_values.root_for_expression(
         state.symbol,
         statement_ordinal,
@@ -502,6 +530,95 @@ fn view_result_operation(
             source,
             path: Vec::new(),
             type_identity,
+            access: CheckedStructuralAccess::SharedBorrow,
+        },
+    })
+}
+
+/// The `EstablishReference` producer for one authored `(place)` return target
+/// of a borrowed `&'a V` named result: the place resolves to an immutable
+/// structural parameter or a record-field path inside one, and the storage it
+/// bottoms out in is exactly the `&'a V` value itself — `self` for a receiver
+/// borrow, `self.field` for a stored named reference. Unlike the slice-view
+/// lane there are no endpoints: the whole stored borrow is the result.
+fn named_view_result_operation(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let return_type = state.return_type;
+    let statement_index = usize::try_from(statement_ordinal).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        expression,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    let position = authored
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let carrier = &authored[position];
+    if carrier.is_mutable
+        || !matches!(
+            crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                program,
+                carrier.type_reference,
+            ),
+            Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned)
+        )
+    {
+        return None;
+    }
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let (storage, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    // The stored value reached by the projection must be exactly the result's
+    // `&'a V`: the named borrow already lives in the carrier's frame.
+    if program.normalized_type_identity(storage) != program.normalized_type_identity(return_type) {
+        return None;
+    }
+    let type_identity = shapes.add_named_view_type(return_type, &[])?;
+    let referee =
+        crate::execution::terminal_unit::types::borrowed_named_view_referent(program, return_type)?;
+    let referent_identity = shapes.add_type(referee, &[], &[])?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity: type_identity.clone(),
+        multiplicity: Multiplicity::Affine,
+    };
+    *count = count.checked_add(1)?;
+    // A member projection reaches the stored `&'a V` field itself; the
+    // loaned leaf the result names is its referent, one segment deeper —
+    // the same `Referent` tail `formal_record_sources` spells for `&mut`
+    // record leaves. A whole-borrow parameter already names its referent
+    // leaf, so its source path stays empty.
+    let mut path = path;
+    if !path.is_empty() {
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    }
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source: CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: referent_identity,
             access: CheckedStructuralAccess::SharedBorrow,
         },
     })

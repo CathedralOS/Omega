@@ -268,6 +268,13 @@ pub(super) fn referent(
             } if super::primitive_storage::scalar_type(module, referent).is_some() => {
                 Some(referent)
             }
+            // A `&'a V` shared view loans a named referent the same way a
+            // `&mut` primitive loans its scalar: the referent is the leaf the
+            // result's reference_sources project to.
+            StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } => Some(referent),
             _ => None,
         }
     })
@@ -455,7 +462,10 @@ pub(super) fn validate_machine(
         let expected_referent = leaf_referent(module, result.structural_type, path)
             .ok_or_else(|| invalid(machine, "reference result leaf is unsupported"))?;
         if mapping.path != *path
-            || mapping.source.access != StructuralAccess::MutableBorrow
+            || !matches!(
+                mapping.source.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            )
             || !sources.insert((mapping.source.place, mapping.source.path.clone()))
             || !machine
                 .structural_parameters
@@ -481,10 +491,18 @@ fn formal_origin(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source.place)?;
-    if source.path.is_empty() && parameter.access == StructuralAccess::MutableBorrow {
+    if source.path.is_empty()
+        && matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+    {
         Some(ReferenceOrigin::Primitive(source.place))
     } else if let Some((StructuralPathSegment::Referent, path)) = source.path.split_last()
-        && parameter.access == StructuralAccess::Owned
+        && matches!(
+            parameter.access,
+            StructuralAccess::Owned | StructuralAccess::SharedBorrow
+        )
     {
         Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
@@ -553,8 +571,10 @@ pub(super) fn source_type(
         .iter()
         .find(|parameter| parameter.place == source.place)
     {
-        if parameter.access != StructuralAccess::MutableBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        if !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
             || machine
@@ -568,7 +588,11 @@ pub(super) fn source_type(
         {
             return None;
         }
-        super::primitive_storage::scalar_type(module, parameter.structural_type)?;
+        // A `&mut` parameter's referent is the loaned primitive itself; a
+        // `&'a` shared parameter's is its whole named storage.
+        if parameter.access == StructuralAccess::MutableBorrow {
+            super::primitive_storage::scalar_type(module, parameter.structural_type)?;
+        }
         return Some(parameter.structural_type);
     }
     let result = super::primitive_storage::local_result(machine, source.place)?;
@@ -593,8 +617,10 @@ pub(super) fn validate_establishment(
             "reference establishment requires a whole reference result",
         )
     })?;
-    if source.access != StructuralAccess::MutableBorrow
-        || source_type(module, machine, source) != Some(expected)
+    if !matches!(
+        source.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+    ) || source_type(module, machine, source) != Some(expected)
     {
         return Err(invalid(
             machine,

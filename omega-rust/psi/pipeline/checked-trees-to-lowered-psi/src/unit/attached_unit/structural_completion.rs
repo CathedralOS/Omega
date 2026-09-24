@@ -49,6 +49,11 @@ pub(super) fn validate(
             )
         || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
             .is_some()
+            || validation::reference_result_custody::shared_borrowed_parts(
+                &checked.typed,
+                state.return_type,
+            )
+            .is_some()
             || validation::reference_result_custody::is_reference_record(
                 &checked.typed,
                 state.return_type,
@@ -78,7 +83,12 @@ pub(super) fn validate(
         return unsupported("structural result source has no completion value");
     };
     let whole_reference =
-        validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some();
+        validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some()
+            || validation::reference_result_custody::shared_borrowed_parts(
+                &checked.typed,
+                state.return_type,
+            )
+            .is_some();
     if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
     {
         let expected =
