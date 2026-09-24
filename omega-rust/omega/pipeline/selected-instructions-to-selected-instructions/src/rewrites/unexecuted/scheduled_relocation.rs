@@ -8,10 +8,20 @@
 //! traversal set is nonempty. This admission takes the moves it refuses that
 //! are still sound: a sink into a block its own block dominates, where some
 //! traversal no longer executes the run at all and the `dead_path` audit
-//! proves nothing observes the locations the run wrote. The price is a
-//! narrower subject — pure register and condition-state work, cross-block
-//! only — so neither mechanism subsumes the other, and merging them means
-//! one module with two admissions rather than one admission.
+//! proves nothing observes the locations the run wrote, and the mirrored
+//! hoist. The price is a narrower subject — pure register and condition-state
+//! work, cross-block only — so neither mechanism subsumes the other, and
+//! merging them means one module with two admissions rather than one
+//! admission.
+//!
+//! The sink into a fork arm is this region's shallow case, not a shape of
+//! its own: the fork head dominates an arm no second edge reaches, and the
+//! other edge is the skipped path the dead-path audit clears.
+//! `member_sinks_into_the_immediate_fork_arm` lands in the arm itself,
+//! `member_sinks_beneath_a_fork_arm` lands in a block deeper than any
+//! per-shape family could name, and
+//! `a_degenerate_single_arm_fork_sinks_with_no_skipped_path` is the boundary
+//! where both edges reach the arm and the audit has nothing to clear.
 //!
 //! This module lived under `local_schedule`, which is the in-block pair
 //! interchange, and nothing here ever read that parent. It sits beside

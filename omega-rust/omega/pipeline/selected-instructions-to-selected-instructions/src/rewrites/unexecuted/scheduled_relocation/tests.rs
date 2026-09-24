@@ -602,6 +602,93 @@ fn run_lands_at_the_named_position() {
     );
 }
 
+/// A degenerate fork whose both edges reach one arm still sinks the run:
+/// every traversal of the branch block still executes it exactly once, so
+/// the skipped-edge set is empty and the dead-path audit has nothing to
+/// clear. This is the boundary between the sink that abandons traversals
+/// and the one that does not.
+#[test]
+fn a_degenerate_single_arm_fork_sinks_with_no_skipped_path() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let single = mutated(target, true, |function, _| {
+        let successor = match &mut function.blocks[0].terminator {
+            SelectedTerminator::ConditionalBranch { when_zero, .. } => when_zero,
+            _ => unreachable!(),
+        };
+        successor.block = BLOCK_A;
+        successor.source_target = BlockId::new(2).unwrap();
+    });
+    let result = relocate(&single, &environment, &[MOVING], A_HEAD).unwrap();
+    let moved = &result.transformed().functions[0];
+    assert_eq!(
+        moved.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LEAD, TRAIL]
+    );
+    assert_eq!(
+        moved.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![MOVING, A_HEAD, A_TAIL]
+    );
+    validate_scheduled_relocation(
+        &single,
+        0,
+        &[MOVING],
+        A_HEAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// The same fork with the landing in the branch's immediate target: the
+/// member leaves the fork head, crosses only the nonzero edge, and takes
+/// `A_HEAD`'s position in the arm A itself. That is the window the per-shape
+/// fork family named, and it is the shallow case of the derived region — the
+/// zero edge is still the skipped path the dead-path audit clears.
+#[test]
+fn member_sinks_into_the_immediate_fork_arm() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fork_deep_fixture(target);
+    let result = relocate(&source, &environment, &[MOVING], A_HEAD).unwrap();
+    let moved = &result.transformed().functions[0];
+    assert_eq!(
+        moved.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LEAD, TRAIL]
+    );
+    assert_eq!(
+        moved.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![MOVING, A_HEAD, A_TAIL]
+    );
+    validate_scheduled_relocation(
+        &source,
+        0,
+        &[MOVING],
+        A_HEAD,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
 /// A conditional sink: the member leaves the fork head, crosses the
 /// nonzero edge and A's whole stream, and lands in the deeper dominated
 /// block T — the zero edge's path loses the member, whose write must die
