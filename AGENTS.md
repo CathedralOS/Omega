@@ -83,8 +83,12 @@ are separate and must report an explicit skip when the host cannot run them.
 
 For a scoped recheck with a previously verified commit, run
 `python tools/test_affected.py --base VERIFIED_COMMIT --plan`, inspect the
-selection, then repeat without `--plan` (use `python3` on macOS). This replaces
-the architecture/library test commands only. It selects changed crates and
+selection, then repeat without `--plan` (use `python3` on macOS). When a
+TypeSafe key is configured, the plan also carries a `jev` block: a semantic
+augment that may append checks the deterministic selection cannot express
+(package-project compiles, corpus gates, integration targets, tool audits) —
+run what it adds; `suggested` entries are unbounded and discretionary. This
+replaces the architecture/library test commands only. It selects changed crates and
 reverse dependencies, accounts for known source readers, always runs architecture,
 routes audited documentation to architecture/corpus checks, and falls back to
 all libraries for shared or unknown inputs. Keep checks applicable under
