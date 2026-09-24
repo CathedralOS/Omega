@@ -662,15 +662,20 @@ pub(in crate::execution) fn build_call_operation(
                 // reference-record arm above compares it. A `let`-bound
                 // `&[u8]` binding mints unrestricted multiplicity — the
                 // shared reference's own shape — so both mints read as the
-                // same borrowed-view family here.
+                // same borrowed-view family here. Anonymous and `let`-bound
+                // slice results mint the peeled referent identity; a
+                // `let`-bound named view keeps its `ref(...)` shell — the
+                // custody `add_named_view_type` registers — so both
+                // spellings name the same family.
+                let peeled = crate::execution::terminal_unit::types::borrowed_view_result_identity(
+                    program,
+                    target_state.return_type,
+                );
+                let shelled = program.normalized_type_identity(target_state.return_type);
                 (expected.multiplicity != Multiplicity::Affine
                     && expected.multiplicity != Multiplicity::Unrestricted)
-                    || crate::execution::terminal_unit::types::borrowed_view_result_identity(
-                        program,
-                        target_state.return_type,
-                    )
-                    .as_deref()
-                        != Some(expected.type_identity.as_str())
+                    || (peeled.as_deref() != Some(expected.type_identity.as_str())
+                        && shelled.as_str() != expected.type_identity)
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected, &[])
