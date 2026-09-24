@@ -8,10 +8,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u64::U640To4 requires self <= 4;
 data Main {
     console: Binding<Console>;
     arr: [i32; 5];
-    i: u64 [0..=4];
+    i: u64 in U640To4;
 }
 
 machine Main::main(&mut self) reaches Console {

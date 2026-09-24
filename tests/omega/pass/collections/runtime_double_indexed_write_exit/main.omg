@@ -14,21 +14,23 @@
 // runtime_double_indexed_rmw_exit; this canary isolates copy/immediate writes.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To2 requires self <= 2;
+domain u64::U640To3 requires self <= 3;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Binding<Console>;
     grid: [[i32; 4]; 3];
-    i: u64 [0..=2];
-    j: u64 [0..=3];
+    i: u64 in U640To2;
+    j: u64 in U640To3;
     v: i32;
     got: i32;
     source_triples: [[Triple; 4]; 3];
     target_triples: [[Triple; 4]; 3];
-    triple_i: u64 [0..=2];
-    triple_j: u64 [0..=3];
+    triple_i: u64 in U640To2;
+    triple_j: u64 in U640To3;
     source_line: [Triple; 4];
     target_line: [Triple; 4];
-    line_i: u64 [0..=3];
+    line_i: u64 in U640To3;
 }
 machine Main::main(&mut self) reaches Console {
     self.grid[1][3] = 9;
@@ -65,7 +67,7 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state frame_source(&mut self, fv: i32, fi: u64 [0..=2], fj: u64 [0..=3]) {
+    state frame_source(&mut self, fv: i32, fi: u64 in U640To2, fj: u64 in U640To3) {
         self.grid[fi][fj] = fv;
         self.got = self.grid[2][0];
         transition self.got == 33 {
@@ -73,7 +75,7 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state pair_copy(&mut self, target_i: u64 [0..=2], target_j: u64 [0..=3]) {
+    state pair_copy(&mut self, target_i: u64 in U640To2, target_j: u64 in U640To3) {
         self.grid[target_i][target_j] = self.grid[self.i][self.j];
         self.got = self.grid[2][0];
         transition self.got == 55 {
@@ -81,7 +83,7 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state pair_reverse(&mut self, source_i: u64 [0..=2], source_j: u64 [0..=3]) {
+    state pair_reverse(&mut self, source_i: u64 in U640To2, source_j: u64 in U640To3) {
         self.grid[self.i][self.j] = self.grid[source_i][source_j];
         transition { _ -> read_back() }
     }
@@ -94,8 +96,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state aggregate_forward(
         &mut self,
-        target_i: u64 [0..=2],
-        source_j: u64 [0..=3]
+        target_i: u64 in U640To2,
+        source_j: u64 in U640To3
     ) {
         let selected: &mut Triple = &mut self.target_triples[target_i][self.triple_j];
         selected = self.source_triples[self.triple_i][source_j];
@@ -103,8 +105,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state verify_forward(
         &mut self,
-        target_i: u64 [0..=2],
-        source_j: u64 [0..=3]
+        target_i: u64 in U640To2,
+        source_j: u64 in U640To3
     ) {
         self.got = self.target_triples[2][1].first;
         transition self.got == 10 {
@@ -114,8 +116,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state verify_forward_second(
         &mut self,
-        target_i: u64 [0..=2],
-        source_j: u64 [0..=3]
+        target_i: u64 in U640To2,
+        source_j: u64 in U640To3
     ) {
         self.got = self.target_triples[2][1].second;
         transition self.got == 20 {
@@ -125,8 +127,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state verify_forward_third(
         &mut self,
-        target_i: u64 [0..=2],
-        source_j: u64 [0..=3]
+        target_i: u64 in U640To2,
+        source_j: u64 in U640To3
     ) {
         self.got = self.target_triples[2][1].third;
         transition self.got == 30 {
@@ -136,8 +138,8 @@ machine Main::main(&mut self) reaches Console {
     }
     state aggregate_reverse(
         &mut self,
-        target_i: u64 [0..=2],
-        source_j: u64 [0..=3]
+        target_i: u64 in U640To2,
+        source_j: u64 in U640To3
     ) {
         let selected: &mut Triple = &mut self.source_triples[self.triple_i][source_j];
         selected = Triple { first: 40, second: 50, third: 60 };
@@ -165,33 +167,33 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state indexed_forward(&mut self, source_i: u64 [0..=3]) {
+    state indexed_forward(&mut self, source_i: u64 in U640To3) {
         let selected: &mut Triple = &mut self.target_line[self.line_i];
         selected = self.source_line[source_i];
         transition { _ -> verify_indexed_forward(source_i) }
     }
-    state verify_indexed_forward(&mut self, source_i: u64 [0..=3]) {
+    state verify_indexed_forward(&mut self, source_i: u64 in U640To3) {
         self.got = self.target_line[1].first;
         transition self.got == 11 {
             true -> verify_indexed_forward_second(source_i)
             false -> no()
         }
     }
-    state verify_indexed_forward_second(&mut self, source_i: u64 [0..=3]) {
+    state verify_indexed_forward_second(&mut self, source_i: u64 in U640To3) {
         self.got = self.target_line[1].second;
         transition self.got == 22 {
             true -> verify_indexed_forward_third(source_i)
             false -> no()
         }
     }
-    state verify_indexed_forward_third(&mut self, source_i: u64 [0..=3]) {
+    state verify_indexed_forward_third(&mut self, source_i: u64 in U640To3) {
         self.got = self.target_line[1].third;
         transition self.got == 33 {
             true -> indexed_reverse(source_i)
             false -> no()
         }
     }
-    state indexed_reverse(&mut self, target_i: u64 [0..=3]) {
+    state indexed_reverse(&mut self, target_i: u64 in U640To3) {
         let selected: &mut Triple = &mut self.source_line[self.line_i];
         selected = Triple { first: 44, second: 55, third: 66 };
         self.target_line[target_i] = selected;

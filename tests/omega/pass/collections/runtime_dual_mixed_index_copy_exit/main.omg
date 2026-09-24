@@ -3,10 +3,11 @@
 // `arr[self.j] = arr[m]` (machine target idx / frame source idx). -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];
-    j: u64 [0..=3];
+    j: u64 in U640To3;
 }
 machine Main::main(&mut self) {
     self.arr[1] = 21;
@@ -14,7 +15,7 @@ machine Main::main(&mut self) {
     self.j = 1;
     transition { _ -> self.shuffle(3, 2) }
 }
-machine Main::shuffle(&mut self, k: u64 [0..=3], m: u64 [0..=3]) reaches Console {
+machine Main::shuffle(&mut self, k: u64 in U640To3, m: u64 in U640To3) reaches Console {
     self.arr[k] = self.arr[self.j];
     self.arr[self.j] = self.arr[m];
     transition self.arr[3] == 21 {

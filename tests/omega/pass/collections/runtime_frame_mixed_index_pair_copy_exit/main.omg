@@ -3,16 +3,17 @@
 // and `j`/`k` are frame-held state parameters.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Binding<Console>;
-    index: u64 [0..=3];
+    index: u64 in U640To3;
 }
 machine Main::main(&mut self) {
     self.index = 2;
     transition { _ -> self.copy(3, 1) }
 }
-machine Main::copy(&mut self, k: u64 [0..=3], j: u64 [0..=3]) reaches Console {
+machine Main::copy(&mut self, k: u64 in U640To3, j: u64 in U640To3) reaches Console {
     let local: [Triple; 4] = [
         Triple { first: 1, second: 2, third: 3 },
         Triple { first: 10, second: 20, third: 30 },

@@ -6,10 +6,11 @@
 // and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data Main {
     console: Binding<Console>;
     grid: [[i32; 4]; 3];
-    j: u64 [0..=3];
+    j: u64 in U640To3;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {
