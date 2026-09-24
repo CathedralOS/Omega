@@ -1,10 +1,15 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Verified Terminal-Psi admission and lowering into source-independent Omega
-//! requirements.
+//! Terminal Psi to abstract operations: the first Omega program stage.
 //!
-//! Enter the named responsibility modules for artifact replay, optimizer-unit
-//! construction, provider-installation custody, or machine lowering.
+//! The stage operation is `lower_artifact` (`artifact_admission`). It replays
+//! and verifies a Terminal artifact's semantic and proof sections, then lowers
+//! each machine (`lowering`) into source-independent abstract operations.
+//! Two other entrances serve the same verified input:
+//! `build_verified_psi_optimization_unit` (`optimization`) builds the Psi
+//! optimization unit the optimizer rewrites, and `admit_provider_installation`
+//! (`provider_installation`) joins provider installation custody to the
+//! admitted artifact.
 
 mod artifact_admission;
 mod lowering;

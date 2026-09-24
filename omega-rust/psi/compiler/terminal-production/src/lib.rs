@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
-//! Checked-source product orchestration through Terminal Psi publication.
+//! Checked trees to a published Terminal Psi artifact.
 //!
-//! This coordinator sequences lowering, selected optimization and publication.
+//! The one operation is `TerminalProductionRequest::produce`
+//! (`terminal_production.rs`). It lowers the selected machine
+//! (checked-trees-to-lowered-psi), runs the selected Psi optimization, and
+//! publishes the canonical artifact (lowered-psi-to-terminal-psi).
 //! Checked-source receipts stay beside the portable artifact, not inside it.
 
 mod checked_ledger;
