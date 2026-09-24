@@ -6,10 +6,10 @@ use typed_trees::expression::{
 
 use super::facts::RangeFacts;
 use bounds::{
-    seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_index_at_most_integer_fact,
-    seed_index_less_than_integer_fact, seed_length_at_least_fact, seed_length_equality_fact,
-    seed_length_greater_than_fact, seed_length_not_zero_fact, seed_less_than_len_fact,
-    seed_non_negative_fact, seed_successor_at_most_len_fact,
+    seed_at_most_fact, seed_at_most_len_range_bound_fact, seed_equal_len_offset_fact,
+    seed_index_at_most_integer_fact, seed_index_less_than_integer_fact, seed_length_at_least_fact,
+    seed_length_equality_fact, seed_length_greater_than_fact, seed_length_not_zero_fact,
+    seed_less_than_len_fact, seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
 /// R1 value-vs-value endpoint mints: a guard comparing two PLACES
@@ -146,7 +146,9 @@ fn seed_binary_guard_facts(
         }
         BinaryOperator::Greater => {
             seed_length_greater_than_fact(program, facts, binary.left, binary.right);
-            // `left > right` is `right < left` — the mirrored strict ordering.
+            // `left > right` is `right < left` — the mirrored strict
+            // ordering, including a len or `len - k` upper bound.
+            seed_less_than_len_fact(program, machine, state, facts, binary.right, binary.left);
             seed_at_most_fact(program, facts, binary.right, binary.left, true);
             // `left > K` (right a constant) floors `left` at `K + 1`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, false);
@@ -161,7 +163,14 @@ fn seed_binary_guard_facts(
                 binary.left,
                 binary.right,
             );
-            seed_at_most_len_range_bound_fact(program, facts, binary.left, binary.right);
+            seed_at_most_len_range_bound_fact(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+            );
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right, false);
             // `K <= right` (left a constant) floors `right` at `K`.
@@ -177,7 +186,14 @@ fn seed_binary_guard_facts(
                 binary.right,
                 binary.left,
             );
-            seed_at_most_len_range_bound_fact(program, facts, binary.right, binary.left);
+            seed_at_most_len_range_bound_fact(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+            );
             // `left >= right` is `right <= left` — the mirrored ordering.
             seed_at_most_fact(program, facts, binary.right, binary.left, false);
             // `left >= K` (right a constant) floors `left` at `K`.
@@ -197,6 +213,8 @@ fn seed_binary_guard_facts(
             seed_at_most_fact(program, facts, binary.right, binary.left, false);
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
             seed_index_at_most_integer_fact(program, facts, binary.right, binary.left);
+            seed_equal_len_offset_fact(program, machine, state, facts, binary.left, binary.right);
+            seed_equal_len_offset_fact(program, machine, state, facts, binary.right, binary.left);
             seed_non_negative_fact(program, facts, binary.left, binary.right, true);
             seed_non_negative_fact(program, facts, binary.right, binary.left, true);
             seed_boolean_equality_guard_facts(
