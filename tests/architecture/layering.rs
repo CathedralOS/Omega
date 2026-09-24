@@ -4860,7 +4860,7 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
 fn resolved_layout_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
+        "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
     );
     let entrance = std::fs::read_to_string(stage.with_extension("rs"))
         .expect("read resolved selected-form layout entrance");

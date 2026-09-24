@@ -19,4 +19,4 @@ target = { path = "../../representations/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 register-homes-to-post-allocation-machine = { path = "../09_register-homes-to-post-allocation-machine" }
 post-allocation-machine-to-selected-form-encoding = { path = "../10_post-allocation-machine-to-selected-form-encoding" }
-selected-form-encoding-to-resolved-layout = { path = "../selected-form-encoding-to-resolved-layout" }
+selected-form-encoding-to-resolved-layout = { path = "../11_selected-form-encoding-to-resolved-layout" }
