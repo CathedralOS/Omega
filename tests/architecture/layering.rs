@@ -110,6 +110,51 @@ const FRONTEND_STAGES: &[&str] = &[
     "checked-compilation-to-terminal-artifact",
 ];
 
+/// The Psi pipeline directory owning `stage`, ignoring an ordering prefix
+/// (`07_lowered-psi-to-terminal-psi`). The prefix orders the file tree; the
+/// stage's identity is its transform name.
+fn psi_pipeline_stage(root: &std::path::Path, stage: &str) -> std::path::PathBuf {
+    let pipeline = root.join("omega-rust/psi/pipeline");
+    for entry in std::fs::read_dir(&pipeline).expect("read the Psi pipeline directory") {
+        let path = entry.expect("read a Psi pipeline entry").path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        let transform = name
+            .split_once('_')
+            .filter(|(prefix, _)| {
+                !prefix.is_empty() && prefix.chars().all(|digit| digit.is_ascii_digit())
+            })
+            .map_or(name, |(_, transform)| transform);
+        if transform == stage {
+            return path;
+        }
+    }
+    panic!("no Psi pipeline stage directory owns the transform {stage}")
+}
+
+/// Whether an Omega pipeline manifest path names this stage, ignoring an
+/// ordering prefix on the directory (`01_assembled-syntax-to-checked-compilation`).
+/// The prefix orders the file tree; the stage's identity is its transform name.
+fn omega_pipeline_stage_is(path: &str, stage: &str) -> bool {
+    let Some(rest) = path
+        .split_once("/omega-rust/omega/pipeline/")
+        .map(|(_, rest)| rest)
+    else {
+        return false;
+    };
+    let Some((directory, _)) = rest.split_once('/') else {
+        return false;
+    };
+    directory
+        .split_once('_')
+        .filter(|(prefix, _)| {
+            !prefix.is_empty() && prefix.chars().all(|digit| digit.is_ascii_digit())
+        })
+        .map_or(directory, |(_, name)| name)
+        == stage
+}
+
 /// Classify a governed Omega or Psi crate into an architectural layer from its
 /// manifest path.
 fn layer_of(manifest_path: &str) -> Option<&'static str> {
@@ -121,7 +166,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
         Some("product")
     } else if FRONTEND_STAGES
         .iter()
-        .any(|stage| m(&format!("/omega-rust/omega/pipeline/{stage}/")))
+        .any(|stage| omega_pipeline_stage_is(&p, stage))
     {
         // The frontend stages are pipeline transforms by shape and name, but
         // they schedule build evaluation, provider settlement and package
@@ -876,11 +921,10 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 
 #[test]
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
-    let checked =
-        std::fs::read_to_string(workspace_root().join(
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
-        ))
-        .expect("read checked compilation entrance");
+    let checked = std::fs::read_to_string(workspace_root().join(
+        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
+    ))
+    .expect("read checked compilation entrance");
     assert!(checked.contains("pub struct CheckedCompileRequest"));
     assert!(checked.contains("pub fn compile_to_checked("));
     assert!(
@@ -904,11 +948,10 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 fn checked_compilation_retains_settlement_and_source_custody() {
     let root = workspace_root()
         .join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src");
-    let entrance =
-        std::fs::read_to_string(workspace_root().join(
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
-        ))
-        .expect("read checked compilation entrance");
+    let entrance = std::fs::read_to_string(workspace_root().join(
+        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
+    ))
+    .expect("read checked compilation entrance");
     let build = entrance
         .find("build_continuation::evaluate_build_and_continue(")
         .unwrap();
@@ -1369,10 +1412,9 @@ fn compiler_product_stops_delegate_component_progress_admission() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product/admission.rs"),
     )
     .expect("read native optimization admission owner");
-    let reporting =
-        recursive_rust_source(&root.join(
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission",
-        ));
+    let reporting = recursive_rust_source(&root.join(
+        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission",
+    ));
 
     assert_eq!(
         native_admission
@@ -1924,8 +1966,9 @@ fn direct_add_proof_search_exposes_its_semantic_owners() {
 #[test]
 fn composed_unit_lowering_exposes_its_semantic_owners() {
     let root = workspace_root();
-    let typed = root
-        .join("omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit");
+    let typed = root.join(
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit",
+    );
     let terminal =
         root.join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [
@@ -2081,10 +2124,8 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
 fn preterminal_stages_consume_representation_data_without_producer_dependencies() {
     let root = workspace_root();
     for stage in ["lowered-psi-to-lowered-psi", "lowered-psi-to-terminal-psi"] {
-        let manifest = std::fs::read_to_string(
-            root.join(format!("omega-rust/psi/pipeline/{stage}/Cargo.toml")),
-        )
-        .expect("read pre-Terminal stage manifest");
+        let manifest = std::fs::read_to_string(psi_pipeline_stage(&root, stage).join("Cargo.toml"))
+            .expect("read pre-Terminal stage manifest");
         assert!(manifest.contains("lowered-psi ="));
         assert!(!manifest.contains("checked-trees-to-lowered-psi"));
         assert!(!manifest.contains("terminal-production"));
