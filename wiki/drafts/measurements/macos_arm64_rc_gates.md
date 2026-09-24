@@ -36,88 +36,60 @@ Dominant failure classes visible in the diagnostics:
 ## Failed tests by target binary (1215 unique names at the base)
 
 Sections are removed as their target goes green; the count above is the
-original reading, not a running total. `layout_plans` is cleared: it now
-runs 63 of 63. Sixteen of its seventeen were the package-name and
-undeclared-reach classes recorded elsewhere in this file; the last two,
-`callback_slots::c_layout_policy_plans_a_uefi_ish_schema` and
-`callback_slots::plan_laid_value_types_are_placed_by_their_plan`, were a
-range-checker defect, not a test defect: a selected transition arm's
-machine-storage conjunct was discarded whenever a state-parameter
-conjunct (`fuel > 1 && self.index < 32`) shared the `&&`. Repaired in
-`seed_incoming_guard_facts`; the corpus outcome gate moved
-`pass/layouts/runtime_plan_laid_value_field_exit` and
-`runtime_plan_laid_value_by_value_param_exit` from rejected to checked
-with no rejection lost.
+original reading, not a running total, and a remaining section's count is
+its current reading rather than the base one. Re-measure a target before
+working it: twenty-one targets listed here were already green when
+re-run, so the listing is a starting point, not evidence.
 
-### access_plans — 1 failed
+Cleared so far, with the count this file recorded at the base:
+`access_plans` 1, `application_type_equations` 13,
+`bounded_slice_selectors` 10, `build_named_inputs` 1,
+`build_snapshot_outputs` 6, `byte_field_replacement` 4,
+`callable_entry_custody` 1, `calling_policy_plans` 1,
+`composed_internal_unit_arguments` 3, `constant_expression_casts` 1,
+`constant_float_tables` 1, `cyclic_receiver_execution` 2,
+`guarded_operator_execution` 2, `layout_plans` 17,
+`machine_type_equations` 3, `native_crash_execution` 1,
+`no_selection_golden` 1, `object_artifact_custody` 1,
+`object_container_custody` 1, `owned_case_state_transport` 1.
 
-- `source_access_policies::direct_placed_view_input_survives_codec_and_native_replay`
+Four causes account for most of that, and each recurs:
 
-### application_type_equations — 13 failed
+- A fixture that does not declare what it reaches (`reaches Console`,
+  `reaches Trace`) or what it invokes (`invokes clock;`), so the program
+  never compiles and the test never reaches its subject.
+- The package-name migration: a declared package or application identity
+  is snake_case, so `pcc-gui`, `physical-empty` and any generator that
+  interpolates a hyphenated case label into `builder.application(...)`
+  are rejected.
+- An expectation that outlived the behavior: provider plan names carry
+  their target profile (`macos_arm64::TimerProvider::satisfies::...`),
+  and the custody matrices substituted the literal 108 for an "unknown"
+  vocabulary marker after 108 became the current one.
+- Two real compiler defects: a selected transition arm's machine-storage
+  guard conjunct was discarded whenever a state-parameter conjunct
+  (`fuel > 1 && self.index < 32`) shared the `&&`, repaired in
+  `seed_incoming_guard_facts`; and runtime ranking admission did not
+  recognize `-> (callee(..))`, the spelling `ac52bc4114` now requires of
+  an attached machine, as the tail arrival its bare form was.
 
-- `boolean_attached_body_keeps_runtime_local_selection`
-- `boolean_constructor_equations_agree_at_repeated_nested_positions`
-- `boolean_constructor_equations_recover_exact_index_source_free`
-- `boolean_data_equation_negations_execute_natively`
-- `boolean_data_equations_attached_consumer_executes_native`
-- `data_equations_share_application_matching_and_reverse_construction`
-- `declared_application_recovers_element_and_capacity_natively`
-- `module_owned_array_equation_uses_its_declaring_constant_natively`
-- `reference_equations_data_instances_reuse_exact_argument_identity`
-- `reference_equations_inferred_element_drives_runtime_value_transport`
-- `reference_equations_reconstruct_access_and_nested_slice_types_natively`
-- `reference_equations_recover_array_elements_and_extents_natively`
-- `reference_equations_type_role_drives_scalar_and_slice_element_inference`
+### build_target_activation — 6 failed
 
-### bounded_slice_selectors — 10 failed
+- `activation_identifiers_and_publication::macos_gui_publication_installs_one_app_package`
+- `activation_identifiers_and_publication::authored_identifier_reaches_the_checked_and_retained_carriers`
+- `x86_feature_admission::source_fma_then_attached_unit_call_stays_inside_one_canonical_mxcsr_envelope`
+- `x86_feature_admission::terminal_product_retains_exact_fma_operation_plan_and_x86_admission`
+- `x86_feature_admission::admitted_x86_fma_demand_retains_exact_plan_associations`
+- `x86_feature_admission::aarch64_fma_demand_is_not_an_x86_feature_association`
 
-- `bounded_generic_endpoints_execute_after_source_removal`
-- `computed_structural_type_bound_precedes_endpoint_specialization_and_execution`
-- `data_field_computed_bound_drives_capacity_through_native_execution`
-- `data_field_nested_computed_bound_keeps_its_static_obligations`
-- `inferred_endpoint_type_drives_capacity_through_native_execution`
-- `partially_explicit_endpoint_keeps_its_selected_type_through_native_execution`
-- `policy_endpoint_values_preserve_each_operation_through_native_execution`
-- `structural_type_endpoint_keeps_its_caller_context_through_native_execution`
-- `transitive_computed_type_bound_precedes_helper_execution`
-- `typed_range_endpoint_drives_inferred_capacity_through_native_execution`
-
-### build_named_inputs — 1 failed
-
-- `captured_named_input_reaches_ordinary_completed_file_publication`
-
-### build_snapshot_outputs — 6 failed
-
-- `artifact_only_build_reaches_an_ordinary_compiler_product`
-- `ordinary_compilation_reads_only_the_requested_standalone_inventory`
-- `ordinary_native_product_publishes_its_completed_companion`
-- `ordinary_terminal_product_publishes_its_completed_companions`
-- `terminal_companions_cannot_publish_before_the_primary_product`
-- `terminal_product_check_failure_publishes_no_completed_companions`
-
-### build_target_activation — 1 failed
-
-- `x`
-
-### byte_field_replacement — 4 failed
-
-- `bounded_replacement_mutates_original_field_and_preserves_neighbors`
-- `indexed::cyclic_indexed_store_updates_original_backing_without_changing_extent`
-- `indexed::source_indexed_store_updates_original_backing_without_changing_extent`
-- `runtime_view_replacement_reads_only_live_bytes_and_preserves_source`
-
-### callable_entry_custody — 1 failed
-
-- `optimized_ordinary_callable_entry_custody_rejects_every_one_field_substitution`
+All six report "selected ProgramEntry establishment rejoins 0 Terminal
+attachment identities; the machine's unit plan was omitted at local
+construction", the frontier named at the top of this file.
 
 ### callback_terminal_custody — 2 failed
 
 - `a_package_local_calling_copy_rejects_beside_the_standard_library_entry`
 - `direct_callback_relocation_resolves_to_its_private_function`
-
-### calling_policy_plans — 1 failed
-
-- `calling_vocabulary_and_callbacks::target_selected_callback_policy_consumes_two_closed_layout_demands`
 
 ### canary_suite — 970 failed
 
@@ -1092,30 +1064,6 @@ with no rejection lost.
 - `wire_and_algorithms::wire_codecs_and_views::runtime_wire_roundtrip_primitive_exit_canary_runs`
 - `wire_and_algorithms::wire_codecs_and_views::runtime_wire_roundtrip_repeated_exit_canary_runs`
 
-### composed_internal_unit_arguments — 3 failed
-
-- `composed_unit_arguments_reach_published_terminal_and_native_provider_custody`
-- `later_scalar_initializers_reach_published_terminal_and_native_provider_custody`
-- `trailing_unit_call_reaches_published_terminal_and_native_provider_custody`
-
-### constant_expression_casts — 1 failed
-
-- `converted_constant_executes_natively_after_source_removal`
-
-### constant_float_tables — 1 failed
-
-- `floating_tables_execute_after_source_removal`
-
-### cyclic_receiver_execution — 2 failed
-
-- `cyclic_provider_field_calls_execute_from_published_terminal_at_every_fuel_pause`
-- `cyclic_receiver_calls_execute_from_published_terminal_at_every_fuel_pause`
-
-### guarded_operator_execution — 2 failed
-
-- `guarded_operator_executes_after_source_removal`
-- `inferred_operator_ceiling_executes_through_wrapper_after_source_removal`
-
 ### joint_call_rankings — 1 failed
 
 - `assignments_and_borrows_invalidate_entry_rank_lineage`
@@ -1124,13 +1072,7 @@ with no rejection lost.
 
 - `string_literal_dispatch_stops_at_record_literal_field_store`
 
-### machine_type_equations — 3 failed
-
-- `ordinary_static_helpers_compose_with_arguments_and_nested_calls`
-- `receiver_machine_equation_updates_the_original_record`
-- `static_attached_equations_execute_closed_tuples`
-
-### module_machine_indices — 17 failed
+### module_machine_indices — 3 failed
 
 - `indexed_domains::boolean_domain_indices_reject_false_unused_declarations`
 - `indexed_domains::computed_boolean_domain_indices_do_not_publish_placeholder_membership`
@@ -1149,10 +1091,6 @@ with no rejection lost.
 - `machine_initializers::widened_helper_preconditions_reach_native_execution_after_source_removal`
 - `machine_initializers::widened_runtime_call_preconditions_execute_after_source_removal`
 - `rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`
-
-### native_crash_execution — 1 failed
-
-- `explicit_crashes_execute_after_source_removal`
 
 ### native_filesystem_canaries — 89 failed
 
@@ -1246,26 +1184,10 @@ with no rejection lost.
 - `samples_floats_and_objc::sample_file_journal_exits_`
 - `samples_floats_and_objc::sample_note_vault_exits_`
 
-### no_selection_golden — 1 failed
-
-- `native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`
-
-### object_artifact_custody — 1 failed
-
-- `optimized_object_artifact_custody_rejects_every_one_field_substitution`
-
-### object_container_custody — 1 failed
-
-- `relocation_free_object_container_custody_rejects_every_one_field_substitution`
-
 ### optimizer_opt_in — 2 failed
 
 - `product_pruning::terminal_product_eliminates_unused_block_parameters_and_edge_arguments`
 - `product_pruning::terminal_product_propagates_copies_through_block_parameters`
-
-### owned_case_state_transport — 1 failed
-
-- `owned_error_kind_state_transport_preserves_calls_and_every_fuel_pause`
 
 ### package_compilation_inputs — 1 failed
 
@@ -1283,7 +1205,7 @@ with no rejection lost.
 - `multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile`
 - `multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically`
 
-### private_joint_progress — 4 failed
+### private_joint_progress — 3 failed
 
 - `exact_external_premise_survives_private_cycle_propagation`
 - `independent_external_premises_converge_as_a_set`
@@ -1339,13 +1261,13 @@ with no rejection lost.
 - `text_samples_compile_from_authored_program_entry_bindings`
 - `unit_closure::cli_mvp_retains_checked_entry_and_console_call_closure`
 
-### service_operational_contracts — 3 failed
+### service_operational_contracts — 2 failed
 
 - `private_ranking_spelling_cannot_perturb_public_contract_identity`
 - `provider_keeps_service_and_operational_contract_axes_independent`
 - `synchronous_invocation_edges_survive_in_checked_contract_identity`
 
-### source_evaluated_native_realization — 1 failed
+### source_evaluated_native_realization — 2 failed
 
 - `scalar_native_arguments::mixed_foreign_scalars_execute_with_exact_argument_and_result_values`
 
