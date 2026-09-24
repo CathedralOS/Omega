@@ -417,7 +417,11 @@ fn check_known_length_index(
                             u64::try_from(length).is_ok_and(|length| maximum < length)
                         })
                     || facts.index_upper_bound_is_proven(&index_label, length)
-                    || facts.index_upper_bound_is_proven_via_ordering(&index_label, length)
+                    || facts.index_upper_bound_is_proven_via_ordering(
+                        &index_label,
+                        &collection_label,
+                        length,
+                    )
                     || declared_range.is_some_and(|(_, high)| {
                         i64::try_from(length).is_ok_and(|length| high < length)
                     })
@@ -427,7 +431,11 @@ fn check_known_length_index(
                     || initializer_label.is_some_and(|label| {
                         facts.index_is_proven(&collection_label, label)
                             || facts.index_upper_bound_is_proven(label, length)
-                            || facts.index_upper_bound_is_proven_via_ordering(label, length)
+                            || facts.index_upper_bound_is_proven_via_ordering(
+                                label,
+                                &collection_label,
+                                length,
+                            )
                     });
                 let lower_bound_proven =
                     expression_is_unsigned_integer(program, machine, state, index)

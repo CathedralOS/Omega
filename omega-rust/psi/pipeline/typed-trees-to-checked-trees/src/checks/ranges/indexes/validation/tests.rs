@@ -1090,3 +1090,80 @@ fn borrowed_root_guards_meet_member_slice_bounds() {
         }
     }
 }
+
+/// Strict-ordering guards keep their strictness: `index < pivot` mints a
+/// `strictly_less` ordering, which lets the chained bound proofs accept a
+/// pivot bound one element higher (`index < pivot <= len` proves
+/// `index < len`). `>`/`>=` seed the mirrored ordering, and `==` unfolds to
+/// `<=` in both directions plus the integer bound.
+#[test]
+fn strict_orderings_and_equality_chain_through_bounds() {
+    for (source, accepted) in [
+        // `pos < max` (strict) + `max <= len` proves `pos < len`.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos < max && max <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Non-strict decay still cannot close it: `pos <= max && max <= len`
+        // allows `pos == len` — correctly rejected.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos <= max && max <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // Mirrored `>` seeds the same strict ordering.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition max > pos && max <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Mirrored `>=` is non-strict — still cannot close it.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition max >= pos && max <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // `pos < max` where max's bound comes from `max < len` directly —
+        // the classic two-pointer shape stays green.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos < max && max < self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos == K` unfolds to the exclusive bound: `pos <= K` gives
+        // `pos < K + 1`, and `K < len` then proves `pos < len`... but only
+        // when `K` itself is strictly below the length.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos == 3 && 3 < self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos == K` where `K <= len` only gives `pos <= len` — the edge
+        // case `pos == len` is real, so the read must reject.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos == 3 && self.table.len >= 3 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // Equality against a bounded companion: `pos == max` and
+        // `max < len` chain pos <= max < len.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos == max && max < self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // A strict ordering across a state edge: the callee guard seeds
+        // the same fact through the argument transport.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos < max && max <= self.table.len { true -> read(pos) false -> (0) }
+            state read(&mut self, pos: u64) -> u8 { self.table[pos] }
+        }", true),
+        // Signed strict index: `pos < max` with `pos >= 0` proven — the
+        // lower-bound half is still owed on a signed index. (`max <= 4` and
+        // `len >= 4` close the upper half through the strict ordering.)
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: i64, max: i64) -> u8 {
+            transition self.table.len >= 4 && pos >= 0 && pos < max && max <= 4 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // A strict ordering does not manufacture non-negativity: signed
+        // `pos` without `pos >= 0` still rejects.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: i64, max: i64) -> u8 {
+            transition self.table.len >= 4 && pos < max && max <= 4 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+    ] {
+        match (check_source(source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{source}: {messages:?}"
+            ),
+            (result, _) => panic!("{source}: {result:?}"),
+        }
+    }
+}
