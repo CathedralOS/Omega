@@ -5,6 +5,7 @@ use crate::checks::ranges::state_arguments::MergedBound;
 use crate::checks::ranges::state_arguments::MergedFact;
 use crate::checks::ranges::state_arguments::ParameterFacts;
 use crate::checks::ranges::state_arguments::ParameterIndexProof;
+use crate::checks::ranges::state_arguments::ParameterIndexProofSide;
 use crate::checks::ranges::state_arguments::StateArgumentFacts;
 use crate::checks::ranges::state_arguments::collect_state_argument_facts_whole_pass;
 use crate::checks::ranges::state_arguments::merge_contribution;
@@ -203,8 +204,8 @@ fn complete_checked_evidence_and_bounds_diagnostics_match_whole_pass() {
             assert_eq!(state.parameters[0].minimum_length.get(), Some(4));
             assert_eq!(
                 state.index_proofs.get().contains(&ParameterIndexProof {
-                    collection_parameter: 0,
-                    index_parameter: 1,
+                    collection: ParameterIndexProofSide::Parameter(0),
+                    index: ParameterIndexProofSide::Parameter(1),
                 }),
                 incoming == "2",
             );
@@ -216,6 +217,49 @@ fn complete_checked_evidence_and_bounds_diagnostics_match_whole_pass() {
         assert_eq!(actual, reference);
         assert_eq!(actual.is_ok(), incoming == "2", "{actual:?}");
     }
+}
+
+/// A `< collection.len` guard on a transition hands the proven-index pair
+/// across the argument transport even when only ONE side is a transported
+/// parameter: `self.field` machine storage names the same place in every
+/// state of the machine (a receiver transition hands off the live storage),
+/// so a caller-seeded `(argument, self.field)` or `(self.field, argument)`
+/// pair re-keys onto the destination parameter.
+#[test]
+fn machine_storage_index_pairs_transport_through_transition_arguments() {
+    // Index side = machine storage (`items[self.cursor]` shape).
+    let (facts, _, _) = compare(
+        "data Main { cursor: u64; }
+        machine Main::run(&mut self, items: &[u8]) -> u8 {
+            transition self.cursor < items.len { true -> tail(items) false -> (0) }
+            state tail(&mut self, items: &[u8]) -> u8 { items[self.cursor] }
+        }",
+    );
+    let tail = facts
+        .iter()
+        .find(|state| state.parameters.len() == 2)
+        .expect("tail facts");
+    assert!(tail.index_proofs.get().contains(&ParameterIndexProof {
+        collection: ParameterIndexProofSide::Parameter(1),
+        index: ParameterIndexProofSide::MachineStorage("self.cursor".to_string()),
+    }));
+
+    // Collection side = machine storage (`self.items[index_arg]` shape).
+    let (facts, _, _) = compare(
+        "data Main { items: [u8; 64]; }
+        machine Main::run(&mut self, index: u64) -> u8 {
+            transition index < self.items.len { true -> tail(index) false -> (0) }
+            state tail(&mut self, index: u64) -> u8 { self.items[index] }
+        }",
+    );
+    let tail = facts
+        .iter()
+        .find(|state| state.parameters.len() == 2)
+        .expect("tail facts");
+    assert!(tail.index_proofs.get().contains(&ParameterIndexProof {
+        collection: ParameterIndexProofSide::MachineStorage("self.items".to_string()),
+        index: ParameterIndexProofSide::Parameter(1),
+    }));
 }
 
 fn check_source(source: &str) -> Result<(), Vec<String>> {
