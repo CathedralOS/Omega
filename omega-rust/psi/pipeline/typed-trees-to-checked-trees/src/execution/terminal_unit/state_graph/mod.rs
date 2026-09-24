@@ -207,96 +207,6 @@ pub(super) fn build_traced(
         } else {
             free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?
         };
-        // Persistent receivers keep their invocation place. Other structural
-        // parameters retain explicit owned-value or borrowed-view edge custody.
-        // Each guard marks its own phase so the omission roster names the
-        // custody shape the route lacks, not just the phase.
-        trace.phase("state graph: state signature: parameter custody shape");
-        for parameter in &structural {
-            let reference =
-                || program.state_parameters(state)[parameter.position as usize].type_reference;
-            if parameter.multiplicity != Multiplicity::Linear
-                && !parameter.qualifications.is_empty()
-            {
-                trace.phase(
-                    "state graph: state signature: parameter custody shape: qualified non-linear parameter",
-                );
-                return None;
-            }
-            match (parameter.is_self, &parameter.access) {
-                (
-                    true,
-                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow,
-                ) => {}
-                (true, _) => {
-                    trace.phase(
-                        "state graph: state signature: parameter custody shape: persistent receiver access",
-                    );
-                    return None;
-                }
-                (false, CheckedStructuralAccess::Owned) => {
-                    if parameter.multiplicity != Multiplicity::Linear
-                        && !matches!(
-                            program.type_reference_table.type_reference(reference()),
-                            TypeReferenceNode::Named { .. }
-                        )
-                    {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: owned non-linear unnamed type",
-                        );
-                        return None;
-                    }
-                    if parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_plain_owned_contents_with_numeric_constraints(
-                            program,
-                            reference(),
-                        )
-                    {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: owned non-linear record contents",
-                        );
-                        return None;
-                    }
-                }
-                (false, access) => {
-                    if parameter.multiplicity != Multiplicity::Unrestricted {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: borrowed restricted parameter",
-                        );
-                        return None;
-                    }
-                    if !matches!(
-                        access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    ) {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: write-only borrow",
-                        );
-                        return None;
-                    }
-                    let reference = reference();
-                    let borrowed_named_referent = matches!(
-                        program.type_reference_table.type_reference(reference),
-                        TypeReferenceNode::Reference { referee, .. }
-                            if matches!(
-                                program.type_reference_table.type_reference(*referee),
-                                TypeReferenceNode::Named { .. }
-                            )
-                    );
-                    if !borrowed_named_referent
-                        && byte_sequence_carrier(program, reference, &[])
-                            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-                        && borrowed_slice_view_element(program, reference, &[]).is_none()
-                    {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: borrowed non-view carrier",
-                        );
-                        return None;
-                    }
-                }
-            }
-        }
         trace.phase("state graph: state signature: entry claims");
         let claims = entry_claims(
             program,
@@ -1301,6 +1211,108 @@ pub(super) fn build_traced(
             operations,
             terminator,
         });
+    }
+    // Persistent receivers keep their invocation place. Other structural
+    // parameters retain explicit owned-value or borrowed-view edge custody.
+    // Each guard marks its own phase so the omission roster names the
+    // custody shape the route lacks, not just the phase. States outside the
+    // entry successor closure never execute, so their custody rows cannot
+    // disqualify the route — the shape check applies to live positions only.
+    trace.phase("state graph: state signature: parameter custody shape");
+    let Some(live_states) = CheckedComposedUnitControlStatePlan::live_mask(&planned) else {
+        trace.phase("state graph: state signature: parameter custody shape: edge target missing");
+        return None;
+    };
+    for (state_index, state) in states.iter().enumerate() {
+        if !live_states[state_index] {
+            continue;
+        }
+        trace.state(u32::try_from(state_index).ok());
+        for parameter in &planned[state_index].structural_parameters {
+            let reference =
+                || program.state_parameters(state)[parameter.position as usize].type_reference;
+            if parameter.multiplicity != Multiplicity::Linear
+                && !parameter.qualifications.is_empty()
+            {
+                trace.phase(
+                    "state graph: state signature: parameter custody shape: qualified non-linear parameter",
+                );
+                return None;
+            }
+            match (parameter.is_self, &parameter.access) {
+                (
+                    true,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow,
+                ) => {}
+                (true, _) => {
+                    trace.phase(
+                        "state graph: state signature: parameter custody shape: persistent receiver access",
+                    );
+                    return None;
+                }
+                (false, CheckedStructuralAccess::Owned) => {
+                    if parameter.multiplicity != Multiplicity::Linear
+                        && !matches!(
+                            program.type_reference_table.type_reference(reference()),
+                            TypeReferenceNode::Named { .. }
+                        )
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: owned non-linear unnamed type",
+                        );
+                        return None;
+                    }
+                    if parameter.multiplicity != Multiplicity::Linear
+                        && !validation::has_plain_owned_contents_with_numeric_constraints(
+                            program,
+                            reference(),
+                        )
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: owned non-linear record contents",
+                        );
+                        return None;
+                    }
+                }
+                (false, access) => {
+                    if parameter.multiplicity != Multiplicity::Unrestricted {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: borrowed restricted parameter",
+                        );
+                        return None;
+                    }
+                    if !matches!(
+                        access,
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
+                    ) {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: write-only borrow",
+                        );
+                        return None;
+                    }
+                    let reference = reference();
+                    let borrowed_named_referent = matches!(
+                        program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Reference { referee, .. }
+                            if matches!(
+                                program.type_reference_table.type_reference(*referee),
+                                TypeReferenceNode::Named { .. }
+                            )
+                    );
+                    if !borrowed_named_referent
+                        && byte_sequence_carrier(program, reference, &[])
+                            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                        && borrowed_slice_view_element(program, reference, &[]).is_none()
+                    {
+                        trace.phase(
+                            "state graph: state signature: parameter custody shape: borrowed non-view carrier",
+                        );
+                        return None;
+                    }
+                }
+            }
+        }
     }
     // Retain only this machine's direct provider-field calls. Each ordinary
     // callee owns its own attachment requirements, even through a receiver loan.

@@ -17,31 +17,7 @@ use checked_trees::statement::{
 pub(in crate::unit::attached_unit::composed_control) fn successors(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
-    match &state.terminator {
-        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-        | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
-        | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-        | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
-        | CheckedComposedUnitControlTerminatorPlan::Crash { .. } => Vec::new(),
-        CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => Vec::new(),
-        CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
-        CheckedComposedUnitControlTerminatorPlan::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => vec![when_true, when_false],
-        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => {
-            vec![jump]
-        }
-        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
-            .iter()
-            .map(|arm| &arm.successor)
-            .chain(std::iter::once(fallback))
-            .collect(),
-        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
-            cases.iter().map(|case| &case.successor).collect()
-        }
-    }
+    state.successors()
 }
 
 pub(super) fn validate(
