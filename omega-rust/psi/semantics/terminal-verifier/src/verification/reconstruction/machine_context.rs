@@ -39,6 +39,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::StructuralByteSequenceFieldStore { .. }
                         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                         | OperationKind::StructuralByteSequenceFieldRead { .. }
+                        | OperationKind::IndexedPrimitiveRead { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }

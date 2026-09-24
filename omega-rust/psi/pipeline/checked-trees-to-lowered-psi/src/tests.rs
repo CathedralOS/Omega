@@ -31,6 +31,7 @@ mod dynamic_composed_unit;
 mod fixed_array_boundary_providers;
 mod fixed_byte_array_views;
 mod guarded_scalar_returns;
+mod indexed_array_field_reads;
 mod indexed_primitive_storage;
 mod integer_comparison_replay;
 mod lifetime_machine_binders;

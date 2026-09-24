@@ -224,7 +224,8 @@ fn touched_regions(
             )]
         }
         OperationKind::BooleanStructuralField { source, path, .. }
-        | OperationKind::IntegerStructuralField { source, path, .. } => {
+        | OperationKind::IntegerStructuralField { source, path, .. }
+        | OperationKind::IndexedPrimitiveRead { source, path, .. } => {
             vec![(*source, path.clone())]
         }
         OperationKind::ByteSequenceSubslice { source, .. }
