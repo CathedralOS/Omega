@@ -142,3 +142,4 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T11:08:44Z	leaf/unit-graph-reachable-states->main	0c723ba914 z4: dead-state reachability pruning (922/922+1453/1453, clean self-merge of main)
 2026-09-24T11:09:13Z	leaf/union-match-scalar-destructure->main	9ba195d2f4 z5: union-match scalar destructure via CaseDispatch (6238/6238, 2 census machines verified)
 2026-09-24T11:59Z	a4858293f8	leaf/transition-arm-value-result	z4(dead-state-custody-veto 91e237a27ea at 7b613fb605) + coordinator leaf: arm-value nested-call preamble + terminator-call custody	5320/5320 t2c lib
+2026-09-24T12:18Z	f216ce6376	leaf/outer-calls-conditional	coordinator: byte-sequence literal args mint scalar-computation Call nodes (conditional-call census family)	5323/5323 t2c lib
