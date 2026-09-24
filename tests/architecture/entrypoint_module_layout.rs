@@ -98,7 +98,7 @@ fn repository_relative(path: &Path) -> String {
     path.strip_prefix(workspace_root())
         .expect("crate path stays inside the workspace")
         .to_string_lossy()
-        .into_owned()
+        .replace('\\', "/")
 }
 
 /// Non-test Rust files beside `lib.rs` at one `src/` root: the named roots a
