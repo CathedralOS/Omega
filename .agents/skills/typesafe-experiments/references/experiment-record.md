@@ -1870,3 +1870,38 @@ sub-clusters still real_regression with the SAME introducing commit in
 packet, and cauchy flipped fixture_bug->residue_drift (truth:
 real_regression). Failure mode shifted from no-history to judgment
 inconsistency; needs_human a mushy 0.68-0.82 band, no gate value.
+
+## 2026-09-24 — test-select: Jev augment deployed in tools/test_affected.py
+
+First experiment to reach production. Design: union augment — the
+deterministic selector stays authoritative; Jev flags entries of a
+49-candidate catalog (tools/test_select_candidates.json, descriptions say
+what BREAKS each test) the baseline cannot express and appends their
+commands. Availability tiers: no key = silent baseline; configured-but-
+failing = one stderr warning + baseline. Only adds, never removes.
+
+Worked example (3 cases, frozen expectations): caught the std-consuming
+compile for a name-resolution change (std_package_check 0.94) that the
+reader table structurally cannot express; path-catalog for file moves
+needed one description tune (covers must say what breaks, not what it
+reads); docs-only control flagged 1. Matrix (20 commits): must-recall
+14/14; Jev out-labeled 3 of my frozen expectations (terminal-verifier for
+PCC digests, the edited test itself, the real lowering crate).
+Counterfactual replay vs real selection() runs: 6/14 needed test-groups
+are vocabulary-unreachable to baseline (corpus_gate, --test targets,
+binary checks) and union caught all 6 — including the witnessed
+Float regression (4.5h red main, a swarm ticket, a diagnosis session,
+preventable by one $0.01 flag + a 10s compile).
+
+Jev-alone on all()-fallback diffs (18 commits, "scope it yourself"
+question): 16/16 recall on resolvable needs — but flagged
+workspace-scale suites on 12/15. Falsified the scoping-for-speed
+hypothesis: the model hedges toward the same coverage the fallback
+buys, which is correct gate behavior. Union stays. Only misses were 3
+catalog gaps (trust-ledger, selected-instructions, tools tests — added).
+
+Vocabulary notes: baseline-aware question ("flag only what baseline
+lacks") trims but doesn't eliminate tail over-flagging; run-to-run
+variance ~±0.1 on borderline flags (std_package_check 0.39-0.56);
+~10k input tokens + ~0.4s per diff. Watch: catalog completeness is the
+recall surface — every uncovered test surface is a silent hole.
