@@ -1,20 +1,20 @@
-use super::super::{
+use super::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet, BlockId, MachineId,
     OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationSafetyClass,
     OptimizationUnitIdentity, ScalarConstantFactIdentity,
 };
-use crate::optimization_unit::rewrite::model::cfg_rewrite_plans::{
+use crate::optimization_unit::rewrite::cfg_rewrite_plans::{
     AdjacentBlockMergeRewrite, CaseMembershipSpecializationRewrite, ConstantConditionalRewrite,
     FieldValueSpecializationRewrite, LinearEmptyBlockRewrite, NonAdjacentBlockMergeRewrite,
     OwnershipFrontierWitness, PathQualifiedEmptyBlockRewrite, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness, SharedJumpFusionRewrite, StateArgumentSpecializationRewrite,
     UnreachablePrivateMachinesRewrite,
 };
-use crate::optimization_unit::rewrite::model::foundations::{
+use crate::optimization_unit::rewrite::foundations::{
     NodeLocation, ProvenanceRewrite, ScalarSubstitution,
 };
-use crate::optimization_unit::rewrite::model::scalar_evaluation::ScalarEvaluationWitness;
-use crate::optimization_unit::rewrite::model::scalar_rewrite_plans::{
+use crate::optimization_unit::rewrite::scalar_evaluation::ScalarEvaluationWitness;
+use crate::optimization_unit::rewrite::scalar_rewrite_plans::{
     BooleanConstantRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
     IntegerConstantRewrite, LocalScalarCommonSubexpressionRewrite, PhiTranslatedScalarGvnRewrite,
     ProofCertifiedScalarIdentityRewrite, TotalScalarIdentityRewrite,

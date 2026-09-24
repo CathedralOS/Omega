@@ -7,7 +7,7 @@ use super::{
     BlockId, CanonicalStructuralPathSegment, OptimizationRuleContract, OptimizationUnitIdentity,
     OwnershipFrontierSite, PsiProvenance,
 };
-use crate::optimization_unit::rewrite::model::{
+use crate::optimization_unit::rewrite::{
     FieldValueResolution, FoldedFieldValue, NodeLocation, ProofCertifiedScalarIdentityKind,
     ProvenanceDisposition, ProvenanceRewrite, PsiRealizationSite, PsiRewriteDecisionPoint,
     PsiRewritePatch, PsiRewriteWitness, ScalarEvaluationWitness, ScalarSubstitution,

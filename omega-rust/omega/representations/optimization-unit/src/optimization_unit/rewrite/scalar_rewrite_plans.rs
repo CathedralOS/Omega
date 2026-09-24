@@ -1,5 +1,5 @@
-use super::super::{BlockId, EdgeId, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 use super::foundations::NodeLocation;
+use super::{BlockId, EdgeId, IntegerType, IntegerValue, OperationId, ScalarType, ValueId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntegerConstantRewrite {

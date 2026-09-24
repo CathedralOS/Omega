@@ -1,9 +1,9 @@
-use super::super::{
+use super::foundations::NodeLocation;
+use super::{
     BlockId, CanonicalStructuralPathSegment, EdgeId, IntegerValue, MachineId, OperationId,
     OwnershipFrontierFactIdentity, OwnershipFrontierSite, PlaceId, ScalarType, StructuralCaseId,
     StructuralFieldId, ValueId,
 };
-use super::foundations::NodeLocation;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BlockParameterIncomingBinding {
