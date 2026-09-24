@@ -220,6 +220,12 @@ it cannot be overwritten by inference. Missing, cyclic, conflicting, or
 underdetermined bindings reject with a request for an explicit argument. An
 occurs check prevents a parameter being defined through itself.
 
+Bracketed scalar range shells are not type structure and cannot infer generic
+arguments. Use explicit type/value/const binders and equations, or an intentionally
+named indexed domain when its nominal identity is part of the API. Bounds proved
+by `where`, `requires`, `ensures`, or flow establish obligations after selection;
+they never choose specialization or layout identity.
+
 For ordinary data and machine applications, omitted arguments can be recovered
 only when the combined structural equations and existing argument/result
 inference determine one substitution. Unanchored disjunctions do not choose a

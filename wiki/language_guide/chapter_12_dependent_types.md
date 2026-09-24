@@ -36,6 +36,8 @@ requires index < items.len
 For this unsigned index, the contract supplies `index < items.len`. The caller
 proves it, perhaps using a visible guard, and the callee may rely on it. A
 runtime length is a witness already stored in the slice, not a const argument.
+This `requires` spelling is canonical; dependent bounds are not embedded in a
+parameter's scalar type. Results use `ensures` for the same reason.
 
 Pre-state relationships must name a real binding or use `old(place)`. Equality
 in `requires` does not invent a snapshot variable. For example, the caller can

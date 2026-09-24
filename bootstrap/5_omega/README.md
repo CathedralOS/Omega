@@ -374,11 +374,11 @@ shared/mutable/write-only access plus an optional exact lifetime span.
 FixedArray and Slice nodes point backward to their element; FixedArray also
 retains the exact length span. SelfType and Unit need no payload.
 Domain constraints point into the general path arena; array lengths retain exact
-spans without interpreting their values. D also still parses the removed scalar
+spans without interpreting their values. D also still parses the scalar
 range-annotation suffix and retains its literal endpoint spans. That is migration
-debt under `REMOVE-BRACKETED-RANGE-ANNOTATIONS` in [the board](../../TASKS.md), not
-part of the accepted Omega language; bounds use contracts or named predicate
-domains. Bracket syntax
+debt under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` in [the board](../../TASKS.md):
+the replacement must use the owning `where`/`requires`/`ensures` clause, not an
+automatically generated nominal domain. Bracket syntax
 uses a bounded invocation-local frame stack and emits named, array, and slice
 nodes in postorder, so every child index points backward.
 Compact kind/index ledgers reach the use/data/machine rows and field/case child

@@ -43,191 +43,64 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
-- **REMOVE-BRACKETED-RANGE-ANNOTATIONS.** (new-scope) Delete the revoked
-  scalar range suffix, such as `u64 [1..=8]`, and its parallel authored
-  type-constraint machinery. [Domains](wiki/spec/language/domains.md#declaration-and-membership)
-  govern explicit qualification; contracts and guards supply implicit bound
-  facts. Preserve ordinary interval analysis, not a compatibility mode or a new
-  compiler-provided range domain.
+- **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** (new-scope) Complete the
+  owner-selected removal of bracketed scalar range annotations under one
+  canonical proposition surface (`scalar-range-contract-spelling`). The original
+  campaign was unauthorized when `669925b8b9` declared the decision by editing
+  the spec, but the owner has now selected the no-suffix design: data/common
+  field relationships use data `where`; case payload relationships use case
+  `where`; machine/state parameters use `requires`; results use `ensures`;
+  locals use established initializer/guard/call facts. `T in D` is reserved for
+  an intentionally named domain identity, not generated interval sugar.
 
-  Owners: Psi's `tokens-to-syntax-trees/src/type_syntax/parse_type.rs`,
-  syntax/resolved/typed Range variants, range-shell generic matching, endpoint
-  folding, and `validation/src/proof_contracts/arithmetic_domains/`.
-  Use the [migration recipe](wiki/drafts/designs/range_suffix_migration.md). Libraries
-  still need migration, including scalar fields in `std/calling.omg`; this is
-  distinct from the Binding carrier rename. Migrate compiler source, tests and
-  samples too, including Epsilon's
-  `bootstrap/5_omega/{parser,representations}.epsilon` and
-  `tests/bootstrap/omega-parser`. Repin the changed D closure and run its parser
-  gate; this changes Omega syntax, not the bootstrap languages.
+  Every source migration performed under the old blanket premise remains
+  unaudited and must be checked against this matrix. This includes migrations beginning with `8f93c866a3`,
+  `2c3c2aec00`, `b9b68383c9`, `cc36490282`, `3531aaa098`,
+  `e0a884138f`, `2ef59d385a`, `c4d2776b1f`, `c5621e66ac`,
+  `fc0fc2dcab`, `c5688363ec`, `f1d6e31013`, `9e3355b562`,
+  `db4f9f9140`, `2858366bdb`, their follow-ups, and any unlisted edits
+  justified by the same task. A replacement that compiles is not evidence that
+  it preserves the original source contract. Parameter-to-`requires` and
+  result-to-`ensures` rewrites may be canonical; field/payload rewrites to
+  generated domains are not. Keep a named domain only when its nominal identity
+  or establishment route has an independent semantic purpose.
 
-  `b9b68383c9` migrated the 35-fixture
-  `tests/omega/{pass,fail}/{range,ranges,borrow,borrows}` leg (param suffix ->
-  `requires`; field/element bounds -> consumer-state `requires` admission;
-  sum payloads -> `case X(v: T in D)`; result suffix -> `ensures` +
-  transition-arm return; exclusive float bound -> `f64 in Finite`; fail
-  twins re-pinned to requires-contract/domain fragments). Probe-verified
-  routes and the ~172-site Range-variant consumer inventory are recorded on
-  the wave's claim notes. Remaining corpus legs: ~1,300 suffix sites across
-  the other `tests/omega` groups, `source/library`, `samples`,
-  native-differential and the bootstrap fixtures; the
-  `parse_type_constraint_handles` range arm and its consumers delete last.
-  Known migration gaps to route around: requires-admission cannot fold
-  binary args or indexed-path guard facts (hoist to a local), case-payload
-  `in D` cannot satisfy a callee `x in D`, and stale-write invalidation
-  does not reach contract admission.
+  Update the specification, guide, compiler documentation, bundled libraries,
+  samples, product/compiler source, bootstrap Omega parser, native-differential
+  fixtures, and corpus. Delete the suffix parser and syntax/resolved/typed Range
+  representation only after all source positions use their canonical clauses.
+  Preserve interval proof transport, invalidation, and source-free replay as
+  proposition behavior rather than structural scalar-type identity.
 
-  Two more gaps, witnessed by the `pass/wire` + `pass/control_flow` leg:
+  A runtime-dependent endpoint remains runtime; a range proposition does not
+  turn it into a const argument, fixed-array extent,
+  specialization key, or implicit maximum-sized allocation. Static/layout uses
+  require their ordinary static evidence. Range bounds remain exact subject-bound
+  facts and do not survive invalidating writes. Explicit domains retain their own
+  nominal identity and establishment rules rather than collapsing into structural
+  range shells.
 
-  - A parameter of a BUILD-TIME EVALUATED machine cannot carry `in D`. The
-    two `runtime_wire_policy_authored_*` policies keep `fuel: u64 [1..=128]`
-    because `fuel: u64 in Fuel128` makes it an authored `requires` premise and
-    `CompactBinary::plan -> CompactBinary::evaluate` then rejects with
-    "pre-check semantic evaluation has no checked invocation proof for that
-    premise", even though the only call passes the literal 128.
-  - A local suffix NARROWER than the field it reads has no target.
-    `copy_enum_cycle_edge_write_frame` reads `limit: u64 [0..=8]` into
-    `let index: u64 [0..=3]` and indexes a length-4 array; dropping the local
-    suffix loses the bound and the field's domain cannot supply it. That
-    field also cannot take a domain on its own: `self.output.limit = 3` does
-    not establish `u64::Limit` despite 3 satisfying the predicate.
+  Start with a history-derived inventory, not another opportunistic grep batch:
+  classify every changed declaration as parameter, result, field, local, payload,
+  generic range shell, or genuinely static/layout use. Field/payload migrations
+  become owning `where` clauses; parameter/result migrations use contracts rather
+  than domain-qualified types merely to avoid brackets. Record the original
+  and current spelling and the independent reason, if any, to keep the rewrite.
+  Restore in coherent customer groups with the same positive, negative, checked,
+  Terminal, and native acceptance the declaration had before migration. Do not
+  delete domain/proof improvements that remain independently used.
 
-  A DOMAIN NOW CARRIES ITS BOUND, which is what the field and parameter
-  halves were waiting on. Three routes landed together: a predicate-only
-  domain is ESTABLISHED by proving its predicates at a call
-  (`400ecc0f5b`), a declared domain's predicates BOUND the place they
-  qualify so the index and exact-arithmetic readers see the interval the
-  bracketed suffix supplied (`c5a418183a`, `bdeb107345`), and a WRITE
-  establishes a predicate-only domain by satisfying it. A routed domain
-  keeps its provenance obligation in every one of them.
-
-  What migrates today, each with the corpus gate as witness: array element
-  types, case payloads, FIELDS whose bound a reader proves against
-  (`text/` and `data/record_pattern_*` moved once the interval reached
-  those readers), a signature-local parameter bound rewritten as
-  `requires`, a result suffix rewritten as `ensures` -- which carries facts
-  to the caller -- and a local nothing downstream needs.
-
-  What still does not:
-
-  - A LOCAL asserting a NARROWING its source does not guarantee.
-    `control_flow/copy_enum_cycle_edge_write_frame` reads a field bounded
-    at 8 into a local the original declared at 3 and indexes a length-4
-    array.
-  - A STATE PARAMETER, because the caller must establish membership at the
-    transition and a guard only discharges it when the guard's spelling
-    matches the predicate's. `structs/runtime_copy_sum_array_receiver_exit`
-    threads one index through six of them. The remaining asymmetry is that
-    the fact route carries numeric implication but the transition-guard
-    route compares spellings; closing that is the next lever, and it is
-    what would open the 212 parameter sites.
-  - A parameter of a BUILD-TIME EVALUATED machine: `in D` becomes an
-    authored `requires` premise and the pre-check has no checked invocation
-    proof (`wire/runtime_wire_policy_authored_*` keep `fuel`).
-  - A parameter feeding `as ... in D`: the mint route accepts only literals
-    or names whose DECLARED RANGE entails the facts, so it still reads the
-    syntax being removed.
-
-  SWEPT SO FAR, one fixture at a time with the corpus gate deciding each
-  and a revert on any move: `calls` 10 of 20, `arithmetic` 14 of 25,
-  `collections` 32 of 43, `layouts` 3 of 7, `recast` 6 of 11, `objc` 2 of
-  4, plus `text`, `data`, `core`, `expressions`, `targets`, `wire`,
-  `control_flow`, `constraints`, `proofs`, `storage` and `structs` by hand.
-  The pass tier is down to 344 suffix sites.
-
-  `termination` is 0 of 67 and is the largest group left. HALF of its gap is
-  closed: a membership requirement whose subject is an EXPRESSION now
-  carries its own interval, so `walk(remaining - 1)` discharges
-  `remaining - 1 in Fuel` from `remaining`'s domain and the arm guard. What
-  still refuses that fixture is the `terminates by` RANKING, which reads
-  `TypeConstraintNode::Range` directly at six sites under
-  `contract_entailment/ranking_range/` (`projections.rs`,
-  `identity_views.rs`, `state_aliases.rs`, `telescope.rs`, and
-  `ranking_range.rs` twice) and so does not see a bound stated as a domain.
-  Route those through `declared_domain_predicate_bounds` the way
-  `range_constraint_interval` and `enforced_range_of_type_reference` now
-  are -- but prove ONE of them against a fixture before propagating to the
-  rest; this is the termination prover.
-
-  NARROWED to `relational::prove`, by elimination rather than by guessing.
-  Taking `termination/constrained_measure_parameter_compile` as the probe:
-
-  - The refusal text comes from `termination/ranking/ranges.rs::check`,
-    which returns `Err("cannot prove rank range ...")` only after both
-    `proves_range` and `relational::prove` decline.
-  - `proves_range` is NOT the gap: this fixture's view is a scalar measure
-    (`measure Countdown::Remaining`), and that function returns `None` for
-    `RankingOrder::CustomScalarView` before reading any range.
-  - The range readers it WOULD have used already see domains.
-    `enforced_integer_type_bounds` goes through `enforced_declared_range`
-    to `range_constraint_interval`, which reads a `Domain` constraint since
-    `bdeb107345`.
-  - `termination/ranking/nat.rs`'s positivity floor is ruled out too: it
-    answers the same for `[0..=5]` and for `requires self <= 5`.
-  - Adding a `Domain` arm to `ranking_range.rs`'s auxiliary-invariant loop
-    changes nothing, and was reverted rather than landed unwitnessed.
-
-  So start inside `relational::prove`, not at the six `TypeConstraintNode::
-  Range` sites.
-
-  The original shape, for reference:
-  `machine walk(remaining: u64 in Fuel) { transition remaining > 0 { true
-  -> walk(remaining - 1) ... } }` with `domain u64::Fuel requires self <=
-  5` rejects "cannot prove requires contract for call walk from walk:
-  remaining - 1 in u64::Fuel". The bracketed form worked because the
-  ARITHMETIC engine proved `remaining - 1` inside the callee's declared
-  range; a membership goal never reaches that engine, so the subtraction
-  cannot be folded. Closing it means letting a membership requirement
-  reduce to its predicates as BOOLEAN goals for `call_bounds`, not just as
-  labels for the guard matcher. That single change is what `termination`,
-  and the rest of the 212 parameter sites whose argument is an expression,
-  are waiting on.
-
-  The sweep script reads only `main.omg`, so a fixture whose bounds live in
-  a sibling module (`memory/address_translation_canary/cathedral/*.omg`)
-  reports zero sites and is untouched.
-
-  WHAT THE REMAINING DECLINES ARE, sampled by migrating each fixture and
-  reading its first error (`arithmetic`, eight fixtures). Three shapes, and
-  all three are the same missing capability seen from different sides: an
-  expression's INTERVAL is not available where membership is decided.
-
-  - A WRITE whose value is an expression: "cannot prove the value assigned
-    to `self.count` in domain `...0To100`" for `self.count + 1` under a
-    guard that bounds `count`. The write route decides membership
-    structurally (`predicate_expression_holds_on_value`) and has no
-    interval to fall back on.
-  - A CALL whose argument is an expression, at a site the transition-guard
-    route does not reach: `bump(self.count + 1)`, `append(room.exit_count)`.
-    The guard route handles an arm target; a statement call does not go
-    through it.
-  - A RETURN: "cannot prove scalar result domain for return ... u32::...0To4".
-
-  The interval machinery exists on the call side
-  (`caller_expression_interval` in `checks/contracts/calls.rs`) but it needs
-  the dominating guard, and the write and return sites have no single guard
-  in hand -- theirs is an INCOMING guard, which lives in
-  `checks/ranges::incoming_guards` and is not reachable from
-  `checks/contracts`. Closing this properly means giving the contract
-  checker an expression-interval query that consults the same guard facts
-  the ranges checker builds, rather than three separate partial readers.
-
-  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
-  the canary filter: the filter reported PASS for two fixtures the gate
-  showed moving checked -> rejected, because dedicated exact-native
-  coverage elides them from the canary run.
-
-  Acceptance: Squalr's alignment machine returns plain `u64` with
-  `ensures result >= 1 && result <= 8` or an explicit domain; its plain local
-  retains those facts through calls and joins for division/remainder. An
-  implementation returning zero and stale facts after writes reject. Publish
-  the application migration before updating its gitlink, then run geometry.
-  Reject the suffix on integer/float locals, parameters, results and fields.
-  Preserve default-domain/case `where`, domain qualification, slices, range
-  membership, fixed arrays and relevance/multiplicity modifiers. Migrate generic
-  inference to explicit domains/type arguments without extracting capacities
-  from flow facts or inventing implicit variance; retain useful negative
-  arithmetic/ownership controls from obsolete syntax tests.
+  Acceptance: bracketed integer and float range annotations reject in every type
+  position after migration. Equivalent data/case `where`, parameter `requires`,
+  result `ensures`, and local flow facts preserve construction, call, write,
+  join, return, and invalidation behavior. Migrate representative Squalr, library, sample,
+  corpus, generic-inference, build-time-evaluation, and bootstrap parser customers.
+  Reject invalid ranges, unproved arguments, stale facts, incompatible carriers,
+  and runtime ranges used as static layout values. Complete the migration-history
+  inventory with every entry restored, contract-corrected, or retained for an explicit independent
+  reason. Remove generic range-shell inference and require explicit binders,
+  equations, or intentionally named domains; flow narrowing never chooses type
+  or layout identity. Then delete the migration recipe.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
@@ -252,7 +125,7 @@ the complete product bar; focused successes below do not establish that baseline
   in state patterns (`ScanFunctionScalar` and `SnapshotRegionFilter`), then fix
   any remaining resolution/lowering gap and restore the intended sum API.
   Boolean-plus-payload and package-local sum substitutions are not proof of
-  parity. Migrate index bounds through **REMOVE-BRACKETED-RANGE-ANNOTATIONS**;
+  parity. Migrate index bounds through **CANONICALIZE-SCALAR-RANGE-CONTRACTS**;
   ordinary marker-data namespaces are an implementation choice, not an owner
   decision. Port work stays with this customer through native acceptance.
 
@@ -1435,7 +1308,7 @@ syntax and other terminal services are not prerequisites.
   emission that evaluates the selector and allocates its obligation (c2l's
   `lower_structural_path` refuses a runtime segment); follow
   `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs`.
-  Coordinate source fixtures with **REMOVE-BRACKETED-RANGE-ANNOTATIONS**:
+  Coordinate source fixtures with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:
   use contract/domain facts, not the revoked annotation syntax.
 
   Acceptance: source-driven native `&write` and `&mut` calls mutate the
@@ -1600,7 +1473,7 @@ syntax and other terminal services are not prerequisites.
     bounded-field writes. `compiler/tests/byte_field_replacement/indexed.rs`
     already covers source writes and cyclic native publication; helper coverage
     is not the unchanged customer's output. Coordinate obsolete range-suffix
-    fixtures with **REMOVE-BRACKETED-RANGE-ANNOTATIONS**.
+    fixtures with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
   - Replace remaining cyclic shape exclusions with independently checked
     arrival/custody relations: qualified and partial owned values, structural
     results, claim transfers/reshuffles/partition compositions and effectful
@@ -2029,8 +1902,8 @@ syntax and other terminal services are not prerequisites.
   byte-field replacement with encoding evidence; guarded/computed runtime-index
   production; and computed IEEE store transport through FLOAT-PROVIDERS.
   PLACED-ACCESS-NATIVE-OPS owns native realization of the retained indexed-store
-  operation. Its source fixture still needs the revoked bracketed-range
-  migration owned by REMOVE-BRACKETED-RANGE-ANNOTATIONS. Route mutable dynamic
+  operation. Its source fixture still needs the bracketed-range
+  migration owned by CANONICALIZE-SCALAR-RANGE-CONTRACTS. Route mutable dynamic
   dispatch through FINITE-GENERIC-DISPATCH, common reference identity through
   STRUCTURAL-BORROW-IDENTITY, and sequencing through STATE-LOCAL-VALUE-FRONTIER.
   Consult the [parked IEEE recovery record](wiki/drafts/designs/write_only_borrow_ieee_store_branch.md)
@@ -2063,7 +1936,7 @@ syntax and other terminal services are not prerequisites.
   arguments. An unverified candidate for explicit shared dynamic-indexed arguments
   is `ecfdedb34b` on `swarm/linw4-structural-borrow-identity`; rebase and run
   focused borrow checks before adopting it. Coordinate bracketed-range migration with
-  REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
+  CANONICALIZE-SCALAR-RANGE-CONTRACTS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
 
   Acceptance: repair the omission pins and execute caller-visible
@@ -2343,7 +2216,7 @@ syntax and other terminal services are not prerequisites.
   TERMINATION-RANKING-CHECKS owns contract-aware boundary-call preservation;
   nested checked-body calls in inert initializers are already supported.
   Demand-grown tables depend on BUMP-ALLOCATOR-CANARY, placed read-back on
-  PLAN-LAID-VIEWS, and fixture range migration on REMOVE-BRACKETED-RANGE-ANNOTATIONS.
+  PLAN-LAID-VIEWS, and fixture range migration on CANONICALIZE-SCALAR-RANGE-CONTRACTS.
 
   Validate Cathedral's entry encoding and geometry with a semantic/execution
   oracle: `cathedral/tables.omg::FRAME_MASK` must preserve frame bits 12..51
@@ -2964,7 +2837,7 @@ syntax and other terminal services are not prerequisites.
     `lowering/data.rs` currently synthesizes ordinary fields unconditionally.
   - Complete domain/index qualification transport with exact value versions and
     static-only gates. Migrate legacy range-shell fixtures through
-    **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, without extending revoked syntax or
+    **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, without extending the suffix syntax or
     counting those tests as general domain-index support. Preserve forwarding,
     reassignment and live/stale guard/equality controls. Runtime inline-array
     extents and const positions remain rejected.
@@ -2998,7 +2871,7 @@ syntax and other terminal services are not prerequisites.
   through specialization, layout and source-free artifacts. Reuse
   `preparation/type_equations/`, `machine_equations.rs` and canonical argument
   identity; no second evaluator or generic-specific storage plan.
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS** owns retiring range-shell inference.
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** owns retiring range-shell inference.
 
   Remaining work:
 
@@ -3379,7 +3252,7 @@ syntax and other terminal services are not prerequisites.
   Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`,
   retaining `RoomLookup`, `MazeBuilder` and game-state field obligations.
   Coordinate remaining bracketed-range migration with
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS** and any `RoomLookup` output migration
+  **CANONICALIZE-SCALAR-RANGE-CONTRACTS** and any `RoomLookup` output migration
   with **WRITE-ONLY-BORROW**. Its output still spells `&mut Room`, but
   constrained-record `&write` admission is not wholly missing:
   `tests/contracts/nominal_parameter_fields.rs` positively checks declared
@@ -4770,7 +4643,7 @@ release acceptance still requires complete coverage. Remaining reported failures
   [macos_arm64_rc_gates](wiki/drafts/measurements/macos_arm64_rc_gates.md):
   ProgramEntry/Terminal-attachment rejoins, `runtime policy realization`
   lowering gaps (ARITHMETIC-POLICY-REALIZATION), and domain-admission gaps
-  (REMOVE-BRACKETED-RANGE-ANNOTATIONS). No `macos_arm64` record exists under
+  (CANONICALIZE-SCALAR-RANGE-CONTRACTS). No `macos_arm64` record exists under
   `tools/release/records/` — the recorder writes a lane only with a passing
   `--native-execution` observation, so the row stays open on this evidence.
 

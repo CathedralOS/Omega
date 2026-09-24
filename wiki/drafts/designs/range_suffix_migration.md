@@ -1,38 +1,39 @@
-# Range-suffix migration recipe
+# Scalar range contract migration
 
-Companion recipe for **REMOVE-BRACKETED-RANGE-ANNOTATIONS** (TASKS.md :62).
-The revoked spelling is the bracketed scalar range annotation — `u64 [1..=8]`,
-`i32 [0..n)`-style `T [min..=max]` / `T [min..max]` on declared types — parsed at
-`tokens-to-syntax-trees/src/type_syntax/parse_type.rs` (~:779) as
-`TypeConstraintNode::Range`, both inclusive and exclusive forms. The owner
-decision is settled in
-[domains](../../spec/language/domains.md#declaration-and-membership): scalar types
-have no bracketed range-annotation suffix; bounds come from `requires`,
-`ensures`, guards and arithmetic as ordinary proof facts, and a published
-reusable bound is declared as a predicate domain and spelled `T in Domain`.
-There is no compatibility mode and no new compiler-provided range domain —
-this document is the mechanical recipe for migrating the corpus. Delete this
-recipe once REMOVE-BRACKETED-RANGE-ANNOTATIONS closes — no corpus file spells
-the suffix and the parse path is gone.
+Companion recipe for **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Commit
+`669925b8b9` originally declared the suffix revoked without owner authority; the
+owner has since selected the no-suffix design explicitly. The decision is now
+valid, but prior migrations remain unaudited because many generated nominal
+domains where a contextual proposition was intended.
+
+The removed spelling is `T [min..=max]` / `T [min..max]` on scalar type
+positions. One proposition surface replaces it: data/common fields use data
+`where`, case payloads use case `where`, machine/state parameters use
+`requires`, results use `ensures`, and locals retain facts established by their
+initializer, guards, and calls. `T in Domain` is not generic range sugar; use it
+only when that exact named domain identity is independently part of the API.
+
+Delete this recipe once every historical migration is audited, all source uses
+the canonical clauses, and the parser/representation path is removed.
 
 ## Decision table by position
 
 | Old spelling | New spelling | When |
 |---|---|---|
-| `-> T [lo..=hi]` | `-> T in D` | The bound is part of the published contract other callers rely on; declare `domain T::D requires self >= lo && self <= hi;` beside the requirement |
-| `-> T [lo..=hi]` | `-> T` + `ensures result >= lo && result <= hi` | The bound is a one-off result fact; no reusable name needed (Squalr's `MemoryAlignment::get_size_in_bytes` is the customer example) |
-| `x: T [lo..=hi]` | `x: T in D` | The bound is a caller-facing admission obligation |
-| `x: T [lo..=hi]` | `x: T` + `requires x >= lo && x <= hi` | The bound is signature-local; `requires` on the machine or signature already flows as an ordinary proof fact |
-| field/local `v: T [lo..=hi]` | `v: T` | Locals need no qualification to use established facts — a checked call's postconditions apply to its exact result even when the receiving local is declared bare |
-| field `f: T [lo..=hi]` | `f: T in D` | Storage whose bound must be re-established after every write; the declared qualification is enforced at consumption points |
-| `T [lo..hi]` (exclusive) | `self >= lo && self < hi` | In the domain predicate or contract. For literal endpoints, `lo..=hi-1` is equivalent; prefer the predicate form so exclusive half-open intent stays readable |
-| `x: T [0..=self.n]` (dependent endpoint) | `requires x <= self.n` on the machine, or a parameterized domain `x: T in Bounded<N>` | Endpoints can be expressions over receiver state. A domain with a const-position binder (`domain<T, const U: Unit> T::Quantity<U>`, `domain<P,T> Extent::Resident<P,T>`) takes a literal, `const` binder, or runtime `Value` binder; where the bound is per-call receiver state, a `requires`/`ensures` fact is the direct translation |
+| `-> T [lo..=hi]` | `-> T` + `ensures result >= lo && result <= hi` | Result bounds are published postconditions. Use `-> T in D` only when the exact named domain is independently required. |
+| parameter/state parameter `x: T [lo..=hi]` | `x: T` + `requires x >= lo && x <= hi` | Callers prove callable preconditions; ranges are not parameter type identity. |
+| common field `f: T [lo..=hi]` | `f: T` plus data `where f >= lo && f <= hi` | The relation is part of the containing value's default domain. |
+| case payload `case X(v: T [lo..=hi])` | `case X(v: T) where v >= lo && v <= hi` | The relation exists only for the active case. |
+| local `let v: T [lo..=hi] = source` | `let v: T = source` | The initializer must already establish the facts. Preserve a needed bound through the producer's contract or a checked guard; the annotation cannot assert it. |
+| `T [lo..hi]` (exclusive) | `value >= lo && value < hi` | Use the owning `where`/`requires`/`ensures` clause. |
+| parameter `x: T [0..=self.n]` | `x: T` + `requires x <= self.n` | Runtime-dependent endpoints are ordinary call propositions. |
+| generic range shell used to infer `N` | explicit binder/equation, or intentional indexed domain | Anonymous interval propositions are not structural type identity. Supply `N` explicitly when no exact declaration structure determines it. |
 
 ## Positions that reject instead of migrating
 
-Layout-determining uses — array extents, `const` positions — were never
-serviceable by the suffix's proof-fact machinery and stay rejected. They
-migrate to ordinary const extents, not to `in D`.
+Layout-determining uses — array extents, `const` positions, specialization keys —
+require ordinary static values. A runtime range proposition does not make its
+endpoint static and does not authorize maximum-sized storage.
 
 ## Procedure per file
 
@@ -40,33 +41,29 @@ migrate to ordinary const extents, not to `in D`.
    (`param:`, `->`, `field:`, `local:` declarations). Do not touch `for` /
    loop ranges or slice indices — those are expressions, not the revoked
    suffix.
-2. For each occurrence ask whether the bound is *published* (consumed by
-   other machines/signatures) or *local*. Published → predicate domain +
-   `in D`. Local → drop the suffix and, if the bound is still load-bearing,
-   carry it as `requires`/`ensures`.
-3. Collapse duplicate per-file domains: the same `lo..=hi` pair over the same
-   carrier type belongs to one named domain, not one per spelling site.
+2. Classify the owning position: common field, case payload, parameter, result,
+   local, generic shell, or static/layout use. Apply the decision table exactly.
+3. Remove migration-generated interval domains unless their nominal identity or
+   establishment route has an independent customer. Equal predicates do not
+   justify keeping a named domain.
 4. Re-check the package: `mbx run -p omega -- --check <root.omg>`. For corpus
    fixtures, the scoped canary filter is
    `OMEGA_PASS_CANARY_FILTER=<group>/<name> mbx nextest run -p compiler
    --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile`.
 5. The compiler-side deletion (parse path, `TypeConstraintNode::Range`,
    range-shell generic matching, range-recommending diagnostics) is the last
-   step of REMOVE-BRACKETED-RANGE-ANNOTATIONS — do not pre-delete it while
-   corpus still spells the suffix.
+   step — do not pre-delete it while source still spells the suffix.
 
 ## Scale and ordering
 
-Measured at `7a9a7b8287`: 1,598 occurrences across 544 `.omg` files —
+The original inventory at `7a9a7b8287` measured 1,598 occurrences across 544 `.omg` files —
 456 under `tests/omega`, 48 `samples/cli`, 14 `source/library`, 11
 `tests/native-differential`, 7 `omega-rust/psi`, 4 `samples/gui` — plus 41
 Rust files naming a range type-constraint. The corpus migration dominates;
-batch it by directory so each batch lands with its own scoped canary witness.
+batch the audit by customer so each batch lands with its own scoped witness.
 The Epsilon-written Omega parser and its fixtures migrate on the same recipe;
 Epsilon's own surface is unchanged.
 
-Re-verified at `2dbfecd98e49` (zergling-172): the recipe's anchors still
-resolve — `TypeConstraintNode::Range` at `parse_type.rs:791/801`, and the
-`domain T::D requires self …` + `T in D` spelling this prescribes is the one
-the corpus already uses (`tests/omega/pass/modules/module_operator_home/
-units.omg:6`).
+Do not use later reduced occurrence counts as completion evidence: they include
+unaudited rewrites. Completion requires the history-derived inventory to record
+each original declaration and its canonical replacement.

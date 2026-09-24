@@ -1,10 +1,11 @@
 # Identity measure with constrained signature
 
 This legacy fixture still declares bounded `u64` parameter/result types using
-the removed scalar range-annotation suffix. Migration to contracts or named
-predicate domains is tracked by `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
-[board](../../../../../TASKS.md); this README does not claim that migration has
-been implemented or tested.
+the scalar range-annotation suffix selected for removal. Its parameter bound
+must become `requires` and its result bound must become `ensures` under
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../../TASKS.md).
+A named domain is appropriate only if this fixture independently needs that
+nominal contract; this README does not claim the migration is implemented.
 
 The existing refinement is the view's domain contract: it applies only when the
 ranked subject's enforced bounds fit inside every declared range. Here `remaining`

@@ -1497,9 +1497,10 @@ expression returns a value not provably within its declared range" for a
 legacy scalar range-annotation suffix, from an inferred extent; a
 generics checker gap (**STRUCTURAL-GENERIC-MATCHING** / **RUNTIME-VALUE-GENERICS**
 areas, both under live claims when recorded). This historical diagnosis does not
-endorse the removed source syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
-[board](../../../TASKS.md) tracks migration of the compiler and unchanged fixture;
-no replacement-syntax validation is claimed here.
+endorse the scalar suffix. `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
+[board](../../../TASKS.md) tracks migration of the compiler and unchanged fixture
+to the owner-selected proposition clauses; no replacement-syntax validation is
+claimed here.
 
 Closed at 7b224763615 (2026-09-21, linux x86-64):
 `inline_const_generic_selectors_execute_distinct_inferred_extents`

@@ -193,9 +193,9 @@ A proposed shape for work that has not landed.
 - [Psi stage timing carrier](designs/psi_stage_timing_carrier.md): the Psi-owned timing
   row carrier, what landed, and the remaining call-site leg; delete once the
   prepared-project route threads the flag.
-- [Range-suffix migration recipe](designs/range_suffix_migration.md): mechanical
-  per-position recipe for removing bracketed range annotations; delete once no
-  corpus file spells the suffix and the parse path is gone.
+- [Scalar range contract migration](designs/range_suffix_migration.md): canonical
+  per-position mapping to `where`/`requires`/`ensures` plus the audit rule for
+  migration-generated domains; delete after the history inventory closes.
 - [Slice-view sample frontier](designs/slice_view_sample_frontier.md): the twelve
   samples blocked on borrowed non-byte slice views and what moved; delete once
   they reach entry establishment or the vocabulary spec lands.

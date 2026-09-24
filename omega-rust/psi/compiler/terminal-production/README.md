@@ -349,7 +349,7 @@ introduces those bounds on its copied scalar payload, allowing the existing
 conversion through ordinary scalar forwarding. The accepted source contract
 expresses this as `case Byte(value: i32) where value >= 0 && value <= 255;`.
 This is the required migration, not a claim that the producer already accepts
-that replacement. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
+that replacement. `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
 [board](../../../../TASKS.md) tracks removal of the old scalar suffix and fixture
 migration. A successor parameter annotation is not an
 independent hypothesis. Native providers must establish every promised value;

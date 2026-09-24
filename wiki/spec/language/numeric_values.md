@@ -1,11 +1,13 @@
 # Numeric values and bounds
 
-Numeric bounds are propositions established by domains, contracts, and ordinary
-flow reasoning. A scalar carrier does not accept a separate bracketed range
-annotation. In particular, a call's `ensures` supplies facts about its result
-without a matching annotation on the receiving local. Explicit reusable
-qualification follows [domains](domains.md#declaration-and-membership); internal
-interval analysis does not introduce another authored type form.
+Numeric bounds are propositions established by data/case `where`, callable
+contracts, intentionally named domains, and ordinary flow reasoning. A scalar
+carrier does not accept a separate bracketed range annotation. Fields and case
+payloads contribute their interval relationships through their owning `where`;
+parameters use `requires`; results use `ensures`; locals use established flow
+facts. Explicit nominal qualification follows
+[domains](domains.md#declaration-and-membership); internal interval analysis
+does not introduce another authored type form.
 
 ## Literal landing and destinations
 
