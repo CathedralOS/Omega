@@ -1235,11 +1235,13 @@ fn build_structural_field_store_at(
     }
     trace.phase("structural field store: scalar field type");
     if byte_index.is_some() {
+        trace.phase("structural field store: scalar field type: indexed element destination");
         return None;
     }
     if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
         .is_empty()
     {
+        trace.phase("structural field store: scalar field type: domain-constrained field");
         return None;
     }
     let Some(primitive_type) = program.primitive_type_reference(field.type_reference) else {
