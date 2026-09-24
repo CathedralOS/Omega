@@ -494,7 +494,6 @@ fn expression_statement_self_borrowed_view_calls_consume_the_nested_call() {
     );
 }
 
-||||||| 06e311bab3
 const LET_BOUND_VIEW_CALL: &str = r#"
     data Snap { bytes: [u8; 64]; count: u64; }
 
