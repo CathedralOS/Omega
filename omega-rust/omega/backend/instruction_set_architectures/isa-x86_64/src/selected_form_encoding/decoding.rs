@@ -2,13 +2,16 @@
 
 use crate::selected_form_encoding::instruction_bytes::{integer_bits, u12};
 use crate::selected_form_encoding::saturating_forms::{SaturatingForm, saturating_operation};
+use crate::selected_form_encoding::trapping_forms::{
+    DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape, trapping_form,
+};
 use crate::selected_form_encoding::{X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint};
 use crate::x86_64_physical_register_model;
 use register_model::RegisterViewId;
 use selected_instructions::{
     MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    SaturatingCarrier, SaturatingOperation, SelectedInstructionKind,
+    SaturatingCarrier, SaturatingOperation, SelectedInstructionKind, TrappingForm,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,9 +32,30 @@ pub(crate) enum DecodedInstruction {
     JumpShort {
         displacement: i8,
     },
+    /// `jno rel8`: a Trapping form's skip over its trap when OF is clear.
+    JumpNoOverflowShort {
+        displacement: i8,
+    },
+    /// `jb rel8`: the shift-count check's skip when CF is set.
+    JumpBelowShort {
+        displacement: i8,
+    },
+    /// `jae rel8` (`jnc`): the u64 add and subtract skip when CF is clear.
+    JumpAboveOrEqualShort {
+        displacement: i8,
+    },
     CompareSignedImmediate8 {
         register: u8,
         immediate: i8,
+    },
+    /// `cmp rax, imm32` in the RAX short form (`48 3d`), sign-extended.
+    CompareRaxImmediate32 {
+        immediate: i32,
+    },
+    /// `shr destination, count`: the C1 /5 logical right shift by an imm8.
+    ShiftRightLogicalImmediate {
+        destination: u8,
+        count: u8,
     },
     UnsignedDivide {
         divisor: u8,
@@ -225,6 +249,37 @@ pub(crate) fn decode_one(
                 displacement: *displacement as i8,
             },
             2,
+        ));
+    }
+    if let [opcode @ (0x71..=0x73), displacement, ..] = bytes {
+        let displacement = *displacement as i8;
+        return Ok((
+            match *opcode {
+                0x71 => DecodedInstruction::JumpNoOverflowShort { displacement },
+                0x72 => DecodedInstruction::JumpBelowShort { displacement },
+                _ => DecodedInstruction::JumpAboveOrEqualShort { displacement },
+            },
+            2,
+        ));
+    }
+    if let [0x48, 0x3d, i0, i1, i2, i3, ..] = bytes {
+        return Ok((
+            DecodedInstruction::CompareRaxImmediate32 {
+                immediate: i32::from_le_bytes([*i0, *i1, *i2, *i3]),
+            },
+            6,
+        ));
+    }
+    if let [rex, 0xc1, modrm, count, ..] = bytes
+        && rex & !1 == 0x48
+        && modrm & 0xf8 == 0xe8
+    {
+        return Ok((
+            DecodedInstruction::ShiftRightLogicalImmediate {
+                destination: (modrm & 7) | ((rex & 1) << 3),
+                count: *count,
+            },
+            4,
         ));
     }
     if let [rex, 0x83, modrm, immediate, ..] = bytes
@@ -812,6 +867,10 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::SaturatingMultiply { carrier } => {
             saturating_matches(SaturatingOperation::Multiply, carrier, registers, decoded)
         }
+        SelectedInstructionKind::TrappingInteger { form } => {
+            TrappingShape::of(form).accepts_registers(registers)
+                && decoded == expected_trapping(form, registers)
+        }
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64 => {
@@ -1328,6 +1387,253 @@ fn expected_saturating(
     }
 }
 
+/// The decoded instruction sequence `encode_unchecked` emits for one
+/// Trapping form, spelled independently of the byte assembler: every check
+/// is a conditional jump over the two-byte UD2 (`Crash`), and the signed
+/// divisor test jumps over the whole dividend guard.
+fn expected_trapping(form: TrappingForm, registers: &[u8]) -> Vec<DecodedInstruction> {
+    let trap_unless = |jump: DecodedInstruction| [jump, DecodedInstruction::Crash];
+    let trap_unless_equal = trap_unless(DecodedInstruction::JumpEqualShort { displacement: 2 });
+    let trap_on_overflow = trap_unless(DecodedInstruction::JumpNoOverflowShort { displacement: 2 });
+    let range_check = |check: RangeCheck, value: u8, scratch: u8| {
+        let mut expected = match check {
+            RangeCheck::SignExtension { bits } => {
+                let (source, destination) = (value, scratch);
+                vec![
+                    match bits {
+                        8 => DecodedInstruction::SignExtendI8 {
+                            source,
+                            destination,
+                        },
+                        16 => DecodedInstruction::SignExtendI16 {
+                            source,
+                            destination,
+                        },
+                        _ => DecodedInstruction::SignExtendI32 {
+                            source,
+                            destination,
+                        },
+                    },
+                    DecodedInstruction::Compare {
+                        left: scratch,
+                        right: value,
+                    },
+                ]
+            }
+            RangeCheck::HighBits { shift } => vec![
+                DecodedInstruction::Move {
+                    source: value,
+                    destination: scratch,
+                },
+                DecodedInstruction::ShiftRightLogicalImmediate {
+                    destination: scratch,
+                    count: shift,
+                },
+            ],
+        };
+        expected.extend(trap_unless_equal);
+        expected
+    };
+    let arithmetic = |arithmetic: TrappingArithmetic| {
+        let (left, right, result) = (registers[0], registers[1], registers[2]);
+        vec![
+            DecodedInstruction::Move {
+                source: left,
+                destination: result,
+            },
+            match arithmetic {
+                TrappingArithmetic::Add => DecodedInstruction::Add {
+                    source: right,
+                    destination: result,
+                },
+                TrappingArithmetic::Subtract => DecodedInstruction::Subtract {
+                    source: right,
+                    destination: result,
+                },
+                TrappingArithmetic::Multiply => DecodedInstruction::Multiply {
+                    source: right,
+                    destination: result,
+                },
+            },
+        ]
+    };
+    // `cmp rcx, width; jb; ud2; mov result, value` before every shift, and
+    // the carrier's sign-preserving right shift.
+    let shift_prefix = || {
+        let mut expected = vec![DecodedInstruction::CompareSignedImmediate8 {
+            register: registers[1],
+            immediate: form.carrier.bits() as i8,
+        }];
+        expected.extend(trap_unless(DecodedInstruction::JumpBelowShort {
+            displacement: 2,
+        }));
+        expected.push(DecodedInstruction::Move {
+            source: registers[0],
+            destination: registers[2],
+        });
+        expected
+    };
+    let shift_right = |destination| {
+        if form.carrier.is_signed() {
+            DecodedInstruction::ShiftRightArithmeticByCl { destination }
+        } else {
+            DecodedInstruction::ShiftRightLogicalByCl { destination }
+        }
+    };
+    match TrappingShape::of(form) {
+        TrappingShape::OverflowFlag(operation) => {
+            let mut expected = arithmetic(operation);
+            expected.extend(trap_on_overflow);
+            expected
+        }
+        TrappingShape::CarryFlag(operation) => {
+            let mut expected = arithmetic(operation);
+            expected.extend(trap_unless(DecodedInstruction::JumpAboveOrEqualShort {
+                displacement: 2,
+            }));
+            expected
+        }
+        TrappingShape::NarrowRange(operation, check) => {
+            let mut expected = arithmetic(operation);
+            expected.extend(range_check(check, registers[2], registers[3]));
+            expected
+        }
+        TrappingShape::MultiplyHighHalf => {
+            let mut expected = vec![DecodedInstruction::UnsignedMultiply {
+                multiplier: registers[1],
+            }];
+            expected.extend(trap_on_overflow);
+            expected
+        }
+        TrappingShape::Division { guard, remainder } => {
+            let divisor = registers[1];
+            let mut expected = vec![DecodedInstruction::Test { register: divisor }];
+            expected.extend(trap_unless(DecodedInstruction::JumpNotEqualShort {
+                displacement: 2,
+            }));
+            let minimum_trap = |compare, skip, jump| {
+                let mut guard = vec![
+                    DecodedInstruction::CompareSignedImmediate8 {
+                        register: divisor,
+                        immediate: -1,
+                    },
+                    DecodedInstruction::JumpNotEqualShort { displacement: skip },
+                    compare,
+                ];
+                guard.extend(trap_unless(jump));
+                guard.extend([
+                    DecodedInstruction::SignExtendDividend,
+                    DecodedInstruction::SignedDivide { divisor },
+                ]);
+                guard
+            };
+            expected.extend(match guard {
+                None => vec![
+                    DecodedInstruction::Xor {
+                        source: 2,
+                        destination: 2,
+                    },
+                    DecodedInstruction::UnsignedDivide { divisor },
+                ],
+                Some(DividendGuard::Minimum8(minimum)) => minimum_trap(
+                    DecodedInstruction::CompareSignedImmediate8 {
+                        register: 0,
+                        immediate: minimum,
+                    },
+                    8,
+                    DecodedInstruction::JumpNotEqualShort { displacement: 2 },
+                ),
+                Some(DividendGuard::Minimum32(minimum)) => minimum_trap(
+                    DecodedInstruction::CompareRaxImmediate32 { immediate: minimum },
+                    10,
+                    DecodedInstruction::JumpNotEqualShort { displacement: 2 },
+                ),
+                Some(DividendGuard::DecrementOverflows) => minimum_trap(
+                    DecodedInstruction::CompareSignedImmediate8 {
+                        register: 0,
+                        immediate: 1,
+                    },
+                    8,
+                    DecodedInstruction::JumpNoOverflowShort { displacement: 2 },
+                ),
+            });
+            if remainder {
+                expected.push(DecodedInstruction::Move {
+                    source: 2,
+                    destination: 0,
+                });
+            }
+            expected
+        }
+        TrappingShape::ShiftLeftRoundTrip { .. } => {
+            let (value, result, scratch) = (registers[0], registers[2], registers[3]);
+            let mut expected = shift_prefix();
+            expected.extend([
+                DecodedInstruction::ShiftLeftByCl {
+                    destination: result,
+                },
+                DecodedInstruction::Move {
+                    source: result,
+                    destination: scratch,
+                },
+                shift_right(scratch),
+                DecodedInstruction::Compare {
+                    left: scratch,
+                    right: value,
+                },
+            ]);
+            expected.extend(trap_unless_equal);
+            expected
+        }
+        TrappingShape::ShiftLeftRange { check, .. } => {
+            let mut expected = shift_prefix();
+            expected.push(DecodedInstruction::ShiftLeftByCl {
+                destination: registers[2],
+            });
+            expected.extend(range_check(check, registers[2], registers[3]));
+            expected
+        }
+        TrappingShape::ShiftRight { .. } => {
+            let mut expected = shift_prefix();
+            expected.push(shift_right(registers[2]));
+            expected
+        }
+        TrappingShape::Convert(check) => {
+            let (operand, result, scratch) = (registers[0], registers[1], registers[2]);
+            let mut expected = check
+                .map(|check| range_check(check, operand, scratch))
+                .unwrap_or_default();
+            expected.push(DecodedInstruction::Move {
+                source: operand,
+                destination: result,
+            });
+            expected
+        }
+    }
+}
+
+/// Every Trapping form reads its row's inputs, defines its result and
+/// scratch, clobbers RFLAGS, and may stop at its inline UD2.
+fn trapping_footprint(
+    form: TrappingForm,
+    operands: &[RegisterViewId],
+) -> X86_64SelectedFormFootprint {
+    let shape = TrappingShape::of(form);
+    let (reads, writes) = shape.operand_reads_and_writes();
+    X86_64SelectedFormFootprint {
+        register_reads: reads
+            .iter()
+            .map(|&position| operands[usize::from(position)])
+            .collect(),
+        register_writes: writes
+            .iter()
+            .map(|&position| operands[usize::from(position)])
+            .collect(),
+        writes_rflags: true,
+        encoded: shape.encoded_effects(),
+    }
+}
+
 /// Every saturating form reads and writes the positions its shape declares,
 /// clobbers RFLAGS, and every division additionally clobbers RDX and keeps
 /// the architectural fault behaviour of unsigned division. The u64 multiply
@@ -1378,6 +1684,9 @@ pub(crate) fn footprint(
 ) -> X86_64SelectedFormFootprint {
     if let Some((operation, carrier)) = saturating_operation(kind) {
         return saturating_footprint(SaturatingForm::of(operation, carrier), operands);
+    }
+    if let Some(form) = trapping_form(kind) {
+        return trapping_footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
@@ -1493,6 +1802,9 @@ pub(crate) fn footprint(
         | SelectedInstructionKind::SaturatingRemainder { .. }
         | SelectedInstructionKind::SaturatingMultiply { .. } => {
             unreachable!("saturating forms handled above")
+        }
+        SelectedInstructionKind::TrappingInteger { .. } => {
+            unreachable!("trapping forms handled above")
         }
     };
     let physical = x86_64_physical_register_model();

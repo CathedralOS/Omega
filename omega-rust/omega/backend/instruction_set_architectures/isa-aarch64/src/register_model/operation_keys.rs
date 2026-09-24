@@ -192,6 +192,34 @@ pub const AARCH64_SATURATING_MULTIPLY_U64: RegisterConstraintKey = RegisterConst
     variant: 66,
 };
 
+/// Trapping add, subtract and multiply: two inputs, an early-clobber result,
+/// and an early-clobber scratch (the i64 product's high half); every
+/// Trapping row clobbers NZCV and ends in the inline `brk #0` skip.
+pub const AARCH64_TRAPPING_BINARY: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 67,
+};
+
+/// Trapping divide and remainder at every carrier and the u64 multiply. The
+/// operand shape matches `AARCH64_TRAPPING_BINARY`: AArch64 needs no fixed
+/// pair, the role exists because x86-64 pins RAX/RCX/RDX for the same forms.
+pub const AARCH64_TRAPPING_FIXED_PAIR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 68,
+};
+
+/// Trapping shifts: value and count read, early-clobber result and scratch.
+pub const AARCH64_TRAPPING_SHIFT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 69,
+};
+
+/// Trapping conversion: one input, early-clobber result and scratch.
+pub const AARCH64_TRAPPING_CONVERT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 70,
+};
+
 /// Flag-transparent three-address exact i64 multiplication, matching the
 /// ordinary AArch64 `MUL` register form.
 pub const AARCH64_MULTIPLY_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -322,7 +350,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 94] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 98] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -504,6 +532,10 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 94] = [
     AARCH64_SHIFT_I64,
     AARCH64_SATURATING_MULTIPLY_CLAMPED,
     AARCH64_SATURATING_MULTIPLY_U64,
+    AARCH64_TRAPPING_BINARY,
+    AARCH64_TRAPPING_FIXED_PAIR,
+    AARCH64_TRAPPING_SHIFT,
+    AARCH64_TRAPPING_CONVERT,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

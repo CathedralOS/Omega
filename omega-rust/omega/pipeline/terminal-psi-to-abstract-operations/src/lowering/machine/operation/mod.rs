@@ -15,6 +15,7 @@ mod shifts;
 mod structural_establishment;
 mod structural_leaf_copy;
 mod structural_scalar_fields;
+mod trapping_integer;
 
 use std::collections::BTreeMap;
 

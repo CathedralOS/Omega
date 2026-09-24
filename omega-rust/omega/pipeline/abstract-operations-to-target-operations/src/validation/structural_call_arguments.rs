@@ -3700,6 +3700,12 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             scalar_type,
             ..
         }
+        | AbstractOperation::TrappingInteger {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
         | AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,

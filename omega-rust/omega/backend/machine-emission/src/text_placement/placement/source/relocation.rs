@@ -143,6 +143,9 @@ pub(in crate::text_placement::placement) fn prove_none(
                 | MachineAlternativeFamily::SaturatingDivide(_)
                 | MachineAlternativeFamily::SaturatingRemainder(_)
                 | MachineAlternativeFamily::SaturatingMultiply(_)
+                // A Trapping form's only branch skips its own inline trap at
+                // a fixed offset inside the encoding: nothing to relocate.
+                | MachineAlternativeFamily::TrappingInteger(_)
                 | MachineAlternativeFamily::Float32ToBits
                 | MachineAlternativeFamily::Float64ToBits
                 | MachineAlternativeFamily::BitsToFloat32

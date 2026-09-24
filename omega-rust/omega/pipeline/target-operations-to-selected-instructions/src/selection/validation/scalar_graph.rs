@@ -6,13 +6,14 @@ use super::integrity::validate_block_constraints;
 use crate::selection::constraints::row;
 use crate::selection::model::SelectedInstructionError;
 use legalized_operations::{
-    LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm,
+    TrappingOperation,
 };
 use optimization_unit::ValueDefinitionSite;
 use register_model::RegisterConstraintKey;
 use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
+    MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
     SelectedSelectionConstraints, VirtualRegisterId, VirtualRegisterOrigin,
 };
@@ -628,6 +629,82 @@ pub(in crate::selection) fn validate_with_environment(
                             &SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::TrappingBinary { form, left, right } => {
+                        let (_, left_register, _, left_type) =
+                            replay.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            replay.resolve(*right).ok_or_else(invalid)?;
+                        // The carrier is re-derived from the declared result
+                        // type: a form naming another width would check the
+                        // wrong bounds with every register check still passing.
+                        if left_type != scalar_type
+                            || !carries(scalar_type, form.carrier)
+                            || !trapping_right_type(*form, scalar_type, right_type)
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        if right_register == left_register {
+                            right_register = replay.check_copy(
+                                right_register,
+                                *right,
+                                right_site,
+                                right_type,
+                            )?;
+                        }
+                        let scratch = trapping_scratch(&mut replay, 3)?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::TrappingInteger { form: *form },
+                            trapping_constraint(*form, &constraints.keys)?,
+                            &[left_register, right_register, output, scratch],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::TrappingConvert {
+                        form,
+                        source,
+                        operand,
+                    } => {
+                        let (_, input, _, operand_type) =
+                            replay.resolve(*operand).ok_or_else(invalid)?;
+                        if !carries(scalar_type, form.carrier)
+                            || !carries(operand_type, *source)
+                            || form.operation
+                                != (TrappingOperation::Convert {
+                                    source: source.sign(),
+                                })
+                        {
+                            return Err(invalid());
+                        }
+                        let output = replay.result_register(
+                            result.value,
+                            result.definition_site,
+                            scalar_type,
+                        )?;
+                        let scratch = trapping_scratch(&mut replay, 2)?;
+                        replay.check_instruction(
+                            SelectedInstructionKind::TrappingInteger { form: *form },
+                            trapping_constraint(*form, &constraints.keys)?,
+                            &[input, output, scratch],
+                            &SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*operand, result.value],
                                 fuel: operation.fuel.clone(),
                                 ..Default::default()
                             },
@@ -1644,6 +1721,70 @@ impl WrappingDivision {
             ),
         }
     }
+}
+
+/// A Trapping binary form's second operand: the result carrier for
+/// arithmetic, any fixed native integer for a shift count.
+fn trapping_right_type(
+    form: TrappingForm,
+    scalar_type: ScalarType,
+    right_type: ScalarType,
+) -> bool {
+    match form.operation {
+        TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
+            matches!(right_type, ScalarType::Integer(count)
+                if SaturatingCarrier::from_integer(count).is_some())
+        }
+        _ => right_type == scalar_type,
+    }
+}
+
+fn trapping_constraint(
+    form: TrappingForm,
+    keys: &SelectedConstraintKeys,
+) -> Result<RegisterConstraintKey, SelectedInstructionError> {
+    keys.for_semantic(MachineSemanticKind::TrappingInteger(form))
+        .ok_or_else(SelectedInstructionError::custody)
+}
+
+// A Trapping scratch is the next virtual register, owned by this instruction
+// at `operand` (3 for a binary form, 2 for a conversion) with no source
+// definition or fixed home.
+fn trapping_scratch(
+    replay: &mut Replay<'_>,
+    operand: u16,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let instruction = SelectedInstructionId(
+        replay
+            .instruction_cursor
+            .try_into()
+            .map_err(|_| replay.invalid())?,
+    );
+    let expected_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+            .map_err(|_| replay.invalid())?,
+    );
+    let register = replay
+        .selected
+        .virtual_registers
+        .get(replay.register_cursor)
+        .ok_or_else(|| replay.invalid())?;
+    if register.id.0 as usize != replay.register_cursor
+        || register.origin
+            != (VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand,
+            })
+        || register.scalar_type != expected_type
+        || register.class != replay.class
+        || register.definition_site.is_some()
+        || register.entry_fixed_view.is_some()
+    {
+        return Err(replay.invalid());
+    }
+    let id = register.id;
+    replay.register_cursor += 1;
+    Ok(id)
 }
 
 // The saturating i32 bound scratch is the next virtual register, owned by

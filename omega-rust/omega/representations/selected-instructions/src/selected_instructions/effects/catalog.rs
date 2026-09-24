@@ -13,11 +13,11 @@ use register_model::ValidatedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
-use crate::{SaturatingCarrier, SelectedConstraintKeys};
+use crate::{SaturatingCarrier, SelectedConstraintKeys, TrappingForm};
 pub use identity::{
     MachineIdentityBytes, alternative_family_tag, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
-    machine_effect_catalog_identity, saturating_family_tag,
+    machine_effect_catalog_identity, saturating_family_tag, trapping_family_tag,
 };
 use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, RegisterViewId};
 use target::NativeTarget;
@@ -172,10 +172,30 @@ pub enum MachineSemanticKind {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
+    /// One `Trapping` primitive at one carrier: the exact result, or an
+    /// in-function architectural trap when the policy predicate holds.
+    TrappingInteger(TrappingForm),
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 117] = [
+    /// Every semantic in canonical declaration order: the fixed roster, then
+    /// every Trapping form in its dense ordinal (and derived) order.
+    pub const ALL: [Self; Self::FIXED.len() + TrappingForm::COUNT] = {
+        let mut all = [Self::Crash; Self::FIXED.len() + TrappingForm::COUNT];
+        let mut index = 0;
+        while index < Self::FIXED.len() {
+            all[index] = Self::FIXED[index];
+            index += 1;
+        }
+        let mut form = 0;
+        while form < TrappingForm::COUNT {
+            all[Self::FIXED.len() + form] = Self::TrappingInteger(TrappingForm::ALL[form]);
+            form += 1;
+        }
+        all
+    };
+
+    const FIXED: [Self; 117] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -380,6 +400,7 @@ pub enum MachineAlternativeFamily {
     ExactDivideI64,
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
+    TrappingInteger(TrappingForm),
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -476,6 +497,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactDivideI64 => Self::ExactDivideI64,
             MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
             MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
+            MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
         }
     }
 }
@@ -535,6 +557,10 @@ pub enum MachineMemoryEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineTrapBehavior {
     ExplicitCrashV1,
+    /// The encoded work checks a `Trapping` policy predicate and executes the
+    /// `Crash` leaf's architectural trap in place when it holds; otherwise it
+    /// falls through with the exact result. It never faults otherwise.
+    TrappingIntegerV1,
     HostedExitReturnedV1,
     HostedReadFailureV1,
     HostedWriteFailureV1,
@@ -702,6 +728,9 @@ pub enum MachineEncodedStackEffect {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedTrapBehavior {
     ExplicitCrashV1,
+    /// A policy check branches over an inline architectural trap: the trap
+    /// executes exactly when the Trapping predicate holds.
+    TrappingIntegerV1,
     HostedExitReturnedV1,
     /// Architectural faults remain possible; syscall results other than zero or one trap.
     HostedReadFailureV1,
@@ -714,13 +743,18 @@ pub enum MachineEncodedTrapBehavior {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedControlEffect {
     CrashV1,
+    /// Falls through to the next instruction, or stops at an inline
+    /// architectural trap; no other control transfer leaves the form.
+    FallThroughOrTrapV1,
     HostedExitOrTrapV1,
     HostedReadReturnOrTrapV1,
     HostedWriteReturnOrTrapV1,
     FallThroughV1,
     ConditionalRelativeBranchV1,
     ReturnFromActivationStackV1,
-    ReturnIndirectRegisterV1 { target: RegisterViewId },
+    ReturnIndirectRegisterV1 {
+        target: RegisterViewId,
+    },
     DirectRelativeCallV1,
     UnconditionalRelativeBranchV1,
 }
@@ -745,8 +779,9 @@ pub struct MachineEffectDeclaration {
     /// and call surfaces — declares `NoneV1`.
     pub memory: MachineMemoryEffect,
     /// The declared trap surface the semantic owns. Admission binds this
-    /// exactly: hosted trap results name their owning hosted operation,
-    /// only a semantic whose encoded work dereferences memory declares
+    /// exactly: hosted trap results name their owning hosted operation, a
+    /// Trapping form declares its policy trap `TrappingIntegerV1`, only a
+    /// semantic whose encoded work dereferences memory declares
     /// `MayArchitecturalFaultV1`, and every other rule declares `NeverV1`
     /// even when its ISA-specific encoded trap still admits a fault.
     pub trap: MachineTrapBehavior,

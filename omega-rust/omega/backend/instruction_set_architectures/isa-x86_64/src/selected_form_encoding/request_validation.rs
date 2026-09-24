@@ -3,6 +3,7 @@
 
 use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use crate::selected_form_encoding::trapping_forms::TrappingShape;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SaturatingOperation, SelectedInstructionKind,
@@ -147,6 +148,14 @@ fn family_and_operand_count(
         SelectedInstructionKind::SaturatingMultiply { carrier } => (
             MachineAlternativeFamily::SaturatingMultiply(carrier),
             SaturatingForm::of(SaturatingOperation::Multiply, carrier).operand_count(),
+            0..=0,
+        ),
+        // A Trapping form's row fixes its operand count: the conversions read
+        // one input, every other form two, and each defines a result and a
+        // scratch (RDX on the fixed divide row).
+        SelectedInstructionKind::TrappingInteger { form } => (
+            MachineAlternativeFamily::TrappingInteger(form),
+            TrappingShape::of(form).operand_count(),
             0..=0,
         ),
         SelectedInstructionKind::BitwiseXorI64 => {

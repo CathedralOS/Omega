@@ -402,7 +402,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::SaturatingIntegerAdd { .. }
                 | AbstractOperation::SaturatingIntegerMultiply { .. }
                 | AbstractOperation::SaturatingIntegerDivide { .. }
-                | AbstractOperation::SaturatingIntegerRemainder { .. } => true,
+                | AbstractOperation::SaturatingIntegerRemainder { .. }
+                // A Trapping form replays its form, operands and carriers;
+                // its check and inline trap are the kind's own encoding.
+                | AbstractOperation::TrappingInteger { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
                     selected.memory_accesses.iter().any(|access| {

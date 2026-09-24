@@ -229,6 +229,45 @@ pub const X86_64_SATURATING_MULTIPLY_U64: RegisterConstraintKey = RegisterConstr
     variant: 66,
 };
 
+/// Trapping add, subtract, and multiply of every carrier but the u64
+/// multiply: MOV/ADD, SUB, or IMUL into an early-clobber result, then a
+/// short branch over UD2 on the overflow or carry flag (64-bit carriers) or
+/// on the carrier range check of the result through the early-clobber
+/// scratch (narrow carriers); clobbers RFLAGS.
+pub const X86_64_TRAPPING_BINARY: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 67,
+};
+
+/// Trapping divide and remainder at every carrier and the trapping u64
+/// multiply: the fixed row of the remainder forms. The dividend and result
+/// live in RAX, the divisor or right operand is pinned to RCX, and RDX is the
+/// high-half definition of CQO, the zeroed DIV input, or MUL's high half.
+/// The zero-divisor and MIN / -1 guards branch over UD2 before the divide,
+/// so the divide itself never faults; RFLAGS is clobbered.
+pub const X86_64_TRAPPING_FIXED_PAIR: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 68,
+};
+
+/// Trapping shifts: the value is allocatable, the count is pinned to RCX for
+/// CL, and both the result and the round-trip or range-check scratch are
+/// early-clobber definitions written while the count and value are live. The
+/// count is compared unsigned against the width before any shift; RFLAGS is
+/// clobbered.
+pub const X86_64_TRAPPING_SHIFT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 69,
+};
+
+/// Trapping conversion: one allocatable input, then an early-clobber result
+/// and an early-clobber scratch for the representability check, which runs
+/// before the result is written; RFLAGS is clobbered.
+pub const X86_64_TRAPPING_CONVERT: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 70,
+};
+
 /// Exact `result = left * right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `IMUL result, right` when the result
 /// aliases the left input, `IMUL result, left` when it aliases only the right
@@ -311,7 +350,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -434,6 +473,10 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
     X86_64_SHIFT_I64,
     X86_64_SATURATING_MULTIPLY_CLAMPED,
     X86_64_SATURATING_MULTIPLY_U64,
+    X86_64_TRAPPING_BINARY,
+    X86_64_TRAPPING_FIXED_PAIR,
+    X86_64_TRAPPING_SHIFT,
+    X86_64_TRAPPING_CONVERT,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

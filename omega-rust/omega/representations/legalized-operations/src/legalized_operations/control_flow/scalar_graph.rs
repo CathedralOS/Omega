@@ -167,7 +167,8 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::BooleanNot { operand }
             | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
             | LegalizedScalarInstructionKind::BitwiseNot { operand }
-            | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => visit(*operand),
+            | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. }
+            | LegalizedScalarInstructionKind::TrappingConvert { operand, .. } => visit(*operand),
             LegalizedScalarInstructionKind::Call(call) => call
                 .arguments
                 .iter()
@@ -178,6 +179,7 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
             | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
             | LegalizedScalarInstructionKind::SaturatingMultiply { left, right, .. }
+            | LegalizedScalarInstructionKind::TrappingBinary { left, right, .. }
             | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
             | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
             | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
@@ -505,6 +507,24 @@ pub enum LegalizedScalarInstructionKind {
         carrier: SaturatingCarrier,
         left: ValueId,
         right: ValueId,
+    },
+    /// A `Trapping` add, subtract, multiply, divide, remainder or shift at
+    /// the form's carrier (`right` is a shift's count): the exact result, or
+    /// an in-function trap when the settled Trapping predicate holds. The
+    /// realized check is the policy, so no obligation or accepted fact is
+    /// carried, and the operation is never removable as dead.
+    TrappingBinary {
+        form: super::TrappingForm,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// A `Trapping` conversion into the form's carrier. `source` retains the
+    /// operand's exact declared carrier for replay; the form itself names
+    /// only the source sign, which is all the realization depends on.
+    TrappingConvert {
+        form: super::TrappingForm,
+        source: SaturatingCarrier,
+        operand: ValueId,
     },
     /// Remainder at the result's fixed native width, signed or unsigned.
     /// MIN % -1 is zero under Wrapping, but the accepted nonzero-divisor

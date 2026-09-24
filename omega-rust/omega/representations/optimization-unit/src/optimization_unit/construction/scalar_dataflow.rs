@@ -139,6 +139,11 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             result,
             scalar_type,
             ..
+        }
+        | O::TrappingInteger {
+            result,
+            scalar_type,
+            ..
         } => Some((*result, ScalarType::Integer(*scalar_type))),
         O::IntegerWiden {
             result,
@@ -254,6 +259,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::SaturatingIntegerDivide { left, right, .. }
         | O::SaturatingIntegerRemainder { left, right, .. }
         | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        O::TrappingInteger { operation, .. } => operation.operands(),
         O::IeeeFloatCompare { left, right, .. } => vec![*left, *right],
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,

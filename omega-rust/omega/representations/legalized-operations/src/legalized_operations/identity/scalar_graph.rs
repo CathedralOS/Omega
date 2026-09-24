@@ -580,6 +580,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::TrappingBinary { form, left, right } => {
+                    bytes.push(trapping_tag(*form));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::TrappingConvert {
+                    form,
+                    source,
+                    operand,
+                } => {
+                    bytes.push(trapping_tag(*form));
+                    bytes.push(source.ordinal());
+                    bytes.extend_from_slice(&operand.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::SaturatingRemainder {
                     carrier,
                     left,
@@ -880,6 +894,12 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_ownership_roster(bytes, ownership);
         }
     }
+}
+
+/// One tag per Trapping form, above every other instruction tag: 95 plus the
+/// form's dense ordinal (95 through 166).
+const fn trapping_tag(form: crate::TrappingForm) -> u8 {
+    95 + form.ordinal()
 }
 
 /// One tag per saturating operation and carrier. The u64 and i32 forms keep

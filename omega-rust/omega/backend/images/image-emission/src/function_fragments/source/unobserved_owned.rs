@@ -142,6 +142,7 @@ pub(in crate::function_fragments) fn arrivals(
         | AbstractOperation::WrappingIntegerDivide { .. }
         | AbstractOperation::SaturatingIntegerRemainder { .. }
         | AbstractOperation::SaturatingIntegerMultiply { .. }
+        | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::Call { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. } => true,

@@ -622,6 +622,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::WrappingIntegerMultiply { .. }
         | AbstractOperation::ExactIntegerMultiply { .. }
         | AbstractOperation::SaturatingIntegerMultiply { .. }
+        | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::ExactIntegerDivide { .. }
         | AbstractOperation::ExactIntegerRemainder { .. }
         | AbstractOperation::WrappingIntegerDivide { .. }

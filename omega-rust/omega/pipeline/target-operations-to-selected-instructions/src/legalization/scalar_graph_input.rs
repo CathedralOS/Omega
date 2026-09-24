@@ -8,7 +8,7 @@ use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
     evaluate_call_plan,
 };
-use legalized_operations::SaturatingCarrier;
+use legalized_operations::{SaturatingCarrier, TrappingForm, TrappingOperation};
 use optimization_unit::{
     OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite,
@@ -121,6 +121,67 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
 /// widths report the unsupported family.
 pub(super) fn saturating_carrier(integer: IntegerType) -> Option<SaturatingCarrier> {
     SaturatingCarrier::from_integer(integer)
+}
+
+/// The Trapping form a verified abstract Trapping operation realizes. The
+/// result carrier names the form; a conversion adds only its source sign,
+/// because normalization makes the source register the exact value whatever
+/// its width; a shift count may have any fixed native type, because its
+/// normalized register value read unsigned is below the width exactly when
+/// the count lies in `0..width`. Binary arithmetic reads two values of the
+/// result carrier. Address carriers and other widths have no Trapping form
+/// and report the unsupported family.
+pub(super) fn trapping_form(
+    scalar_type: IntegerType,
+    operand_type: IntegerType,
+    primitive: terminal_psi::TrappingIntegerPrimitive,
+) -> Option<TrappingForm> {
+    use terminal_psi::TrappingIntegerPrimitive as P;
+    let carrier = saturating_carrier(scalar_type)?;
+    let source = saturating_carrier(operand_type)?;
+    let operation = match primitive {
+        P::Add | P::Subtract | P::Multiply | P::Divide | P::Remainder if source != carrier => {
+            return None;
+        }
+        P::Add => TrappingOperation::Add,
+        P::Subtract => TrappingOperation::Subtract,
+        P::Multiply => TrappingOperation::Multiply,
+        P::Divide => TrappingOperation::Divide,
+        P::Remainder => TrappingOperation::Remainder,
+        P::ShiftLeft => TrappingOperation::ShiftLeft,
+        P::ShiftRight => TrappingOperation::ShiftRight,
+        P::Convert => TrappingOperation::Convert {
+            source: source.sign(),
+        },
+    };
+    Some(TrappingForm { operation, carrier })
+}
+
+/// Whether every operand of a Trapping operation rejoins its declared type
+/// in `optimized`: binary operands and a shifted value the result carrier,
+/// a shift count and a conversion source the independent operand type.
+pub(super) fn trapping_operands_rejoin(
+    optimized: &PsiOptimizationFunction,
+    scalar_type: IntegerType,
+    operand_type: IntegerType,
+    operation: terminal_psi::TrappingIntegerOperation,
+) -> bool {
+    use terminal_psi::TrappingIntegerOperation as T;
+    let typed =
+        |value, expected| value_type(optimized, value) == Some(ScalarType::Integer(expected));
+    match operation {
+        T::Add { left, right }
+        | T::Subtract { left, right }
+        | T::Multiply { left, right }
+        | T::Divide { left, right }
+        | T::Remainder { left, right } => {
+            operand_type == scalar_type && typed(left, scalar_type) && typed(right, scalar_type)
+        }
+        T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {
+            typed(value, scalar_type) && typed(count, operand_type)
+        }
+        T::Convert { operand } => typed(operand, operand_type),
+    }
 }
 
 /// Wrapping divide and remainder admit every fixed 8/16/32/64-bit carrier of

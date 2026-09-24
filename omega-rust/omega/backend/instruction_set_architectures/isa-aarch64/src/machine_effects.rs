@@ -70,6 +70,11 @@ pub fn aarch64_machine_effect_catalog(
                             )?,
                     ));
                 }
+                if let MachineSemanticKind::TrappingInteger(form) = semantic {
+                    return Ok(crate::selected_form_encoding::trapping_forms::declaration(
+                        form, constraint,
+                    ));
+                }
                 if semantic == MachineSemanticKind::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
@@ -279,6 +284,10 @@ fn selected_keys(
         saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
         saturating_multiply_clamped: crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
         saturating_multiply_u64: crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
+        trapping_binary: crate::register_model::AARCH64_TRAPPING_BINARY,
+        trapping_fixed_pair: crate::register_model::AARCH64_TRAPPING_FIXED_PAIR,
+        trapping_shift: crate::register_model::AARCH64_TRAPPING_SHIFT,
+        trapping_convert: crate::register_model::AARCH64_TRAPPING_CONVERT,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -482,6 +491,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::CallAggregate
         | MachineSemanticKind::NormalizedForeignCall => {
             panic!("scalar calls use their dedicated declaration")
+        }
+        MachineSemanticKind::TrappingInteger(_) => {
+            panic!("Trapping forms use their dedicated declaration")
         }
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {

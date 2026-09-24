@@ -187,6 +187,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         saturating_divide_signed: instruction_key(42),
         saturating_multiply_clamped: instruction_key(53),
         saturating_multiply_u64: instruction_key(54),
+        trapping_binary: instruction_key(57),
+        trapping_fixed_pair: instruction_key(58),
+        trapping_shift: instruction_key(59),
+        trapping_convert: instruction_key(60),
         subtract_i64_immediate: instruction_key(9),
         compare_i64_zero: instruction_key(2),
         compare_i64: instruction_key(20),
@@ -389,6 +393,22 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             saturating_multiply_u64: instruction_key(56),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            trapping_binary: instruction_key(61),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            trapping_fixed_pair: instruction_key(62),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            trapping_shift: instruction_key(63),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            trapping_convert: instruction_key(64),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

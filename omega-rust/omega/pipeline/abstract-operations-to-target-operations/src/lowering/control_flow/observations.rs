@@ -299,6 +299,65 @@ pub(super) fn lower(
                 },
             )
         }
+        // A Trapping primitive is an ordered definition of its own: it is
+        // never folded here, even over literal operands, because its crash
+        // site and fuel must survive exactly as Terminal owns them.
+        AbstractOperation::TrappingInteger {
+            psi_operation,
+            result,
+            scalar_type,
+            operand_type,
+            operation: primitive,
+        } => {
+            let operand = |value: ValueId, expected: semantic_vocabulary::IntegerType| match values
+                .get(&value)
+                .cloned()
+            {
+                Some(KnownScalar::Integer {
+                    scalar_type,
+                    value: known,
+                }) if scalar_type == expected => Ok(Box::new(known.into_expression(value))),
+                Some(_) => Err(LoweringError::ValueTypeMismatch(value)),
+                None => Err(LoweringError::UnknownValue(value)),
+            };
+            use terminal_psi::TrappingIntegerOperation as T;
+            let (left, right) = match *primitive {
+                T::Add { left, right }
+                | T::Subtract { left, right }
+                | T::Multiply { left, right }
+                | T::Divide { left, right }
+                | T::Remainder { left, right } => {
+                    if operand_type != scalar_type {
+                        return Err(LoweringError::ValueTypeMismatch(*result));
+                    }
+                    (
+                        operand(left, *scalar_type)?,
+                        Some(operand(right, *scalar_type)?),
+                    )
+                }
+                T::ShiftLeft { value, count } | T::ShiftRight { value, count } => (
+                    operand(value, *scalar_type)?,
+                    Some(operand(count, *operand_type)?),
+                ),
+                T::Convert { operand: source } => (operand(source, *operand_type)?, None),
+            };
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                TargetScalarExpression::Integer {
+                    scalar_type: *scalar_type,
+                    expression: TargetIntegerExpression::Trapping {
+                        psi_operation: *psi_operation,
+                        primitive: primitive.primitive(),
+                        operand_type: *operand_type,
+                        left,
+                        right,
+                    },
+                },
+            )
+        }
         AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,

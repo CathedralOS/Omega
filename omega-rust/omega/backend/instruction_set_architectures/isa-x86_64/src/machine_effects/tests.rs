@@ -4,9 +4,9 @@ use super::{
     Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
     MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget, ObjectFormat,
-    ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
+    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    NativeTarget, ObjectFormat, ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH,
+    X86_64_COPY_I64, X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
     X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT, X86_64MachineEffectCatalogValidationError,
     validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
     x86_64_system_v_register_call_keys,
@@ -16,7 +16,10 @@ use crate::{
     x86_64_physical_register_model, x86_64_register_constraint_catalog,
 };
 use register_model::validate_physical_register_model;
-use selected_instructions::{SaturatingCarrier, SaturatingOperation};
+use selected_instructions::{
+    MachineAlternativeFamily, SaturatingCarrier, SaturatingOperation, TrappingForm,
+    TrappingOperation,
+};
 
 fn constraints() -> ValidatedRegisterConstraintCatalog {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -196,6 +199,146 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                     );
                 }
             }
+        }
+    }
+}
+
+/// The byte count of every Trapping form, operation-major in
+/// `TrappingForm::ALL` order with carriers I8, I16, I32, I64, U8, U16, U32,
+/// U64, as measured on the Apple-clang assembly of each realization (see the
+/// selected-form encoding tests).
+const TRAPPING_SIZES: [[u16; 8]; 9] = [
+    // Add: narrow range checks 17 (MOVSXD 16), OF or CF 10.
+    [17, 17, 16, 10, 17, 17, 17, 10],
+    // Subtract: the same shapes as Add.
+    [17, 17, 16, 10, 17, 17, 17, 10],
+    // Multiply: IMUL is one byte longer than ADD; the u64 MUL/JNO/UD2 is 7.
+    [18, 18, 17, 11, 18, 18, 18, 7],
+    // Divide: zero test 7, the -1 and MIN guard 14 (imm8 or the i64 JNO
+    // form) or 16 (imm32), CQO/IDIV 5; unsigned XOR/DIV 6.
+    [26, 28, 28, 26, 13, 13, 13, 13],
+    // Remainder: Divide plus MOV RAX, RDX.
+    [29, 31, 31, 29, 16, 16, 16, 16],
+    // ShiftLeft: count check 8, MOV/SHL 6, range check 11 (MOVSXD 10) or
+    // the 64-bit round trip 13.
+    [25, 25, 24, 27, 25, 25, 25, 27],
+    // ShiftRight: count check 8, MOV/SAR or SHR 6.
+    [14, 14, 14, 14, 14, 14, 14, 14],
+    // Convert { Signed }: sign-extension check 11 (MOVSXD 10) or high-bit
+    // check 11, plus MOV 3; a signed source into i64 is the bare MOV.
+    [14, 14, 13, 3, 14, 14, 14, 14],
+    // Convert { Unsigned }: high-bit check plus MOV; into u64 the bare MOV.
+    [14, 14, 14, 14, 14, 14, 14, 3],
+];
+
+#[test]
+fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
+    let constraints = constraints();
+    let rflags = x86_64_physical_register_model()
+        .view_named("rflags")
+        .unwrap()
+        .units
+        .clone();
+    for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
+        let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
+        validate_x86_64_machine_effect_catalog(target, &constraints, catalog.clone()).unwrap();
+        for form in TrappingForm::ALL {
+            let semantic = MachineSemanticKind::TrappingInteger(form);
+            // Division and the u64 product take the fixed RAX:RDX row,
+            // shifts the RCX count row, and conversions the one-input row.
+            let (key, reads, writes): (_, Vec<u16>, Vec<u16>) = match (form.operation, form.carrier)
+            {
+                (TrappingOperation::Divide | TrappingOperation::Remainder, _)
+                | (TrappingOperation::Multiply, SaturatingCarrier::U64) => {
+                    (crate::X86_64_TRAPPING_FIXED_PAIR, vec![0, 1], vec![2, 3])
+                }
+                (TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight, _) => {
+                    (crate::X86_64_TRAPPING_SHIFT, vec![0, 1], vec![2, 3])
+                }
+                (TrappingOperation::Convert { .. }, _) => {
+                    (crate::X86_64_TRAPPING_CONVERT, vec![0], vec![1, 2])
+                }
+                _ => (crate::X86_64_TRAPPING_BINARY, vec![0, 1], vec![2, 3]),
+            };
+            let size = TRAPPING_SIZES[usize::from(form.operation.ordinal())]
+                [usize::from(form.carrier.ordinal())];
+            let declaration = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == semantic)
+                .unwrap_or_else(|| panic!("{form:?} declared"));
+            assert_eq!(declaration.constraint, key, "{form:?}");
+            assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+            assert_eq!(declaration.trap, MachineTrapBehavior::TrappingIntegerV1);
+            assert_eq!(declaration.memory, MachineMemoryEffect::NoneV1);
+            assert_eq!(declaration.call, MachineCallEffect::NoneV1);
+            assert_eq!(declaration.alternatives.len(), 1);
+            let alternative = &declaration.alternatives[0];
+            assert_eq!(
+                alternative.key.family,
+                MachineAlternativeFamily::TrappingInteger(form)
+            );
+            assert_eq!(alternative.key.variant, 0);
+            assert_eq!(
+                alternative.applicability,
+                MachineAlternativeApplicability::Always
+            );
+            assert_eq!(
+                alternative.size,
+                MachineSizeKnowledge::ExactBytes(size),
+                "{form:?}"
+            );
+            assert_eq!(
+                alternative.encoded,
+                MachineEncodedEffects {
+                    external_operand_reads: reads,
+                    external_operand_writes: writes,
+                    implicit_unit_uses: vec![],
+                    implicit_unit_defs: vec![],
+                    implicit_unit_clobbers: rflags.clone(),
+                    memory: MachineEncodedMemoryEffect::NoneV1,
+                    stack: MachineEncodedStackEffect::UnchangedV1,
+                    trap: MachineEncodedTrapBehavior::TrappingIntegerV1,
+                    control: MachineEncodedControlEffect::FallThroughOrTrapV1,
+                },
+                "{form:?}"
+            );
+            // The rows do not depend on the target, so the rebuild-and-compare
+            // corruptions run under one target only. Each form takes the
+            // corruption its carrier ordinal names, so every operation (and
+            // with it every row) meets all eight.
+            if target != NativeTarget::linux_x64() {
+                continue;
+            }
+            let corruption = form.carrier.ordinal();
+            let mut changed = catalog.clone();
+            let row = changed
+                .declarations
+                .iter_mut()
+                .find(|row| row.semantic == semantic)
+                .unwrap();
+            let alternative = &mut row.alternatives[0];
+            match corruption {
+                // Drop the scratch (or RDX) definition the row contracts.
+                0 => alternative.encoded.external_operand_writes.truncate(1),
+                1 => alternative.encoded.implicit_unit_clobbers.clear(),
+                2 => alternative.size = MachineSizeKnowledge::ExactBytes(size + 1),
+                // A trap-free surface understates the inline UD2.
+                3 => alternative.encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+                4 => alternative.encoded.control = MachineEncodedControlEffect::FallThroughV1,
+                // A sibling form's family on this form's row.
+                5 => {
+                    alternative.key.family = MachineAlternativeFamily::TrappingInteger(
+                        TrappingForm::ALL[(usize::from(form.ordinal()) + 1) % TrappingForm::COUNT],
+                    );
+                }
+                6 => row.trap = MachineTrapBehavior::NeverV1,
+                _ => row.barrier = MachineBarrier::None,
+            }
+            assert!(
+                validate_x86_64_machine_effect_catalog(target, &constraints, changed).is_err(),
+                "{form:?} corruption {corruption}"
+            );
         }
     }
 }
@@ -422,6 +565,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
                         | MachineSemanticKind::RestoreFloatingControl
                         | MachineSemanticKind::HostedWriteByteI32
                         | MachineSemanticKind::HostedExitProcessI32
+                        | MachineSemanticKind::TrappingInteger(_)
                 ) {
                     MachineBarrier::ExternalEffect
                 } else {

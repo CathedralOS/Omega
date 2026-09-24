@@ -21,12 +21,13 @@ use crate::register_model::{
     AARCH64_SATURATING_MULTIPLY_CLAMPED, AARCH64_SATURATING_MULTIPLY_U64,
     AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_SHIFT_I64,
     AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64,
-    AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_normalized_foreign_call_keys,
-    aarch64_aapcs64_register_call_keys, aarch64_aapcs64_register_unit_call_keys,
-    aarch64_darwin_normalized_foreign_call_keys, aarch64_darwin_register_call_keys,
-    aarch64_darwin_register_unit_call_keys, aarch64_register_aggregate_call_keys,
-    aarch64_register_aggregate_return_keys, canonical_aarch64_physical_register_model_identity,
-    validated_aarch64_physical_register_model,
+    AARCH64_SUBTRACT_I64_IMMEDIATE, AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT,
+    AARCH64_TRAPPING_FIXED_PAIR, AARCH64_TRAPPING_SHIFT,
+    aarch64_aapcs64_normalized_foreign_call_keys, aarch64_aapcs64_register_call_keys,
+    aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_normalized_foreign_call_keys,
+    aarch64_darwin_register_call_keys, aarch64_darwin_register_unit_call_keys,
+    aarch64_register_aggregate_call_keys, aarch64_register_aggregate_return_keys,
+    canonical_aarch64_physical_register_model_identity, validated_aarch64_physical_register_model,
 };
 use crate::register_model::{float_scalar_calls, indirect_results, mixed_calls};
 use crate::{
@@ -829,6 +830,33 @@ pub fn aarch64_register_constraint_catalog(
             implicit_uses: Vec::new(),
             implicit_defs: view("nzcv").units.clone(),
             clobbers: Vec::new(),
+        });
+    }
+    // Every Trapping form writes its early-clobber result (and scratch)
+    // while its inputs are still read, and leaves NZCV unspecified after the
+    // skip over its inline trap, so the flags are a clobber, not a
+    // definition. The binary, fixed-pair and shift roles share one shape on
+    // AArch64; x86-64 pins registers for the latter two.
+    for (key, sources) in [
+        (AARCH64_TRAPPING_BINARY, 2),
+        (AARCH64_TRAPPING_FIXED_PAIR, 2),
+        (AARCH64_TRAPPING_SHIFT, 2),
+        (AARCH64_TRAPPING_CONVERT, 1),
+    ] {
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands: (0..sources)
+                .map(|operand| allocatable(operand, RegisterOperandAccess::Use, GPR64))
+                .chain((sources..sources + 2).map(|operand| {
+                    let mut output = allocatable(operand, RegisterOperandAccess::Def, GPR64);
+                    output.early_clobber = true;
+                    output
+                }))
+                .collect(),
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: view("nzcv").units.clone(),
         });
     }
     mixed_calls::append_constraints(&mut constraints, model);

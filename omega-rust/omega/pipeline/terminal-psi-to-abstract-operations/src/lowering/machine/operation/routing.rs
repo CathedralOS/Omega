@@ -9,7 +9,7 @@ use super::{
     LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, borrowed_windows,
     calls, effects, ieee_float, integer_bitwise, integer_constants_and_relations,
     integer_conversion, shifts, structural_establishment, structural_leaf_copy,
-    structural_scalar_fields,
+    structural_scalar_fields, trapping_integer,
 };
 use crate::lowering::LoweringError;
 
@@ -415,8 +415,6 @@ pub(super) fn lower(
         | OperationKind::SaturatingIntegerAdd { .. }
         | OperationKind::SaturatingIntegerSubtract { .. }
         | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
-        OperationKind::TrappingInteger { .. } => {
-            Err(LoweringError::UnsupportedTrappingInteger(operation.id))
-        }
+        OperationKind::TrappingInteger { .. } => trapping_integer::lower(operation, value_types),
     }
 }

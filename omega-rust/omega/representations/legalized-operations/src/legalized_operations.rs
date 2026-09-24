@@ -53,7 +53,7 @@ pub use control_flow::{
     LegalizedScalarParameter, LegalizedScalarReturn, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralCasePayload,
     LegalizedStructuralCaseSource, LegalizedStructuralCaseSuccessor, LegalizedValueDefinition,
-    SaturatingCarrier, SaturatingOperation,
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
 
 pub mod identity;

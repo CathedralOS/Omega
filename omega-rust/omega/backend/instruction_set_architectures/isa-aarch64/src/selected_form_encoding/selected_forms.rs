@@ -86,6 +86,10 @@ fn family_and_operand_count(
 ) -> Result<(MachineAlternativeFamily, usize), Aarch64SelectedFormEncodingError> {
     Ok(match kind {
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
+        SelectedInstructionKind::TrappingInteger { form } => (
+            MachineAlternativeFamily::TrappingInteger(form),
+            super::trapping_forms::operand_count(form),
+        ),
         SelectedInstructionKind::CompareI64Zero => (MachineAlternativeFamily::CompareI64Zero, 1),
         SelectedInstructionKind::CompareI64Immediate { .. } => {
             (MachineAlternativeFamily::CompareI64Immediate, 1)
@@ -347,6 +351,27 @@ fn encode_unchecked(
     let mut words = Vec::new();
     match kind {
         SelectedInstructionKind::Crash => words.push(0xd420_0000),
+        SelectedInstructionKind::TrappingInteger { form } => {
+            // The result and scratch are early-clobber outputs: each is
+            // written while the inputs are still read, so neither may share
+            // a register with an input or with the other.
+            let sources = form.source_count();
+            if registers[sources..]
+                .iter()
+                .enumerate()
+                .any(|(index, late)| {
+                    registers[..sources].contains(late)
+                        || registers[sources + index + 1..].contains(late)
+                })
+            {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            words.extend(
+                super::trapping_forms::realization(form, registers)
+                    .into_iter()
+                    .map(super::trapping_forms::encode_word),
+            );
+        }
         SelectedInstructionKind::MaterializeI64 { value } => {
             append_canonical_materialization(&mut words, registers[0], integer_bits(value)?);
         }

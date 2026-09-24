@@ -154,6 +154,60 @@ pub(super) fn validate(
                 scalar_graph_input::value_type(optimized, **value)
                     == Some(ScalarType::Integer(*scalar_type))
             }) => {}
+        // A Trapping kind must name exactly the form, the operands in
+        // evaluation order, and for a conversion the source carrier the
+        // abstract operation declares; there is no obligation to replay.
+        (
+            LegalizedScalarInstructionKind::TrappingBinary { form, left, right },
+            AbstractOperation::TrappingInteger {
+                scalar_type,
+                operand_type,
+                operation,
+                ..
+            },
+        ) if !matches!(
+            operation,
+            terminal_psi::TrappingIntegerOperation::Convert { .. }
+        ) && scalar_graph_input::trapping_form(
+            *scalar_type,
+            *operand_type,
+            operation.primitive(),
+        ) == Some(*form)
+            && operation.operands() == [*left, *right]
+            && scalar_graph_input::trapping_operands_rejoin(
+                optimized,
+                *scalar_type,
+                *operand_type,
+                *operation,
+            ) => {}
+        (
+            LegalizedScalarInstructionKind::TrappingConvert {
+                form,
+                source,
+                operand,
+            },
+            AbstractOperation::TrappingInteger {
+                scalar_type,
+                operand_type,
+                operation:
+                    operation @ terminal_psi::TrappingIntegerOperation::Convert {
+                        operand: source_operand,
+                    },
+                ..
+            },
+        ) if scalar_graph_input::trapping_form(
+            *scalar_type,
+            *operand_type,
+            operation.primitive(),
+        ) == Some(*form)
+            && scalar_graph_input::saturating_carrier(*operand_type) == Some(*source)
+            && operand == source_operand
+            && scalar_graph_input::trapping_operands_rejoin(
+                optimized,
+                *scalar_type,
+                *operand_type,
+                *operation,
+            ) => {}
         (
             LegalizedScalarInstructionKind::SaturatingDivide {
                 carrier,

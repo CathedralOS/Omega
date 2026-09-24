@@ -36,6 +36,10 @@ pub use register_model::{
     X86_64_FLOAT64_TO_BITS, X86_64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
+    X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
+    X86_64_TRAPPING_SHIFT,
+};
+pub use register_model::{
     x86_64_microsoft_mixed_unit_call_keys, x86_64_system_v_mixed_unit_call_keys,
 };
 mod selected_form_encoding;

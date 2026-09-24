@@ -2,8 +2,12 @@
 
 use crate::selected_form_encoding::X86_64SelectedFormEncodingError;
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use crate::selected_form_encoding::trapping_forms::{
+    DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape,
+};
 use selected_instructions::{
     MachineAlternativeKey, SaturatingCarrier, SaturatingOperation, SelectedInstructionKind,
+    TrappingForm,
 };
 use semantic_vocabulary::IntegerValue;
 
@@ -227,6 +231,179 @@ fn append_saturating(
             bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 4, right)]);
             append_register_binary(bytes, 0x19, 2, 2);
             append_register_binary(bytes, 0x09, 2, 0);
+        }
+    }
+    Ok(())
+}
+
+/// The short conditional-jump opcodes a Trapping check skips its trap with.
+const JNO: u8 = 0x71;
+const JB: u8 = 0x72;
+const JAE: u8 = 0x73;
+const JE: u8 = 0x74;
+const JNE: u8 = 0x75;
+
+/// `jcc +2; ud2`: the jump skips the `Crash` leaf's trap bytes exactly when
+/// `condition` holds, which is the negation of the Trapping predicate.
+fn append_trap_unless(bytes: &mut Vec<u8>, condition: u8) {
+    bytes.extend([condition, 2, 0x0f, 0x0b]);
+}
+
+/// `movsx destination, source8|source16` or `movsxd destination, source32`,
+/// with REX.W so the byte view is never AH through BH.
+fn append_sign_extension(bytes: &mut Vec<u8>, bits: u16, source: u8, destination: u8) {
+    let opcode: &[u8] = match bits {
+        8 => &[0x0f, 0xbe],
+        16 => &[0x0f, 0xbf],
+        _ => &[0x63],
+    };
+    bytes.push(rex(destination, 0, source));
+    bytes.extend_from_slice(opcode);
+    bytes.push(modrm(3, destination, source));
+}
+
+/// The range check of `value` through `scratch`, trapping when it fails.
+fn append_range_check(bytes: &mut Vec<u8>, check: RangeCheck, value: u8, scratch: u8) {
+    match check {
+        RangeCheck::SignExtension { bits } => {
+            append_sign_extension(bytes, bits, value, scratch);
+            append_register_binary(bytes, 0x39, value, scratch);
+        }
+        RangeCheck::HighBits { shift } => {
+            append_register_binary(bytes, 0x89, value, scratch);
+            bytes.extend([rex(0, 0, scratch), 0xc1, modrm(3, 5, scratch), shift]);
+        }
+    }
+    append_trap_unless(bytes, JE);
+}
+
+/// `shl|shr|sar destination, cl` by its D3 /digit.
+fn append_shift_by_cl(bytes: &mut Vec<u8>, digit: u8, destination: u8) {
+    bytes.extend([rex(0, 0, destination), 0xd3, modrm(3, digit, destination)]);
+}
+
+/// The D3 digit of the right shift that preserves the carrier's sign.
+const fn right_shift_digit(signed: bool) -> u8 {
+    if signed { 7 } else { 5 }
+}
+
+/// `mov result, left; add|sub|imul result, right` over `[left, right,
+/// result, ..]`.
+fn append_trapping_arithmetic(
+    bytes: &mut Vec<u8>,
+    arithmetic: TrappingArithmetic,
+    registers: &[u8],
+) {
+    let (left, right, result) = (registers[0], registers[1], registers[2]);
+    append_register_binary(bytes, 0x89, left, result);
+    match arithmetic {
+        TrappingArithmetic::Add => append_register_binary(bytes, 0x01, right, result),
+        TrappingArithmetic::Subtract => append_register_binary(bytes, 0x29, right, result),
+        TrappingArithmetic::Multiply => append_signed_multiply(bytes, right, result),
+    }
+}
+
+/// `cmp count, width; jb; ud2; mov result, value` over `[value, count,
+/// result, ..]`: the unsigned compare also traps every negative count.
+fn append_shift_count_check(bytes: &mut Vec<u8>, width: u8, registers: &[u8]) {
+    let (value, count, result) = (registers[0], registers[1], registers[2]);
+    bytes.extend([rex(0, 0, count), 0x83, modrm(3, 7, count), width]);
+    append_trap_unless(bytes, JB);
+    append_register_binary(bytes, 0x89, value, result);
+}
+
+/// The zero-divisor test, the signed MIN / -1 guard, and the divide itself
+/// over `[rax, divisor, rax, rdx]`, leaving the quotient in RAX.
+fn append_trapping_divide(bytes: &mut Vec<u8>, guard: Option<DividendGuard>, divisor: u8) {
+    append_register_binary(bytes, 0x85, divisor, divisor);
+    append_trap_unless(bytes, JNE);
+    let Some(guard) = guard else {
+        append_register_binary(bytes, 0x31, 2, 2);
+        bytes.extend([rex(0, 0, divisor), 0xf7, modrm(3, 6, divisor)]);
+        return;
+    };
+    // A divisor other than -1 jumps over the whole dividend guard.
+    bytes.extend([rex(0, 0, divisor), 0x83, modrm(3, 7, divisor), 0xff]);
+    bytes.extend([JNE, guard.byte_count() as u8]);
+    match guard {
+        DividendGuard::Minimum8(minimum) => {
+            bytes.extend([0x48, 0x83, 0xf8, minimum as u8]);
+            append_trap_unless(bytes, JNE);
+        }
+        DividendGuard::Minimum32(minimum) => {
+            bytes.extend([0x48, 0x3d]);
+            bytes.extend(minimum.to_le_bytes());
+            append_trap_unless(bytes, JNE);
+        }
+        DividendGuard::DecrementOverflows => {
+            bytes.extend([0x48, 0x83, 0xf8, 1]);
+            append_trap_unless(bytes, JNO);
+        }
+    }
+    append_signed_divide(bytes, divisor);
+}
+
+/// One Trapping form with the operand layout of its row: `[left, right,
+/// result, scratch]`, `[rax, right, rax, rdx]`, `[value, rcx, result,
+/// scratch]`, or `[operand, result, scratch]`. See `trapping_forms.rs` for
+/// why each carrier class takes its shape.
+fn append_trapping(
+    bytes: &mut Vec<u8>,
+    form: TrappingForm,
+    registers: &[u8],
+) -> Result<(), X86_64SelectedFormEncodingError> {
+    let shape = TrappingShape::of(form);
+    if !shape.accepts_registers(registers) {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    match shape {
+        TrappingShape::OverflowFlag(arithmetic) => {
+            append_trapping_arithmetic(bytes, arithmetic, registers);
+            append_trap_unless(bytes, JNO);
+        }
+        TrappingShape::CarryFlag(arithmetic) => {
+            append_trapping_arithmetic(bytes, arithmetic, registers);
+            append_trap_unless(bytes, JAE);
+        }
+        TrappingShape::NarrowRange(arithmetic, check) => {
+            append_trapping_arithmetic(bytes, arithmetic, registers);
+            append_range_check(bytes, check, registers[2], registers[3]);
+        }
+        TrappingShape::MultiplyHighHalf => {
+            // MUL sets OF exactly when the RDX high half is nonzero.
+            bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 4, registers[1])]);
+            append_trap_unless(bytes, JNO);
+        }
+        TrappingShape::Division { guard, remainder } => {
+            append_trapping_divide(bytes, guard, registers[1]);
+            if remainder {
+                append_register_binary(bytes, 0x89, 2, 0);
+            }
+        }
+        TrappingShape::ShiftLeftRoundTrip { signed } => {
+            let (value, result, scratch) = (registers[0], registers[2], registers[3]);
+            append_shift_count_check(bytes, 64, registers);
+            append_shift_by_cl(bytes, 4, result);
+            append_register_binary(bytes, 0x89, result, scratch);
+            append_shift_by_cl(bytes, right_shift_digit(signed), scratch);
+            append_register_binary(bytes, 0x39, value, scratch);
+            append_trap_unless(bytes, JE);
+        }
+        TrappingShape::ShiftLeftRange { width, check } => {
+            append_shift_count_check(bytes, width, registers);
+            append_shift_by_cl(bytes, 4, registers[2]);
+            append_range_check(bytes, check, registers[2], registers[3]);
+        }
+        TrappingShape::ShiftRight { width, signed } => {
+            append_shift_count_check(bytes, width, registers);
+            append_shift_by_cl(bytes, right_shift_digit(signed), registers[2]);
+        }
+        TrappingShape::Convert(check) => {
+            let (operand, result, scratch) = (registers[0], registers[1], registers[2]);
+            if let Some(check) = check {
+                append_range_check(bytes, check, operand, scratch);
+            }
+            append_register_binary(bytes, 0x89, operand, result);
         }
     }
     Ok(())
@@ -471,6 +648,9 @@ pub(crate) fn encode_unchecked(
                 carrier,
                 registers,
             )?;
+        }
+        SelectedInstructionKind::TrappingInteger { form } => {
+            append_trapping(&mut bytes, form, registers)?;
         }
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64

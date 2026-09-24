@@ -6,12 +6,12 @@ use super::{
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
     machine_effect_catalog_identity, semantic_kind_tag,
 };
-use crate::SaturatingCarrier;
 use crate::{
     MachineAlternative, MachineAlternativeKey, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect, MachineSizeKnowledge,
     MachineTrapBehavior, SelectedConstraintKeys,
 };
+use crate::{SaturatingCarrier, TrappingForm, TrappingOperation};
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
     RegisterUnitId, RegisterViewId,
@@ -107,6 +107,10 @@ fn keys() -> SelectedConstraintKeys {
         saturating_divide_signed: instruction(42),
         saturating_multiply_clamped: instruction(48),
         saturating_multiply_u64: instruction(49),
+        trapping_binary: instruction(50),
+        trapping_fixed_pair: instruction(51),
+        trapping_shift: instruction(52),
+        trapping_convert: instruction(53),
         add_i64_immediate: instruction(3),
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
@@ -920,6 +924,10 @@ fn alternative_family_tag_is_pinned_for_every_family() {
     }
     for semantic in MachineSemanticKind::ALL {
         let family = MachineAlternativeFamily::from(semantic);
+        // Trapping forms take a dense tag block pinned by its own test.
+        if matches!(family, MachineAlternativeFamily::TrappingInteger(_)) {
+            continue;
+        }
         assert!(
             PINNED_ALTERNATIVE_FAMILY_TAGS
                 .iter()
@@ -927,6 +935,59 @@ fn alternative_family_tag_is_pinned_for_every_family() {
             "{family:?} has no pinned identity tag",
         );
     }
+}
+
+/// Sample Trapping tags: the block starts at 122, above every fixed and
+/// saturating tag, and advances by the form's dense ordinal (operation-major,
+/// carriers in `SaturatingCarrier::ALL` order).
+const PINNED_TRAPPING_FAMILY_TAGS: [(TrappingOperation, SaturatingCarrier, u8); 7] = [
+    (TrappingOperation::Add, SaturatingCarrier::I8, 122),
+    (TrappingOperation::Add, SaturatingCarrier::U64, 129),
+    (TrappingOperation::Subtract, SaturatingCarrier::I8, 130),
+    (TrappingOperation::Remainder, SaturatingCarrier::I64, 157),
+    (TrappingOperation::ShiftLeft, SaturatingCarrier::U8, 166),
+    (
+        TrappingOperation::Convert {
+            source: semantic_vocabulary::IntegerSign::Signed,
+        },
+        SaturatingCarrier::I8,
+        178,
+    ),
+    (
+        TrappingOperation::Convert {
+            source: semantic_vocabulary::IntegerSign::Unsigned,
+        },
+        SaturatingCarrier::U64,
+        193,
+    ),
+];
+
+#[test]
+fn trapping_family_tags_are_dense_distinct_and_pinned() {
+    for (operation, carrier, expected) in PINNED_TRAPPING_FAMILY_TAGS {
+        let form = TrappingForm { operation, carrier };
+        let family = MachineAlternativeFamily::TrappingInteger(form);
+        assert_eq!(alternative_family_tag(family), expected, "{form:?}");
+        assert_eq!(
+            semantic_kind_tag(MachineSemanticKind::TrappingInteger(form)),
+            expected
+        );
+    }
+    let fixed = PINNED_ALTERNATIVE_FAMILY_TAGS
+        .iter()
+        .map(|(_, tag)| *tag)
+        .collect::<std::collections::BTreeSet<_>>();
+    for form in TrappingForm::ALL {
+        let tag = alternative_family_tag(MachineAlternativeFamily::TrappingInteger(form));
+        assert_eq!(tag, 122 + form.ordinal());
+        assert!(!fixed.contains(&tag), "{form:?} aliases a fixed family tag");
+        assert!(MachineSemanticKind::ALL.contains(&MachineSemanticKind::TrappingInteger(form)));
+    }
+    let every_tag = MachineSemanticKind::ALL
+        .iter()
+        .map(|semantic| semantic_kind_tag(*semantic))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
 }
 
 #[test]
@@ -1128,13 +1189,14 @@ fn encoded_stack_effect_identity_bytes_are_pinned() {
 
 #[test]
 fn encoded_trap_behavior_identity_bytes_are_pinned() {
-    let cases: [(MachineEncodedTrapBehavior, u8); 6] = [
+    let cases: [(MachineEncodedTrapBehavior, u8); 7] = [
         (MachineEncodedTrapBehavior::NeverV1, 0),
         (MachineEncodedTrapBehavior::MayArchitecturalFaultV1, 1),
         (MachineEncodedTrapBehavior::HostedWriteFailureV1, 2),
         (MachineEncodedTrapBehavior::HostedExitReturnedV1, 3),
         (MachineEncodedTrapBehavior::HostedReadFailureV1, 4),
         (MachineEncodedTrapBehavior::ExplicitCrashV1, 5),
+        (MachineEncodedTrapBehavior::TrappingIntegerV1, 6),
     ];
     for (trap, expected) in cases {
         let mut wanted = EMPTY_LIST_PREFIX.to_vec();
@@ -1154,7 +1216,7 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 
 #[test]
 fn encoded_control_effect_identity_bytes_are_pinned() {
-    let cases: [(MachineEncodedControlEffect, &[u8]); 10] = [
+    let cases: [(MachineEncodedControlEffect, &[u8]); 11] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
         (
             MachineEncodedControlEffect::ConditionalRelativeBranchV1,
@@ -1179,6 +1241,7 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
         (MachineEncodedControlEffect::HostedExitOrTrapV1, &[7]),
         (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
         (MachineEncodedControlEffect::CrashV1, &[9]),
+        (MachineEncodedControlEffect::FallThroughOrTrapV1, &[10]),
     ];
     for (control, expected) in cases {
         let mut wanted = EMPTY_LIST_PREFIX.to_vec();

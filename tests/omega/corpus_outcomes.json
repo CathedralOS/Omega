@@ -727,14 +727,6 @@
   ]
  },
  {
-  "fixture": "fail/arithmetic/trapping_shift_requires_realization",
-  "tier": "fail",
-  "status": "checked",
-  "millis": 628,
-  "expected_satisfied": false,
-  "diagnostics": []
- },
- {
   "fixture": "fail/arithmetic/u64_literal_above_i64_max",
   "tier": "fail",
   "status": "rejected",

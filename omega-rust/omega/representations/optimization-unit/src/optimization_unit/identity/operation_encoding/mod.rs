@@ -101,7 +101,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::WrappingIntegerRemainder { .. }
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. }
-        | O::SaturatingIntegerMultiply { .. } => scalar::encode(bytes, operation),
+        | O::SaturatingIntegerMultiply { .. }
+        | O::TrappingInteger { .. } => scalar::encode(bytes, operation),
 
         O::Jump { .. }
         | O::Conditional { .. }

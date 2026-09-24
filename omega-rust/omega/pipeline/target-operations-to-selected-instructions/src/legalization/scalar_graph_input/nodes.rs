@@ -10,7 +10,9 @@ use crate::legalization::scalar_graph_input::integer_type;
 use crate::legalization::scalar_graph_input::u8_type;
 use crate::legalization::scalar_graph_input::u64_type;
 use crate::legalization::scalar_graph_input::value_type;
-use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
+use crate::legalization::scalar_graph_input::{
+    saturating_carrier, supports_wrapping_division, trapping_form, trapping_operands_rejoin,
+};
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 /// Why a node has no legal instruction row. Only the first kind is a custody
@@ -304,6 +306,15 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             scalar_type,
             ..
         } if saturating_carrier(*scalar_type).is_some() => Ok((*psi_operation, *result)),
+        AbstractOperation::TrappingInteger {
+            psi_operation,
+            result,
+            scalar_type,
+            operand_type,
+            operation,
+        } if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() => {
+            Ok((*psi_operation, *result))
+        }
         AbstractOperation::ExactIntegerDivide {
             psi_operation,
             result,
@@ -845,6 +856,19 @@ pub(super) fn validate(
                 if saturating_carrier(*scalar_type).is_none()
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                {
+                    return Err(LegalizationError::custody());
+                }
+                ScalarType::Integer(*scalar_type)
+            }
+            AbstractOperation::TrappingInteger {
+                scalar_type,
+                operand_type,
+                operation,
+                ..
+            } => {
+                if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_none()
+                    || !trapping_operands_rejoin(optimized, *scalar_type, *operand_type, *operation)
                 {
                     return Err(LegalizationError::custody());
                 }

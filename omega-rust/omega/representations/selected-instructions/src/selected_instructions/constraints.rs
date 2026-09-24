@@ -71,6 +71,21 @@ pub struct SelectedConstraintKeys {
     /// overflow, so x86-64 pins `MUL` to RAX:RDX (right operand in RCX) while
     /// AArch64 keeps the clamped four-operand shape for `UMULH`.
     pub saturating_multiply_u64: RegisterConstraintKey,
+    /// Trapping add, subtract and multiply (every carrier but the x86-64 u64
+    /// multiply): two inputs, an early-clobber result, and an early-clobber
+    /// scratch for the narrow range check or the i64 product's high half.
+    pub trapping_binary: RegisterConstraintKey,
+    /// Trapping divide and remainder at every carrier, and the u64 multiply.
+    /// x86-64 pins the dividend and result to RAX, the divisor or right
+    /// operand to RCX, and the scratch to RDX (`IDIV`/`DIV`/`MUL`); AArch64
+    /// keeps the allocatable four-operand shape of `trapping_binary`.
+    pub trapping_fixed_pair: RegisterConstraintKey,
+    /// Trapping shifts: value and count read, early-clobber result and
+    /// scratch defined. x86-64 pins the count to RCX for `CL`.
+    pub trapping_shift: RegisterConstraintKey,
+    /// Trapping conversion: one input, an early-clobber result, and an
+    /// early-clobber scratch for the representability check.
+    pub trapping_convert: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,

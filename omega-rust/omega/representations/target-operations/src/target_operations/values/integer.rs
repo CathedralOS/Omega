@@ -208,4 +208,17 @@ pub enum TargetIntegerExpression {
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },
+    /// A Terminal `Trapping` primitive over its operand expressions: the
+    /// exact result, or a `Trap` crash at this operation when the settled
+    /// Trapping predicate holds. The enclosing expression names the result
+    /// carrier; `operand_type` is a shift count's or a conversion source's
+    /// type (the result carrier for binary arithmetic). `right` is the second
+    /// operand or shift count and is absent exactly for a conversion.
+    Trapping {
+        psi_operation: OperationId,
+        primitive: terminal_psi::TrappingIntegerPrimitive,
+        operand_type: IntegerType,
+        left: Box<TargetIntegerExpression>,
+        right: Option<Box<TargetIntegerExpression>>,
+    },
 }

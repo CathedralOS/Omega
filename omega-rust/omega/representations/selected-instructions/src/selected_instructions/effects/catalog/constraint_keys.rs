@@ -1,4 +1,4 @@
-use crate::SaturatingCarrier;
+use crate::{SaturatingCarrier, TrappingOperation};
 use register_model::RegisterConstraintKey;
 
 use super::MachineSemanticKind;
@@ -65,6 +65,10 @@ impl SelectedConstraintKeys {
             self.multiply_i64,
             self.saturating_multiply_clamped,
             self.saturating_multiply_u64,
+            self.trapping_binary,
+            self.trapping_fixed_pair,
+            self.trapping_shift,
+            self.trapping_convert,
         ])
         .collect()
     }
@@ -174,6 +178,23 @@ impl SelectedConstraintKeys {
                 self.saturating_multiply_u64
             }
             MachineSemanticKind::SaturatingMultiply(_) => self.saturating_multiply_clamped,
+            // Operand shape selects the Trapping row: division and the u64
+            // multiply need the x86-64 RAX:RDX pair, shifts need the x86-64
+            // CL count, a conversion reads one input, and every other form
+            // is the allocatable four-operand row.
+            MachineSemanticKind::TrappingInteger(form) => match form.operation {
+                TrappingOperation::Divide | TrappingOperation::Remainder => {
+                    self.trapping_fixed_pair
+                }
+                TrappingOperation::Multiply if matches!(form.carrier, SaturatingCarrier::U64) => {
+                    self.trapping_fixed_pair
+                }
+                TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => self.trapping_shift,
+                TrappingOperation::Convert { .. } => self.trapping_convert,
+                TrappingOperation::Add
+                | TrappingOperation::Subtract
+                | TrappingOperation::Multiply => self.trapping_binary,
+            },
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             MachineSemanticKind::ReturnScalar => self.return_i64,

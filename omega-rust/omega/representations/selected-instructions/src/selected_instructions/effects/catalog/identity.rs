@@ -97,6 +97,7 @@ pub fn machine_effect_catalog_identity(
         });
         bytes.push(match declaration.trap {
             crate::MachineTrapBehavior::ExplicitCrashV1 => 5,
+            crate::MachineTrapBehavior::TrappingIntegerV1 => 6,
             crate::MachineTrapBehavior::NeverV1 => 0,
             crate::MachineTrapBehavior::HostedExitReturnedV1 => 3,
             crate::MachineTrapBehavior::HostedReadFailureV1 => 4,
@@ -340,6 +341,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     }
     bytes.identity_bytes(&[match effects.trap {
         MachineEncodedTrapBehavior::ExplicitCrashV1 => 5,
+        MachineEncodedTrapBehavior::TrappingIntegerV1 => 6,
         MachineEncodedTrapBehavior::NeverV1 => 0,
         MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
         MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
@@ -348,6 +350,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     }]);
     match effects.control {
         MachineEncodedControlEffect::CrashV1 => bytes.identity_bytes(&[9]),
+        MachineEncodedControlEffect::FallThroughOrTrapV1 => bytes.identity_bytes(&[10]),
         MachineEncodedControlEffect::HostedExitOrTrapV1 => bytes.identity_bytes(&[7]),
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => bytes.identity_bytes(&[8]),
         MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => bytes.identity_bytes(&[6]),
@@ -507,6 +510,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::SaturatingMultiply(carrier) => {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
+        MachineSemanticKind::TrappingInteger(form) => trapping_family_tag(form),
     }
 }
 
@@ -617,6 +621,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         MachineAlternativeFamily::SaturatingMultiply(carrier) => {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
+        MachineAlternativeFamily::TrappingInteger(form) => trapping_family_tag(form),
     }
 }
 
@@ -666,4 +671,11 @@ pub const fn saturating_family_tag(
         (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
         (SaturatingOperation::Multiply, carrier) => 114 + carrier.ordinal(),
     }
+}
+
+/// The one machine-semantic and alternative-family tag of each Trapping
+/// form: 122 plus the form's dense ordinal (122 through 193), above every
+/// fixed and saturating tag. Forms are appended, never renumbered.
+pub const fn trapping_family_tag(form: crate::TrappingForm) -> u8 {
+    122 + form.ordinal()
 }

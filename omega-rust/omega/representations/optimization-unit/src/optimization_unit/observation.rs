@@ -485,5 +485,9 @@ fn operation_observations(
             No,
         ),
         O::Crash { .. } => (vec![event(C::CrashExit)], Yes, No),
+        // A Trapping primitive may leave through its own `Trap` crash: the
+        // event keeps it from being erased, duplicated or moved as pure
+        // scalar work, while the crash stays conditional on its operands.
+        O::TrappingInteger { .. } => (vec![event(C::CrashExit)], May, No),
     }
 }

@@ -195,6 +195,17 @@ pub enum SelectedInstructionKind {
     SaturatingMultiply {
         carrier: SaturatingCarrier,
     },
+    /// One `Trapping` primitive at the form's carrier: the exact result, or
+    /// an inline architectural trap (the `Crash` leaf's bytes) when the
+    /// settled Trapping predicate holds. The check is the policy, so no
+    /// obligation is carried and the instruction is never dead: its trap is
+    /// observable even when the result is unused. Operands are `[left,
+    /// right, result, scratch]` (a shift's right operand is its count) and
+    /// `[operand, result, scratch]` for a conversion; the result and scratch
+    /// are early-clobber, and the result is normalized for later source uses.
+    TrappingInteger {
+        form: super::TrappingForm,
+    },
     /// Add register payloads modulo 2^64 without an Exact overflow obligation.
     /// Narrow semantic results require a subsequent signed/unsigned normalization.
     WrappingAddI64,

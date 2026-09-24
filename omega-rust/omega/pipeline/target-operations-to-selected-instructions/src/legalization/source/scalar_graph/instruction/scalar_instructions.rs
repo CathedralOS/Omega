@@ -108,6 +108,51 @@ pub(super) fn project_saturating_integer_arithmetic(
     })
 }
 
+/// A Trapping operation names the form node admission accepted and carries
+/// no obligation: the realized check is the policy. A conversion also keeps
+/// its operand's exact declared carrier beside the form's source sign.
+pub(super) fn project_trapping_integer(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::TrappingInteger {
+        scalar_type,
+        operand_type,
+        operation,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_trapping_integer");
+    };
+    let form =
+        scalar_graph_input::trapping_form(*scalar_type, *operand_type, operation.primitive())
+            .ok_or(Error::custody())?;
+    if !scalar_graph_input::trapping_operands_rejoin(
+        optimized,
+        *scalar_type,
+        *operand_type,
+        *operation,
+    ) {
+        return Err(Error::custody());
+    }
+    Ok(match *operation {
+        terminal_psi::TrappingIntegerOperation::Convert { operand } => {
+            LegalizedScalarInstructionKind::TrappingConvert {
+                form,
+                source: scalar_graph_input::saturating_carrier(*operand_type)
+                    .ok_or(Error::custody())?,
+                operand,
+            }
+        }
+        binary => {
+            let [left, right] = binary.operands()[..] else {
+                return Err(Error::custody());
+            };
+            LegalizedScalarInstructionKind::TrappingBinary { form, left, right }
+        }
+    })
+}
+
 pub(super) fn project_saturating_integer_divide(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,

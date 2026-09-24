@@ -343,6 +343,32 @@ pub(crate) fn operation_scalar_types_match(
                 && integer(*value, *value_type)
                 && integer(*count, *count_type)
         }
+        // A Trapping primitive rejoins both carrier axes: binary operands the
+        // result carrier, a shift's value the result carrier and its count
+        // the independent operand type, a conversion's operand the source.
+        O::TrappingInteger {
+            scalar_type,
+            operand_type,
+            operation,
+            ..
+        } => {
+            use terminal_psi::TrappingIntegerOperation as T;
+            fixed(*scalar_type)
+                && fixed(*operand_type)
+                && match *operation {
+                    T::Add { left, right }
+                    | T::Subtract { left, right }
+                    | T::Multiply { left, right }
+                    | T::Divide { left, right }
+                    | T::Remainder { left, right } => {
+                        operand_type == scalar_type && binary(left, right, *scalar_type)
+                    }
+                    T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {
+                        integer(value, *scalar_type) && integer(count, *operand_type)
+                    }
+                    T::Convert { operand } => integer(operand, *operand_type),
+                }
+        }
         O::Jump { .. } => true,
         O::Conditional { condition, .. } => scalar(*condition) == Some(ScalarType::Boolean),
         O::Return {

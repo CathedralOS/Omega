@@ -5,7 +5,9 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Checker;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
-use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
+use crate::legalization::scalar_graph_input::{
+    saturating_carrier, supports_wrapping_division, trapping_form,
+};
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
@@ -139,6 +141,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::SaturatingIntegerDivide { .. }
             | AbstractOperation::SaturatingIntegerRemainder { .. }
             | AbstractOperation::SaturatingIntegerMultiply { .. }
+            | AbstractOperation::TrappingInteger { .. }
             | AbstractOperation::WrappingIntegerAdd { .. }
             | AbstractOperation::WrappingIntegerSubtract { .. }
             | AbstractOperation::WrappingIntegerMultiply { .. }
@@ -229,6 +232,44 @@ pub(super) fn observation(
                         })
                     })
                 })
+            {
+                return Err(LegalizationError::custody());
+            }
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
+        }
+        // Every Trapping operand resolves through an available source of its
+        // own declared type: the result carrier for binary operands and a
+        // shifted value, the operand type for a count or conversion source.
+        AbstractOperation::TrappingInteger {
+            psi_operation,
+            result,
+            scalar_type,
+            operand_type,
+            operation,
+        } => {
+            use terminal_psi::TrappingIntegerOperation as T;
+            let typed = |operand: ValueId, expected| {
+                checker.available.is_some_and(|sources| {
+                    sources.iter().any(|(value, source)| {
+                        *value == operand && source.scalar_type() == ScalarType::Integer(expected)
+                    })
+                })
+            };
+            let operands_available = match *operation {
+                T::Add { left, right }
+                | T::Subtract { left, right }
+                | T::Multiply { left, right }
+                | T::Divide { left, right }
+                | T::Remainder { left, right } => {
+                    typed(left, *scalar_type) && typed(right, *scalar_type)
+                }
+                T::ShiftLeft { value, count } | T::ShiftRight { value, count } => {
+                    typed(value, *scalar_type) && typed(count, *operand_type)
+                }
+                T::Convert { operand } => typed(operand, *operand_type),
+            };
+            if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_none()
+                || !operands_available
             {
                 return Err(LegalizationError::custody());
             }

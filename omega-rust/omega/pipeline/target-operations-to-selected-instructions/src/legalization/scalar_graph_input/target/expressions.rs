@@ -7,7 +7,9 @@ use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::target::resolve;
 use crate::legalization::scalar_graph_input::value_type;
-use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
+use crate::legalization::scalar_graph_input::{
+    saturating_carrier, supports_wrapping_division, trapping_form,
+};
 impl Checker<'_> {
     // Operation operands refer to established values; only the definition root
     // carries an operation. Never reconstruct an already-produced expression tree.
@@ -264,6 +266,25 @@ impl Checker<'_> {
                     if operation == psi_operation && *result == resolved
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
+            }
+            // The Trapping root names the exact abstract primitive, both
+            // carrier axes and every operand in evaluation order; a
+            // conversion alone has no second operand.
+            Expression::Trapping { psi_operation, primitive, operand_type, left, right } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::TrappingInteger { psi_operation: operation, result, scalar_type, operand_type: expected_operand_type, operation: source }
+                    if operation == psi_operation && *result == resolved
+                        && source.primitive() == *primitive
+                        && expected_operand_type == operand_type
+                        && trapping_form(*scalar_type, *operand_type, *primitive).is_some()
+                        && match (source.operands().as_slice(), right) {
+                            ([source_left], None) => self.integer_source(left, *source_left, aliases),
+                            ([source_left, source_right], Some(right)) => {
+                                self.integer_source(left, *source_left, aliases)
+                                    && self.integer_source(right, *source_right, aliases)
+                            }
+                            _ => false,
+                        }))
             }
             Expression::SaturatingMultiply { psi_operation, left, right } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,

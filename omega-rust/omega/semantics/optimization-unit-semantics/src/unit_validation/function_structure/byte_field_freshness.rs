@@ -186,6 +186,7 @@ fn changes_length(
         | O::WrappingIntegerMultiply { .. }
         | O::ExactIntegerMultiply { .. }
         | O::SaturatingIntegerMultiply { .. }
+        | O::TrappingInteger { .. }
         | O::ExactIntegerDivide { .. }
         | O::ExactIntegerRemainder { .. }
         | O::WrappingIntegerDivide { .. }

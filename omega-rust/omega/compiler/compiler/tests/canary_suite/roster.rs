@@ -234,7 +234,7 @@ fn pass_roster() -> Vec<&'static str> {
 ///   fail/relevance/erased_case_payload_runtime_read
 ///   fail/wire/preserve_unknown_demand_unsatisfiable
 ///   pass/relevance/erased_case_payload_field_exit (pass roster, below)
-const HUB_PINNED_FAIL_CANARIES: &[&str] = &["arithmetic/trapping_shift_requires_realization"];
+const HUB_PINNED_FAIL_CANARIES: &[&str] = &[];
 
 fn file_expectation_fail_roster() -> Vec<&'static str> {
     // Cross-target rows only annotate compilation scheduled by these arrays.

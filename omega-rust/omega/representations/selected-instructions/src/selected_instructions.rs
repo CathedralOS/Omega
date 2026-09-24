@@ -59,7 +59,8 @@ pub use effects::{
     PreAllocationMachineEffectPlan, ValidatedMachineEffectCatalog, alternative_family_tag,
     encode_machine_alternative_identity, encode_machine_alternative_key_identity,
     encode_machine_encoded_effects_identity, machine_effect_catalog_identity,
-    pre_allocation_machine_effect_identity, saturating_family_tag, validate_machine_effect_catalog,
+    pre_allocation_machine_effect_identity, saturating_family_tag, trapping_family_tag,
+    validate_machine_effect_catalog,
 };
 pub use identity::{
     CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
@@ -67,7 +68,9 @@ pub use identity::{
     SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
-pub use legalized_operations::{SaturatingCarrier, SaturatingOperation};
+pub use legalized_operations::{
+    SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
+};
 pub use live_ranges::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockPointDomain, CopyAffinity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
