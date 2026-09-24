@@ -173,11 +173,6 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
-    InvalidIndexedPrimitiveRead {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
     StructuralReturnSourceContractMismatch {
         machine: MachineId,
         block: BlockId,

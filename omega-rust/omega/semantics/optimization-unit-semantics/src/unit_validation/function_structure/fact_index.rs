@@ -95,22 +95,12 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
-            | O::WriteOnlyIndexedPrimitiveStore {
-                psi_operation,
-                obligation,
-                ..
-            }
             | O::ElementViewSubslice {
                 psi_operation,
                 obligation,
                 ..
             }
             | O::ElementViewRead {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::IndexedPrimitiveRead {
                 psi_operation,
                 obligation,
                 ..
@@ -179,6 +169,20 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 support: *psi_operation,
             }),
             _ => {}
+        }
+        // Each runtime-selected path element's bound, owned by its operation.
+        if let Some(support) = operation.psi_operation() {
+            expected.extend(
+                operation
+                    .runtime_indices()
+                    .into_iter()
+                    .map(
+                        |(_, obligation)| OptimizationFact::OperationObligationReference {
+                            obligation,
+                            support,
+                        },
+                    ),
+            );
         }
         match operation {
             O::BooleanConstant {

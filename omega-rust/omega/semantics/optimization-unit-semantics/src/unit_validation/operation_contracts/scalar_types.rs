@@ -26,6 +26,15 @@ pub(crate) fn operation_scalar_types_match(
     let binary = |left: ValueId, right: ValueId, expected: IntegerType| {
         integer(left, expected) && integer(right, expected)
     };
+    // Every runtime-selected path element names a defined integer selector
+    // the 64-bit address model can extend; its bound stays the operation's
+    // verified obligation.
+    let selectors_match = operation.runtime_indices().into_iter().all(|(index, _)| {
+        matches!(scalar(index), Some(ScalarType::Integer(integer)) if integer.bits() <= 64)
+    });
+    if !selectors_match {
+        return false;
+    }
     match operation {
         O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
@@ -61,28 +70,6 @@ pub(crate) fn operation_scalar_types_match(
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => {
             scalar(value.value) == Some(value.scalar_type)
-        }
-        // The runtime selector rejoins its dominating u64 definition; the
-        // stored scalar keeps the array's exact element type.
-        // The element read rejoins its dominating u64 selector and yields the
-        // array's exact element type; the structural root check binds that type.
-        O::IndexedPrimitiveRead { result, index, .. } => {
-            scalar(index.value) == Some(index.scalar_type)
-                && index.scalar_type
-                    == ScalarType::Integer(
-                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                            .expect("u64 is valid"),
-                    )
-                && scalar(result.value) == Some(result.scalar_type)
-        }
-        O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
-            scalar(index.value) == Some(index.scalar_type)
-                && index.scalar_type
-                    == ScalarType::Integer(
-                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                            .expect("u64 is valid"),
-                    )
-                && scalar(value.value) == Some(value.scalar_type)
         }
         O::StructuralCaseMembership { result, .. } => result.scalar_type == ScalarType::Boolean,
         O::AtomicEvent { event, .. } => {

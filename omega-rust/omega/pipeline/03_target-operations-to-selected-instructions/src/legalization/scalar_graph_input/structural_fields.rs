@@ -205,63 +205,6 @@ pub(in crate::legalization) fn read(
     Some((operation, result, source, field))
 }
 
-/// One fixed-array element read at a runtime index beneath a borrowed
-/// structural parameter: the runtime argument naming the array and its
-/// layout within the referent (base offset, element width, declared extent).
-/// Only a borrowed parameter supplies the address the element stride scales
-/// from; owned homes and write-only borrows are not read here.
-pub(in crate::legalization) fn indexed_read(
-    function: &PsiOptimizationFunction,
-    operation: &AbstractOperation,
-    types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<(terminal_psi::StructuralArgument, (u32, u8, u64))> {
-    let AbstractOperation::IndexedPrimitiveRead {
-        result,
-        source,
-        path,
-        ..
-    } = operation
-    else {
-        return None;
-    };
-    let parameter = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == *source)?;
-    if !matches!(
-        parameter.access,
-        terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-    ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || function
-            .entry_claim_declarations
-            .iter()
-            .any(|claim| claim.input == *source)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == *source)
-    {
-        return None;
-    }
-    let layout = crate::structural_inputs::structural_reference_input::indexed_array_layout(
-        parameter.structural_type,
-        path,
-        result.scalar_type,
-        types,
-    )?;
-    Some((
-        terminal_psi::StructuralArgument {
-            place: *source,
-            access: parameter.access,
-            path: runtime_path(parameter.structural_type, path, types)?,
-        },
-        layout,
-    ))
-}
-
 /// The runtime spelling of a canonical projection beneath `root`: each field
 /// by its declared identity, and at most one literal index as the final
 /// segment, bounded by the declared extent.

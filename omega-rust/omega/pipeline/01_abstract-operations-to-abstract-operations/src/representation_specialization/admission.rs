@@ -388,7 +388,6 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
         | O::EstablishElementView { destination, .. } => *destination == place,
         // Parameter-row destinations and vacating move sources.
         O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. }
         | O::StoreStructuralField { destination, .. } => destination.place == place,
         O::MoveStructuralField { source, .. } => source.place == place,

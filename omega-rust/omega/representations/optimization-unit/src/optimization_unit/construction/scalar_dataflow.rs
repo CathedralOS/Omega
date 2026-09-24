@@ -30,7 +30,6 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
-        | O::IndexedPrimitiveRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -188,7 +187,21 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
     }
 }
 
+/// Every scalar the operation reads, in operand order: its direct operands,
+/// then each runtime-selected path element's selector
+/// (`AbstractOperation::runtime_indices`).
 pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
+    let mut uses = direct_uses(operation);
+    uses.extend(
+        operation
+            .runtime_indices()
+            .into_iter()
+            .map(|(index, _)| index),
+    );
+    uses
+}
+
+fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
     use AbstractOperation as O;
     match operation {
         O::EstablishScalarCase { fields, .. } => fields.iter().map(|field| field.value).collect(),
@@ -202,7 +215,6 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
-        O::IndexedPrimitiveRead { index, .. } => vec![index.value],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,

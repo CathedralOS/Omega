@@ -1,16 +1,14 @@
 //! Replay the durable-root extent copy into fresh activation storage and the
 //! borrowed window's inverse reseat.
 use super::{
-    IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+    LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
 use crate::selection::validation::scalar_graph::structural::provenance;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
-use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::PlaceId;
 
 #[track_caller]
@@ -63,7 +61,7 @@ pub(super) fn copy(
         alignment: shape.alignment,
     });
     let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
-    let Some(mut input) = input else {
+    let Some(input) = input else {
         check_fragments(
             _source,
             row,
@@ -78,78 +76,7 @@ pub(super) fn copy(
         replay.transport.pointers.push((result.place, pointer));
         return Ok(());
     };
-    for index in indices {
-        let (_, index_register, _, index_type) = replay
-            .resolve(index.operand.value)
-            .ok_or_else(|| invalid())?;
-        let ScalarType::Integer(integer) = index.operand.scalar_type else {
-            return Err(invalid());
-        };
-        if integer.bits() > 64 || index_type != index.operand.scalar_type {
-            return Err(invalid());
-        }
-        let index_register = match integer.bits() {
-            64 => index_register,
-            bits => {
-                let kind = match (integer.sign(), bits) {
-                    (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
-                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
-                    (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
-                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
-                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
-                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
-                    _ => return Err(invalid()),
-                };
-                let extended = super::result(replay, *source, *byte_offset)?;
-                replay.check_instruction(
-                    kind,
-                    replay.constraints.keys.copy_i64,
-                    &[index_register, extended],
-                    &SelectedInstructionProvenance {
-                        operations: vec![row.operation],
-                        values: vec![index.operand.value],
-                        ..Default::default()
-                    },
-                )?;
-                extended
-            }
-        };
-        let stride = super::result(replay, *source, *byte_offset)?;
-        replay.check_instruction(
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(index.stride)),
-            },
-            replay.constraints.keys.materialize_i64,
-            &[stride],
-            &SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                ..Default::default()
-            },
-        )?;
-        let scaled = super::result(replay, *source, *byte_offset)?;
-        replay.check_instruction(
-            SelectedInstructionKind::WrappingMultiplyI64,
-            replay.constraints.keys.multiply_i64,
-            &[index_register, stride, scaled],
-            &SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index.operand.value],
-                ..Default::default()
-            },
-        )?;
-        let address = super::result(replay, *source, *byte_offset)?;
-        replay.check_instruction(
-            SelectedInstructionKind::ByteViewAddress,
-            replay.constraints.keys.add_i64,
-            &[input, scaled, address],
-            &SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index.operand.value],
-                ..Default::default()
-            },
-        )?;
-        input = address;
-    }
+    let input = super::runtime_address::scale(replay, row, *source, *byte_offset, input, indices)?;
     copy_bytes(
         replay,
         row,
@@ -157,11 +84,13 @@ pub(super) fn copy(
             place: *source,
             pointer: input,
             byte_offset: *byte_offset,
+            elements: indices,
         },
         CopyEnd {
             place: result.place,
             pointer,
             byte_offset: 0,
+            elements: &[],
         },
         u32::from(shape.byte_size),
     )?;
@@ -223,29 +152,35 @@ pub(super) fn reseat(
             place: *value,
             pointer: home,
             byte_offset: 0,
+            elements: &[],
         },
         CopyEnd {
             place: destination.place,
             pointer: root,
             byte_offset: *byte_offset,
+            elements: &[],
         },
         u32::from(shape.byte_size),
     )
 }
 
 /// One end of a replayed chunked byte copy; see construction `CopyEnd`.
-struct CopyEnd {
+struct CopyEnd<'a> {
     place: PlaceId,
     pointer: VirtualRegisterId,
     byte_offset: u32,
+    /// The runtime elements the pointer already scaled in; a read through
+    /// them publishes one element row per chunk rather than a place extent
+    /// at the static offset, which the load does not address.
+    elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
 }
 
 /// Replay mirror of construction `copy_bytes`.
 fn copy_bytes(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
-    from: CopyEnd,
-    to: CopyEnd,
+    from: CopyEnd<'_>,
+    to: CopyEnd<'_>,
     byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let mut cursor = 0u32;
@@ -253,13 +188,14 @@ fn copy_bytes(
         let width = chunk(byte_size - cursor);
         let load_offset = from.byte_offset + cursor;
         let value = super::result(replay, from.place, load_offset)?;
-        memory(
+        super::runtime_address::footprint(
             replay,
             row,
             from.place,
             load_offset,
             u32::from(width),
-            SelectedMemoryAccessRole::ReadPlace,
+            from.elements,
+            None,
         )?;
         let (kind, key) = match width {
             8 => (

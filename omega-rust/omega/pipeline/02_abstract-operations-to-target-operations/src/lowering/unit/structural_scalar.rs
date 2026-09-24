@@ -20,7 +20,7 @@ use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
-    resolve_structural_field_path, resolve_structural_projection_path, structural_shape,
+    resolve_structural_field_path, runtime_projection,
 };
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 pub(in crate::lowering) use dynamic_arguments::{
@@ -36,6 +36,7 @@ pub(in crate::lowering) fn lower_field_store(
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, semantic_vocabulary::IeeeFloatValue)>,
+    scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     operations: &mut Vec<TargetUnitOperation>,
@@ -60,7 +61,7 @@ pub(in crate::lowering) fn lower_field_store(
             destination.access,
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
-        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || !terminal_psi::is_structural_scalar_store_path(path)
     {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(
             function.machine,
@@ -203,24 +204,22 @@ pub(in crate::lowering) fn lower_field_store(
             )
         }
     };
-    let (carrier_type, carrier_byte_offset) = if path.is_empty() {
-        structural_shape(
-            destination.structural_type,
-            structural_types,
-            shape_cache,
-            active,
-        )?;
-        (destination.structural_type, 0)
-    } else {
-        let (carrier_type, _, carrier_byte_offset) = resolve_structural_projection_path(
-            destination.structural_type,
-            path,
-            structural_types,
-            shape_cache,
-            active,
-        )?;
-        (carrier_type, carrier_byte_offset)
-    };
+    // The carrier composes fields and literal or runtime elements in any
+    // order: static steps fold into the offset, and each runtime element is
+    // an `(index, stride)` run over its selector's dominating source. The
+    // element's bound stays the store's verified obligation.
+    let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
+        destination.structural_type,
+        path,
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
+        runs,
+        function,
+        scalar_sources,
+    )?;
     let scalar_byte_offset = match value.scalar_type {
         ScalarType::Boolean => direct_boolean_field_offset(carrier_type, *field, structural_types)?,
         ScalarType::Integer(integer_type) => {
@@ -248,6 +247,7 @@ pub(in crate::lowering) fn lower_field_store(
         destination_placement: target_parameter.placement.clone(),
         field_byte_offset,
         source,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

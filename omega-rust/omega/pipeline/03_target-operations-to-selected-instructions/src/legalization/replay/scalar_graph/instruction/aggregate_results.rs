@@ -62,7 +62,7 @@ pub(super) fn validate(
                 ..
             },
         ) if source == expected && path == expected_path && result == expected_result && {
-            let (expected_offset, expected_shape, expected_indices) =
+            let (expected_offset, expected_shape, elements) =
                 scalar_graph_input::structural_case::leaf_copy_layout(
                     optimized,
                     *expected,
@@ -70,23 +70,14 @@ pub(super) fn validate(
                     expected_result,
                     plan,
                 )?;
-            let expected_indices = expected_indices
-                .into_iter()
-                .map(|(index, stride)| {
-                    let parameter = optimized
-                        .parameters
-                        .iter()
-                        .find(|parameter| parameter.value == index)
-                        .ok_or(LegalizationError::custody())?;
-                    Ok::<_, LegalizationError>(legalized_operations::LegalizedRuntimeIndexOperand {
-                        operand: abstract_operations::AbstractResult {
-                            value: parameter.value,
-                            scalar_type: parameter.scalar_type,
-                        },
-                        stride,
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let expected_indices = crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                node.operation
+                    .psi_operation()
+                    .ok_or(LegalizationError::custody())?,
+                &elements,
+            )?;
             (*byte_offset, *shape) == (expected_offset, expected_shape)
                 && *indices == expected_indices
         } => {}

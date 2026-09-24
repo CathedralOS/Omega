@@ -23,6 +23,7 @@ pub(super) fn validate(
         destination_type,
         destination_placement,
         source,
+        indices,
     } = target
     else {
         return Err(LegalizationError::custody());
@@ -45,18 +46,19 @@ pub(super) fn validate(
         .iter()
         .find(|declaration| declaration.id == expected_destination.structural_type)
         .ok_or(LegalizationError::custody())?;
+    let (_, _, elements) = crate::structural_inputs::structural_reference_input::primitive_store(
+        expected_destination,
+        expected_path,
+        value.scalar_type,
+        &unit.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
     if psi_operation != expected_operation
         || destination != expected_destination
         || path != expected_path
         || destination_type != declared_type
         || destination_placement != &parameter.placement
-        || crate::structural_inputs::structural_reference_input::primitive_store(
-            expected_destination,
-            expected_path,
-            value.scalar_type,
-            &unit.structural_types,
-        )
-        .is_none()
+        || !super::runtime_indices_rejoin(indices, &elements, sources)
         || source.source_value() != value.value
         || source.scalar_type() != value.scalar_type
         || !(sources.iter().any(|(identity, expected)| {

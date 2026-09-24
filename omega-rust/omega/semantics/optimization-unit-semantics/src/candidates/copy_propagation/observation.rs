@@ -126,15 +126,15 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
                 }
             }
         }
+        // Only the stored value is rewritten. A runtime-selected path
+        // element's selector stays as spelled: its accepted certificate names
+        // that exact value, so a rewrite that would retire it leaves the use
+        // behind and validation rejects the candidate, as for the bounded
+        // byte-view operands.
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
-        // The runtime selector and the stored value are both scalar uses.
-        O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
-            replace(&mut index.value);
-            replace(&mut value.value);
-        }
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }
@@ -280,7 +280,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
-        | O::IndexedPrimitiveRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }

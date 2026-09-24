@@ -81,196 +81,80 @@ pub(super) fn indexed_store_retained(
         && writes.next().is_none()
 }
 
-/// Join the exact write-only indexed-store occurrence without replacing its
-/// structural subject with a byte offset. Mandatory replay checks layout and
-/// scalar homes; publication retains the declared destination, path, index,
-/// source and bounds obligation.
-pub(super) fn write_only_indexed_store_retained(
-    function: &AbstractFunction,
-    operation: &AbstractOperation,
-    target: &TargetFunction,
-) -> bool {
-    let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-        psi_operation,
-        destination,
-        path,
-        index,
-        value,
-        obligation,
-    } = operation
-    else {
-        return false;
-    };
-    let Some((access, _)) = read_access(function, target, destination.place, true) else {
-        return false;
-    };
-    if access != destination.access {
-        return false;
-    }
-    let mut writes = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|candidate| {
-            matches!(candidate,
-        TargetUnitOperation::WriteOnlyIndexedPrimitiveStore { psi_operation: retained, .. }
-            if retained == psi_operation)
-        });
-    let Some(TargetUnitOperation::WriteOnlyIndexedPrimitiveStore {
-        destination: retained_destination,
-        path: retained_path,
-        index: retained_index,
-        source: retained_value,
-        obligation: retained_obligation,
-        ..
-    }) = writes.next()
-    else {
-        return false;
-    };
-    *retained_destination == *destination
-        && *retained_path == *path
-        && retained_obligation == obligation
-        && retained_index.source_value() == index.value
-        && retained_index.scalar_type() == index.scalar_type
-        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
-            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
-        && retained_value.source_value() == value.value
-        && retained_value.scalar_type() == value.scalar_type
-        && writes.next().is_none()
-}
-
-/// Join the exact indexed-read occurrence on a borrowed referent. Mandatory
-/// replay reconstructs the array layout, the scaled address and the result home.
-pub(super) fn indexed_read_retained(
-    function: &AbstractFunction,
-    operation: &AbstractOperation,
-    target: &TargetFunction,
-) -> bool {
-    let AbstractOperation::IndexedPrimitiveRead {
-        psi_operation,
-        result,
-        source,
-        path,
-        index,
-        obligation,
-    } = operation
-    else {
-        return false;
-    };
-    let Some((access, _)) = read_access(function, target, *source, true) else {
-        return false;
-    };
-    if !matches!(
-        access,
-        terminal_psi::StructuralAccess::SharedBorrow
-            | terminal_psi::StructuralAccess::MutableBorrow
-    ) {
-        return false;
-    }
-    let mut reads = target
-        .graph
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter(|candidate| {
-            matches!(candidate,
-        TargetUnitOperation::IndexedPrimitiveRead { psi_operation: retained, .. }
-            if retained == psi_operation)
-        });
-    let Some(TargetUnitOperation::IndexedPrimitiveRead {
-        result: retained_result,
-        source: retained_source,
-        path: retained_path,
-        index: retained_index,
-        obligation: retained_obligation,
-        ..
-    }) = reads.next()
-    else {
-        return false;
-    };
-    retained_result == result
-        && retained_source.place == *source
-        && retained_source.access == access
-        && retained_path == path
-        && retained_obligation == obligation
-        && retained_index.source_value() == index.value
-        && retained_index.scalar_type() == index.scalar_type
-        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
-            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
-        && reads.next().is_none()
-}
-
-/// Exactly one element-width read accounts for this observation.
-pub(super) fn indexed_read_footprint_retained(
+/// The footprint rows a primitive read or store, or a scalar field store,
+/// publishes. A static projection keeps its one exact place row, which the
+/// caller checks. A projection through runtime-selected elements publishes
+/// exactly one row per element, in path order, on the accessed root: each
+/// names that element's selector and obligation (and, for a write, the
+/// stored value). Mandatory source/selection replay independently
+/// reconstructs the scaled address, the strides, and the accepted
+/// certificates rather than trusting this roster.
+pub(super) fn runtime_footprint_retained(
     operation: &AbstractOperation,
     accesses: &[selected_instructions::SelectedMemoryAccess],
 ) -> bool {
     use selected_instructions::{
         SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
     };
-    let AbstractOperation::IndexedPrimitiveRead {
-        psi_operation,
-        source,
-        index,
-        obligation,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let mut effects = accesses
-        .iter()
-        .filter(|access| access.origin == Origin::Operation(*psi_operation));
-    let Some(read) = effects.next() else {
-        return false;
-    };
-    read.place == *source
-        && matches!(read.role, Role::ReadIndexedPrimitive {
-            index: retained_index,
-            obligation: retained_obligation,
+    let (psi_operation, place, written) = match operation {
+        AbstractOperation::PrimitiveScalarRead {
+            psi_operation,
+            source,
             ..
-        } if retained_index == index.value && retained_obligation == *obligation)
-        && effects.next().is_none()
-}
-
-/// Exactly one element-width write accounts for this effect. A read or
-/// metadata publication with the same origin is not part of the indexed
-/// write-only store; mandatory source/selection replay independently
-/// reconstructs the scaled address and the accepted bounds fact.
-pub(super) fn write_only_indexed_footprint_retained(
-    operation: &AbstractOperation,
-    accesses: &[selected_instructions::SelectedMemoryAccess],
-) -> bool {
-    use selected_instructions::{
-        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
-    };
-    let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-        psi_operation,
-        destination,
-        index,
-        value,
-        obligation,
-        ..
-    } = operation
-    else {
-        return false;
-    };
-    let mut effects = accesses
-        .iter()
-        .filter(|access| access.origin == Origin::Operation(*psi_operation));
-    let Some(write) = effects.next() else {
-        return false;
-    };
-    write.place == destination.place
-        && matches!(write.role, Role::WriteIndexedPrimitive {
-            index: retained_index,
-            value: retained_value,
-            obligation: retained_obligation,
+        } => (*psi_operation, *source, None),
+        AbstractOperation::WriteOnlyPrimitiveStore {
+            psi_operation,
+            destination,
+            value,
             ..
-        } if retained_index == index.value && retained_value == value.value
-            && retained_obligation == *obligation)
-        && effects.next().is_none()
+        }
+        | AbstractOperation::StructuralScalarFieldStore {
+            psi_operation,
+            destination,
+            value,
+            ..
+        } => (*psi_operation, destination.place, Some(value.value)),
+        _ => return false,
+    };
+    let elements = operation.runtime_indices();
+    let rows = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(psi_operation))
+        .collect::<Vec<_>>();
+    if elements.is_empty() {
+        return true;
+    }
+    rows.len() == elements.len()
+        && rows
+            .iter()
+            .zip(&elements)
+            .all(|(row, (index, obligation))| {
+                row.place == place
+                    && match (row.role, written) {
+                        (
+                            Role::ReadIndexedPrimitive {
+                                index: retained_index,
+                                obligation: retained_obligation,
+                                ..
+                            },
+                            None,
+                        ) => retained_index == *index && retained_obligation == *obligation,
+                        (
+                            Role::WriteIndexedPrimitive {
+                                index: retained_index,
+                                value: retained_value,
+                                obligation: retained_obligation,
+                                ..
+                            },
+                            Some(value),
+                        ) => {
+                            retained_index == *index
+                                && retained_value == value
+                                && retained_obligation == *obligation
+                        }
+                        _ => false,
+                    }
+            })
 }
 
 /// Exactly one one-byte write accounts for this effect. A read or metadata
@@ -495,7 +379,7 @@ pub(super) fn retained(
             return false;
         };
         if path.is_empty()
-            || terminal_semantics::primitive_place_type(
+            || terminal_semantics::primitive_projection_type(
                 target.graph.structural_types.iter(),
                 root,
                 path,
@@ -504,9 +388,16 @@ pub(super) fn retained(
             return false;
         }
         // As with record-field reads, publication retains the exact graph
-        // subject. Mandatory source/selection replay independently checks the
-        // computed offset and load on the original root; do not duplicate its
-        // layout calculator or accept a matching byte offset as path identity.
+        // subject, and each runtime element's traversal names that element's
+        // selector. Mandatory source/selection replay independently checks the
+        // computed offset, strides and load on the original root; do not
+        // duplicate its layout calculator or accept a matching byte offset as
+        // path identity.
+        let selectors = operation
+            .runtime_indices()
+            .into_iter()
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
         let mut reads = target
             .graph
             .blocks
@@ -518,10 +409,19 @@ pub(super) fn retained(
                     result,
                     source,
                     path,
-                } if identity == psi_operation => Some((result, source, path)),
+                    indices,
+                } if identity == psi_operation => Some((
+                    result,
+                    source,
+                    path,
+                    indices
+                        .iter()
+                        .map(|index| index.operand.source_value())
+                        .collect::<Vec<_>>(),
+                )),
                 _ => None,
             });
-        return reads.next() == Some((result, source, path)) && reads.next().is_none();
+        return reads.next() == Some((result, source, path, selectors)) && reads.next().is_none();
     }
     let (identity, result, place, path, field) = match operation {
         AbstractOperation::IntegerStructuralField {

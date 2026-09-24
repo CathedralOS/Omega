@@ -106,17 +106,24 @@ impl LegalizedScalarInstruction {
             }
             LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
             | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => visit(*source),
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. }
-            | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value, .. }
-            | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, .. } => {
+            // A runtime-projected access reads each run's selector before
+            // the stored value, the order its address instructions use them.
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore {
+                value, indices, ..
+            }
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, indices, .. } => {
+                indices
+                    .iter()
+                    .map(|index| index.operand.value)
+                    .chain([value.value])
+                    .for_each(visit)
+            }
+            LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value, .. }
+            | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
-            LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-                index, value, ..
-            } => [index.value, value.value].into_iter().for_each(visit),
-            LegalizedScalarInstructionKind::IndexedPrimitiveRead { index, .. } => {
-                visit(index.value)
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => {
+                indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::ByteSequenceSubslice {
                 start, end, length, ..
@@ -152,7 +159,6 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
-            | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
             | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
@@ -263,28 +269,18 @@ pub enum LegalizedScalarInstructionKind {
         destination: semantic_vocabulary::PlaceId,
         value: abstract_operations::AbstractResult,
     },
+    /// One observation of a primitive local or a primitive leaf beneath a
+    /// readable borrowed root. `path` is the verified Terminal projection;
+    /// `indices` scales each of its runtime elements into the address, in
+    /// path order. Selection reconstructs the static offset from `path`.
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     StructuralScalarFieldRead {
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
-    },
-    /// One fixed-array element read at a proven runtime index. `path` resolves
-    /// to the array beneath `source`; `byte_offset` is its base within the
-    /// referent and `byte_size` is both the element width and the stride.
-    /// `obligation`/`accepted_fact` carry the verifier's `index < extent`
-    /// certificate, as for the indexed store.
-    IndexedPrimitiveRead {
-        source: terminal_psi::StructuralArgument,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: abstract_operations::AbstractResult,
-        byte_offset: u32,
-        byte_size: u8,
-        extent: u64,
-        obligation: semantic_vocabulary::ObligationId,
-        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     /// Exact bounded-field metadata subject; selection reconstructs its offset.
     StructuralByteSequenceFieldLength {
@@ -359,29 +355,16 @@ pub enum LegalizedScalarInstructionKind {
         result: terminal_psi::StructuralOperationResult,
         layout: calling_conventions::ConventionalSumLayout,
     },
-    /// Non-observing primitive replacement with a reconstructed root-relative offset.
+    /// Non-observing primitive replacement with a reconstructed root-relative
+    /// offset: `byte_offset` is the projection's static part and `indices`
+    /// adds each runtime element's scaled selector, in path order.
     WriteOnlyPrimitiveStore {
         destination: terminal_psi::StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         value: abstract_operations::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
-    },
-    /// Non-observing element replacement at a proven in-extent runtime index.
-    /// `path` resolves to the fixed array; `byte_offset` is the array's base
-    /// within the referent and `byte_size` is both the element width and the
-    /// addressing stride. `obligation`/`accepted_fact` carry the verifier's
-    /// `index < extent` certificate.
-    WriteOnlyIndexedPrimitiveStore {
-        destination: terminal_psi::StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: abstract_operations::AbstractResult,
-        value: abstract_operations::AbstractResult,
-        byte_offset: u32,
-        byte_size: u8,
-        extent: u64,
-        obligation: semantic_vocabulary::ObligationId,
-        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     /// Exact admitted hosted byte-output boundary, with its original i32 SSA input.
     /// The receiving target catalog owns syscall realization and failure behavior.
@@ -394,6 +377,9 @@ pub enum LegalizedScalarInstructionKind {
         boundary: semantic_vocabulary::BoundaryMachineId,
         source: ValueId,
     },
+    /// One scalar field write: `byte_offset` is the carrier's static part
+    /// plus the field, and `indices` adds each runtime element of the
+    /// carrier, in path order.
     StructuralScalarFieldStore {
         destination: terminal_psi::StructuralParameterDeclaration,
         path: Vec<terminal_psi::StructuralPathSegment>,
@@ -401,6 +387,7 @@ pub enum LegalizedScalarInstructionKind {
         value: abstract_operations::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     EstablishByteSequenceLiteral {
         destination: terminal_psi::StructuralPlaceDeclaration,
@@ -669,12 +656,20 @@ pub enum LegalizedScalarComparison {
     LessOrEqual,
 }
 
-/// One resolved `RuntimeIndex` traversal inside a structural leaf copy: the
-/// operand scales by `stride` before joining the copy's static byte offset.
+/// One resolved `RuntimeIndex` traversal of a structural projection (a leaf
+/// copy, a primitive read or store, or a field store's carrier): the operand
+/// scales by the array's element `stride` before joining the static byte
+/// offset, in path order. `obligation` and `accepted_fact` carry the
+/// verifier's `operand < extent` certificate for this element, so selection
+/// scales an index the verified Terminal already bounded and never
+/// re-derives the bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizedRuntimeIndexOperand {
     pub operand: abstract_operations::AbstractResult,
     pub stride: u32,
+    pub extent: u64,
+    pub obligation: semantic_vocabulary::ObligationId,
+    pub accepted_fact: optimization_core::AcceptedObligationFactIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

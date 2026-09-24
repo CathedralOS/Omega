@@ -1411,13 +1411,14 @@ syntax and other terminal services are not prerequisites.
   whose path composes fields and literal or runtime elements in any order
   (`self.grid[i][j]`, `self.ents[i].pos.y`); c2l's `emission/runtime_elements.rs`
   evaluates the selectors before the value, and the verifier re-proves each
-  element's bound. The backend still executes only a static path or one
-  trailing runtime element for primitive leaves (t2a
-  `primitive_projection::split`, `UnsupportedRuntimeIndexProjection`) and only
-  fields-then-one-literal-element field carriers
-  (`is_bounded_structural_scalar_store_path`, `UnsupportedScalarFieldCarrier`):
-  lower the general path as `(index, stride)` runs the way leaf copies do and
-  retire the abstract `IndexedPrimitiveRead`/`WriteOnlyIndexedPrimitiveStore`.
+  element's bound; the Omega backend lowers each runtime element as an
+  `(index, stride)` run carrying its accepted certificate (a2t
+  `structural_layout::runtime_projection`, t2s `legalization/runtime_indices.rs`,
+  selection `runtime_address.rs`). `runtime_machine_owned_indexed_integer_write_exit`
+  and `compiler_body_machine_indexed_integer_write` stop at the element-view
+  field read `room_slice[index].exit_count` (`UnsupportedElementViewFieldRead`,
+  TERMINAL-SLICE-VIEW-VOCABULARY). Leaf copies still admit only
+  incoming-parameter selectors (a2t `control_flow/leaf_copy.rs`).
   Field-held loop counters
   (`runtime_{write_first_loop_index,nested_loop_fill,indexed_rmw_loop}_exit`)
   reach c2l, but no fact at the store bounds the field read

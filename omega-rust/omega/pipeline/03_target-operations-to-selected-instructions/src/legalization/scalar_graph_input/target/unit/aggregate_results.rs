@@ -135,12 +135,12 @@ pub(super) fn validate(
                 )?;
             let expected_indices = expected_indices
                 .into_iter()
-                .map(|(index, stride)| {
+                .map(|element| {
                     let (parameter_index, parameter) = optimized
                         .parameters
                         .iter()
                         .enumerate()
-                        .find(|(_, parameter)| parameter.value == index)
+                        .find(|(_, parameter)| parameter.value == element.index)
                         .ok_or(LegalizationError::custody())?;
                     let parameter_index =
                         u32::try_from(parameter_index).map_err(|_| LegalizationError::custody())?;
@@ -150,7 +150,7 @@ pub(super) fn validate(
                             source_value: parameter.value,
                             scalar_type: parameter.scalar_type,
                         },
-                        stride,
+                        stride: element.stride,
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?;

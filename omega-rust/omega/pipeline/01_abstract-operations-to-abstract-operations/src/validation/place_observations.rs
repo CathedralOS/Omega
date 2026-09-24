@@ -493,7 +493,6 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
             references.insert(*source);
         }
         O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. } => {
             references.insert(destination.place);
         }

@@ -1,9 +1,8 @@
 //! Copy one readable root's verified extent into fresh activation storage,
 //! and reseat a borrowed window's vacated field with the inverse copy.
 use super::{
-    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
+    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    SelectedInstructionKind, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -11,7 +10,6 @@ use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
-use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::PlaceId;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
@@ -65,7 +63,7 @@ pub(super) fn copy(
     let pointer = local_storage::address(builder, row, slot, 0, u32::from(shape.byte_size), true)?;
     // An owned parameter can reach a leaf copy without addressable storage —
     // its payload lives in ABI fragments rather than behind a pointer.
-    let Some(mut input) = input else {
+    let Some(input) = input else {
         copy_from_fragments(
             _source,
             row,
@@ -80,85 +78,11 @@ pub(super) fn copy(
         builder.transport.pointers.push((result.place, pointer));
         return Ok(());
     };
-    // Each runtime index scales by its declared element stride and joins the
-    // accumulating pointer in path order ahead of the first load. Every index
-    // is proven inside its array extent, so `index * stride` lands inside the
-    // array span and the wrapping multiply is exact for every reachable
-    // operand — the same address model the indexed store emits.
-    for index in indices {
-        let (_, index_register, _, index_type) = builder
-            .resolve(index.operand.value)
-            .ok_or_else(|| invalid())?;
-        let ScalarType::Integer(integer) = index.operand.scalar_type else {
-            return Err(invalid());
-        };
-        if integer.bits() > 64 || index_type != index.operand.scalar_type {
-            return Err(invalid());
-        }
-        // Narrow index operands join the 64-bit address model after the same
-        // sign- or zero-normalization scalar transport applies elsewhere.
-        let index_register = match integer.bits() {
-            64 => index_register,
-            bits => {
-                let kind = match (integer.sign(), bits) {
-                    (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
-                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
-                    (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
-                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
-                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
-                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
-                    _ => return Err(invalid()),
-                };
-                let extended = transport_register(builder, *source, *byte_offset)?;
-                builder.emit(
-                    kind,
-                    builder.constraints.keys.copy_i64,
-                    &[index_register, extended],
-                    SelectedInstructionProvenance {
-                        operations: vec![row.operation],
-                        values: vec![index.operand.value],
-                        ..Default::default()
-                    },
-                )?;
-                extended
-            }
-        };
-        let stride = transport_register(builder, *source, *byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(index.stride)),
-            },
-            builder.constraints.keys.materialize_i64,
-            &[stride],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                ..Default::default()
-            },
-        )?;
-        let scaled = transport_register(builder, *source, *byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::WrappingMultiplyI64,
-            builder.constraints.keys.multiply_i64,
-            &[index_register, stride, scaled],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index.operand.value],
-                ..Default::default()
-            },
-        )?;
-        let address = transport_register(builder, *source, *byte_offset)?;
-        builder.emit(
-            SelectedInstructionKind::ByteViewAddress,
-            builder.constraints.keys.add_i64,
-            &[input, scaled, address],
-            SelectedInstructionProvenance {
-                operations: vec![row.operation],
-                values: vec![index.operand.value],
-                ..Default::default()
-            },
-        )?;
-        input = address;
-    }
+    // Each runtime element scales its selector by the element stride and
+    // joins the accumulating pointer in path order ahead of the first load
+    // (`runtime_address`), the address model every runtime-projected access
+    // shares.
+    let input = super::runtime_address::scale(builder, row, *source, *byte_offset, input, indices)?;
     copy_bytes(
         builder,
         row,
@@ -166,11 +90,13 @@ pub(super) fn copy(
             place: *source,
             pointer: input,
             byte_offset: *byte_offset,
+            elements: indices,
         },
         CopyEnd {
             place: result.place,
             pointer,
             byte_offset: 0,
+            elements: &[],
         },
         u32::from(shape.byte_size),
     )?;
@@ -235,11 +161,13 @@ pub(super) fn reseat(
             place: *value,
             pointer: home,
             byte_offset: 0,
+            elements: &[],
         },
         CopyEnd {
             place: destination.place,
             pointer: root,
             byte_offset: *byte_offset,
+            elements: &[],
         },
         u32::from(shape.byte_size),
     )
@@ -248,10 +176,14 @@ pub(super) fn reseat(
 /// One end of a chunked byte copy: the place whose storage is addressed, the
 /// register holding a pointer to it, and the extent's offset from that
 /// pointer.
-struct CopyEnd {
+struct CopyEnd<'a> {
     place: PlaceId,
     pointer: VirtualRegisterId,
     byte_offset: u32,
+    /// The runtime elements the pointer already scaled in; a read through
+    /// them publishes one element row per chunk rather than a place extent
+    /// at the static offset, which the load does not address.
+    elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
 }
 
 /// Copy `byte_size` bytes from `from` to `to` in the widest aligned-size
@@ -261,8 +193,8 @@ struct CopyEnd {
 fn copy_bytes(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
-    from: CopyEnd,
-    to: CopyEnd,
+    from: CopyEnd<'_>,
+    to: CopyEnd<'_>,
     byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let mut cursor = 0u32;
@@ -270,13 +202,14 @@ fn copy_bytes(
         let width = chunk(byte_size - cursor);
         let load_offset = from.byte_offset + cursor;
         let value = transport_register(builder, from.place, load_offset)?;
-        memory(
+        super::runtime_address::footprint(
             builder,
             row,
             from.place,
             load_offset,
             u32::from(width),
-            SelectedMemoryAccessRole::ReadPlace,
+            from.elements,
+            None,
         )?;
         let (kind, key) = match width {
             8 => (

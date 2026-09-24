@@ -67,7 +67,6 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::AtomicEvent { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
-        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. }
         | AbstractOperation::ByteSequenceWrite { .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { .. }
@@ -108,7 +107,6 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
-        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::IntegerEqual { .. }

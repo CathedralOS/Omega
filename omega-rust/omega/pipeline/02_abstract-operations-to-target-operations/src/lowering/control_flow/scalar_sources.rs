@@ -5,7 +5,9 @@ use crate::lowering::unit::scalar_call::KnownUnitInteger;
 use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{OperationId, ValueId};
 use std::collections::BTreeMap;
-use target_operations::{TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement};
+use target_operations::{
+    TargetStructuralRuntimeIndex, TargetUnitScalarArgumentSource, TargetUnitScalarHomeRequirement,
+};
 
 /// Borrowed view over the scalar maps a live graph carries, so sibling
 /// lowering modules replay the same dominance precedence without naming the
@@ -78,4 +80,26 @@ pub(crate) fn resolved_source(
         source_value: value,
         scalar_type: parameter.scalar_type,
     })
+}
+
+/// Resolve each runtime-selected path element's `(index, stride)` run, in
+/// path order, to the exact dominating source of its selector. The selector
+/// must be an integer carrier the 64-bit address model can extend; its bound
+/// stays the path segment's own verified obligation, never restated here.
+pub(crate) fn runtime_indices(
+    runs: Vec<(ValueId, u32)>,
+    function: &AbstractFunction,
+    sources: &ScalarSources<'_>,
+) -> Result<Vec<TargetStructuralRuntimeIndex>, LoweringError> {
+    runs.into_iter()
+        .map(|(index, stride)| {
+            let operand = resolved_source(index, function, sources)?;
+            if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
+                if integer.bits() <= 64)
+            {
+                return Err(LoweringError::ValueTypeMismatch(index));
+            }
+            Ok(TargetStructuralRuntimeIndex { operand, stride })
+        })
+        .collect()
 }

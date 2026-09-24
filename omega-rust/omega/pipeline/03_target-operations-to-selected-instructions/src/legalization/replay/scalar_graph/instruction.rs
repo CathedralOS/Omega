@@ -470,13 +470,11 @@ pub(super) fn validate(
             },
         ) if destination == expected && value == expected_value => {}
         (
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path },
-            AbstractOperation::PrimitiveScalarRead {
-                source: expected,
-                path: expected_path,
-                ..
-            },
-        ) if source == expected && path == expected_path => {}
+            LegalizedScalarInstructionKind::PrimitiveScalarRead { .. },
+            AbstractOperation::PrimitiveScalarRead { .. },
+        ) => storage_instructions::validate_primitive_scalar_read(
+            actual, node, optimized, unit, operation,
+        )?,
         (
             LegalizedScalarInstructionKind::HostedReadByte {
                 boundary,
@@ -525,23 +523,15 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. },
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
-        ) => storage_instructions::validate_write_only_primitive_store(actual, node, unit)?,
-        (
-            LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. },
-            AbstractOperation::IndexedPrimitiveRead { .. },
-        ) => storage_instructions::validate_indexed_primitive_read(
-            actual, node, optimized, unit, operation,
-        )?,
-        (
-            LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. },
-            AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
-        ) => storage_instructions::validate_write_only_indexed_primitive_store(
+        ) => storage_instructions::validate_write_only_primitive_store(
             actual, node, optimized, unit, operation,
         )?,
         (
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. },
             AbstractOperation::StructuralScalarFieldStore { .. },
-        ) => storage_instructions::validate_structural_scalar_field_store(actual, node, unit)?,
+        ) => storage_instructions::validate_structural_scalar_field_store(
+            actual, node, optimized, unit, operation,
+        )?,
         (
             LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                 destination,

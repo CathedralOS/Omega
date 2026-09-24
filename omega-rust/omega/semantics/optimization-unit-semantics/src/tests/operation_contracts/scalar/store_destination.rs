@@ -10,7 +10,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 #[test]
 fn indexed_primitive_store_reconstructs_leaf_bounds_and_root_access() {
-    use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralTypeId};
+    use semantic_vocabulary::StructuralTypeId;
+    use terminal_psi::StructuralPathSegment as Segment;
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
     let mut valid = write_only_store_unit();

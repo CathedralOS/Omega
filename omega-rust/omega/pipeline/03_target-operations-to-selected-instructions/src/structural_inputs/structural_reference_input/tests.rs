@@ -62,7 +62,7 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
         let expected_access = expected.map(|(_, offset)| (offset, 4));
         assert_eq!(
             store(root, &[], scalar_field, scalar, &declarations),
-            expected_access
+            expected_access.map(|(offset, bytes)| (offset, bytes, Vec::new()))
         );
         assert_eq!(
             field_read(root, &[], scalar_field, scalar, &declarations),
@@ -175,7 +175,10 @@ fn bounded_integer_geometry_retains_exact_read_and_store_carriers() {
         field_read(root, &[], field, scalar, &declarations),
         Some((0, 1))
     );
-    assert_eq!(store(root, &[], field, scalar, &declarations), Some((0, 1)));
+    assert_eq!(
+        store(root, &[], field, scalar, &declarations),
+        Some((0, 1, Vec::new()))
+    );
     for wrong in [
         IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
         IntegerType::new(IntegerSign::Signed, 16).unwrap(),
@@ -336,7 +339,7 @@ fn relevant_erased_record_carriers_have_geometry_but_no_field_access() {
         if with_scalar {
             assert_eq!(
                 store(root, &[], runtime, scalar, &declarations),
-                Some((0, 4))
+                Some((0, 4, Vec::new()))
             );
             assert_eq!(
                 field_read(root, &[], runtime, scalar, &declarations),

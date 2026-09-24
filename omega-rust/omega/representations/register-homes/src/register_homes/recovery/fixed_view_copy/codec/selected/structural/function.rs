@@ -156,6 +156,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
             SelectedMemoryAccessRole::WriteIndexedPrimitive {
                 index,
                 value,
+                stride,
                 extent,
                 obligation,
                 accepted_fact,
@@ -164,11 +165,13 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 for identity in [index.get(), value.get(), obligation.get()] {
                     bytes.extend_from_slice(&identity.to_le_bytes());
                 }
+                bytes.extend_from_slice(&stride.to_le_bytes());
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index,
+                stride,
                 extent,
                 obligation,
                 accepted_fact,
@@ -177,6 +180,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 for identity in [index.get(), obligation.get()] {
                     bytes.extend_from_slice(&identity.to_le_bytes());
                 }
+                bytes.extend_from_slice(&stride.to_le_bytes());
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
@@ -324,6 +328,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 value: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                stride: cursor.u32()?,
                 extent: cursor.u64()?,
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     cursor.array()?,
@@ -332,6 +337,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
             12 => SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                stride: cursor.u32()?,
                 extent: cursor.u64()?,
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     cursor.array()?,

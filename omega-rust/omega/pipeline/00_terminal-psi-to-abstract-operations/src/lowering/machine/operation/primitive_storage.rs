@@ -115,35 +115,21 @@ pub(super) fn lower(
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(invalid)?;
-            let path = match super::primitive_projection::split(types, identity, path) {
-                Some(super::primitive_projection::PrimitiveProjection::Static(path)) => path,
-                // One trailing runtime element reads through the abstract
-                // indexed read, over the same readable source.
-                Some(super::primitive_projection::PrimitiveProjection::TrailingRuntimeIndex {
-                    array,
-                    element,
+            if super::primitive_projection::leaf_type(types, identity, path, |index| {
+                super::structural_scalar_fields::dominating_scalar_type(
+                    machine,
+                    block,
+                    operation.id,
                     index,
-                    obligation,
-                }) => {
-                    return super::structural_scalar_fields::lower_indexed_read(
-                        operation, block, machine, source, &array, element, index, obligation,
-                    );
-                }
-                None => {
-                    return Err(LoweringError::UnsupportedRuntimeIndexProjection(
-                        operation.id,
-                    ));
-                }
-            };
-            if terminal_semantics::primitive_place_type(types.iter(), identity, &path)
-                != Some(result.scalar_type)
+                )
+            }) != Some(result.scalar_type)
             {
                 return Err(invalid());
             }
             Ok(AbstractOperation::PrimitiveScalarRead {
                 psi_operation: operation.id,
                 source,
-                path,
+                path: path.clone(),
                 result: AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,

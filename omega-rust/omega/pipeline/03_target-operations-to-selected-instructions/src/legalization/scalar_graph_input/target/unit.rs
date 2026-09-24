@@ -13,7 +13,6 @@ mod aggregate_results;
 mod borrowed_windows;
 mod direct_calls;
 mod ieee_float;
-mod indexed_primitive_store;
 mod indirect_calls;
 mod primitive_store;
 /// Replay one ordered Unit operation with only the SSA sources available here.
@@ -337,6 +336,7 @@ pub(super) fn validate_operation(
                 result,
                 source,
                 path,
+                indices,
             },
             AbstractOperation::PrimitiveScalarRead {
                 psi_operation: expected_operation,
@@ -349,6 +349,25 @@ pub(super) fn validate_operation(
             && source == expected_source
             && path == expected_path =>
         {
+            let elements = if terminal_psi::is_static_structural_path(expected_path) {
+                Vec::new()
+            } else {
+                let root = parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *expected_source)
+                    .ok_or(LegalizationError::custody())?;
+                crate::structural_inputs::structural_reference_input::primitive_geometry(
+                    root.structural_type,
+                    expected_path,
+                    expected.scalar_type,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?
+                .2
+            };
+            if !runtime_indices_rejoin(indices, &elements, sources) {
+                return Err(LegalizationError::custody());
+            }
             sources.push((
                 result.value,
                 Source::Home(target_operations::TargetUnitScalarHomeRequirement {
@@ -424,64 +443,6 @@ pub(super) fn validate_operation(
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
         ) => {
             primitive_store::validate(target, abstracted, parameters, sources, optimized, unit)?;
-        }
-        (
-            TargetUnitOperation::IndexedPrimitiveRead {
-                psi_operation,
-                result,
-                source,
-                path,
-                index,
-                obligation,
-            },
-            AbstractOperation::IndexedPrimitiveRead {
-                psi_operation: expected_operation,
-                result: expected,
-                path: expected_path,
-                index: expected_index,
-                obligation: expected_obligation,
-                ..
-            },
-        ) => {
-            // The runtime index resolves to an exact dominating source, as the
-            // indexed store's does; the element becomes an ordinary result home.
-            let (expected_source, _) = super::super::structural_fields::indexed_read(
-                optimized,
-                abstracted,
-                &unit.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?;
-            if psi_operation != expected_operation
-                || result != expected
-                || source != &expected_source
-                || path != expected_path
-                || obligation != expected_obligation
-                || index.source_value() != expected_index.value
-                || index.scalar_type() != expected_index.scalar_type
-                || !sources
-                    .iter()
-                    .any(|(identity, known)| *identity == expected_index.value && index == known)
-            {
-                return Err(LegalizationError::custody());
-            }
-            sources.push((
-                result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type)
-                        .ok_or(LegalizationError::custody())?,
-                }),
-            ));
-        }
-        (
-            TargetUnitOperation::WriteOnlyIndexedPrimitiveStore { .. },
-            AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
-        ) => {
-            indexed_primitive_store::validate(
-                target, abstracted, parameters, sources, optimized, unit,
-            )?;
         }
         (TargetUnitOperation::ScalarDefinition { result_home, .. }, abstracted)
             if super::scalar_definitions::observed_family(abstracted) =>
@@ -574,6 +535,7 @@ pub(super) fn validate_operation(
                 destination_placement,
                 field_byte_offset,
                 source,
+                indices,
             },
             AbstractOperation::StructuralScalarFieldStore {
                 psi_operation: expected_operation,
@@ -588,20 +550,22 @@ pub(super) fn validate_operation(
                 .iter()
                 .find(|parameter| parameter.place == destination.place)
                 .ok_or(LegalizationError::custody())?;
-            let (offset, _) = crate::structural_inputs::structural_reference_input::store(
-                expected_destination.structural_type,
-                expected_path,
-                *expected_field,
-                value.scalar_type,
-                &unit.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?;
+            let (offset, _, elements) =
+                crate::structural_inputs::structural_reference_input::store(
+                    expected_destination.structural_type,
+                    expected_path,
+                    *expected_field,
+                    value.scalar_type,
+                    &unit.structural_types,
+                )
+                .ok_or(LegalizationError::custody())?;
             if psi_operation != expected_operation
                 || destination != expected_destination
                 || path != expected_path
                 || field != expected_field
                 || destination_placement != &parameter.placement
                 || *field_byte_offset != offset
+                || !runtime_indices_rejoin(indices, &elements, sources)
                 || !sources
                     .iter()
                     .any(|(identity, expected)| *identity == value.value && expected == source)
@@ -685,4 +649,23 @@ pub(super) fn validate_operation(
         _ => return Err(LegalizationError::custody()),
     }
     Ok(())
+}
+
+/// A target row's runtime traversals rejoin the projection's runtime elements
+/// one for one, in path order: the same selector at the reconstructed stride,
+/// resolved to the exact source already available for that value. The
+/// element's bound is its path segment's obligation, which the row keeps.
+pub(super) fn runtime_indices_rejoin(
+    indices: &[target_operations::TargetStructuralRuntimeIndex],
+    elements: &[crate::structural_inputs::structural_reference_input::RuntimeElement],
+    sources: &[(ValueId, Source)],
+) -> bool {
+    indices.len() == elements.len()
+        && indices.iter().zip(elements).all(|(index, element)| {
+            index.stride == element.stride
+                && index.operand.source_value() == element.index
+                && sources
+                    .iter()
+                    .any(|(identity, known)| *identity == element.index && *known == index.operand)
+        })
 }

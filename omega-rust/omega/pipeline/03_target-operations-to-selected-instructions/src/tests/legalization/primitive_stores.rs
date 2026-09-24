@@ -23,11 +23,12 @@ use crate::{legalize_target_operations, validate_legalized_operations};
 mod block_values;
 mod field_reads;
 mod locals;
+mod runtime_elements;
 mod scalar_returns;
 
 #[test]
 fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    use terminal_psi::StructuralPathSegment as Segment;
     for native in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -93,7 +94,7 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 ]
                 .into();
                 let path = vec![
-                    Segment::Field(field),
+                    Segment::Field("elements".into()),
                     Segment::FixedIndex(1),
                     Segment::FixedIndex(2),
                 ];
@@ -223,7 +224,7 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 for changed_path in [
                     vec![],
                     vec![
-                        Segment::Field(field),
+                        Segment::Field("elements".into()),
                         Segment::FixedIndex(1),
                         Segment::FixedIndex(1),
                     ],
@@ -760,6 +761,7 @@ fn independent_replay_rejects_width_value_destination_kind_and_fuel_substitution
                     row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                         destination: destination.clone(),
                         path: Vec::new(),
+                        indices: Vec::new(),
                         field: StructuralFieldId::new(1).unwrap(),
                         value: *value,
                         byte_offset: 0,

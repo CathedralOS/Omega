@@ -1,4 +1,10 @@
 //! Exact target lowering for non-observing primitive storage projections.
+//!
+//! One store covers every projection Terminal verifies: a whole primitive
+//! root, a static leaf, or a leaf reached through runtime-selected elements
+//! at any depth (`grid[i][j]`, `ents[i].hp`). A runtime element lowers to an
+//! `(index, stride)` run over its selector's dominating source, the way leaf
+//! copies scale theirs; the bound stays the segment's verified obligation.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::scalar_call::KnownUnitInteger;
@@ -27,6 +33,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
     scalar_homes: &BTreeMap<ValueId, TargetUnitScalarHomeRequirement>,
     block_value: Option<target_operations::TargetScalarBlockValue>,
+    scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
@@ -62,14 +69,23 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         .get(&destination.structural_type)
         .copied()
         .ok_or_else(invalid)?;
-    if super::super::structural_layout::primitive_projection_type(
+    // Each runtime element scales its selector's exact dominating source by
+    // the array stride; its bound is the path segment's verified obligation.
+    let (leaf, _, runs) = super::super::structural_layout::primitive_leaf_projection(
         destination.structural_type,
         path,
         structural_types,
-    ) != Some(value.scalar_type)
-    {
+    )
+    .ok_or_else(invalid)?;
+    if leaf != value.scalar_type {
         return Err(invalid());
     }
+    let indices = crate::lowering::control_flow::scalar_sources::runtime_indices(
+        runs,
+        function,
+        scalar_sources,
+    )
+    .map_err(|_| invalid())?;
     let (_, source) = if let Some(block_value) = block_value {
         if block_value.value != value.value || block_value.scalar_type != value.scalar_type {
             return Err(invalid());
@@ -242,6 +258,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         destination_type: destination_type.clone(),
         destination_placement: target_parameter.placement.clone(),
         source,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

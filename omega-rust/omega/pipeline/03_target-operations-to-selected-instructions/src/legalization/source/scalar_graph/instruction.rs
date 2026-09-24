@@ -147,7 +147,7 @@ pub(super) fn project(
             storage_instructions::project_structural_case_membership(node, optimized, plan)?
         }
         AbstractOperation::StructuralLeafCopy { .. } => {
-            storage_instructions::project_structural_leaf_copy(node, optimized, plan)?
+            storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
         }
         AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::StoreStructuralField { .. } => {
@@ -161,11 +161,8 @@ pub(super) fn project(
             place: *place,
             structural_type: structural_type.clone(),
         },
-        AbstractOperation::PrimitiveScalarRead { source, path, .. } => {
-            LegalizedScalarInstructionKind::PrimitiveScalarRead {
-                source: *source,
-                path: path.clone(),
-            }
+        AbstractOperation::PrimitiveScalarRead { .. } => {
+            storage_instructions::project_primitive_scalar_read(node, optimized, unit)?
         }
         // An evaluated normalized foreign row precedes hosted settlement
         // probing: the row carries its own provider execution and is never a
@@ -199,16 +196,10 @@ pub(super) fn project(
             call_instructions::project_boundary_call(node, optimized, native, operation)?
         }
         AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
-            storage_instructions::project_write_only_primitive_store(node, unit)?
-        }
-        AbstractOperation::IndexedPrimitiveRead { .. } => {
-            storage_instructions::project_indexed_primitive_read(node, optimized, unit)?
-        }
-        AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
-            storage_instructions::project_write_only_indexed_primitive_store(node, optimized, unit)?
+            storage_instructions::project_write_only_primitive_store(node, optimized, unit)?
         }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
-            storage_instructions::project_structural_scalar_field_store(node, unit)?
+            storage_instructions::project_structural_scalar_field_store(node, optimized, unit)?
         }
         AbstractOperation::EstablishByteSequenceLiteral {
             place,

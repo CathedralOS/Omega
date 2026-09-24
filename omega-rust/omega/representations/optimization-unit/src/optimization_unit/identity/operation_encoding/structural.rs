@@ -4,7 +4,6 @@ use crate::optimization_unit::identity::carrier_encoding::{
     encode_abstract_result, encode_ids, encode_structural_argument, encode_structural_parameter,
     encode_structural_path_segment,
 };
-use crate::optimization_unit::identity::proposition_encoding::encode_canonical_path;
 use crate::optimization_unit::identity::structural_encoding::{
     encode_place_declaration, encode_structural_operation_result, encode_structural_type,
 };
@@ -64,13 +63,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
         } => {
             // Existing whole-root identities stay stable; projected subjects
-            // have a distinct tag and retain every declaration-local step.
+            // have a distinct tag and retain every spelled step, including
+            // each runtime element's selector and obligation.
             bytes.u8(if path.is_empty() { 67 } else { 73 });
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
             if !path.is_empty() {
-                encode_canonical_path(bytes, path);
+                bytes.slice(path, encode_structural_path_segment);
             }
         }
         O::ByteSequenceSubslice {
@@ -133,27 +133,9 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_structural_parameter(bytes, destination);
             if !path.is_empty() {
-                encode_canonical_path(bytes, path);
+                bytes.slice(path, encode_structural_path_segment);
             }
             encode_abstract_result(bytes, *value);
-        }
-        O::WriteOnlyIndexedPrimitiveStore {
-            psi_operation,
-            destination,
-            path,
-            index,
-            value,
-            obligation,
-        } => {
-            // One tag regardless of path length: the runtime index is an
-            // operand, so an empty path legitimately names the root array.
-            bytes.u8(83);
-            bytes.id(*psi_operation);
-            encode_structural_parameter(bytes, destination);
-            encode_canonical_path(bytes, path);
-            encode_abstract_result(bytes, *index);
-            encode_abstract_result(bytes, *value);
-            bytes.id(*obligation);
         }
         O::StructuralScalarFieldStore {
             psi_operation,

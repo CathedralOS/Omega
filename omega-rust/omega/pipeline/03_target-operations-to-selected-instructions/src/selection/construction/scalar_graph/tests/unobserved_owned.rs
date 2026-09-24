@@ -160,7 +160,7 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
                 ScalarType::Integer(integer),
                 &contract.structural_types,
             ),
-            Some((0, 8)),
+            Some((0, 8, Vec::new())),
             "a bounded field's store geometry follows its integer carrier; write \
              authority is the current-IR range obligation, not layout eligibility",
         );
@@ -172,7 +172,7 @@ fn bounded_owned_fields_keep_range_identity_without_storage_or_write_authority()
                 ScalarType::Integer(integer),
                 &contract.structural_types,
             ),
-            Some((8, 8)),
+            Some((8, 8, Vec::new())),
             "a writable sibling follows the restricted field's full carrier width",
         );
         let environment =

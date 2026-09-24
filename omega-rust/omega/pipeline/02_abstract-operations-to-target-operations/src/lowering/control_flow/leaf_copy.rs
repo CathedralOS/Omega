@@ -90,7 +90,7 @@ pub(super) fn copy_extent(
             Vec::new(),
         )
     } else {
-        crate::lowering::structural_layout::leaf_copy_projection(
+        crate::lowering::structural_layout::runtime_projection(
             root_type,
             path,
             types,
