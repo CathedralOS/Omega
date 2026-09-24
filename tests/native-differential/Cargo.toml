@@ -67,7 +67,7 @@ physical-instructions = { path = "../../omega-rust/omega/representations/physica
 register-environment = { path = "../../omega-rust/omega/backend/register-environment" }
 selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout" }
 resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/resolved-layout-to-resolved-layout", features = ["test-support"] }
-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/register-homes-to-post-allocation-machine", features = ["test-support"] }
+register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine", features = ["test-support"] }
 post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
 checked-compilation-to-terminal-artifact = { path = "../../omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact" }

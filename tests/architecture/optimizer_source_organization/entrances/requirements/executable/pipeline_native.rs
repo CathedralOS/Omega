@@ -50,7 +50,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_selected_reanalysis",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
+        path: "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
         coordination_marker: "fn stage_optimized_post_allocation_machine_plan",
     },
     RequiredCoordinationEntrance {
