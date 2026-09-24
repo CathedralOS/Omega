@@ -1066,8 +1066,8 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     let workspace = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
     assert!(!workspace.contains("omega-regalloc"));
 
-    let owner =
-        root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+    let owner = root
+        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let source = rust_source(&owner);
     assert!(!source.contains("omega_regalloc::"));
     for declaration in [

@@ -82,8 +82,8 @@ const FAMILIES: &[Family] = &[
 fn allocation_analysis_data_and_canonical_encoders_have_one_owner() {
     let root = repository();
     let owner = root.join("omega-rust/omega/representations/register-homes/src/register_homes");
-    let stage =
-        root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+    let stage = root
+        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let stage_text = rust_source(&stage);
     let allocator = rust_source(
         &root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
