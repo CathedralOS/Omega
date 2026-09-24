@@ -38,7 +38,13 @@ pub fn analyze_liveness_reusing(
 }
 
 mod staging;
-pub use staging::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use staging::OptimizedLivenessCustodyFieldForTest;
+pub(crate) use staging::validate_staged_optimized_liveness_custody;
+pub use staging::{
+    OptimizedLivenessCustodyError, StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt,
+    stage_optimized_liveness, validate_optimized_liveness_custody,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LivenessValidationReceipt {

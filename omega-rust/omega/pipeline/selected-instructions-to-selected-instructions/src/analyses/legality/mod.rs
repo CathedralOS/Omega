@@ -12,7 +12,7 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::OptimizedAllocationLegalityCustodyFieldForTest;
 pub use validation::validate_optimized_allocation_legality_custody;
 
 use crate::ValidatedAllocatorAvailability;

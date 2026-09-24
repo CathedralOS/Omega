@@ -58,7 +58,12 @@ pub fn analyze_live_ranges_reusing(
 }
 
 mod staging;
-pub use staging::*;
+#[cfg(any(test, feature = "test-support"))]
+pub use staging::OptimizedLiveRangeCustodyFieldForTest;
+pub use staging::{
+    OptimizedLiveRangeCustodyError, StagedOptimizedLiveRangeCustodyReceipt,
+    StagedOptimizedLiveRanges, stage_optimized_live_ranges, validate_optimized_live_range_custody,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiveRangeValidationReceipt {

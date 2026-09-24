@@ -15,9 +15,27 @@ use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationPh
 
 use super::catalog::selected_stage_catalog_contains;
 
-pub use catalog::*;
-pub use fixed_view_copy::*;
-pub use pressure_rematerialization::*;
+pub use catalog::{
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
+    AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload,
+    ORDERED_ALLOCATION_RECOVERY_RULES,
+};
+pub(crate) use fixed_view_copy::materialize_fixed_view_copies;
+pub use fixed_view_copy::{
+    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyError,
+    FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence,
+    FixedViewCopyValidationReceipt, ValidatedFixedViewCopies, fixed_view_copy_identity,
+    validate_fixed_view_copies,
+};
+pub(crate) use pressure_rematerialization::pressure_rematerialization_identity;
+pub use pressure_rematerialization::{
+    FunctionPressureRematerialization, PressureRematerializationAction,
+    PressureRematerializationDecodeError, PressureRematerializationError,
+    PressureRematerializationPlan, PressureRematerializationPolicy,
+    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
+    ValidatedPressureRematerialization, rematerialize_selected_active_resident,
+    validate_pressure_rematerialization,
+};
 
 /// Select the single allocation-recovery rule currently admitted by the
 /// physical pipeline. Empty phase selections deliberately return `None`.

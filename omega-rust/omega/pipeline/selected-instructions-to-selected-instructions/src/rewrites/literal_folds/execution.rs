@@ -25,7 +25,11 @@ use crate::resolve_selected_lowering_rules;
 use crate::rewrites::fold_selected_incoming_literal;
 use crate::validate_optimized_allocation_legality_custody;
 
-use super::accounting::*;
+use super::accounting::{
+    add_usage, applied_action_count, attempt_usage, custody_receipt,
+    ensure_selected_lowering_budget, selected_lowering_custody_receipt, step_usage,
+    validate_selected_lowering_policies,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn stage_first_optimized_literal_fold(

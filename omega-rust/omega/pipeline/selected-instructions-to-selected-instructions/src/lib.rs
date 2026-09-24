@@ -5,16 +5,28 @@
 //! Rewrites operate on the selected CFG and reconstruct the analyses they
 //! invalidate. Register assignment consumes the resulting current program.
 //!
-//! Start at [`optimize_selected_instructions`] in `selected_optimization.rs`:
-//! liveness and live ranges from [`analyses`], then either the identity route
-//! or the selected-lowering [`rewrites`] under allocation legality, published
-//! as one [`SelectedInstructionOptimizationOutput`] from
+//! Start at [`optimize_selected_instructions`] in `selected_optimization.rs`.
+//! It stages [`analyses`] first ([`stage_optimized_liveness`], then
+//! [`stage_optimized_live_ranges`]) and publishes the identity route when no
+//! executed rule is selected. Otherwise it stages allocation legality and runs
+//! exactly one executed catalog slice from [`rewrites`]:
+//! [`run_selected_lowering_optimizations`] or
+//! [`run_pre_allocation_optimizations`]. Either route publishes one
+//! [`SelectedInstructionOptimizationOutput`] from
 //! `selected_optimization::optimization_output`.
 
 mod analyses;
 mod rewrites;
 mod selected_optimization;
 
+// The stage entry and the output it publishes.
+pub use selected_optimization::optimization_output::{
+    SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
+    SelectedInstructionOptimizationOutput,
+};
+pub use selected_optimization::optimize_selected_instructions;
+
+// Current selected-program facts and their independent validation.
 pub use analyses::{
     AllocationLegalityError, AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
     AllocatorAvailabilityValidationReceipt, BlockMachineEffects, FixedPrecoloredIntervalError,
@@ -57,6 +69,8 @@ pub use analyses::{
     OptimizedAllocationLegalityCustodyFieldForTest, OptimizedLiveRangeCustodyFieldForTest,
     OptimizedLivenessCustodyFieldForTest, OptimizedSelectedReanalysisCustodyFieldForTest,
 };
+// Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
+// register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;
 pub use rewrites::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
@@ -116,11 +130,6 @@ pub use rewrites::{
     OptimizedFixedViewCopyCustodyFieldForTest, OptimizedLiteralFoldCustodyFieldForTest,
     PreAllocationOptimizationCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
 };
-pub use selected_optimization::optimization_output::{
-    SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
-    SelectedInstructionOptimizationOutput,
-};
-pub use selected_optimization::optimize_selected_instructions;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use rewrites::test_support;

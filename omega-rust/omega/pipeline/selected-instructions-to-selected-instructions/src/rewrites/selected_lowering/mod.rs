@@ -16,8 +16,23 @@ use optimization_core::{
 
 use super::catalog::selected_stage_catalog_contains;
 
-pub use catalog::*;
-pub use literal_fold::*;
+pub(crate) use catalog::enabled_pair_rules;
+pub use catalog::{
+    ORDERED_SELECTED_LOWERING_RULES, SELECTED_LOWERING_RULE_CATALOG,
+    SelectedLoweringRuleCatalogEntry, SelectedLoweringRuleCatalogError,
+    SelectedLoweringRuleCatalogPayload,
+};
+pub use literal_fold::{
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldError,
+    LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy, LiteralFoldValidationReceipt,
+    PairConsumerBindingAdmission, PairFaultDischarge, PairImmediateBound, PairLiteralPosition,
+    PairMachineEffects, PairNonUnitSurface, PairOperandResult, PairOperandShape,
+    PairResultDisposition, PairTailCustody, PairUnitDefRelation, PairUnitEffects,
+    SelectedInstructionPairRule, ValidatedLiteralFold,
+};
+pub(crate) use literal_fold::{
+    fold_selected_incoming_literal, literal_fold_identity, validate_literal_fold,
+};
 
 /// Resolve every selected-lowering catalog row in canonical catalog order.
 ///

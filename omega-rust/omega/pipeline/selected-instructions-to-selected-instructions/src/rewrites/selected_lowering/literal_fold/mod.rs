@@ -22,7 +22,12 @@ mod tests;
 use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-pub use pair_rule::*;
+pub use pair_rule::{
+    PairConsumerBindingAdmission, PairFaultDischarge, PairImmediateBound, PairLiteralPosition,
+    PairMachineEffects, PairNonUnitSurface, PairOperandResult, PairOperandShape,
+    PairResultDisposition, PairTailCustody, PairUnitDefRelation, PairUnitEffects,
+    SelectedInstructionPairRule,
+};
 use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
     SpillChoiceIdentity,
