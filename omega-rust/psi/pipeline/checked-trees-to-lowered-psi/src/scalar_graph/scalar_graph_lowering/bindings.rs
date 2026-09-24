@@ -71,7 +71,6 @@ pub(super) fn prepare(
     parameter_types: Vec<QualifiedScalarType>,
     erased_formal_types: Vec<QualifiedScalarType>,
     erased_proof_formals: &[CheckedErasedProofParameterPlan],
-    structural_parameters: &[StructuralParameterDeclaration],
     structural_namespace: &[(u32, StructuralParameterDeclaration)],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
@@ -201,25 +200,9 @@ pub(super) fn prepare(
     // Each state's structural namespace is resolved by the graph preparation
     // pass: entry formals pair with the emitted roster in authored order while
     // non-entry formals resolve to the declaration their incoming edges
-    // forward.
-    let mut structural_namespace = structural_namespace.to_vec();
-    // The ambient receiver is machine-scope: every state resolves `self`
-    // through it even though it sits only on the entry roster. It is always
-    // authored first, so it precedes the forwarded formals at authored
-    // structural index zero — argument plans index that authored roster, not
-    // the checked forwarded subset.
-    if !structural_namespace
-        .iter()
-        .any(|(_, emitted)| emitted.is_self)
-    {
-        structural_namespace.splice(
-            0..0,
-            structural_parameters
-                .iter()
-                .filter(|parameter| parameter.is_self)
-                .map(|parameter| (parameter.position, parameter.clone())),
-        );
-    }
+    // forward. Only a single-state machine retains its receiver, on that one
+    // roster, so no state resolves `self` through another state's namespace
+    // and argument plans index the state's checked roster densely.
     // States whose prefix carries `__arm_destructure` markers destructure case
     // payloads under a membership guard: their payload reads stay deferred so
     // the guard's case dispatch can bind them at the exact case it selects.
@@ -231,7 +214,7 @@ pub(super) fn prepare(
         )
     });
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
-        .with_structural_parameters(&structural_namespace)
+        .with_structural_parameters(structural_namespace)
         .with_structural_observations(structural_types);
     if destructures {
         scalar_bindings = scalar_bindings.with_deferred_case_payloads();
