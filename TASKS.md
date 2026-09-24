@@ -2221,10 +2221,11 @@ syntax and other terminal services are not prerequisites.
   arrangements to a family below. Widen the general route and delete the
   family instead. Ranked targets, measured 2026-09-24 against `3f797950ea`:
 
-  2. Scalar machines take three routes: the shared-catalog Unit closure, a
-     single-member scalar graph, and the scalar call closure.
-     `closure.len() == 1` changes the contract mode (float reflexivity) and
-     content-effect admission. Start by removing that branch.
+  2. Scalar machines take two routes: the shared-catalog Unit closure and
+     the scalar call closure, chosen by `requires_shared_catalog`. The pure
+     closure assembler drops each member module's structural types and
+     refuses content effects across member calls, so fold it into the shared
+     catalog rather than widen it.
   3. Forwarded dynamic Unit helpers retain no body plan, so the checked
      `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
      a helper whose body is its one call, while scalar helpers retain

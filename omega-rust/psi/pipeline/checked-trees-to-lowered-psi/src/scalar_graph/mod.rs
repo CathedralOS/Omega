@@ -59,7 +59,8 @@ use crate::proofs::crash_routes::{
     lower_checked_crash_exit, lower_checked_crash_predicates, lower_checked_crash_route_buckets,
 };
 use crate::scalar_graph::scalar_graph_lowering::{
-    KnownDirectScalar, prepare_scalar_graph_machine, staged_short_circuit_bindings_terminator,
+    KnownDirectScalar, prepare_scalar_graph_machine, prepare_scalar_graph_root,
+    staged_short_circuit_bindings_terminator,
 };
 use crate::scalar_graph::scalar_graph_module::build_scalar_graph_module;
 use crate::terminal_identities::{

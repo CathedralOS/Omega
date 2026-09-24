@@ -40,14 +40,30 @@ fn outcome(element: &str, machine: &str) -> String {
 }
 
 #[test]
-fn a_borrowed_byte_view_parameter_reaches_the_scalar_graph() {
-    for machine in ["read_len", "Main::main"] {
+fn a_borrowed_view_parameter_reaches_the_scalar_graph() {
+    // A byte view and a non-byte element view take the same scalar-graph
+    // route: the verifier establishes a shared element-view input at entry
+    // (cf7b8baa2b), so neither needs its own admission arm.
+    for element in ["u8", "i32"] {
         assert_eq!(
-            outcome("u8", machine),
+            outcome(element, "read_len"),
             "lowered",
-            "{machine} should admit a borrowed byte view parameter"
+            "read_len should admit a borrowed [{element}] view parameter"
         );
     }
+    assert_eq!(outcome("u8", "Main::main"), "lowered");
+}
+
+#[test]
+fn a_non_byte_subslice_argument_is_a_checked_omission() {
+    // The caller half differs only upstream of this stage: checking does not
+    // yet admit `&self.bytes[0..41]` over an `[i32; 64]` field as a call's
+    // structural argument, so the Unit closure has no body to lower.
+    let outcome = outcome("i32", "Main::main");
+    assert!(
+        outcome.contains("structural arguments: parameter path"),
+        "expected the checked subslice-argument omission, got: {outcome}"
+    );
 }
 
 #[test]
@@ -63,17 +79,4 @@ fn the_byte_view_shape_refusal_is_gone() {
             );
         }
     }
-}
-
-#[test]
-fn a_non_byte_view_keeps_its_own_unfinished_route() {
-    // The control that must NOT move: admitting the byte carrier does not
-    // admit a non-byte element view, which still has no established view at
-    // the operation that reads it. If this starts lowering, the byte arm
-    // above has been widened into something it was not meant to cover.
-    let outcome = outcome("i32", "read_len");
-    assert!(
-        outcome.contains("ElementViewNotEstablished"),
-        "expected the non-byte view to stop at establishment, got: {outcome}"
-    );
 }

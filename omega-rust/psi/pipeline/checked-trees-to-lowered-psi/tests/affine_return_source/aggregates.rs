@@ -347,7 +347,7 @@ fn assert_no_affine_plan(source: &str) {
 fn reference_and_slice_fields_have_no_affine_whole_result_plan() {
     // Reference fields follow expressions/borrow_carrying_data_field_exit;
     // slice fields follow domains/utf8_field_write_from_param.
-    for field_type in ["&Entry", "&mut Entry", "&[u8]", "&mut [Entry]"] {
+    for field_type in ["&mut Entry", "&[u8]", "&mut [Entry]"] {
         assert_no_affine_plan(&format!(
             "data Entry {{ number: u64; }}
              data Inner {{ field: {field_type}; }}
@@ -355,6 +355,25 @@ fn reference_and_slice_fields_have_no_affine_whole_result_plan() {
              machine forward(value: Outer) -> Outer {{ value }}"
         ));
     }
+    // A shared reference field leaves the record unrestricted, so its
+    // identity return lowers through the ordinary route without a
+    // claim-free affine producer.
+    let shared = checked(
+        "data Entry { number: u64; }
+         data Inner { field: &Entry; }
+         data Outer { inner: Inner; }
+         machine forward(value: Outer) -> Outer { value }",
+    );
+    assert!(
+        shared
+            .facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_machines
+            .is_empty()
+    );
+    lower_machine(&shared, TerminalMachineSelection::Name("forward"))
+        .expect("a shared reference field's identity return lowers");
 }
 
 #[test]

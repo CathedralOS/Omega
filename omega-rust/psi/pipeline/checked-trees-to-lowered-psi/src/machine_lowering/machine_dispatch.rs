@@ -15,7 +15,6 @@ use crate::returns::lower_return_machine;
 use crate::scalar_graph::scalar_call_closure::{
     checked_scalar_call_closure, lower_scalar_call_closure,
 };
-use crate::scalar_graph::scalar_graph_lowering::lower_scalar_graph_machine;
 use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::dynamic_composed_unit::{LoweredDynamicDispatch, lower_dynamic_dispatch_machine};
 use crate::unit::lower_unit_plan_machine;
@@ -136,9 +135,9 @@ pub(crate) fn lower_selected_machine(
             },
         ));
     }
-    let graph = graph.ok_or(LoweringError::Unsupported(
-        "machine has no source-independent checked scalar control plan",
-    ))?;
+    if graph.is_none() {
+        return unsupported("machine has no source-independent checked scalar control plan");
+    }
     if crate::scalar_graph::scalar_call_closure::requires_shared_catalog(
         checked,
         selection.machine,
@@ -152,13 +151,8 @@ pub(crate) fn lower_selected_machine(
         ));
     }
     let closure = checked_scalar_call_closure(checked, selection.machine)?;
-    let terminal = if closure.len() == 1 {
-        lower_scalar_graph_machine(checked, selection.machine, graph)
-    } else {
-        lower_scalar_call_closure(checked, &closure)
-    };
     Ok(LoweredSelectedMachine {
-        terminal: terminal?,
+        terminal: lower_scalar_call_closure(checked, &closure)?,
         completion: LoweringCompletion {
             operands: OperandProofCompletion::Finalize,
             ..Default::default()
