@@ -1,2 +1,3 @@
 06:55	z3	leaf/outer-calls	5aba464ade0	union structural operand calls into outer-call roster (nested call in record/case initializer args)
 07:02	z5	leaf/state-graph-admission	5c58c526990	scalar terminators admit trailing dead arms after exhaustive guarded pairs
+07:17	z4	leaf/borrowed-view-element-store	d3332ad6994	byte stores through mutable borrowed-view fields (self.view[i] = v)
