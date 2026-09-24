@@ -231,7 +231,6 @@ pub(crate) fn collect_call_sites_in_statement<'program>(
         &mut collected,
     );
     let _ = find_call_site_in_statement(&mut traversal, statement);
-    drop(traversal);
     collected
 }
 
