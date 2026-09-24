@@ -4178,6 +4178,20 @@ but report the missing runtime leg explicitly; it does not close that host row.
   recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
   attached machine, as the tail arrival its bare form was.
 
+  `module_machine_indices` keeps one: a MUTABLE RECAST TO A FOREIGN
+  PACKAGE'S DOMAIN. In
+  `separate_packages_cannot_exchange_mutable_domain_qualifications`, a field
+  declared `value: u64 in library::bounds::u64::Tag` cannot initialize
+  `let local: &mut u64 in library::bounds::u64::Tag = &mut self.value as
+  &mut u64;` -- "cannot prove initializer of `local` in Main::exchange is in
+  domain `u64::Tag`; an annotation cannot establish routed qualification"
+  (`checks/contracts/writes.rs`). The identical shape over a SAME-FILE domain
+  is a green pass canary,
+  `tests/omega/pass/recast/runtime_mutable_equivalent_domain_recast_exit`, and
+  dropping the `as &mut u64` strip changes nothing, so the gap is the foreign
+  domain path's routing, not the recast spelling. The test's other half, which
+  rejects exchanging two DIFFERENT packages' domains, still passes.
+
   `service_operational_contracts` keeps two tests blocked on an owner
   decision, **OWNER_QUESTIONS.md Q6 `borrowed-service-suspension-carrier`**:
   a machine whose parameters are `&mut Service` and whose published contract
