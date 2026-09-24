@@ -133,10 +133,10 @@ positive without faking custody. Ordered legs:
 Live claims covering producer legs:
 
 - `representations/selected-instructions`, `representations/register-homes`,
-  `08_selected-instructions-to-register-homes/{lib.rs,output,assignment`,
+  `05_selected-instructions-to-register-homes/{lib.rs,output,assignment`,
   `assignment/post_allocation_manifest,assignment/stack_slot_coloring`,
   `rewrites/rematerialization}`, and
-  `07_selected-instructions-to-selected-instructions/{lib.rs` plus several
+  `04_selected-instructions-to-selected-instructions/{lib.rs` plus several
   `rewrites/}` — DURABLE-CODEC-RELOCATION (Devin / w10-w10-14, expires
   ~21:02Z). The selection and register-home legs ride that lane.
 

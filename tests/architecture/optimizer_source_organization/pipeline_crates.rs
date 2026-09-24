@@ -19,7 +19,7 @@ const PIPELINE_DIR: &str = "omega-rust/omega/pipeline";
 /// an optimizer surface must move into `GOVERNED_ROOTS`, and a pinned crate
 /// that disappears leaves a stale pin the sweep reports.
 const CRATES_WITHOUT_OPTIMIZER_SURFACES: &[&str] =
-    &["omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact"];
+    &["omega-rust/omega/compiler/terminal-artifact"];
 
 pub(super) fn check(audit: &mut Audit) {
     let entries = match fs::read_dir(audit.repository.join(PIPELINE_DIR)) {

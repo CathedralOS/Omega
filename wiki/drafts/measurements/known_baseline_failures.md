@@ -1394,7 +1394,7 @@ the original eight failures were never itemized here.
   migration onto the stage crate's route (**ENTRY-CONTENT-ROOTS** area).
 - ~~`locals_calls_and_short_circuit::checked_source_staged_local_sequences_before_an_explicit_crash`
   (1): `UnsupportedControlFlow(MachineId(1))` from
-  `05_abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
+  `02_abstract-operations-to-target-operations/src/lowering/control_flow.rs`;
   expectation from 2694d433d3, not bisected.~~ Verified stale: the member
   now passes end to end at `d6a0625f6ba4` (linux x86-64, 9.9 s) — staged
   local sequences lower through the target-operation route.
@@ -1456,7 +1456,7 @@ losing it.
   `..::publication::structural_call_publication_preserves_owned_indirect_arguments`
   and `..::structural_call::structural_unit_call_reaches_post_allocation_machine_custody`
   stop at `UnsupportedControlFlow` from
-  `05_abstract-operations-to-target-operations/src/lowering/control_flow.rs`.
+  `02_abstract-operations-to-target-operations/src/lowering/control_flow.rs`.
   These are one cause, not five: `lower()` rejects any function whose
   structural parameters carry qualifications, `unobserved_owned::parameter`
   demands the same emptiness, and every fixture declares a granted extent.

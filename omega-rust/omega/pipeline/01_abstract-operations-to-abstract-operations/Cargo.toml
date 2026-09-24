@@ -1,0 +1,41 @@
+[package]
+name = "abstract-operations-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "abstract_operations_to_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../../representations/optimization-core" }
+optimization-unit = { path = "../../representations/optimization-unit" }
+optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+optimization = { path = "../../../psi/representations/optimization" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
+terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
+terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
+proof-admission = { path = "../../../psi/semantics/proof-admission" }
+terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
+
+[dev-dependencies]
+# Unit tests drive the same test-support surface the differential suite reaches.
+abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+
+[features]
+test-support = []
+
+[[example]]
+name = "psi_optimization_allocations"
+required-features = ["test-support"]

@@ -6,20 +6,25 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::U640To4096 requires self <= 4096;
-domain u64::U641To16 requires 1 <= self && self <= 16;
-domain u64::U640To32 requires self <= 32;
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField {
+data SchemaField
+where
+    size <= 4096,
+    1 <= align,
+    align <= 16,
+{
     key: u64;
-    size: u64 in U640To4096;
-    align: u64 in U641To16;
+    size: u64;
+    align: u64;
     number: i64;
     kind: FieldKind;
 }
-data Schema {
+data Schema
+where
+    field_count <= 32,
+{
     fields: [SchemaField; 32];
-    field_count: u64 in U640To32;
+    field_count: u64;
 }
 data IntegerInterpretation { case Signed; case Unsigned; }
 data FieldPlan {

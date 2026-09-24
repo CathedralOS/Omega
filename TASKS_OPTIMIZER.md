@@ -191,7 +191,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **GENERAL-LICM.** Extend invariant motion beyond the authenticated
   shared-source preheader in
-  `04_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
+  `01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
   Keep independent admission/replay in `src/validation/`, including invariant
   operand substitution and the existing topology-based non-speculation gate.
   No Psi optimization selection runs the rewrite today: it and the countdown
@@ -232,9 +232,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **SPILL-REALIZATION.** Finish executable pressure recovery and join its
   frames to stack provisioning.
-  [Register allocation](omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/README.md)
+  [Register allocation](omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/README.md)
   chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
-  `07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
+  `04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
   inserts and independently replays the private stores and reload pairs.
 
   Remaining work:
@@ -443,7 +443,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
   compare/test, and scheduling rewrites on compiler-produced selected programs.
-  Owner: `omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/`.
+  Owner: `omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/`.
   Same-block copy removal and redundant-extension removal already use the
   public catalog executor. Complete address, compare/test, and scheduling
   families through that same route; preserve the existing `PreAllocationPolicy`.
@@ -488,7 +488,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and store motion through the selected-stage catalog with source-bound
   candidates, independently checked receipts, and publication replay.
   Owners: `load_forwarding`, `dead_store`, and `store_motion` under
-  `07_selected-instructions-to-selected-instructions/src/rewrites/`;
+  `04_selected-instructions-to-selected-instructions/src/rewrites/`;
   EXACT-MACHINE-SIMPLIFICATIONS owns their shared stage-execution join.
 
   Bind distinct-place non-aliasing to retained fact identities, or independently
@@ -524,7 +524,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   validator must each establish the required alias and byte-extent facts.
 - **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance beyond
   existing proven membership and scalar-constant observation folds in
-  `04_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
+  `01_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
   `92856482da` (macw8b) descended field-value proofs through stored-whole
   structural children (`Field` path segments, child carrier/type equality,
   owned empty-path access), and `ca85e84578` (macw8b) reseats producer-less

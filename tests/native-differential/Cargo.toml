@@ -10,7 +10,7 @@ name = "omega_native_differential_test"
 path = "src/lib.rs"
 
 [dependencies]
-selected-instructions-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions" }
 register-homes = { path = "../../omega-rust/omega/representations/register-homes" }
 lowered-psi = { path = "../../omega-rust/psi/representations/lowered-psi" }
 terminal-production = { path = "../../omega-rust/psi/compiler/terminal-production" }
@@ -44,12 +44,12 @@ x86-encoding = { path = "../../omega-rust/omega/backend/instruction_set_architec
 target = { path = "../../omega-rust/omega/representations/target" }
 abstract-operations = { path = "../../omega-rust/omega/representations/abstract-operations" }
 target-operations = { path = "../../omega-rust/omega/representations/target-operations" }
-abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/05_abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../omega-rust/omega/pipeline/02_abstract-operations-to-target-operations" }
 machine-emission = { path = "../../omega-rust/omega/backend/machine-emission", features = ["test-support"] }
 machine-code = { path = "../../omega-rust/omega/representations/machine-code" }
 image-emission = { path = "../../omega-rust/omega/backend/images/image-emission", features = ["test-support"] }
 installation-evidence = { path = "../../omega-rust/omega/representations/installation-evidence" }
-terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations" }
 native-realization = { path = "../../omega-rust/omega/compiler/native-realization", features = ["test-support"] }
 native-artifact = { path = "../../omega-rust/omega/backend/artifacts/native-artifact", features = ["test-support"] }
 component-candidate = { path = "../../omega-rust/omega/backend/artifacts/component-candidate" }
@@ -65,20 +65,20 @@ object-file = { path = "../../omega-rust/omega/backend/object/object-file", feat
 legalized-operations = { path = "../../omega-rust/omega/representations/legalized-operations" }
 physical-instructions = { path = "../../omega-rust/omega/representations/physical-instructions" }
 register-environment = { path = "../../omega-rust/omega/backend/register-environment" }
-selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout" }
-resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout", features = ["test-support"] }
-register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine", features = ["test-support"] }
-post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding" }
+selected-form-encoding-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../../omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout", features = ["test-support"] }
+register-homes-to-post-allocation-machine = { path = "../../omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine", features = ["test-support"] }
+post-allocation-machine-to-selected-form-encoding = { path = "../../omega-rust/omega/pipeline/07_post-allocation-machine-to-selected-form-encoding" }
 compiler = { path = "../../omega-rust/omega/compiler/compiler" }
-checked-compilation-to-terminal-artifact = { path = "../../omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact" }
+checked-compilation-to-terminal-artifact = { path = "../../omega-rust/omega/compiler/terminal-artifact" }
 component-deployment = { path = "../../omega-rust/omega/build/component-deployment" }
 effects = { path = "../../omega-rust/omega/representations/effects" }
 isa-aarch64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectures/isa-x86_64" }
 optimization-core = { path = "../../omega-rust/omega/representations/optimization-core", features = ["test-support"] }
-target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/06_target-operations-to-selected-instructions", features = ["test-support"] }
-abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations", features = ["test-support"] }
-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/08_selected-instructions-to-register-homes", features = ["test-support"] }
+target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/03_target-operations-to-selected-instructions", features = ["test-support"] }
+abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations", features = ["test-support"] }
+selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/05_selected-instructions-to-register-homes", features = ["test-support"] }
 register-model = { path = "../../omega-rust/omega/representations/register-model" }
 optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
 optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }

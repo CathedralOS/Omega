@@ -80,7 +80,7 @@
       "owning_paths": [
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/control_flow"
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Complete one cyclic control-contract path with separate safety and progress validation for the existing Console-writer customer."
     },
@@ -180,8 +180,8 @@
       "item": "EXACT-SELECTION-FAMILIES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection",
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized"
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized"
       ],
       "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
     },
@@ -191,8 +191,8 @@
       "item": "ALLOCATION-REFINEMENT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment",
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation"
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation"
       ],
       "suggested_first_slice": "Complete one coalescing, live-range-splitting, fixed-interval, or rematerialization decision while preserving aliases, liveness, and target custody."
     },
@@ -202,7 +202,7 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
         "omega-rust/omega/backend/layout/src/sum_materialization"
       ],
       "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."

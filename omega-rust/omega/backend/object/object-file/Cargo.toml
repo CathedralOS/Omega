@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 machine-emission = { path = "../../machine-emission" }
-terminal-psi-to-abstract-operations = { path = "../../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
 terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
 machine-code = { path = "../../../representations/machine-code" }
 function-identity = { path = "../../../representations/function-identity" }

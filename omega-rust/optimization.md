@@ -15,9 +15,9 @@ records current experimental status, applicability, and composition limits.
 the exact vocabulary. The compiler's
 [build vocabulary](omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
-[checked handoff](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs)
+[checked handoff](omega/compiler/checked-compilation/src/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs)
+[Rollback settlement](omega/compiler/checked-compilation/src/optimization/rollback/mod.rs)
 computes effective selection before artifact production without changing the
 authored selection.
 
@@ -53,7 +53,7 @@ form, certificate-reserved obligations, and non-scalar-leaf proof bearers
 keep their checks. The
 execution record survives canonical Terminal encoding and independent decoding.
 
-The [post-Terminal abstract phase](omega/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
+The [post-Terminal abstract phase](omega/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
 joins verified input construction, bounded execution, and independent projection
 publication. Its result exposes the current abstract program and replay evidence,
 not the executing session or analysis cache. Legacy `Psi` names still occur in
@@ -99,7 +99,7 @@ replay alone inspects retained transformation history. Do not add a program
 representation or a complete emission route for each rule, fixture shape, or
 optimization-history combination.
 
-[Allocation](omega/pipeline/08_selected-instructions-to-register-homes/README.md)
+[Allocation](omega/pipeline/05_selected-instructions-to-register-homes/README.md)
 owns homes and pressure recovery.
 [Machine emission](omega/backend/machine-emission/README.md) owns frame
 realization, fragment emission, and text placement. Target ISA crates own
@@ -128,7 +128,7 @@ sibling rule merely because it was implemented first.
 
 The bounded countdown machinery illustrates a private restriction, not a
 language limit. Its
-[ranked-cycle validation](omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
+[ranked-cycle validation](omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
 reconstructs component/ranking evidence. Only authenticated guard-zero and
 decrement-one relocation to the canonical preheader suffix may normalize the
 otherwise frozen component; provenance and fuel settlements remain unchanged.

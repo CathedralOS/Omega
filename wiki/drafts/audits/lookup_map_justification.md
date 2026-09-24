@@ -57,7 +57,7 @@ to remove.
   exist.
 
 - **Canonical-identity rejoins and package registries**
-  (`02_checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  (`compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
   `package-compilation/src/package_compilation.rs`,
   `component-description/src/component_verification.rs`):
   `BTreeMap<String, SymbolHandle>` /
@@ -75,9 +75,9 @@ to remove.
 
 `04_typed-trees-to-checked-trees/src/product_pruning/dependencies.rs`
 (`HashMap<SymbolHandle, Vec<SymbolHandle>>` edges),
-`05_abstract-operations-to-target-operations/.../dynamic.rs`
+`02_abstract-operations-to-target-operations/.../dynamic.rs`
 (`BTreeMap<MachineId|PlaceId|StructuralTypeId, _>`),
-`07_selected-instructions-to-selected-instructions/.../liveness/validate/replay.rs`,
+`04_selected-instructions-to-selected-instructions/.../liveness/validate/replay.rs`,
 `abstract-operations/src/abstract_operations/atomic.rs`,
 `behavior_exclusions.rs` virtual-filesystem tables
 (`BTreeMap<u32|handle, _>`), and similar — keyed by arena/machine handles, so

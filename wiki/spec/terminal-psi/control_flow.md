@@ -128,4 +128,4 @@ compiled the intended source. Source-to-Psi correspondence and Psi-to-target
 refinement are separate obligations. Producer identity substitutes for neither.
 Consumer-specific implementation limits are documented beside the
 [verifier](../../../omega-rust/psi/semantics/terminal-verifier/README.md#cyclic-control)
-and [native entrance](../../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#ranked-native-admission).
+and [native entrance](../../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission).

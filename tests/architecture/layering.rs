@@ -134,7 +134,7 @@ fn psi_pipeline_stage(root: &std::path::Path, stage: &str) -> std::path::PathBuf
 }
 
 /// Whether an Omega pipeline manifest path names this stage, ignoring an
-/// ordering prefix on the directory (`01_assembled-syntax-to-checked-compilation`).
+/// ordering prefix on the directory (`00_terminal-psi-to-abstract-operations`).
 /// The prefix orders the file tree; the stage's identity is its transform name.
 fn omega_pipeline_stage_is(path: &str, stage: &str) -> bool {
     let Some(rest) = path
@@ -922,7 +922,7 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
     let checked = std::fs::read_to_string(workspace_root().join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
     ))
     .expect("read checked compilation entrance");
     assert!(checked.contains("pub struct CheckedCompileRequest"));
@@ -947,9 +947,9 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 #[test]
 fn checked_compilation_retains_settlement_and_source_custody() {
     let root = workspace_root()
-        .join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src");
+        .join("omega-rust/omega/compiler/checked-compilation/src");
     let entrance = std::fs::read_to_string(workspace_root().join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
     ))
     .expect("read checked compilation entrance");
     let build = entrance
@@ -1000,7 +1000,7 @@ fn checked_admission_remains_required_without_debug_dumps() {
     let root = workspace_root();
     let coordinator = compiler_product_coordinator_source(&root);
     let admission_root = root
-        .join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission");
+        .join("omega-rust/omega/compiler/checked-compilation/src/admission");
     let admission = std::fs::read_to_string(admission_root.join("mod.rs")).unwrap();
     assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
     for required in [
@@ -1413,7 +1413,7 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     )
     .expect("read native optimization admission owner");
     let reporting = recursive_rust_source(&root.join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission",
+        "omega-rust/omega/compiler/checked-compilation/src/admission",
     ));
 
     assert_eq!(
@@ -1443,11 +1443,11 @@ fn production_subject_projection_is_report_owned() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs"),
     )
     .expect("read native optimization join");
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"))
         .expect("read Terminal product owner");
     let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
     let projection = std::fs::read_to_string(
-        root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/checked_compilation/production_subject.rs"),
+        root.join("omega-rust/omega/compiler/checked-compilation/src/checking/checked_compilation/production_subject.rs"),
     )
     .expect("read production-subject projection");
 
@@ -1488,7 +1488,7 @@ fn optimization_rollback_settlement_is_owner_complete() {
         )
     );
     let owner = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs",
     ))
         .expect("read optimization rollback owner");
 
@@ -2229,7 +2229,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     // sources would be a second lowering of the same entry beside the one
     // the artifact was published from.
     let terminal_artifact_sources =
-        root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src");
+        root.join("omega-rust/omega/compiler/terminal-artifact/src");
     let mut stack = vec![terminal_artifact_sources];
     while let Some(directory) = stack.pop() {
         for entry in std::fs::read_dir(&directory)
@@ -2259,8 +2259,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     }
 
     let compiler_terminal = [
-        "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs",
-        "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs",
+        "omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs",
+        "omega-rust/omega/compiler/terminal-artifact/src/native_proposal/mod.rs",
     ]
     .map(|path| {
         std::fs::read_to_string(root.join(path))
@@ -2409,9 +2409,9 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         )
     });
     let physical_catalog_entrances = [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
-        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
+        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
         let path = root.join(relative);
@@ -2518,7 +2518,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
     let input = input.split_whitespace().collect::<Vec<_>>().join(" ");
     let native_admission = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
+        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .expect("native artifact admission owner");
     let production_input = input.split("#[cfg(test)]").next().unwrap();
@@ -2747,7 +2747,7 @@ fn component_era_artifact_occurrence_joins_require_strong_installation_evidence(
 fn optimization_projection_stops_before_target_realization() {
     let root = workspace_root();
     let projection_root =
-        root.join("omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations");
+        root.join("omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations");
     let manifest_path = projection_root.join("Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
@@ -2881,7 +2881,7 @@ fn optimization_projection_stops_before_target_realization() {
     }
 
     let realization_root =
-        root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
+        root.join("omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src");
     let realization_entrance_path = realization_root.join("lowering/optimized.rs");
     let realization_entrance =
         std::fs::read_to_string(&realization_entrance_path).unwrap_or_else(|error| {
@@ -2926,7 +2926,7 @@ fn retained_native_product_enters_only_terminal_realization() {
             &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
         )
     );
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"))
         .expect("read Terminal product owner");
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");
@@ -3011,7 +3011,7 @@ fn shared_frontend_stages_stop_at_checked_psi() {
     let frontend_paths = [
         root.join("omega-rust/omega/compiler/source-assembly/src/source_assembly.rs"),
         root.join(
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/checking/phase_transitions.rs",
         ),
     ];
     let frontend = frontend_paths
@@ -3208,7 +3208,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "the canonical register-model vocabulary must remain representation-owned"
     );
     let facade_source = root
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/lib.rs");
+        .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/lib.rs");
     let facade = std::fs::read_to_string(&facade_source)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
     assert!(
@@ -3217,7 +3217,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "canonical register-model declarations must not drift back into selected-instructions-to-register-homes"
     );
     let regalloc_manifest = root
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/Cargo.toml");
+        .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/Cargo.toml");
     let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
     assert!(
@@ -3266,7 +3266,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let selection_manifest = root
-        .join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/Cargo.toml");
+        .join("omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/Cargo.toml");
     let selection_manifest_source = std::fs::read_to_string(&selection_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_manifest.display()));
     let selection_dependencies = selection_manifest_source
@@ -3324,7 +3324,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let legalization_replay = root.join(
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/replay",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/replay",
     );
     let legalization_replay_source = recursive_rust_source(&legalization_replay);
     for forbidden in [
@@ -3383,7 +3383,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "the checked legalization/selection pipeline must retain its legalized representation dependency"
     );
     let selection_source = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/mod.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/mod.rs",
     ))
     .expect("read target legalization coordination entrance");
     assert!(
@@ -3619,7 +3619,7 @@ fn executable_container_v2_retains_strong_imported_authority_commitments() {
 fn selected_lowering_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let rule = root
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold");
     let entrance = std::fs::read_to_string(rule.join("mod.rs"))
         .expect("read selected-lowering literal-fold entrance");
     assert!(
@@ -3678,7 +3678,7 @@ fn selected_lowering_validation_cannot_reenter_its_producer() {
 fn register_home_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage =
-        root.join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment");
+        root.join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read register-home assignment entrance");
     assert!(
@@ -3744,7 +3744,7 @@ fn register_home_validation_cannot_reenter_its_producer() {
 fn generalized_reload_home_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read generalized reload-home entrance");
@@ -3799,7 +3799,7 @@ fn generalized_reload_home_validation_cannot_reenter_its_producer() {
 fn generalized_recovery_worklist_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read generalized recovery-worklist entrance");
@@ -3841,7 +3841,7 @@ fn generalized_recovery_worklist_validation_cannot_reenter_its_producer() {
 fn generalized_recovery_choice_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read generalized recovery-choice entrance");
@@ -3898,7 +3898,7 @@ fn generalized_recovery_choice_validation_cannot_reenter_its_producer() {
 fn generalized_recovery_action_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read generalized recovery-action entrance");
@@ -3940,7 +3940,7 @@ fn generalized_recovery_action_validation_cannot_reenter_its_producer() {
 fn recursive_spill_insertion_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion");
+        .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read recursive spill-insertion entrance");
     assert!(
@@ -3986,7 +3986,7 @@ fn recursive_spill_insertion_validation_cannot_reenter_its_producer() {
 fn recursive_reload_home_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes",
     );
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read recursive reload-home entrance");
@@ -4044,7 +4044,7 @@ fn recursive_reload_home_validation_cannot_reenter_its_producer() {
 fn spill_pseudo_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions");
+        .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions");
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read spill-pseudo entrance");
     assert!(
@@ -4089,7 +4089,7 @@ fn spill_pseudo_validation_cannot_reenter_its_producer() {
 fn homed_spill_pseudo_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed",
     );
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read homed spill-pseudo entrance");
@@ -4136,7 +4136,7 @@ fn homed_spill_pseudo_validation_cannot_reenter_its_producer() {
 fn abstract_spill_memory_effects_are_independent_and_non_executable() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects",
     );
     let entrance =
         std::fs::read_to_string(stage.join("mod.rs")).expect("read abstract spill-effect entrance");
@@ -4191,7 +4191,7 @@ fn abstract_spill_memory_effects_are_independent_and_non_executable() {
 fn abstract_spill_access_constraints_are_independent_and_non_executable() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read abstract spill-access constraint entrance");
@@ -4302,7 +4302,7 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
 fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritative() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation",
     );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read allocated callee-saved requirement entrance");
@@ -4362,7 +4362,7 @@ fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritati
 fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_intervals");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read fixed/precolored interval entrance");
     assert!(
@@ -4418,7 +4418,7 @@ fn fixed_precolored_interval_replay_cannot_reenter_its_producer_or_assign_homes(
 fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage =
-        root.join("omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src");
+        root.join("omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src");
     let validation = recursive_rust_source(&stage.join("validation"));
     for forbidden in [
         "crate::lowering",
@@ -4445,7 +4445,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "root/roster custody must retain {required}"
         );
     }
-    let graph_input = root.join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input");
+    let graph_input = root.join("omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input");
     let header = std::fs::read_to_string(graph_input.join("header.rs")).unwrap();
     for required in [
         "evaluate_call_plan(",
@@ -4499,7 +4499,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
 fn ordinary_structural_transport_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let selection = root.join(
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection",
     );
     let validation = recursive_rust_source(&selection.join("validation"));
     for forbidden in [
@@ -4577,7 +4577,7 @@ fn target_functions_and_selected_rosters_have_one_graph_shape() {
 fn selected_construction_uses_one_ordinary_instruction_graph() {
     let root = workspace_root();
     let construction = root.join(
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction",
     );
     let entrance = std::fs::read_to_string(construction.join("mod.rs"))
         .expect("read selected construction entrance");
@@ -4597,7 +4597,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
         "the conditional-only recipe implementation must not return",
     );
     let stage =
-        root.join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src");
+        root.join("omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src");
     for retired in [
         "legalization/source/conditional_input.rs",
         "legalization/source/leaves/mod.rs",
@@ -4643,7 +4643,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
 fn native_publication_has_no_countdown_execution_fork() {
     let root = workspace_root();
     let native = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
+        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .unwrap();
     assert!(native.contains("terminal_verifier::verify_module("));
@@ -4678,8 +4678,8 @@ fn native_publication_has_no_countdown_execution_fork() {
     let common = std::fs::read_to_string(image.join("src/function_fragments/replay.rs")).unwrap();
     assert!(common.contains("validate_function_fragment_object_artifact(&replay.0, artifact)"));
     for path in [
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
         "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/ranked_scc.rs",
         "omega-rust/psi/semantics/terminal-fixed-fuel/src/fuel_certification/ranked_countdown.rs",
@@ -4692,7 +4692,7 @@ fn native_publication_has_no_countdown_execution_fork() {
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src");
+        .join("omega-rust/omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src");
     let entrance = std::fs::read_to_string(stage.join("selected_form_encoding.rs"))
         .expect("read selected-form encoding entrance");
     let validate_candidate = entrance
@@ -4861,7 +4861,7 @@ fn psi_content_compact_fingerprints_are_report_only_beside_exact_replay() {
 fn resolved_layout_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root.join(
-        "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
+        "omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout",
     );
     let entrance = std::fs::read_to_string(stage.with_extension("rs"))
         .expect("read resolved selected-form layout entrance");
@@ -5425,7 +5425,7 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
     assert!(!fragment_source.contains("X86Rel8Direct"));
     assert!(!model.contains("StagedFunctionRelativeLayoutOptimizationRealization"));
     let allocation = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/register_allocation.rs",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs",
     ))
     .expect("read allocation phase entrance");
     assert!(!allocation.contains("FunctionRelativeLayout"));
@@ -5455,7 +5455,7 @@ fn allocation_history_does_not_choose_a_separate_frame_or_publication_owner() {
 fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     let root = workspace_root();
     let replay_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_induction",
     );
     for relative in ["replay.rs", "region.rs"] {
         let path = replay_root.join(relative);
@@ -5504,7 +5504,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
     // the verifier's Terminal component surface. Losing a leg here restores the
     // weakening this guardrail exists to forbid.
     let custody_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
     );
     let ordinary = std::fs::read_to_string(custody_root.join("ordinary.rs"))
         .expect("read ranked-cycle component custody leaf");
@@ -5570,7 +5570,7 @@ fn countdown_region_replay_is_independent_of_loop_and_component_producers() {
 fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constants",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant replay leaf");
@@ -5649,7 +5649,7 @@ fn countdown_invariant_constant_replay_is_independent_and_analysis_only() {
 fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_only() {
     let root = workspace_root();
     let analysis_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/analyses/control_flow/countdown_invariant_constant_placement",
     );
     let replay = std::fs::read_to_string(analysis_root.join("replay.rs"))
         .expect("read countdown invariant-constant placement replay leaf");
@@ -5710,7 +5710,7 @@ fn countdown_invariant_constant_placement_replay_is_independent_and_analysis_onl
 fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
     let root = workspace_root();
     let rewrite_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_rewrites/countdown_invariant_constant_relocation",
     );
     let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
         .expect("read countdown invariant-constant relocation validator");
@@ -5782,7 +5782,7 @@ fn countdown_invariant_constant_relocation_is_exact_independent_and_atomic() {
 fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
     let root = workspace_root();
     let rewrite_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
     );
     let validation = std::fs::read_to_string(rewrite_root.join("validate.rs"))
         .expect("read loop-invariant scalar motion validator");
@@ -5853,7 +5853,7 @@ fn loop_invariant_scalar_motion_is_exact_independent_and_atomic() {
 fn countdown_ranking_constant_resolution_is_internal_and_independent() {
     let root = workspace_root();
     let ranking_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles",
     );
     let resolver = std::fs::read_to_string(
         ranking_root.join("countdown_ranking/current/invariant_constants.rs"),
@@ -5911,7 +5911,7 @@ fn countdown_ranking_constant_resolution_is_internal_and_independent() {
 fn ranked_freeze_normalization_is_independent_and_preserves_source_custody() {
     let root = workspace_root();
     let freeze_root = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze",
     );
     let normalization = std::fs::read_to_string(freeze_root.join("relocated_scalars.rs"))
         .expect("read ranked-component normalization leaf");

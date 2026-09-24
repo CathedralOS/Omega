@@ -64,7 +64,7 @@ fn selected_form_encoding_data_outlives_its_producer() {
     let representation = root.join("omega-rust/omega/representations/machine-code/src");
     let data = rust_source(&representation);
     let stage = root
-        .join("omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src");
+        .join("omega-rust/omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src");
     let producer = rust_source(&stage);
     for declaration in [
         "pub struct SelectedFormEncoding {",
@@ -198,7 +198,7 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
         root.join("omega-rust/omega/compiler/native-realization/Cargo.toml"),
     )
     .unwrap();
-    assert!(coordinator.contains("../../pipeline/03_terminal-psi-to-abstract-operations"));
+    assert!(coordinator.contains("../../pipeline/00_terminal-psi-to-abstract-operations"));
     assert!(coordinator.contains("../../backend/register-environment"));
     let setup = std::fs::read_to_string(
         root.join("omega-rust/omega/backend/register-environment/Cargo.toml"),
@@ -274,7 +274,7 @@ fn optimization_records_and_independent_checks_have_distinct_owners() {
     assert!(!validators.contains("VerifiedPsiOptimizationInput"));
     assert!(!validators.contains("pub fn project_pre_physical_optimization_manifest"));
     let stage = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
     );
     let custody = std::fs::read_to_string(stage.join("context/ranked_cycles/mod.rs")).unwrap();
     assert!(custody.contains("pub(in crate::validation::context) const fn new"));
@@ -420,7 +420,7 @@ fn frame_records_are_data_and_backend_validation_remains_sealed() {
 fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
     let root = repository();
     for owner in [
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements",
         "omega-rust/omega/backend/machine-emission/src/frame_layout",
@@ -543,7 +543,7 @@ fn optimization_decision_records_do_not_own_candidate_selection() {
     assert!(!records.contains("fn choose_baseline("));
     assert!(!records.contains("abstract_operations_to_abstract_operations::"));
     let chooser = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/baseline.rs",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/pass_manager/baseline.rs",
     )).unwrap();
     assert!(chooser.contains("pub(super) fn choose_baseline("));
     assert!(
@@ -1067,7 +1067,7 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     assert!(!workspace.contains("omega-regalloc"));
 
     let owner = root
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src");
     let source = rust_source(&owner);
     assert!(!source.contains("omega_regalloc::"));
     for declaration in [
@@ -1086,7 +1086,7 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
         assert_eq!(declarations, 1, "{declaration}");
     }
     let allocation = rust_source(
-        &root.join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
+        &root.join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src"),
     );
     assert_eq!(
         allocation
@@ -1115,7 +1115,7 @@ fn register_home_data_is_independent_of_allocation_authority() {
     let representation = rust_source(&owner.join("src"));
     let allocator = rust_source(
         &repository()
-            .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
+            .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src"),
     );
     for declaration in [
         "pub struct RegisterHomePlan {",
@@ -1155,7 +1155,7 @@ fn register_home_stages_read_current_data_not_producer_ancestry() {
     // `transformation_stage`, `live_range_stage` passed to custody validators)
     // stay: they name the stage under inspection, not a data read.
     let root = repository()
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src");
+        .join("omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());
@@ -1196,7 +1196,7 @@ fn selected_stages_read_current_data_not_producer_ancestry() {
     // custody validators that receive the retained stage objects as evidence
     // and the accessors that expose them.
     let root = repository()
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());
@@ -1229,7 +1229,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let representation = rust_source(&owner.join("src"));
     let optimizer = rust_source(
         &repository()
-            .join("omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src"),
+            .join("omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src"),
     );
     for declaration in [
         "pub struct PostAllocationMachinePlan {",
@@ -1254,7 +1254,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     assert!(!representation.contains("pub struct ValidatedPostAllocationMachinePlan"));
     let construction = rust_source(
         &repository()
-            .join("omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src"),
+            .join("omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src"),
     );
     assert!(construction.contains("pub struct ValidatedPostAllocationMachinePlan {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
@@ -1382,7 +1382,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v16"));
 
     let stage =
-        root.join("omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
+        root.join("omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.with_extension("rs")).unwrap();
     assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
     assert!(wrapper.contains("Arc::clone(&self.program)"));
@@ -1835,11 +1835,11 @@ fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
 #[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
-    let owner = root.join("omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout");
+    let owner = root.join("omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout");
     let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
     let optimization_owner =
-        root.join("omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout");
+        root.join("omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout");
     let optimization = rust_source(&optimization_owner.join("src"));
     let orchestration = rust_source(&coordinator);
     for definition in [
@@ -1970,7 +1970,7 @@ fn psi_program_roots_expose_concept_owners_without_flat_definition_dumps() {
 #[test]
 fn effect_analysis_does_not_depend_on_optimizer_history() {
     let root = repository();
-    let stage = root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/machine_effects");
+    let stage = root.join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/machine_effects");
     let source = rust_source(&stage);
     for forbidden in [
         "StagedOptimized",
@@ -2000,11 +2000,11 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     // algorithms. Sharing that interface does not authorize stage ancestry.
     assert!(source.contains("ValidatedSelectedAnalysis"));
     let construction = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
+        "omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
     )).unwrap();
     assert!(construction.contains("analyze_machine_effects(selected, environment)"));
     let validation = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/post_allocation_machine/validation.rs",
+        "omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src/post_allocation_machine/validation.rs",
     ))
     .unwrap();
     assert!(
@@ -2032,7 +2032,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
             "retired phase fragment: {retired}"
         );
     }
-    let allocation = pipeline.join("08_selected-instructions-to-register-homes/src");
+    let allocation = pipeline.join("05_selected-instructions-to-register-homes/src");
     for area in [
         "rewrites",
         "assignment",
@@ -2044,7 +2044,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
             "missing allocation owner: {area}"
         );
     }
-    let selected = pipeline.join("07_selected-instructions-to-selected-instructions/src");
+    let selected = pipeline.join("04_selected-instructions-to-selected-instructions/src");
     assert!(!allocation.join("analyses").exists());
     for area in ["analyses", "rewrites"] {
         assert!(selected.join(area).join("mod.rs").is_file());
@@ -2077,8 +2077,8 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(!current.contains("History"));
     assert!(retained.contains("self.current.validate_against(&current)?"));
     for consumer in [
-        "09_register-homes-to-post-allocation-machine/src",
-        "08_selected-instructions-to-register-homes/src/preservation",
+        "06_register-homes-to-post-allocation-machine/src",
+        "05_selected-instructions-to-register-homes/src/preservation",
     ] {
         let source = rust_source(&pipeline.join(consumer));
         assert!(
@@ -2342,16 +2342,16 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/05_checked-trees-to-lowered-psi",
         "psi/pipeline/06_lowered-psi-to-lowered-psi",
         "psi/pipeline/07_lowered-psi-to-terminal-psi",
-        "omega/pipeline/03_terminal-psi-to-abstract-operations",
-        "omega/pipeline/04_abstract-operations-to-abstract-operations",
-        "omega/pipeline/05_abstract-operations-to-target-operations",
-        "omega/pipeline/06_target-operations-to-selected-instructions",
-        "omega/pipeline/07_selected-instructions-to-selected-instructions",
-        "omega/pipeline/08_selected-instructions-to-register-homes",
-        "omega/pipeline/09_register-homes-to-post-allocation-machine",
-        "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
-        "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
-        "omega/pipeline/12_resolved-layout-to-resolved-layout",
+        "omega/pipeline/00_terminal-psi-to-abstract-operations",
+        "omega/pipeline/01_abstract-operations-to-abstract-operations",
+        "omega/pipeline/02_abstract-operations-to-target-operations",
+        "omega/pipeline/03_target-operations-to-selected-instructions",
+        "omega/pipeline/04_selected-instructions-to-selected-instructions",
+        "omega/pipeline/05_selected-instructions-to-register-homes",
+        "omega/pipeline/06_register-homes-to-post-allocation-machine",
+        "omega/pipeline/07_post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/08_selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/09_resolved-layout-to-resolved-layout",
     ];
     // Compiler orchestration that feeds Terminal Psi across build evaluation
     // (pipeline.md "Compiler orchestration before Omega"). These are checked
@@ -2362,11 +2362,11 @@ fn connected_pipeline_route_covers_every_stage_crate() {
             "source-files-to-assembled-syntax",
         ),
         (
-            "omega/pipeline/01_assembled-syntax-to-checked-compilation",
+            "omega/compiler/checked-compilation",
             "assembled-syntax-to-checked-compilation",
         ),
         (
-            "omega/pipeline/02_checked-compilation-to-terminal-artifact",
+            "omega/compiler/terminal-artifact",
             "checked-compilation-to-terminal-artifact",
         ),
     ];

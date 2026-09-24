@@ -24,7 +24,7 @@ representation-planning = { path = "../../build/representation-planning" }
 trust-model = { path = "../../build/trust-model" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 optimization-core = { path = "../../representations/optimization-core" }
-abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
@@ -45,8 +45,8 @@ tokens = { path = "../../../psi/representations/tokens" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 artifacts = { path = "../../tooling/artifacts" }
-assembled-syntax-to-checked-compilation = { path = "../../pipeline/01_assembled-syntax-to-checked-compilation" }
-checked-compilation-to-terminal-artifact = { path = "../../pipeline/02_checked-compilation-to-terminal-artifact" }
+assembled-syntax-to-checked-compilation = { path = "../checked-compilation" }
+checked-compilation-to-terminal-artifact = { path = "../terminal-artifact" }
 source-files-to-assembled-syntax = { path = "../source-assembly" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
@@ -75,13 +75,13 @@ serde_json = "1"
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
-target-operations-to-selected-instructions = { path = "../../pipeline/06_target-operations-to-selected-instructions" }
+target-operations-to-selected-instructions = { path = "../../pipeline/03_target-operations-to-selected-instructions" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 legalized-operations = { path = "../../representations/legalized-operations" }
 register-environment = { path = "../../backend/register-environment" }
 native-realization = { path = "../native-realization", features = ["test-support"] }
 machine-emission = { path = "../../backend/machine-emission" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/11_selected-form-encoding-to-resolved-layout" }
+selected-form-encoding-to-resolved-layout = { path = "../../pipeline/08_selected-form-encoding-to-resolved-layout" }
 physical-instructions = { path = "../../representations/physical-instructions" }
 sha2 = "0.10.9"
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
@@ -90,7 +90,7 @@ terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
 image = { path = "../../backend/images/image" }
 image-emission = { path = "../../backend/images/image-emission", features = ["test-support", "installed-artifact"] }
 machine-code = { path = "../../representations/machine-code" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 executable-installation = { path = "../../backend/runtime/executable-installation" }
 external-roots = { path = "../../backend/runtime/external-roots" }
@@ -99,7 +99,7 @@ layout = { path = "../../backend/layout" }
 object-file = { path = "../../backend/object/object-file" }
 native-artifact = { path = "../../backend/artifacts/native-artifact", features = ["test-support"] }
 register-homes = { path = "../../representations/register-homes" }
-register-homes-to-post-allocation-machine = { path = "../../pipeline/09_register-homes-to-post-allocation-machine", features = ["test-support"] }
+register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register-homes-to-post-allocation-machine", features = ["test-support"] }
 register-model = { path = "../../representations/register-model" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }

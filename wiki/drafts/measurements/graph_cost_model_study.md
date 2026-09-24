@@ -34,7 +34,7 @@ The policy-visible row is already closed and exact:
   projects a candidate only after the ordinary validator has admitted it,
   producing `ExternalCandidateFeatures` = validated summary (candidate
   identity, predicted cost delta) + required analyses + consumed facts
-  (`.../04_abstract-operations-to-abstract-operations/src/pass_manager/external_policy/candidate_features.rs`).
+  (`.../01_abstract-operations-to-abstract-operations/src/pass_manager/external_policy/candidate_features.rs`).
   No graph shape crosses this boundary today.
 - The model-free baseline is `min_by_key((predicted_cost_delta, candidate))`
   filtered to negative deltas, skipping as `NotProfitable`

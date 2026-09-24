@@ -10,16 +10,16 @@ path = "src/lib.rs"
 
 [dependencies]
 artifacts = { path = "../../tooling/artifacts" }
-selected-instructions-to-selected-instructions = { path = "../../pipeline/07_selected-instructions-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../../pipeline/04_selected-instructions-to-selected-instructions" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }
-abstract-operations-to-abstract-operations = { path = "../../pipeline/04_abstract-operations-to-abstract-operations" }
-register-homes-to-post-allocation-machine = { path = "../../pipeline/09_register-homes-to-post-allocation-machine" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/11_selected-form-encoding-to-resolved-layout" }
-resolved-layout-to-resolved-layout = { path = "../../pipeline/12_resolved-layout-to-resolved-layout" }
-selected-instructions-to-register-homes = { path = "../../pipeline/08_selected-instructions-to-register-homes" }
-target-operations-to-selected-instructions = { path = "../../pipeline/06_target-operations-to-selected-instructions" }
+abstract-operations-to-abstract-operations = { path = "../../pipeline/01_abstract-operations-to-abstract-operations" }
+register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register-homes-to-post-allocation-machine" }
+selected-form-encoding-to-resolved-layout = { path = "../../pipeline/08_selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../../pipeline/09_resolved-layout-to-resolved-layout" }
+selected-instructions-to-register-homes = { path = "../../pipeline/05_selected-instructions-to-register-homes" }
+target-operations-to-selected-instructions = { path = "../../pipeline/03_target-operations-to-selected-instructions" }
 register-environment = { path = "../../backend/register-environment" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
 boundary-applications = { path = "../../representations/boundary-applications" }
@@ -34,7 +34,7 @@ provider-planning = { path = "../../build/provider-planning" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
 image-emission = { path = "../../backend/images/image-emission" }
 installation-evidence = { path = "../../representations/installation-evidence" }
 isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
@@ -43,7 +43,7 @@ machine-emission = { path = "../../backend/machine-emission" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 legalized-operations = { path = "../../representations/legalized-operations" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
 target-operations = { path = "../../representations/target-operations" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -54,11 +54,11 @@ symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
-assembled-syntax-to-checked-compilation = { path = "../../pipeline/01_assembled-syntax-to-checked-compilation" }
+assembled-syntax-to-checked-compilation = { path = "../checked-compilation" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
-checked-compilation-to-terminal-artifact = { path = "../../pipeline/02_checked-compilation-to-terminal-artifact" }
+checked-compilation-to-terminal-artifact = { path = "../terminal-artifact" }
 compilation-report = { path = "../compilation-report" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 
