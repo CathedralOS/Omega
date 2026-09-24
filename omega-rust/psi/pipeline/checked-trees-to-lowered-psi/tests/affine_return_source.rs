@@ -440,9 +440,8 @@ fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
     // A shared reference forwarded unchanged is not affine custody: it lowers
     // through the ordinary route, verifies independently, and still never
     // enters the claim-free affine producer.
-    let shared = checked(
-        "data Value { number: u64; } machine forward(value: &Value) -> &Value { value }",
-    );
+    let shared =
+        checked("data Value { number: u64; } machine forward(value: &Value) -> &Value { value }");
     assert!(
         shared
             .facts
