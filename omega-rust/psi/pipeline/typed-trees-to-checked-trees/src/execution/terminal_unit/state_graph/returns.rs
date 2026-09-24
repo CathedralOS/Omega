@@ -405,7 +405,7 @@ pub(super) fn return_value_operation(
 /// `parameter_index` names the owning carrier; the field projection stays in
 /// `expression`.
 #[allow(clippy::too_many_arguments)]
-fn view_result_operation(
+pub(in crate::execution::terminal_unit) fn view_result_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,

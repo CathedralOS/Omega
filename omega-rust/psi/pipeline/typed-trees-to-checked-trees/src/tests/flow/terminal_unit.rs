@@ -47,6 +47,7 @@ mod state_graph_subslices;
 mod structural_call_arguments;
 mod structural_local_bindings;
 mod tail_calls;
+mod whole_view_returns;
 
 use checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,

@@ -1722,6 +1722,45 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
+    /// A `&'a [T]` borrowed view also spells its own type reference — the same
+    /// `Reference` shell `add_named_view_type` keeps for `&'a V`, with the
+    /// peeled slice/array view as its referent.
+    pub(super) fn add_slice_view_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        if !borrowed_slice_view(self.program, reference) {
+            return None;
+        }
+        // `add_type` peels the shared borrow itself: `&[u8]` mints the
+        // `slice(u8)` borrowed-view referent the reference shell points at.
+        let referent_identity = self.add_type(reference, binders, &[])?;
+        let identity = self
+            .program
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
+            .into_string();
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access: CheckedStructuralAccess::SharedBorrow,
+            },
+        };
+        if self
+            .types
+            .get(&identity)
+            .is_some_and(|existing| existing != &plan)
+        {
+            return None;
+        }
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
+    }
+
     pub(super) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
