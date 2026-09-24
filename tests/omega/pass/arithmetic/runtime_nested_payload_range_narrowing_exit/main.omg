@@ -1,5 +1,5 @@
 // The field-stored payload's RANGE REFINEMENT narrows through the field path:
-// `self.m` holds `Msg::Move(dx: i32 [0..=15])`, and the destructure binding
+// `self.m` holds `Msg::Move(dx: i32 in I320To15)`, and the destructure binding
 // lowers to the nested place `self.m.dx`, whose declared range discharges the
 // decision-17 obligation for `dx * 10` (bounded by 150) -- a completeness
 // bonus of the nested-place resolution that closed the silent-wrap hole (the
@@ -7,7 +7,8 @@
 // ranges). dx = 7, so the scaled arg is 70; the guard discriminates. Exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Msg { case Move(dx: i32 [0..=15]); case Stay; }
+domain i32::I320To15 requires 0 <= self && self <= 15;
+data Msg { case Move(dx: i32 in I320To15); case Stay; }
 data Main { console: Binding<Console>; m: Msg; }
 machine Main::main(&mut self) reaches Console {
     self.m = Msg::Move { dx: 7 };

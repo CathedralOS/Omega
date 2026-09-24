@@ -4,7 +4,8 @@
 // validity and value overflow are independent obligations; both hold.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; count: u32; value: u32 [0..=1]; result: u32; }
+domain u32::U320To1 requires self <= 1;
+data Main { console: Binding<Console>; count: u32; value: u32 in U320To1; result: u32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 5;
     self.value = 1;

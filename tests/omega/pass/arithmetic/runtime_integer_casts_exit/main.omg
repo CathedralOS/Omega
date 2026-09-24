@@ -10,6 +10,8 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::I320To255 requires 0 <= self && self <= 255;
+domain i16::I160To32767 requires 0 <= self && self <= 32767;
 data Main {
     console: Binding<Console>;
 }
@@ -19,11 +21,11 @@ machine Main::main(&mut self) reaches Console {
     let aw: i32 in Trapping = a8 as i32;
     let b8: u8 = 200;
     let bw: i32 in Trapping = b8 as i32;
-    let c32: i32 [0..=255] = 200;
+    let c32: i32 in I320To255 = 200;
     let cn: u8 = c32 as u8;
     let d32: i32 in Trapping = -7;
     let dw: i64 in Trapping = d32 as i64;
-    let e16: i16 [0..=32767] = 32767;
+    let e16: i16 in I160To32767 = 32767;
     let eu: u16 = e16 as u16;
     let ew: u32 in Trapping = eu as u32;
 
