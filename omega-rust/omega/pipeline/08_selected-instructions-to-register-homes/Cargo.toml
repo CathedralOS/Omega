@@ -14,7 +14,7 @@ test-support = [
 ]
 
 [dependencies]
-selected-instructions-to-selected-instructions = { path = "../07_selected-instructions-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions" }
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
 register-environment = { path = "../../backend/register-environment" }
 isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
@@ -36,5 +36,5 @@ terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-selected-instructions-to-selected-instructions = { path = "../07_selected-instructions-to-selected-instructions", features = ["test-support"] }
+selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions", features = ["test-support"] }
 optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }

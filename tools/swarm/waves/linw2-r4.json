@@ -97,9 +97,9 @@
     "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized",
     "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs",
     "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/tests",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses",
     "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests",
     "omega-rust/omega/compiler/compiler/tests/realization_custody.rs"
    ],
@@ -223,8 +223,8 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "EXACT-MACHINE-SIMPLIFICATIONS",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/address_fold",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/address_fold",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend"
    ],
    "suggested_first_slice": "Validation-independence leg: separate validation from proposal in one rewrite family \u2014 copy_removal and redundant_extension already re-derive the legality contract without the producer's admission routine; every other module's validation.rs still calls its own rewrite's admission::admit. Take ONE family (address_fold or literal_minuend): make its validation.rs reconstruct the preconditions independently, add a forged-proposal rejection to independence_tests. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/allocation_recovery, tests/ancestry_contract.rs. The Optimization-member catalog work is handoff-gated (WORKSPACE-ROLLOUT) \u2014 do not attempt it. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
@@ -234,9 +234,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
    ],
    "suggested_first_slice": "Validation-independence leg: all three modules' validation.rs call their own rewrite's admission::admit \u2014 take ONE module (load_forwarding first) and make its validator reconstruct the legality preconditions independently (the interferes/memory_accesses roster checks re-derived, not the producer's admit), with a forged-proposal rejection in independence_tests. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/allocation_recovery. The non-aliasing-premise-evidence and catalog legs are design/handoff-gated \u2014 skip them. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
@@ -282,7 +282,7 @@
    "item": "SPILL-REALIZATION",
    "owning_paths": [
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Logical-to-physical join leg: assignment/runtime_spill/recovery.rs calls sequenced_logical_operations to choose logical victims and plans operations, but the actual candidate loop still selects and rewrites victims independently \u2014 connect the retained plan to the emitted spill/reload ops (or prove the plan redundant and remove it) such that a mismatch between plan and emitted operations rejects. Preserve executable recovery + independent checking. Fenced: s2rh/src/unsequenced_spill_stages (POC-SPILL), s2rh/src/assignment (DURABLE-CODEC claims a subdir \u2014 check), s2s/rewrites/{mod.rs,module_catalog.rs,allocation_recovery}. Check tools/claims.py status and narrow to touched files. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1

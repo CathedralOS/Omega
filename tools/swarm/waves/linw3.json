@@ -23,7 +23,7 @@
    "item": "SPILL-REALIZATION",
    "owning_paths": [
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Logical-to-physical join leg: assignment/runtime_spill/recovery.rs calls sequenced_logical_operations to choose logical victims and plan their operations, but the actual candidate loop still selects and rewrites victims independently. Connect the retained plan to the emitted spill/reload ops (or prove the plan redundant and remove it) such that a mismatch between plan and emitted operations rejects. Preserve executable recovery + independent checking. Fenced this wave: s2rh/src/assignment/stack_slot_coloring and s2s rewrites/{mod.rs,module_catalog.rs,allocation_recovery,load_forwarding,dead_store,store_motion} (linw3-alias-aware-memory holds the memory three). Narrow owning_paths to what you actually touch. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },
@@ -84,9 +84,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
    ],
    "suggested_first_slice": "Validation-independence leg (residual): check which of the three modules' validation.rs still calls its own rewrite's admission::admit - load_forwarding was done in linw2; take ONE remaining module (dead_store or store_motion) and make its validator reconstruct the legality preconditions independently (interferes/memory_accesses roster checks re-derived, not the producer's admit), with a forged-proposal rejection in independence_tests. Alternatively, if both are already independent, take ONE bounded step of the non-aliasing-premise leg: bind distinct-place non-aliasing to retained fact identities at the access-roster producer. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/{runtime_spill,address_fold,literal_minuend,allocation_recovery}. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },
