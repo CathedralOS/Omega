@@ -1,8 +1,9 @@
-//! A multi-state scalar graph on an attached machine keeps the ambient
-//! `&self` receiver on the entry roster only, while non-entry structural
-//! formals forward across the edges that reach them. This is the
+//! A multi-state scalar machine that reads its borrowed `self` belongs to the
+//! Unit state graph: only a single-state scalar graph retains a receiver. The
+//! receiver stays on the entry roster while non-entry structural formals
+//! forward across the edges that reach them. This is the
 //! `SnapshotRegionFilter::get_element_count` shape: an Alignment formal rides
-//! the jump into the divide state, which also reads the ambient receiver.
+//! the jump into the divide state, which also reads the receiver.
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
@@ -39,8 +40,29 @@ const SOURCE: &str = r#"
 "#;
 
 #[test]
-fn multi_state_scalar_graph_forwards_structural_formals_on_edges() {
+fn receiver_reading_state_graph_forwards_structural_formals_on_edges() {
     let checked = crate::front_end::checked_program(SOURCE);
+    let count = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.symbols.display_path(machine.symbol, "::") == "Filter::count")
+        .expect("count machine")
+        .symbol;
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(count)
+            .is_none()
+            && checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(count)
+                .is_some(),
+        "the Unit state graph owns the receiver-reading machine"
+    );
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Filter::count"),
@@ -48,7 +70,7 @@ fn multi_state_scalar_graph_forwards_structural_formals_on_edges() {
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),
     ))
-    .expect("mixed multi-state scalar graph lowers its forwarded structural formals")
+    .expect("the receiver-reading state graph lowers its forwarded structural formals")
     .into_artifact();
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
@@ -57,7 +79,7 @@ fn multi_state_scalar_graph_forwards_structural_formals_on_edges() {
         &proof,
         &proof_admission::AdmissionProfile::default(),
     )
-    .expect("forwarded multi-state scalar graph independently verifies");
+    .expect("the forwarded state graph independently verifies");
 
     let entry = module
         .machines
@@ -65,7 +87,7 @@ fn multi_state_scalar_graph_forwards_structural_formals_on_edges() {
         .find(|machine| machine.id == module.entry)
         .expect("count entry machine");
     let [receiver, alignment] = entry.structural_parameters.as_slice() else {
-        panic!("entry retains the ambient receiver and the forwarded formal")
+        panic!("entry retains the receiver and the forwarded formal")
     };
     assert!(receiver.is_self);
     assert!(!alignment.is_self);

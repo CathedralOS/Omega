@@ -329,24 +329,36 @@ fn build_machine_graph(
         }
         states.push(built);
     }
-    // The ambient receiver owns a graph operand only when the entry roster
-    // retained it; a state that still reads `self` otherwise keeps its
-    // ordinary body rather than publishing stranded receiver references.
-    if !states.iter().any(|(state, ..)| {
-        state
+    // A borrowed `self` is retained as the receiver operand only by a machine
+    // of one authored state (`checked_state_graph`); every other state keeps
+    // it ambient on the attachment carrier, so it may not read through it.
+    // A multi-state machine that does belongs to the Unit state graph, which
+    // retains the receiver on its entry roster where every Unit caller
+    // rejoins it (`receiver_calls`). The scalar graph used to retain it too,
+    // shared by every state through the entry roster. That gave the machine
+    // two owners; Unit callers reach only single-state graphs
+    // (`scalar_targets::registered_structural_graph_target`) while the state
+    // graph yields to any graph (`scalar owner precedence`), so the machine
+    // was uncallable. A multi-state machine that never reads `self` keeps a
+    // receiver-free graph, which Unit callers reach as a pure scalar call.
+    // Moving those to the state graph too is the next consolidation step; it
+    // first needs evidence that none relies on a capability only this route
+    // has, such as the natural ranks the state graph does not yet derive.
+    for (&(_, state), (built, ..)) in pending.iter().zip(&states) {
+        if built
             .structural_parameters
             .iter()
             .any(|parameter| parameter.is_self)
-    }) {
-        for &(_, state) in &pending {
-            let parameters = program.state_parameters(state);
-            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
-                let Ok(position) = u32::try_from(position) else {
-                    return None;
-                };
-                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
-                    return None;
-                }
+        {
+            continue;
+        }
+        let parameters = program.state_parameters(state);
+        if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
+            let Ok(position) = u32::try_from(position) else {
+                return None;
+            };
+            if state_reads_ambient_position(expressions, computations, state.symbol, position) {
+                return None;
             }
         }
     }
@@ -423,47 +435,40 @@ fn checked_state_graph(
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
-            let source_states = program.machine_states(machine);
+            // Only a machine of one authored state retains its borrowed
+            // receiver; see `build_machine_graph` for why.
+            let receiver = parameters.iter().any(|parameter| parameter.is_self);
+            let retains_receiver = owner_state_count == 1
+                && parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && !parameter.is_mutable);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
-                && !parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self && parameter.is_mutable)
+                && (retains_receiver || !receiver)
             {
                 // An attached machine's graph carries the whole mixed
-                // signature per state: the ambient receiver lands on the
-                // entry roster while each state's own structural formals
-                // forward across the edges that reach it. The carrier
-                // contract stays the ordinary scalar-graph admission, so a
-                // structural parameter the graph cannot carry keeps the
+                // signature per state, with each state's own structural
+                // formals forwarded across the edges that reach it. The
+                // carrier contract stays the ordinary scalar-graph admission,
+                // so a structural parameter the graph cannot carry keeps the
                 // whole machine off the graph.
                 if !crate::execution::terminal_unit::structural_scalar_graph_parameter_admission(
                     program, state,
                 ) {
                     return None;
                 }
-                crate::execution::terminal_unit::calls::mixed_ambient_scalar_graph_signature(
-                    program,
-                    machine,
-                    state,
-                    source_states[0].symbol,
+                crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                    program, machine, state,
                 )?
             } else if mixed {
                 // Whole structural forwarding, for a free machine or for an
-                // attached machine whose exclusive receiver is an explicit
-                // structural formal, resolves each authored state's own
-                // signature: edge binding below forwards each structural
-                // formal onto its incoming transfers.
+                // attached one whose receiver stays ambient, resolves each
+                // authored state's own signature: edge binding below forwards
+                // each structural formal onto its incoming transfers.
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
-            } else if state.symbol == source_states[0].symbol
-                && parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self && !parameter.is_mutable)
-            {
-                // The entry roster doubles as the machine's structural
-                // namespace, so a borrowed receiver lands there once: every
-                // state's reads resolve against that machine-level place
-                // while no edge ever forwards it.
+            } else if retains_receiver {
+                // The single state's roster is the machine's structural
+                // namespace, so the borrowed receiver lands there once.
                 crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
                     program, machine, state,
                 )?
