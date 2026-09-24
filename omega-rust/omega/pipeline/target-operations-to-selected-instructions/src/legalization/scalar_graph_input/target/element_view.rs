@@ -158,8 +158,11 @@ impl Checker<'_> {
 
     /// Re-derive an established view's declared window: the runtime path tip
     /// of the authored field chain is a fixed array whose element and length
-    /// witness the descriptor extent, and a primitive-scalar element's width
-    /// is the transported stride.
+    /// witness the descriptor extent, and the element's own layout stride
+    /// (its size rounded up to its alignment, the same geometry a fixed array
+    /// of that element occupies) is the transported stride. Record elements
+    /// take the same rule as primitive scalars: a view never reads padding as
+    /// an element, because consecutive elements sit exactly one stride apart.
     fn established_element_window(
         &self,
         root_structural_type: semantic_vocabulary::StructuralTypeId,
@@ -185,23 +188,13 @@ impl Checker<'_> {
         if *array_element != element || *length != extent {
             return false;
         }
-        self.types
-            .iter()
-            .find(|declaration| declaration.id == element)
-            .is_some_and(|declaration| {
-                matches!(&declaration.shape, StructuralTypeShape::PrimitiveScalar(scalar)
-                    if element_byte_width(*scalar) == Some(u64::from(element_stride)))
+        crate::structural_inputs::structural_reference_input::shape(element, self.types)
+            .and_then(|shape| {
+                crate::structural_inputs::structural_reference_input::align(
+                    u32::from(shape.byte_size),
+                    shape.alignment,
+                )
             })
-    }
-}
-
-fn element_byte_width(scalar: semantic_vocabulary::ScalarType) -> Option<u64> {
-    match scalar {
-        semantic_vocabulary::ScalarType::Boolean => Some(1),
-        semantic_vocabulary::ScalarType::Integer(integer) => Some(u64::from(integer.bits() / 8)),
-        semantic_vocabulary::ScalarType::IeeeFloat(format) => Some(match format {
-            semantic_vocabulary::IeeeFloatFormat::Binary32 => 4,
-            semantic_vocabulary::IeeeFloatFormat::Binary64 => 8,
-        }),
+            .is_some_and(|stride| stride != 0 && stride == element_stride)
     }
 }

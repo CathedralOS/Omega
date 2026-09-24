@@ -12,8 +12,9 @@ use semantic_vocabulary::IntegerValue;
 use terminal_psi::StructuralTypeShape;
 
 /// The byte stride of the view's element. A derived view home already carries
-/// it; a descriptor source reconstructs it from the declared element type,
-/// which must be a primitive scalar on this lane.
+/// it; a descriptor source reconstructs it from the declared element type's
+/// layout (size rounded up to alignment), for scalar and record elements
+/// alike. Reads still require a scalar element below.
 pub(super) fn element_stride(
     function: &LegalizedScalarFunction,
     replay: &Replay<'_>,
@@ -37,19 +38,15 @@ pub(super) fn element_stride(
     let StructuralTypeShape::ElementView { element } = &declaration.shape else {
         return None;
     };
-    let element_declaration = signature
-        .structural_types
-        .as_slice()
-        .iter()
-        .find(|declaration| declaration.id == *element)?;
-    let StructuralTypeShape::PrimitiveScalar(scalar) = element_declaration.shape else {
-        return None;
-    };
-    let shape = crate::structural_inputs::structural_reference_input::scalar_shape(scalar)?;
+    let shape = crate::structural_inputs::structural_reference_input::shape(
+        *element,
+        signature.structural_types.as_slice(),
+    )?;
     crate::structural_inputs::structural_reference_input::align(
         u32::from(shape.byte_size),
         shape.alignment,
     )
+    .filter(|stride| *stride != 0)
 }
 
 pub(in crate::selection) fn element_observation(
