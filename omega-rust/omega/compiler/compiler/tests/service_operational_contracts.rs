@@ -41,27 +41,33 @@ boundary trait Clock {
     machine wait()
     reaches Clock
     suspends;
+    terminates;
 }
 
 boundary trait Storage {
     machine flush()
     reaches Storage
     blocks;
+    terminates;
 }
 
 trait Worker {
     machine run(
         clock: &mut Clock,
         storage: &mut Storage,
-        remaining: u64
+        remaining: u64 [0..=256]
     ) -> u64
     reaches Clock, Storage
+    invokes clock;
+    invokes storage;
     suspends;
     blocks;
     terminates;
 }
 
-machine finish(clock: &mut Clock, storage: &mut Storage) -> u64 {
+machine finish(clock: &mut Clock, storage: &mut Storage) -> u64
+reaches Clock, Storage
+{
     block storage.flush();
     suspend clock.wait();
     0
@@ -70,7 +76,7 @@ machine finish(clock: &mut Clock, storage: &mut Storage) -> u64 {
 machine run_impl(
     clock: &mut Clock,
     storage: &mut Storage,
-    remaining: u64
+    remaining: u64 [0..=256]
 ) -> u64
 satisfies Worker::run
 reaches Clock, Storage
@@ -80,8 +86,19 @@ terminates;
 terminates by remaining;
 {
     transition remaining > 0 {
-        true -> run_impl(clock, storage, remaining - 1)
-        false -> finish(clock, storage)
+        true -> step(clock, storage, remaining - 1)
+        false -> done(clock, storage)
+    }
+
+    state step(clock: &mut Clock, storage: &mut Storage, remaining: u64 [0..=256]) -> u64 {
+        transition remaining > 0 {
+            true -> step(clock, storage, remaining - 1)
+            false -> done(clock, storage)
+        }
+    }
+
+    state done(clock: &mut Clock, storage: &mut Storage) -> u64 {
+        suspend block finish(clock, storage)
     }
 }
 
@@ -271,11 +288,11 @@ fn private_ranking_spelling_cannot_perturb_public_contract_identity() {
 #[test]
 fn synchronous_invocation_edges_survive_in_checked_contract_identity() {
     let with_edge = r#"
-boundary trait Handler {
+pub boundary trait Handler {
     machine handle();
 }
 
-data Published {}
+pub data Published {}
 boundary machine Published::entry(&mut self, handler: &mut Handler)
 invokes handler;
 {

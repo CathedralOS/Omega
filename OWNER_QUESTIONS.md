@@ -190,6 +190,47 @@ their charged cleanup/discard route; preserve the ordering tests.
 - Tempting but wrong: silently remove an owned place or repin the failing tests.
   Passing tests alone would not explain where the ownership obligation went.
 
+### Q6 - How does a state machine holding service borrows perform a suspending operation?
+
+Named decision: `borrowed-service-suspension-carrier`.
+
+**Context:** [Effects](wiki/spec/language/effects.md#call-site-acknowledgements)
+permits a suspending call only as a complete statement, simple `let` right-hand
+side, transition subject, or terminal expression, and states that carry policy
+may reject a crossing with particular live values. The transition ARM TARGET is
+not among the permitted positions, and the transition grammar in
+`tokens-to-syntax-trees/src/bodies/transitions/` has no place to spell a
+`suspend`/`block` acknowledgement on a named transfer.
+
+**Problem:** A machine whose parameters are `clock: &mut Clock` and
+`storage: &mut Storage` and whose published contract is `suspends; blocks;`
+cannot reach a suspending operation by either route. As a transition arm target
+the call is rejected with "acknowledges neither suspension nor blocking" and the
+grammar cannot express the marker. As a terminal expression it is rejected with
+"call to `entry` may suspend while `clock` remains live, but its effective policy
+is `carry(suspension: forbidden, ...)`; consume the value before the call or use
+a suspension-safe carrier". No corpus fixture demonstrates such a carrier, and no
+pass canary transfers into a machine with an operational envelope.
+`compiler::service_operational_contracts` keeps two tests red on this, both
+compiling one shared CONTRACT_PROGRAM.
+
+**Proposed solution:** Name the suspension-safe carrier for a borrowed service
+binding, so a `&mut Service` parameter can stay live across a suspension its own
+published contract already declares, and say whether an ordinary `&mut` borrow of
+a boundary trait acquires it by default.
+
+**Alternatives:**
+- Admit a named transition transfer as a fifth acknowledgement position and give
+  the grammar the marker. A tail transfer does not resume the transferring
+  activation, so there may be nothing for it to acknowledge; that reading would
+  instead exempt transfers from the check rather than extend the syntax.
+- Rule that services reach a suspending body only as `Binding<Service>` fields
+  rather than `&mut` parameters, and restate the synchronous-invocation
+  (`invokes`) axis for that shape.
+- Tempting but wrong: relax the carry policy for boundary-trait borrows without
+  saying what keeps a live borrow sound across a park. The rejection is the only
+  thing currently preventing a borrow from crossing a suspension.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
