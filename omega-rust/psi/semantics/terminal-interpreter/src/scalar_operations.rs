@@ -4,11 +4,13 @@
 //!
 //! `integer.rs` executes the integer operations (constants, comparisons,
 //! bitwise and width conversions, and the exact, wrapping and saturating
-//! arithmetic families); `boolean_float.rs` the Boolean and IEEE-float
+//! arithmetic families); `trapping.rs` the Trapping primitives and their
+//! operation-level crashes; `boolean_float.rs` the Boolean and IEEE-float
 //! operations.
 
 pub(crate) mod boolean_float;
 pub(crate) mod integer;
+pub(crate) mod trapping;
 
 use crate::values::TerminalScalarValue;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};

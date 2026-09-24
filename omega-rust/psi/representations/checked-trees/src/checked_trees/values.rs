@@ -489,6 +489,40 @@ pub enum CheckedScalarExpression {
 }
 
 impl CheckedScalarExpression {
+    /// Whether evaluating this expression executes any Trapping primitive or
+    /// Trapping conversion, i.e. whether it owns an operation-level `Trap`
+    /// crash site. Boolean subterms are inspected through their integer
+    /// comparisons.
+    pub fn contains_trapping_operation(&self) -> bool {
+        match self {
+            Self::IntegerTrappingCast { .. } => true,
+            Self::IntegerBinary {
+                kind, left, right, ..
+            } => {
+                kind.is_trapping()
+                    || left.contains_trapping_operation()
+                    || right.contains_trapping_operation()
+            }
+            Self::IntegerBitwiseNot { operand, .. }
+            | Self::IntegerWiden { operand, .. }
+            | Self::IntegerExactCast { operand, .. }
+            | Self::IntegerWrappingCast { operand, .. }
+            | Self::IntegerSaturatingCast { operand, .. } => operand.contains_trapping_operation(),
+            Self::StructuralParameterIndexedRead { index, .. } => {
+                index.contains_trapping_operation()
+            }
+            Self::Boolean(expression) => expression.contains_trapping_operation(),
+            Self::StructuralParameterByteLength { .. }
+            | Self::StorageRead { .. }
+            | Self::Parameter { .. }
+            | Self::ErasedParameter { .. }
+            | Self::Local { .. }
+            | Self::StructuralParameterField { .. }
+            | Self::IntegerLiteral { .. }
+            | Self::IeeeFloatLiteral { .. } => false,
+        }
+    }
+
     /// The selected result carrier, independent of executable storage or
     /// target realization. An integer literal must already have a landing.
     pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
@@ -559,6 +593,30 @@ pub enum CheckedIntegerBinaryKind {
     /// must reject them rather than weaken the policy.
     TrappingShiftLeft,
     TrappingShiftRight,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    /// Traps on a zero divisor or signed `MIN / -1` (the settled Trapping
+    /// catalog row), rather than owing a nonzero-divisor proof.
+    TrappingDivide,
+    TrappingRemainder,
+}
+
+impl CheckedIntegerBinaryKind {
+    /// Whether this selected builtin is a Trapping primitive: its execution
+    /// may crash with cause `Trap` at its own operation site.
+    pub const fn is_trapping(self) -> bool {
+        matches!(
+            self,
+            Self::TrappingShiftLeft
+                | Self::TrappingShiftRight
+                | Self::TrappingAdd
+                | Self::TrappingSubtract
+                | Self::TrappingMultiply
+                | Self::TrappingDivide
+                | Self::TrappingRemainder
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -638,6 +696,33 @@ pub enum CheckedBooleanExpression {
         left: Box<CheckedBooleanExpression>,
         right: Box<CheckedBooleanExpression>,
     },
+}
+
+impl CheckedBooleanExpression {
+    /// Whether evaluating this condition executes a Trapping primitive in
+    /// one of its integer operands.
+    pub fn contains_trapping_operation(&self) -> bool {
+        match self {
+            Self::Not(operand) => operand.contains_trapping_operation(),
+            Self::Equal { left, right } | Self::And { left, right } | Self::Or { left, right } => {
+                left.contains_trapping_operation() || right.contains_trapping_operation()
+            }
+            Self::IntegerComparison { left, right, .. }
+            | Self::ScalarIeeeFloatComparison { left, right, .. } => {
+                left.contains_trapping_operation() || right.contains_trapping_operation()
+            }
+            Self::StorageRead { .. }
+            | Self::Constant(_)
+            | Self::Parameter { .. }
+            | Self::ErasedParameter { .. }
+            | Self::Local { .. }
+            | Self::StructuralParameterField { .. }
+            | Self::IeeeFloatComparison { .. }
+            | Self::ByteSequenceEqual { .. }
+            | Self::PayloadlessSumEqual { .. }
+            | Self::StructuralCaseMembership { .. } => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

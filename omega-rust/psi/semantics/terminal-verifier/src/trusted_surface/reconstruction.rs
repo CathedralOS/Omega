@@ -671,6 +671,23 @@ static FACT_RETURN_RESULT_BINDING: TrustedSurfaceEntry = TrustedSurfaceEntry {
     soundness: TRUSTED,
 };
 
+static FACT_TRAPPING_NORMAL_RETURN: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:trapping-normal-return",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated Trapping primitive whose denotation is reconstructed from its operand and result carriers",
+    conclusion: "the continuation gains result = the primitive's exact term; the trap path has no continuation and gains nothing; no obligation is owed",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+    ],
+    implementation: &[
+        OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/trapping_integer.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_CRASH_SITE_RETENTION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:crash-site-retention",
     family: LedgerFamily::ReconstructedFactKind,
@@ -724,6 +741,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_STRUCTURAL_CASE_ARM,
     FACT_RETURN_RESULT_BINDING,
     FACT_CRASH_SITE_RETENTION,
+    FACT_TRAPPING_NORMAL_RETURN,
 ];
 
 /// `ReconstructedTerminalObligationOwner` -> ledger entry, total by

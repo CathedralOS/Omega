@@ -52,6 +52,15 @@ pub(crate) fn effective_crash_routes(
     for site in plan.crash.checked_sites() {
         grouped.insert(site.cause(), vec![CrashRouteGuard::Truth]);
     }
+    // Each Trapping primitive is its own operation-level `Trap` site; like an
+    // explicit crash it widens the inferred cause to the unconditional route,
+    // which is the only bucket that covers an operation site.
+    if !plan.crash.trapping_sites().is_empty() {
+        grouped.insert(
+            checked_trees::CrashCause::Trap,
+            vec![CrashRouteGuard::Truth],
+        );
+    }
     for call in plan.crash.checked_calls() {
         contribute(&mut grouped, call.surviving_buckets());
     }

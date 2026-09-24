@@ -268,7 +268,8 @@ impl OperationKind {
             | Self::WrappingIntegerSubtract { .. }
             | Self::SaturatingIntegerSubtract { .. }
             | Self::WrappingIntegerMultiply { .. }
-            | Self::SaturatingIntegerMultiply { .. } => {}
+            | Self::SaturatingIntegerMultiply { .. }
+            | Self::TrappingInteger { .. } => {}
         }
         projections
     }

@@ -353,5 +353,16 @@ const fn project_integer_binary_kind(
         CheckedIntegerBinaryKind::TrappingShiftRight => {
             PackageReviewIntegerBinaryKind::TrappingShiftRight
         }
+        CheckedIntegerBinaryKind::TrappingAdd => PackageReviewIntegerBinaryKind::TrappingAdd,
+        CheckedIntegerBinaryKind::TrappingSubtract => {
+            PackageReviewIntegerBinaryKind::TrappingSubtract
+        }
+        CheckedIntegerBinaryKind::TrappingMultiply => {
+            PackageReviewIntegerBinaryKind::TrappingMultiply
+        }
+        CheckedIntegerBinaryKind::TrappingDivide => PackageReviewIntegerBinaryKind::TrappingDivide,
+        CheckedIntegerBinaryKind::TrappingRemainder => {
+            PackageReviewIntegerBinaryKind::TrappingRemainder
+        }
     }
 }

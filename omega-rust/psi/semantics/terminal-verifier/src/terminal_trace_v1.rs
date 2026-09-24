@@ -6,7 +6,8 @@ use semantic_vocabulary::{
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CrashCause, OperationKind, StructuralAccess,
     TerminalMachineResult, TerminalModule, TerminalObservationSchema,
-    TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Rows,
     TerminalTraceValueComparison, Terminator,
@@ -17,6 +18,8 @@ use crate::{ModuleError, validate_module_representation};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TerminalTraceV1OperationClassification {
     Internal,
+    /// An internal operation that owns an operation-level crash site.
+    TrappingPrimitive,
     BoundaryCall,
     PortWrite,
 }
@@ -37,6 +40,11 @@ pub enum TerminalTraceV1ReconstructionError {
         cause: CrashCause,
     },
     DuplicateOrdinaryEventSite {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+    },
+    DuplicateOperationCrashSite {
         machine: MachineId,
         block: BlockId,
         operation: OperationId,
@@ -130,12 +138,38 @@ pub fn reconstruct_terminal_trace_v1_rows(
 
     let mut crash_sites = Vec::new();
     let mut boundary_crash_sites = Vec::new();
+    let mut operation_crash_sites = Vec::new();
     let mut ordinary_events = Vec::new();
     for machine in &module.machines {
+        let mut value_types = None;
         for block in &machine.blocks {
             for operation in &block.operations {
                 match classify_operation(&operation.kind) {
                     TerminalTraceV1OperationClassification::Internal => {}
+                    TerminalTraceV1OperationClassification::TrappingPrimitive => {
+                        // The operation is its own site: no edge or boundary
+                        // identity is fabricated. The denotation is
+                        // reconstructed from the validated value types, not
+                        // read from a producer row.
+                        let value_types = value_types.get_or_insert_with(|| {
+                            crate::validation::machine_value_types(machine)
+                                .collect::<std::collections::BTreeMap<_, _>>()
+                        });
+                        let denotation =
+                            crate::validation::trapping_integer::trapping_integer_denotation(
+                                operation,
+                                value_types,
+                            )?;
+                        operation_crash_sites.push(TerminalTraceOperationCrashSiteRow {
+                            machine: machine.id,
+                            block: block.id,
+                            operation: operation.id,
+                            cause: crate::validation::trapping_integer::TRAPPING_INTEGER_CAUSE,
+                            primitive: denotation.primitive,
+                            result_type: denotation.result_type,
+                            operand_type: denotation.operand_type,
+                        });
+                    }
                     TerminalTraceV1OperationClassification::BoundaryCall => {
                         let declaration = boundary_declaration(module, operation);
                         ordinary_events.push(reconstruct_boundary_call_event(
@@ -201,6 +235,20 @@ pub fn reconstruct_terminal_trace_v1_rows(
             },
         );
     }
+    operation_crash_sites.sort_unstable_by_key(operation_crash_site_key);
+    if let Some(rows) = operation_crash_sites
+        .windows(2)
+        .find(|rows| operation_crash_site_key(&rows[0]) == operation_crash_site_key(&rows[1]))
+    {
+        let duplicate = rows[0];
+        return Err(
+            TerminalTraceV1ReconstructionError::DuplicateOperationCrashSite {
+                machine: duplicate.machine,
+                block: duplicate.block,
+                operation: duplicate.operation,
+            },
+        );
+    }
     ordinary_events.sort_unstable_by_key(ordinary_event_site_key);
     if let Some(rows) = ordinary_events
         .windows(2)
@@ -225,8 +273,15 @@ pub fn reconstruct_terminal_trace_v1_rows(
         },
         crash_sites,
         boundary_crash_sites,
+        operation_crash_sites,
         ordinary_events,
     })
+}
+
+fn operation_crash_site_key(
+    row: &TerminalTraceOperationCrashSiteRow,
+) -> (MachineId, BlockId, OperationId) {
+    (row.machine, row.block, row.operation)
 }
 
 fn crash_site_key(row: &TerminalTraceCrashSiteRow) -> (MachineId, BlockId, EdgeId) {
@@ -251,6 +306,9 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
     match kind {
         OperationKind::BoundaryCall { .. } => TerminalTraceV1OperationClassification::BoundaryCall,
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
+        OperationKind::TrappingInteger { .. } => {
+            TerminalTraceV1OperationClassification::TrappingPrimitive
+        }
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }

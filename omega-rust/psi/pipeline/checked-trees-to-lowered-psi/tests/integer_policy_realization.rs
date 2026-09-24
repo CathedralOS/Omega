@@ -2,23 +2,21 @@
 //!
 //! `source/library/core/numeric_conversion.omg` publishes one named machine per
 //! conversion policy, and the `tests/omega/pass/core/numeric_*` canaries call
-//! them. Three of those shapes still stop before native execution, and the stop
-//! is not a Unit control-builder restriction: each is rejected by this crate's
-//! own explicit policy-realization limits. Trapping shifts carry checked value
-//! facts, so the Trapping shift refuses at expression preparation rather than
-//! vanishing from the computation plan. Boolean-to-integer conversion now
-//! composes: a dedicated `BooleanToInteger` checked computation owns the
-//! authored cast occurrence and lands through the ordinary conditional
-//! selection of 0 and 1.
+//! them. Boolean-to-integer conversion composes: a dedicated
+//! `BooleanToInteger` checked computation owns the authored cast occurrence
+//! and lands through the ordinary conditional selection of 0 and 1.
 //!
-//! The refusal frontier, pinned below at the stage where each case actually
-//! stops:
+//! The realization frontier, pinned below at the stage where each case lands
+//! or stops:
 //!
-//! - Trapping conversion: retained end-to-end as `IntegerTrappingCast` and
-//!   refused only at expression lowering. The refusal is exactly the
-//!   trap-reachable coordinate: a Trapping cast whose target contains every
-//!   source value folds to `IntegerWiden` or the operand itself before the
-//!   refusal site, so same-width and widening `in Trapping` spellings compose.
+//! - Trapping conversion, shifts, and arithmetic: each lowers to one
+//!   `TrappingInteger` Terminal operation that is its own `Trap` crash site
+//!   (`trapping_operation_sites.rs` executes the answers and the rejection
+//!   controls). A Trapping cast whose target contains every source value
+//!   still folds to `IntegerWiden` or the operand itself, so no trap
+//!   operation exists where no trap can fire. The inferred body that owns a
+//!   Trapping operation publishes the unconditional `Trap` route, and a
+//!   private caller inherits it.
 //! - Signed modular conversion: `IntegerWrappingCast` is retained for any
 //!   fixed-integer pair, and lowering composes every one. A narrowing pair
 //!   whose destination is unsigned masks inside the source carrier — `operand
@@ -34,9 +32,6 @@
 //!   splits at the `i64` sign bit before its halves cross.
 //!   `signed_wrapping_conversion_values.rs` executes those answers rather
 //!   than asserting the composition.
-//! - Trapping scalar operations: `checked_integer_binary_kind` carries
-//!   Trapping shifts only, so a Trapping `+` still gets no value fact and the
-//!   statement sequence stops before a plan exists.
 //! - Saturating conversion: unsigned-to-unsigned narrowings now carry
 //!   `IntegerSaturatingCast` and lower through the same modular-bound shape as
 //!   the wrapping neighbour (`value - (value sat_sub target_max)`, then a
@@ -47,13 +42,14 @@
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
-//! recognizer. The Trapping controls stay until Terminal Psi carries
-//! executable Trapping operations — [structural
+//! recognizer. [Structural
 //! predicates](../../../../../wiki/spec/terminal-psi/structural_predicates.md)
-//! requires them to carry "their primitive denotation and path-conditioned
-//! crash site", so a producer may not expand one into a guard and a `Crash`
-//! terminator. The signed-modular pairs now compose in every sign and width
-//! combination, so their controls have moved to the executed answers in
+//! require Trapping operations to carry "their primitive denotation and
+//! path-conditioned crash site", so the Trapping controls check that the
+//! operation survives as itself — never expanded into a guard and a `Crash`
+//! terminator, and never weakened into its Wrapping or Saturating sibling.
+//! The signed-modular pairs compose in every sign and width combination, so
+//! their controls live with the executed answers in
 //! `signed_wrapping_conversion_values.rs`.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -167,24 +163,58 @@ fn unit_plan_omission(source: &str) -> (String, String) {
     )
 }
 
+/// The Trapping primitives of the lowered program, in module order, and
+/// whether every machine owning one publishes the unconditional `Trap`
+/// route that covers its operation-level site.
+fn trapping_primitives(source: &str) -> Vec<terminal_psi::TrappingIntegerPrimitive> {
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let mut primitives = Vec::new();
+    for machine in &lowered.semantic_module.machines {
+        let owned = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation.kind {
+                terminal_psi::OperationKind::TrappingInteger { operation } => {
+                    Some(operation.primitive())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if !owned.is_empty() {
+            assert!(
+                machine.contract.crash_routes.iter().any(|bucket| {
+                    bucket.cause == terminal_psi::CrashCause::Trap
+                        && bucket.alternatives == [terminal_psi::CrashRouteGuard::Truth]
+                }),
+                "a machine owning a Trapping operation publishes Trap: {source}"
+            );
+        }
+        primitives.extend(owned);
+    }
+    primitives
+}
+
 /// `narrow_u16_to_u8_trapping` and every other `*_trapping` conversion end in
-/// `(value as u8 in Trapping) as u8`. The checked stage retains the cast as
-/// `IntegerTrappingCast`; this crate has no Terminal operation to carry its
-/// crash site.
+/// `(value as u8 in Trapping) as u8`. The checked `IntegerTrappingCast`
+/// lowers to one Trapping `Convert` operation — its own crash site — and the
+/// private caller inherits the callee's `Trap` route.
 #[test]
-fn a_trapping_conversion_has_no_runtime_policy_realization() {
-    let error = lowering_error(
-        r#"
+fn a_trapping_conversion_lowers_to_its_own_trap_operation() {
+    assert_eq!(
+        trapping_primitives(
+            r#"
         data Main {}
         machine narrow(value: u16) -> u8 { (value as u8 in Trapping) as u8 }
         machine Main::main(value: u16) { let narrowed: u8 = narrow(value); }
     "#,
-    );
-    assert_eq!(
-        error,
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
-            "checked trapping conversion requires runtime policy realization"
-        )
+        ),
+        [terminal_psi::TrappingIntegerPrimitive::Convert]
     );
 }
 
@@ -367,25 +397,21 @@ fn an_integer_wrapping_conversion_initializer_reaches_a_plan() {
 
 /// `numeric_conversion_trap_if` ends with `(1 as u8 in Trapping) << (count as
 /// u32 in Trapping)`, whose out-of-range count is the library's trap. The
-/// initializer now carries a checked `TrappingShiftLeft` computation, so the
-/// computation plan exists; this crate refuses it because no Terminal
-/// operation can carry the crash site.
+/// checked `TrappingShiftLeft` lowers to one Trapping `ShiftLeft` operation;
+/// the same-width count cast folds away because it can never trap.
 #[test]
-fn a_trapping_shift_has_no_runtime_policy_realization() {
-    let error = lowering_error(
-        r#"
+fn a_trapping_shift_lowers_to_its_own_trap_operation() {
+    assert_eq!(
+        trapping_primitives(
+            r#"
         data Main {}
         machine trap_if(count: u32) {
             let probe: u8 in Trapping = (1 as u8 in Trapping) << (count as u32 in Trapping);
         }
         machine Main::main(count: u32) { trap_if(count); }
     "#,
-    );
-    assert_eq!(
-        error,
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
-            "checked trapping operation requires runtime policy realization"
-        )
+        ),
+        [terminal_psi::TrappingIntegerPrimitive::ShiftLeft]
     );
 }
 
@@ -406,9 +432,8 @@ fn a_wrapping_shift_initializer_reaches_a_plan() {
 }
 
 /// The checked stage retains the narrowing Trapping cast occurrence as
-/// `IntegerTrappingCast` inside its computation plan: checking already carried
-/// the policy, so the refusal above is a missing realization, not missing
-/// representation.
+/// `IntegerTrappingCast` inside its computation plan: checking carries the
+/// policy, and lowering realizes it as its own operation.
 #[test]
 fn a_trapping_conversion_keeps_its_checked_cast_occurrence() {
     let checked = crate::front_end::checked_program(
@@ -431,7 +456,7 @@ fn a_trapping_conversion_keeps_its_checked_cast_occurrence() {
 /// fire: `construct_integer_cast` folds same-width spellings to the operand
 /// and total widenings to `IntegerWiden` before the Trapping arm, so these
 /// reach a plan without any trap machinery. Only the trap-reachable narrowing
-/// above is refused.
+/// above owns a Trapping operation.
 #[test]
 fn a_never_trapping_conversion_composes_without_a_trap_operation() {
     lowers(
@@ -499,27 +524,23 @@ fn signed_wrapping_conversions_compose_on_any_carrier() {
     }
 }
 
-/// `checked_integer_binary_kind` arms Trapping shifts but no other Trapping
-/// operator: a Trapping `+` still produces no value fact, so the statement
-/// sequence stops at the same boundary the shift used to stop at. The same
-/// add under Wrapping lowers through `WrappingIntegerAdd`.
+/// `checked_integer_binary_kind` selects a Trapping primitive for every
+/// Trapping operator, so a Trapping `+` plans its value and lowers to one
+/// Trapping `Add` operation (the same-carrier operand casts fold away). The
+/// same add under Wrapping still lowers through `WrappingIntegerAdd`.
 #[test]
-fn a_trapping_arithmetic_operation_has_no_checked_scalar_kind() {
-    let (machine, omission) = unit_plan_omission(
-        r#"
+fn a_trapping_arithmetic_operation_lowers_to_its_own_trap_operation() {
+    assert_eq!(
+        trapping_primitives(
+            r#"
         data Main {}
         machine trap_add(left: u8, right: u8) {
             let sum: u8 in Trapping = (left as u8 in Trapping) + (right as u8 in Trapping);
         }
         machine Main::main(left: u8, right: u8) { trap_add(left, right); }
     "#,
-    );
-    assert_eq!(machine, "Main::main");
-    assert_eq!(
-        omission,
-        "`Main::main` calls `trap_add`, which has no plan; `trap_add` has no admitted body \
-         (local construction stopped at statement sequence: local data: scalar local: \
-         pure initializer, statement 0)"
+        ),
+        [terminal_psi::TrappingIntegerPrimitive::Add]
     );
     lowers(
         r#"

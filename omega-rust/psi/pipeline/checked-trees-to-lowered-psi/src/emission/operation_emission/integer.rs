@@ -6,7 +6,7 @@ use numerics::{
     integer_policy::{IntegerPolicyPrimitive, integer_policy_bridge},
 };
 use semantic_vocabulary::{ObligationId, OperationId, ValueId};
-use terminal_psi::OperationKind;
+use terminal_psi::{OperationKind, TrappingIntegerOperation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LoweredIntegerComparisonKind {
@@ -49,6 +49,13 @@ pub(crate) enum LoweredIntegerBinaryKind {
     SaturatingSubtract,
     WrappingMultiply,
     SaturatingMultiply,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    TrappingDivide,
+    TrappingRemainder,
+    TrappingShiftLeft,
+    TrappingShiftRight,
 }
 
 impl LoweredIntegerBinaryKind {
@@ -112,6 +119,28 @@ impl LoweredIntegerBinaryKind {
             Self::SaturatingMultiply => Some((
                 IntegerPolicyPrimitive::Multiply,
                 ArithmeticDomain::Saturating,
+            )),
+            Self::TrappingAdd => Some((IntegerPolicyPrimitive::Add, ArithmeticDomain::Trapping)),
+            Self::TrappingSubtract => {
+                Some((IntegerPolicyPrimitive::Subtract, ArithmeticDomain::Trapping))
+            }
+            Self::TrappingMultiply => {
+                Some((IntegerPolicyPrimitive::Multiply, ArithmeticDomain::Trapping))
+            }
+            Self::TrappingDivide => {
+                Some((IntegerPolicyPrimitive::Divide, ArithmeticDomain::Trapping))
+            }
+            Self::TrappingRemainder => Some((
+                IntegerPolicyPrimitive::Remainder,
+                ArithmeticDomain::Trapping,
+            )),
+            Self::TrappingShiftLeft => Some((
+                IntegerPolicyPrimitive::ShiftLeft,
+                ArithmeticDomain::Trapping,
+            )),
+            Self::TrappingShiftRight => Some((
+                IntegerPolicyPrimitive::ShiftRight,
+                ArithmeticDomain::Trapping,
             )),
             Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => None,
         }
@@ -218,6 +247,27 @@ impl LoweredIntegerBinaryKind {
             Self::SaturatingSubtract => OperationKind::SaturatingIntegerSubtract { left, right },
             Self::WrappingMultiply => OperationKind::WrappingIntegerMultiply { left, right },
             Self::SaturatingMultiply => OperationKind::SaturatingIntegerMultiply { left, right },
+            Self::TrappingAdd => trapping(TrappingIntegerOperation::Add { left, right }),
+            Self::TrappingSubtract => trapping(TrappingIntegerOperation::Subtract { left, right }),
+            Self::TrappingMultiply => trapping(TrappingIntegerOperation::Multiply { left, right }),
+            Self::TrappingDivide => trapping(TrappingIntegerOperation::Divide { left, right }),
+            Self::TrappingRemainder => {
+                trapping(TrappingIntegerOperation::Remainder { left, right })
+            }
+            Self::TrappingShiftLeft => trapping(TrappingIntegerOperation::ShiftLeft {
+                value: left,
+                count: right,
+            }),
+            Self::TrappingShiftRight => trapping(TrappingIntegerOperation::ShiftRight {
+                value: left,
+                count: right,
+            }),
         }
     }
+}
+
+/// The settled catalog gives every Trapping row an empty formation list, so
+/// no obligation identity is allocated: the operation is its own crash site.
+const fn trapping(operation: TrappingIntegerOperation) -> OperationKind {
+    OperationKind::TrappingInteger { operation }
 }

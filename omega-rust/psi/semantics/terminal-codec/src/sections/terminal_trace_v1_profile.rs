@@ -3,9 +3,10 @@
 use terminal_psi::{
     CrashCause, StructuralAccess, StructuralMultiplicity, TerminalModule,
     TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
-    TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema,
-    TerminalTraceRootRow, TerminalTraceScalarSchema, TerminalTraceStructuralSchema,
-    TerminalTraceV1Profile, TerminalTraceValueComparison, VocabularyMarker,
+    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
+    TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Profile,
+    TerminalTraceValueComparison, TrappingIntegerPrimitive, VocabularyMarker,
 };
 use terminal_verifier::{
     TerminalTraceV1ReconstructionError,
@@ -18,18 +19,24 @@ use crate::sections::semantic_module::canonical_order::{
 use crate::sections::semantic_module::contract_wire::{
     decode_crash_route_bucket, encode_crash_route_bucket,
 };
-use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
+use crate::sections::semantic_module::scalar_wire::{
+    decode_integer_type, decode_scalar_type, encode_integer_type, encode_scalar_type,
+};
 use crate::sections::semantic_module::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
 };
 use crate::sections::semantic_module::wire::{Reader, Writer};
 use crate::{CodecError, terminal_psi_identity};
 
-const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v1";
+// Revision 2 appended the operation-crash-site group. The domain names the
+// revision so a revision-1 consumer rejects the bytes at the domain tag
+// rather than misreading the later groups.
+const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v2";
 const ROOT_ROW_TAG: u8 = 1;
 const CRASH_ROW_TAG: u8 = 2;
 const ORDINARY_EVENT_ROW_TAG: u8 = 3;
 const BOUNDARY_CRASH_ROW_TAG: u8 = 4;
+const OPERATION_CRASH_ROW_TAG: u8 = 5;
 const BOUNDARY_CALL_EVENT_TAG: u8 = 1;
 const PORT_WRITE_EVENT_TAG: u8 = 2;
 
@@ -47,10 +54,13 @@ pub enum TerminalTraceV1ProfileCodecError {
     InvalidStructuralAccess(u8),
     InvalidResultTag(u8),
     InvalidCrashCause(u8),
+    InvalidTrappingPrimitive(u8),
+    InvalidOperationCrashDenotation,
     InvalidOrdinaryEventKind(u8),
     NonCanonicalStructuralQualifications,
     NonCanonicalCrashSiteOrder,
     NonCanonicalBoundaryCrashSiteOrder,
+    NonCanonicalOperationCrashSiteOrder,
     NonCanonicalOrdinaryEventOrder,
     UnsupportedExternalTerminationRows(u32),
     TrailingBytes(usize),
@@ -115,6 +125,7 @@ pub fn reconstruct_canonical_terminal_trace_v1_profile(
         root: rows.root,
         crash_sites: rows.crash_sites,
         boundary_crash_sites: rows.boundary_crash_sites,
+        operation_crash_sites: rows.operation_crash_sites,
         ordinary_events: rows.ordinary_events,
     })
 }
@@ -198,6 +209,21 @@ pub fn decode_terminal_trace_v1_profile(
         });
     }
 
+    let operation_crash_count = reader.count()?;
+    let mut operation_crash_sites = Vec::with_capacity(operation_crash_count as usize);
+    for _ in 0..operation_crash_count {
+        require_row_tag(&mut reader, "operation crash", OPERATION_CRASH_ROW_TAG)?;
+        operation_crash_sites.push(TerminalTraceOperationCrashSiteRow {
+            machine: reader.id("trace operation crash machine")?,
+            block: reader.id("trace operation crash block")?,
+            operation: reader.id("trace operation crash operation")?,
+            cause: decode_crash_cause(&mut reader)?,
+            primitive: decode_trapping_primitive(&mut reader)?,
+            result_type: decode_integer_type(&mut reader)?,
+            operand_type: decode_integer_type(&mut reader)?,
+        });
+    }
+
     let ordinary_count = reader.count()?;
     let mut ordinary_events = Vec::with_capacity(ordinary_count as usize);
     for _ in 0..ordinary_count {
@@ -227,6 +253,7 @@ pub fn decode_terminal_trace_v1_profile(
         root,
         crash_sites,
         boundary_crash_sites,
+        operation_crash_sites,
         ordinary_events,
     };
     validate_profile(&profile)?;
@@ -276,6 +303,27 @@ fn encode_raw(
         writer.id(crash.boundary);
         writer.string("trace boundary crash identity", &crash.boundary_identity)?;
         encode_crash_route_bucket(&mut writer, &crash.route)?;
+    }
+
+    // A Trapping primitive's crash is observed at the operation itself: the
+    // row carries its exact cause and primitive denotation, never an edge or
+    // a boundary identity.
+    writer.len(
+        "trace operation crash sites",
+        profile.operation_crash_sites.len(),
+    )?;
+    for crash in &profile.operation_crash_sites {
+        writer.u8(OPERATION_CRASH_ROW_TAG);
+        writer.id(crash.machine);
+        writer.id(crash.block);
+        writer.id(crash.operation);
+        writer.u8(match crash.cause {
+            CrashCause::Trap => 1,
+            CrashCause::Abort => 2,
+        });
+        writer.u8(encode_trapping_primitive(crash.primitive));
+        encode_integer_type(&mut writer, crash.result_type);
+        encode_integer_type(&mut writer, crash.operand_type);
     }
 
     writer.len("trace ordinary events", profile.ordinary_events.len())?;
@@ -546,6 +594,39 @@ fn decode_crash_cause(
     }
 }
 
+const fn encode_trapping_primitive(primitive: TrappingIntegerPrimitive) -> u8 {
+    match primitive {
+        TrappingIntegerPrimitive::Add => 1,
+        TrappingIntegerPrimitive::Subtract => 2,
+        TrappingIntegerPrimitive::Multiply => 3,
+        TrappingIntegerPrimitive::Divide => 4,
+        TrappingIntegerPrimitive::Remainder => 5,
+        TrappingIntegerPrimitive::ShiftLeft => 6,
+        TrappingIntegerPrimitive::ShiftRight => 7,
+        TrappingIntegerPrimitive::Convert => 8,
+    }
+}
+
+fn decode_trapping_primitive(
+    reader: &mut Reader<'_>,
+) -> Result<TrappingIntegerPrimitive, TerminalTraceV1ProfileCodecError> {
+    Ok(match reader.u8()? {
+        1 => TrappingIntegerPrimitive::Add,
+        2 => TrappingIntegerPrimitive::Subtract,
+        3 => TrappingIntegerPrimitive::Multiply,
+        4 => TrappingIntegerPrimitive::Divide,
+        5 => TrappingIntegerPrimitive::Remainder,
+        6 => TrappingIntegerPrimitive::ShiftLeft,
+        7 => TrappingIntegerPrimitive::ShiftRight,
+        8 => TrappingIntegerPrimitive::Convert,
+        tag => {
+            return Err(TerminalTraceV1ProfileCodecError::InvalidTrappingPrimitive(
+                tag,
+            ));
+        }
+    })
+}
+
 fn require_row_tag(
     reader: &mut Reader<'_>,
     group: &'static str,
@@ -604,6 +685,32 @@ fn validate_profile(
     {
         return Err(TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder);
     }
+    for row in &profile.operation_crash_sites {
+        // A Trapping primitive always commits `Trap`, over fixed carriers;
+        // binary arithmetic keeps one carrier for both operands.
+        let same_carrier = matches!(
+            row.primitive,
+            TrappingIntegerPrimitive::Add
+                | TrappingIntegerPrimitive::Subtract
+                | TrappingIntegerPrimitive::Multiply
+                | TrappingIntegerPrimitive::Divide
+                | TrappingIntegerPrimitive::Remainder
+        );
+        if row.cause != CrashCause::Trap
+            || row.result_type.is_address()
+            || row.operand_type.is_address()
+            || (same_carrier && row.operand_type != row.result_type)
+        {
+            return Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation);
+        }
+    }
+    if profile
+        .operation_crash_sites
+        .windows(2)
+        .any(|rows| operation_crash_site_key(&rows[0]) >= operation_crash_site_key(&rows[1]))
+    {
+        return Err(TerminalTraceV1ProfileCodecError::NonCanonicalOperationCrashSiteOrder);
+    }
     for event in &profile.ordinary_events {
         for schema in &event.structural_arguments {
             validate_structural_schema(schema)?;
@@ -643,6 +750,16 @@ fn boundary_crash_site_key(
     (row.machine, row.block, row.operation, row.route.cause)
 }
 
+fn operation_crash_site_key(
+    row: &TerminalTraceOperationCrashSiteRow,
+) -> (
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::BlockId,
+    semantic_vocabulary::OperationId,
+) {
+    (row.machine, row.block, row.operation)
+}
+
 fn ordinary_event_site_key(
     row: &TerminalTraceOrdinaryEventRow,
 ) -> (
@@ -677,9 +794,10 @@ fn validate_structural_schema(
 mod tests {
     use super::{
         BOUNDARY_CRASH_ROW_TAG, CRASH_ROW_TAG, CodecError, CrashCause, DOMAIN,
-        ORDINARY_EVENT_ROW_TAG, TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow,
-        TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema,
-        TerminalTraceRootRow, TerminalTraceV1Profile, TerminalTraceV1ProfileAcceptanceError,
+        OPERATION_CRASH_ROW_TAG, ORDINARY_EVENT_ROW_TAG, TerminalObservationSchema,
+        TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+        TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema, TerminalTraceRootRow,
+        TerminalTraceV1Profile, TerminalTraceV1ProfileAcceptanceError,
         TerminalTraceV1ProfileCodecError, VocabularyMarker, accept_terminal_trace_v1_profile,
         decode_terminal_trace_v1_profile, encode_raw, encode_terminal_trace_v1_profile,
         reconstruct_canonical_terminal_trace_v1_profile, terminal_psi_identity,
@@ -963,8 +1081,80 @@ mod tests {
             },
             crash_sites: Vec::new(),
             boundary_crash_sites: Vec::new(),
+            operation_crash_sites: Vec::new(),
             ordinary_events: Vec::new(),
         }
+    }
+
+    #[test]
+    fn operation_crash_rows_round_trip_and_reject_a_changed_denotation() {
+        use terminal_psi::{TerminalTraceOperationCrashSiteRow, TrappingIntegerPrimitive};
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let u32_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let row = |operation, primitive, operand_type| TerminalTraceOperationCrashSiteRow {
+            machine: id(11, MachineId::new),
+            block: id(12, BlockId::new),
+            operation: id(operation, OperationId::new),
+            cause: CrashCause::Trap,
+            primitive,
+            result_type: u8_type,
+            operand_type,
+        };
+        let mut profile = direct_profile();
+        profile.operation_crash_sites = vec![
+            row(3, TrappingIntegerPrimitive::Add, u8_type),
+            row(4, TrappingIntegerPrimitive::ShiftLeft, u32_type),
+        ];
+        let bytes = encode_terminal_trace_v1_profile(&profile).expect("operation crash rows");
+        assert_eq!(
+            decode_terminal_trace_v1_profile(&bytes),
+            Ok(profile.clone())
+        );
+
+        // The primitive fixes the cause, and binary arithmetic keeps one
+        // carrier for both operands.
+        let mut aborting = profile.clone();
+        aborting.operation_crash_sites[0].cause = CrashCause::Abort;
+        assert_eq!(
+            encode_terminal_trace_v1_profile(&aborting),
+            Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation),
+        );
+        let mut mixed = profile.clone();
+        mixed.operation_crash_sites[0].operand_type = u32_type;
+        assert_eq!(
+            encode_terminal_trace_v1_profile(&mixed),
+            Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation),
+        );
+        let mut reordered = profile.clone();
+        reordered.operation_crash_sites.swap(0, 1);
+        assert_eq!(
+            encode_terminal_trace_v1_profile(&reordered),
+            Err(TerminalTraceV1ProfileCodecError::NonCanonicalOperationCrashSiteOrder),
+        );
+
+        // Bytes: the row tag, then machine/block/operation, cause, primitive.
+        let empty = encode_terminal_trace_v1_profile(&direct_profile()).unwrap();
+        let group = empty.len() - 4 - 4 - 4;
+        assert_eq!(&bytes[group..group + 4], &2_u32.to_le_bytes());
+        assert_eq!(bytes[group + 4], OPERATION_CRASH_ROW_TAG);
+        let primitive_offset = group + 4 + 1 + 8 + 8 + 8 + 1;
+        let mut unknown_primitive = bytes.clone();
+        unknown_primitive[primitive_offset] = 9;
+        assert_eq!(
+            decode_terminal_trace_v1_profile(&unknown_primitive),
+            Err(TerminalTraceV1ProfileCodecError::InvalidTrappingPrimitive(
+                9
+            )),
+        );
+        let mut wrong_tag = bytes;
+        wrong_tag[group + 4] = BOUNDARY_CRASH_ROW_TAG;
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&wrong_tag),
+            Err(TerminalTraceV1ProfileCodecError::InvalidRowTag {
+                group: "operation crash",
+                ..
+            }),
+        ));
     }
 
     #[test]
@@ -981,7 +1171,15 @@ mod tests {
 
         let bytes = encode_terminal_trace_v1_profile(&profile).expect("encode profile");
         assert!(bytes.starts_with(DOMAIN));
-        assert_eq!(&bytes[DOMAIN.len()..DOMAIN.len() + 2], &1_u16.to_le_bytes(),);
+        assert_eq!(&bytes[DOMAIN.len()..DOMAIN.len() + 2], &2_u16.to_le_bytes(),);
+        // A revision-1 profile (no operation crash group) is a different
+        // domain, rejected before any row is read.
+        let mut revision_one = bytes.clone();
+        revision_one[DOMAIN.len() - 1] = b'1';
+        assert!(matches!(
+            decode_terminal_trace_v1_profile(&revision_one),
+            Err(TerminalTraceV1ProfileCodecError::InvalidDomain),
+        ));
         assert_eq!(
             decode_terminal_trace_v1_profile(&bytes).expect("decode profile"),
             profile,
@@ -1058,11 +1256,11 @@ mod tests {
         ));
 
         let mut invalid_version = bytes.clone();
-        invalid_version[DOMAIN.len()..DOMAIN.len() + 2].copy_from_slice(&2_u16.to_le_bytes());
+        invalid_version[DOMAIN.len()..DOMAIN.len() + 2].copy_from_slice(&1_u16.to_le_bytes());
         assert!(matches!(
             decode_terminal_trace_v1_profile(&invalid_version),
             Err(TerminalTraceV1ProfileCodecError::UnsupportedSchemaVersion(
-                2
+                1
             )),
         ));
 

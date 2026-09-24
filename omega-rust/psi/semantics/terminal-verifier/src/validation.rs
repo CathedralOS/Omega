@@ -91,6 +91,7 @@ mod qualification_establishments;
 pub(crate) mod record;
 mod root_service_reach;
 mod suspension_call_plan;
+pub(crate) mod trapping_integer;
 
 use call_graph::validate_call_graph;
 use conformance_applications::validate_closed_conformance_applications;

@@ -2,7 +2,7 @@
 
 use crate::checked_trees::facts::contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CrashCause, CrashInterface, CrashRouteBucketId,
-    CrashRouteGuard,
+    CrashRouteGuard, CrashSiteLocation,
 };
 use std::hash::Hash;
 use symbols::SymbolHandle;
@@ -64,6 +64,11 @@ pub struct CrashPlan {
     checked_calls: Vec<CheckedCrashCallSite>,
     checked_operators:
         Vec<crate::checked_trees::facts::checked_crash_operator_site::CheckedCrashOperatorSite>,
+    /// Body statements whose planned scalar value executes a Trapping
+    /// primitive. Each such operation is its own `Trap` site; like an
+    /// explicit crash it is unconditional implementation evidence for an
+    /// inferred body, never part of the published contract identity.
+    trapping_sites: Vec<CrashSiteLocation>,
 }
 
 impl CrashPlan {
@@ -77,7 +82,26 @@ impl CrashPlan {
             checked_sites: Vec::new(),
             checked_calls: Vec::new(),
             checked_operators: Vec::new(),
+            trapping_sites: Vec::new(),
         }
+    }
+
+    /// Attach the canonical (state, statement) roster of Trapping sites.
+    pub fn with_trapping_sites(mut self, mut sites: Vec<CrashSiteLocation>) -> Self {
+        sites.sort_by_key(|site| {
+            (
+                site.state.arena_index(),
+                site.state.generation(),
+                site.statement_ordinal,
+            )
+        });
+        sites.dedup();
+        self.trapping_sites = sites;
+        self
+    }
+
+    pub fn trapping_sites(&self) -> &[CrashSiteLocation] {
+        &self.trapping_sites
     }
 
     pub fn with_structural_runtime_requirements(

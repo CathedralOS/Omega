@@ -1,1 +1,1 @@
-checked trapping operation requires runtime policy realization
+UnsupportedTrappingInteger

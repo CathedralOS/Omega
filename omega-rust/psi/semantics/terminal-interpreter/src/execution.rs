@@ -757,6 +757,9 @@ impl TerminalExecution {
                     OperationKind::SaturatingIntegerMultiply { .. } => {
                         self.execute_saturating_integer_multiply(operation)?
                     }
+                    OperationKind::TrappingInteger { .. } => {
+                        self.execute_trapping_integer(operation)?
+                    }
                 };
                 match flow {
                     OperationFlow::Advance => {}

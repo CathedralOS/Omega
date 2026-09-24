@@ -107,6 +107,12 @@ pub(crate) enum LoweredDirectExpression {
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
     },
+    /// Selected Trapping conversion: the operand's exact value when it is
+    /// representable in `scalar_type`, otherwise a `Trap` at this operation.
+    IntegerTrappingCast {
+        scalar_type: ScalarType,
+        operand: Box<LoweredDirectExpression>,
+    },
     Boolean {
         expression: Box<LoweredBooleanReturnExpression>,
     },
@@ -161,7 +167,8 @@ impl LoweredDirectExpression {
             | Self::IntegerBinary { scalar_type, .. }
             | Self::IntegerBitwiseNot { scalar_type, .. }
             | Self::IntegerWiden { scalar_type, .. }
-            | Self::IntegerExactCast { scalar_type, .. } => *scalar_type,
+            | Self::IntegerExactCast { scalar_type, .. }
+            | Self::IntegerTrappingCast { scalar_type, .. } => *scalar_type,
             Self::IeeeFloatLiteral { value } => ScalarType::IeeeFloat(value.format()),
             Self::Boolean { .. } => ScalarType::Boolean,
         }
@@ -584,6 +591,21 @@ pub(crate) fn emit_direct_expression(
                 },
             });
             id
+        }
+        LoweredDirectExpression::IntegerTrappingCast {
+            scalar_type,
+            operand,
+        } => {
+            let operand =
+                emit_direct_expression(operand, parameters, next_value_identity, operations);
+            emit_scalar_leaf(
+                OperationKind::TrappingInteger {
+                    operation: terminal_psi::TrappingIntegerOperation::Convert { operand },
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
         }
         LoweredDirectExpression::Boolean { expression } => {
             emit_boolean_expression(expression, parameters, next_value_identity, operations)

@@ -145,6 +145,23 @@ pub(crate) fn checked_integer_binary_kind(
         (BinaryOperator::ShiftRight, ArithmeticDomain::Trapping) => {
             Some(CheckedIntegerBinaryKind::TrappingShiftRight)
         }
+        // Trapping arithmetic selects its own runtime-checked primitive; it is
+        // never rewritten into the Exact, Wrapping, or Saturating sibling.
+        (BinaryOperator::Add, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingAdd)
+        }
+        (BinaryOperator::Subtract, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingSubtract)
+        }
+        (BinaryOperator::Multiply, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingMultiply)
+        }
+        (BinaryOperator::Divide, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingDivide)
+        }
+        (BinaryOperator::Modulo, ArithmeticDomain::Trapping) => {
+            Some(CheckedIntegerBinaryKind::TrappingRemainder)
+        }
         (BinaryOperator::Add, ArithmeticDomain::Exact) => Some(CheckedIntegerBinaryKind::ExactAdd),
         (BinaryOperator::Subtract, ArithmeticDomain::Exact) => {
             Some(CheckedIntegerBinaryKind::ExactSubtract)

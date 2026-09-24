@@ -263,6 +263,8 @@ pub(crate) fn build_check_facts(
         &operators,
         &semantic,
         &validation_facts.exact_integer_casts,
+        &values.scalar_expressions,
+        &values.scalar_computations,
         call_frames.as_ref(),
     )?;
     proof.contract_entailment_assumption_discharges =

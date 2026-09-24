@@ -745,6 +745,14 @@ pub enum OperationKind {
         left: ValueId,
         right: ValueId,
     },
+    /// Runtime-checked integer primitive under the `Trapping` policy. On a
+    /// normal return the result is the primitive's exact mathematical value;
+    /// otherwise execution crashes with cause `Trap` at this operation, which
+    /// is its own observation site (see `trapping_integer.rs`). It is never
+    /// dead: a trap is an effect even when the result is unused.
+    TrappingInteger {
+        operation: crate::TrappingIntegerOperation,
+    },
 }
 
 impl OperationKind {
@@ -870,6 +878,7 @@ impl OperationKind {
                 *value = map(*value);
                 *count = map(*count);
             }
+            Self::TrappingInteger { operation } => operation.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,
                 right,

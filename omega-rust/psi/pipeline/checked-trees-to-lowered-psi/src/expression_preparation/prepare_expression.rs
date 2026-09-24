@@ -363,13 +363,27 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 CheckedIntegerBinaryKind::ExactShiftRight => {
                     LoweredIntegerBinaryKind::ExactShiftRight
                 }
-                // No Terminal Trapping operation family exists yet; refuse
-                // rather than silently weaken the policy into Exact.
-                CheckedIntegerBinaryKind::TrappingShiftLeft
-                | CheckedIntegerBinaryKind::TrappingShiftRight => {
-                    return unsupported(
-                        "checked trapping operation requires runtime policy realization",
-                    );
+                // Each Trapping primitive keeps its own Terminal operation and
+                // operation-level crash site; it is never weakened into the
+                // Exact, Wrapping, or Saturating sibling.
+                CheckedIntegerBinaryKind::TrappingShiftLeft => {
+                    LoweredIntegerBinaryKind::TrappingShiftLeft
+                }
+                CheckedIntegerBinaryKind::TrappingShiftRight => {
+                    LoweredIntegerBinaryKind::TrappingShiftRight
+                }
+                CheckedIntegerBinaryKind::TrappingAdd => LoweredIntegerBinaryKind::TrappingAdd,
+                CheckedIntegerBinaryKind::TrappingSubtract => {
+                    LoweredIntegerBinaryKind::TrappingSubtract
+                }
+                CheckedIntegerBinaryKind::TrappingMultiply => {
+                    LoweredIntegerBinaryKind::TrappingMultiply
+                }
+                CheckedIntegerBinaryKind::TrappingDivide => {
+                    LoweredIntegerBinaryKind::TrappingDivide
+                }
+                CheckedIntegerBinaryKind::TrappingRemainder => {
+                    LoweredIntegerBinaryKind::TrappingRemainder
                 }
             },
             scalar_type: terminal_scalar_type(*primitive_type)?,
@@ -640,9 +654,21 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 }),
             })
         }
-        CheckedScalarExpression::IntegerTrappingCast { .. } => {
-            unsupported("checked trapping conversion requires runtime policy realization")
-        }
+        CheckedScalarExpression::IntegerTrappingCast {
+            primitive_type,
+            operand,
+        } => Ok(LoweredDirectExpression::IntegerTrappingCast {
+            scalar_type: terminal_scalar_type(*primitive_type)?,
+            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+                structural_fields,
+                structural_cases,
+                primitive_storage,
+                element_views,
+                view_locals,
+            )?),
+        }),
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,

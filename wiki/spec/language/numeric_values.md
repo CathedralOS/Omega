@@ -110,14 +110,17 @@ operands such as an integer zero divisor. Any number of value qualifications
 may compose, but at most one arithmetic policy governs an operation.
 
 Trapping's language contract is settled — the executable operation owns its
-crash site under the primitive's exact predicate — while its Terminal encoding
-needs an implementation extension: the reconstructed
-[observation profile](../terminal-psi/observations.md) keys crash sites only by
-edge or by `BoundaryCall` route, and an operation-level trap carries neither.
-The `terminal-operation-level-trap-crash-site` representation and versioned
-profile extension are [delegated implementation work](../../../AGENTS.md#psi-implementation-and-deferred-human-audit),
-not an owner decision. Preserve the operation's exact denotation, cause, and
-path-conditioned observation through independent checking and realization.
+crash site under the primitive's exact predicate. Terminal carries it as one
+`TrappingInteger` operation per primitive (add, subtract, multiply, divide,
+remainder, shift left, shift right, conversion) that is its own `Trap` site;
+the [observation profile](../terminal-psi/observations.md) records that site
+in its operation-crash group with the exact primitive denotation, never as a
+fabricated edge or boundary route. The trap predicates are the settled
+integer-policy catalog rows: result outside the carrier, a zero divisor or
+signed `MIN / -1` (including `MIN % -1`), and a shift count outside
+`0..width`; a conversion traps when the value is not representable.
+Checking, verification, interpretation, and realization preserve the
+operation's exact denotation, cause, and path-conditioned site.
 
 ### Integer quotient and remainder
 
@@ -359,19 +362,14 @@ borrow, mutation, or transfer authority.
 ## Status
 
 Psi checking accepts the Exact, Wrapping, Saturating, and Trapping policies
-above, but no program using them yet reaches a native artifact: Terminal
-production covers only part of the surface. Landed legs include
-boolean-to-integer conversion, unsigned saturating narrowing casts, and
-unsigned-to-unsigned wrapping casts. Signed or mixed-sign saturating and
-modular conversions still refuse at the check stage, and Trapping's
-operation-level crash site has no admitted observation-profile row — its
-Terminal encoding is the delegated `terminal-operation-level-trap-crash-site`
-implementation. The leg is tracked under
-`ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
-
-Audited at `d650f2e45ac`: the frontier above matches the realized/refused
-split pinned in `integer_policy_realization.rs` — boolean-to-integer,
-unsigned saturating narrowing, and unsigned-to-unsigned wrapping compose;
-Trapping conversion retains `IntegerTrappingCast` and refuses at expression
-lowering; signed or mixed-sign saturating and modular conversions keep the
-no-value-fact boundary.
+above; Terminal production covers part of the surface. Landed legs include
+boolean-to-integer conversion, unsigned saturating narrowing casts, wrapping
+casts for every fixed-integer pair, and Trapping arithmetic, shifts, and
+conversions in planned scalar values, which lower to `TrappingInteger`
+operations that are independently verified and interpreted with their
+operation-level `Trap` sites. Native realization of `TrappingInteger` still
+refuses (`UnsupportedTrappingInteger`) rather than substituting a sibling
+policy. Signed or mixed-sign saturating conversions still refuse at the check
+stage. The leg is tracked under `ARITHMETIC-POLICY-REALIZATION` on
+[TASKS.md](../../../TASKS.md); `integer_policy_realization.rs` and
+`trapping_operation_sites.rs` pin the realized split.

@@ -312,6 +312,17 @@ pub(crate) fn lowered_direct_scalar_term(
                         right,
                     }
                 }
+                // Direct Trapping arithmetic forms no predicate term: its
+                // crash is an executable site, not a proof-side value.
+                LoweredIntegerBinaryKind::TrappingAdd
+                | LoweredIntegerBinaryKind::TrappingSubtract
+                | LoweredIntegerBinaryKind::TrappingMultiply
+                | LoweredIntegerBinaryKind::TrappingDivide
+                | LoweredIntegerBinaryKind::TrappingRemainder
+                | LoweredIntegerBinaryKind::TrappingShiftLeft
+                | LoweredIntegerBinaryKind::TrappingShiftRight => {
+                    return unsupported("Trapping arithmetic forms no crash predicate term");
+                }
             }
         }
         LoweredDirectExpression::IntegerBitwiseNot {
@@ -342,6 +353,9 @@ pub(crate) fn lowered_direct_scalar_term(
                 target_type: *target_type,
                 operand: Box::new(operand),
             }
+        }
+        LoweredDirectExpression::IntegerTrappingCast { .. } => {
+            return unsupported("Trapping conversion forms no crash predicate term");
         }
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,

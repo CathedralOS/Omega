@@ -58,7 +58,8 @@ pub enum TerminalExecutionStatus {
 /// The explicit terminal-Psi crash outcome reached by an execution.
 ///
 /// `frontier_lower_bound` is the artifact-retained frontier for an authored edge
-/// or the interpreter's current machine-local live claims for a boundary crash.
+/// or the interpreter's current machine-local live claims for a boundary or
+/// Trapping-operation crash.
 /// Neither asserts that no suspended caller or wider runtime state was abandoned.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalCrash {
@@ -74,6 +75,13 @@ pub struct TerminalCrash {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalCrashSite {
     Edge(semantic_vocabulary::EdgeId),
+    /// A Trapping primitive's own operation-level site: no edge or boundary
+    /// identity is fabricated for it.
+    Operation {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+    },
     BoundaryCall {
         machine: MachineId,
         block: BlockId,

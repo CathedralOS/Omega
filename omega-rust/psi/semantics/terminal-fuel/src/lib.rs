@@ -113,7 +113,10 @@ impl TerminalFuelSchedule {
             | OperationKind::WrappingIntegerSubtract { .. }
             | OperationKind::SaturatingIntegerSubtract { .. }
             | OperationKind::WrappingIntegerMultiply { .. }
-            | OperationKind::SaturatingIntegerMultiply { .. } => 1,
+            | OperationKind::SaturatingIntegerMultiply { .. }
+            // A Trapping primitive charges its one unit before deciding
+            // whether it traps; the trap outcome takes no edge.
+            | OperationKind::TrappingInteger { .. } => 1,
         }
     }
 

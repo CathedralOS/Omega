@@ -265,6 +265,10 @@ pub(crate) fn evaluate_direct_expression(
         LoweredDirectExpression::IntegerExactCast {
             scalar_type,
             operand,
+        }
+        | LoweredDirectExpression::IntegerTrappingCast {
+            scalar_type,
+            operand,
         } => {
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
                 return None;
@@ -352,6 +356,27 @@ fn evaluate_lowered_integer_binary(
         LoweredIntegerBinaryKind::SaturatingSubtract => integer_type.saturating_sub(left, right),
         LoweredIntegerBinaryKind::WrappingMultiply => integer_type.wrapping_mul(left, right),
         LoweredIntegerBinaryKind::SaturatingMultiply => integer_type.saturating_mul(left, right),
+        // A known Trapping result exists only on its normal return. When the
+        // exact value does not exist the operation traps, so evaluation
+        // reports "unknown" and the operation is emitted with its site; it is
+        // never folded into a wrapped or saturated value.
+        LoweredIntegerBinaryKind::TrappingAdd => integer_type.exact_add(left, right),
+        LoweredIntegerBinaryKind::TrappingSubtract => integer_type.exact_sub(left, right),
+        LoweredIntegerBinaryKind::TrappingMultiply => integer_type.exact_mul(left, right),
+        LoweredIntegerBinaryKind::TrappingDivide => integer_type.exact_div(left, right),
+        LoweredIntegerBinaryKind::TrappingRemainder => integer_type.exact_rem(left, right),
+        LoweredIntegerBinaryKind::TrappingShiftLeft => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.exact_shift_left(left, count_type, right)
+        }
+        LoweredIntegerBinaryKind::TrappingShiftRight => {
+            let ScalarType::Integer(count_type) = count_type else {
+                return None;
+            };
+            integer_type.exact_shift_right(left, count_type, right)
+        }
     }
 }
 

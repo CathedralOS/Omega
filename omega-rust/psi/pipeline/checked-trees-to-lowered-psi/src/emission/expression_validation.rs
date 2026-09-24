@@ -84,7 +84,8 @@ pub(crate) fn validate_direct_parameter_types(
         LoweredDirectExpression::IntegerWiden { operand, .. } => {
             validate_direct_parameter_types(operand, parameter_types)
         }
-        LoweredDirectExpression::IntegerExactCast { operand, .. } => {
+        LoweredDirectExpression::IntegerExactCast { operand, .. }
+        | LoweredDirectExpression::IntegerTrappingCast { operand, .. } => {
             validate_direct_parameter_types(operand, parameter_types)
         }
         LoweredDirectExpression::Boolean { expression } => {

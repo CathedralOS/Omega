@@ -1009,9 +1009,13 @@ impl Context<'_> {
             | IntegerBinary::SaturatingMultiply
             | IntegerBinary::SaturatingDivide
             | IntegerBinary::SaturatingRemainder => ArithmeticDomain::Saturating,
-            IntegerBinary::TrappingShiftLeft | IntegerBinary::TrappingShiftRight => {
-                ArithmeticDomain::Trapping
-            }
+            IntegerBinary::TrappingShiftLeft
+            | IntegerBinary::TrappingShiftRight
+            | IntegerBinary::TrappingAdd
+            | IntegerBinary::TrappingSubtract
+            | IntegerBinary::TrappingMultiply
+            | IntegerBinary::TrappingDivide
+            | IntegerBinary::TrappingRemainder => ArithmeticDomain::Trapping,
             _ => ArithmeticDomain::Exact,
         };
         self.domain(source, 0) == Some(expected)
@@ -1232,21 +1236,26 @@ fn paths_match(
 
 fn integer_operator(kind: IntegerBinary) -> BinaryOperator {
     match kind {
-        IntegerBinary::ExactAdd | IntegerBinary::WrappingAdd | IntegerBinary::SaturatingAdd => {
-            BinaryOperator::Add
-        }
+        IntegerBinary::ExactAdd
+        | IntegerBinary::WrappingAdd
+        | IntegerBinary::SaturatingAdd
+        | IntegerBinary::TrappingAdd => BinaryOperator::Add,
         IntegerBinary::ExactSubtract
         | IntegerBinary::WrappingSubtract
-        | IntegerBinary::SaturatingSubtract => BinaryOperator::Subtract,
+        | IntegerBinary::SaturatingSubtract
+        | IntegerBinary::TrappingSubtract => BinaryOperator::Subtract,
         IntegerBinary::ExactMultiply
         | IntegerBinary::WrappingMultiply
-        | IntegerBinary::SaturatingMultiply => BinaryOperator::Multiply,
+        | IntegerBinary::SaturatingMultiply
+        | IntegerBinary::TrappingMultiply => BinaryOperator::Multiply,
         IntegerBinary::ExactDivide
         | IntegerBinary::WrappingDivide
-        | IntegerBinary::SaturatingDivide => BinaryOperator::Divide,
+        | IntegerBinary::SaturatingDivide
+        | IntegerBinary::TrappingDivide => BinaryOperator::Divide,
         IntegerBinary::ExactRemainder
         | IntegerBinary::WrappingRemainder
-        | IntegerBinary::SaturatingRemainder => BinaryOperator::Modulo,
+        | IntegerBinary::SaturatingRemainder
+        | IntegerBinary::TrappingRemainder => BinaryOperator::Modulo,
         IntegerBinary::BitwiseAnd => BinaryOperator::BitwiseAnd,
         IntegerBinary::BitwiseOr => BinaryOperator::BitwiseOr,
         IntegerBinary::BitwiseXor => BinaryOperator::BitwiseXor,

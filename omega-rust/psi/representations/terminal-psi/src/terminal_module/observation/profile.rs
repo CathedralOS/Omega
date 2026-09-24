@@ -9,10 +9,15 @@ use semantic_vocabulary::{
 use crate::StructuralPathQualification;
 use crate::{
     CrashCause, CrashRouteBucket, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
-    TerminalPsiIdentity,
+    TerminalPsiIdentity, TrappingIntegerPrimitive,
 };
 
 /// The closed consumer-selected observation schema understood by this build.
+///
+/// `TerminalTraceV1` names the ordered, termination-sensitive trace domain.
+/// Its profile row list is versioned separately: revision 2 appended the
+/// operation-crash-site group for Trapping primitives, so a revision-1
+/// decoder rejects the new shape instead of misreading a later group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TerminalObservationSchema {
     TerminalTraceV1,
@@ -21,13 +26,13 @@ pub enum TerminalObservationSchema {
 impl TerminalObservationSchema {
     pub const fn version(self) -> u16 {
         match self {
-            Self::TerminalTraceV1 => 1,
+            Self::TerminalTraceV1 => 2,
         }
     }
 
     pub const fn from_version(version: u16) -> Option<Self> {
         match version {
-            1 => Some(Self::TerminalTraceV1),
+            2 => Some(Self::TerminalTraceV1),
             _ => None,
         }
     }
@@ -101,6 +106,25 @@ pub struct TerminalTraceBoundaryCrashSiteRow {
     pub route: CrashRouteBucket,
 }
 
+/// One Trapping primitive's own crash site.
+///
+/// A Trapping operation owns its crash: it has neither a terminator edge nor
+/// a boundary identity, so its coordinate is the operation itself. `cause` is
+/// fixed by the primitive (`Trap`); `primitive`, `result_type` and
+/// `operand_type` retain the exact denotation whose trap predicate decides the
+/// crash: `operand_type` is the right operand's type for binary arithmetic,
+/// the count's type for a shift, and the source type for a conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TerminalTraceOperationCrashSiteRow {
+    pub machine: MachineId,
+    pub block: BlockId,
+    pub operation: OperationId,
+    pub cause: CrashCause,
+    pub primitive: TrappingIntegerPrimitive,
+    pub result_type: IntegerType,
+    pub operand_type: IntegerType,
+}
+
 /// The closed ordinary-event classification carried by TerminalTraceV1.
 ///
 /// Module-local declaration IDs bind the event to its exact Terminal declaration;
@@ -141,14 +165,16 @@ pub struct TerminalTraceV1Rows {
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
     pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
+    pub operation_crash_sites: Vec<TerminalTraceOperationCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }
 
 /// First bounded `TerminalTraceV1` instance.
 ///
 /// This bounded rung contains the root, the terminator-edge crash-site roster,
-/// every declared boundary crash route at its exact call operation, and every
-/// ordinary `BoundaryCall` and `PortWrite` event. Its canonical codec still
+/// every declared boundary crash route at its exact call operation, every
+/// Trapping primitive's operation-level crash site, and every ordinary
+/// `BoundaryCall` and `PortWrite` event. Its canonical codec still
 /// includes a zero terminal-external count. The interpreter may consume its
 /// exact scalar schemas for the bounded semantic-value comparator and
 /// [`Self::begin_trace`] for checked runtime trace construction; profile
@@ -160,6 +186,7 @@ pub struct TerminalTraceV1Profile {
     pub root: TerminalTraceRootRow,
     pub crash_sites: Vec<TerminalTraceCrashSiteRow>,
     pub boundary_crash_sites: Vec<TerminalTraceBoundaryCrashSiteRow>,
+    pub operation_crash_sites: Vec<TerminalTraceOperationCrashSiteRow>,
     pub ordinary_events: Vec<TerminalTraceOrdinaryEventRow>,
 }
 
@@ -291,6 +318,13 @@ pub enum TerminalTraceV1Outcome {
         edge: EdgeId,
         cause: CrashCause,
     },
+    /// A Trapping primitive's trap at its own operation-level crash site.
+    OperationCrash {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+        cause: CrashCause,
+    },
     /// One `BoundaryCall` invocation resolved to a single declared route.
     ///
     /// The call's actual arguments ride with the outcome because a crashing
@@ -385,6 +419,12 @@ pub enum TerminalTraceV1ConstructionError {
     CrashCauseMismatch {
         declared: CrashCause,
         actual: CrashCause,
+    },
+    /// No operation-crash row exists at the operation.
+    UnknownOperationCrashSite {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
     },
     /// No boundary-crash row exists at the call operation.
     NoBoundaryCrashSite {
@@ -486,6 +526,40 @@ impl<'profile> TerminalTraceV1TraceBuilder<'profile> {
             machine,
             block,
             edge,
+            cause,
+        })))
+    }
+
+    /// Close the trace at a declared operation-level crash site.
+    pub fn finish_operation_crash(
+        self,
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+        cause: CrashCause,
+    ) -> Result<TerminalTraceV1RuntimeTrace, TerminalTraceV1ConstructionError> {
+        let row = self
+            .profile
+            .operation_crash_sites
+            .iter()
+            .find(|row| row.machine == machine && row.block == block && row.operation == operation)
+            .ok_or(
+                TerminalTraceV1ConstructionError::UnknownOperationCrashSite {
+                    machine,
+                    block,
+                    operation,
+                },
+            )?;
+        if row.cause != cause {
+            return Err(TerminalTraceV1ConstructionError::CrashCauseMismatch {
+                declared: row.cause,
+                actual: cause,
+            });
+        }
+        Ok(self.complete(Some(TerminalTraceV1Outcome::OperationCrash {
+            machine,
+            block,
+            operation,
             cause,
         })))
     }
@@ -693,12 +767,13 @@ mod tests {
         IntegerValue, MachineId, OperationId, ScalarType, ServiceId, StructuralAccess,
         StructuralDomainId, StructuralMultiplicity, StructuralPathSegment, StructuralTypeId,
         TerminalObservationSchema, TerminalPsiIdentity, TerminalTraceBoundaryCrashSiteRow,
-        TerminalTraceCrashSiteRow, TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow,
-        TerminalTraceResultKind, TerminalTraceResultSchema, TerminalTraceResultValue,
-        TerminalTraceRootRow, TerminalTraceScalarSchema, TerminalTraceScalarValue,
-        TerminalTraceStructuralSchema, TerminalTraceStructuralValue,
-        TerminalTraceV1ConstructionError, TerminalTraceV1Event, TerminalTraceV1Outcome,
-        TerminalTraceV1Profile, TerminalTraceValueComparison,
+        TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow,
+        TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultKind,
+        TerminalTraceResultSchema, TerminalTraceResultValue, TerminalTraceRootRow,
+        TerminalTraceScalarSchema, TerminalTraceScalarValue, TerminalTraceStructuralSchema,
+        TerminalTraceStructuralValue, TerminalTraceV1ConstructionError, TerminalTraceV1Event,
+        TerminalTraceV1Outcome, TerminalTraceV1Profile, TerminalTraceValueComparison,
+        TrappingIntegerPrimitive,
     };
     use crate::{CrashRouteGuard, SemanticFingerprint, VocabularyMarker};
     use semantic_vocabulary::IntegerSign;
@@ -772,6 +847,7 @@ mod tests {
     const CALL: u64 = 1;
     const WRITE: u64 = 2;
     const CRASH_EDGE: u64 = 7;
+    const TRAPPING_ADD: u64 = 3;
 
     fn profile() -> TerminalTraceV1Profile {
         let machine = id(MACHINE, MachineId::new);
@@ -802,6 +878,15 @@ mod tests {
                 boundary,
                 boundary_identity: "pkg::Port".into(),
                 route: crash_route(CrashCause::Abort),
+            }],
+            operation_crash_sites: vec![TerminalTraceOperationCrashSiteRow {
+                machine,
+                block,
+                operation: id(TRAPPING_ADD, OperationId::new),
+                cause: CrashCause::Trap,
+                primitive: TrappingIntegerPrimitive::Add,
+                result_type: integer_type(IntegerSign::Unsigned, 8),
+                operand_type: integer_type(IntegerSign::Unsigned, 8),
             }],
             ordinary_events: vec![
                 TerminalTraceOrdinaryEventRow {
@@ -1105,6 +1190,52 @@ mod tests {
             profile
                 .begin_trace()
                 .finish_edge_crash(machine, block, edge, CrashCause::Abort),
+            Err(TerminalTraceV1ConstructionError::CrashCauseMismatch {
+                declared: CrashCause::Trap,
+                actual: CrashCause::Abort,
+            }),
+        );
+    }
+
+    #[test]
+    fn operation_crash_binds_its_own_operation_site_and_cause() {
+        let profile = profile();
+        let machine = id(MACHINE, MachineId::new);
+        let block = id(BLOCK, BlockId::new);
+        let add = id(TRAPPING_ADD, OperationId::new);
+
+        let trace = profile
+            .begin_trace()
+            .finish_operation_crash(machine, block, add, CrashCause::Trap)
+            .expect("declared operation crash site");
+        assert_eq!(
+            trace.outcome,
+            Some(TerminalTraceV1Outcome::OperationCrash {
+                machine,
+                block,
+                operation: add,
+                cause: CrashCause::Trap,
+            })
+        );
+        // A boundary call operation is not an operation crash site, and an
+        // edge crash cannot be redirected onto the Trapping operation.
+        let call = id(CALL, OperationId::new);
+        assert_eq!(
+            profile
+                .begin_trace()
+                .finish_operation_crash(machine, block, call, CrashCause::Trap),
+            Err(
+                TerminalTraceV1ConstructionError::UnknownOperationCrashSite {
+                    machine,
+                    block,
+                    operation: call,
+                }
+            ),
+        );
+        assert_eq!(
+            profile
+                .begin_trace()
+                .finish_operation_crash(machine, block, add, CrashCause::Abort),
             Err(TerminalTraceV1ConstructionError::CrashCauseMismatch {
                 declared: CrashCause::Trap,
                 actual: CrashCause::Abort,

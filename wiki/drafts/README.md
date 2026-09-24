@@ -199,9 +199,6 @@ A proposed shape for work that has not landed.
 - [Slice-view sample frontier](designs/slice_view_sample_frontier.md): the twelve
   samples blocked on borrowed non-byte slice views and what moved; delete once
   they reach entry establishment or the vocabulary spec lands.
-- [Terminal trap crash site](designs/terminal_operation_trap_crash_site.md): the
-  conforming observation-profile row shapes for an operation-level trap; delete
-  once the owner question is answered and the profile moves.
 - [Toolchain-settled plan provenance replay](designs/toolchain_settled_plan_provenance_replay.md):
   diagnosis of why minted toolchain-settled plans fail candidate provenance;
   delete once the settlement lane makes them pass replay.

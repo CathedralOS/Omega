@@ -28034,13 +28034,10 @@
  {
   "fixture": "pass/text/runtime_carrier_itoa_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 2548,
+  "status": "checked",
+  "millis": 3648,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove default-domain field requirement for call check_tens from Main::main::main: parameter self.out requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.out requires [u8; N]::Utf8"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_carrier_len_guard_exit",
