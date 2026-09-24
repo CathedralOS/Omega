@@ -289,7 +289,9 @@ impl PremiseScope<'_> {
                 normalized_bound(program, lookup, expression)
                     .or_else(|| projected_immutable_bound(program, lookup, expression))
                     .and_then(|bound| {
-                        propositions::substitute_bound(program, lookup, bound, parameters, arguments)
+                        propositions::substitute_bound(
+                            program, lookup, bound, parameters, arguments,
+                        )
                     })
             }
         }
@@ -613,8 +615,10 @@ fn decompose_premise_expression(
         }
         _ => return,
     };
-    let (Some(left), Some(right)) = (scope.bound(program, lookup, left), scope.bound(program, lookup, right))
-    else {
+    let (Some(left), Some(right)) = (
+        scope.bound(program, lookup, left),
+        scope.bound(program, lookup, right),
+    ) else {
         return;
     };
     premises.push(StatedOrderingPremise {

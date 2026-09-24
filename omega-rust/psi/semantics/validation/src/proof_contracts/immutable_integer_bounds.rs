@@ -646,7 +646,8 @@ pub fn projected_integer_bound_subject_type(
     lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    projected_integer_bound_field(program, lookup, expression).map(|(_, field, _)| field.type_reference)
+    projected_integer_bound_field(program, lookup, expression)
+        .map(|(_, field, _)| field.type_reference)
 }
 
 /// Normalize an integer literal or finite immutable local-copy chain to one
@@ -690,12 +691,16 @@ fn normalize_bound(
                             Some(NormalizedBound::Expression(expression))
                         }
                     }
-                    LocalLookup::Found(local) => normalize_local(program, lookup, local, seen_aliases),
+                    LocalLookup::Found(local) => {
+                        normalize_local(program, lookup, local, seen_aliases)
+                    }
                     LocalLookup::Invalid => None,
                 }
             } else {
                 match local_by_name(lookup, members[0].as_str()) {
-                    LocalLookup::Found(local) => normalize_local(program, lookup, local, seen_aliases),
+                    LocalLookup::Found(local) => {
+                        normalize_local(program, lookup, local, seen_aliases)
+                    }
                     LocalLookup::Missing | LocalLookup::Invalid => None,
                 }
             }
@@ -719,10 +724,12 @@ fn normalize_local(
     seen_aliases.push(local.symbol);
     let normalized = match program.expression_table.expression(local.initial_value) {
         ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
-            normalize_bound(program, lookup, local.initial_value, seen_aliases).map(|bound| match bound {
-                // The local stores a value, not a retargetable alias to its source.
-                NormalizedBound::MutableValue => NormalizedBound::LocalValue(local.symbol),
-                bound => bound,
+            normalize_bound(program, lookup, local.initial_value, seen_aliases).map(|bound| {
+                match bound {
+                    // The local stores a value, not a retargetable alias to its source.
+                    NormalizedBound::MutableValue => NormalizedBound::LocalValue(local.symbol),
+                    bound => bound,
+                }
             })
         }
         _ if local.initial_value.is_valid() => Some(NormalizedBound::LocalValue(local.symbol)),

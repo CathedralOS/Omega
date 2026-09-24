@@ -708,7 +708,8 @@ pub(super) fn index_expression_extent_with_selectors(
     let bound_lookup = validation::ImmutableBoundLookup::new(program);
     match program.expression_table.expression(expression) {
         ExpressionNode::Range(range) => {
-            let (start, end) = range_integer_bounds(program, &bound_lookup, range, location, selectors);
+            let (start, end) =
+                range_integer_bounds(program, &bound_lookup, range, location, selectors);
             EvaluatedIndexExtent::Window { start, end }
         }
         _ => EvaluatedIndexExtent::Point(selectors.bound(
@@ -882,7 +883,9 @@ pub(super) fn normalized_bound(
             segments: place.segments,
         });
     }
-    if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, lookup, expression) {
+    if let Some(offset) =
+        validation::immutable_integer_bound_symbol_offset(program, lookup, expression)
+    {
         return Some(NormalizedBound::Symbol {
             symbol: offset.symbol,
             offset: offset.offset,
