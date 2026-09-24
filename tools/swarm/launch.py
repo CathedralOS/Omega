@@ -424,6 +424,67 @@ PATH_TOKEN = re.compile(r"`?([A-Za-z_][\w.-]*/[\w.-]+(?:/[\w.-]+)*)`?")
 SCALE_CRATE_LIMIT = 4
 
 
+JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+
+
+def jev_key():
+    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
+    if key:
+        return key
+    for path in (Path("build/typesafe.env.txt"),
+                 Path.home() / ".config" / "typesafe" / "typesafe.env.txt"):
+        if path.is_file():
+            keys = [line.partition("=")[2].strip().strip("\"'")
+                    for line in path.read_text(encoding="utf-8-sig").splitlines()
+                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
+            if len(keys) == 1:
+                return keys[0]
+    return ""
+
+
+def jev_fence_verdict(item_name, item_text, owning_paths):
+    """Advisory fence check: does owning_paths cover the item's likely edit
+    surface? None when unavailable/suppressed; the caller treats None as
+    'no signal'. Worked example: build/experiments/failure-triage/FENCE.md —
+    strict toward under_fenced, which is the safe direction here."""
+    if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
+        return None
+    key = jev_key()
+    if not key:
+        return None
+    request = {"model": "jev-1.13.0",
+               "state": {"item_name": item_name,
+                         "item_text": item_text[:2000],
+                         "owning_paths": owning_paths},
+               "questions": {"fence": {
+                   "type": "choice",
+                   "instructions": (
+                       "A work session declared `owning_paths` as its edit "
+                       "fence for `item_name`. Given the item text (its "
+                       "scope, declared owners, and acceptance surface), "
+                       "judge the fence. `adequate`: it covers the surfaces "
+                       "this item will plausibly edit. `under_fenced`: "
+                       "plausibly-edited surfaces are missing. "
+                       "`over_fenced`: it claims paths this item will not "
+                       "touch."),
+                   "criteria": {
+                       "adequate": "covers the likely edit surface",
+                       "under_fenced": "missing surfaces this item will "
+                                       "plausibly edit",
+                       "over_fenced": "claims surfaces this item will not "
+                                      "touch"}}}}
+    http = urllib.request.Request(
+        JEV_ENDPOINT, data=json.dumps(request).encode(),
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(http, timeout=15) as response:
+            return (json.load(response).get("answers", {})
+                    .get("fence", {}).get("choice"))
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return None
+
+
 def item_section(repository, board, item):
     """The item's board text block: marker line through the next top-level
     item or heading. Path/crate mentions and dependency language live here."""
@@ -534,6 +595,11 @@ def partition_hints(repository, session, sessions, crates):
             uncovered.add(name)
     if uncovered:
         hints["uncovered_mentions"] = sorted(uncovered)
+    fence = jev_fence_verdict(session["item"], text, session["owning_paths"])
+    if fence == "under_fenced":
+        hints["jev_fence"] = (
+            "jev advisory: owning_paths may miss surfaces this item will "
+            "plausibly edit — widen before launch or expect uncovered edits")
     if named_crates:
         hints["named_crate_count"] = len(named_crates)
         if len(named_crates) >= SCALE_CRATE_LIMIT:
