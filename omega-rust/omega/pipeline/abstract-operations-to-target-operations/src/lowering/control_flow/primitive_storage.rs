@@ -308,6 +308,66 @@ pub(super) fn lower(
                 },
             )
         }
+        // One fixed-array element read at a proven runtime index. Only a
+        // borrowed structural parameter carries the pointer the element-width
+        // address model scales from; owned homes are not addressed here.
+        AbstractOperation::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            source: place,
+            path,
+            index,
+            obligation,
+        } => {
+            let invalid = || LoweringError::unsupported_control_flow(function.machine);
+            let source = function
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *place)
+                .ok_or_else(invalid)?;
+            if !matches!(
+                source.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || source.multiplicity == StructuralMultiplicity::Linear
+                || !source.qualifications.is_empty()
+                || !source.projected_qualifications.is_empty()
+                || crate::lowering::structural_layout::indexed_array_projection(
+                    source.structural_type,
+                    path,
+                    types,
+                )
+                .map(|(element, _)| element)
+                    != Some(result.scalar_type)
+                || native_shape(result.scalar_type).is_none()
+            {
+                return Err(invalid());
+            }
+            let index_source = super::scalar_sources::source(index.value, function, live)?;
+            let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+            if index.scalar_type != ScalarType::Integer(unsigned_64)
+                || index_source.scalar_type() != index.scalar_type
+            {
+                return Err(invalid());
+            }
+            let runtime_path =
+                runtime_projection(source.structural_type, path, types).ok_or_else(invalid)?;
+            retain_result(*psi_operation, *result, live)?;
+            (
+                *psi_operation,
+                TargetUnitOperation::IndexedPrimitiveRead {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: terminal_psi::StructuralArgument {
+                        place: *place,
+                        access: source.access,
+                        path: runtime_path,
+                    },
+                    path: path.clone(),
+                    index: index_source,
+                    obligation: *obligation,
+                },
+            )
+        }
         AbstractOperation::EstablishPrimitiveLocal {
             psi_operation,
             result,
@@ -424,4 +484,40 @@ pub(super) fn lower(
     operations.push(lowered);
     provenance.operations.push(identity);
     Ok(())
+}
+
+/// The runtime spelling of a canonical projection: each field by its declared
+/// identity and each literal index as itself.
+fn runtime_projection(
+    mut carrier: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    let mut runtime = Vec::with_capacity(path.len());
+    for segment in path {
+        match (segment, &types.get(&carrier)?.shape) {
+            (Segment::Field(field), StructuralTypeShape::Record { fields }) => {
+                let selected = fields
+                    .iter()
+                    .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+                let StructuralFieldType::Structural(child) = selected.field_type else {
+                    return None;
+                };
+                runtime.push(terminal_psi::StructuralPathSegment::Field(
+                    selected.identity.clone(),
+                ));
+                carrier = child;
+            }
+            (
+                Segment::FixedIndex(position),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if position < length => {
+                runtime.push(terminal_psi::StructuralPathSegment::FixedIndex(*position));
+                carrier = *element;
+            }
+            _ => return None,
+        }
+    }
+    Some(runtime)
 }

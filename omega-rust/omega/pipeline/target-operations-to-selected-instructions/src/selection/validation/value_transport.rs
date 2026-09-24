@@ -1,8 +1,7 @@
 //! Replay demand by following each declared value forward to a real observer.
 //! Independent of construction's backward worklist; cycles alone create no demand.
 use legalized_operations::{
-    LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
-    LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
+    LegalizedScalarFunction, LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
 };
 use semantic_vocabulary::ValueId;
 use std::collections::BTreeSet;
@@ -44,7 +43,7 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
             if block
                 .instructions
                 .iter()
-                .any(|instruction| reads(&instruction.kind, value))
+                .any(|instruction| instruction.references_value(value))
             {
                 return true;
             }
@@ -82,103 +81,4 @@ fn reaches_observer(function: &LegalizedScalarFunction, value: ValueId) -> bool 
         }
     }
     false
-}
-
-fn reads(instruction: &Instruction, value: ValueId) -> bool {
-    match instruction {
-        Instruction::EstablishScalarArray { elements, .. } => elements.contains(&value),
-        Instruction::EstablishRecord { fields, .. } => fields.iter().any(|field|
-            matches!(&field.value, terminal_psi::RecordFieldValue::Scalar { value: operand, .. } if *operand == value)),
-        Instruction::EstablishScalarCase { fields, .. } => {
-            fields.iter().any(|field| field.value == value)
-        }
-        Instruction::HostedWriteByteI32 { source, .. }
-        | Instruction::HostedExitProcessI32 { source, .. } => *source == value,
-        Instruction::StructuralScalarFieldStore { value: stored, .. }
-        | Instruction::EstablishPrimitiveLocal { value: stored, .. }
-        | Instruction::PrimitiveLocalStore { value: stored, .. }
-        | Instruction::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
-        Instruction::WriteOnlyIndexedPrimitiveStore { index, value: stored, .. } => {
-            index.value == value || stored.value == value
-        }
-        Instruction::ByteSequenceSubslice {
-            start, end, length, ..
-        }
-        | Instruction::ElementViewSubslice {
-            start, end, length, ..
-        } => [*start, *end, *length].contains(&value),
-        Instruction::StructuralByteSequenceFieldStore { length, .. } => *length == value,
-        Instruction::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. }
-        | Instruction::ByteSequenceWrite {
-            index,
-            value: stored,
-            length,
-            ..
-        } => [*index, *stored, *length].contains(&value),
-        Instruction::ByteSequenceRead { index, length, .. }
-        | Instruction::ElementViewRead { index, length, .. } => [*index, *length].contains(&value),
-        Instruction::StructuralLeafCopy { indices, .. } => {
-            indices.iter().any(|index| index.operand.value == value)
-        }
-        Instruction::BooleanNot { operand }
-        | Instruction::IntegerWiden { operand, .. }
-        | Instruction::IntegerExactCast { operand, .. }
-        | Instruction::BitwiseNot { operand } => *operand == value,
-        Instruction::Call(call) => call
-            .arguments
-            .iter()
-            .any(|argument| argument.scalar_source() == Some(value)),
-        Instruction::NormalizedForeignCall(call) => call
-            .scalar_arguments
-            .iter()
-            .any(|argument| argument.source.source_value() == value),
-        Instruction::SaturatingAdd { left, right, .. }
-        | Instruction::SaturatingSubtract { left, right, .. }
-        | Instruction::SaturatingDivide { left, right, .. }
-        | Instruction::SaturatingRemainder { left, right, .. }
-        | Instruction::SaturatingMultiply { left, right, .. }
-        | Instruction::ExactBinary { left, right, .. }
-        | Instruction::WrappingRemainder { left, right, .. }
-        | Instruction::WrappingDivide { left, right, .. }
-        | Instruction::WrappingAdd { left, right }
-        | Instruction::WrappingSubtract { left, right }
-        | Instruction::WrappingMultiply { left, right }
-        | Instruction::WrappingShiftLeft {
-            value: left,
-            count: right,
-        }
-        | Instruction::WrappingShiftRight {
-            value: left,
-            count: right,
-        }
-        | Instruction::ExactShiftLeft {
-            value: left,
-            count: right,
-            ..
-        }
-        | Instruction::ExactShiftRight {
-            value: left,
-            count: right,
-            ..
-        }
-        | Instruction::BitwiseAnd { left, right }
-        | Instruction::BitwiseOr { left, right }
-        | Instruction::BitwiseXor { left, right }
-        | Instruction::IeeeFloatCompare { left, right, .. }
-        | Instruction::Compare { left, right, .. } => [*left, *right].contains(&value),
-        Instruction::Constant(_)
-        | Instruction::EstablishReference { .. }
-        | Instruction::ReleaseReference { .. }
-        | Instruction::HostedReadByte { .. }
-        | Instruction::PrimitiveScalarRead { .. }
-        | Instruction::StructuralScalarFieldRead { .. }
-        | Instruction::StructuralByteSequenceFieldLength { .. }
-        | Instruction::StructuralCaseMembership { .. }
-        | Instruction::EstablishByteSequenceLiteral { .. }
-        | Instruction::ByteSequenceLength { .. }
-        | Instruction::EstablishElementView { .. }
-        | Instruction::ElementViewLength { .. }
-        | Instruction::BoundarySettlement(_)
-        | Instruction::DynamicParameterCall(_) => false,
-    }
 }

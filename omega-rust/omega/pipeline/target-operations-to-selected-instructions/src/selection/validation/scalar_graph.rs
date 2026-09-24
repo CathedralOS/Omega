@@ -27,7 +27,6 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod ieee_comparison;
-mod literal_compare;
 mod normalized_foreign;
 mod process_exit;
 mod provenance;
@@ -150,9 +149,18 @@ pub(in crate::selection) fn validate_with_environment(
             {
                 continue;
             }
-            if (literal_compare::folded_zero(source, source_block, operation_index + 1).is_some()
-                || literal_compare::folded_immediate(source, source_block, operation_index + 1)
-                    .is_some())
+            if (crate::selection::literal_compare_input::folded_zero(
+                source,
+                source_block,
+                operation_index + 1,
+            )
+            .is_some()
+                || crate::selection::literal_compare_input::folded_immediate(
+                    source,
+                    source_block,
+                    operation_index + 1,
+                )
+                .is_some())
                 && control::branch_suffix(source, source_block, operation_index + 1)
             {
                 continue;
@@ -184,6 +192,9 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }
+                    LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. } => {
+                        structural::indexed_read(source, &mut replay, operation)?
+                    }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut replay, operation)?
@@ -201,9 +212,11 @@ pub(in crate::selection) fn validate_with_environment(
                         if !control::branch_suffix(source, source_block, operation_index) {
                             return Err(invalid());
                         }
-                        if let Some(zero) =
-                            literal_compare::folded_zero(source, source_block, operation_index)
-                        {
+                        if let Some(zero) = crate::selection::literal_compare_input::folded_zero(
+                            source,
+                            source_block,
+                            operation_index,
+                        ) {
                             let input = if *left == zero.result.ok_or_else(invalid)?.value {
                                 *right
                             } else {
@@ -237,7 +250,11 @@ pub(in crate::selection) fn validate_with_environment(
                             continue;
                         }
                         if let Some(immediate) =
-                            literal_compare::folded_immediate(source, source_block, operation_index)
+                            crate::selection::literal_compare_input::folded_immediate(
+                                source,
+                                source_block,
+                                operation_index,
+                            )
                         {
                             let immediate_value = match immediate.kind {
                                 LegalizedScalarInstructionKind::Constant(

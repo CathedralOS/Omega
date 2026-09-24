@@ -670,6 +670,7 @@ fn forwarded_resolution(
             if matches!(
                 &use_node.operation,
                 O::ByteSequenceRead { .. }
+                    | O::IndexedPrimitiveRead { .. }
                     | O::ByteSequenceWrite { .. }
                     | O::ByteSequenceSubslice { .. }
                     | O::StructuralByteSequenceFieldStore { .. }

@@ -241,7 +241,9 @@ pub(crate) fn validate_operation_places(
         | O::ReturnStructural { source, .. } => {
             require(*source, known)?;
         }
-        O::IntegerStructuralField { source, .. } => require(*source, known)?,
+        O::IntegerStructuralField { source, .. } | O::IndexedPrimitiveRead { source, .. } => {
+            require(*source, known)?
+        }
         O::StoreDynamicDescriptor { stored, .. } => {
             require(stored.selection.source.place, known)?;
         }

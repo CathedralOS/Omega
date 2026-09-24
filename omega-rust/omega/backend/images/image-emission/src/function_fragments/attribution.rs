@@ -17,94 +17,31 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
         .iter()
         .enumerate()
         .filter_map(|(index, operation)| {
-            let matches = match operation {
-                AbstractOperation::IntegerConstant { psi_operation, .. }
-                | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
-                | AbstractOperation::IeeeFloatCompare { psi_operation, .. }
-                | AbstractOperation::BooleanConstant { psi_operation, .. }
-                | AbstractOperation::BooleanEqual { psi_operation, .. }
-                | AbstractOperation::IntegerEqual { psi_operation, .. }
-                | AbstractOperation::IntegerLessThan { psi_operation, .. }
-                | AbstractOperation::IntegerLessOrEqual { psi_operation, .. }
-                | AbstractOperation::BooleanNot { psi_operation, .. }
-                | AbstractOperation::IntegerWiden { psi_operation, .. }
-                | AbstractOperation::IntegerExactCast { psi_operation, .. }
-                | AbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
-                | AbstractOperation::IntegerBitwiseOr { psi_operation, .. }
-                | AbstractOperation::IntegerBitwiseXor { psi_operation, .. }
-                | AbstractOperation::IntegerBitwiseNot { psi_operation, .. }
-                | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerAdd { psi_operation, .. }
-                | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
-                | AbstractOperation::ExactIntegerMultiply { psi_operation, .. }
-                | AbstractOperation::ExactIntegerDivide { psi_operation, .. }
-                | AbstractOperation::ExactIntegerRemainder { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerMultiply { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerDivide { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerShiftLeft { psi_operation, .. }
-                | AbstractOperation::WrappingIntegerShiftRight { psi_operation, .. }
-                | AbstractOperation::ExactIntegerShiftLeft { psi_operation, .. }
-                | AbstractOperation::ExactIntegerShiftRight { psi_operation, .. }
-                | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
-                | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
-                | AbstractOperation::SaturatingIntegerMultiply { psi_operation, .. }
-                | AbstractOperation::SaturatingIntegerDivide { psi_operation, .. }
-                | AbstractOperation::SaturatingIntegerRemainder { psi_operation, .. }
-                | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-                | AbstractOperation::ByteSequenceLength { psi_operation, .. }
-                | AbstractOperation::StructuralByteSequenceFieldLength { psi_operation, .. }
-                | AbstractOperation::ByteSequenceRead { psi_operation, .. }
-                | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
-                | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
-                | AbstractOperation::StructuralByteSequenceFieldByteStore {
-                    psi_operation, ..
+            // Control transfers carry edges rather than an authored operation.
+            let matches = if let Some(psi_operation) = operation.psi_operation() {
+                site == SemanticCodeSite::Operation(psi_operation)
+            } else {
+                match operation {
+                    AbstractOperation::Return { psi_edge, .. }
+                    | AbstractOperation::ReturnUnit { psi_edge, .. }
+                    | AbstractOperation::Crash { psi_edge, .. }
+                    | AbstractOperation::ReturnStructural { psi_edge, .. }
+                    | AbstractOperation::Jump { psi_edge, .. } => {
+                        site == SemanticCodeSite::Edge(*psi_edge)
+                    }
+                    AbstractOperation::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => {
+                        site == SemanticCodeSite::Edge(when_true.psi_edge)
+                            || site == SemanticCodeSite::Edge(when_false.psi_edge)
+                    }
+                    AbstractOperation::StructuralCase { cases, .. } => cases
+                        .iter()
+                        .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
+                    _ => false,
                 }
-                | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
-                | AbstractOperation::ElementViewSubslice { psi_operation, .. }
-                | AbstractOperation::EstablishElementView { psi_operation, .. }
-                | AbstractOperation::ElementViewLength { psi_operation, .. }
-                | AbstractOperation::ElementViewRead { psi_operation, .. }
-                | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
-                | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
-                | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
-                | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
-                | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
-                | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
-                | AbstractOperation::IntegerStructuralField { psi_operation, .. }
-                | AbstractOperation::BooleanStructuralField { psi_operation, .. }
-                | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
-                | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
-                | AbstractOperation::CallStructuralScalar { psi_operation, .. }
-                | AbstractOperation::EstablishScalarCase { psi_operation, .. }
-                | AbstractOperation::EstablishRecord { psi_operation, .. }
-                | AbstractOperation::EstablishScalarArray { psi_operation, .. }
-                | AbstractOperation::CallStructural { psi_operation, .. }
-                | AbstractOperation::Call { psi_operation, .. }
-                | AbstractOperation::CallUnit { psi_operation, .. }
-                | AbstractOperation::BoundaryCall { psi_operation, .. } => {
-                    site == SemanticCodeSite::Operation(*psi_operation)
-                }
-                AbstractOperation::Return { psi_edge, .. }
-                | AbstractOperation::ReturnUnit { psi_edge, .. }
-                | AbstractOperation::Crash { psi_edge, .. }
-                | AbstractOperation::ReturnStructural { psi_edge, .. }
-                | AbstractOperation::Jump { psi_edge, .. } => {
-                    site == SemanticCodeSite::Edge(*psi_edge)
-                }
-                AbstractOperation::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    site == SemanticCodeSite::Edge(when_true.psi_edge)
-                        || site == SemanticCodeSite::Edge(when_false.psi_edge)
-                }
-                AbstractOperation::StructuralCase { cases, .. } => cases
-                    .iter()
-                    .any(|case| site == SemanticCodeSite::Edge(case.psi_edge)),
-                _ => false,
             };
             matches.then_some(index)
         });

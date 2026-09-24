@@ -140,6 +140,100 @@ pub(super) fn write_only_indexed_store_retained(
         && writes.next().is_none()
 }
 
+/// Join the exact indexed-read occurrence on a borrowed referent. Mandatory
+/// replay reconstructs the array layout, the scaled address and the result home.
+pub(super) fn indexed_read_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        index,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, *source, true) else {
+        return false;
+    };
+    if !matches!(
+        access,
+        terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+    ) {
+        return false;
+    }
+    let mut reads = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|candidate| {
+            matches!(candidate,
+        TargetUnitOperation::IndexedPrimitiveRead { psi_operation: retained, .. }
+            if retained == psi_operation)
+        });
+    let Some(TargetUnitOperation::IndexedPrimitiveRead {
+        result: retained_result,
+        source: retained_source,
+        path: retained_path,
+        index: retained_index,
+        obligation: retained_obligation,
+        ..
+    }) = reads.next()
+    else {
+        return false;
+    };
+    retained_result == result
+        && retained_source.place == *source
+        && retained_source.access == access
+        && retained_path == path
+        && retained_obligation == obligation
+        && retained_index.source_value() == index.value
+        && retained_index.scalar_type() == index.scalar_type
+        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        && reads.next().is_none()
+}
+
+/// Exactly one element-width read accounts for this observation.
+pub(super) fn indexed_read_footprint_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        source,
+        index,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    let Some(read) = effects.next() else {
+        return false;
+    };
+    read.place == *source
+        && matches!(read.role, Role::ReadIndexedPrimitive {
+            index: retained_index,
+            obligation: retained_obligation,
+            ..
+        } if retained_index == index.value && retained_obligation == *obligation)
+        && effects.next().is_none()
+}
+
 /// Exactly one element-width write accounts for this effect. A read or
 /// metadata publication with the same origin is not part of the indexed
 /// write-only store; mandatory source/selection replay independently

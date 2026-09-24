@@ -133,7 +133,9 @@ pub(super) fn emit_branch_comparison(
     if !control::branch_suffix(source, block, operation_index) {
         return Err(invalid());
     }
-    if let Some(zero) = super::literal_compare::folded_zero(source, block, operation_index) {
+    if let Some(zero) =
+        crate::selection::literal_compare_input::folded_zero(source, block, operation_index)
+    {
         let input = if *left == zero.result.ok_or_else(invalid)?.value {
             *right
         } else {
@@ -157,7 +159,7 @@ pub(super) fn emit_branch_comparison(
         return Ok(());
     }
     if let Some(immediate) =
-        super::literal_compare::folded_immediate(source, block, operation_index)
+        crate::selection::literal_compare_input::folded_immediate(source, block, operation_index)
     {
         let immediate_value = match immediate.kind {
             LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(value)) => value,

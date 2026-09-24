@@ -232,7 +232,8 @@ pub(super) fn resolved_sequence_position(
             return constant_index(function, index)
                 .and_then(|landed| u64::from(access.byte_offset).checked_add(landed));
         }
-        SelectedMemoryAccessRole::WriteIndexedPrimitive { index, .. } => {
+        SelectedMemoryAccessRole::ReadIndexedPrimitive { index, .. }
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { index, .. } => {
             return constant_index(function, index).and_then(|landed| {
                 u64::from(access.byte_offset)
                     .checked_add(landed.checked_mul(u64::from(access.byte_count))?)
