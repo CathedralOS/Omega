@@ -2424,4 +2424,3 @@ fn value_declared_type_carries_domain(
     crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
         .contains(&domain_symbol)
 }
-
