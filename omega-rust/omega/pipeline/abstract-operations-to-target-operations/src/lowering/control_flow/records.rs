@@ -162,3 +162,53 @@ pub(super) fn establish(
     provenance.operations.push(*psi_operation);
     Ok(())
 }
+
+/// An empty-record affine local occupies no bytes, so it needs no home: the
+/// retained row is its establishment identity, and a whole owned call
+/// argument names that row as its `StructuralHome` producer
+/// (`owned_arguments::argument`). The declaration must be the module's own
+/// empty record, and the place must be the trivial local that exact type
+/// declares; an abandoned array-construction element keeps rejecting because
+/// its prefix cleanup schedule is not realized here.
+pub(super) fn establish_trivial_affine_local(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    live: &mut LiveDefinitions,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<(), LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    let AbstractOperation::EstablishTrivialAffineLocal {
+        psi_operation,
+        place,
+        structural_type,
+    } = operation
+    else {
+        return Err(invalid());
+    };
+    if !matches!(
+        place.kind,
+        semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+            structural_type: declared,
+            construction: None,
+            ..
+        } if declared == structural_type.id
+    ) || types.get(&structural_type.id).copied() != Some(structural_type)
+        || !matches!(&structural_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty())
+        || live.structural_homes.contains_key(&place.id)
+        || live
+            .trivial_affine_locals
+            .insert(place.id, (*psi_operation, structural_type.id))
+            .is_some()
+    {
+        return Err(invalid());
+    }
+    operations.push(TargetUnitOperation::EstablishTrivialAffineLocal {
+        psi_operation: *psi_operation,
+        place: *place,
+        structural_type: structural_type.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(())
+}

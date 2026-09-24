@@ -715,6 +715,11 @@ fn read_access(
                 result,
                 ..
             }
+            | AbstractOperation::MoveStructuralField {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 result,

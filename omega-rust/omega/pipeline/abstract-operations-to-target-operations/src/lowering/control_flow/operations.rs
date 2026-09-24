@@ -75,6 +75,8 @@ pub(super) fn lower_operation(
             Some(destination.place)
         }
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => Some(result.place),
+        AbstractOperation::MoveStructuralField { source, .. } => Some(source.place),
+        AbstractOperation::StoreStructuralField { destination, .. } => Some(destination.place),
         _ => None,
     };
     if accessed_root.is_some_and(|place| super::references::check_root_access(live, place)) {
@@ -362,6 +364,34 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::MoveStructuralField { .. } => super::borrowed_windows::move_field(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::StoreStructuralField { .. } => super::borrowed_windows::store_field(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
+        AbstractOperation::EstablishTrivialAffineLocal { .. } => {
+            super::records::establish_trivial_affine_local(
+                operation,
+                function,
+                structural_types,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
@@ -390,12 +420,15 @@ pub(super) fn lower_operation(
         ),
         // A borrowed view established by control flow lives in `block_views`,
         // never in the parameter roster the unit family resolves against, so
-        // only the borrowed-call family can reconstruct its source.
+        // only the borrowed-call family can reconstruct its source. The same
+        // holds for a local home and for an empty-record local, whose
+        // establishment only this graph's live state records.
         AbstractOperation::CallUnit {
             structural_arguments,
             ..
         } if structural_arguments.iter().any(|argument| {
             live.structural_homes.contains_key(&argument.place)
+                || live.trivial_affine_locals.contains_key(&argument.place)
                 || super::references::touches(function, structural_types, live, argument)
                 || live.block_views.contains(&argument.place)
                 || live.address_joins.contains(&argument.place)

@@ -201,6 +201,9 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::StructuralByteSequenceFieldStore { .. }
         | AbstractOperation::StructuralCaseMembership { .. }
         | AbstractOperation::StructuralLeafCopy { .. }
+        | AbstractOperation::MoveStructuralField { .. }
+        | AbstractOperation::StoreStructuralField { .. }
+        | AbstractOperation::EstablishTrivialAffineLocal { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::WrappingIntegerAdd { .. }
@@ -225,12 +228,9 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::CallStoredDynamicScalar { .. }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         | AbstractOperation::CallUnitWithDynamicArguments { .. }
-        | AbstractOperation::EstablishTrivialAffineLocal { .. }
-        | AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::PortWrite { .. }
-        | AbstractOperation::StoreDynamicDescriptor { .. }
-        | AbstractOperation::StoreStructuralField { .. } => AdmissionRoute::NamedRejection,
+        | AbstractOperation::StoreDynamicDescriptor { .. } => AdmissionRoute::NamedRejection,
     }
 }
 

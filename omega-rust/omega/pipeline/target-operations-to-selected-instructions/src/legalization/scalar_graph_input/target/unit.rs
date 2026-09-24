@@ -10,6 +10,7 @@ use target_operations::{
     ScalarAbiValue, TargetStructuralParameter, TargetUnitScalarArgumentSource as Source,
 };
 mod aggregate_results;
+mod borrowed_windows;
 mod direct_calls;
 mod ieee_float;
 mod indexed_primitive_store;
@@ -153,6 +154,43 @@ pub(super) fn validate_operation(
         ) => {
             aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
         }
+        (
+            _,
+            AbstractOperation::MoveStructuralField { .. }
+            | AbstractOperation::StoreStructuralField { .. },
+        ) => {
+            borrowed_windows::validate(target, abstracted, optimized, plan)?;
+        }
+        // An empty-record local realizes no storage: the row is its exact
+        // establishment, of the module's own empty record, at the trivial
+        // place that type declares.
+        (
+            TargetUnitOperation::EstablishTrivialAffineLocal {
+                psi_operation,
+                place,
+                structural_type,
+            },
+            AbstractOperation::EstablishTrivialAffineLocal {
+                psi_operation: expected_operation,
+                place: expected_place,
+                structural_type: expected_type,
+            },
+        ) if psi_operation == expected_operation
+            && place == expected_place
+            && structural_type == expected_type
+            && plan.structural_types.contains(structural_type)
+            && matches!(
+                &structural_type.shape,
+                terminal_psi::StructuralTypeShape::Record { fields } if fields.is_empty()
+            )
+            && matches!(
+                place.kind,
+                semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                    structural_type: declared,
+                    construction: None,
+                    ..
+                } if declared == structural_type.id
+            ) => {}
         (
             TargetUnitOperation::StructuralByteSequenceFieldByteStore {
                 psi_operation,

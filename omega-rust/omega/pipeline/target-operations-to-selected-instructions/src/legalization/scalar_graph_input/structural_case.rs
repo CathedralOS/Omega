@@ -56,6 +56,11 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
+            | AbstractOperation::MoveStructuralField {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 result,

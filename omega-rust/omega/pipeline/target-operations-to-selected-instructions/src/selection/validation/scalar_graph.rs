@@ -1329,6 +1329,8 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+                    | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+                    | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }

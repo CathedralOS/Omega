@@ -1,8 +1,9 @@
 //! Whether a borrowed parameter's referent pointer must stay live.
 //!
 //! Entry capture keeps an incoming referent pointer only for a parameter the
-//! body actually reaches through: a store, read, view, case test, leaf copy,
-//! call argument, or a view it transfers. Construction and its validation
+//! body actually reaches through: a store, read, view, case test, leaf copy
+//! (including a borrowed window's move), window reseat, call argument, or a
+//! view it transfers. Construction and its validation
 //! replay both ask this one question, so a newly lowered instruction family
 //! cannot be counted as a use in one and missed in the other.
 use legalized_operations::{
@@ -38,6 +39,9 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                     destination,
                     ..
                 } => destination.place == place,
+                LegalizedScalarInstructionKind::StoreStructuralField { destination, .. } => {
+                    destination.place == place
+                }
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                     destination, ..
                 }

@@ -48,6 +48,22 @@ pub(super) fn validate_owned_arguments(
                     .iter()
                     .flat_map(|block| &block.instructions)
                     .find(|row| row.operation == psi_operation)?;
+                // An empty-record local transports no bytes: its
+                // establishment must mint exactly this place of exactly this
+                // empty type.
+                if let LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
+                    place,
+                    structural_type,
+                } = &producer.kind
+                {
+                    if place.id != semantic.place
+                        || structural_type.id != target.structural_type
+                        || shape.byte_size != 0
+                    {
+                        return None;
+                    }
+                    continue;
+                }
                 let result = match &producer.kind {
                     LegalizedScalarInstructionKind::EstablishScalarCase { result, .. } => {
                         crate::selection::aggregate_result_input::fields(source, producer)?;

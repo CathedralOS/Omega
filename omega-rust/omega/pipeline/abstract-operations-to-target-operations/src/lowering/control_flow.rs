@@ -19,6 +19,7 @@ use terminal_psi::{
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
 mod borrowed_calls;
+mod borrowed_windows;
 mod byte_write;
 mod dominance;
 mod installed_calls;
@@ -57,6 +58,10 @@ struct LiveDefinitions {
     address_joins: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
     lengths: BTreeMap<ValueId, PlaceId>,
+    /// Empty-record affine locals and the establishment that minted each.
+    /// They occupy no bytes, so they have no structural home; a whole owned
+    /// call argument names the establishment as its producer.
+    trivial_affine_locals: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     /// Live reference loans keyed by current carrier location. The map is the
     /// lowering-time mirror of the verified ownership replay: carriers own
     /// loan permission, never referent storage.
@@ -358,6 +363,7 @@ pub(super) fn lower(
         address_joins: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
+        trivial_affine_locals: BTreeMap::new(),
         references: entry_references.clone(),
     };
     for (position, dominator) in schedule {

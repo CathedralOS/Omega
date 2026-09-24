@@ -1281,6 +1281,8 @@ fn select_function(
                     | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
                     | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+                    | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+                    | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }

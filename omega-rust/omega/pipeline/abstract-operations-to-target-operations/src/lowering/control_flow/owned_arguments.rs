@@ -53,6 +53,21 @@ pub(super) fn argument(
         target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: home.operation_result().ok_or_else(invalid)?.0,
         }
+    } else if let Some((establishment, structural_type)) =
+        live.trivial_affine_locals.get(&argument.place)
+    {
+        // An empty-record local has no bytes to transport; its establishment
+        // is the producer the call replays. It is affine and unqualified.
+        if *structural_type != declaration.structural_type
+            || declaration.multiplicity != StructuralMultiplicity::Affine
+            || !declaration.qualifications.is_empty()
+            || expected_shape.byte_size != 0
+        {
+            return Err(invalid());
+        }
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: *establishment,
+        }
     } else {
         let parameter = prepared
             .parameters

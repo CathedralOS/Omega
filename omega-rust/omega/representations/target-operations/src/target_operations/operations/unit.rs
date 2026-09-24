@@ -91,12 +91,17 @@ pub enum TargetUnitOperation {
         index: TargetUnitScalarArgumentSource,
         obligation: semantic_vocabulary::ObligationId,
     },
-    /// One owned copy of an `Unrestricted` leaf read out of a live readable
-    /// root. `source` names the root place and `path`/`byte_offset` the
+    /// One byte copy of a subtree out of a live readable root into a fresh
+    /// home. `source` names the root place and `path`/`byte_offset` the
     /// inspected bytes inside it; `result_home` is the fresh activation-local
-    /// storage the copy must occupy. The borrowed root keeps full custody —
-    /// copying observes contents like a structural field read and never
-    /// aliases the result back into the root.
+    /// storage the copy must occupy. Two abstract operations realize as this
+    /// row. A leaf copy of an `Unrestricted` subtree leaves the root in full
+    /// custody: copying observes contents like a structural field read and
+    /// never aliases the result back into the root. A borrowed-window move
+    /// (`MoveStructuralField`) copies the vacated field under the spelled
+    /// path extended by that field's segment; the old bytes stay in place
+    /// because the verified restoration window forbids observing them before
+    /// `StoreStructuralField` reseats the field.
     StructuralLeafCopy {
         psi_operation: OperationId,
         result_home: TargetStructuralHomeRequirement,
@@ -108,6 +113,20 @@ pub enum TargetUnitOperation {
         /// `byte_offset` ahead of the copy's first load. Empty for fully
         /// static projections.
         indices: Vec<TargetStructuralRuntimeIndex>,
+    },
+    /// Reseat the field a borrowed-window move vacated: the inverse of the
+    /// window's `StructuralLeafCopy`. The complete bytes of `value_home`, the
+    /// consumed owned subtree's activation home, are written at
+    /// `byte_offset` beneath `destination`'s referent, the resolved offset of
+    /// `field` under the spelled `path`. The value's home is spent and the
+    /// borrowed root regains full custody of the field.
+    StoreStructuralField {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        value_home: TargetStructuralHomeRequirement,
+        byte_offset: u32,
     },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
@@ -246,6 +265,10 @@ pub enum TargetUnitOperation {
         addend: TargetIeeeFloatFmaOperand,
         settlement: TargetX86ScalarFmaSettlement,
     },
+    /// Establish one empty-record affine local. It occupies no bytes, so the
+    /// row realizes no storage: it is the owner's establishment identity,
+    /// which a whole owned call argument names as its `StructuralHome`
+    /// producer.
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
         place: StructuralPlaceDeclaration,

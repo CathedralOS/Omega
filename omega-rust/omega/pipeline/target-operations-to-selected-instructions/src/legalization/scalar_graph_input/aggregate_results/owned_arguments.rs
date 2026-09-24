@@ -83,6 +83,23 @@ pub(super) fn reconstruct(
             return Err(LegalizationError::custody());
         }
         retained.placement.clone().into()
+    } else if let Some((producer, structural_type, producer_site)) =
+        trivial_affine_local(caller, argument.place)
+    {
+        // An empty-record local has no bytes: the call replays its exact
+        // establishment as the producer, and the zero-byte placement carries
+        // nothing. The establishment must precede the call like any producer.
+        if structural_type != destination.structural_type
+            || destination.multiplicity != StructuralMultiplicity::Affine
+            || !destination.qualifications.is_empty()
+            || shape.byte_size != 0
+            || !precedes(caller, producer_site, call_operation, argument)?
+        {
+            return Err(LegalizationError::custody());
+        }
+        target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        }
     } else {
         let (producer, result) = structural_case::source_result(caller, argument.place)?;
         if result.structural_type != destination.structural_type
@@ -93,55 +110,16 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        let producer_site = caller
-            .blocks
-            .iter()
-            .find_map(|block| {
-                block.nodes.iter().enumerate().find_map(|(position, node)| {
-                    matches!(&node.operation,
+        let producer_site = node_site(caller, |operation| {
+            matches!(operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural { psi_operation, result: actual, .. }
                 if *psi_operation == producer && actual == result)
-                    .then_some((block.id, position))
-                })
-            })
-            .ok_or(LegalizationError::custody())?;
-        let call_site =
-            caller
-                .blocks
-                .iter()
-                .find_map(|block| {
-                    block.nodes.iter().enumerate().find_map(|(position, node)| {
-                        match &node.operation {
-                            AbstractOperation::CallStructural {
-                                psi_operation,
-                                structural_arguments,
-                                ..
-                            }
-                            | AbstractOperation::CallUnit {
-                                psi_operation,
-                                structural_arguments,
-                                ..
-                            }
-                            | AbstractOperation::CallStructuralScalar {
-                                psi_operation,
-                                structural_arguments,
-                                ..
-                            } if *psi_operation == call_operation
-                                && structural_arguments.contains(argument) =>
-                            {
-                                Some((block.id, position))
-                            }
-                            _ => None,
-                        }
-                    })
-                })
-                .ok_or(LegalizationError::custody())?;
-        if (producer_site.0 == call_site.0 && producer_site.1 >= call_site.1)
-            || (producer_site.0 != call_site.0
-                && !target::control_flow::sources::dominates(caller, producer_site.0, call_site.0))
+        })
+        .ok_or(LegalizationError::custody())?;
+        if !precedes(caller, producer_site, call_operation, argument)?
             || !caller.structural_places.iter().any(|place| {
                 place.id == result.place
                     && place.kind
@@ -177,4 +155,82 @@ pub(super) fn reconstruct(
         source,
         destination: placement.clone(),
     })
+}
+
+/// The block and position of the one node `matches` selects.
+fn node_site(
+    caller: &PsiOptimizationFunction,
+    matches: impl Fn(&AbstractOperation) -> bool,
+) -> Option<(semantic_vocabulary::BlockId, usize)> {
+    caller.blocks.iter().find_map(|block| {
+        block
+            .nodes
+            .iter()
+            .position(|node| matches(&node.operation))
+            .map(|position| (block.id, position))
+    })
+}
+
+/// Whether the producer at `producer_site` runs before the call that passes
+/// `argument`: earlier in the call's block, or in a dominating block.
+fn precedes(
+    caller: &PsiOptimizationFunction,
+    producer_site: (semantic_vocabulary::BlockId, usize),
+    call_operation: semantic_vocabulary::OperationId,
+    argument: &terminal_psi::StructuralArgument,
+) -> Result<bool, LegalizationError> {
+    let call_site = node_site(caller, |operation| match operation {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnit {
+            psi_operation,
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => *psi_operation == call_operation && structural_arguments.contains(argument),
+        _ => false,
+    })
+    .ok_or(LegalizationError::custody())?;
+    Ok(if producer_site.0 == call_site.0 {
+        producer_site.1 < call_site.1
+    } else {
+        target::control_flow::sources::dominates(caller, producer_site.0, call_site.0)
+    })
+}
+
+/// The one `EstablishTrivialAffineLocal` minting `place`: its operation,
+/// declared empty-record type and site.
+fn trivial_affine_local(
+    caller: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+    (semantic_vocabulary::BlockId, usize),
+)> {
+    let mut establishments = caller.blocks.iter().flat_map(|block| {
+        block
+            .nodes
+            .iter()
+            .enumerate()
+            .filter_map(move |(position, node)| match &node.operation {
+                AbstractOperation::EstablishTrivialAffineLocal {
+                    psi_operation,
+                    place: declaration,
+                    structural_type,
+                } if declaration.id == place => {
+                    Some((*psi_operation, structural_type.id, (block.id, position)))
+                }
+                _ => None,
+            })
+    });
+    let establishment = establishments.next()?;
+    establishments.next().is_none().then_some(establishment)
 }

@@ -26,6 +26,14 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                     &plan.structural_types,
                 ).is_some()
         })
+        // Target lowering suppresses owned arrival homes only for bodies the
+        // unused-owned-input route replays (`unobserved_owned::body`, the
+        // mirror of its `unobserved_owned::accepts`). Any other owned
+        // arrival, such as an attached selected-operator realization, was
+        // lowered through the ordinary graph with its complete ABI.
+        || (function.structural_parameters.iter().any(|parameter| {
+            parameter.access == terminal_psi::StructuralAccess::Owned
+        }) && !super::unobserved_owned::body(function))
         || function
             .blocks
             .iter()
@@ -43,6 +51,9 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
                         | AbstractOperation::StructuralLeafCopy { .. }
+                        | AbstractOperation::MoveStructuralField { .. }
+                        | AbstractOperation::StoreStructuralField { .. }
+                        | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::CallStructural { .. }
                         | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,
@@ -134,6 +145,27 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
             }
             if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }) {
                 return super::literals::declaration_producer(function, place.id).is_some();
+            }
+            // An empty-record local is justified by its one exact
+            // establishment of the type the place declares.
+            if let StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } = place.kind
+            {
+                return function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .filter(|node| {
+                        matches!(&node.operation,
+                            AbstractOperation::EstablishTrivialAffineLocal {
+                                place: established,
+                                structural_type: declaration,
+                                ..
+                            } if *established == *place && declaration.id == structural_type)
+                    })
+                    .count()
+                    == 1;
             }
             // One graph may own primitive storage alongside aggregate results.
             // Keep each place joined to its exact producer; the primitive input

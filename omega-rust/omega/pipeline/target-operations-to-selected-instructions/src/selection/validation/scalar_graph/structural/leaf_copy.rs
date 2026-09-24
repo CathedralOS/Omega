@@ -1,4 +1,5 @@
-//! Replay the durable-root leaf copy into fresh activation storage.
+//! Replay the durable-root extent copy into fresh activation storage and the
+//! borrowed window's inverse reseat.
 use super::{
     IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
@@ -8,8 +9,9 @@ use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::structural::local_storage;
 use crate::selection::validation::scalar_graph::structural::provenance;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
 use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::PlaceId;
 
 #[track_caller]
 fn invalid() -> SelectedInstructionError {
@@ -148,40 +150,139 @@ pub(super) fn copy(
         )?;
         input = address;
     }
+    copy_bytes(
+        replay,
+        row,
+        CopyEnd {
+            place: *source,
+            pointer: input,
+            byte_offset: *byte_offset,
+        },
+        CopyEnd {
+            place: result.place,
+            pointer,
+            byte_offset: 0,
+        },
+        u32::from(shape.byte_size),
+    )?;
+    replay.transport.pointers.push((result.place, pointer));
+    Ok(())
+}
+
+/// Replay mirror of construction `reseat`: the consumed value's home is read
+/// through its durable pointer and written through the root's referent
+/// pointer at the vacated field's offset, by the same chunked copy.
+pub(super) fn reseat(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    replay: &mut Replay<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::StoreStructuralField {
+        destination,
+        value,
+        byte_offset,
+        shape,
+        ..
+    } = &row.kind
+    else {
+        return Err(invalid());
+    };
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+    if row.result.is_some()
+        || destination.access != terminal_psi::StructuralAccess::MutableBorrow
+        || !signature
+            .parameters
+            .iter()
+            .any(|parameter| parameter.semantic == *destination)
+    {
+        return Err(invalid());
+    }
+    if shape.byte_size == 0 {
+        replay.pending_provenance.operations.push(row.operation);
+        replay
+            .pending_provenance
+            .fuel
+            .extend(row.fuel.iter().cloned());
+        return Ok(());
+    }
+    let pointer_of = |place| {
+        replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(owner, _)| *owner == place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| invalid())
+    };
+    let root = pointer_of(destination.place)?;
+    let home = pointer_of(*value)?;
+    copy_bytes(
+        replay,
+        row,
+        CopyEnd {
+            place: *value,
+            pointer: home,
+            byte_offset: 0,
+        },
+        CopyEnd {
+            place: destination.place,
+            pointer: root,
+            byte_offset: *byte_offset,
+        },
+        u32::from(shape.byte_size),
+    )
+}
+
+/// One end of a replayed chunked byte copy; see construction `CopyEnd`.
+struct CopyEnd {
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    byte_offset: u32,
+}
+
+/// Replay mirror of construction `copy_bytes`.
+fn copy_bytes(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    from: CopyEnd,
+    to: CopyEnd,
+    byte_size: u32,
+) -> Result<(), SelectedInstructionError> {
     let mut cursor = 0u32;
-    while cursor < u32::from(shape.byte_size) {
-        let width = chunk(u32::from(shape.byte_size) - cursor);
-        let value = super::result(replay, *source, *byte_offset + cursor)?;
+    while cursor < byte_size {
+        let width = chunk(byte_size - cursor);
+        let load_offset = from.byte_offset + cursor;
+        let value = super::result(replay, from.place, load_offset)?;
         memory(
             replay,
             row,
-            *source,
-            *byte_offset + cursor,
+            from.place,
+            load_offset,
             u32::from(width),
             SelectedMemoryAccessRole::ReadPlace,
         )?;
         let (kind, key) = match width {
             8 => (
                 SelectedInstructionKind::Load64 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 replay.constraints.keys.load64,
             ),
             4 => (
                 SelectedInstructionKind::Load32 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 replay.constraints.keys.load32,
             ),
             2 => (
                 SelectedInstructionKind::Load16 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 replay.constraints.keys.load16,
             ),
             _ => (
                 SelectedInstructionKind::Load8 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 replay.constraints.keys.load8,
             ),
@@ -189,29 +290,29 @@ pub(super) fn copy(
         replay.check_instruction(
             kind,
             key.ok_or_else(|| invalid())?,
-            &[input, value],
+            &[from.pointer, value],
             &provenance(row),
         )?;
+        let store_offset = to.byte_offset + cursor;
         memory(
             replay,
             row,
-            result.place,
-            cursor,
+            to.place,
+            store_offset,
             u32::from(width),
             SelectedMemoryAccessRole::WritePlace,
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Store {
-                byte_offset: cursor,
+                byte_offset: store_offset,
                 byte_size: width,
             },
             replay.constraints.keys.store.ok_or_else(|| invalid())?,
-            &[pointer, value],
+            &[to.pointer, value],
             &provenance(row),
         )?;
         cursor += u32::from(width);
     }
-    replay.transport.pointers.push((result.place, pointer));
     Ok(())
 }
 
