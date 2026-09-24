@@ -26,8 +26,9 @@ use crate::unit::dynamic_composed_unit::applications::{
     lower_initial_rebound_application, validate_empty_contract, validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicLoweringLane, LoweredDynamicRealization,
+    DynamicLoweringLane, ForwardedHelperCall, LoweredDynamicRealization,
 };
+use crate::unit::dynamic_composed_unit::forwarded_helpers::extend_parameter_forwarding_catalog;
 use crate::unit::dynamic_composed_unit::plan_validation::{
     validate_forwarded_dynamic_call_coordinates, validate_parameter_forwarding_call,
 };
@@ -46,6 +47,16 @@ pub(super) struct ForwardedUnitHelperIds {
     pub(super) block: semantic_vocabulary::BlockId,
     pub(super) operation: semantic_vocabulary::OperationId,
     pub(super) edge: semantic_vocabulary::EdgeId,
+}
+
+impl ForwardedHelperCall for ForwardedUnitHelperIds {
+    fn machine(&self) -> semantic_vocabulary::MachineId {
+        self.machine
+    }
+
+    fn operation(&self) -> semantic_vocabulary::OperationId {
+        self.operation
+    }
 }
 
 pub(super) fn lower_dynamic_unit_machine(
@@ -163,7 +174,7 @@ pub(super) fn lower_dynamic_unit_machine(
     )?;
     let mut dynamic_dispatch = dynamic_dispatch;
     if forwarded_helpers.len() > 1 {
-        extend_unit_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
+        extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
     }
     let caller_reach = lower_installation_machine_service_ceiling(
         checked,
@@ -799,38 +810,6 @@ fn validate_unit_forwarding_transfer_path(
         source_parameter = transfer.parameter;
     }
     Ok(machine == final_machine && state == final_state && source_parameter == final_parameter)
-}
-
-pub(super) fn extend_unit_parameter_forwarding_catalog(
-    catalog: &mut TerminalDynamicDispatchCatalog,
-    helpers: &[ForwardedUnitHelperIds],
-) -> Result<(), LoweringError> {
-    let [template] = catalog.parameters.as_slice() else {
-        return unsupported("multi-hop dynamic Unit forwarding lost its first parameter interface");
-    };
-    let template = template.clone();
-    let [dispatch] = catalog.parameter_dispatches.as_mut_slice() else {
-        return unsupported("multi-hop dynamic Unit forwarding lost its final parameter dispatch");
-    };
-    for helper in &helpers[1..] {
-        let mut parameter = template.clone();
-        parameter.owner = helper.machine;
-        catalog.parameters.push(parameter);
-    }
-    for pair in helpers.windows(2) {
-        catalog.arguments.push(TerminalDynamicDescriptorArgument {
-            owner: pair[0].machine,
-            operation: pair[0].operation,
-            parameter_ordinal: 0,
-            source: TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
-        });
-    }
-    let final_helper = helpers.last().ok_or(LoweringError::Unsupported(
-        "multi-hop dynamic Unit forwarding has no final helper",
-    ))?;
-    dispatch.owner = final_helper.machine;
-    dispatch.operation = final_helper.operation;
-    Ok(())
 }
 
 pub(super) fn forwarded_unit_helper_ids(

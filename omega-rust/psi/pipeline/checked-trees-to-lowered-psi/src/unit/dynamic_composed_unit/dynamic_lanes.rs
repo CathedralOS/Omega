@@ -73,6 +73,23 @@ pub(crate) struct ForwardedHelperIds {
     pub(crate) edge: semantic_vocabulary::EdgeId,
 }
 
+/// The call a forwarded helper exposes to the descriptor catalog and source
+/// custody, whichever result its lane lowers.
+pub(crate) trait ForwardedHelperCall: Copy {
+    fn machine(&self) -> MachineId;
+    fn operation(&self) -> semantic_vocabulary::OperationId;
+}
+
+impl ForwardedHelperCall for ForwardedHelperIds {
+    fn machine(&self) -> MachineId {
+        self.machine
+    }
+
+    fn operation(&self) -> semantic_vocabulary::OperationId {
+        self.operation
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum DynamicLoweringLane<'a> {
     Direct,

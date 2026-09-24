@@ -11,9 +11,9 @@
 //! resolves the checked binding kind (direct, rebound, stored or joined) into
 //! a lowering route and hands that route to the body for the plan's result
 //! shape. `dynamic_lanes.rs` carries the lane shapes and the scalar-composed
-//! single-call lowering, `unit.rs` its Unit-result counterpart, `join.rs` and
-//! `unit_join.rs` the two-branch joins, and `continuation.rs` the scalar
-//! result that immediately selects Unit control. `plan_validation.rs`
+//! single-call lowering, `unit.rs` its Unit-result counterpart, `join.rs` the
+//! one two-branch join for either result shape, and `continuation.rs` the
+//! scalar result that immediately selects Unit control. `plan_validation.rs`
 //! validates the exact plans, `source_lowering.rs` lowers sources and call
 //! custody, `forwarded_helpers.rs` materializes forwarded helper chains,
 //! `structural_types.rs` lowers structural types, `realizations.rs` collects
@@ -32,7 +32,6 @@ mod source_lowering;
 mod store_operations;
 mod structural_types;
 mod unit;
-mod unit_join;
 
 use super::{
     CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, PrimitiveType,
@@ -157,16 +156,7 @@ pub(crate) fn lower_dynamic_dispatch_machine(
                 control,
                 when_true,
                 when_false,
-            } => LoweredDynamicDispatch::EntryOnly {
-                terminal: join::lower(checked, control, when_true, when_false)?,
-                source_machines: joined_source_machines(
-                    caller,
-                    [
-                        when_true.call.realization_machine,
-                        when_false.call.realization_machine,
-                    ],
-                ),
-            },
+            } => lower_joined_dispatch(checked, caller, control, when_true, when_false)?,
         },
         CheckedDynamicDispatchPlan::Unit(binding) => match dynamic_dispatch_route(binding) {
             DynamicDispatchRoute::Single { call, lane } => LoweredDynamicDispatch::EntryOnly {
@@ -177,27 +167,29 @@ pub(crate) fn lower_dynamic_dispatch_machine(
                 control,
                 when_true,
                 when_false,
-            } => LoweredDynamicDispatch::EntryOnly {
-                terminal: unit_join::lower(checked, control, when_true, when_false)?,
-                source_machines: joined_source_machines(
-                    caller,
-                    [
-                        when_true.call.realization_machine,
-                        when_false.call.realization_machine,
-                    ],
-                ),
-            },
+            } => lower_joined_dispatch(checked, caller, control, when_true, when_false)?,
         },
     })
 }
 
-fn joined_source_machines(
+/// Either result shape lowers its join through the one join lowering; the
+/// entry retains the caller and each branch's selected realization.
+fn lower_joined_dispatch<Call: join::JoinedDynamicCall>(
+    checked: &CheckedTrees,
     caller: symbols::SymbolHandle,
-    realizations: [symbols::SymbolHandle; 2],
-) -> Vec<symbols::SymbolHandle> {
-    let mut sources = vec![caller];
-    sources.extend(realizations);
-    sources.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
-    sources.dedup();
-    sources
+    control: &checked_trees::CheckedDynamicJoinControlPlan,
+    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<Call>,
+    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<Call>,
+) -> Result<LoweredDynamicDispatch, LoweringError> {
+    let mut source_machines = vec![
+        caller,
+        when_true.call.view().realization_machine(),
+        when_false.call.view().realization_machine(),
+    ];
+    source_machines.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
+    source_machines.dedup();
+    Ok(LoweredDynamicDispatch::EntryOnly {
+        terminal: join::lower(checked, control, when_true, when_false)?,
+        source_machines,
+    })
 }
