@@ -1234,12 +1234,10 @@ fn build_structural_field_store_at(
         {
             return None;
         }
-        let Some(field_data) = crate::facts::field_domain::data_definition_for_field_type(
+        let field_data = crate::facts::field_domain::data_definition_for_field_type(
             program,
             field.type_reference,
-        ) else {
-            return None;
-        };
+        )?;
         if !unrestricted_sum(field_data, program) {
             return None;
         }
