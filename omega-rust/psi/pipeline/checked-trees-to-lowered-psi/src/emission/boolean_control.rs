@@ -248,19 +248,36 @@ pub(crate) fn boolean_decision_block_count(decision: &LoweredBooleanDecision) ->
     }
 }
 
-pub(crate) fn boolean_decision_test_count(decision: &LoweredBooleanDecision) -> usize {
+/// The blocks a guard decision's emission reserves: one per test or case
+/// dispatch, plus the entry block each case edge takes into an outcome that is
+/// not its own reserved test: the selected case's into a shared successor, and
+/// every unselected case's into the false outcome.
+pub(crate) fn boolean_guard_decision_block_count(decision: &LoweredBooleanDecision) -> usize {
     match decision {
         LoweredBooleanDecision::Value(_) => 0,
         LoweredBooleanDecision::Test {
             when_true,
             when_false,
             ..
+        } => {
+            1 + boolean_guard_decision_block_count(when_true)
+                + boolean_guard_decision_block_count(when_false)
         }
-        | LoweredBooleanDecision::CaseDispatch {
+        LoweredBooleanDecision::CaseDispatch {
+            dispatch,
             when_true,
             when_false,
-            ..
-        } => 1 + boolean_decision_test_count(when_true) + boolean_decision_test_count(when_false),
+        } => {
+            let selected_entry = usize::from(matches!(
+                when_true.as_ref(),
+                LoweredBooleanDecision::Value(_)
+            ));
+            let unselected_entries = dispatch.cases.len().saturating_sub(1);
+            1 + selected_entry
+                + unselected_entries
+                + boolean_guard_decision_block_count(when_true)
+                + boolean_guard_decision_block_count(when_false)
+        }
     }
 }
 
@@ -271,6 +288,53 @@ pub(crate) struct LoweredBooleanDecisionTarget {
 }
 
 #[allow(clippy::too_many_arguments)]
+/// A fresh block a case edge enters with exactly `parameters`, jumping on to
+/// `target` with its arguments. The arguments are values of the dispatching
+/// block's namespace, which dominates this one.
+fn reserve_case_entry(
+    target: LoweredBooleanDecisionTarget,
+    parameters: Vec<ValueDeclaration>,
+    first_block_identity: u64,
+    next_edge_identity: &mut u64,
+    blocks: &mut Vec<Option<Block>>,
+) -> LoweredBooleanDecisionTarget {
+    let block_index = blocks.len();
+    let block = block_id(
+        first_block_identity
+            .checked_add(
+                u64::try_from(block_index)
+                    .expect("reserved guard block count fits a semantic identity"),
+            )
+            .expect("reserved guard block identity advances"),
+    );
+    let edge = edge_id(*next_edge_identity);
+    *next_edge_identity = next_edge_identity
+        .checked_add(1)
+        .expect("reserved guard case entry edge identity advances");
+    blocks.push(Some(Block {
+        structural_parameters: Vec::new(),
+        id: block,
+        parameters,
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::Jump {
+            edge,
+            target: target.block,
+            arguments: target.arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    }));
+    LoweredBooleanDecisionTarget {
+        block,
+        arguments: Vec::new(),
+    }
+}
+
 fn emit_reserved_boolean_guard_decision_blocks(
     decision: &LoweredBooleanDecision,
     parameters: &[ValueDeclaration],
@@ -396,21 +460,51 @@ fn emit_reserved_boolean_guard_decision_blocks(
                     .expect("reserved guard block identity advances"),
             );
             blocks.push(None);
-            // The selected block receives the payload as its parameters; the
-            // planner only dispatches when that outcome reads it, so the
-            // outcome is a fresh reserved block rather than a shared target.
-            let when_true = emit_reserved_boolean_guard_decision_blocks(
-                when_true,
-                parameters,
-                dispatch.payloads.iter().map(|(_, value)| *value).collect(),
-                when_true_target,
-                when_false_target,
-                first_block_identity,
-                next_value_identity,
-                next_edge_identity,
-                all_operations,
-                blocks,
-            );
+            // A case edge binds exactly its case's payload as the target
+            // block's parameters: the selected block receives the payload and
+            // every unselected case's block receives nothing. A nested test
+            // reserves such a block itself; a selected outcome that is a
+            // shared successor, and every unselected case, is entered through
+            // a fresh block that jumps on.
+            let payload_parameters = dispatch
+                .payloads
+                .iter()
+                .map(|(_, value)| *value)
+                .collect::<Vec<_>>();
+            let when_true = if matches!(when_true.as_ref(), LoweredBooleanDecision::Value(_)) {
+                let target = emit_reserved_boolean_guard_decision_blocks(
+                    when_true,
+                    parameters,
+                    Vec::new(),
+                    when_true_target,
+                    when_false_target,
+                    first_block_identity,
+                    next_value_identity,
+                    next_edge_identity,
+                    all_operations,
+                    blocks,
+                );
+                reserve_case_entry(
+                    target,
+                    payload_parameters,
+                    first_block_identity,
+                    next_edge_identity,
+                    blocks,
+                )
+            } else {
+                emit_reserved_boolean_guard_decision_blocks(
+                    when_true,
+                    parameters,
+                    payload_parameters,
+                    when_true_target,
+                    when_false_target,
+                    first_block_identity,
+                    next_value_identity,
+                    next_edge_identity,
+                    all_operations,
+                    blocks,
+                )
+            };
             let when_false = emit_reserved_boolean_guard_decision_blocks(
                 when_false,
                 parameters,
@@ -431,18 +525,29 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 .cases
                 .iter()
                 .map(|case| {
+                    let selected = *case == dispatch.selected;
+                    // Every unselected case enters its own block, as each case
+                    // of a closed-sum dispatch does, before reaching the shared
+                    // false outcome.
+                    let target = if selected {
+                        when_true.block
+                    } else {
+                        reserve_case_entry(
+                            when_false.clone(),
+                            Vec::new(),
+                            first_block_identity,
+                            next_edge_identity,
+                            blocks,
+                        )
+                        .block
+                    };
                     let edge = edge_id(*next_edge_identity);
                     *next_edge_identity = next_edge_identity
                         .checked_add(1)
                         .expect("reserved guard case edge identity advances");
-                    let selected = *case == dispatch.selected;
                     StructuralCaseSuccessorEdge {
                         edge,
-                        target: if selected {
-                            when_true.block
-                        } else {
-                            when_false.block
-                        },
+                        target,
                         case: *case,
                         payload_fields: if selected {
                             dispatch.payloads.iter().map(|(field, _)| *field).collect()

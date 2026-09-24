@@ -49,13 +49,25 @@ pub(crate) struct PlannedGuard {
 /// exact declared sum roster of a whole structural root; payload parameters
 /// are appended to `namespace`, the scalar namespace the decision blocks and
 /// the selected edge share.
+///
+/// `outcome_reads_payloads` says the successor the guard's true outcome
+/// selects may read a case payload, as a transition argument does: a true leaf
+/// then stands for that read, so a whole-root case test reaching it becomes a
+/// dispatch whose payloads that successor can use.
 pub(crate) fn plan<'a>(
     decision: LoweredBooleanDecision,
     declared_cases: &impl Fn(PlaceId) -> Option<&'a [StructuralCaseDeclaration]>,
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    outcome_reads_payloads: bool,
 ) -> Result<PlannedGuard, LoweringError> {
-    let decision = plan_decision(decision, declared_cases, namespace, next_value)?;
+    let decision = plan_decision(
+        decision,
+        declared_cases,
+        namespace,
+        next_value,
+        outcome_reads_payloads,
+    )?;
     let established = established_on_true(&decision, namespace).unwrap_or_default();
     Ok(PlannedGuard {
         decision,
@@ -68,6 +80,7 @@ fn plan_decision<'a>(
     declared_cases: &impl Fn(PlaceId) -> Option<&'a [StructuralCaseDeclaration]>,
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
+    outcome_reads_payloads: bool,
 ) -> Result<LoweredBooleanDecision, LoweringError> {
     match decision {
         LoweredBooleanDecision::Value(expression) => {
@@ -94,19 +107,24 @@ fn plan_decision<'a>(
                         declared_cases,
                         namespace,
                         next_value,
+                        outcome_reads_payloads,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
                         declared_cases,
                         namespace,
                         next_value,
+                        outcome_reads_payloads,
                     )?),
                 });
             };
             // Only a whole root has a dispatch terminator, and only a test
             // whose true outcome reads that case's payload needs one; every
             // other test keeps its ordinary membership observation.
-            let declared = if path.is_empty() && decision_reads_case(&when_true, *source, *case) {
+            let declared = if path.is_empty()
+                && (decision_reads_case(&when_true, *source, *case)
+                    || (outcome_reads_payloads && reaches_true_outcome(&when_true)))
+            {
                 declared_cases(*source)
             } else {
                 None
@@ -118,12 +136,14 @@ fn plan_decision<'a>(
                         declared_cases,
                         namespace,
                         next_value,
+                        outcome_reads_payloads,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
                         declared_cases,
                         namespace,
                         next_value,
+                        outcome_reads_payloads,
                     )?),
                     condition,
                 });
@@ -183,12 +203,14 @@ fn plan_decision<'a>(
                     declared_cases,
                     namespace,
                     next_value,
+                    outcome_reads_payloads,
                 )?),
                 when_false: Box::new(plan_decision(
                     *when_false,
                     declared_cases,
                     namespace,
                     next_value,
+                    outcome_reads_payloads,
                 )?),
             })
         }
@@ -554,6 +576,27 @@ fn boolean_reads_case_payload(expression: &LoweredBooleanReturnExpression) -> bo
 }
 
 /// Whether a still-deferred read below this outcome observes `case` of `source`.
+/// Whether a decision can end in the guard's true outcome: any leaf but a
+/// constant false.
+fn reaches_true_outcome(decision: &LoweredBooleanDecision) -> bool {
+    match decision {
+        LoweredBooleanDecision::Value(expression) => !matches!(
+            expression,
+            LoweredBooleanReturnExpression::Constant { value: false }
+        ),
+        LoweredBooleanDecision::Test {
+            when_true,
+            when_false,
+            ..
+        }
+        | LoweredBooleanDecision::CaseDispatch {
+            when_true,
+            when_false,
+            ..
+        } => reaches_true_outcome(when_true) || reaches_true_outcome(when_false),
+    }
+}
+
 fn decision_reads_case(
     decision: &LoweredBooleanDecision,
     source: PlaceId,
@@ -681,6 +724,7 @@ mod tests {
             &|_| Some(cases.as_slice()),
             &mut namespace,
             &mut next_value,
+            false,
         )
         .expect("the read sits below its own case test");
         let LoweredBooleanDecision::CaseDispatch {
@@ -716,6 +760,60 @@ mod tests {
         );
     }
 
+    /// A bare case test whose true outcome is a successor reading payloads:
+    /// the successor, not the guard, reads, so only the outcome flag makes the
+    /// test a dispatch. Without it the test stays a membership observation.
+    #[test]
+    fn a_case_test_before_a_payload_reading_successor_establishes_its_payloads() {
+        let cases = roster();
+        let test = || LoweredBooleanDecision::Test {
+            condition: LoweredBooleanReturnExpression::StructuralCaseMembership {
+                source: PlaceId::new(7).unwrap(),
+                path: Vec::new(),
+                case: StructuralCaseId::new(1).unwrap(),
+            },
+            when_true: Box::new(outcome(true)),
+            when_false: Box::new(outcome(false)),
+        };
+        let mut namespace = Vec::new();
+        let planned = plan(
+            test(),
+            &|_| Some(cases.as_slice()),
+            &mut namespace,
+            &mut 100,
+            true,
+        )
+        .expect("a successor-read case test plans");
+        assert!(matches!(
+            planned.decision,
+            LoweredBooleanDecision::CaseDispatch { .. }
+        ));
+        assert_eq!(
+            planned
+                .established
+                .iter()
+                .map(|row| (row.field, row.position))
+                .collect::<Vec<_>>(),
+            vec![
+                (StructuralFieldId::new(1).unwrap(), 0),
+                (StructuralFieldId::new(2).unwrap(), 1)
+            ]
+        );
+        let planned = plan(
+            test(),
+            &|_| Some(cases.as_slice()),
+            &mut Vec::new(),
+            &mut 100,
+            false,
+        )
+        .expect("an unread case test plans");
+        assert!(matches!(
+            planned.decision,
+            LoweredBooleanDecision::Test { .. }
+        ));
+        assert!(planned.established.is_empty());
+    }
+
     #[test]
     fn payload_read_without_its_case_established_is_refused() {
         let cases = roster();
@@ -727,6 +825,7 @@ mod tests {
                 &|_| Some(cases.as_slice()),
                 &mut Vec::new(),
                 &mut 100,
+                false,
             )
             .err()
             .expect("an unestablished payload read is refused");

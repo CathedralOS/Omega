@@ -24,6 +24,7 @@ impl Evaluation {
         state: symbols::SymbolHandle,
         statement: u32,
         values: &[ValueDeclaration],
+        successor_reads_payloads: bool,
     ) -> Result<Option<LoweredBooleanReturnExpression>, LoweringError> {
         let role = CheckedScalarExpressionRole::Guard;
         if checked
@@ -69,7 +70,12 @@ impl Evaluation {
             // case test; the guard's case dispatch binds or refuses each read.
             .with_deferred_case_payloads();
         let expression = bindings.expression(value)?;
-        if !direct_expression_contains_short_circuit(&expression) {
+        // A short-circuit guard is always a planned decision. So is a whole-root
+        // case test whose successor may read that case's payload: only the
+        // decision's dispatch establishes the payload for it.
+        if !direct_expression_contains_short_circuit(&expression)
+            && !(successor_reads_payloads && direct_expression_tests_whole_root_case(&expression))
+        {
             return Ok(None);
         }
         validate_direct_parameter_types(
@@ -315,4 +321,21 @@ impl Evaluation {
             _ => unsupported("scalar source has no single completed value"),
         }
     }
+}
+
+/// Whether a Boolean guard tests a case of a whole structural root anywhere.
+fn direct_expression_tests_whole_root_case(expression: &LoweredDirectExpression) -> bool {
+    fn tests(expression: &LoweredBooleanReturnExpression) -> bool {
+        match expression {
+            LoweredBooleanReturnExpression::StructuralCaseMembership { path, .. } => {
+                path.is_empty()
+            }
+            LoweredBooleanReturnExpression::Not { operand } => tests(operand),
+            LoweredBooleanReturnExpression::Equal { left, right } => tests(left) || tests(right),
+            LoweredBooleanReturnExpression::And { left, right }
+            | LoweredBooleanReturnExpression::Or { left, right } => tests(left) || tests(right),
+            _ => false,
+        }
+    }
+    matches!(expression, LoweredDirectExpression::Boolean { expression } if tests(expression))
 }
