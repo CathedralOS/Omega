@@ -339,3 +339,37 @@ per-call medians dominate within their bands by 50–100× the small/large split
 and run-to-run variance on this class of host is far below the 4:1 phase
 separation. No optimization target is chosen by this measurement alone;
 `build_flow_facts` internals are the next attribution leg.
+
+## Windows test-profile optimization level
+
+Host: Windows 11, 24 cores, 2026-09-24, working tree at `3c8c704c25`. The
+question was where one owner canary test spends 40 s in the default test
+profile, and whether codegen level explains it. `OMEGA_TEST_TIMINGS=1`
+prints the harness split; `--timings` on the release CLI gave the
+per-package review split.
+
+| Measurement | opt-level 0 | opt-level 1 |
+| --- | --- | --- |
+| owner test `runtime_transition_arg_saturating_exit_canary_runs`, wall | 40.0 s | 8.6 s |
+| its fixture package review (a preliminary whole-program check) | 22.4 s | 4.7 s |
+| its `compiler::compile` (Stage 05 twice: build continuation, settlement) | 17.4 s | 3.8 s |
+| rebuild of the canary-suite binary after touching the checking crate | 41.9 s | 12.6 s |
+| full rebuild of the canary-suite binary | (not measured) | 2 m 33 s |
+| `typed-trees-to-checked-trees` library tests, 5,347 | 32.6 s | 23.5 s |
+
+Optimizing only the checking crate (`opt-level = 3` for
+`typed-trees-to-checked-trees`, 53 s to build) left the owner test at
+39.2 s: the whole-program check is spread across the Psi crates, so a
+per-crate override cannot reach it. The release CLI shows the same shape
+at its own level: `omega --check` of the same 20-line fixture takes 40 s
+because the package review checks the 27.5k-line standard library four
+times (two review passes, each with a preliminary and a settled check) at
+7.2 s each, while a fixture that imports no library checks in 14 ms. That
+duplication is the CHECK-CLOSURE-ONCE item on TASKS.md; the profile change
+below is independent of it.
+
+Result: `[profile.test] opt-level = 1` in the workspace `Cargo.toml`, with
+debug assertions and overflow checks unchanged. Single run per cell, no
+repeats; the 4.6-times ratio is far outside run-to-run variance on this host
+(the same owner test repeated at 40.8 s, 40.9 s and 39.2 s unoptimized,
+8.6 s and 8.7 s optimized).
