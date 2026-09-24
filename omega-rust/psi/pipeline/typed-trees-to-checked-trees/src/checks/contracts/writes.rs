@@ -1649,6 +1649,14 @@ fn value_proves_domain(
     value: ExpressionHandle,
     domain_symbol: SymbolHandle,
 ) -> bool {
+    // IDENTITY. A value whose DECLARED TYPE already carries this domain is in
+    // it by declaration: a place declared `in D` establishes D at every write,
+    // so reading it yields a value in D and no separate fact is owed. Reading
+    // `self.scalar: i32 in Small` into `let x: i32 in Small` is the whole
+    // obligation, and it is discharged by the declaration that created it.
+    if value_declared_type_carries_domain(program, state_flow, value, domain_symbol) {
+        return true;
+    }
     let entry_constraints = facts
         .flow
         .state_statement(state_flow, statement_index)
@@ -2274,6 +2282,37 @@ mod predicate_domain_write_probes {
         checked_program_result(source).is_ok()
     }
 
+    /// A value whose DECLARED TYPE carries the domain is in it by declaration.
+    /// The controls keep that from becoming "any value that looks right":
+    /// domains are NOMINAL, so a different domain with an identical predicate
+    /// does not satisfy this one, and a bare carrier satisfies nothing.
+    #[test]
+    fn a_value_declared_in_the_domain_is_in_it() {
+        let program = |source_type: &str| {
+            format!(
+                "domain i32::Small requires 0 <= self && self <= 30;
+                domain i32::Twin requires 0 <= self && self <= 30;
+                data Main {{ source: {source_type}; out: i32; }}
+                machine Main::main(&mut self) {{
+                    let direct: i32 in Small = self.source;
+                    self.out = direct;
+                }}"
+            )
+        };
+        assert!(
+            accepted(&program("i32 in Small")),
+            "a value declared in the domain is in it"
+        );
+        assert!(
+            !accepted(&program("i32 in Twin")),
+            "an identical predicate under another NAME is a different domain"
+        );
+        assert!(
+            !accepted(&program("i32")),
+            "a bare carrier carries no domain"
+        );
+    }
+
     #[test]
     fn a_write_establishes_a_predicate_only_domain_it_satisfies() {
         let program = |domain: &str, written: &str| {
@@ -2301,4 +2340,35 @@ mod predicate_domain_write_probes {
             "a ROUTED domain needs provenance, however well the value satisfies its predicate"
         );
     }
+}
+
+/// Whether the value's own declared type carries `domain_symbol`.
+///
+/// This is the identity case of membership, not an inference: the type is the
+/// declaration the place was created under, so a read of it is already a value
+/// of that domain. A value with no resolvable declared type, or one carrying a
+/// different domain, answers `false` and leaves every other route to decide.
+fn value_declared_type_carries_domain(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(type_reference) =
+        validation::declared_place_type_raw(program, machine, Some(state), value)
+    else {
+        return false;
+    };
+    crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
+        .contains(&domain_symbol)
 }
