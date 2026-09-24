@@ -813,6 +813,7 @@ fn close_return_structural(
         && !super::super::scalar::case::plain_return_source(module, machine, *source)
         && !super::super::structural::case::plain_return_source(module, machine, *source)
         && !super::super::structural::leaf_copy::copied_return_source(machine, *source)
+        && !super::super::record::established_record_return_source(module, machine, *source)
         && !super::super::record::plain_return_source(module, machine, *source))
         || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
     {

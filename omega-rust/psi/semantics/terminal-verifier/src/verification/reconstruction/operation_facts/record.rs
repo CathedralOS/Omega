@@ -67,19 +67,25 @@ pub(super) fn append(
             let terminal_psi::RecordFieldValue::Structural(argument) = &binding.value else {
                 unreachable!()
             };
-            let terminal_psi::StructuralFieldType::Structural(child) = declaration.field_type
-            else {
-                return Err(ModuleError::RecordResultMismatch(operation.id));
-            };
-            append_child_fields(
-                module,
-                child,
-                result.place,
-                vec![CanonicalStructuralPathSegment::Field(binding.field)],
-                argument.place,
-                Vec::new(),
-                axioms,
-            );
+            match declaration.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => {
+                    append_child_fields(
+                        module,
+                        child,
+                        result.place,
+                        vec![CanonicalStructuralPathSegment::Field(binding.field)],
+                        argument.place,
+                        Vec::new(),
+                        axioms,
+                    );
+                }
+                // A borrowed-view binding relocates a whole descriptor: there
+                // is no child record to project and no scalar equation to mint.
+                terminal_psi::StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                ) => {}
+                _ => return Err(ModuleError::RecordResultMismatch(operation.id)),
+            }
             continue;
         };
         let path = vec![CanonicalStructuralPathSegment::Field(binding.field)];

@@ -32,12 +32,12 @@ fn receiver_free_parameter_view_result_verifies() {
 }
 
 #[test]
-fn record_construction_with_view_member_reaches_the_record_gate() {
+fn record_construction_with_view_member_lowers_and_verifies() {
     // `Views { view: x, tag: 0 }` mints the record's `view` member from the
     // shared-borrowed parameter exactly as a member projection does: the
-    // unclaimed chain admits the result type, the record value, its field
-    // sources, and its emission — the decline left is the record-field
-    // validation arm the Terminal channel gate has not admitted yet.
+    // result type, the record value, its field sources, and its emission
+    // compose, and the borrowed-view leaf passes the record-field module
+    // gate.
     let checked = crate::front_end::checked_program(
         r#"
             data Views<'r> { view: &'r [u8]; tag: u64; }
@@ -47,28 +47,25 @@ fn record_construction_with_view_member_reaches_the_record_gate() {
             }
         "#,
     );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Views::build"))
-        .expect_err("view-member record construction stops at the record-field module gate");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::RecordResultMismatch { .. }
-            )
-        ),
-        "unexpected outcome: {error:?}"
-    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Views::build"))
+        .expect("view-member record construction composes and lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("view-member record construction verifies");
 }
 
 #[test]
-fn record_with_named_view_member_reaches_the_reference_custody_gate() {
+fn record_with_named_view_member_lowers_and_verifies() {
     // A `&'a V` member keeps its reference shell in the declared field type —
     // `Structural { ref(named(V)) }` — matching the identity the `&`-rooted
-    // literal value mints. The unclaimed chain admits the record and emits
-    // the member's leaf copy; the decline left is the reference-result
-    // custody arm the Terminal channel gate reserves for
-    // `EstablishReference`/call results — copying an existing shared loan's
-    // descriptor needs its own arm.
+    // literal value mints. The record admits the member's affine leaf copy:
+    // copying the shared loan's descriptor relocates it under a fresh
+    // carrier rather than minting custody, and the result's
+    // `reference_sources` roster names the parameter's storage for the
+    // referent leaf.
     let checked = crate::front_end::checked_program(
         r#"
             data Inner { code: u64; }
@@ -79,20 +76,17 @@ fn record_with_named_view_member_reaches_the_reference_custody_gate() {
             }
         "#,
     );
-    let error = lower_machine(
+    let lowered = lower_machine(
         &checked,
         TerminalMachineSelection::Name("NamedViews::build"),
     )
-    .expect_err("named-view member construction stops at the reference custody gate");
-    assert!(
-        matches!(
-            error,
-            crate::lowering_error::LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidReferenceCustody { .. }
-            )
-        ),
-        "unexpected outcome: {error:?}"
-    );
+    .expect("named-view member construction composes and lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("named-view member construction verifies");
 }
 
 #[test]

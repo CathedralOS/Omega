@@ -289,6 +289,22 @@ pub(super) fn carrier_type(
     referent(module, signature.structural_type)
 }
 
+/// A reference declaration whose access is a shared borrow: `&` descriptors
+/// copy freely, so a leaf copy of one relocates an existing loan's descriptor
+/// rather than minting a custody edge.
+fn shared_borrow_reference(module: &TerminalModule, structural_type: StructuralTypeId) -> bool {
+    module.structural_types.iter().any(|declaration| {
+        declaration.id == structural_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::Reference {
+                    access: StructuralAccess::SharedBorrow,
+                    ..
+                }
+            )
+    })
+}
+
 /// Result mappings describe the complete canonical-path-ordered leaf roster, never
 /// assert live custody. Return replay checks the actual relocated carriers;
 /// Borrowed ingress forms new child loans; owned ingress transfers existing
@@ -333,6 +349,16 @@ pub(super) fn validate_machine(
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
             )
+            // A shared-borrow leaf copy transfers an existing loan's
+            // descriptor into fresh unrestricted storage; the loan stays
+            // minted on its source root, so the copy establishes no custody
+            // edge of its own.
+            && !(matches!(
+                operation.kind,
+                OperationKind::StructuralLeafCopy { .. }
+            ) && operation.result.structural().is_some_and(|result| {
+                shared_borrow_reference(module, result.structural_type)
+            }))
         {
             return Err(invalid(
                 machine,
@@ -1141,6 +1167,26 @@ pub(super) fn apply_operation(
         OperationKind::EstablishPrimitiveLocal { .. } => {
             if let Some(result) = operation.result.structural() {
                 check_root_access(machine, live, result.place)?;
+            }
+        }
+        OperationKind::StructuralLeafCopy { source, .. } => {
+            // A `&`-leaf copy relocates the source parameter's existing loan
+            // descriptor: the result is a fresh live carrier rooted at that
+            // same primitive loan — no new edge, no consumption of `source`.
+            if let Some(result) = operation.result.structural()
+                && shared_borrow_reference(module, result.structural_type)
+            {
+                let root = ReferenceOrigin::Primitive(*source);
+                live.push(LiveReference {
+                    identity: ReferenceIdentity {
+                        place: result.place,
+                        path: Vec::new(),
+                    },
+                    carrier: result.place,
+                    carrier_path: Vec::new(),
+                    root: root.clone(),
+                    parent: ReferenceParent::Root(root),
+                });
             }
         }
         _ => {}
