@@ -37,15 +37,6 @@ pub boundary trait Gui {
     machine foreground_window() -> u64;
 }
 
-// The image index, the source and destination pixel cursors, the column within
-// a row, one colour channel, and messages pumped per frame.
-domain i32::ImageIndex requires self >= 0 && self <= 2;
-domain i32::SourceCursor requires self >= 0 && self <= 16384;
-domain i32::PixelIndex requires self >= 0 && self <= 4096;
-domain i32::Column requires self >= 0 && self <= 64;
-domain i32::Channel requires self >= 0 && self <= 255;
-domain i32::PumpCount requires self >= 0 && self <= 16;
-
 data Main {
     console: Binding<Console>;
     clock: Binding<Clock>;
@@ -82,15 +73,15 @@ data Main {
     prev_key: u64;
     next_held: u32;
     prev_held: u32;
-    current: i32 in ImageIndex;
-    src: i32 in SourceCursor;
-    dst: i32 in PixelIndex;
-    col: i32 in Column;
-    b: i32 in Channel;
-    g: i32 in Channel;
-    r: i32 in Channel;
+    current: i32 [0..=2];
+    src: i32 [0..=16384];
+    dst: i32 [0..=4096];
+    col: i32 [0..=64];
+    b: i32 [0..=255];
+    g: i32 [0..=255];
+    r: i32 [0..=255];
     px: i32;
-    pumped: i32 in PumpCount;
+    pumped: i32 [0..=16];
 }
 
 machine Main::main(&mut self) reaches Clock + Console + FilesystemHost + Gui + Input {

@@ -108,14 +108,20 @@ the complete product bar; focused successes below do not establish that baseline
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
   and `arithmetic/runtime_nested_unsigned_witness_exit`. Their temporary repair
   in `979fe50383` incorrectly made an interval-only nominal domain stand in for
-  the removed bracketed spelling. Likewise, `24d91ed906` introduced the four
-  endpoint-named sample domains listed in the owner directive. Correct both
-  changes under this item: transport ordinary proposition facts through entry,
-  scalar graph, state, cast, Terminal, and native routes, then express each
-  source position with the canonical clause. Also run each migrated fixture's
-  run canary before keeping it. A runtime pass obtained by introducing an
-  interval-only domain diagnoses missing proposition transport; it does not
-  justify that source model.
+  the removed bracketed spelling. Correct it under this item: transport
+  ordinary proposition facts through entry, scalar graph, state, cast,
+  Terminal, and native routes, then express each source position with the
+  canonical clause. Also run each migrated fixture's run canary before keeping
+  it. A runtime pass obtained by introducing an interval-only domain diagnoses
+  missing proposition transport; it does not justify that source model. The
+  sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
+  fields have their bracketed spelling back, and the four index fields are
+  unbounded again. reverse_sum then stops at OperationProofUnavailable. Its
+  `data Main where i >= -1, i <= 4` form is refused by the cross-state
+  invariant-window check in `validation/src/proof_contracts/default_domains/
+  assignment_windows.rs`. Terminal header inference never proposes `i < 5`:
+  `field_bounds` does not read through the `as u64` index cast, and a header
+  conjunction is discarded whole when its non-inductive `0 <= i` member fails.
 
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,

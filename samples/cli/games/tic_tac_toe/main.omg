@@ -26,13 +26,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain i32::MoveCount requires self >= 0 && self <= 9;
-
 data Board [copy] {
     cells: [i32; 9];
-    // A board has at most 9 moves: `MoveCount` + the modular-counter idiom
-    // keeps the increment Exact-provable with no overflow domain.
-    move_count: i32 in MoveCount;
+    // A board has at most 9 moves: ranged + the modular-counter idiom keeps the
+    // increment Exact-provable with no overflow domain.
+    move_count: i32 [0..=9];
     winner: i32;
 }
 

@@ -28,9 +28,8 @@ pub boundary trait Gui {
         invokes ObjectiveC; invokes CoreGraphics;
 }
 // FULLY EXACT -- no overflow domain anywhere. The two loop counters carry
-// interval domains and their increments are GUARD-PROVEN (the dominating-guard
-// keystone: `i < 4096` on the edge into fill_put proves `i + 1` lands in
-// `PixelIndex`);
+// ranges and their increments are GUARD-PROVEN (the dominating-guard keystone:
+// `i < 4096` on the edge into fill_put proves `i + 1` lands in [0..=4096]);
 // the pixel wash folds through `% 256` (modulo bounds by the divisor, so the
 // whole expression is verifiably bounded and the intermediates stay plain
 // Exact i32).
@@ -274,11 +273,6 @@ macos_arm64 machine DemoClockProvider::sleep(&mut self, milliseconds: u32) satis
     self.rc = darwin_poll(0, 0, self.timeout);
 }
 
-// Loop counters: messages pumped per frame, frames shown, and pixels written.
-domain i32::PumpCount requires self >= 0 && self <= 16;
-domain i32::FrameCount requires self >= 0 && self <= 60;
-domain i32::PixelIndex requires self >= 0 && self <= 4096;
-
 data Main {
     console: Binding<Console>;
     clock: Binding<Clock>;
@@ -294,10 +288,10 @@ data Main {
     translated: u32;
     dispatched: u64;
     alive: u32;
-    pumped: i32 in PumpCount;
+    pumped: i32 [0..=16];
     copied: u32;
-    frame: i32 in FrameCount;
-    i: i32 in PixelIndex;
+    frame: i32 [0..=60];
+    i: i32 [0..=4096];
     c: i32;
     px: i32;
 }
