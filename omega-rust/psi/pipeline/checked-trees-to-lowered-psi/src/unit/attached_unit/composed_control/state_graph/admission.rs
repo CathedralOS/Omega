@@ -428,16 +428,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },
                 [StatementNode::Transition(transition)],
-            ) if transition.guard == TransitionGuardNode::Always
-                || (matches!(transition.guard, TransitionGuardNode::When(_))
-                    && u32::try_from(terminator_ordinal).is_ok_and(|ordinal| {
-                        checked
-                            .facts
-                            .values
-                            .scalar_expressions
-                            .guard_is_constant_true(state.state, ordinal)
-                    })) =>
-            {
+            ) if transition.guard == TransitionGuardNode::Always => {
                 edges::validate(
                     checked,
                     plan,
@@ -509,22 +500,55 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     terminator_ordinal,
                     guard,
                 )?;
-                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result: return_result,
-                    ..
-                } = return_arm
-                else {
-                    return unsupported(
-                        "Unit graph conditional return arm is not a structural value producer",
-                    );
+                let (jump_source, return_source, jump_ordinal, return_ordinal) =
+                    if *return_when_true {
+                        (
+                            false_source,
+                            true_source,
+                            terminator_ordinal + 1,
+                            terminator_ordinal,
+                        )
+                    } else {
+                        (
+                            true_source,
+                            false_source,
+                            terminator_ordinal,
+                            terminator_ordinal + 1,
+                        )
+                    };
+                let arm_ordinal = match return_arm {
+                    checked_trees::CheckedConditionalReturnArm::Structural(
+                        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            result,
+                            ..
+                        },
+                    ) => result.statement_index as usize,
+                    // A scalar arm returns the value checking retained under its
+                    // own `Return` role: the machine's result is that scalar and
+                    // the authored arm names a value, not a state.
+                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                        statement_ordinal,
+                        primitive_type,
+                    } if plan.result
+                        == checked_trees::CheckedControlResultPlan::Scalar {
+                            primitive_type: *primitive_type,
+                        }
+                        && matches!(
+                            checked
+                                .statement_table
+                                .transition_target(return_source.target),
+                            checked_trees::statement::TransitionTargetNode::Value(_)
+                        ) =>
+                    {
+                        *statement_ordinal as usize
+                    }
+                    _ => {
+                        return unsupported(
+                            "Unit graph conditional return arm is neither a structural value producer nor the scalar result",
+                        );
+                    }
                 };
-                let (jump_source, jump_ordinal, return_ordinal) = if *return_when_true {
-                    (false_source, terminator_ordinal + 1, terminator_ordinal)
-                } else {
-                    (true_source, terminator_ordinal, terminator_ordinal + 1)
-                };
-                if jump.statement_ordinal as usize != jump_ordinal
-                    || return_result.statement_index as usize != return_ordinal
+                if jump.statement_ordinal as usize != jump_ordinal || arm_ordinal != return_ordinal
                 {
                     return unsupported(
                         "Unit graph conditional return drifted from its authored ordinals",

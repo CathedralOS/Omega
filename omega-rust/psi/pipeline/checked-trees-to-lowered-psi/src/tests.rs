@@ -51,6 +51,7 @@ mod reborrow_lowering;
 mod receiver_free_view_results;
 mod scalar_block_invariants;
 mod scalar_call_case_arguments;
+mod scalar_conditional_returns;
 mod scalar_graph;
 mod service_reach_contracts;
 mod source_selection;

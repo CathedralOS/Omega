@@ -159,11 +159,19 @@ const CONSTANT_TRUE_TRANSITION: &str = r#"
 
 #[test]
 fn a_constant_true_transition_is_an_unconditional_jump() {
+    // Typing lowers the run-closing constant-true arm to `Always`, so every
+    // scalar owner plans it as the ordinary unconditional jump.
     let checked = crate::front_end::checked_program(CONSTANT_TRUE_TRANSITION);
-    let graph = state_graph(&checked, "Tally::get");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| checked.symbols.display_path(machine.symbol, "::") == "Tally::get")
+        .expect("Tally::get exists");
+    let entry = &checked.machine_states(machine)[0];
     assert!(matches!(
-        graph.states[0].terminator,
-        CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+        checked.statement_table.statements(entry.statement_nodes).last(),
+        Some(checked_trees::statement::StatementNode::Transition(transition))
+            if transition.guard == checked_trees::statement::TransitionGuardNode::Always
     ));
     assert_eq!(
         signed_32(run_entry(CONSTANT_TRUE_TRANSITION, "Tally::main")),

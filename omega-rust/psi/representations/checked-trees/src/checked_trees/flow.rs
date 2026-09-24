@@ -19,7 +19,7 @@ pub use self::terminal::{
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
     CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedControlResultPlan, CheckedFusedServiceErasureReceipt,
+    CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedFusedServiceErasureReceipt,
     CheckedFusedServiceParameterReceipt, CheckedGuardedJumpPlan, CheckedNaturalRankMeasure,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
