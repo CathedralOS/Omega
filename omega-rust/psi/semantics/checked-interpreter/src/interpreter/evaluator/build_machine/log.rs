@@ -1,9 +1,11 @@
-use super::{Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value};
+use crate::interpreter::evaluator::{
+    Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+};
 use language_semantics::declaration_selection::BuildOperation;
 const BUILD_LOG_FACET_TYPE: &str = "$OmegaBuildLogFacet";
 
 impl<'program> Evaluator<'program> {
-    pub(super) fn try_build_log_write_line_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_log_write_line_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -23,7 +25,7 @@ impl<'program> Evaluator<'program> {
             .map(|handled| handled.then_some(Value::Unit))
     }
 
-    pub(super) fn try_build_log_write_line_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_log_write_line_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,

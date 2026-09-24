@@ -11,11 +11,13 @@
 //! body, initializer, or provider executes -- the query is a logical lookup
 //! over the authored frontier.
 
-use super::{BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value};
+use crate::interpreter::evaluator::{
+    BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+};
 /// The compiler-created `Build.product` facet value inside the canonical
 /// Build activation. An authored `BuildProduct {}` has the same static shape
 /// but never this marker name, so it cannot perform the query.
-pub(super) const PRODUCT_FACET_TYPE: &str = "$OmegaBuildProductFacet";
+pub(in crate::interpreter::evaluator) const PRODUCT_FACET_TYPE: &str = "$OmegaBuildProductFacet";
 
 /// The marker type name carried by issued `ProductEntryRef` values. An
 /// authored `ProductEntryRef {}` has the declared type name instead and is
@@ -26,7 +28,7 @@ impl<'program> Evaluator<'program> {
     /// `builder.product.entry(path, slot)` as a value-position call: resolve
     /// `path` under the CALL's lexical package scope and return an opaque
     /// description marker.
-    pub(super) fn try_build_product_entry_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_product_entry_value_call(
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
@@ -78,7 +80,7 @@ impl<'program> Evaluator<'program> {
 
     /// The statement-position twin: `builder.product.entry(path, slot);`
     /// still performs and checks the query, then drops the description.
-    pub(super) fn try_build_product_entry_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_product_entry_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,
@@ -128,7 +130,7 @@ impl<'program> Evaluator<'program> {
     /// compiler issued for it. Only the evaluator's own marker shape is
     /// admitted: an authored `ProductEntryRef {}`, a foreign struct, or a
     /// description index outside the issued table cannot satisfy this check.
-    pub(super) fn described_product_entry(
+    pub(in crate::interpreter::evaluator) fn described_product_entry(
         &self,
         value: &Value,
     ) -> EvalResult<crate::DescribedProductEntry> {
@@ -346,7 +348,7 @@ impl<'program> Evaluator<'program> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Evaluator, Halt};
+    use crate::interpreter::evaluator::{Evaluator, Halt};
 
     #[test]
     fn product_entry_description_requires_the_slot_compatibility_owner() {

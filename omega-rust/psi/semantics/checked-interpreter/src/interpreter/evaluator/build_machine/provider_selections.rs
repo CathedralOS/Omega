@@ -3,7 +3,7 @@
 //! executes normally. Omega validates the retained operand identities and
 //! coverage after evaluation, keeping target policy out of this interpreter.
 
-use super::{
+use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value,
     trap,
 };
@@ -11,7 +11,7 @@ use crate::{ExecutedProviderSelection, ExecutedProviderSelectionSite};
 use language_semantics::declaration_selection::BuildOperation;
 
 impl<'program> Evaluator<'program> {
-    pub(super) fn try_provider_selection_statement(
+    pub(in crate::interpreter::evaluator) fn try_provider_selection_statement(
         &mut self,
         statement: typed_trees::statement::StatementHandle,
         call: &TableCall,
@@ -39,7 +39,7 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    pub(super) fn try_provider_selection_value_call(
+    pub(in crate::interpreter::evaluator) fn try_provider_selection_value_call(
         &mut self,
         expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,

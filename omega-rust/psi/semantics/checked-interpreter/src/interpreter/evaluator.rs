@@ -74,16 +74,8 @@ mod statements_and_calls;
 mod wire_codec;
 pub mod wire_verification;
 
-// Build-machine facets.
-mod behavior_exclusions;
-mod build_log;
-mod build_paths;
-mod output_obligations;
-mod product_entries;
-mod product_providers;
-mod product_schemas;
-mod provider_selections;
-mod root_bindings;
+// Build-machine facets, beneath the coordinator that names them.
+mod build_machine;
 
 // The filesystem. Its own modules live beneath it rather than beside it, so
 // the six names that used to share a `filesystem_`/`real_` prefix now read as
@@ -98,7 +90,7 @@ mod halts;
 mod scalar_numerics;
 
 use crate::interpreter::evaluator::filesystem::logical_handle_store::FilesystemLogicalHandles;
-use build_paths::{rooted_build_path_parts, validate_build_relative_path};
+use build_machine::paths::{rooted_build_path_parts, validate_build_relative_path};
 use directory_entries::{
     checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
     dirent_record_chunk, pack_dirent_records, portable_directory_entry_name,
@@ -405,8 +397,10 @@ pub(crate) struct Evaluator<'program> {
     /// attempts: a rooted path is `Open` while any writer descriptor remains
     /// live and `Sealed` once its last writer retires. `complete` binds only
     /// a `Sealed` name.
-    pub(super) output_seal_states:
-        BTreeMap<(FilesystemGrantRootIdentity, Vec<u8>), output_obligations::OutputSealState>,
+    pub(super) output_seal_states: BTreeMap<
+        (FilesystemGrantRootIdentity, Vec<u8>),
+        build_machine::output_obligations::OutputSealState,
+    >,
     /// Live descriptor identities bound to a rooted path by a successful
     /// create/open output in this run. Retirement seals the path once its
     /// last writer is gone.

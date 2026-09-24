@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
     SymbolHandle, TableCall, Value,
 };
@@ -8,14 +8,14 @@ use crate::{
 };
 use language_semantics::declaration_selection::BuildOperation;
 
-pub(super) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
+pub(in crate::interpreter::evaluator) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
-pub(super) const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
+pub(in crate::interpreter::evaluator) const OUTPUT_ROOT_FACET_TYPE: &str = "$OmegaBuildOutputRoot";
 
 impl<'program> Evaluator<'program> {
     /// Slot lookup returns an existing compiler-issued read root. It never
     /// interprets a slot name as a host pathname or extends filesystem grants.
-    pub(super) fn try_build_named_input_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_named_input_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -87,7 +87,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn enable_rooted_build_paths_from_arguments(
+    pub(in crate::interpreter::evaluator) fn enable_rooted_build_paths_from_arguments(
         &mut self,
         arguments: &[crate::build_time::BuildTimeValue],
     ) {
@@ -105,7 +105,7 @@ impl<'program> Evaluator<'program> {
         });
     }
 
-    pub(super) fn try_build_root_resolve_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_root_resolve_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -174,7 +174,7 @@ impl<'program> Evaluator<'program> {
         }))
     }
 
-    pub(super) fn try_build_facet_filesystem_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_facet_filesystem_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -204,7 +204,7 @@ impl<'program> Evaluator<'program> {
             .map(Some)
     }
 
-    pub(super) fn try_build_facet_filesystem_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_facet_filesystem_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,
@@ -265,7 +265,7 @@ impl<'program> Evaluator<'program> {
         Ok(Some(operation))
     }
 
-    pub(super) fn try_build_output_include_source_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_output_include_source_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -285,7 +285,7 @@ impl<'program> Evaluator<'program> {
             .map(|handled| handled.then_some(Value::Unit))
     }
 
-    pub(super) fn try_build_output_include_source_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_output_include_source_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,
@@ -382,7 +382,7 @@ impl<'program> Evaluator<'program> {
         Ok(true)
     }
 
-    pub(super) fn statement_receiver_cell(
+    pub(in crate::interpreter::evaluator) fn statement_receiver_cell(
         &self,
         call: &TableCall,
         frame: &Frame,
@@ -420,7 +420,7 @@ impl<'program> Evaluator<'program> {
         self.exact_build_facet_method(expected_attached, "resolve", target_symbol)
     }
 
-    pub(super) fn exact_build_facet_method(
+    pub(in crate::interpreter::evaluator) fn exact_build_facet_method(
         &self,
         expected_attached: &str,
         expected_state: &str,
@@ -461,7 +461,10 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    pub(super) fn symbol_has_build_prelude_source(&self, symbol: SymbolHandle) -> bool {
+    pub(in crate::interpreter::evaluator) fn symbol_has_build_prelude_source(
+        &self,
+        symbol: SymbolHandle,
+    ) -> bool {
         self.program
             .symbols
             .symbol_source_span(symbol)
@@ -473,7 +476,7 @@ impl<'program> Evaluator<'program> {
     }
 }
 
-pub(super) fn rooted_build_path_parts(
+pub(in crate::interpreter::evaluator) fn rooted_build_path_parts(
     value: &Value,
 ) -> EvalResult<Option<(FilesystemGrantRootIdentity, Vec<u8>)>> {
     let Value::Struct {
@@ -501,7 +504,9 @@ pub(super) fn rooted_build_path_parts(
     Ok(Some((root, relative)))
 }
 
-pub(super) fn validate_build_relative_path(relative: &[u8]) -> EvalResult<()> {
+pub(in crate::interpreter::evaluator) fn validate_build_relative_path(
+    relative: &[u8],
+) -> EvalResult<()> {
     if relative.is_empty() {
         return Err(Halt::Trap("build-root path is empty".to_owned()));
     }

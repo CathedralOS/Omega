@@ -1,11 +1,13 @@
 //! Executed Build declarations retain coordinates, not target-selection authority.
-use super::{Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, trap};
+use crate::interpreter::evaluator::{
+    Cell, EvalResult, Evaluator, Frame, Halt, State, TypeReferenceNode, trap,
+};
 use typed_trees::statement::{RootBinding, StatementHandle};
 
 impl<'program> Evaluator<'program> {
     /// Only the outer argument-taking build entry installs the activation cell.
     /// Ordinary calls/reborrows share it; newly constructed records do not.
-    pub(super) fn retain_root_build(
+    pub(in crate::interpreter::evaluator) fn retain_root_build(
         &mut self,
         state: &State,
         arguments: &[Cell],
@@ -43,7 +45,7 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(super) fn execute_root_binding(
+    pub(in crate::interpreter::evaluator) fn execute_root_binding(
         &mut self,
         statement: StatementHandle,
         binding: &RootBinding,
