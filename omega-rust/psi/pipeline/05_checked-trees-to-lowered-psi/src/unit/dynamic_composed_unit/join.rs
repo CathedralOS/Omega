@@ -48,8 +48,7 @@ use crate::unit::dynamic_composed_unit::structural_types::{
 use crate::unit::emit_direct_expression;
 use checked_trees::{
     CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
-    CheckedDynamicRealizationCallablePlan, CheckedIntegerComparisonKind,
-    CheckedStructuralScalarParameterPlan,
+    CheckedDynamicRealizationCallablePlan, CheckedStructuralScalarParameterPlan,
 };
 use semantic_vocabulary::{MachineId, ScalarType, ValueId};
 
@@ -646,7 +645,7 @@ fn joined_source_call_occurrences<Call: DynamicCall>(
 }
 /// The guard grammar the joined caller's entry block can evaluate — mirrors
 /// the t2c `exact_guard` allowlist clause for clause: the scalar parameters,
-/// retained `self` fields, literals, equality and integer-equality over
+/// retained `self` fields, literals, equality and integer comparisons over
 /// those operand roots, and their negations. Everything the lowered emission
 /// path emits is admitted here, and nothing else.
 fn join_guard_is_supported(
@@ -679,11 +678,7 @@ fn join_boolean_guard_is_supported(
         CheckedBooleanExpression::Not(inner) => {
             join_boolean_guard_is_supported(scalar_parameters, inner)
         }
-        CheckedBooleanExpression::IntegerComparison {
-            kind: CheckedIntegerComparisonKind::Equal,
-            left,
-            right,
-        } => {
+        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             (integer_subject(left) || integer_subject(right))
                 && integer_operand(left, scalar_parameters)
                 && integer_operand(right, scalar_parameters)
@@ -727,8 +722,8 @@ fn boolean_operand(
     }
 }
 
-/// One integer operand of a joined equality: a scalar parameter (typed to
-/// match it), a retained `self` field, or an integer literal.
+/// One integer operand of a joined comparison: a scalar parameter (typed
+/// to match it), a retained `self` field, or an integer literal.
 fn integer_operand(
     expression: &CheckedScalarExpression,
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
@@ -750,7 +745,7 @@ fn integer_operand(
     }
 }
 
-/// Whether an equality operand names a runtime subject — a joined
+/// Whether a comparison operand names a runtime subject — a joined
 /// parameter or a retained field — rather than a pair of literals.
 fn boolean_subject(expression: &CheckedBooleanExpression) -> bool {
     matches!(
