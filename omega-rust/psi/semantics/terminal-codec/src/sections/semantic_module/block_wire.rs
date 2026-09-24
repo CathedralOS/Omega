@@ -7,9 +7,11 @@
 //! `encode_block` and `decode_block` are the entries. Each operation row is
 //! encoded and decoded here, with its kind dispatched by `operation_tags`
 //! to the family that owns the layout (`value_operations`,
-//! `storage_operations`, `call_operations`, `scalar_operations`); the
+//! `storage_operations`, `call_operations`, `scalar_operations`,
+//! `atomic_operations`); the
 //! terminator envelope is `terminator_wire`.
 
+mod atomic_operations;
 mod call_operations;
 mod operation_tags;
 mod scalar_operations;
@@ -618,6 +620,12 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::TrappingInteger { operation } => {
             scalar_operations::encode_trapping_integer(writer, operation)?
         }
+        OperationKind::AtomicAccess {
+            place,
+            path,
+            field,
+            event,
+        } => atomic_operations::encode_atomic_access(writer, place, &path, field, event)?,
     }
     writer.boolean(operation.suspension_crossing.is_some());
     if let Some(crossing) = operation.suspension_crossing {
@@ -870,6 +878,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             call_operations::decode_call_structural_with_scalar_arguments(reader)?
         }
         operation_tags::TRAPPING_INTEGER => scalar_operations::decode_trapping_integer(reader)?,
+        operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader)?,
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
     let suspension_crossing = if reader.boolean()? {

@@ -13,7 +13,7 @@ use super::super::{
 };
 use typed_trees::expression::ExpressionHandle;
 
-pub(super) struct TargetSelectors {
+pub(in crate::execution::terminal_unit) struct TargetSelectors {
     /// The target's selector expressions from the target inward.
     selectors: Vec<ExpressionHandle>,
 }
@@ -24,7 +24,7 @@ impl TargetSelectors {
     /// literal outside its extent, a selector into a byte view or bounded
     /// byte field (those keep their live-length stores), or a runtime
     /// selector whose scalar coordinate the statement does not retain.
-    pub(super) fn resolve(
+    pub(in crate::execution::terminal_unit) fn resolve(
         program: &TypedTrees,
         facts: &CheckFacts,
         machine: &typed_trees::machine::Machine,

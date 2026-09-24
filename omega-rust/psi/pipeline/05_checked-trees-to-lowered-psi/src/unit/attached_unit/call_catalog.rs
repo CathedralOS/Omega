@@ -50,11 +50,12 @@ pub(super) fn discover(
                     matches!(
                         operation,
                         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     )
                 })
             {
                 return unsupported(
-                    "write-only stores in opaque provider candidates require a pinned non-observation judgment",
+                    "write-only stores and atomic events in opaque provider candidates require a pinned non-observation judgment",
                 );
             }
         }

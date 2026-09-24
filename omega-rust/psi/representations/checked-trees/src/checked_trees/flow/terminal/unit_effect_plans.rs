@@ -403,6 +403,10 @@ pub enum CheckedUnitEffectOperationPlan {
     /// nothing.
     StructuralCaseFieldStore(CheckedStructuralCaseFieldStorePlan),
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
+    /// One normalized atomic event on an exact primitive leaf, joining the
+    /// source carrier's placeholder local and carrier assignment into one
+    /// operation (see `atomic_plans.rs`).
+    AtomicAccess(crate::CheckedAtomicAccessPlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
     /// Move one whole structural field out of exclusive borrowed storage into

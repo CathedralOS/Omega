@@ -508,6 +508,19 @@ fn validate_operation_foundation(
                 return malformed("dynamic Unit call declares a result value");
             }
         }
+        // The result shape follows the event: an observing event defines the
+        // observed prior and a store defines nothing. The independent verifier
+        // reconstructs location, authority, orderings, and types.
+        OperationKind::AtomicAccess { event, .. } => {
+            let shape_matches = match &operation.result {
+                OperationResult::Scalar(_) => event.observes_resident(),
+                OperationResult::Unit => !event.observes_resident(),
+                OperationResult::Structural(_) => false,
+            };
+            if !shape_matches {
+                return malformed("atomic access result disagrees with its event");
+            }
+        }
         _ => {
             if !matches!(operation.result, OperationResult::Scalar(_)) {
                 return malformed("scalar operation declares a Unit result");

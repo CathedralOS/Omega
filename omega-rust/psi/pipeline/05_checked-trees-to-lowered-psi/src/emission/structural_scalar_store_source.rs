@@ -35,6 +35,45 @@ pub(crate) fn validate(
         let statement_index = u32::try_from(statement_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
         })?;
+        // An atomic carrier assignment is covered by its one atomic event and
+        // by nothing else; the event's own source correspondence runs at its
+        // emission (`atomic_sources`).
+        let atomic_events = plan
+            .operations
+            .iter()
+            .filter(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::AtomicAccess(access)
+                    if access.statement_index == statement_index)
+            })
+            .count();
+        if atomic_events != 0 {
+            let other_stores = plan.operations.iter().any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
+                    write.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    statement_index: ordinal,
+                    ..
+                } => *ordinal == statement_index,
+                _ => false,
+            });
+            if atomic_events != 1
+                || other_stores
+                || validation::atomic_assignment_carrier(checked, assignment).is_none()
+            {
+                return unsupported("atomic carrier assignment has conflicting store custody");
+            }
+            continue;
+        }
         let writes = plan
             .operations
             .iter()

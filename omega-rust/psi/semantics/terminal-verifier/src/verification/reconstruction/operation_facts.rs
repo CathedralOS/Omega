@@ -142,6 +142,20 @@ pub(super) fn append_operation(
             !crate::validation::proposition_observes_places(proposition, &[result.place])
         });
     }
+    if let OperationKind::AtomicAccess { place, event, .. } = &operation.kind {
+        // An atomic event states nothing about its result: another
+        // participant may intervene between events, so the observed prior is
+        // an unconstrained value of the leaf type, not the last store. A
+        // modifying event also retires every observation of its root; the
+        // conservative whole-root scope keeps sibling snapshots from
+        // outliving a write they cannot see.
+        if event.modifies_resident() {
+            field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !crate::validation::proposition_observes_places(proposition, &[*place])
+            });
+        }
+        return Ok(());
+    }
     if let OperationKind::WriteOnlyPrimitiveStore { destination, .. } = &operation.kind {
         field_snapshots::retain(axioms, capture_snapshots, |proposition| {
             !crate::validation::proposition_observes_places(proposition, &[*destination])
@@ -407,6 +421,9 @@ pub(super) fn append_operation(
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
+        OperationKind::AtomicAccess { .. } => {
+            unreachable!("atomic events return before specialized reconstruction")
+        }
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }

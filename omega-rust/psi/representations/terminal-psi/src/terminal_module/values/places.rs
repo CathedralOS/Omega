@@ -160,6 +160,11 @@ impl OperationKind {
                 projections.push(argument_projection(source));
             }
             Self::PrimitiveScalarRead { source, path }
+            | Self::AtomicAccess {
+                place: source,
+                path,
+                ..
+            }
             | Self::StructuralByteSequenceFieldLength { source, path, .. }
             | Self::StructuralByteSequenceFieldRead { source, path, .. }
             | Self::StructuralCaseMembership { source, path, .. }
@@ -299,6 +304,7 @@ impl OperationKind {
                 paths.push(&mut source.path);
             }
             Self::PrimitiveScalarRead { path, .. }
+            | Self::AtomicAccess { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }

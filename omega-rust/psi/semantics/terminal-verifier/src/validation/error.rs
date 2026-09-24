@@ -1134,6 +1134,13 @@ pub enum ModuleError {
         operation: OperationId,
     },
     TrappingIntegerRequiresFixedIntegerResult(OperationId),
+    /// One atomic access whose location, authority, orderings, leaf type,
+    /// result shape, or operand types fail independent reconstruction.
+    InvalidAtomicAccess {
+        operation: OperationId,
+        place: PlaceId,
+        refusal: super::atomic_access::AtomicAccessRefusal,
+    },
     TrappingIntegerOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,

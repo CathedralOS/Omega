@@ -483,6 +483,32 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Assignment(assignment) => {
+                        // An atomic carrier retains its authored operands,
+                        // never its arithmetic model (`atomic_operands.rs`).
+                        if let Some(operands) = super::atomic_operands::lower(
+                            program,
+                            operators,
+                            machine,
+                            state,
+                            assignment,
+                            &scalar_parameters,
+                            parameters,
+                            &parameter_types,
+                            &locals,
+                            exact_integer_casts,
+                        ) {
+                            retain_subslice_endpoints(
+                                operands,
+                                state.symbol,
+                                statement_ordinal,
+                                &scalar_parameters,
+                                &locals,
+                                &mut expressions,
+                                &mut source_bindings,
+                                &mut binding_symbols,
+                            );
+                            continue;
+                        }
                         // Every indexed step of the target keeps its own
                         // selector row, keyed by its depth from the target.
                         for (depth, index) in

@@ -237,6 +237,14 @@ rows! {
         &["fact:structural-effect-observation", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );
+    INV_ATOMIC_ACCESS => (
+        "invalidation:atomic-access",
+        WriteInvalidation,
+        "an AtomicAccess whose event modifies its leaf (store, read-modify-write, swap, or compare-exchange)",
+        "every proposition still observing the accessed root is removed from the axiom set; the event itself publishes no equation",
+        &["scope:field-value-snapshots"],
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
+    );
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
         WriteInvalidation,

@@ -355,6 +355,34 @@ impl SymbolTable {
         occurrence: SourceSpan,
         candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
     ) -> Option<SymbolHandle> {
+        self.find_declaration_from_source(path, occurrence, candidates, false)
+    }
+
+    /// [`Self::find_product_declaration_from_source`] for a BUILD operand,
+    /// which may also name a public toolchain declaration.
+    ///
+    /// The toolchain injects its own core into every product without an
+    /// authored dependency, so a core declaration has no package instance an
+    /// unqualified operand could share and no manifest an alias could name.
+    /// A build that selects a provider for `ExtentRootProvider` is naming that
+    /// exact declaration. Ordinary call resolution keeps the narrower rule:
+    /// admitting core there changes which declaration a call selects.
+    pub fn find_build_subject_declaration_from_source(
+        &self,
+        path: &str,
+        occurrence: SourceSpan,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+    ) -> Option<SymbolHandle> {
+        self.find_declaration_from_source(path, occurrence, candidates, true)
+    }
+
+    fn find_declaration_from_source(
+        &self,
+        path: &str,
+        occurrence: SourceSpan,
+        candidates: impl IntoIterator<Item = (SymbolHandle, bool)>,
+        admit_toolchain: bool,
+    ) -> Option<SymbolHandle> {
         let qualified = path.split_once("::");
         let dependency =
             qualified.and_then(|(alias, _)| self.product_dependency_target(occurrence, alias));
@@ -376,6 +404,10 @@ impl SymbolTable {
                             .is_some_and(|declaration| {
                                 self.same_product_package_instance(occurrence, declaration)
                             })
+                            || (admit_toolchain
+                                && is_public
+                                && self.symbol_source_origin(symbol)
+                                    == Some(SourceOrigin::Toolchain))
                             || !self.has_source_metadata()
                     }
                 }

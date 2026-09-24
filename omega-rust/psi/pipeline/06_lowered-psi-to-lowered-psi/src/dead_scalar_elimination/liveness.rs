@@ -295,6 +295,10 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         // total scalar: a trap is an effect even when the result is dead), so
         // its operands stay live through it.
         O::TrappingInteger { operation } => values.extend(operation.operands()),
+        // An atomic event is a memory event, never an unconditionally total
+        // scalar: it survives even when its observed prior dies, so its
+        // operands stay live through it.
+        O::AtomicAccess { event, .. } => values.extend(event.operands()),
         O::Call {
             arguments,
             crash_continuations,

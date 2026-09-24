@@ -12,6 +12,7 @@ mod affine_return_source;
 mod anonymous_integer_arguments;
 mod anonymous_integer_landing;
 mod anonymous_integer_landing_source;
+mod atomic_access_events;
 mod boolean_entry_requirements;
 mod borrowed_computation_arguments;
 mod borrowed_computation_custody;
