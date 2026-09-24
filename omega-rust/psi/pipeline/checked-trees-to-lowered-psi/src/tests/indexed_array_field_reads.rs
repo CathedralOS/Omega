@@ -126,3 +126,55 @@ fn indexed_array_field_read_wrong_bound_rejects() {
         "StorageSizeText::byte_at",
     );
 }
+
+// Terminal element reads take a u64 position. Any integer carrier may index
+// once its bounds are proven, so a signed or narrower index lands through an
+// exact cast whose obligation the dominating guard discharges.
+
+#[test]
+fn indexed_array_field_read_with_signed_index_lowers_and_verifies() {
+    verify(
+        r#"
+        data Table { values: [u64; 8]; }
+        machine Table::entry(&self, index: i32) -> u64 {
+            transition index >= 0 && index < 8 {
+                true -> (self.values[index])
+                false -> (0)
+            }
+        }
+        "#,
+        "Table::entry",
+    );
+}
+
+#[test]
+fn indexed_array_field_read_with_narrow_unsigned_index_lowers_and_verifies() {
+    verify(
+        r#"
+        data Table { values: [u64; 8]; }
+        machine Table::entry(&self, index: u32) -> u64 {
+            transition index < 8 {
+                true -> (self.values[index])
+                false -> (0)
+            }
+        }
+        "#,
+        "Table::entry",
+    );
+}
+
+#[test]
+fn indexed_array_field_read_with_unbounded_signed_index_rejects() {
+    rejected(
+        r#"
+        data Table { values: [u64; 8]; }
+        machine Table::entry(&self, index: i32) -> u64 {
+            transition index < 8 {
+                true -> (self.values[index])
+                false -> (0)
+            }
+        }
+        "#,
+        "Table::entry",
+    );
+}
