@@ -26,7 +26,7 @@ members = [
     "omega-rust/psi/pipeline/00_source-files-to-tokens",
     "omega-rust/psi/pipeline/01_tokens-to-syntax-trees",
     "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees",
+    "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
     "omega-rust/psi/pipeline/typed-trees-to-checked-trees",
     "omega-rust/psi/pipeline/checked-trees-to-lowered-psi",
     "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi",

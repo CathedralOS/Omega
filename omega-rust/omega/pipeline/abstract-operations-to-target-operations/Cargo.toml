@@ -30,7 +30,7 @@ checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 symbols = { path = "../../../psi/foundation/symbols" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }

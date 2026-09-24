@@ -785,7 +785,7 @@ bodylessness, reach or catalog membership cannot synthesize that declaration.
 
 ## Typing and source custody
 
-[Typing](symbol-resolved-trees-to-typed-trees/src/lowerer.rs) owns type identity,
+[Typing](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) owns type identity,
 compatibility, signature and typed contract surfaces. Roots and tables preserve
 enough information for checking without reverse-engineering syntax. Typed
 references are not active loans; type-derived cleanup requirements are not a
@@ -793,12 +793,12 @@ drop schedule. Proof discharge, flow invalidation and concrete ABI placement
 remain outside this stage.
 
 The typing coordinator sequences declaration lowering and finalization.
-[Conformances](symbol-resolved-trees-to-typed-trees/src/declarations/conformance.rs)
+[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations/conformance.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
 applications remain expressions. Shared
-[type parameters](symbol-resolved-trees-to-typed-trees/src/signatures/type_parameters.rs)
-and [callable signatures](symbol-resolved-trees-to-typed-trees/src/signatures/callable_signature.rs)
+[type parameters](03_symbol-resolved-trees-to-typed-trees/src/signatures/type_parameters.rs)
+and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/signatures/callable_signature.rs)
 are independent of data and state declaration lowering. Contract facts,
 invocations and parameter-domain obligations have shared owners; type-reference
 normalization owns domain-alias expansion and domain constraints. Both full
@@ -809,7 +809,7 @@ Missing measure-body field selectors bind through the exact measure parameter's
 declared nominal type. Existing nonzero selectors remain unchanged for checking;
 typing does not replace conflicting identities with a same-spelled field.
 
-[Call-result typing](symbol-resolved-trees-to-typed-trees/src/expressions/call_results.rs)
+[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/expressions/call_results.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
 Preserve already-resolved pattern-bound call targets and root/member identity.

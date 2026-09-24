@@ -34,7 +34,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
 source-files-to-assembled-syntax = { path = "../source-files-to-assembled-syntax" }
 symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

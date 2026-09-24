@@ -45,6 +45,6 @@ sha2 = "0.10.9"
 [dev-dependencies]
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }

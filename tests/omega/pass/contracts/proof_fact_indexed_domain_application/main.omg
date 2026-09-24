@@ -15,7 +15,7 @@
 // under another index is refused as a distinct normalized instance
 // (`fail/contracts/proof_fact_indexed_domain_application_mismatch`). The
 // typed-stage interning is witnessed by
-// `symbol-resolved-trees-to-typed-trees/src/lowerer/tests/machine_contracts.rs`
+// `03_symbol-resolved-trees-to-typed-trees/src/lowerer/tests/machine_contracts.rs`
 // and the argument count by `fail/contracts/proof_fact_indexed_domain_application_arity`.
 use omega::language::core::extent;
 use omega::language::core::content;

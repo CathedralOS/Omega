@@ -29,7 +29,7 @@ sha2 = "0.10"
 [dev-dependencies]
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../symbol-resolved-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }

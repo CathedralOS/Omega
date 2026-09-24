@@ -137,8 +137,8 @@
       "item": "OPERATOR-MACHINE-SUPPLY",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/operator.rs",
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/machine",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/operator.rs",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/machine",
         "tests/omega/pass/expressions/declared_operator_match_result"
       ],
       "suggested_first_slice": "Supply one missing declared-operator machine case through the ordinary operator resolution path."
@@ -149,7 +149,7 @@
       "item": "STRUCTURAL-GENERIC-MATCHING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/type_reference",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference",
         "tests/omega/pass/generics/declared_range_endpoint_inference"
       ],
       "suggested_first_slice": "Extend structural generic matching for one declared-range endpoint or type-reference shape the board names."

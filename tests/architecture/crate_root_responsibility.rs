@@ -273,7 +273,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     ("psi/pipeline/00_source-files-to-tokens", &["lexer"]),
     (
-        "psi/pipeline/symbol-resolved-trees-to-typed-trees",
+        "psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
         &[
             "contracts",
             "declarations",

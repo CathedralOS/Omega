@@ -17,7 +17,7 @@ setup are not additional public program stages.
 | Source files → tokens | [source-files-to-tokens](psi/pipeline/00_source-files-to-tokens/src/lib.rs) |
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
-| Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lib.rs) |
+| Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/pipeline/typed-trees-to-checked-trees/README.md) |
 | Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/lowered-psi-to-lowered-psi/src/lib.rs) |
