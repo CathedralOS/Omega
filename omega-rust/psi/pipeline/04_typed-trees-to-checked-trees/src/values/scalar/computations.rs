@@ -188,6 +188,12 @@ pub(crate) fn build_checked_value_computation_plans(
                         // of its own.
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_borrowed_slice_view_value(program, expected))
+                        // A `[copy]` element of a view copies through element
+                        // reads; its value node owns the selection.
+                        || (matches!(statement, StatementNode::LocalData(_))
+                            && structural_values::is_view_element_copy(
+                                program, expression, expected,
+                            ))
                         // An element-wise structural array literal registers
                         // its elements the same way a record literal registers
                         // its fields: each owned child keeps its own value

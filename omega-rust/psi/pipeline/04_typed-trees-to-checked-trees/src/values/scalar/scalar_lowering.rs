@@ -1126,16 +1126,16 @@ pub(crate) fn lower_recast_boolean_operand(
 /// element's type, whether the collection is a borrowed view, and the lowered
 /// selector. A whole view local reads the view its establishment published,
 /// the same element selection a whole view parameter takes.
-struct ElementSelection {
-    root: checked_trees::CheckedStorageRoot,
-    path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
-    element_type: typed_trees::types::TypeReferenceHandle,
-    through_view: bool,
-    index: CheckedScalarExpression,
+pub(super) struct ElementSelection {
+    pub(super) root: checked_trees::CheckedStorageRoot,
+    pub(super) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    pub(super) element_type: typed_trees::types::TypeReferenceHandle,
+    pub(super) through_view: bool,
+    pub(super) index: CheckedScalarExpression,
 }
 
 #[allow(clippy::too_many_arguments)]
-fn selected_element(
+pub(super) fn selected_element(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
     expression: ExpressionHandle,

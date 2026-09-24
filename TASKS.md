@@ -2221,12 +2221,20 @@ syntax and other terminal services are not prerequisites.
     whose view arrives as a block parameter; the read's `0 < length` has no
     proof (`OperationProofUnavailable`), as for the scalar
     `runtime_slice_element_runtime_index_read_exit` below.
-  - A whole `[copy]` element copy (`let chosen: Entry = tail[0]`) has no
-    Terminal form yet: `runtime_subslice_range_pointer_exit`,
-    `runtime_slice_index_copy_exit`, `runtime_slice_index_copy_dispatch_exit`,
+  - A whole `[copy]` record element copies through one element read per
+    scalar field plus `EstablishRecord` (verified in c2l
+    `view_locals::a_copied_record_element_selects_a_successor`).
+    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_copy_exit`,
+    `runtime_slice_index_copy_dispatch_exit`,
     `runtime_nested_subslice_fixed_index_exit`,
     `runtime_slice_index_transition_exit` and `runtime_slice_iteration_exit`
-    stop at `statement sequence: local data: structural call binding`.
+    copy a `data Entry` declared without `[copy]`, so they still stop at
+    `statement sequence: local data: structural call binding`. By-value
+    access through a shared view requires `[copy]` (ownership.md,
+    byte_views.md), yet checking accepts this affine move out of the view:
+    the move check must reject it, and the fixtures then declare
+    `Entry [copy]`. Records with bounded, erased or structural fields have no
+    copy yet: their leaves need evidence a plain read does not carry.
   - An element read whose bound is only a caller's guard
     (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
     `requires i <= 3`) lowers but has no read proof
