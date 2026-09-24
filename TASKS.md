@@ -224,9 +224,44 @@ the complete product bar; focused successes below do not establish that baseline
   loses the facts its readers need. That item records which positions migrate
   today and which do not.
 
+  The pieces already exist; this is a mirror of a route that runs the other
+  way, not new proof machinery.
+
+  - PREDICATE-ONLY is already spelled, in
+    `typed-trees/src/typed_trees/evidence/byte_predicates.rs::domain_byte_predicate`:
+    no `alias`, no `index_arguments`, no `establishment_routes`, and no
+    `domain::index_parameters`. Reuse that exact list so one definition governs
+    both grants.
+  - SUBSTITUTION is already written.
+    `contracts/labels/domain.rs::instantiate_domain_expression_label` renders a
+    domain predicate with `self` replaced by a base label, and
+    `contracts/domains.rs::prove_boolean_expression_via_context_domain_membership`
+    already uses it for MEMBERSHIP -> PREDICATE ("the subject is in D, so this
+    boolean holds"). The missing route is PREDICATE -> MEMBERSHIP, the same
+    rendering compared the other way. The base label is
+    `facts.semantic.place_label(program, place)`.
+  - MATCHING is already written. `guard_conjunct_matches` takes a LABEL, so the
+    instantiated predicate can be matched against the dominating guards exactly
+    as `incoming_guard_proves_requires` matches a boolean requirement.
+
+  The care is in the SOUNDNESS GATES, which is why this is not a small patch.
+  `incoming_guard_proves_requires` guards its label match with three checks --
+  `caller_state_preserves_field` over `collect_expression_self_fields`,
+  `caller_state_preserves_label_names`, and
+  `guard_operands::requirement_reads_survive_earlier_operand_writes` over
+  `boolean_requirement_mentions`. Two of those are expression-based, and the
+  raw domain predicate's `self` is the DOMAIN SUBJECT, not the caller's
+  receiver, so applying them unchanged would scan the wrong names. They must be
+  re-expressed over the substituted label and the subject place before the
+  route is sound. Note also that the corpus gate cannot referee this: two
+  separate prover widenings landed this session with the golden byte-identical
+  either way, so the controls have to be hand-written.
+
   Acceptance: each repro above checks, a routed domain with the same predicate
   still rejects with its provenance diagnostic, and a fixture pins both
-  directions. Do not weaken the routed case or add a runtime domain tag.
+  directions. Add a control where the subject is REBOUND between the guard and
+  the call, which must keep rejecting. Do not weaken the routed case or add a
+  runtime domain tag.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
