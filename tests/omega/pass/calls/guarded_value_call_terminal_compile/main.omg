@@ -4,11 +4,13 @@
 // continuation state for it.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To1001 requires 0 <= self && self <= 1001;
+domain i32::I320To1000 requires 0 <= self && self <= 1000;
 data Main { console: Binding<Console>; }
-machine dbl(x: i32 [0..=1001]) -> i32 {
+machine dbl(x: i32 in I320To1001) -> i32 {
     transition { _ -> (x + x) }
 }
-machine pick(x: i32 [0..=1000]) -> i32 {
+machine pick(x: i32 in I320To1000) -> i32 {
     transition x > 50 { true -> (dbl(x + 1)) _ -> (x) }
 }
 machine Main::main(&mut self) reaches Console {
