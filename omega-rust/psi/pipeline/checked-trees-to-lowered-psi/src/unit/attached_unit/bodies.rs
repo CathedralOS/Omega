@@ -55,19 +55,6 @@ impl<'a> UnitPlans<'a> {
         }
     }
 
-    /// The ordinary roster joined with a cleanup lane's shapes but not its
-    /// dispatcher: the roster already publishes that machine.
-    pub(crate) fn with_staged_structural_types(
-        checked: &'a checked_trees::CheckedUnitEffectPlans,
-        structural_types: &'a [checked_trees::CheckedUnitStructuralTypePlan],
-    ) -> Self {
-        Self {
-            checked,
-            staged_machine: None,
-            staged_structural_types: structural_types,
-        }
-    }
-
     pub(crate) fn machines(self) -> impl Iterator<Item = &'a CheckedUnitEffectMachinePlan> {
         self.checked.machines.iter().chain(self.staged_machine)
     }

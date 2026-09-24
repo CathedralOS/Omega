@@ -2216,9 +2216,9 @@ syntax and other terminal services are not prerequisites.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
      Widen state-graph admission to cover it rather than extending it.
-  7. Nominal cleanup has a one-root route and a separate multi-root route
-     (`unit/unit_cleanup.rs`, `unit_cleanup/ordered.rs`), and the checked
-     stage builds the nominal plan twice.
+  7. The checked stage builds the nominal cleanup plan twice
+     (`terminal_unit/mod.rs` candidates and
+     `build_checked_nominal_affine_unit_cleanup_plans`).
   8. There are nine structural-type namespaces, one `ShapeCollector` per
      plan roster, rejoined by hand (`finalize_execution.rs`,
      `attached_unit/bodies.rs::UnitPlans::with_staged`).
@@ -3145,12 +3145,8 @@ syntax and other terminal services are not prerequisites.
   - Rejoin composed scalar calls with boundary callees and claim transfers
     before structural returns.
     `unit/attached_unit/composed_control/admission.rs::retain_scalar_call`
-    still refuses that custody; structural callees with borrowed parameter
-    actuals now compose
-    (`owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
-    passes: two borrowed-output writes precede the exact record return,
-    finish at 73, and survive fuel exhaustion without replay). Extend
-    ordinary ordered operations, not a fallback recognizer. Retain
+    still refuses that custody. Extend ordinary ordered operations, not a
+    fallback recognizer. Retain
     record/array/generic return-substitution and affine-transfer rejection
     controls.
   - Complete structural/Unit control-flow composition with computed successor
