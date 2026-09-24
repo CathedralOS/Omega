@@ -28,15 +28,15 @@ pub(super) fn check(audit: &mut Audit) {
 }
 
 fn check_build_optimization_vocabulary(audit: &mut Audit) {
-    let fragments = "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/fragments.rs";
+    let fragments = "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/fragments.rs";
     // `97de35d903cc` (COORDINATOR-SCOPE-AUDIT F1) moved the toolchain prelude
     // out of the crate's entry file and into its own domain file beside
     // `build_vocabulary`, leaving `source_assembly.rs` the coordinator. The
     // sole-owner invariant is unchanged — only which file holds the slots.
-    let build_prelude = "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly/build_prelude.rs";
+    let build_prelude = "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_prelude.rs";
     let mut files = Vec::new();
     for root in [
-        "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src",
+        "omega-rust/omega/compiler/source-assembly/src",
         "omega-rust/omega/compiler/compiler/src",
     ] {
         let absolute_root = audit.repository.join(root);

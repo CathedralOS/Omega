@@ -6,7 +6,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "impl BuildOptimizationAdmission",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/mod.rs",
+        path: "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs",
         coordination_marker: "fn install(base: &str)",
     },
     RequiredCoordinationEntrance {

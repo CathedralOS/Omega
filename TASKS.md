@@ -4091,7 +4091,7 @@ syntax and other terminal services are not prerequisites.
   Std may be replaced, split or absent; only core and the specified
   compiler-injected vocabulary retain toolchain authority. Standalone
   std/alloc still receive broad `Toolchain` classification in
-  `00_source-files-to-assembled-syntax/src/source/source_storage.rs`.
+  `compiler/source-assembly/src/source/source_storage.rs`.
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 

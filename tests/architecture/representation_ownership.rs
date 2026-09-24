@@ -2353,15 +2353,25 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
         "omega/pipeline/12_resolved-layout-to-resolved-layout",
     ];
-    // The omega-side frontend boundary route that feeds that chain across
-    // build evaluation (pipeline.md "Omega frontend stages").
-    const FRONTEND_ROUTE: &[&str] = &[
-        "omega/pipeline/00_source-files-to-assembled-syntax",
-        "omega/pipeline/01_assembled-syntax-to-checked-compilation",
-        "omega/pipeline/02_checked-compilation-to-terminal-artifact",
+    // Compiler orchestration that feeds Terminal Psi across build evaluation
+    // (pipeline.md "Compiler orchestration before Omega"). These are checked
+    // as one connected compiler route but do not count as Omega pipeline crates.
+    const COMPILER_ORCHESTRATION: &[(&str, &str)] = &[
+        (
+            "omega/compiler/source-assembly",
+            "source-files-to-assembled-syntax",
+        ),
+        (
+            "omega/pipeline/01_assembled-syntax-to-checked-compilation",
+            "assembled-syntax-to-checked-compilation",
+        ),
+        (
+            "omega/pipeline/02_checked-compilation-to-terminal-artifact",
+            "checked-compilation-to-terminal-artifact",
+        ),
     ];
     let mut covered = std::collections::BTreeSet::new();
-    for route in [PROGRAM_ROUTE, FRONTEND_ROUTE] {
+    for route in [PROGRAM_ROUTE] {
         let mut previous_output = "";
         for stage in route {
             let directory = root.join("omega-rust").join(stage);
@@ -2381,6 +2391,25 @@ fn connected_pipeline_route_covers_every_stage_crate() {
                 );
             }
             previous_output = output;
+            covered.insert(String::from(*stage));
+        }
+    }
+    let mut previous_output = "";
+    for (stage, package_name) in COMPILER_ORCHESTRATION {
+        let directory = root.join("omega-rust").join(stage);
+        assert!(
+            directory.join("Cargo.toml").is_file(),
+            "compiler orchestration crate {stage} is missing"
+        );
+        let (input, output) = package_name.split_once("-to-").unwrap();
+        if !previous_output.is_empty() {
+            assert_eq!(
+                input, previous_output,
+                "compiler orchestration break: {package_name} does not consume the preceding output"
+            );
+        }
+        previous_output = output;
+        if stage.contains("/pipeline/") {
             covered.insert(String::from(*stage));
         }
     }
