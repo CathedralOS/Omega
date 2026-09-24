@@ -174,15 +174,27 @@ pub(super) fn build_traced(
             return None;
         };
         let mut requires = Vec::with_capacity(contract_predicates.len());
-        for expression in contract_predicates {
-            let Some(predicate) = crate::values::lower_state_scalar_contract_predicate(
-                program,
-                &facts.operators,
-                machine,
-                state,
-                expression,
-                &mut 4096,
-            ) else {
+        for row in contract_predicates {
+            let predicate = match row {
+                validation::StateScalarContractRow::Expression(expression) => {
+                    crate::values::lower_state_scalar_contract_predicate(
+                        program,
+                        &facts.operators,
+                        machine,
+                        state,
+                        expression,
+                        &mut 4096,
+                    )
+                }
+                validation::StateScalarContractRow::Interval {
+                    parameter,
+                    minimum,
+                    maximum,
+                } => crate::values::lower_state_interval_predicate(
+                    program, state, parameter, minimum, maximum,
+                ),
+            };
+            let Some(predicate) = predicate else {
                 trace.phase("state graph: state signature: predicate lowering failed");
                 return None;
             };

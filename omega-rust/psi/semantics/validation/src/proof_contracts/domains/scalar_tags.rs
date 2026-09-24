@@ -99,24 +99,65 @@ pub fn scalar_state_contracts_are_qualifications(
                         && parameter.symbol == path.symbol
                         && !parameter.is_self
                         && !parameter.is_mutable
-                        && scalar_type_tags(program, parameter.type_reference)
-                            .iter()
-                            .any(|(symbol, identity)| {
-                                *symbol == membership.domain_symbol
-                                    && program.domain_definitions().iter().any(|domain| {
-                                        domain.symbol == *symbol
-                                            && exact_instance(
-                                                program,
-                                                domain,
-                                                arguments,
-                                                membership.semantic_domain,
-                                            )
-                                    })
-                                    && *identity == membership.semantic_domain
-                            })
+                        && (arguments.is_empty()
+                            && scalar_interval_domains(program, parameter.type_reference)
+                                .contains(&(membership.domain_symbol, membership.semantic_domain))
+                            || scalar_type_tags(program, parameter.type_reference)
+                                .iter()
+                                .any(|(symbol, identity)| {
+                                    *symbol == membership.domain_symbol
+                                        && program.domain_definitions().iter().any(|domain| {
+                                            domain.symbol == *symbol
+                                                && exact_instance(
+                                                    program,
+                                                    domain,
+                                                    arguments,
+                                                    membership.semantic_domain,
+                                                )
+                                        })
+                                        && *identity == membership.semantic_domain
+                                }))
                 })
             })
     })
+}
+
+/// The declared domains on an integer scalar type whose membership is exactly
+/// an interval. Such a qualification is not a tag: the parameter is retained
+/// as the closed entry range a bracketed `[low..=high]` produced
+/// (`exact_declared_domain_carrier_interval`), which states membership
+/// completely, so its restating `requires` row is carried by that range.
+pub fn scalar_interval_domains(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Vec<(SymbolHandle, language_semantics::SemanticDomainId)> {
+    let Some(primitive) = program.primitive_type_reference(reference) else {
+        return Vec::new();
+    };
+    let mut domains = Vec::new();
+    let mut seen = Vec::new();
+    while !seen.contains(&reference) {
+        seen.push(reference);
+        let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(reference)
+        else {
+            break;
+        };
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            if let TypeConstraintNode::Domain(domain) = constraint
+                && crate::exact_declared_domain_carrier_interval(program, primitive, domain)
+                    .filter(|(minimum, maximum)| minimum <= maximum)
+                    .is_some()
+                && !domains.contains(&(domain.symbol, domain.semantic_id))
+            {
+                domains.push((domain.symbol, domain.semantic_id));
+            }
+        }
+        reference = *base_type;
+    }
+    domains
 }
 
 fn vacuous_scalar_tag(

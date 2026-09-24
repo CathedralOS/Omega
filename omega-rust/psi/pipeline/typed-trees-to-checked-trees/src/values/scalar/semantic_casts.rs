@@ -18,6 +18,10 @@ pub(super) fn result_type(
     )
 }
 
+/// Whether `reference` carries a declared domain that is a semantic atom. A
+/// domain whose membership is exactly an integer interval is not one: like a
+/// bracketed range it only bounds the value, so reading or casting it needs
+/// no qualification custody.
 pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     match program.type_reference_table.type_reference(reference) {
         TypeReferenceNode::Constrained {
@@ -30,12 +34,27 @@ pub(super) fn has_declared_domains(program: &TypedTrees, reference: TypeReferenc
                 .iter()
                 .any(|constraint| {
                     matches!(constraint, TypeConstraintNode::Domain(domain)
-                    if domain.subject == DomainConstraintSubject::Declared)
+                    if domain.subject == DomainConstraintSubject::Declared
+                        && !is_interval_domain(program, reference, domain))
                 })
                 || has_declared_domains(program, *base_type)
         }
         _ => false,
     }
+}
+
+fn is_interval_domain(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    domain: &typed_trees::types::DomainConstraint,
+) -> bool {
+    program
+        .primitive_type_reference(reference)
+        .and_then(|primitive| {
+            validation::exact_declared_domain_carrier_interval(program, primitive, domain)
+                .filter(|(minimum, maximum)| minimum <= maximum)
+        })
+        .is_some()
 }
 
 pub(super) fn has_only_vacuous_tags(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
@@ -51,6 +70,11 @@ pub(super) fn has_only_vacuous_tags(program: &TypedTrees, reference: TypeReferen
                     .constraints(*constraints)
                     .iter()
                     .all(|constraint| match constraint {
+                        TypeConstraintNode::Domain(domain)
+                            if is_interval_domain(program, reference, domain) =>
+                        {
+                            true
+                        }
                         TypeConstraintNode::Domain(domain) => {
                             domain.subject == DomainConstraintSubject::Declared
                                 && domain.semantic_id.is_valid()

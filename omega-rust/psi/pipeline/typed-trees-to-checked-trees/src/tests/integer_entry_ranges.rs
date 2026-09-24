@@ -29,6 +29,32 @@ fn contract_plan(
         .unwrap_or_else(|| panic!("missing contract plan"))
 }
 
+/// A domain whose membership is exactly an interval retains the same entry
+/// range the bracketed spelling did; an unstated side is the carrier's own
+/// extreme. The range suffix is being retired in favor of this spelling.
+#[test]
+fn interval_domain_parameter_retains_the_bracketed_entry_range() {
+    let requirement = |source: &str| {
+        let checked = checked_program(source);
+        let machine = machine_named(&checked, "accept");
+        let [requirement] = contract_plan(&checked, machine)
+            .closed_scalar_values
+            .integer_entry_ranges()
+            .expect("one complete retained integer range")
+        else {
+            panic!("one retained integer range")
+        };
+        requirement.clone()
+    };
+    assert_eq!(
+        requirement(
+            "domain u64::Small requires self <= 3;
+             machine accept(value: u64 in Small) -> u64 { value }"
+        ),
+        requirement("machine accept(value: u64[0..=3]) -> u64 { value }")
+    );
+}
+
 #[test]
 fn inclusive_u64_entry_range_retains_authored_endpoints() {
     let checked = checked_program(

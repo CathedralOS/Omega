@@ -89,16 +89,31 @@ pub fn structural_state_contracts_are_parameter_qualifications(
     actual == expected
 }
 
+/// One scalar row a state's `requires` contracts leave for a proof lane.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StateScalarContractRow {
+    /// An authored `requires` expression; the caller owns its closed lowering.
+    Expression(typed_trees::expression::ExpressionHandle),
+    /// A scalar parameter's membership in a domain that is exactly the closed
+    /// interval `minimum <= parameter <= maximum`
+    /// (`exact_declared_domain_carrier_interval`): the restating row is carried
+    /// as that interval, as a bracketed range on the parameter would be.
+    Interval {
+        parameter: SymbolHandle,
+        minimum: numerics::bignum::BigInt,
+        maximum: numerics::bignum::BigInt,
+    },
+}
+
 /// Split a state's authored `requires` contracts into the membership rows that
-/// restate parameter domain qualifications and the scalar expression rows a
-/// proof lane may carry. Membership rows must still match the exact declared
-/// qualifications; every other contract shape remains out of scope. The
-/// returned expressions name authored `requires` facts only — the caller owns
-/// their closed lowering.
+/// restate parameter domain qualifications and the scalar rows a proof lane
+/// may carry. Membership rows must still match the exact declared
+/// qualifications; a scalar parameter's exactly-interval membership becomes an
+/// interval row; every other contract shape remains out of scope.
 pub fn structural_state_contract_scalar_predicates(
     program: &TypedTrees,
     state: &typed_trees::state::State,
-) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
+) -> Option<Vec<StateScalarContractRow>> {
     let mut expected = Vec::new();
     for parameter in program.state_parameters(state) {
         let mut reference = parameter.type_reference;
@@ -108,6 +123,13 @@ pub fn structural_state_contract_scalar_predicates(
             reference = *referee;
         }
         if program.primitive_type_reference(reference).is_some() {
+            if !parameter.is_self && !parameter.is_mutable {
+                expected.extend(
+                    crate::scalar_interval_domains(program, reference)
+                        .into_iter()
+                        .map(|(_, domain)| (parameter.symbol, domain.0)),
+                );
+            }
             continue;
         }
         let Ok(domains) = structural_result_qualifications(program, reference) else {
@@ -153,9 +175,31 @@ pub fn structural_state_contract_scalar_predicates(
                     .iter()
                     .find(|domain| domain.symbol == membership.domain_symbol)?;
                 actual.push((path.symbol, domain.semantic_id.0));
+                // A scalar parameter's interval membership is carried as its
+                // closed interval; the qualification comparison below still
+                // requires it to restate the declared type exactly.
+                if let Some(parameter) = program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == path.symbol)
+                    && let Some(primitive) =
+                        program.primitive_type_reference(parameter.type_reference)
+                {
+                    let (minimum, maximum) = scalar_interval_bounds(
+                        program,
+                        parameter.type_reference,
+                        membership,
+                        primitive,
+                    )?;
+                    predicates.push(StateScalarContractRow::Interval {
+                        parameter: parameter.symbol,
+                        minimum,
+                        maximum,
+                    });
+                }
             }
             typed_trees::domain::ProofFact::Expression(expression) => {
-                predicates.push(*expression);
+                predicates.push(StateScalarContractRow::Expression(*expression));
             }
             typed_trees::domain::ProofFact::Proposition(_) => return None,
         }
@@ -163,6 +207,35 @@ pub fn structural_state_contract_scalar_predicates(
     expected.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     actual.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     (actual == expected).then_some(predicates)
+}
+
+/// The closed interval of the exactly-interval domain constraint on
+/// `reference` that `membership` restates.
+fn scalar_interval_bounds(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+    membership: &typed_trees::domain::ProofMembershipFact,
+    primitive: typed_trees::types::PrimitiveType,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                && domain.symbol == membership.domain_symbol
+                && domain.semantic_id == membership.semantic_domain
+                && let Some(bounds) =
+                    crate::exact_declared_domain_carrier_interval(program, primitive, domain)
+                        .filter(|(minimum, maximum)| minimum <= maximum)
+            {
+                return Some(bounds);
+            }
+        }
+        reference = *base_type;
+    }
+    None
 }
 
 /// Exact whole-result qualification row, excluding reference presentation.
