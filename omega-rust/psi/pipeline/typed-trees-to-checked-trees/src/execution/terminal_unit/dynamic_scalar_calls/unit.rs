@@ -12,22 +12,16 @@ use super::{
     CheckFacts, CheckedUnitCallCoordinate, Identifier, MachineSupplyMode, ServiceReachSummary,
     StatementNode, TypedTrees,
 };
+use crate::execution::terminal_unit::dynamic_scalar_calls::forwarded_calls::{
+    ForwardedDynamicCall, forwarded_transfer_path_is_exact,
+};
 use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::checked_call_service_reach;
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::{
     checked_rebound_dynamic_selection, checked_self_attachment_source, checked_source_argument,
 };
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, machine_binders, state_flow, structural_access_for_type_reference,
+    ShapeCollector, is_unit, machine_binders, structural_access_for_type_reference,
 };
-
-pub(super) struct ForwardedDynamicUnitCall<'program, 'facts> {
-    pub machine: &'program typed_trees::machine::Machine,
-    pub state: &'program typed_trees::state::State,
-    pub flow_call: &'facts checked_trees::FlowCallFact,
-    pub call_site: crate::semantic::calls::CallSite<'program>,
-    pub transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
-    pub prior_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_checked_dynamic_unit_call(
@@ -39,7 +33,7 @@ pub(super) fn build_checked_dynamic_unit_call(
     flow_call: &checked_trees::FlowCallFact,
     call_site: crate::semantic::calls::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
-    forwarded: Option<ForwardedDynamicUnitCall<'_, '_>>,
+    forwarded: Option<ForwardedDynamicCall<'_, '_>>,
 ) -> Option<checked_trees::CheckedDynamicBinding<checked_trees::CheckedDynamicUnitCallPlan>> {
     let crate::semantic::calls::CallSite::Statement(caller_call) = call_site else {
         return None;
@@ -68,7 +62,7 @@ pub(super) fn build_checked_dynamic_unit_call(
             let crate::semantic::calls::CallSite::Statement(call) = forwarded.call_site else {
                 return None;
             };
-            if !forwarded_unit_transfer_path_is_exact(&forwarded) {
+            if !forwarded_transfer_path_is_exact(&forwarded) {
                 return None;
             }
             let [parameter] = program.state_parameters(forwarded.state) else {
@@ -412,236 +406,4 @@ pub(super) fn build_checked_dynamic_unit_call(
         },
         None => checked_trees::CheckedDynamicBinding::Direct(plan),
     })
-}
-
-pub(super) fn build_checked_forwarded_dynamic_unit_calls(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    binding_facts: &checked_trees::DynamicConformanceBindingFacts,
-    plans: &mut checked_trees::CheckedDynamicDispatchPlans,
-) {
-    for machine in program.machines() {
-        if !machine.attached_data_symbol.is_valid() {
-            continue;
-        }
-        for state in program.machine_states(machine) {
-            let Some(flow) = state_flow(facts, machine.symbol, state.symbol) else {
-                continue;
-            };
-            for outer_call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                if outer_call.has_receiver || outer_call.call_ordinal != 0 {
-                    continue;
-                }
-                let Ok(statement_index) = u32::try_from(outer_call.statement_index) else {
-                    continue;
-                };
-                let Ok(call_ordinal) = u32::try_from(outer_call.call_ordinal) else {
-                    continue;
-                };
-                let coordinate = CheckedUnitCallCoordinate {
-                    statement_index,
-                    call_ordinal,
-                };
-                let matching_transfers = plans
-                    .transfers
-                    .iter()
-                    .filter(|transfer| {
-                        transfer.caller_machine == machine.symbol
-                            && transfer.caller_state == state.symbol
-                            && transfer.coordinate == coordinate
-                    })
-                    .collect::<Vec<_>>();
-                let [transfer] = matching_transfers.as_slice() else {
-                    continue;
-                };
-                let transfer = (*transfer).clone();
-                let Some(outer_site) = crate::semantic::calls::find_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    outer_call.statement_index,
-                    outer_call.call_ordinal,
-                ) else {
-                    continue;
-                };
-                let crate::semantic::calls::CallSite::Statement(call) = &outer_site else {
-                    continue;
-                };
-                if call.static_requirement_dispatch.is_some()
-                    || !call.machine_arguments.is_empty()
-                    || !call.evidence_arguments.is_empty()
-                    || call.discards_result
-                    || program
-                        .statement_table
-                        .expression_handles(call.arguments)
-                        .len()
-                        != 1
-                {
-                    continue;
-                }
-
-                let Some(forwarded) =
-                    resolve_forwarded_dynamic_unit_call(program, facts, &plans.transfers, transfer)
-                else {
-                    continue;
-                };
-                let Some(binding) = build_checked_dynamic_unit_call(
-                    program,
-                    facts,
-                    binding_facts,
-                    machine,
-                    state,
-                    outer_call,
-                    outer_site,
-                    shapes,
-                    Some(forwarded),
-                ) else {
-                    continue;
-                };
-                plans
-                    .calls
-                    .push(checked_trees::CheckedDynamicDispatchPlan::Unit(binding));
-            }
-        }
-    }
-}
-
-fn resolve_forwarded_dynamic_unit_call<'program, 'facts>(
-    program: &'program TypedTrees,
-    facts: &'facts CheckFacts,
-    transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
-    root_transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
-) -> Option<ForwardedDynamicUnitCall<'program, 'facts>> {
-    let mut current = root_transfer.clone();
-    let mut prior_transfers = Vec::new();
-    let mut visited = Vec::new();
-    loop {
-        if visited.iter().any(|&(machine, state)| {
-            machine == current.target_machine && state == current.target_state
-        }) {
-            return None;
-        }
-        visited.push((current.target_machine, current.target_state));
-        let target_state = crate::semantic::calls::find_state(program, current.target_state)?;
-        let target_machine = program.machines().iter().find(|candidate| {
-            candidate.symbol == current.target_machine
-                && program
-                    .machine_states(candidate)
-                    .iter()
-                    .any(|state| state.symbol == target_state.symbol)
-        })?;
-        let [parameter] = program.state_parameters(target_state) else {
-            return None;
-        };
-        if parameter.is_self
-            || parameter.is_const
-            || !parameter.symbol.is_valid()
-            || parameter.symbol != current.parameter
-            || current.parameter_position != 0
-            || !is_unit(program, target_state.return_type)
-            || !program.state_contracts(target_state).is_empty()
-        {
-            return None;
-        }
-        let [StatementNode::Call(helper_call)] = program
-            .statement_table
-            .statements(target_state.statement_nodes)
-        else {
-            return None;
-        };
-        let helper_flow = state_flow(facts, target_machine.symbol, target_state.symbol)?;
-        let [inner_call] = facts.flow.control.calls.span_or_empty(helper_flow.calls) else {
-            return None;
-        };
-        if inner_call.statement_index != 0 || inner_call.call_ordinal != 0 {
-            return None;
-        }
-        let inner_site = crate::semantic::calls::find_call_site(
-            program,
-            target_machine.symbol,
-            target_state.symbol,
-            inner_call.statement_index,
-            inner_call.call_ordinal,
-        )?;
-        let crate::semantic::calls::CallSite::Statement(inner_statement_call) = &inner_site else {
-            return None;
-        };
-        if !std::ptr::eq(*inner_statement_call, helper_call) {
-            return None;
-        }
-        if inner_call.has_receiver {
-            if inner_call.receiver_symbol != parameter.symbol {
-                return None;
-            }
-            return Some(ForwardedDynamicUnitCall {
-                machine: target_machine,
-                state: target_state,
-                flow_call: inner_call,
-                call_site: inner_site,
-                transfer: root_transfer,
-                prior_transfers,
-            });
-        }
-        let coordinate = CheckedUnitCallCoordinate {
-            statement_index: u32::try_from(inner_call.statement_index).ok()?,
-            call_ordinal: u32::try_from(inner_call.call_ordinal).ok()?,
-        };
-        let matching = transfers
-            .iter()
-            .filter(|transfer| {
-                transfer.caller_machine == target_machine.symbol
-                    && transfer.caller_state == target_state.symbol
-                    && transfer.coordinate == coordinate
-                    && transfer.source_binding == parameter.symbol
-                    && transfer.source
-                        == checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
-                            parameter_position: 0,
-                        }
-            })
-            .collect::<Vec<_>>();
-        let [next] = matching.as_slice() else {
-            return None;
-        };
-        current = (*next).clone();
-        prior_transfers.push(current.clone());
-    }
-}
-
-fn forwarded_unit_transfer_path_is_exact(forwarded: &ForwardedDynamicUnitCall<'_, '_>) -> bool {
-    if forwarded.transfer.source != checked_trees::CheckedDynamicDescriptorTransferSource::Selection
-    {
-        return false;
-    }
-    let [root_path] = forwarded.transfer.source_paths.as_slice() else {
-        return false;
-    };
-    let mut expected_path = root_path.clone();
-    let mut machine = forwarded.transfer.target_machine;
-    let mut state = forwarded.transfer.target_state;
-    for transfer in &forwarded.prior_transfers {
-        if transfer.caller_machine != machine
-            || transfer.caller_state != state
-            || transfer.source
-                != (checked_trees::CheckedDynamicDescriptorTransferSource::Parameter {
-                    parameter_position: 0,
-                })
-        {
-            return false;
-        }
-        expected_path.edges.push(transfer.edge());
-        if !transfer.source_paths.contains(&expected_path) {
-            return false;
-        }
-        machine = transfer.target_machine;
-        state = transfer.target_state;
-    }
-    let dispatch_parameter = forwarded
-        .prior_transfers
-        .last()
-        .map(|transfer| transfer.parameter)
-        .unwrap_or(forwarded.transfer.parameter);
-    machine == forwarded.machine.symbol
-        && state == forwarded.state.symbol
-        && dispatch_parameter == forwarded.flow_call.receiver_symbol
 }

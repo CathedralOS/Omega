@@ -28,7 +28,7 @@ use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 
 use checked_trees::CheckedDynamicDispatchPlan;
 use descriptor_transfers::build_checked_dynamic_descriptor_transfers;
-use forwarded_calls::build_checked_forwarded_dynamic_scalar_calls;
+use forwarded_calls::{ForwardedCallResult, build_checked_forwarded_dynamic_calls};
 use receivers::{local_receiver_symbol, stored_dynamic_receiver};
 use scalar_call_plans::build_checked_dynamic_scalar_call;
 use typed_trees::name::Identifier;
@@ -123,21 +123,24 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
         }
     }
 
-    build_checked_forwarded_dynamic_scalar_calls(
+    build_checked_forwarded_dynamic_calls(
         program,
         facts,
         shapes,
         boundaries,
         &binding_facts,
         &mut plans,
+        ForwardedCallResult::Scalar,
     );
     join::promote_two_predecessor_dynamic_scalar_joins(program, facts, shapes, &mut plans);
-    unit::build_checked_forwarded_dynamic_unit_calls(
+    build_checked_forwarded_dynamic_calls(
         program,
         facts,
         shapes,
+        boundaries,
         &binding_facts,
         &mut plans,
+        ForwardedCallResult::Unit,
     );
     join::promote_two_predecessor_dynamic_unit_joins(program, facts, shapes, &mut plans);
 
