@@ -719,3 +719,161 @@ pub(in crate::tests) fn sum_reference_fixture(
     unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
     (plan, targeted, unit)
 }
+
+/// A caller passes its owned Mixed carrier to a callee that returns the same
+/// carrier, then returns the call's result itself: the callee is the affine
+/// pass-through `ReturnStructural(param)`, so both sides carry Mixed results.
+pub(in crate::tests) fn mixed_result_fixture(
+    native: target::NativeTarget,
+) -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
+    let mixed = StructuralTypeId::new(1).unwrap();
+    let i32s = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let caller_machine = MachineId::new(1).unwrap();
+    let callee_machine = MachineId::new(2).unwrap();
+    let field = |id, identity: &str| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(id).unwrap(),
+        identity: identity.into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(i32s),
+    };
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type: mixed,
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let declaration = |place| StructuralResultDeclaration {
+        reference_sources: Vec::new(),
+        place,
+        structural_type: mixed,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let result = |place| terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place,
+        structural_type: mixed,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    };
+    let block = |raw| AbstractBlockEntry {
+        structural_parameters: Vec::new(),
+        block: BlockId::new(raw).unwrap(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    };
+    let return_structural = |edge, source| AbstractOperation::ReturnStructural {
+        psi_edge: EdgeId::new(edge).unwrap(),
+        source,
+        returned_claims: Vec::new(),
+        trivial_affine_locals: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let plan = AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x53; 32]),
+        },
+        entry: caller_machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: mixed,
+            identity: "test::MixedCarrier".into(),
+            shape: StructuralTypeShape::Mixed {
+                fields: vec![field(1, "test::common")],
+                cases: vec![
+                    terminal_psi::StructuralCaseDeclaration {
+                        id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                        identity: "test::Empty".into(),
+                        fields: Vec::new(),
+                    },
+                    terminal_psi::StructuralCaseDeclaration {
+                        id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                        identity: "test::Present".into(),
+                        fields: vec![field(2, "test::payload")],
+                    },
+                ],
+            },
+        }]
+        .into(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller_machine,
+                attachment: None,
+                entry: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(PlaceId::new(10).unwrap())],
+                result: AbstractFunctionResult::Structural(declaration(PlaceId::new(99).unwrap())),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block(1)],
+                operations: vec![
+                    AbstractOperation::CallStructural {
+                        psi_operation: OperationId::new(12).unwrap(),
+                        result: result(PlaceId::new(12).unwrap()),
+                        callee: callee_machine,
+                        arguments: Vec::new(),
+                        structural_arguments: vec![StructuralArgument {
+                            place: PlaceId::new(10).unwrap(),
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        }],
+                        claim_transfers: Vec::new(),
+                        returned_claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                        selected_evidence: Vec::new(),
+                    },
+                    return_structural(1, PlaceId::new(12).unwrap()),
+                ],
+            },
+            AbstractFunction {
+                machine: callee_machine,
+                attachment: None,
+                entry: BlockId::new(2).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(PlaceId::new(20).unwrap())],
+                result: AbstractFunctionResult::Structural(declaration(PlaceId::new(98).unwrap())),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block(2)],
+                operations: vec![return_structural(2, PlaceId::new(20).unwrap())],
+            },
+        ],
+    };
+    let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    for function in &mut unit.functions {
+        function.verified_contract = Some(terminal_psi::MachineContract {
+            id: semantic_vocabulary::ContractId::new(1).unwrap(),
+            crash_routes: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        });
+    }
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    (plan, targeted, unit)
+}

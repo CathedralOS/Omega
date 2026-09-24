@@ -280,6 +280,7 @@ pub(crate) fn owned_aggregate_shape(
                 StructuralTypeShape::Record { .. }
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
             )
         })?;
     plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;
