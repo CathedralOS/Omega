@@ -4479,8 +4479,51 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `TransitionTargetNode::Named` reader reached the same place: no
   ProgressProfile-aware rule exists under `checks/contracts/`, and `FactOrigin`
   has no premise-derived variant. The three tests are the acceptance
-  specification; the soundness question to settle first is who discharges a
-  retained premise at the component's boundary.
+  specification.
+
+  WHO DISCHARGES IS ALREADY SETTLED, in
+  [termination](wiki/spec/language/termination.md): the obligation sits at
+  three levels -- a public schema authors its profile-qualified subjects, a
+  checked dependency instantiates the selected operation's premises, and
+  COVERAGE resolves each instance at an authored public schema, an admitted
+  receipt, or a build-bound provider premise discharged at composition. "Private
+  mutual components propagate finite sets of exact subject-qualified premises."
+  A private caller is none of those boundaries, so the call site is not where
+  the requirement is proved.
+
+  What is NOT settled is which requirements are ELIGIBLE to become premises,
+  and that is where the naive rule fails. Admitting every
+  `DomainClassification::ProgressProfile` membership whose calling machine is
+  not `is_public` (one `satisfied ||` arm in `checks/contracts/calls.rs`) turns
+  six of this target's seven tests green and moves
+  `pass/generics/runtime_const_data_machine_call_exit` rejected -> checked, but
+  it also turns at least five `typed-trees-to-checked-trees
+  tests::termination::progress_lineage` tests red, including
+  `a_reference_argument_requires_its_fact_to_survive_later_operands`,
+  `a_late_unqualified_loop_arrival_retires_the_initial_membership` and
+  `a_same_named_formal_does_not_take_another_actuals_membership`. Those pin that
+  reference identity, a same-named formal and a re-entered loop arrival cannot
+  establish the fact -- exactly the cases where the premise is NOT retainable.
+  The contract check therefore has to ask the qualification/lineage machinery
+  the question `derive_machine_summary` asks (does this instance resolve to an
+  entry-parameter-rooted subject under `origins`/`lineage`?), not merely look at
+  the domain's classification and the caller's visibility.
+
+  `private_external_wrapper_can_be_solved_after_the_cycle` needs a second,
+  independent repair, and it is not in `checks/contracts/`: even with the naive
+  rule it stays red. With a private wrapper (`wait_for_scheduler`) between the
+  cycle and the public `wait`, the component fixed point in
+  `checks/termination/progress/components.rs` REGRESSES -- `Main::a` and
+  `Main::b` both reach `Terminates` with their one premise, then
+  `origins::at_call` returns `None` resolving the value origin of
+  `Main::b`'s own `forwarded.scheduler` at its `self.a(count - 1, forwarded)`
+  call, `derive_machine_summary`'s `unwrap_or_else(no_guarantee)` turns that
+  analysis failure into a judgment, and the cycle collapses over the next two
+  rounds. The identical place resolves at the same call in
+  `exact_external_premise_survives_private_cycle_propagation`, which differs
+  only in calling public `wait` there, so the walk is sensitive to program
+  content it should not read. Two separable defects: the origin walk, and a
+  fixed point that must not let `None` move a summary downward.
 
   `source_evaluated_native_realization` keeps two, both NEGATIVE tests that
   now pass their subject instead of refusing it.
