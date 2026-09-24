@@ -38,6 +38,12 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
                     (references && super::references::referent(module, child).is_some())
                         || visit(module, child, active, complete, references)
                 }
+                // A borrowed view is a relocated descriptor, not owned leaf
+                // storage: records carrying one stay plain but may be locally
+                // constructed, where the binding roster checks the loan source.
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                ) => references,
                 _ => field.field_type.scalar_type().is_some(),
             }
     }
@@ -202,6 +208,66 @@ pub(crate) fn fields<'a>(
                 }
             }
             (
+                StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+                RecordFieldValue::Structural(argument),
+            ) => {
+                // The field owns a copy of an existing shared-view descriptor:
+                // the source must name a borrowed view, arrive whole, and come
+                // from a place the machine may read and share.
+                let source =
+                    super::structural::result_contracts::source_signature(machine, argument.place)
+                        .ok_or_else(failure)?;
+                let shared_view = module.structural_types.iter().any(|item| {
+                    item.id == source.structural_type
+                        && matches!(
+                            item.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView
+                            )
+                        )
+                });
+                if argument.access != StructuralAccess::Owned
+                    || !argument.path.is_empty()
+                    || argument.place == result.place
+                    || !shared_view
+                    || !source.qualifications.is_empty()
+                    || !source.projected_qualifications.is_empty()
+                    || !matches!(
+                        source.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    )
+                    || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && source.multiplicity != StructuralMultiplicity::Unrestricted)
+                    || machine
+                        .structural_parameters
+                        .iter()
+                        .chain(
+                            machine
+                                .blocks
+                                .iter()
+                                .flat_map(|block| &block.structural_parameters),
+                        )
+                        .any(|parameter| {
+                            parameter.place == argument.place
+                                && !matches!(
+                                    parameter.access,
+                                    StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                                )
+                        })
+                    || machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|producer| {
+                            producer.result.structural().is_some_and(|source| {
+                                source.place == argument.place && !source.claims.is_empty()
+                            })
+                        })
+                {
+                    return Err(failure());
+                }
+            }
+            (
                 field_type,
                 RecordFieldValue::Scalar {
                     range_obligation, ..
@@ -351,6 +417,31 @@ pub(super) fn result(
         })
         .filter_map(|operation| operation.result.structural())
         .find(|result| result.place == source)
+}
+
+/// A validated affine record establishment returns whole: `fields` has already
+/// checked every binding, so reference-free records — plain payloads and
+/// borrowed-view descriptor carriers alike — relocate into the caller.
+/// Reference-containing results still ride the reference return lane.
+pub(super) fn established_record_return_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::EstablishRecord { .. }))
+        .filter_map(|operation| operation.result.structural())
+        .any(|result| {
+            result.place == source
+                && result.multiplicity == StructuralMultiplicity::Affine
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && !super::references::contains_reference(module, result.structural_type)
+        })
 }
 
 pub(super) fn plain_return_source(
