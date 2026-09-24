@@ -149,7 +149,9 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
             "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/validation.rs",
         ],
         output_marker: "stage_optimized_x86_branch_relaxation",
-        consumers: &["omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase.rs"],
+        consumers: &[
+            "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase.rs",
+        ],
     },
 ];
 
