@@ -147,3 +147,11 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T12:45Z	c3aecd44a2 (via 437d748a38)	leaf/element-view-native-lowering	z5: ElementView ops lower natively end-to-end (Establish/Length/Read/Subslice→machine code; omega run recursive_sum=70 fletcher=56)	test_affected 16916/16921 attributed
 2026-09-24T15:05Z	SUPERSEDED	leaf/transition-arm-runtime-index-reads	z4 @15ba895312a gated green but dropped — arch-self-runtime-index landed RuntimeIndex path-segment route first (tags 89/90; self.collections[i] already composes on ab67cd12ed)	predicted collision; main wins
 z4	leaf/nested-borrowed-operands	MERGED	8053126902	borrowed-view nested-call results 5-gate ladder	2026-09-24T16:1xZ
+2026-09-24T16:39:04Z	merge	leaf/nested-self-borrowed-operands (z4)	17d3e71cc7 clean — &self callee arm +tests
+2026-09-24T16:39:04Z	merge	leaf/borrowed-result-custody-arm (z4)	17665ac818 union outer_calls — Unrestricted->borrowed-view family 3 sites
+2026-09-24T16:39:04Z	superseded	leaf/indexed-primitive-read-realization (z4)	dropped — RuntimeIndex route (0feb55a69e/c4ff4f9533) already carries realization end-to-end
+2026-09-24T16:39:04Z	superseded	leaf/transition-arm-runtime-index-reads (z4)	dropped — same RuntimeIndex route
+2026-09-24T16:39:04Z	superseded	leaf/transition-self-scalar-guards (z4)	dropped — main has identical seed/prove fns
+2026-09-24T16:39:04Z	repair	0faddb7cc1 marker bug	eb51224cdc — abort restored marker blobs; restored from 0faddb7cc1^1; ALL rows 29->28
+2026-09-24T17:14:00Z	merge	leaf/borrowed-result-affine-convergence (z4)	ba0d9adc49 pile — &'a V shelled identity + Affine convergence 796f51ac22
+2026-09-24T17:14:00Z	merge	leaf/self-return-named-view (z4)	ba0d9adc49 — receiver-as-return surface; merge f3783d841d, 5344/5344
