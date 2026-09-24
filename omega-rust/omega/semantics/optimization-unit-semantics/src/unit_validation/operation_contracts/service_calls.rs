@@ -349,7 +349,7 @@ fn reference_call_matches(
         && result.projected_qualifications == signature.projected_qualifications
         && crate::unit_validation::references::contains_reference(types, result.structural_type)
         && (crate::unit_validation::references::referent(types, result.structural_type).is_some()
-            || crate::unit_validation::operation_contracts::constructible_record(
+            || crate::unit_validation::operation_contracts::constructible(
                 types,
                 result.structural_type,
             ))
