@@ -13,6 +13,28 @@ pub(crate) mod projected_receivers;
 #[cfg(test)]
 mod tests;
 
+/// Whether the checked flow roster records a call at this statement.
+fn statement_makes_call(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+) -> bool {
+    let control = &checked.facts.flow.control;
+    control
+        .states
+        .iter()
+        .map(|(_, flow)| flow)
+        .filter(|flow| flow.machine_symbol == plan.machine && flow.state_symbol == state)
+        .any(|flow| {
+            control
+                .calls
+                .span_or_empty(flow.calls)
+                .iter()
+                .any(|call| call.statement_index == statement_index)
+        })
+}
+
 /// Preserve calls around authored stores and direct call initializers, even
 /// when a result is unused. Each retained owner checks its exact operands.
 pub(crate) fn validate_store_and_initializer_calls(
@@ -51,6 +73,14 @@ pub(crate) fn validate_store_and_initializer_calls(
                 continue;
             }
             StatementNode::Call(call) if call.discards_result => None,
+            // A transition owes a call only when its guard or target makes
+            // one; the checked flow roster records every call a statement
+            // makes.
+            StatementNode::Transition(_)
+                if !statement_makes_call(checked, plan, state.symbol, statement_index) =>
+            {
+                continue;
+            }
             _ if !has_stores => continue,
             _ => None,
         };

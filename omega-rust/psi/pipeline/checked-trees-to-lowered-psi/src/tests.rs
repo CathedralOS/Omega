@@ -13,6 +13,7 @@ mod boundary_byte_buffers;
 mod byte_extent;
 mod byte_sequence_write;
 mod byte_write_loop;
+mod call_free_transitions;
 mod case_test_dispatch_payloads;
 mod composed_operand_catalogs;
 mod composed_provider_candidates;
