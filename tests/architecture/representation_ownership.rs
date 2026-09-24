@@ -1114,7 +1114,8 @@ fn register_home_data_is_independent_of_allocation_authority() {
     let owner = repository().join("omega-rust/omega/representations/register-homes");
     let representation = rust_source(&owner.join("src"));
     let allocator = rust_source(
-        &repository().join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
+        &repository()
+            .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
     );
     for declaration in [
         "pub struct RegisterHomePlan {",
@@ -1153,8 +1154,8 @@ fn register_home_stages_read_current_data_not_producer_ancestry() {
     // by identity. Named input hops (`source_legality_stage`,
     // `transformation_stage`, `live_range_stage` passed to custody validators)
     // stay: they name the stage under inspection, not a data read.
-    let root =
-        repository().join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src");
+    let root = repository()
+        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());

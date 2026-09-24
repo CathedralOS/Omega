@@ -3207,8 +3207,8 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         model_source.is_file(),
         "the canonical register-model vocabulary must remain representation-owned"
     );
-    let facade_source =
-        root.join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/lib.rs");
+    let facade_source = root
+        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/lib.rs");
     let facade = std::fs::read_to_string(&facade_source)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
     assert!(
@@ -3216,8 +3216,8 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
             && !facade.contains("pub struct RegisterConstraintCatalog"),
         "canonical register-model declarations must not drift back into selected-instructions-to-register-homes"
     );
-    let regalloc_manifest =
-        root.join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/Cargo.toml");
+    let regalloc_manifest = root
+        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/Cargo.toml");
     let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
     assert!(
@@ -4301,8 +4301,9 @@ fn spill_frame_requirements_are_independent_and_non_authoritative() {
 #[test]
 fn allocated_callee_saved_requirements_are_independent_exact_and_non_authoritative() {
     let root = workspace_root();
-    let stage = root
-        .join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation");
+    let stage = root.join(
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
+    );
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read allocated callee-saved requirement entrance");
     assert!(
