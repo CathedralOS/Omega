@@ -382,6 +382,38 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
         } => {
             if !path.is_empty() {
+                let index = lower_checked_scalar_expression_with_parameters(
+                    index,
+                    structural_parameters,
+                    structural_fields,
+                    structural_cases,
+                    primitive_storage,
+                    element_views,
+                )?;
+                if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
+                    return unsupported("indexed field reads require an exact u64 index");
+                }
+                // A path ending at a fixed array declares its extent on the
+                // type, so the element read needs no length observation.
+                if let Some((source, path, element_scalar)) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_indexed_array(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                    )?
+                {
+                    if element_scalar != terminal_scalar_type(*primitive_type)? {
+                        return unsupported(
+                            "indexed field read drifted from its element type",
+                        );
+                    }
+                    return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                        source,
+                        path,
+                        index: Box::new(index),
+                        scalar_type: element_scalar,
+                    });
+                }
                 // An indexed read landing on a byte-sequence record field
                 // borrows the field's own dominating length observation, so
                 // bounded-owned and borrowed-view carriers share one read.
@@ -394,17 +426,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         *parameter_position,
                         path,
                     )?;
-                let index = lower_checked_scalar_expression_with_parameters(
-                    index,
-                    structural_parameters,
-                    structural_fields,
-                    structural_cases,
-                    primitive_storage,
-                    element_views,
-                )?;
-                if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
-                    return unsupported("view indexed reads require an exact u64 index");
-                }
                 return Ok(LoweredDirectExpression::ByteSequenceFieldRead {
                     source,
                     path,

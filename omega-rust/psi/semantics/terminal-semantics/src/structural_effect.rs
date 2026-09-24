@@ -68,6 +68,7 @@ pub enum StructuralEffectAction {
     ObserveCaseMembership,
     StorePrimitive,
     StoreIndexedPrimitive,
+    ReadIndexedPrimitive,
     StoreScalarField,
     StoreByteSequenceField,
     ReadByteSequenceFieldLength,
@@ -210,7 +211,8 @@ const fn structural_effect_leaf(
             StructuralEffectAction::EstablishElementViewSubslice => {
                 StructuralEffectGoalShape::ElementRangeInBounds
             }
-            StructuralEffectAction::StoreIndexedPrimitive => {
+            StructuralEffectAction::StoreIndexedPrimitive
+            | StructuralEffectAction::ReadIndexedPrimitive => {
                 StructuralEffectGoalShape::ScalarIndexWithinDeclaredExtent
             }
             _ => StructuralEffectGoalShape::None,
@@ -226,7 +228,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -428,6 +430,16 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
+            tag: OperationSemanticTag::IndexedPrimitiveRead,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Scalar,
+                StructuralEffectCustody::ExactReadablePrimitiveRoot,
+                StructuralEffectAction::ReadIndexedPrimitive,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
             tag: OperationSemanticTag::StructuralScalarFieldStore,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Unit,
@@ -538,6 +550,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::StructuralCaseMembership
             | OperationSemanticTag::WriteOnlyPrimitiveStore
             | OperationSemanticTag::WriteOnlyIndexedPrimitiveStore
+            | OperationSemanticTag::IndexedPrimitiveRead
             | OperationSemanticTag::StructuralScalarFieldStore
             | OperationSemanticTag::StructuralByteSequenceFieldStore
             | OperationSemanticTag::StructuralByteSequenceFieldLength
@@ -608,6 +621,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::StructuralCaseMembership,
         OperationSemanticTag::WriteOnlyPrimitiveStore,
         OperationSemanticTag::WriteOnlyIndexedPrimitiveStore,
+        OperationSemanticTag::IndexedPrimitiveRead,
         OperationSemanticTag::StructuralScalarFieldStore,
         OperationSemanticTag::StructuralByteSequenceFieldStore,
         OperationSemanticTag::StructuralByteSequenceFieldLength,
@@ -658,6 +672,17 @@ pub enum StructuralEffectObservation {
     PrimitiveRead {
         source: PlaceId,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        result: ValueId,
+    },
+    /// Read one scalar element that `index` selects within the fixed array
+    /// the path resolves to. The verifier publishes `index < declared extent`
+    /// from the module's array shape; the element itself is not a named leaf,
+    /// so no element-value equation is retained.
+    IndexedPrimitiveRead {
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: ValueId,
+        obligation: ObligationId,
         result: ValueId,
     },
     /// Captures one tag observation without a reusable current-storage fact.
@@ -823,7 +848,9 @@ impl StructuralEffectObservation {
             // These obligations must be reconstructed with the module's exact
             // destination field capacity or declared array extent before
             // ordinary leaf processing.
-            Self::ByteSequenceFieldStored { .. } | Self::IndexedPrimitiveStored { .. } => None,
+            Self::ByteSequenceFieldStored { .. }
+            | Self::IndexedPrimitiveStored { .. }
+            | Self::IndexedPrimitiveRead { .. } => None,
             Self::ByteSequenceFieldByteStored {
                 index,
                 length,
@@ -911,6 +938,7 @@ impl StructuralEffectObservation {
             | Self::CaseMembershipObserved { .. }
             | Self::PrimitiveStored { .. }
             | Self::IndexedPrimitiveStored { .. }
+            | Self::IndexedPrimitiveRead { .. }
             | Self::ByteSequenceFieldLengthRead { .. }
             | Self::ByteSequenceFieldByteStored { .. }
             | Self::ByteSequenceFieldByteRead { .. }
@@ -973,6 +1001,7 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::StoreIndexedPrimitive => {
             OperationSemanticTag::WriteOnlyIndexedPrimitiveStore
         }
+        StructuralEffectAction::ReadIndexedPrimitive => OperationSemanticTag::IndexedPrimitiveRead,
         StructuralEffectAction::StoreScalarField => {
             OperationSemanticTag::StructuralScalarFieldStore
         }
@@ -1009,7 +1038,8 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishElementViewSubslice => {
             StructuralEffectGoalShape::ElementRangeInBounds
         }
-        StructuralEffectAction::StoreIndexedPrimitive => {
+        StructuralEffectAction::StoreIndexedPrimitive
+        | StructuralEffectAction::ReadIndexedPrimitive => {
             StructuralEffectGoalShape::ScalarIndexWithinDeclaredExtent
         }
         _ => StructuralEffectGoalShape::None,
@@ -1039,6 +1069,13 @@ fn validate_structural_effect_schema(
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
                 }
                 StructuralEffectAction::ReadPrimitive => {
+                    schema.result == StructuralEffectResultShape::Scalar
+                        && schema.custody == StructuralEffectCustody::ExactReadablePrimitiveRoot
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ReadIndexedPrimitive => {
                     schema.result == StructuralEffectResultShape::Scalar
                         && schema.custody == StructuralEffectCustody::ExactReadablePrimitiveRoot
                         && schema.external_effect == StructuralEffectExternalEffect::None
@@ -1520,6 +1557,26 @@ pub fn structural_effect_leaf_observation_in(
             value: *value,
             obligation: *obligation,
         },
+        (
+            StructuralEffectAction::ReadIndexedPrimitive,
+            OperationKind::IndexedPrimitiveRead {
+                source,
+                path,
+                index,
+                obligation,
+            },
+        ) => {
+            let result = operation.result.scalar().ok_or(
+                OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
+            )?;
+            StructuralEffectObservation::IndexedPrimitiveRead {
+                source: *source,
+                path: path.clone(),
+                index: *index,
+                obligation: *obligation,
+                result: result.id,
+            }
+        }
         (
             StructuralEffectAction::StoreByteSequenceField,
             OperationKind::StructuralByteSequenceFieldStore {
@@ -2144,7 +2201,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 29);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 30);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2170,6 +2227,7 @@ mod tests {
                 OperationSemanticTag::ElementViewSubslice,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,
                 OperationSemanticTag::WriteOnlyIndexedPrimitiveStore,
+                OperationSemanticTag::IndexedPrimitiveRead,
                 OperationSemanticTag::StructuralScalarFieldStore,
                 OperationSemanticTag::EstablishScalarCase,
                 OperationSemanticTag::EstablishStructuralCase,

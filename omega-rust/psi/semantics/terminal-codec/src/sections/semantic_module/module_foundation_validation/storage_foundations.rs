@@ -796,6 +796,100 @@ pub(super) fn validate_write_only_indexed_primitive_store(
     Ok(())
 }
 
+/// The runtime index is always a projection of the source root: the readable
+/// side of `validate_write_only_indexed_primitive_store`. The verifier
+/// independently reconstructs custody, dominance, and the
+/// `index < declared extent` obligation; this pass checks wire-level shape.
+pub(super) fn validate_indexed_primitive_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::IndexedPrimitiveRead {
+        source,
+        path,
+        index,
+        ..
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_indexed_primitive_read")
+    };
+    let Some(result) = operation.result.scalar() else {
+        return malformed("indexed primitive read declares a non-scalar result");
+    };
+    let source_type = if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *source)
+    {
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::SharedBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) {
+            return malformed("indexed primitive read has invalid source custody");
+        }
+        parameter.structural_type
+    } else {
+        let Some(producer) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|producer| producer.result.structural())
+            .find(|result| {
+                result.place == *source
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+            })
+        else {
+            return malformed("indexed primitive read has no readable root");
+        };
+        producer.structural_type
+    };
+    let Some((element_type, _)) = terminal_semantics::fixed_array_place_shape(
+        module.structural_types.iter(),
+        source_type,
+        path,
+    ) else {
+        return malformed("indexed primitive read requires a fixed-array source path");
+    };
+    if result.scalar_type != element_type {
+        return malformed("indexed primitive read result type does not match the element");
+    }
+    let expected_index = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+    );
+    let declared = machine
+        .parameters
+        .iter()
+        .chain(machine.result.scalar_ref())
+        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|candidate| candidate.result.scalar_ref())
+        }))
+        .find(|declaration| declaration.id == *index)
+        .map(|declaration| declaration.scalar_type);
+    if declared != Some(expected_index) {
+        return malformed("indexed primitive read requires an unsigned 64-bit index");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

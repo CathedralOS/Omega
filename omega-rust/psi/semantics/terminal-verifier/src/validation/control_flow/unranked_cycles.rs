@@ -163,6 +163,7 @@ fn operation_leaves_custody(
         OperationKind::EstablishReference { source } => clears(source.place),
         OperationKind::ReleaseReference { source }
         | OperationKind::PrimitiveScalarRead { source, .. }
+        | OperationKind::IndexedPrimitiveRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. }
         | OperationKind::ByteSequenceLength { source }
@@ -462,6 +463,13 @@ fn cycle_operation_eligible(
         OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {
                 primitive_storage::read_type(module, machine, operation.id, *source, path)
+                    == Ok(result.scalar_type)
+            })
+        }
+        OperationKind::IndexedPrimitiveRead { source, path, .. } => {
+            operation.result.scalar().is_some_and(|result| {
+                primitive_storage::indexed_read_shape(module, machine, operation.id, *source, path)
+                    .map(|(element, _)| element)
                     == Ok(result.scalar_type)
             })
         }

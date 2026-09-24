@@ -631,6 +631,15 @@ impl TerminalExecution {
                         )?;
                         OperationFlow::Advance
                     }
+                    OperationKind::IndexedPrimitiveRead {
+                        source,
+                        ref path,
+                        index,
+                        ..
+                    } => {
+                        self.execute_indexed_primitive_read(operation, source, path, index)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::StructuralScalarFieldStore { .. } => {
                         self.execute_structural_scalar_field_store(operation)?
                     }

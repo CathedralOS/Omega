@@ -39,6 +39,9 @@ pub enum LoweringError {
     /// Terminal verifies indexed reads on byte-sequence fields, but Omega has
     /// no target-neutral abstract operation for realizing the field read yet.
     UnsupportedStructuralByteSequenceFieldRead(semantic_vocabulary::OperationId),
+    /// The runtime-indexed fixed-array element read has no abstract storage
+    /// realization yet; the Terminal verifier already admitted the op itself.
+    UnsupportedIndexedPrimitiveRead(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),
