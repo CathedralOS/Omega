@@ -184,7 +184,6 @@ mod cleanup;
 mod composed_control;
 pub(crate) mod control;
 mod dynamic_scalar_calls;
-mod primitive_store;
 mod providers;
 mod receiver_aliases;
 mod receiver_calls;
@@ -201,7 +200,6 @@ pub(crate) mod types;
 
 use crate::execution::terminal_unit::cleanup::build_partial_affine_unit_cleanup_machine;
 pub(crate) use calls::structural_computation_argument;
-use primitive_store::build_write_only_primitive_store;
 use shared_convergence::checked_shared_boolean_convergence;
 pub(super) use structural_scalar_store::build_local_scalar_field_store;
 pub(crate) use types::{is_reference, strips_erased_parameter, structural_parameter_candidate};

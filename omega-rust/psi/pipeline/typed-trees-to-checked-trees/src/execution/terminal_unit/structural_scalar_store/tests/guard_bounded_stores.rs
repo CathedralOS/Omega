@@ -5,11 +5,10 @@ use super::{
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use checked_trees::types::PrimitiveType;
 
-/// A plain `u64` selector that carries no declared range still stores
-/// through a receiver array field when every transition edge into its
-/// state proves the argument under a literal conjunct: `position <
-/// module_name.len && position < 256 { true -> store(position) }` gives
-/// `position < extent` edge-locally.
+/// A plain `u64` selector that carries no declared range stores through a
+/// receiver array field as the path's runtime element. The edge conjunct
+/// `position < 4` is the evidence Terminal re-proves `position < extent`
+/// from; the planner itself proves no bound.
 #[test]
 fn guard_bounded_index_stores_through_receiver_array_field() {
     let source = r#"
@@ -53,22 +52,30 @@ fn guard_bounded_index_stores_through_receiver_array_field() {
         0,
         None,
     )
-    .expect("guard-bounded state index produces an indexed store");
-    let [CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { path, index, .. }] =
-        stores.as_slice()
+    .expect("guard-bounded state index produces an element store");
+    let [CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. }] = stores.as_slice()
     else {
-        panic!("one indexed store");
+        panic!("one element store");
     };
     assert!(matches!(
         path.as_slice(),
-        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)] if identity == "cells"
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::Field(identity),
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex
+            ),
+        ] if identity == "cells"
     ));
     assert!(matches!(
-        index,
-        checked_trees::CheckedScalarExpression::Parameter {
+        checked.facts.values.scalar_expressions.expression_at(
+            state.symbol,
+            0,
+            checked_trees::CheckedScalarExpressionRole::AssignmentIndex,
+        ),
+        Some(checked_trees::CheckedScalarExpression::Parameter {
             position: 0,
             primitive_type: PrimitiveType::U64,
-        }
+        })
     ));
 }
 
@@ -186,17 +193,28 @@ fn guard_bounded_index_resolves_the_argument_by_parameter_position() {
         None,
     )
     .expect("second-parameter index bounded by the edge guard");
-    let Some(CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { index, .. }) =
-        stores.first()
+    let Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { path, .. }) = stores.first()
     else {
-        panic!("indexed store leads the sequence");
+        panic!("element store leads the sequence");
     };
     assert!(matches!(
-        index,
-        checked_trees::CheckedScalarExpression::Parameter {
+        path.last(),
+        Some(
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex
+            )
+        )
+    ));
+    assert!(matches!(
+        checked.facts.values.scalar_expressions.expression_at(
+            state.symbol,
+            0,
+            checked_trees::CheckedScalarExpressionRole::AssignmentIndex,
+        ),
+        Some(checked_trees::CheckedScalarExpression::Parameter {
             position: 1,
             primitive_type: PrimitiveType::U64,
-        }
+        })
     ));
 }
 
@@ -235,14 +253,13 @@ fn stores_for_store_state(checked: &checked_trees::CheckedTrees) -> bool {
     .is_some()
 }
 
-/// The indexed-access checker proves bounds through its whole-machine
-/// meet — propagated declared ranges, literal arguments, and interval
-/// arithmetic — while this admission only certifies a literal conjunct on
-/// each incoming edge. Bounds proven only through those channels stay
-/// declined here (under-bounded edges never reach this gate at all: the
-/// checker's meet rejects them first).
+/// The indexed-access checker proves bounds through its whole-machine meet --
+/// propagated declared ranges, literal arguments, and interval arithmetic.
+/// The store planner no longer replays a narrower syntactic proof of its
+/// own: a selector bounded only through those channels still retains its
+/// runtime element, and Terminal decides from the facts that reach the store.
 #[test]
-fn guard_bounded_index_declines_bounds_the_edge_does_not_carry() {
+fn guard_bounded_index_retains_bounds_the_edge_does_not_carry() {
     // A declared range on the CALLER's parameter flows through the meet
     // but appears in no guard conjunct on the edge into `store`.
     let declared_on_caller = r#"
@@ -258,8 +275,8 @@ fn guard_bounded_index_declines_bounds_the_edge_does_not_carry() {
         }
     "#;
     assert!(
-        !stores_for_store_state(&checked_program(declared_on_caller)),
-        "caller-declared bound is a meet fact, not an edge conjunct",
+        stores_for_store_state(&checked_program(declared_on_caller)),
+        "caller-declared bound is a meet fact the planner no longer re-proves",
     );
 
     // `position + 1` is bounded by interval arithmetic on `position < 3`;
@@ -281,8 +298,8 @@ fn guard_bounded_index_declines_bounds_the_edge_does_not_carry() {
         }
     "#;
     assert!(
-        !stores_for_store_state(&checked_program(arithmetic_argument)),
-        "an argument expression is not the conjunct's named operand",
+        stores_for_store_state(&checked_program(arithmetic_argument)),
+        "an argument bounded by interval arithmetic keeps its runtime element",
     );
 
     // A constant argument is trivially in-extent but carries no conjunct.
@@ -296,7 +313,7 @@ fn guard_bounded_index_declines_bounds_the_edge_does_not_carry() {
         }
     "#;
     assert!(
-        !stores_for_store_state(&checked_program(literal_argument)),
-        "a literal argument is not a guard-bounded index",
+        stores_for_store_state(&checked_program(literal_argument)),
+        "a literal argument's selector keeps its runtime element",
     );
 }

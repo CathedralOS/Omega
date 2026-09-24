@@ -219,12 +219,13 @@ pub(crate) fn projected_argument_path(
 }
 
 /// `projected_argument_path` with runtime-index admission for the borrowed
-/// receiver lane. A runtime `Index` segment retains `RuntimeIndex` — the
-/// checked selector's dense scalar position and the inclusive bounds its
-/// retained integer entry range publishes — only while
-/// `bounded_runtime_index` proves `0 <= index < extent` against the enclosing
-/// fixed array's literal extent. Every other caller keeps rejecting runtime
-/// indexes through `projected_argument_path`.
+/// receiver lane. A runtime `Index` segment retains `RuntimeIndex` naming the
+/// checked selector's dense scalar position only while
+/// `bounded_runtime_index` finds `0 <= index < extent` published against the
+/// enclosing fixed array's literal extent. Terminal re-proves that bound for
+/// the segment's obligation; the segment itself carries no interval. Every
+/// other caller keeps rejecting runtime indexes through
+/// `projected_argument_path`.
 pub(crate) fn projected_borrowed_receiver_path(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -294,7 +295,7 @@ fn projected_argument_path_impl(
                     &container,
                 )?;
                 let extent = fixed_array_literal_length(program, container)?;
-                let (selector, minimum, maximum) = bounded_runtime_index(
+                let position = bounded_runtime_index(
                     program,
                     facts,
                     machine,
@@ -302,11 +303,9 @@ fn projected_argument_path_impl(
                     *expression,
                     extent,
                 )?;
-                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex {
-                    selector,
-                    minimum,
-                    maximum,
-                });
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::Parameter { position },
+                ));
             }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Case { .. } => {
                 return None;
@@ -323,11 +322,11 @@ fn projected_argument_path_impl(
 /// bare direct scalar parameter of the caller's entry state, and that
 /// parameter's retained closed integer entry range must prove
 /// `0 <= index < extent` for the fixed array it indexes. The returned
-/// selector is the parameter's dense scalar position — the same coordinate
+/// selector is the parameter's dense scalar position -- the same coordinate
 /// `CheckedScalarExpression::Parameter` and the Terminal caller's
-/// `parameters` vector share — and the inclusive endpoints restate the range
-/// row at the parameter's declared signedness, so terminal verification
-/// replays the published row rather than trusting this segment.
+/// `parameters` vector share. The range only admits the receiver here;
+/// terminal verification re-proves the bound from the caller's published
+/// requires rather than trusting this admission.
 fn bounded_runtime_index(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -335,11 +334,7 @@ fn bounded_runtime_index(
     state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     extent: usize,
-) -> Option<(
-    u32,
-    semantic_vocabulary::IntegerValue,
-    semantic_vocabulary::IntegerValue,
-)> {
+) -> Option<u32> {
     let machine = crate::lookup::machine_by_symbol(program, machine)?;
     // Retained integer entry ranges publish on the machine's entry state, so
     // a bounded runtime selector proves only there.
@@ -380,23 +375,12 @@ fn bounded_runtime_index(
         })?;
     // A negative minimum fails `to_u64`, and the normalized inclusive maximum
     // must fit strictly below the declared extent.
-    let minimum = requirement.minimum.value_bignum()?.to_u64()?;
+    requirement.minimum.value_bignum()?.to_u64()?;
     let maximum = requirement.maximum.value_bignum()?.to_u64()?;
     if maximum >= u64::try_from(extent).ok()? {
         return None;
     }
-    let endpoint = |value: u64| {
-        if primitive_type.is_signed_integer() {
-            semantic_vocabulary::IntegerValue::Signed(i128::from(value))
-        } else {
-            semantic_vocabulary::IntegerValue::Unsigned(u128::from(value))
-        }
-    };
-    Some((
-        u32::try_from(selector).ok()?,
-        endpoint(minimum),
-        endpoint(maximum),
-    ))
+    u32::try_from(selector).ok()
 }
 
 /// The shared owner under the ordinary rule: the projected type must carry the

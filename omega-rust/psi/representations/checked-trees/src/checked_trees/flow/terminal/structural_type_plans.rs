@@ -217,8 +217,11 @@ pub struct CheckedUnitStructuralParameterPlan {
 
 /// Source-handle-free structural path retained by checked terminal plans.
 /// Cases deliberately have no variant in this vocabulary. A runtime index is
-/// not a widened predicate or a trusted byte offset: `RuntimeIndex` retains
-/// the exact checked selector and the bounds relationship that admitted it.
+/// not a widened predicate or a trusted byte offset: `RuntimeIndex` names
+/// where the checked selector's scalar value lives, and Terminal lowering
+/// evaluates that value into the segment's `RuntimeIndex { index, obligation }`
+/// spelling, whose `index < extent` bound the verifier re-proves at the
+/// operation that carries the path.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
@@ -228,19 +231,25 @@ pub enum CheckedUnitStructuralPathSegment {
         start: u64,
         end: u64,
     },
-    /// A runtime-selected element of a fixed array. `selector` is the dense
-    /// direct scalar parameter position of the caller — the same coordinate
-    /// `CheckedScalarExpression::Parameter` uses — so the checked selector is
-    /// a real scalar value, never a computed byte offset. `minimum` and
-    /// `maximum` restate the inclusive bounds that selector's retained
-    /// integer entry range publishes; checking already proved that range lies
-    /// inside the enclosing array's literal extent, and terminal verification
-    /// replays the same containment against the published row rather than
-    /// trusting this segment.
-    RuntimeIndex {
-        selector: u32,
-        minimum: semantic_vocabulary::IntegerValue,
-        maximum: semantic_vocabulary::IntegerValue,
-    },
+    /// A runtime-selected element of a fixed array. Fields and further
+    /// indexes may follow it.
+    RuntimeIndex(CheckedRuntimeIndex),
     Referent,
+}
+
+/// The checked scalar a `RuntimeIndex` segment selects with.
+///
+/// The segment carries no bound: the checked producer admitted the selector,
+/// and Terminal re-proves `0 <= index < extent` from the facts that hold
+/// before the operation (the caller's published requires for an entry
+/// parameter, a dominating guard, a stored field's snapshot). Restating an
+/// interval here would be a second, trusted copy of that evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CheckedRuntimeIndex {
+    /// The dense direct scalar parameter position of the calling state -- the
+    /// coordinate `CheckedScalarExpression::Parameter` uses.
+    Parameter { position: u32 },
+    /// The owning assignment's evaluated `AssignmentIndex` scalar: the
+    /// selector of its indexed target, evaluated before the stored value.
+    AssignmentIndex,
 }

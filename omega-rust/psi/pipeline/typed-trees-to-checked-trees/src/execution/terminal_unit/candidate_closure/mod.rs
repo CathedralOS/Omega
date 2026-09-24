@@ -244,7 +244,6 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
@@ -360,7 +359,6 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                    | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     // A borrowed reference binds storage already owned by the
                     // frame; establish/release carry no callee dependency.

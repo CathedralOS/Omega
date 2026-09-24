@@ -376,26 +376,15 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     /// Replace one unrestricted primitive through an exclusive borrowed
     /// parameter or initialized mutable local. A nonempty declared path selects
-    /// a fixed-array primitive leaf without inventing a scalar field identity.
-    /// Evaluate the retained scalar expression or computation against current
-    /// storage before committing the write.
+    /// a primitive leaf without inventing a scalar field identity: fields,
+    /// literal elements, and runtime elements (`RuntimeIndex`, whose selector
+    /// is evaluated before the value) compose in one path. Evaluate the
+    /// retained scalar expression or computation against current storage
+    /// before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
         destination: CheckedPrimitiveStoreDestination,
         path: Vec<CheckedUnitStructuralPathSegment>,
-        value: crate::CheckedCallScalarArgument,
-    },
-    /// Replace one primitive element of a declared fixed array selected by a
-    /// retained runtime scalar index. `path` resolves from the exclusive
-    /// destination root to the fixed array itself; `index` is the retained
-    /// checked scalar the producer admitted only under a retained proof of
-    /// `index < declared extent`. The Terminal operation carries the bounds
-    /// obligation; the runtime index is an operand, never a path segment.
-    WriteOnlyIndexedPrimitiveStore {
-        statement_index: u32,
-        destination: CheckedPrimitiveStoreDestination,
-        path: Vec<CheckedUnitStructuralPathSegment>,
-        index: CheckedScalarExpression,
         value: crate::CheckedCallScalarArgument,
     },
     /// Replace one relevant primitive field through an exact common-field

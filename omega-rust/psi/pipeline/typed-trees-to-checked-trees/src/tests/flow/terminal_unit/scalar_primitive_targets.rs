@@ -337,7 +337,7 @@ fn primitive_scalar_call_keeps_dense_scalar_actual_positions() {
 }
 
 #[test]
-fn declared_range_runtime_index_produces_indexed_write_only_store() {
+fn declared_range_runtime_index_produces_a_runtime_element_store() {
     for access in ["&mut", "&write"] {
         let checked = checked_program(&format!(
             r#"
@@ -353,32 +353,26 @@ fn declared_range_runtime_index_produces_indexed_write_only_store() {
             .for_machine(machine_named(&checked, "forward"))
             .unwrap_or_else(|| panic!("{access} declared-range runtime index store"));
         let [
-            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: 0,
                 destination:
                     checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
                 path,
-                index,
                 value,
             },
             CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
-            panic!("{access} runtime index keeps one indexed write-only store");
+            panic!("{access} runtime index keeps one write-only store");
         };
-        assert!(
-            path.is_empty(),
-            "the runtime selector stays an operand; the path terminates at the array"
-        );
-        assert!(
-            matches!(
-                index,
-                CheckedScalarExpression::Parameter {
-                    position: 0,
-                    primitive_type: PrimitiveType::U64,
-                }
-            ),
-            "the retained index is the declared scalar parameter"
+        assert_eq!(
+            path.as_slice(),
+            [
+                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                )
+            ],
+            "the runtime selector is the path's element segment, not an operand"
         );
         assert!(matches!(value,
             checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::IntegerLiteral { literal })
@@ -387,12 +381,11 @@ fn declared_range_runtime_index_produces_indexed_write_only_store() {
 }
 
 /// The `requires` contract spelling carries the same caller-discharged entry
-/// bound the declared range roster did: its literal conjuncts fold into the
-/// closed interval that proves `index < extent` for a runtime selector, in
-/// the same dense scalar-parameter namespace the retained index binding
-/// uses.
+/// bound the declared range roster did; the store retains the selector as a
+/// runtime element whose bound Terminal re-proves from that published
+/// requirement.
 #[test]
-fn requires_bound_runtime_index_produces_indexed_write_only_store() {
+fn requires_bound_runtime_index_produces_a_runtime_element_store() {
     for access in ["&mut", "&write"] {
         for requires in [
             "requires index <= 3",
@@ -418,34 +411,28 @@ fn requires_bound_runtime_index_produces_indexed_write_only_store() {
                     panic!("{access} {requires}: contract-bound runtime index store")
                 });
             let [
-                CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
                     destination:
                         checked_trees::CheckedPrimitiveStoreDestination::Parameter {
                             parameter_index: 0,
                         },
                     path,
-                    index,
                     ..
                 },
                 CheckedUnitEffectOperationPlan::Complete { .. },
             ] = plan.operations.as_slice()
             else {
-                panic!("{access} {requires}: runtime index keeps one indexed write-only store");
+                panic!("{access} {requires}: runtime index keeps one write-only store");
             };
-            assert!(
-                path.is_empty(),
-                "{access} {requires}: the runtime selector stays an operand"
-            );
-            assert!(
-                matches!(
-                    index,
-                    CheckedScalarExpression::Parameter {
-                        position: 0,
-                        primitive_type: PrimitiveType::U64,
-                    }
-                ),
-                "{access} {requires}: the retained index is the declared scalar parameter"
+            assert_eq!(
+                path.as_slice(),
+                [
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                    )
+                ],
+                "{access} {requires}: the runtime selector is the path's element segment"
             );
         }
     }

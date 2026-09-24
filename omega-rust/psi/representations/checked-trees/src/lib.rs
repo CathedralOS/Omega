@@ -87,7 +87,7 @@ pub use checked_trees::{
     CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,
     CheckedRequirementCallTypeBinding, CheckedResourceAxisAnchor,
     CheckedResourceDerivationObligation, CheckedRetiredParentResourceDispositionStep,
-    CheckedReturnPlan, CheckedScalarBinding, CheckedScalarBindingDestination,
+    CheckedReturnPlan, CheckedRuntimeIndex, CheckedScalarBinding, CheckedScalarBindingDestination,
     CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarCaseComputationField,
     CheckedScalarCaseConstruction, CheckedScalarCaseFieldPlan, CheckedScalarComputation,
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,

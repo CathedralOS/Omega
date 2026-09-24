@@ -1334,6 +1334,23 @@ syntax and other terminal services are not prerequisites.
   abstract indexed read/store and refuses a field or second index after it
   (`UnsupportedRuntimeIndexProjection`) until lowering composes
   `(index, stride)` runs for primitive leaves as leaf copies do.
+  Element stores plan in `structural_scalar_store/primitive.rs`: the checked
+  `WriteOnlyPrimitiveStore` path ends in `RuntimeIndex(AssignmentIndex)`, c2l
+  evaluates that selector before the value, and the planner proves no bound.
+  Remaining store frontier: a field or second selector after the element
+  (`self.ents[i].hp`, `self.grid[i][j]`, the canaries stopping at
+  `structural field store: carrier path`) needs one `AssignmentIndex`
+  coordinate per target selector from the `values/scalar` producers, a
+  runtime carrier in `StructuralScalarFieldStore`, and the t2a composition
+  above. Field-held loop counters
+  (`runtime_{write_first_loop_index,nested_loop_fill,indexed_rmw_loop}_exit`)
+  reach c2l, but no fact at the store bounds the field read
+  (`OperationProofUnavailable`) until storage-field loop invariants reach
+  Terminal. A selector narrower than `u64` must be a parameter or stored
+  field read (`primitive.rs::retained_assignment_index`): proving a computed
+  one through its `u64` widening fails only after minutes of search
+  (`runtime_hoisted_index_write_exit`), so the limit lifts with
+  C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.
   The dynamic shared receiver `cells[i].get()` still needs CML4's checked
   argument-path admission, DOMAIN-ISSUER-ROUTES' scalar-wrapper path, and call
   emission that evaluates the selector and allocates its obligation (c2l's
@@ -3387,8 +3404,9 @@ syntax and other terminal services are not prerequisites.
     relation; admitting the planner alone does not repair lowering.
   - Complete store sources for float reads/arithmetic and policy casts,
     recast reference locals, case and qualified byte-slice literals, nested
-    mutable-receiver calls, and local-rooted destinations. `primitive_store`
-    must retain the referent behind a `self`-rooted alias;
+    mutable-receiver calls, and local-rooted destinations.
+    `structural_scalar_store/primitive.rs` must retain the referent behind a
+    `self`-rooted alias;
     `computation_arguments::structural_computation_argument` must compose
     mutable calls without treating them as shared. Coordinate FLOAT-PROVIDERS,
     RECAST-SOURCE-POSITIONS and ARITHMETIC-POLICY-REALIZATION.

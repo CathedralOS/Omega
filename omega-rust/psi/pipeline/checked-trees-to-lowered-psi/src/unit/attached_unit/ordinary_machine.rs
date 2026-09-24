@@ -1124,7 +1124,6 @@ impl MachineEmission<'_> {
         let kind = match operation {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)

@@ -6,7 +6,6 @@ use super::{
     CheckedUnitStructuralParameterPlan, MachineSupplyMode, Multiplicity, StatementNode,
     TypeReferenceNode, TypedTrees,
 };
-use crate::execution::terminal_unit::build_write_only_primitive_store;
 use crate::execution::terminal_unit::returns::structural_scalar_returns::build_structural_scalar_return_machine;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_reference, state_flow};
 
@@ -196,21 +195,94 @@ pub(super) fn build(
     let [StatementNode::Assignment(_), StatementNode::Expression(_)] = statements else {
         return None;
     };
-    // This is the actual authored effect prefix. Its assignment keeps the
-    // source state's parameter identity, complete write frame and RHS facts.
-    let store = build_write_only_primitive_store(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        scalar_parameters,
-        &statements[..1],
-        None,
-        None,
-    )?;
+    // This is the actual authored effect prefix: the one assignment goes
+    // through the ordinary store planner, which replays the state's complete
+    // write frame and keeps the source parameter identity and RHS facts.
+    let stores =
+        crate::execution::terminal_unit::structural_scalar_store::build_structural_scalar_field_store_sequence_traced(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            scalar_parameters,
+            0,
+            None,
+            &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
+        )?;
+    let [store] = <[_; 1]>::try_from(stores).ok()?;
+    direct_prefix_store(shapes, structural_parameters, scalar_parameters, &store)?;
     Some(vec![store])
+}
+
+/// The prefix this lane's emission realizes: the whole primitive referent of
+/// its one borrowed parameter, replaced by a literal or an exact scalar
+/// parameter. The lane lowers that value directly, without the scalar
+/// evaluator a computed or projected store needs, so any other store keeps
+/// its body on the ordinary attached-Unit route.
+fn direct_prefix_store(
+    shapes: &ShapeCollector<'_>,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    store: &CheckedUnitEffectOperationPlan,
+) -> Option<()> {
+    let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        path,
+        destination:
+            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+        value: checked_trees::CheckedCallScalarArgument::Pure(value),
+        ..
+    } = store
+    else {
+        return None;
+    };
+    let [destination] = structural_parameters else {
+        return None;
+    };
+    let checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(destination_type) = shapes
+        .types
+        .get(&destination.type_identity)
+        .map(|declaration| &declaration.shape)?
+    else {
+        return None;
+    };
+    let direct_literal = matches!(
+        value,
+        checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+    ) || matches!(
+        value,
+        checked_trees::CheckedScalarExpression::IeeeFloatLiteral { .. }
+    ) || matches!(
+        value,
+        checked_trees::CheckedScalarExpression::Boolean(expression)
+            if matches!(
+                expression.as_ref(),
+                checked_trees::CheckedBooleanExpression::Constant(_)
+            )
+    );
+    let direct_parameter = match value {
+        checked_trees::CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        } => Some((*position, *primitive_type)),
+        checked_trees::CheckedScalarExpression::Boolean(expression) => match expression.as_ref() {
+            checked_trees::CheckedBooleanExpression::Parameter { position } => {
+                Some((*position, checked_trees::types::PrimitiveType::Bool))
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    let direct_parameter = direct_parameter.is_some_and(|(position, primitive_type)| {
+        scalar_parameters
+            .get(position)
+            .is_some_and(|parameter| parameter.primitive_type == primitive_type)
+    });
+    (destination.position == 0
+        && path.is_empty()
+        && (direct_literal || direct_parameter)
+        && crate::values::scalar_expression_type(value) == Some(*destination_type))
+    .then_some(())
 }
 
 #[cfg(test)]

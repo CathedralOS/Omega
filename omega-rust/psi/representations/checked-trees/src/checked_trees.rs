@@ -108,7 +108,7 @@ pub use flow::{
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessGuardedCallEvidencePlan,
     CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
     CheckedPrimitiveStoreDestination, CheckedProviderAttachmentRequirementPlan,
-    CheckedReferenceResultSourcePlan, CheckedReturnPlan, CheckedScalarBinding,
+    CheckedReferenceResultSourcePlan, CheckedReturnPlan, CheckedRuntimeIndex, CheckedScalarBinding,
     CheckedScalarBindingDestination, CheckedScalarBindingValue, CheckedScalarBranchDestination,
     CheckedScalarCaseFieldPlan, CheckedScalarGraphPlans, CheckedScalarGuardedExit,
     CheckedScalarGuardedTail, CheckedScalarMachineGraph, CheckedScalarParameterStorage,

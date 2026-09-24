@@ -430,7 +430,6 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

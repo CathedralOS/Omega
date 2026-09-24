@@ -97,7 +97,7 @@ pub use structural_return_plans::{
 };
 pub use structural_type_plans::{
     CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier,
-    CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt,
+    CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt, CheckedRuntimeIndex,
     CheckedStructuralAccess, CheckedStructuralPathQualification, CheckedStructuralResultPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralCasePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,

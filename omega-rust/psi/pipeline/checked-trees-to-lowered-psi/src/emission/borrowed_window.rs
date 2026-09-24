@@ -454,9 +454,14 @@ fn spell_place(
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
                 spelling.push_str(&format!("[{start}..{end}]"));
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex { selector, .. } => {
-                spelling.push_str(&format!("[selector#{selector}]"));
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::Parameter { position },
+            ) => {
+                spelling.push_str(&format!("[selector#{position}]"));
             }
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+            ) => spelling.push_str("[index]"),
         }
     }
     spelling

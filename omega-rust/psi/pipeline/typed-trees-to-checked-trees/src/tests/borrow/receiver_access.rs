@@ -694,17 +694,16 @@ fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
         )
     };
     // `i` is the first dense scalar parameter of `run` (the borrowed `cells`
-    // array occupies no scalar position), so the retained selector is 0 and
-    // the inclusive bounds restate its published `0..=1` entry range.
+    // array occupies no scalar position), so the retained selector is 0. Its
+    // published `0..=1` entry range admits the receiver; the segment restates
+    // no interval, since Terminal re-proves the bound at the call.
     assert!(
         receiver.access == checked_trees::CheckedStructuralAccess::SharedBorrow
             && receiver.path.as_slice()
                 == [
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex {
-                        selector: 0,
-                        minimum: semantic_vocabulary::IntegerValue::Unsigned(0),
-                        maximum: semantic_vocabulary::IntegerValue::Unsigned(1),
-                    }
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    )
                 ],
         "the receiver argument lends the bounded runtime-indexed element shared: {receiver:#?}"
     );
@@ -791,11 +790,9 @@ fn dynamic_indexed_mutable_self_element_can_supply_shared_receiver() {
             && receiver.path.as_slice()
                 == [
                     checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex {
-                        selector: 0,
-                        minimum: semantic_vocabulary::IntegerValue::Unsigned(0),
-                        maximum: semantic_vocabulary::IntegerValue::Unsigned(1),
-                    },
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    ),
                 ],
         "the receiver argument lends the bounded runtime-indexed element shared: {receiver:#?}"
     );

@@ -444,43 +444,6 @@ pub(super) fn validate(
                 )?;
             }
             (
-                CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-                    statement_index,
-                    destination,
-                    path,
-                    index,
-                    value,
-                },
-                StatementNode::Assignment(_),
-            ) => {
-                if *statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered an indexed primitive store");
-                }
-                let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                    destination
-                else {
-                    return unsupported(
-                        "Unit graph indexed primitive store has no retained parameter destination",
-                    );
-                };
-                let destination = state
-                    .structural_parameters
-                    .get(*parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph indexed primitive store parameter is absent",
-                    ))?;
-                crate::emission::primitive_store::validate_indexed_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    *statement_index,
-                    destination,
-                    path,
-                    index,
-                    value,
-                )?;
-            }
-            (
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
                     destination,
@@ -757,9 +720,6 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         }
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write.statement_index),
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            statement_index, ..
-        }
-        | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
             statement_index, ..
         } => Some(*statement_index),
         _ => continued_statement(operation),
