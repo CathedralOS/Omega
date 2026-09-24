@@ -974,8 +974,43 @@ fn validate_machine_entry_claims(
 
 pub(super) fn resolve_structural_path(
     module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_structural_path_with_leaf(
+        module,
+        structural_type,
+        path,
+        StructuralFieldType::canonical_leaf_shape,
+    )
+}
+
+/// The type an explicit `StructuralLeafCopy` of `path` mints. Only its final
+/// leaf differs from `resolve_structural_path`: a borrowed-view field copies
+/// out as a whole descriptor (`leaf_copy_shape`), although a path ending at
+/// that field never stands for a view argument.
+pub(super) fn resolve_leaf_copy_path(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let Some((last, prefix)) = path.split_last() else {
+        return resolve_structural_path(module, structural_type, path);
+    };
+    let parent = resolve_structural_path(module, structural_type, prefix)?;
+    resolve_structural_path_with_leaf(
+        module,
+        parent,
+        std::slice::from_ref(last),
+        StructuralFieldType::leaf_copy_shape,
+    )
+}
+
+fn resolve_structural_path_with_leaf(
+    module: &TerminalModule,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
+    leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<StructuralTypeId> {
     for segment in path {
         let declaration = module
@@ -990,7 +1025,7 @@ pub(super) fn resolve_structural_path(
                 match &field.field_type {
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {
-                        let shape = leaf.canonical_leaf_shape()?;
+                        let shape = leaf_shape(leaf)?;
                         module
                             .structural_types
                             .iter()

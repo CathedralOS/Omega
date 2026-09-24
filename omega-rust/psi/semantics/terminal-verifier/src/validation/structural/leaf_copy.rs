@@ -16,8 +16,7 @@
 use crate::validation::{
     BTreeSet, CanonicalStructuralPathSegment, ModuleError, OperationKind, PlaceId,
     StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
-    resolve_structural_path,
+    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule, resolve_leaf_copy_path,
 };
 
 pub(in crate::validation) fn validate(
@@ -66,7 +65,7 @@ pub(in crate::validation) fn validate(
         crate::validation::structural::result_contracts::source_signature(machine, source)
             .ok_or_else(invalid)?;
     let selected_type =
-        resolve_structural_path(module, signature.structural_type, path).ok_or_else(invalid)?;
+        resolve_leaf_copy_path(module, signature.structural_type, path).ok_or_else(invalid)?;
     // A `&`-leaf copy mints the reference descriptor over the selected
     // storage, so its result is the `SharedBorrow` declaration whose
     // referent is the leaf — not the leaf storage itself.
