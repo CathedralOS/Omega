@@ -125,7 +125,12 @@ next settle actually wakes you.
 3. Scoped gate: `cargo check -p <touched crates>` +
    `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`; add
    `python3 tools/corpus_gate.py --filter <domain>` when the lane moved
-   e2e-visible behavior.
+   e2e-visible behavior. On a structural corpus diff, `--jev` annotates
+   each diff with a `record_safe` verdict — batch contamination and the
+   "unexplained"→"intended" conflation are the recorded failure modes, so
+   a low verdict re-asks each diff alone with the causal question before
+   you trust it (advisory only; `TYPESAFE_API_KEY` is already injected
+   org-wide, `OMEGA_JEV_OFFLINE=1` suppresses).
 4. `git push origin HEAD:main`. A rejection means main moved under you —
    re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
    checkout and never carry a wedged tree forward.
