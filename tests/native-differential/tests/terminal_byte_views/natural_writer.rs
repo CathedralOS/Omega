@@ -79,10 +79,12 @@ fn writer() -> lowered_psi::LoweredPsi {
     // the cycle's rank as unbounded rather than fabricating a certificate.
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-            cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
-            ..
-        })
+        Err(
+            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+                ..
+            }
+        )
     ));
     lowered
 }
