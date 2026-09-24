@@ -194,6 +194,47 @@ pub(crate) fn infer_return_interval(
     (union.low().is_some() && union.high().is_some()).then_some(union)
 }
 
+#[cfg(test)]
+mod bracketed_ownership_probes {
+    //! `enforce_declared_return_range` owns the BRACKETED spelling. Once a
+    //! declared domain also yields an interval, this check had to be told
+    //! which one it speaks for, or it reported a `[a..=b]` the program never
+    //! wrote and pre-empted the domain check that names the real predicate.
+
+    use crate::proof_contracts::arithmetic_domains::range_constraints::declares_bracketed_range;
+
+    #[test]
+    fn a_domain_bound_is_not_a_bracketed_range() {
+        let program = crate::front_end::typed_program(
+            "domain u64::Tag requires self > 100;
+             machine probe(bracketed: u64 [0..=5], domained: u64 in Tag, plain: u64) -> u64
+             { transition { _ -> (plain) } }",
+        );
+        let machine = &program.machines()[0];
+        let entry = &program.machine_states(machine)[0];
+        let parameter = |name: &str| {
+            program
+                .state_parameters(entry)
+                .iter()
+                .find(|parameter| parameter.name.as_str() == name)
+                .unwrap_or_else(|| panic!("parameter {name}"))
+                .type_reference
+        };
+        assert!(
+            declares_bracketed_range(&program, parameter("bracketed")),
+            "the bracketed spelling is what this check owns"
+        );
+        assert!(
+            !declares_bracketed_range(&program, parameter("domained")),
+            "a domain carries its bound without spelling a bracketed range"
+        );
+        assert!(
+            !declares_bracketed_range(&program, parameter("plain")),
+            "a bare carrier spells nothing"
+        );
+    }
+}
+
 /// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a
 /// return type declares a literal `[a..=b]`, the returned value's proven
 /// interval must fit inside it, else callers that trust the declared range are
@@ -207,6 +248,14 @@ pub(crate) fn enforce_declared_return_range(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // This enforcement owns the BRACKETED spelling, as its message says. A
+    // return type whose bound comes from a declared DOMAIN belongs to the
+    // scalar-result-domain check, which names the domain and its predicate;
+    // letting this one speak first reported a `[a..=b]` the program never
+    // wrote.
+    if !super::range_constraints::declares_bracketed_range(program, return_type) {
+        return;
+    }
     if let Some(range) = range_constraint_interval(program, return_type)
         && !range.contains(interval)
     {
