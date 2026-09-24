@@ -134,6 +134,19 @@ pub(super) fn validate(
                 scalar_type,
                 ..
             },
+        )
+        | (
+            LegalizedScalarInstructionKind::SaturatingMultiply {
+                carrier,
+                left,
+                right,
+            },
+            AbstractOperation::SaturatingIntegerMultiply {
+                left: source_left,
+                right: source_right,
+                scalar_type,
+                ..
+            },
         ) if left == source_left
             && right == source_right
             && scalar_graph_input::saturating_carrier(*scalar_type) == Some(*carrier)
@@ -585,11 +598,11 @@ pub(super) fn validate(
         (
             LegalizedScalarInstructionKind::WrappingRemainder { .. },
             AbstractOperation::WrappingIntegerRemainder { .. },
-        ) => scalar_instructions::validate_wrapping_remainder(actual, node, optimized, unit)?,
-        (
+        )
+        | (
             LegalizedScalarInstructionKind::WrappingDivide { .. },
             AbstractOperation::WrappingIntegerDivide { .. },
-        ) => scalar_instructions::validate_wrapping_divide(actual, node, optimized, unit)?,
+        ) => scalar_instructions::validate_wrapping_division(actual, node, optimized, unit)?,
         (
             LegalizedScalarInstructionKind::ExactBinary { .. },
             AbstractOperation::ExactIntegerAdd { .. }

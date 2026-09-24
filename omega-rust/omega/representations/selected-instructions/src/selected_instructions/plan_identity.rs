@@ -114,6 +114,9 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
             saturating_tag(SaturatingOperation::Remainder, carrier)
         }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            saturating_tag(SaturatingOperation::Multiply, carrier)
+        }
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -336,6 +339,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::WrappingShiftRightU64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits
@@ -648,7 +652,8 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
 
 /// This plan identity's saturating tags: the u64 subtract and add keep 51
 /// and 52, the i32 forms keep 60, 61, and 62, and every other carrier takes
-/// its ordinal above a per-operation base (add 63, subtract 71, divide 79).
+/// its ordinal above a per-operation base (add 63, subtract 71, divide 79,
+/// remainder 95, multiply 114).
 const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarrier) -> u8 {
     match (operation, carrier) {
         (SaturatingOperation::Subtract, SaturatingCarrier::U64) => 51,
@@ -660,6 +665,7 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
         (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
         (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
+        (SaturatingOperation::Multiply, carrier) => 114 + carrier.ordinal(),
     }
 }
 

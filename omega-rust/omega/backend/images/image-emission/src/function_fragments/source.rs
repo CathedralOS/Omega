@@ -396,8 +396,11 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::WrappingIntegerShiftRight { .. }
                 | AbstractOperation::ExactIntegerShiftLeft { .. }
                 | AbstractOperation::ExactIntegerShiftRight { .. }
+                // Saturating arithmetic replays the carrier its kind names;
+                // add, subtract, and multiply carry no obligation.
                 | AbstractOperation::SaturatingIntegerSubtract { .. }
                 | AbstractOperation::SaturatingIntegerAdd { .. }
+                | AbstractOperation::SaturatingIntegerMultiply { .. }
                 | AbstractOperation::SaturatingIntegerDivide { .. }
                 | AbstractOperation::SaturatingIntegerRemainder { .. } => true,
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }

@@ -127,6 +127,7 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
                 | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
+                | LegalizedScalarInstructionKind::SaturatingMultiply { left, right, .. }
                 | LegalizedScalarInstructionKind::WrappingAdd { left, right }
                 | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
                 | LegalizedScalarInstructionKind::WrappingMultiply { left, right }

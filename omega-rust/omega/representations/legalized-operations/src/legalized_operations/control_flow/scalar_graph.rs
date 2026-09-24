@@ -136,6 +136,7 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
                     | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
                     | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
+                    | LegalizedScalarInstructionKind::SaturatingMultiply { left, right, .. }
                     | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
                     | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
@@ -439,8 +440,19 @@ pub enum LegalizedScalarInstructionKind {
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
-    /// Signed remainder retains its declared width. MIN % -1 is zero under
-    /// Wrapping, but the accepted nonzero-divisor obligation remains required.
+    /// Multiplication clamped to the named carrier's bounds. The carrier is
+    /// part of the kind for the same reason as `SaturatingAdd`: a kind naming
+    /// another width clamps to the wrong bounds while every register-level
+    /// check still passes. Saturation defines every product, so no obligation
+    /// is carried.
+    SaturatingMultiply {
+        carrier: SaturatingCarrier,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// Remainder at the result's fixed native width, signed or unsigned.
+    /// MIN % -1 is zero under Wrapping, but the accepted nonzero-divisor
+    /// obligation remains required.
     WrappingRemainder {
         left: ValueId,
         right: ValueId,
@@ -459,11 +471,11 @@ pub enum LegalizedScalarInstructionKind {
         obligation: ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
-    /// Signed i64 division modulo the wrapping quotient: i64::MIN / -1 yields
-    /// i64::MIN. Narrow signed carriers stay unadmitted because the widened
-    /// i64 quotient of their MIN / -1 case is the true out-of-range value
-    /// rather than the wrapped one. The accepted nonzero-divisor obligation
-    /// remains required.
+    /// Division at the result's fixed native width, modulo the carrier: a
+    /// signed MIN / -1 yields MIN and unsigned division never overflows.
+    /// Selection realizes a narrow signed carrier's out-of-range widened
+    /// quotient by truncating it back to the carrier. The accepted
+    /// nonzero-divisor obligation remains required.
     WrappingDivide {
         left: ValueId,
         right: ValueId,

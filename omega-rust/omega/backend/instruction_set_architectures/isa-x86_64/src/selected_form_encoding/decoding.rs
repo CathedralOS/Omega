@@ -36,6 +36,11 @@ pub(crate) enum DecodedInstruction {
     UnsignedDivide {
         divisor: u8,
     },
+    /// `mul multiplier`: the F7 /4 widening unsigned multiply of RAX into
+    /// RDX:RAX.
+    UnsignedMultiply {
+        multiplier: u8,
+    },
     Complement {
         destination: u8,
     },
@@ -48,6 +53,11 @@ pub(crate) enum DecodedInstruction {
         destination: u8,
     },
     MoveOnLess {
+        source: u8,
+        destination: u8,
+    },
+    /// `cmova destination, source`: the unsigned-greater select.
+    MoveOnAbove {
         source: u8,
         destination: u8,
     },
@@ -231,7 +241,7 @@ pub(crate) fn decode_one(
     }
     if let [rex, 0x0f, opcode, modrm, ..] = bytes
         && rex & !0x05 == 0x48
-        && matches!(*opcode, 0x40 | 0x42 | 0x4c | 0x4f)
+        && matches!(*opcode, 0x40 | 0x42 | 0x47 | 0x4c | 0x4f)
         && modrm & 0xc0 == 0xc0
     {
         let source = (modrm & 7) | ((rex & 1) << 3);
@@ -243,6 +253,10 @@ pub(crate) fn decode_one(
                     destination,
                 },
                 0x42 => DecodedInstruction::MoveOnBorrow {
+                    source,
+                    destination,
+                },
+                0x47 => DecodedInstruction::MoveOnAbove {
                     source,
                     destination,
                 },
@@ -483,6 +497,9 @@ pub(crate) fn decode_one(
                 destination: rm,
             },
             0xf7 if reg == 2 && rex_x == 0 => DecodedInstruction::Complement { destination: rm },
+            0xf7 if reg == 4 && rex_x == 0 => {
+                DecodedInstruction::UnsignedMultiply { multiplier: rm }
+            }
             0xf7 if reg == 6 && rex_x == 0 => DecodedInstruction::UnsignedDivide { divisor: rm },
             0xf7 if reg == 7 && rex_x == 0 => DecodedInstruction::SignedDivide { divisor: rm },
             0xf7 if (modrm >> 3) & 7 == 3 => DecodedInstruction::Negate { destination: rm },
@@ -792,6 +809,9 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
             saturating_matches(SaturatingOperation::Remainder, carrier, registers, decoded)
         }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            saturating_matches(SaturatingOperation::Multiply, carrier, registers, decoded)
+        }
         SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
         | SelectedInstructionKind::BitwiseXorI64 => {
@@ -1053,7 +1073,7 @@ fn expected_saturating(
             }
         }
     };
-    let clamp = |value, scratch, bound_bits, upper| {
+    let clamp_with = |value, scratch, bound_bits, select: DecodedInstruction| {
         [
             DecodedInstruction::Materialize {
                 destination: scratch,
@@ -1063,6 +1083,14 @@ fn expected_saturating(
                 left: value,
                 right: scratch,
             },
+            select,
+        ]
+    };
+    let clamp = |value, scratch, bound_bits, upper| {
+        clamp_with(
+            value,
+            scratch,
+            bound_bits,
             if upper {
                 DecodedInstruction::MoveOnGreater {
                     source: scratch,
@@ -1074,7 +1102,7 @@ fn expected_saturating(
                     destination: value,
                 }
             },
-        ]
+        )
     };
     match SaturatingForm::of(operation, carrier) {
         SaturatingForm::SubtractUnsigned => vec![
@@ -1224,12 +1252,86 @@ fn expected_saturating(
                 destination: result,
             },
         ],
+        form @ (SaturatingForm::MultiplySignedNarrow | SaturatingForm::MultiplyUnsignedNarrow) => {
+            let scratch = registers[3];
+            let mut expected = vec![
+                DecodedInstruction::Move {
+                    source: left,
+                    destination: result,
+                },
+                DecodedInstruction::Multiply {
+                    source: right,
+                    destination: result,
+                },
+            ];
+            if form == SaturatingForm::MultiplySignedNarrow {
+                expected.extend(clamp(result, scratch, carrier.maximum_bits(), true));
+                expected.extend(clamp(result, scratch, carrier.minimum_bits(), false));
+            } else {
+                expected.extend(clamp_with(
+                    result,
+                    scratch,
+                    carrier.maximum_bits(),
+                    DecodedInstruction::MoveOnAbove {
+                        source: scratch,
+                        destination: result,
+                    },
+                ));
+            }
+            expected
+        }
+        SaturatingForm::MultiplyI64 => {
+            let scratch = registers[3];
+            vec![
+                DecodedInstruction::Move {
+                    source: left,
+                    destination: scratch,
+                },
+                DecodedInstruction::Xor {
+                    source: right,
+                    destination: scratch,
+                },
+                DecodedInstruction::Complement {
+                    destination: scratch,
+                },
+                DecodedInstruction::ArithmeticShiftRight63 {
+                    destination: scratch,
+                },
+                DecodedInstruction::ComplementBit63 {
+                    destination: scratch,
+                },
+                DecodedInstruction::Move {
+                    source: left,
+                    destination: result,
+                },
+                DecodedInstruction::Multiply {
+                    source: right,
+                    destination: result,
+                },
+                DecodedInstruction::MoveOnOverflow {
+                    source: scratch,
+                    destination: result,
+                },
+            ]
+        }
+        SaturatingForm::MultiplyU64 => vec![
+            DecodedInstruction::UnsignedMultiply { multiplier: right },
+            DecodedInstruction::SubtractWithBorrow {
+                source: 2,
+                destination: 2,
+            },
+            DecodedInstruction::Or {
+                source: 2,
+                destination: 0,
+            },
+        ],
     }
 }
 
 /// Every saturating form reads and writes the positions its shape declares,
 /// clobbers RFLAGS, and every division additionally clobbers RDX and keeps
-/// the architectural fault behaviour of unsigned division.
+/// the architectural fault behaviour of unsigned division. The u64 multiply
+/// shares the division pins but defines RDX as an operand and never faults.
 fn saturating_footprint(
     form: SaturatingForm,
     operands: &[RegisterViewId],
@@ -1388,7 +1490,8 @@ pub(crate) fn footprint(
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::SaturatingDivide { .. }
-        | SelectedInstructionKind::SaturatingRemainder { .. } => {
+        | SelectedInstructionKind::SaturatingRemainder { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. } => {
             unreachable!("saturating forms handled above")
         }
     };

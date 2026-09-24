@@ -550,6 +550,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::SaturatingMultiply {
+                    carrier,
+                    left,
+                    right,
+                } => {
+                    bytes.push(saturating_tag(SaturatingOperation::Multiply, *carrier));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::SaturatingRemainder {
                     carrier,
                     left,
@@ -867,5 +876,6 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
         (SaturatingOperation::Subtract, carrier) => 51 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 59 + carrier.ordinal(),
         (SaturatingOperation::Remainder, carrier) => 73 + carrier.ordinal(),
+        (SaturatingOperation::Multiply, carrier) => 87 + carrier.ordinal(),
     }
 }

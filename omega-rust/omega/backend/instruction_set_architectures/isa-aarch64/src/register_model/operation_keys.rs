@@ -174,6 +174,24 @@ pub const AARCH64_SATURATING_DIVIDE_SIGNED: RegisterConstraintKey = RegisterCons
     variant: 60,
 };
 
+/// Saturating multiplication of every carrier but u64, with the operand
+/// shape of clamped addition: `MUL` into the early-clobber result, then a
+/// clamp through the early-clobber scratch (narrow carriers), or the i64
+/// `SMULH` high half in the scratch deciding overflow and the saturated
+/// value; defines NZCV.
+pub const AARCH64_SATURATING_MULTIPLY_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 65,
+};
+
+/// Saturating u64 multiplication: `UMULH` into the early-clobber scratch and
+/// `MUL` into the early-clobber result, then `CSINV` selects u64::MAX when
+/// the high half is nonzero; defines NZCV.
+pub const AARCH64_SATURATING_MULTIPLY_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 66,
+};
+
 /// Flag-transparent three-address exact i64 multiplication, matching the
 /// ordinary AArch64 `MUL` register form.
 pub const AARCH64_MULTIPLY_I64: RegisterConstraintKey = RegisterConstraintKey {
@@ -304,7 +322,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 92] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 94] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -484,6 +502,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 92] = [
     AARCH64_DIVIDE_I64,
     AARCH64_REMAINDER_U64,
     AARCH64_SHIFT_I64,
+    AARCH64_SATURATING_MULTIPLY_CLAMPED,
+    AARCH64_SATURATING_MULTIPLY_U64,
     AARCH64_FLOAT32_TO_BITS,
     AARCH64_FLOAT64_TO_BITS,
     AARCH64_BITS_TO_FLOAT32,

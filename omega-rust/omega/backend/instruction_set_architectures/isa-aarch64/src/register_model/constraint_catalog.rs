@@ -18,6 +18,7 @@ use crate::register_model::{
     AARCH64_MATERIALIZE_I64, AARCH64_MULTIPLY_I64, AARCH64_REMAINDER_I64, AARCH64_REMAINDER_U64,
     AARCH64_REQUIRED_REGISTER_CONSTRAINTS, AARCH64_SATURATING_ADD_CLAMPED,
     AARCH64_SATURATING_ADD_U64, AARCH64_SATURATING_DIVIDE_SIGNED,
+    AARCH64_SATURATING_MULTIPLY_CLAMPED, AARCH64_SATURATING_MULTIPLY_U64,
     AARCH64_SATURATING_SUBTRACT_CLAMPED, AARCH64_SATURATING_SUBTRACT_UNSIGNED, AARCH64_SHIFT_I64,
     AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64, AARCH64_SUBTRACT_I64,
     AARCH64_SUBTRACT_I64_IMMEDIATE, aarch64_aapcs64_normalized_foreign_call_keys,
@@ -796,14 +797,17 @@ pub fn aarch64_register_constraint_catalog(
         implicit_defs: view("nzcv").units.clone(),
         clobbers: Vec::new(),
     });
-    // The clamped saturating forms clamp through a bound scratch (operand 3).
-    // Both outputs are early-clobber: liveness admits independent early
-    // outputs only when every definition of the instruction is early, which
-    // keeps the scratch distinct from the inputs and from the result.
+    // The clamped saturating forms clamp through a bound scratch (operand 3);
+    // the multiplications hold the product's high half there instead. Both
+    // outputs are early-clobber: liveness admits independent early outputs
+    // only when every definition of the instruction is early, which keeps the
+    // scratch distinct from the inputs and from the result.
     for key in [
         AARCH64_SATURATING_ADD_CLAMPED,
         AARCH64_SATURATING_SUBTRACT_CLAMPED,
         AARCH64_SATURATING_DIVIDE_SIGNED,
+        AARCH64_SATURATING_MULTIPLY_CLAMPED,
+        AARCH64_SATURATING_MULTIPLY_U64,
     ] {
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),

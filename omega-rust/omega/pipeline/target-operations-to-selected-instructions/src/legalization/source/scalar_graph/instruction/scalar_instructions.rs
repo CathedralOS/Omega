@@ -50,27 +50,34 @@ pub(super) fn project_integer_exact_cast(
     Ok(kind)
 }
 
-/// Saturating add/subtract name the carrier the source operation declares.
-/// Node admission already rejected every non-carrier width as an
+/// Saturating add, subtract, and multiply name the carrier the source
+/// operation declares and carry no obligation: saturation defines every
+/// result. Node admission already rejected every non-carrier width as an
 /// unsupported family, so a missing carrier here is a custody mismatch.
-pub(super) fn project_saturating_integer_add_or_subtract(
+pub(super) fn project_saturating_integer_arithmetic(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (adds, scalar_type, left, right) = match &node.operation {
+    let (scalar_type, left, right) = match &node.operation {
         AbstractOperation::SaturatingIntegerAdd {
             scalar_type,
             left,
             right,
             ..
-        } => (true, *scalar_type, *left, *right),
-        AbstractOperation::SaturatingIntegerSubtract {
+        }
+        | AbstractOperation::SaturatingIntegerSubtract {
             scalar_type,
             left,
             right,
             ..
-        } => (false, *scalar_type, *left, *right),
-        _ => unreachable!("dispatched project_saturating_integer_add_or_subtract"),
+        }
+        | AbstractOperation::SaturatingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (*scalar_type, *left, *right),
+        _ => unreachable!("dispatched project_saturating_integer_arithmetic"),
     };
     let carrier = scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
@@ -78,18 +85,26 @@ pub(super) fn project_saturating_integer_add_or_subtract(
     }) {
         return Err(Error::custody());
     }
-    Ok(if adds {
-        LegalizedScalarInstructionKind::SaturatingAdd {
+    Ok(match &node.operation {
+        AbstractOperation::SaturatingIntegerAdd { .. } => {
+            LegalizedScalarInstructionKind::SaturatingAdd {
+                carrier,
+                left,
+                right,
+            }
+        }
+        AbstractOperation::SaturatingIntegerSubtract { .. } => {
+            LegalizedScalarInstructionKind::SaturatingSubtract {
+                carrier,
+                left,
+                right,
+            }
+        }
+        _ => LegalizedScalarInstructionKind::SaturatingMultiply {
             carrier,
             left,
             right,
-        }
-    } else {
-        LegalizedScalarInstructionKind::SaturatingSubtract {
-            carrier,
-            left,
-            right,
-        }
+        },
     })
 }
 
@@ -192,6 +207,10 @@ fn accepted_nonzero_divisor_fact(
     Ok(fact.identity)
 }
 
+/// Wrapping remainder admits every fixed native carrier. Wrapping defines
+/// MIN % -1 as zero, not a failed Exact quotient, but it does not define
+/// division by zero: the accepted nonzero-divisor fact stays with the
+/// instruction.
 pub(super) fn project_wrapping_integer_remainder(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -208,44 +227,20 @@ pub(super) fn project_wrapping_integer_remainder(
     else {
         unreachable!("dispatched project_wrapping_integer_remainder")
     };
-    let kind = {
-        if !scalar_graph_input::supports_signed_wrapping_remainder(*scalar_type)
-            || [left, right].iter().any(|value| {
-                scalar_graph_input::value_type(optimized, **value)
-                    != Some(ScalarType::Integer(*scalar_type))
-            })
-        {
-            return Err(Error::custody());
-        }
-        // Wrapping defines MIN % -1 as zero, not a failed Exact quotient.
-        // It does not define division by zero: retain that accepted fact.
-        let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-            fact.machine == optimized.machine
-                && fact.operation == *psi_operation
-                && fact.obligation == *obligation
-        });
-        let fact = facts.next().ok_or(Error::custody())?;
-        if facts.next().is_some()
-        || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-            if referenced == obligation && support == psi_operation))
-    {
-        return Err(Error::custody());
-    }
-        LegalizedScalarInstructionKind::WrappingRemainder {
-            left: *left,
-            right: *right,
-            obligation: *obligation,
-            accepted_fact: fact.identity,
-        }
-    };
-    Ok(kind)
+    wrapping_division_operands(optimized, *scalar_type, *left, *right)?;
+    Ok(LegalizedScalarInstructionKind::WrappingRemainder {
+        left: *left,
+        right: *right,
+        obligation: *obligation,
+        accepted_fact: accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?,
+    })
 }
 
-/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
-/// quotient wraps back to MIN, while a narrower signed carrier's widened
-/// quotient is the true out-of-range value. Division by zero stays the
-/// accepted obligation carried by the instruction.
+/// Wrapping division admits every fixed native carrier: a signed MIN / -1
+/// quotient wraps back to MIN (selection normalizes the widened narrow
+/// quotient and guards the i64 one), and unsigned division never overflows.
+/// Division by zero stays the accepted obligation carried by the
+/// instruction.
 pub(super) fn project_wrapping_integer_divide(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -262,33 +257,32 @@ pub(super) fn project_wrapping_integer_divide(
     else {
         unreachable!("dispatched project_wrapping_integer_divide")
     };
-    if !scalar_graph_input::supports_wrapping_divide_i64(*scalar_type)
-        || [left, right].iter().any(|value| {
-            scalar_graph_input::value_type(optimized, **value)
-                != Some(ScalarType::Integer(*scalar_type))
-        })
-    {
-        return Err(Error::custody());
-    }
-    let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-        fact.machine == optimized.machine
-            && fact.operation == *psi_operation
-            && fact.obligation == *obligation
-    });
-    let fact = facts.next().ok_or(Error::custody())?;
-    if facts.next().is_some()
-        || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-            if referenced == obligation && support == psi_operation))
-    {
-        return Err(Error::custody());
-    }
+    wrapping_division_operands(optimized, *scalar_type, *left, *right)?;
     Ok(LegalizedScalarInstructionKind::WrappingDivide {
         left: *left,
         right: *right,
         obligation: *obligation,
-        accepted_fact: fact.identity,
+        accepted_fact: accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?,
     })
+}
+
+/// Node admission already refused every carrier wrapping division is not
+/// realized for, so a carrier or operand type disagreement here is custody.
+fn wrapping_division_operands(
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    scalar_type: semantic_vocabulary::IntegerType,
+    left: semantic_vocabulary::ValueId,
+    right: semantic_vocabulary::ValueId,
+) -> Result<(), LegalizationError> {
+    if !scalar_graph_input::supports_wrapping_division(scalar_type)
+        || [left, right].iter().any(|value| {
+            scalar_graph_input::value_type(optimized, *value)
+                != Some(ScalarType::Integer(scalar_type))
+        })
+    {
+        return Err(Error::custody());
+    }
+    Ok(())
 }
 
 /// Shifts keep an independently typed count next to the shifted value. The

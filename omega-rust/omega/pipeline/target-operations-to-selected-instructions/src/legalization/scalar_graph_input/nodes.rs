@@ -10,9 +10,7 @@ use crate::legalization::scalar_graph_input::integer_type;
 use crate::legalization::scalar_graph_input::u8_type;
 use crate::legalization::scalar_graph_input::u64_type;
 use crate::legalization::scalar_graph_input::value_type;
-use crate::legalization::scalar_graph_input::{
-    saturating_carrier, supports_signed_wrapping_remainder, supports_wrapping_divide_i64,
-};
+use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 /// Why a node has no legal instruction row. Only the first kind is a custody
@@ -264,13 +262,13 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             scalar_type,
             ..
-        } if supports_signed_wrapping_remainder(*scalar_type) => Ok((*psi_operation, *result)),
-        AbstractOperation::WrappingIntegerDivide {
+        }
+        | AbstractOperation::WrappingIntegerDivide {
             psi_operation,
             result,
             scalar_type,
             ..
-        } if supports_wrapping_divide_i64(*scalar_type) => Ok((*psi_operation, *result)),
+        } if supports_wrapping_division(*scalar_type) => Ok((*psi_operation, *result)),
         AbstractOperation::SaturatingIntegerAdd {
             psi_operation,
             result,
@@ -290,6 +288,12 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             ..
         }
         | AbstractOperation::SaturatingIntegerRemainder {
+            psi_operation,
+            result,
+            scalar_type,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerMultiply {
             psi_operation,
             result,
             scalar_type,
@@ -817,6 +821,12 @@ pub(super) fn validate(
                 left,
                 right,
                 ..
+            }
+            | AbstractOperation::SaturatingIntegerMultiply {
+                scalar_type,
+                left,
+                right,
+                ..
             } => {
                 if saturating_carrier(*scalar_type).is_none()
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
@@ -878,22 +888,14 @@ pub(super) fn validate(
                 left,
                 right,
                 ..
-            } => {
-                if !supports_wrapping_divide_i64(*scalar_type)
-                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
-                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
-                {
-                    return Err(LegalizationError::custody());
-                }
-                ScalarType::Integer(*scalar_type)
             }
-            AbstractOperation::WrappingIntegerRemainder {
+            | AbstractOperation::WrappingIntegerRemainder {
                 scalar_type,
                 left,
                 right,
                 ..
             } => {
-                if !supports_signed_wrapping_remainder(*scalar_type)
+                if !supports_wrapping_division(*scalar_type)
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {

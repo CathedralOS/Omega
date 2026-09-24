@@ -146,6 +146,24 @@ fn selected_arithmetic_rules(
                 SaturatingDivide(SaturatingCarrier::I64),
             ][..],
         ),
+        // Every saturating multiply but u64 shares the clamped four-operand
+        // shape; u64 needs the full product's high half.
+        (
+            Some(keys.saturating_multiply_clamped),
+            &[
+                SaturatingMultiply(SaturatingCarrier::I8),
+                SaturatingMultiply(SaturatingCarrier::I16),
+                SaturatingMultiply(SaturatingCarrier::I32),
+                SaturatingMultiply(SaturatingCarrier::I64),
+                SaturatingMultiply(SaturatingCarrier::U8),
+                SaturatingMultiply(SaturatingCarrier::U16),
+                SaturatingMultiply(SaturatingCarrier::U32),
+            ][..],
+        ),
+        (
+            Some(keys.saturating_multiply_u64),
+            &[SaturatingMultiply(SaturatingCarrier::U64)][..],
+        ),
         (Some(keys.compare_i64_zero), &[CompareI64Zero][..]),
         (Some(keys.compare_i64), &[CompareI64][..]),
         (Some(keys.compare_i64_immediate), &[CompareI64Immediate][..]),
@@ -264,6 +282,15 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes(17)
             }
             SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(9),
+            // mov/imul (7) plus the clamps; the i64 form derives the
+            // saturated value with mov/xor/not/sar/btc (18) before
+            // mov/imul/cmovo (11); u64 is mul/sbb/or on RAX:RDX.
+            SaturatingMultiply(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(9),
+            SaturatingMultiply(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(29),
+            SaturatingMultiply(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(41)
+            }
+            SaturatingMultiply(_) => MachineSizeKnowledge::ExactBytes(24),
             CompareI64Immediate => MachineSizeKnowledge::ExactBytes(7),
             BitwiseAndI64 | BitwiseXorI64 => resolved(3, 6),
             ByteViewAddress | WrappingAddI64 | ExactAddI64 => resolved(4, 5),
@@ -296,6 +323,14 @@ fn expected_size(
             SaturatingDivide(_) => MachineSizeKnowledge::ExactBytes(4),
             // Divide plus MSUB: two words like the ordinary remainder row.
             SaturatingRemainder(_) => MachineSizeKnowledge::ExactBytes(8),
+            // `mul` plus mov/cmp/csel per clamped bound; the 64-bit carriers
+            // compare the SMULH/UMULH high half.
+            SaturatingMultiply(SaturatingCarrier::U64) => MachineSizeKnowledge::ExactBytes(16),
+            SaturatingMultiply(SaturatingCarrier::I64) => MachineSizeKnowledge::ExactBytes(24),
+            SaturatingMultiply(carrier) if carrier.is_signed() => {
+                MachineSizeKnowledge::ExactBytes(28)
+            }
+            SaturatingMultiply(_) => MachineSizeKnowledge::ExactBytes(16),
             _ => MachineSizeKnowledge::ExactBytes(4),
         },
     }
@@ -630,6 +665,25 @@ fn arithmetic_contract(
                 Vec::new(),
             )
         },
+        // x86-64 u64 multiplication is MUL on the unsigned remainder's fixed
+        // RAX/RCX/RAX/RDX row, which never faults; AArch64 keeps the clamped
+        // early-clobber shape for UMULH.
+        SaturatingMultiply(SaturatingCarrier::U64) if x86 => ArithmeticContract {
+            fixed_views: &[(0, "rax"), (1, "rcx"), (2, "rax"), (3, "rdx")],
+            flags: FlagsCustody::Clobber,
+            ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
+        },
+        // Every other multiply accumulates in an early-clobber result beside
+        // an early-clobber scratch, like the clamped add.
+        SaturatingMultiply(_) => ArithmeticContract {
+            early_clobbers: &[2, 3],
+            flags: if x86 {
+                FlagsCustody::Clobber
+            } else {
+                FlagsCustody::Def
+            },
+            ..ArithmeticContract::plain(&[Use, Use, Def, Def], one(&[0, 1], &[2, 3]))
+        },
         CompareI64Zero | CompareI64Immediate => ArithmeticContract {
             flags: FlagsCustody::Def,
             ..ArithmeticContract::plain(&[Use], one(&[0], &[]))
@@ -672,7 +726,7 @@ fn every_selected_arithmetic_rule_binds_the_declared_abi_arithmetic_contract() {
         let arithmetic_rules = selected_arithmetic_rules(&environment);
         assert_eq!(
             arithmetic_rules.len(),
-            63,
+            71,
             "{} selects an unexpected arithmetic roster",
             case.convention
         );

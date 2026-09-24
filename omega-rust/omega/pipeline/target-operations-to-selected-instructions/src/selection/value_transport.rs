@@ -83,6 +83,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::SaturatingSubtract { left, right, .. }
                 | Instruction::SaturatingDivide { left, right, .. }
                 | Instruction::SaturatingRemainder { left, right, .. }
+                | Instruction::SaturatingMultiply { left, right, .. }
                 | Instruction::ExactBinary { left, right, .. }
                 | Instruction::WrappingRemainder { left, right, .. }
                 | Instruction::WrappingDivide { left, right, .. }

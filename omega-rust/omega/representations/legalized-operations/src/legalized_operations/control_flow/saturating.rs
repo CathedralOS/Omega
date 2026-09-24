@@ -26,13 +26,17 @@ pub enum SaturatingCarrier {
 /// member even though the mathematical remainder never exceeds its carrier:
 /// the operation still carries the nonzero-divisor obligation, and on signed
 /// carriers the one wrapped quotient case (MIN % -1 = 0) is exactly the
-/// remainder the signed form produces.
+/// remainder the signed form produces. Multiply shares the narrow-carrier
+/// argument of add and subtract (the product of two normalized operands of
+/// at most 32 bits is exact in 64 bits) and needs the full-width product's
+/// high half to detect overflow on the 64-bit carriers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SaturatingOperation {
     Add,
     Subtract,
     Divide,
     Remainder,
+    Multiply,
 }
 
 impl SaturatingCarrier {

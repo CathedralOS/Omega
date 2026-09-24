@@ -63,6 +63,8 @@ impl SelectedConstraintKeys {
             self.saturating_subtract_clamped,
             self.saturating_divide_signed,
             self.multiply_i64,
+            self.saturating_multiply_clamped,
+            self.saturating_multiply_u64,
         ])
         .collect()
     }
@@ -165,6 +167,13 @@ impl SelectedConstraintKeys {
                 self.remainder_u64
             }
             MachineSemanticKind::SaturatingRemainder(_) => self.remainder_i64,
+            // Only u64 needs the full product's high half beyond what the
+            // clamped four-operand row provides; on x86-64 that is `MUL` on
+            // fixed RAX:RDX.
+            MachineSemanticKind::SaturatingMultiply(SaturatingCarrier::U64) => {
+                self.saturating_multiply_u64
+            }
+            MachineSemanticKind::SaturatingMultiply(_) => self.saturating_multiply_clamped,
             MachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             MachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             MachineSemanticKind::ReturnScalar => self.return_i64,

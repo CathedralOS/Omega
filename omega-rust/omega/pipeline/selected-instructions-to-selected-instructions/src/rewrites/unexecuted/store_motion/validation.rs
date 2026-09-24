@@ -318,6 +318,7 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
             | SaturatingSubtract { .. }
             | SaturatingDivide { .. }
             | SaturatingRemainder { .. }
+            | SaturatingMultiply { .. }
             | BitwiseAndI64
             | BitwiseOrI64
             | BitwiseNotI64

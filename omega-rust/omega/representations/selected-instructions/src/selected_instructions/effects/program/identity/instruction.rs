@@ -119,6 +119,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
             saturating_family_tag(SaturatingOperation::Remainder, carrier)
         }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            saturating_family_tag(SaturatingOperation::Multiply, carrier)
+        }
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -330,6 +333,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::WrappingShiftRightU64
         | SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::Float32ToBits
         | SelectedInstructionKind::Float64ToBits
         | SelectedInstructionKind::BitsToFloat32

@@ -277,6 +277,8 @@ fn selected_keys(
         saturating_add_clamped: crate::register_model::AARCH64_SATURATING_ADD_CLAMPED,
         saturating_subtract_clamped: crate::register_model::AARCH64_SATURATING_SUBTRACT_CLAMPED,
         saturating_divide_signed: crate::register_model::AARCH64_SATURATING_DIVIDE_SIGNED,
+        saturating_multiply_clamped: crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+        saturating_multiply_u64: crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
@@ -430,7 +432,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_) => {
+        | MachineSemanticKind::SaturatingRemainder(_)
+        | MachineSemanticKind::SaturatingMultiply(_) => {
             let realization = SaturatingRealization::of_semantic(semantic)
                 .expect("saturating semantics have a realization");
             (
@@ -512,7 +515,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_) => (
+        | MachineSemanticKind::SaturatingRemainder(_)
+        | MachineSemanticKind::SaturatingMultiply(_) => (
             vec![],
             if SaturatingRealization::of_semantic(semantic)
                 .expect("saturating semantics have a realization")
@@ -702,6 +706,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         ),
         MachineSemanticKind::SaturatingRemainder(carrier) => MachineSizeKnowledge::ExactBytes(
             SaturatingRealization::of(SaturatingOperation::Remainder, carrier).byte_size(),
+        ),
+        MachineSemanticKind::SaturatingMultiply(carrier) => MachineSizeKnowledge::ExactBytes(
+            SaturatingRealization::of(SaturatingOperation::Multiply, carrier).byte_size(),
         ),
         // One unshifted `add` inside the first granule; a shifted plus
         // unshifted pair past it.

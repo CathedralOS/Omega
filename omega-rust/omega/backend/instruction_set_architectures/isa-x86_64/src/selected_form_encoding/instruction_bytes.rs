@@ -41,10 +41,15 @@ fn append_register_binary(bytes: &mut Vec<u8>, opcode: u8, source: u8, destinati
     ]);
 }
 
-/// `movabs scratch, bound; cmp value, scratch; cmovcc value, scratch` with
-/// the carrier maximum selected on G (`upper`) or its minimum selected on L.
-fn append_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, bound_bits: u64, upper: bool) {
-    let condition = if upper { 0x4f } else { 0x4c };
+/// The CMOVcc opcode byte selecting a clamp bound: the signed maximum on G,
+/// the signed minimum on L, and an unsigned maximum on A.
+const CMOVG: u8 = 0x4f;
+const CMOVL: u8 = 0x4c;
+const CMOVA: u8 = 0x47;
+
+/// `movabs scratch, bound; cmp value, scratch; cmovcc value, scratch`: the
+/// bound replaces the value when `condition` holds for `value - bound`.
+fn append_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, bound_bits: u64, condition: u8) {
     bytes.extend([0x48 | (scratch >> 3), 0xb8 | (scratch & 7)]);
     bytes.extend(bound_bits.to_le_bytes());
     append_register_binary(bytes, 0x39, scratch, value);
@@ -53,6 +58,16 @@ fn append_clamp(bytes: &mut Vec<u8>, value: u8, scratch: u8, bound_bits: u64, up
         0x0f,
         condition,
         modrm(3, value, scratch),
+    ]);
+}
+
+/// `imul destination, source`: the register-form two-operand multiply.
+fn append_signed_multiply(bytes: &mut Vec<u8>, source: u8, destination: u8) {
+    bytes.extend([
+        rex(destination, 0, source),
+        0x0f,
+        0xaf,
+        modrm(3, destination, source),
     ]);
 }
 
@@ -75,8 +90,8 @@ fn append_signed_divide(bytes: &mut Vec<u8>, divisor: u8) {
 /// One saturating operation on one carrier, with the operand layout of its
 /// `SaturatingForm`: `[left, right, result]` for the three-operand forms,
 /// `[left, right, result, scratch]` with both outputs early-clobber for the
-/// clamped and overflow-select forms, and `[rax, divisor, rax, rdx]` for
-/// every division.
+/// clamped, overflow-select, and narrow and i64 multiply forms, and `[rax,
+/// divisor, rax, rdx]` for every division and the u64 multiply.
 fn append_saturating(
     bytes: &mut Vec<u8>,
     operation: SaturatingOperation,
@@ -116,9 +131,9 @@ fn append_saturating(
             let scratch = registers[3];
             append_register_binary(bytes, 0x89, left, result);
             append_register_binary(bytes, arithmetic, right, result);
-            append_clamp(bytes, result, scratch, carrier.maximum_bits(), true);
+            append_clamp(bytes, result, scratch, carrier.maximum_bits(), CMOVG);
             if form == SaturatingForm::ClampSignedNarrow {
-                append_clamp(bytes, result, scratch, carrier.minimum_bits(), false);
+                append_clamp(bytes, result, scratch, carrier.minimum_bits(), CMOVL);
             }
         }
         SaturatingForm::OverflowSelectI64 => {
@@ -143,7 +158,7 @@ fn append_saturating(
             // The 64-bit quotient of normalized narrow carriers cannot fault;
             // only MIN / -1 exceeds the carrier and is clamped through RDX.
             append_signed_divide(bytes, right);
-            append_clamp(bytes, 0, 2, carrier.maximum_bits(), true);
+            append_clamp(bytes, 0, 2, carrier.maximum_bits(), CMOVG);
         }
         SaturatingForm::DivideI64 => {
             // After `cmp right, -1`, CF is set unless right == -1, so SBB
@@ -175,6 +190,43 @@ fn append_saturating(
             bytes.extend([0x74, 5, 0x48, 0x99]);
             bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 7, right)]);
             append_register_binary(bytes, 0x89, registers[3], result);
+        }
+        SaturatingForm::MultiplySignedNarrow | SaturatingForm::MultiplyUnsignedNarrow => {
+            // The exact 64-bit product of two normalized narrow operands only
+            // needs the final clamp. A u32 product may pass i64::MAX, so the
+            // unsigned carriers compare unsigned; none can fall below zero.
+            let scratch = registers[3];
+            append_register_binary(bytes, 0x89, left, result);
+            append_signed_multiply(bytes, right, result);
+            if form == SaturatingForm::MultiplySignedNarrow {
+                append_clamp(bytes, result, scratch, carrier.maximum_bits(), CMOVG);
+                append_clamp(bytes, result, scratch, carrier.minimum_bits(), CMOVL);
+            } else {
+                append_clamp(bytes, result, scratch, carrier.maximum_bits(), CMOVA);
+            }
+        }
+        SaturatingForm::MultiplyI64 => {
+            // An overflowed product saturates toward the sign of the true
+            // product, which is the sign of `left ^ right`. The saturated
+            // value is derived first because SAR and BTC leave OF undefined,
+            // while MOV and CMOVO preserve the flag IMUL defines.
+            let scratch = registers[3];
+            append_register_binary(bytes, 0x89, left, scratch);
+            append_register_binary(bytes, 0x31, right, scratch);
+            bytes.extend([rex(0, 0, scratch), 0xf7, modrm(3, 2, scratch)]);
+            bytes.extend([rex(0, 0, scratch), 0xc1, modrm(3, 7, scratch), 63]);
+            bytes.extend([rex(0, 0, scratch), 0x0f, 0xba, modrm(3, 7, scratch), 63]);
+            append_register_binary(bytes, 0x89, left, result);
+            append_signed_multiply(bytes, right, result);
+            append_move_on_overflow(bytes, scratch, result);
+        }
+        SaturatingForm::MultiplyU64 => {
+            // MUL leaves the high half in RDX and sets CF exactly when it is
+            // nonzero; SBB turns that carry into an all-ones mask that OR
+            // folds into the RAX product.
+            bytes.extend([rex(0, 0, right), 0xf7, modrm(3, 4, right)]);
+            append_register_binary(bytes, 0x19, 2, 2);
+            append_register_binary(bytes, 0x09, 2, 0);
         }
     }
     Ok(())
@@ -408,6 +460,14 @@ pub(crate) fn encode_unchecked(
             append_saturating(
                 &mut bytes,
                 SaturatingOperation::Remainder,
+                carrier,
+                registers,
+            )?;
+        }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            append_saturating(
+                &mut bytes,
+                SaturatingOperation::Multiply,
                 carrier,
                 registers,
             )?;

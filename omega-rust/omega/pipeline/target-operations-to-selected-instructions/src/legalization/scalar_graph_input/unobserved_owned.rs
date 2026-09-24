@@ -78,6 +78,7 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::IntegerLessOrEqual { .. }
                 | AbstractOperation::SaturatingIntegerSubtract { .. }
                 | AbstractOperation::SaturatingIntegerAdd { .. }
+                | AbstractOperation::SaturatingIntegerMultiply { .. }
                 | AbstractOperation::ExactIntegerAdd { .. }
                 | AbstractOperation::ExactIntegerDivide { .. }
                 | AbstractOperation::ExactIntegerRemainder { .. }

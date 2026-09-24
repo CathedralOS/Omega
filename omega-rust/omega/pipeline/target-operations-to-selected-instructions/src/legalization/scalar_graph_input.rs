@@ -123,19 +123,17 @@ pub(super) fn saturating_carrier(integer: IntegerType) -> Option<SaturatingCarri
     SaturatingCarrier::from_integer(integer)
 }
 
-pub(super) fn supports_signed_wrapping_remainder(integer: IntegerType) -> bool {
-    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-        && integer.sign() == IntegerSign::Signed
-        && matches!(integer.bits(), 8 | 16 | 32 | 64)
-}
-
-/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
-/// quotient wraps back to MIN, while a narrower signed carrier's widened
-/// i64 quotient is the out-of-range value rather than the wrapped one.
-pub(super) fn supports_wrapping_divide_i64(integer: IntegerType) -> bool {
-    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-        && integer.sign() == IntegerSign::Signed
-        && integer.bits() == 64
+/// Wrapping divide and remainder admit every fixed 8/16/32/64-bit carrier of
+/// either sign. Scalar transport keeps narrow operands sign- or
+/// zero-normalized in 64-bit registers, where the i64 division of two
+/// normalized narrow values cannot fault and is exact; only a signed narrow
+/// MIN / -1 quotient leaves its carrier, and selection's carrier
+/// normalization truncates it back to the wrapped MIN. The i64 carrier's own
+/// MIN / -1 is guarded by the wrapping i64 realization, and u64 takes the
+/// unsigned division whose quotient and remainder never leave the carrier.
+/// Division by zero stays the accepted obligation in every case.
+pub(super) fn supports_wrapping_division(integer: IntegerType) -> bool {
+    scalar_shape(ScalarType::Integer(integer)).is_some()
 }
 
 /// The admitted exact-cast slice excludes sub-64-bit signed-to-signed casts

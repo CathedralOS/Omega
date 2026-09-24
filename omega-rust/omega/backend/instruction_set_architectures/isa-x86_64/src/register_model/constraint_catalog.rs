@@ -15,6 +15,7 @@ use crate::register_model::{
     X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64,
     X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
     X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
+    X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
     X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64,
     X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
@@ -493,12 +494,14 @@ pub fn x86_64_register_constraint_catalog(
         implicit_defs: Vec::new(),
         clobbers: view("rflags").units.clone(),
     });
-    // The clamped saturating add (every carrier but u64) and signed subtract
-    // accumulate in an early-clobber result and clamp through an early-clobber
-    // bound scratch (operand 3); the carrier only changes the emitted bounds.
+    // The clamped saturating add and multiply (every carrier but u64) and
+    // signed subtract accumulate in an early-clobber result and clamp through
+    // an early-clobber bound scratch (operand 3); the carrier only changes the
+    // emitted bounds.
     for key in [
         X86_64_SATURATING_ADD_CLAMPED,
         X86_64_SATURATING_SUBTRACT_CLAMPED,
+        X86_64_SATURATING_MULTIPLY_CLAMPED,
     ] {
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
@@ -522,6 +525,22 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: view("rflags").units.clone(),
         });
     }
+    // Saturating u64 multiplication shares the unsigned remainder's fixed row:
+    // MUL reads RAX and the RCX-pinned right operand and defines the RDX high
+    // half, whose overflow borrow then saturates RAX.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_SATURATING_MULTIPLY_U64,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rax"),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
+            fixed(2, RegisterOperandAccess::Def, "rax"),
+            fixed(3, RegisterOperandAccess::Def, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
     // Like unsigned division, the explicit RDX input keeps the divisor out of
     // RDX; CQO then redefines RDX and the signed carriers reuse it as the
     // bound scratch (narrow) or the MIN / -1 guard scratch (i64).

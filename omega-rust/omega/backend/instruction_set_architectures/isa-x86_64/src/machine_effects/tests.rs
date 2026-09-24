@@ -30,27 +30,30 @@ fn constraints() -> ValidatedRegisterConstraintCatalog {
 #[test]
 fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
     use SaturatingCarrier::{I64, U64};
-    use SaturatingOperation::{Add, Divide, Remainder, Subtract};
+    use SaturatingOperation::{Add, Divide, Multiply, Remainder, Subtract};
     let constraints = constraints();
     let physical = x86_64_physical_register_model();
     let rflags = physical.view_named("rflags").unwrap().units.clone();
     let rdx = physical.view_named("rdx").unwrap().units.clone();
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
-        for operation in [Add, Subtract, Divide, Remainder] {
+        for operation in [Add, Subtract, Divide, Remainder, Multiply] {
             for carrier in SaturatingCarrier::ALL {
                 let semantic = match operation {
                     Add => MachineSemanticKind::SaturatingAdd(carrier),
                     Subtract => MachineSemanticKind::SaturatingSubtract(carrier),
                     Divide => MachineSemanticKind::SaturatingDivide(carrier),
                     Remainder => MachineSemanticKind::SaturatingRemainder(carrier),
+                    Multiply => MachineSemanticKind::SaturatingMultiply(carrier),
                 };
                 // The constraint row follows the operand shape and the size
                 // follows the realization: u64 add 19, unsigned subtract 13,
                 // unsigned divide 3, signed narrow clamps 40 (add/subtract)
                 // and 22 (divide), unsigned narrow add 23, i64 overflow
                 // select 25 and guarded divide 26, unsigned remainder 9 and
-                // the -1-guarded signed remainder 17.
+                // the -1-guarded signed remainder 17, and the multiplies:
+                // signed narrow 41, unsigned narrow 24, i64 overflow select
+                // 29, and the fixed RAX:RDX u64 MUL 9.
                 let (key, size) = match (operation, carrier.is_signed(), carrier) {
                     (Add, _, U64) => (crate::register_model::X86_64_SATURATING_ADD_U64, 19),
                     (Add, true, I64) => (crate::register_model::X86_64_SATURATING_ADD_CLAMPED, 25),
@@ -77,6 +80,21 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                     }
                     (Remainder, false, _) => (crate::register_model::X86_64_REMAINDER_U64, 9),
                     (Remainder, true, _) => (crate::register_model::X86_64_REMAINDER_I64, 17),
+                    (Multiply, _, U64) => {
+                        (crate::register_model::X86_64_SATURATING_MULTIPLY_U64, 9)
+                    }
+                    (Multiply, true, I64) => (
+                        crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                        29,
+                    ),
+                    (Multiply, true, _) => (
+                        crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                        41,
+                    ),
+                    (Multiply, false, _) => (
+                        crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                        24,
+                    ),
                 };
                 // Division reads the explicit RDX input; the remainder forms
                 // instead define RDX as the shared four-operand remainder row.
@@ -167,6 +185,7 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
                                 Subtract => selected_instructions::MachineAlternativeFamily::SaturatingSubtract(sibling),
                                 Divide => selected_instructions::MachineAlternativeFamily::SaturatingDivide(sibling),
                                 Remainder => selected_instructions::MachineAlternativeFamily::SaturatingRemainder(sibling),
+                                Multiply => selected_instructions::MachineAlternativeFamily::SaturatingMultiply(sibling),
                             };
                         }
                     }

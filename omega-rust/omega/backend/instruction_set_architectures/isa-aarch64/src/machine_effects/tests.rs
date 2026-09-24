@@ -55,6 +55,10 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                     SaturatingOperation::Remainder,
                     MachineSemanticKind::SaturatingRemainder(carrier),
                 ),
+                (
+                    SaturatingOperation::Multiply,
+                    MachineSemanticKind::SaturatingMultiply(carrier),
+                ),
             ] {
                 // Operand shape selects the constraint row and the word count.
                 let (key, size, writes): (_, u16, &[u16]) = match operation {
@@ -98,6 +102,24 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                     SaturatingOperation::Remainder => {
                         (crate::register_model::AARCH64_REMAINDER_I64, 8, &[2])
                     }
+                    // `mul` plus one (unsigned) or two (signed) clamps, or
+                    // the high-half multiply sequences of the 64-bit carriers.
+                    SaturatingOperation::Multiply if carrier == SaturatingCarrier::U64 => (
+                        crate::register_model::AARCH64_SATURATING_MULTIPLY_U64,
+                        16,
+                        &[2, 3],
+                    ),
+                    SaturatingOperation::Multiply => (
+                        crate::register_model::AARCH64_SATURATING_MULTIPLY_CLAMPED,
+                        if !narrow {
+                            24
+                        } else if signed {
+                            28
+                        } else {
+                            16
+                        },
+                        &[2, 3],
+                    ),
                 };
                 let declaration = catalog
                     .declarations
@@ -161,6 +183,9 @@ fn every_saturating_carrier_binds_its_shape_key_size_and_flags() {
                                 }
                                 SaturatingOperation::Remainder => {
                                     MachineSemanticKind::SaturatingRemainder(sibling)
+                                }
+                                SaturatingOperation::Multiply => {
+                                    MachineSemanticKind::SaturatingMultiply(sibling)
                                 }
                             }
                             .into();

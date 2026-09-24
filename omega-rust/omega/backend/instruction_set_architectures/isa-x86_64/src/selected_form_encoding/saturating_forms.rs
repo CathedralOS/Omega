@@ -1,12 +1,13 @@
 //! The x86-64 realization shape of each saturating operation and carrier.
 //!
 //! The scalar transport keeps narrow (8/16/32-bit) carriers sign- or
-//! zero-normalized in 64-bit registers, so the 64-bit sum, difference, or
-//! quotient of two normalized narrow operands is exact and only the final
-//! clamp depends on the carrier. The 64-bit carriers need real overflow
-//! detection: the u64 forms select on the borrow, the i64 add and subtract
-//! select the saturated value on the overflow flag, and the i64 divide guards
-//! the one faulting quotient before dividing. The encoder, the decoded-form
+//! zero-normalized in 64-bit registers, so the 64-bit sum, difference,
+//! product, or quotient of two normalized narrow operands is exact and only
+//! the final clamp depends on the carrier. The 64-bit carriers need real
+//! overflow detection: the u64 forms select on the borrow (multiplication on
+//! MUL's high-half carry), the i64 add, subtract, and multiply select the
+//! saturated value on the overflow flag, and the i64 divide guards the one
+//! faulting quotient before dividing. The encoder, the decoded-form
 //! validator, the footprint, and the machine-effect catalog all read the
 //! shape from here so their operand counts, sizes, and effects agree.
 
@@ -55,6 +56,24 @@ pub(crate) enum SaturatingForm {
     /// every dividend, so skipping IDIV leaves the pre-cleared zero and
     /// avoids the MIN / -1 quotient fault.
     RemainderSigned,
+    /// `mov; imul` into the early-clobber result, then the MOVABS/CMP/CMOVG
+    /// upper and MOVABS/CMP/CMOVL lower clamps (41 bytes): the product of two
+    /// sign-normalized operands of at most 32 bits lies within ±2^62.
+    MultiplySignedNarrow,
+    /// `mov; imul`, then a MOVABS/CMP/CMOVA upper clamp (24 bytes). The
+    /// product of two zero-normalized u32 operands may reach 2^64 - 2^33 + 1,
+    /// past i64::MAX, so the compare is unsigned; the low 64 product bits are
+    /// the exact unsigned product.
+    MultiplyUnsignedNarrow,
+    /// The scratch is derived from the operand signs before the product
+    /// (`mov; xor; not; sar 63; btc 63` yields i64::MAX when the signs agree
+    /// and i64::MIN otherwise, the overflow direction), then `mov; imul;
+    /// cmovo` replaces an overflowed product by it (29 bytes).
+    MultiplyI64,
+    /// `mul rcx; sbb rdx, rdx; or rax, rdx` on the fixed RAX/RDX pair (9
+    /// bytes): MUL sets CF exactly when the RDX high half is nonzero, and the
+    /// borrow mask then saturates RAX to u64::MAX.
+    MultiplyU64,
 }
 
 impl SaturatingForm {
@@ -74,6 +93,10 @@ impl SaturatingForm {
             (SaturatingOperation::Divide, true, false) => Self::DivideI64,
             (SaturatingOperation::Remainder, false, _) => Self::RemainderUnsigned,
             (SaturatingOperation::Remainder, true, _) => Self::RemainderSigned,
+            (SaturatingOperation::Multiply, true, true) => Self::MultiplySignedNarrow,
+            (SaturatingOperation::Multiply, false, true) => Self::MultiplyUnsignedNarrow,
+            (SaturatingOperation::Multiply, true, false) => Self::MultiplyI64,
+            (SaturatingOperation::Multiply, false, false) => Self::MultiplyU64,
         }
     }
 
@@ -96,6 +119,14 @@ impl SaturatingForm {
             Self::RemainderUnsigned => 9,
             // XOR (3) plus CMP/JE (6) plus CQO/IDIV (5) plus MOV (3).
             Self::RemainderSigned => 17,
+            // MOV/IMUL (7) plus two MOVABS/CMP/CMOV clamps (17 each).
+            Self::MultiplySignedNarrow => 41,
+            // MOV/IMUL (7) plus one MOVABS/CMP/CMOV clamp (17).
+            Self::MultiplyUnsignedNarrow => 24,
+            // MOV/XOR/NOT/SAR/BTC (18) plus MOV/IMUL/CMOVO (11).
+            Self::MultiplyI64 => 29,
+            // MUL (3) plus SBB (3) plus OR (3).
+            Self::MultiplyU64 => 9,
         }
     }
 
@@ -114,7 +145,11 @@ impl SaturatingForm {
             | Self::DivideSignedNarrow
             | Self::DivideI64
             | Self::RemainderUnsigned
-            | Self::RemainderSigned => 4,
+            | Self::RemainderSigned
+            | Self::MultiplySignedNarrow
+            | Self::MultiplyUnsignedNarrow
+            | Self::MultiplyI64
+            | Self::MultiplyU64 => 4,
         }
     }
 
@@ -131,17 +166,25 @@ impl SaturatingForm {
         )
     }
 
+    /// Whether the form sits on the fixed RAX/RDX pair with its right operand
+    /// kept out of RDX: every division, and the u64 multiplication, whose MUL
+    /// defines the RDX high half. Unlike division it never faults.
+    pub(crate) const fn is_fixed_rax_rdx(self) -> bool {
+        self.is_division() || matches!(self, Self::MultiplyU64)
+    }
+
     /// Whether resolved register codes satisfy the form's pins: every
-    /// division sits on RAX with the divisor outside RDX (whose explicit input
-    /// value CQO or the unsigned zero convention discards), and the outputs of
-    /// every other form accumulate before the inputs are dead, so neither the
+    /// fixed RAX/RDX form sits on RAX with its right operand outside RDX
+    /// (whose explicit input value CQO or the unsigned zero convention
+    /// discards, or which MUL overwrites), and the outputs of every other
+    /// form accumulate before the inputs are dead, so neither the
     /// early-clobber result nor the scratch may alias an input or each other.
     pub(crate) fn accepts_registers(self, registers: &[u8]) -> bool {
         if registers.len() != self.operand_count() {
             return false;
         }
         let (inputs, outputs) = registers.split_at(2);
-        if self.is_division() {
+        if self.is_fixed_rax_rdx() {
             return inputs[0] == 0 && outputs[0] == 0 && outputs[1] == 2 && inputs[1] != 2;
         }
         outputs.iter().all(|output| !inputs.contains(output))
@@ -161,9 +204,13 @@ impl SaturatingForm {
             // The remainder forms define both outputs: RDX carries the
             // remainder until the final move into the RAX result home.
             Self::RemainderUnsigned | Self::RemainderSigned => (vec![0, 1], vec![2, 3]),
-            Self::ClampSignedNarrow | Self::ClampUnsignedNarrow | Self::OverflowSelectI64 => {
-                (vec![0, 1], vec![2, 3])
-            }
+            Self::ClampSignedNarrow
+            | Self::ClampUnsignedNarrow
+            | Self::OverflowSelectI64
+            | Self::MultiplySignedNarrow
+            | Self::MultiplyUnsignedNarrow
+            | Self::MultiplyI64
+            | Self::MultiplyU64 => (vec![0, 1], vec![2, 3]),
         }
     }
 }
@@ -185,6 +232,9 @@ pub(crate) const fn saturating_operation(
         }
         SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
             Some((SaturatingOperation::Remainder, carrier))
+        }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            Some((SaturatingOperation::Multiply, carrier))
         }
         _ => None,
     }

@@ -142,6 +142,7 @@ pub(in crate::text_placement::placement) fn prove_none(
                 | MachineAlternativeFamily::SaturatingSubtract(_)
                 | MachineAlternativeFamily::SaturatingDivide(_)
                 | MachineAlternativeFamily::SaturatingRemainder(_)
+                | MachineAlternativeFamily::SaturatingMultiply(_)
                 | MachineAlternativeFamily::Float32ToBits
                 | MachineAlternativeFamily::Float64ToBits
                 | MachineAlternativeFamily::BitsToFloat32

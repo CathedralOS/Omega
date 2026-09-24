@@ -151,6 +151,7 @@ fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
             | SaturatingSubtract { .. }
             | SaturatingDivide { .. }
             | SaturatingRemainder { .. }
+            | SaturatingMultiply { .. }
             | ExactDivideU64 { .. }
             | ExactRemainderU64 { .. }
             | WrappingRemainderI64 { .. }

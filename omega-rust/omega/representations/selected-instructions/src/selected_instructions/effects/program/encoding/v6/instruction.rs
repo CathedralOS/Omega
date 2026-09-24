@@ -257,6 +257,9 @@ fn decode_kind(
                 SaturatingOperation::Subtract => {
                     SelectedInstructionKind::SaturatingSubtract { carrier }
                 }
+                SaturatingOperation::Multiply => {
+                    SelectedInstructionKind::SaturatingMultiply { carrier }
+                }
                 SaturatingOperation::Divide | SaturatingOperation::Remainder => {
                     let obligation = decode_obligation(cursor)?;
                     let accepted_fact = AcceptedObligationFactIdentity::from_bytes(cursor.array()?);
@@ -518,6 +521,9 @@ fn decode_alternative_for_version(
             }
             (SaturatingOperation::Remainder, carrier) => {
                 MachineAlternativeFamily::SaturatingRemainder(carrier)
+            }
+            (SaturatingOperation::Multiply, carrier) => {
+                MachineAlternativeFamily::SaturatingMultiply(carrier)
             }
         },
         4 => MachineAlternativeFamily::ExactAddI64Immediate,
@@ -852,6 +858,7 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
         SaturatingOperation::Subtract,
         SaturatingOperation::Divide,
         SaturatingOperation::Remainder,
+        SaturatingOperation::Multiply,
     ]
     .into_iter()
     .flat_map(|operation| {
