@@ -30,6 +30,7 @@ mod guards;
 mod integer_ranges;
 mod measurement;
 mod named_constraints;
+mod requires_conditions;
 mod return_arrival;
 
 pub use certificate::{CertificateVerdict, guarded_transition_integer_verdict};
@@ -119,6 +120,7 @@ fn check_proof_plan_inner(
                 check_bounded_assignment(
                     proof_plan,
                     obligation,
+                    &range_context,
                     seed,
                     &mut diagnostics,
                     measurements,

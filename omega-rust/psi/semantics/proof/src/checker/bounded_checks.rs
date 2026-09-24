@@ -30,9 +30,9 @@ use crate::checker::float_ranges::{
     float_range_from_constraints,
 };
 use crate::checker::integer_ranges::{
-    guarded_integer_range_for_assignment, guarded_integer_range_for_transition_argument,
-    integer_range_for_call_argument, integer_range_for_initializer, integer_range_from_constraints,
-    type_constraints,
+    guarded_integer_range_for_assignment_with_context,
+    guarded_integer_range_for_transition_argument, integer_range_for_call_argument,
+    integer_range_for_initializer, integer_range_from_constraints, type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
@@ -50,9 +50,10 @@ use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-pub(crate) fn check_bounded_assignment(
-    proof_plan: &ProofPlan,
+pub(crate) fn check_bounded_assignment<'program>(
+    proof_plan: &ProofPlan<'program>,
     obligation: &BoundedAssignmentObligation,
+    context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
@@ -94,9 +95,9 @@ pub(crate) fn check_bounded_assignment(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let Some(value_range) =
-                    guarded_integer_range_for_assignment(proof_plan, obligation)
-                else {
+                let Some(value_range) = guarded_integer_range_for_assignment_with_context(
+                    proof_plan, obligation, context,
+                ) else {
                     diagnostics.push(cannot_prove_bounded_assignment_integer(
                         proof_plan,
                         obligation,
