@@ -64,7 +64,7 @@ fn selected_form_encoding_data_outlives_its_producer() {
     let representation = root.join("omega-rust/omega/representations/machine-code/src");
     let data = rust_source(&representation);
     let stage = root
-        .join("omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src");
+        .join("omega-rust/omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src");
     let producer = rust_source(&stage);
     for declaration in [
         "pub struct SelectedFormEncoding {",
@@ -2349,7 +2349,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/04_selected-instructions-to-selected-instructions",
         "omega/pipeline/05_selected-instructions-to-register-homes",
         "omega/pipeline/06_register-homes-to-post-allocation-machine",
-        "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/07_post-allocation-machine-to-selected-form-encoding",
         "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
         "omega/pipeline/12_resolved-layout-to-resolved-layout",
     ];
