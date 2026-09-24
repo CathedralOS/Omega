@@ -15,6 +15,9 @@ struct SymbolIndex {
     machine_index: HashMap<SymbolHandle, usize>,
     state_index_in_machine: HashMap<(SymbolHandle, SymbolHandle), usize>,
     state_location: HashMap<SymbolHandle, (usize, usize)>,
+    /// Trait-machine signature symbol -> (traits index, signature index): the
+    /// traits x signatures scan every callable lookup otherwise repeats.
+    signature_location: HashMap<SymbolHandle, (usize, usize)>,
 }
 
 impl SymbolIndex {
@@ -23,6 +26,7 @@ impl SymbolIndex {
             machine_index: HashMap::new(),
             state_index_in_machine: HashMap::new(),
             state_location: HashMap::new(),
+            signature_location: HashMap::new(),
         };
         for (machine_index, machine) in program.machines().iter().enumerate() {
             index.machine_index.insert(machine.symbol, machine_index);
@@ -33,6 +37,15 @@ impl SymbolIndex {
                 index
                     .state_location
                     .insert(state.symbol, (machine_index, state_index));
+            }
+        }
+        for (owner_index, owner) in program.traits().iter().enumerate() {
+            for (signature_index, signature) in
+                program.trait_machine_signatures(owner).iter().enumerate()
+            {
+                index
+                    .signature_location
+                    .insert(signature.symbol, (owner_index, signature_index));
             }
         }
         index
@@ -86,6 +99,25 @@ pub(super) struct FlowBuildContext<'plans> {
             )>,
         >,
     >,
+    /// Out-parameter `ensures <parameter> in D` rows per callable: the same
+    /// program-pure contract collection as `call_result_identities`.
+    pub(super) call_parameter_identities:
+        HashMap<SymbolHandle, Rc<Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)>>>,
+    /// Provable `(field path, domain)` reseed rows a readable `&mut`
+    /// parameter's declared referent type hands back at return; `None` marks
+    /// parameters that are not readable mutable references or have no
+    /// provable paths. Keyed by the declared type reference -- the rows are
+    /// program-pure on it.
+    pub(super) referent_type_paths: HashMap<
+        typed_trees::types::TypeReferenceHandle,
+        Option<Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
+    >,
+    /// Filtered `(field path, domain)` rows of a machine's seeded
+    /// `MachineFieldDomain` facts. The facts are seeded before flow and the
+    /// rows hold plain segments/symbols -- no sweep-local arena handles -- so
+    /// the answer is stable across passes.
+    pub(super) machine_field_rows:
+        HashMap<SymbolHandle, Rc<Vec<(Vec<facts::PlaceSegment>, SymbolHandle)>>>,
     /// Lazily built on the first symbol lookup; positions only, so it holds
     /// no typed-tree borrow and survives `discard_output`.
     symbol_index: Option<SymbolIndex>,
@@ -199,6 +231,9 @@ impl<'plans> FlowBuildContext<'plans> {
             call_target_parameters: HashMap::new(),
             call_target_returns: HashMap::new(),
             call_result_identities: HashMap::new(),
+            call_parameter_identities: HashMap::new(),
+            referent_type_paths: HashMap::new(),
+            machine_field_rows: HashMap::new(),
             symbol_index: None,
             scalar_bindings_by_site,
             scalar_expressions_by_site,
@@ -288,6 +323,19 @@ impl<'plans> FlowBuildContext<'plans> {
         self.symbol_index(program)
             .state_index_in_machine
             .get(&(machine_symbol, state_symbol))
+            .copied()
+    }
+
+    /// `(traits index, in-trait signature index)` of a trait-machine signature
+    /// symbol -- the shape the traits x signatures contract scan repeats.
+    pub(super) fn signature_location(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        signature_symbol: SymbolHandle,
+    ) -> Option<(usize, usize)> {
+        self.symbol_index(program)
+            .signature_location
+            .get(&signature_symbol)
             .copied()
     }
 

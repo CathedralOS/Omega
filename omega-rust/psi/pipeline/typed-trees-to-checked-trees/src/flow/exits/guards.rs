@@ -97,11 +97,15 @@ fn append_guard_bounds_context(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine) = build
+        .machine_index(program, machine_symbol)
+        .map(|index| &program.machines()[index])
+    else {
         return;
     };
-    let Some(state) =
-        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)
+    let Some(state) = build
+        .state_index_in_machine(program, machine_symbol, state_symbol)
+        .map(|index| &program.machine_states(machine)[index])
     else {
         return;
     };
