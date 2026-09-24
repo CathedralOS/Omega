@@ -394,7 +394,10 @@ pub(super) fn validate_uses(
         | OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => validate(*source)?,
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::StructuralScalarFieldStore { destination, .. } => validate(*destination)?,
+        | OperationKind::StructuralScalarFieldStore { destination, .. }
+        | OperationKind::AtomicAccess {
+            place: destination, ..
+        } => validate(*destination)?,
         OperationKind::CallUnit {
             structural_arguments,
             ..

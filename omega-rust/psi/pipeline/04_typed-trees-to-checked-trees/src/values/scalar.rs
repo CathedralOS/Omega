@@ -19,6 +19,7 @@
 //! casts and structural fields.
 
 mod array_constructions;
+mod atomic_operands;
 mod boolean_lowering;
 mod call_arguments;
 mod call_lowering;

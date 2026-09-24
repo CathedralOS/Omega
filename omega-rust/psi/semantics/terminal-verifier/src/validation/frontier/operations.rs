@@ -366,6 +366,9 @@ fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
         // Extraction mutates through the borrowed root a shared view may
         // observe, so a pinned source rejects like a store's destination.
         OperationKind::MoveStructuralField { source, .. } => vec![*source],
+        OperationKind::AtomicAccess { place, event, .. } if event.modifies_resident() => {
+            vec![*place]
+        }
         _ => Vec::new(),
     }
 }

@@ -261,6 +261,14 @@ pub(super) fn build_traced(
         // The first computation/call and its suffix use ordinary sequencing,
         // just as when an earlier structural local already requires that path.
         .take_while(|binding| binding.value == CheckedScalarBindingValue::Expression)
+        // An atomic load or result placeholder is an event, not a pure prefix.
+        .take_while(|binding| {
+            !super::atomic_operations::owns_local(
+                program,
+                state,
+                binding.statement_ordinal as usize,
+            )
+        })
         .collect::<Vec<_>>();
         let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
         let binding_count = bindings.len();
@@ -488,6 +496,9 @@ pub(super) fn build_traced(
                 // destination, RHS, and complete write frame. Crossing a state
                 // edge does not turn that non-observing write into a new family.
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                // An atomic event's root authority and operands rejoined at
+                // mint; its observed prior is an ordinary dense scalar local.
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
                 // The window pair the sequencer itself joined — a move-out
                 // binding the displaced field value and the exact restoration

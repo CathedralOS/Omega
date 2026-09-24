@@ -76,6 +76,7 @@ use crate::unit::{
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
 
+mod atomic_access;
 mod boundary_calls;
 mod calls;
 pub(super) use calls::CallInputs;
@@ -432,6 +433,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
         )
     }
 
@@ -483,6 +485,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 self.establish_structural_value(operation)
             }
+            CheckedUnitEffectOperationPlan::AtomicAccess(access) => self.atomic_access(access),
             _ => unsupported("operation frame received a call operation"),
         }
     }

@@ -12,9 +12,11 @@
 //! the one Unit-bodied plan a machine carries across the cleanup and control
 //! rosters, `result_binding_plans.rs` carries result bindings,
 //! `unit_effect_plans.rs` carries effect operations and
-//! `boundary_machine_plans.rs` carries boundary machines.
+//! `boundary_machine_plans.rs` carries boundary machines and `atomic_plans.rs`
+//! carries normalized atomic events.
 
 mod affine_cleanup_plans;
+mod atomic_plans;
 mod boundary_machine_plans;
 mod composed_unit_control_plans;
 mod result_binding_plans;
@@ -38,6 +40,7 @@ pub use affine_cleanup_plans::{
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitNominalAffineCleanupRequirementPlan,
     CheckedUnitPartialAffineDiscardPlan,
 };
+pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedProviderAttachmentRequirementPlan,

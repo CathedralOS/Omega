@@ -416,6 +416,8 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                // An atomic event names no callee.
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

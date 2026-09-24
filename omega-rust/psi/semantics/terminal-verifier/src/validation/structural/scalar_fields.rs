@@ -59,7 +59,10 @@ fn direct_relevant_scalar_field(
     })
 }
 
-fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bool {
+pub(in crate::validation) fn has_empty_structural_custody(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> bool {
     readable_parameter_for(machine, place).is_some_and(|parameter| {
         parameter.qualifications.is_empty() && parameter.projected_qualifications.is_empty()
     }) && machine
@@ -72,7 +75,7 @@ fn has_empty_structural_custody(machine: &TerminalMachine, place: PlaceId) -> bo
             .all(|claim| claim.input.root != place)
 }
 
-fn readable_parameter_for(
+pub(in crate::validation) fn readable_parameter_for(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&StructuralParameterDeclaration> {

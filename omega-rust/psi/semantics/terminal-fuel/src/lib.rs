@@ -65,6 +65,7 @@ impl TerminalFuelSchedule {
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::PrimitiveScalarRead { .. }
+            | OperationKind::AtomicAccess { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::MoveStructuralField { .. }
             | OperationKind::StoreStructuralField { .. }

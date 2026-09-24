@@ -243,6 +243,13 @@ pub(super) fn validate_operation_operands(
         OperationKind::TrappingInteger { .. } => {
             super::trapping_integer::validate_operands(operation, value_types, defined)
         }
+        OperationKind::AtomicAccess { .. } => super::atomic_access::validate_operands(
+            module,
+            machine,
+            operation,
+            value_types,
+            defined,
+        ),
         _ => arithmetic_operands::validate_binary_arithmetic(operation, value_types, defined),
     }
 }

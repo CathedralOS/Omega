@@ -93,6 +93,8 @@ const VAL_DYNAMIC: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/dynamic_dispatch.rs";
 const VAL_TRAPPING: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/trapping_integer.rs";
+const VAL_ATOMIC: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/atomic_access.rs";
 const VAL_SUSPENSION: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/suspension_call_plan.rs";
 
@@ -813,6 +815,24 @@ static OP_TRAPPING_INTEGER: TrustedSurfaceEntry = entry(
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_TRAPPING],
 );
 
+static OP_ATOMIC_ACCESS: TrustedSurfaceEntry = entry(
+    "operation:atomic-access",
+    "a live root whose access grants the event (readable to observe, writable to modify, both for read-modify-write, swap and compare-exchange), a static path to an integer or Boolean primitive leaf, source-legal orderings, leaf-typed operands, and a leaf-typed result exactly when the event observes",
+    "no proposition facts: the observed prior is an unconstrained value of the leaf type; a modifying event retires every observation of its root",
+    &[
+        "invalidation:atomic-access",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_ATOMIC,
+        VAL_PRIMITIVE_STORAGE,
+    ],
+);
+
 // -- Proof-bearing scalar rows --
 
 static OP_INTEGER_EXACT_CAST: TrustedSurfaceEntry = entry(
@@ -1149,6 +1169,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_WRAPPING_INTEGER_MULTIPLY,
     OP_SATURATING_INTEGER_MULTIPLY,
     OP_TRAPPING_INTEGER,
+    OP_ATOMIC_ACCESS,
 ];
 
 /// `OperationSemanticTag` -> ledger entry, total by construction.
@@ -1245,5 +1266,6 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::WrappingIntegerMultiply => &OP_WRAPPING_INTEGER_MULTIPLY,
         OperationSemanticTag::SaturatingIntegerMultiply => &OP_SATURATING_INTEGER_MULTIPLY,
         OperationSemanticTag::TrappingInteger => &OP_TRAPPING_INTEGER,
+        OperationSemanticTag::AtomicAccess => &OP_ATOMIC_ACCESS,
     }
 }

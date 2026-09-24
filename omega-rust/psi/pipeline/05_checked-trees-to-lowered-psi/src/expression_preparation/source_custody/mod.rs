@@ -277,6 +277,19 @@ pub(crate) fn locate(
                 .primitive_type_reference(local.type_reference)
                 .map(|primitive| (local.initial_value, local.symbol, primitive))
         }
+        // An atomic carrier's operand is reread through the shared carrier
+        // decoder, at the atomic place's own carrier: the arithmetic model
+        // around it is never a source value.
+        (
+            StatementNode::Assignment(assignment),
+            CheckedScalarExpressionRole::AtomicOperand { operand_ordinal },
+        ) => validation::atomic_assignment_carrier(program, assignment).and_then(|carrier| {
+            let operand = *carrier.operands.get(operand_ordinal as usize)?;
+            let primitive =
+                validation::declared_place_type_raw(program, machine, Some(state), carrier.place)
+                    .and_then(|reference| program.primitive_type_reference(reference))?;
+            Some((operand, absent, primitive))
+        }),
         (
             StatementNode::Assignment(assignment),
             CheckedScalarExpressionRole::AssignmentIndex { depth },

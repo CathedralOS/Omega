@@ -309,6 +309,10 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::TrappingInteger { .. } => {
             TerminalTraceV1OperationClassification::TrappingPrimitive
         }
+        // An atomic event is program-internal memory traffic: the v1 profile
+        // observes boundary and port effects, not memory-order events, and a
+        // serial trace has no second participant that could observe one.
+        OperationKind::AtomicAccess { .. } => TerminalTraceV1OperationClassification::Internal,
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }

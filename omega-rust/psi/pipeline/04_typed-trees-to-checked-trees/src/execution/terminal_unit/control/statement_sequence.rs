@@ -881,6 +881,9 @@ pub(in crate::execution::terminal_unit) fn build(
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
     let mut returned_scalar_call = None;
+    // The result binding an atomic carrier's placeholder local reserved for
+    // the carrier assignment that follows it (`atomic_operations.rs`).
+    let mut atomic_result = None;
     // Value bindings remain separate from the call's replayed claim custody.
     let mut structural_results = Vec::new();
     let mut call_count = 0_usize;
@@ -934,7 +937,33 @@ pub(in crate::execution::terminal_unit) fn build(
         // An affine field value displaced by the overwrite needs an explicit
         // discard on the call's continuation; unrestricted drops for free.
         let mut displaced_discard = None;
+        if atomic_result.is_some()
+            && !matches!(statement, StatementNode::Assignment(assignment)
+                if validation::atomic_assignment_carrier(program, assignment).is_some())
+        {
+            return None;
+        }
         let result = match statement {
+            StatementNode::Assignment(assignment)
+                if validation::atomic_assignment_carrier(program, assignment).is_some() =>
+            {
+                trace.phase("statement sequence: assignment: atomic event");
+                trace.statement(Some(statement_index));
+                operations.push(CheckedUnitEffectOperationPlan::AtomicAccess(
+                    super::super::atomic_operations::writing_event(
+                        program,
+                        facts,
+                        machine,
+                        state,
+                        structural_parameters,
+                        statement_index,
+                        assignment,
+                        atomic_result.take(),
+                        trace,
+                    )?,
+                ));
+                continue;
+            }
             StatementNode::Assignment(assignment) => {
                 // One authored assignment can decompose into several stores —
                 // a whole-record replacement emits one field store per member —
@@ -1151,6 +1180,40 @@ pub(in crate::execution::terminal_unit) fn build(
                     return None;
                 }
                 if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
+                    continue;
+                }
+                // An atomic carrier's result placeholder plans nothing: it
+                // reserves the dense binding the next statement's event binds
+                // to the observed prior. A load local plans its event here.
+                if let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
+                    && super::super::atomic_operations::result_placeholder(program, state, index, local)
+                {
+                    local_phase("statement sequence: local data: atomic result placeholder");
+                    atomic_result = Some(CheckedUnitScalarResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(scalar_count).ok()?,
+                        primitive_type,
+                    });
+                    scalar_count = scalar_count.checked_add(1)?;
+                    continue;
+                }
+                if validation::atomic_load_carrier(program, local.initial_value).is_some() {
+                    local_phase("statement sequence: local data: atomic load");
+                    let binding_ordinal = u32::try_from(scalar_count).ok()?;
+                    operations.push(CheckedUnitEffectOperationPlan::AtomicAccess(
+                        super::super::atomic_operations::load_event(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            structural_parameters,
+                            statement_index,
+                            local,
+                            binding_ordinal,
+                            trace,
+                        )?,
+                    ));
+                    scalar_count = scalar_count.checked_add(1)?;
                     continue;
                 }
                 // A local binding a selected boundary-operator application

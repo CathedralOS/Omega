@@ -389,6 +389,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     (
         "psi/semantics/terminal-interpreter",
         &[
+            "atomic_operations",
             "byte_sequences",
             "calls",
             "custody",

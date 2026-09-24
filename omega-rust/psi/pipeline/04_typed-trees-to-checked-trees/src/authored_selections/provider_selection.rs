@@ -136,7 +136,7 @@ pub(crate) fn resolve_product_operand(
     };
     program
         .symbols
-        .find_product_declaration_from_source(&path, occurrence, candidates)
+        .find_build_subject_declaration_from_source(&path, occurrence, candidates)
 }
 
 #[cfg(test)]

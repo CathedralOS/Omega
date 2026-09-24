@@ -12,14 +12,15 @@ mod semantic_dependencies;
 mod terminal;
 
 pub use self::terminal::{
-    CheckedAffineConstructionElementPlan, CheckedBoundaryMachinePlan,
-    CheckedBoundaryMachineResultPlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedBoundaryScalarReturnPlans, CheckedByteSequenceCarrier, CheckedByteSequenceStoreValue,
-    CheckedByteSequenceWritePlan, CheckedCallScalarArgument,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseSuccessorPlan,
-    CheckedClosedSumPayloadTransferPlan, CheckedComposedUnitControlMachinePlan,
-    CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
-    CheckedConditionalReturnArm, CheckedControlResultPlan, CheckedFusedServiceErasureReceipt,
+    CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,
+    CheckedAtomicReadModifyWrite, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
+    CheckedByteSequenceCarrier, CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan,
+    CheckedCallScalarArgument, CheckedClaimFreeAffineStructuralReturnMachinePlan,
+    CheckedClosedSumCaseSuccessorPlan, CheckedClosedSumPayloadTransferPlan,
+    CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
+    CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
+    CheckedControlResultPlan, CheckedFusedServiceErasureReceipt,
     CheckedFusedServiceParameterReceipt, CheckedGuardedJumpPlan, CheckedNaturalRankMeasure,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,

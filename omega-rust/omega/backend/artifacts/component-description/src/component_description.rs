@@ -718,6 +718,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::PrimitiveScalarRead { .. }
+                    | OperationKind::AtomicAccess { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }
                     | OperationKind::StructuralByteSequenceFieldLength { .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { .. }

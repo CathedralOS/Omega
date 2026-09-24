@@ -264,3 +264,42 @@ fn generated_toolchain_symbols_retain_toolchain_origin_without_package_identity(
     );
     assert_eq!(symbols.symbol_package_identity(generated), None);
 }
+
+/// A BUILD operand may name a public toolchain declaration; ordinary product
+/// declaration selection may not.
+///
+/// The toolchain injects its core into every product with no package identity
+/// and no manifest, so neither a same-package test nor an alias can ever reach
+/// it. Widening the ordinary lookup instead would change which declaration an
+/// ordinary call selects.
+#[test]
+fn only_a_build_subject_reaches_a_public_toolchain_declaration() {
+    let (symbols, declarations) = sourced_symbol_table([
+        (
+            SourceOrigin::User,
+            Some(PackageKeyIdentity::from_digest([7; 32]).unwrap()),
+        ),
+        (SourceOrigin::Toolchain, None),
+    ]);
+    let occurrence = symbols
+        .symbol_source_span(declarations[0])
+        .expect("the authored declaration retains its source");
+    let toolchain = declarations[1];
+    let name = symbols.name(toolchain).to_owned();
+
+    assert_eq!(
+        symbols.find_build_subject_declaration_from_source(&name, occurrence, [(toolchain, true)]),
+        Some(toolchain),
+        "a build operand names the injected core declaration it selects a provider for"
+    );
+    assert_eq!(
+        symbols.find_product_declaration_from_source(&name, occurrence, [(toolchain, true)]),
+        None,
+        "ordinary product selection keeps the same-package rule"
+    );
+    assert_eq!(
+        symbols.find_build_subject_declaration_from_source(&name, occurrence, [(toolchain, false)]),
+        None,
+        "a private toolchain declaration is not a build operand's to name"
+    );
+}
