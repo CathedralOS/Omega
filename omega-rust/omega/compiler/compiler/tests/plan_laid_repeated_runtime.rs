@@ -10,15 +10,42 @@ use checked_interpreter::InterpretOptions;
 use compiler::CheckedCompileRequest;
 use compiler::{CompileOptions, compile_to_checked};
 
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
+/// A checked request for a repository fixture, carrying the package inputs
+/// its own `build.omg` declares. These canaries depend on the bundled
+/// standard library, so without them the compile looks for
+/// `<fixture>/omega_language_std/console.omg` and fails to resolve it.
+fn checked_request<'a>(root: &Path, target_name: Option<&str>) -> CheckedCompileRequest<'a> {
+    let package_inputs =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(root, target_name)
+            .expect("fixture package inputs resolve");
+    CheckedCompileRequest {
+        package_inputs,
+        ..CheckedCompileRequest::new(root, target_name)
+    }
+}
+
 fn compile(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
-    let report = compiler::compile(
-        compiler::CompileRequest::new(options)
-            .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)?;
+    // These canaries import `omega_language_std::console` and declare the
+    // bundled standard library in their own `build.omg`. Without the package
+    // inputs that declaration resolves to, the compile looks for
+    // `<fixture>/omega_language_std/console.omg` and fails to resolve it.
+    let package_inputs = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &options.root_path,
+        options.target_name.as_deref(),
+    )?;
+    let mut request = compiler::CompileRequest::new(options)
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])
@@ -71,7 +98,7 @@ fn unique_build_dir(tag: &str) -> TemporaryBuildDirectory {
 fn assert_runtime_canary(canary_name: &str, tag: &str) {
     let canary = repo_root().join("tests/omega/pass").join(canary_name);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(CheckedCompileRequest::new(
+    let checked = compile_to_checked(checked_request(
         &canary.join("main.omg"),
         Some(host.target_name()),
     ))
@@ -171,7 +198,7 @@ fn multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile() {
 fn gapped_record_outer_array_materializes_from_checked_owned_value() {
     let canary = repo_root().join("tests/omega/pass").join(RECORD_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(CheckedCompileRequest::new(
+    let checked = compile_to_checked(checked_request(
         &canary.join("main.omg"),
         Some(host.target_name()),
     ))
@@ -220,7 +247,7 @@ fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
         .join("tests/omega/pass")
         .join(NESTED_ARRAY_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(CheckedCompileRequest::new(
+    let checked = compile_to_checked(checked_request(
         &canary.join("main.omg"),
         Some(host.target_name()),
     ))
@@ -265,7 +292,7 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
         .join("tests/omega/pass")
         .join(RECORD_NESTED_ARRAY_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(CheckedCompileRequest::new(
+    let checked = compile_to_checked(checked_request(
         &canary.join("main.omg"),
         Some(host.target_name()),
     ))
@@ -395,7 +422,7 @@ fn multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically() {
         .join("tests/omega/pass")
         .join(MULTIPLE_AGGREGATE_FIELDS_CANARY);
     let host = target::TargetProfile::host();
-    let checked = compile_to_checked(CheckedCompileRequest::new(
+    let checked = compile_to_checked(checked_request(
         &canary.join("main.omg"),
         Some(host.target_name()),
     ))
