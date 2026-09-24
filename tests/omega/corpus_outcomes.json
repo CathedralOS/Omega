@@ -15567,6 +15567,14 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 402,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/calls/runtime_param_forward_chain_second_receiver_exit",
   "tier": "pass",
   "status": "checked",

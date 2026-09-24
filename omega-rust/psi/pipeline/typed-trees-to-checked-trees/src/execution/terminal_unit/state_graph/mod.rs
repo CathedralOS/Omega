@@ -425,6 +425,10 @@ pub(super) fn build_traced(
                             || (argument.source_parameter_index().is_some()
                                 && argument.path.is_empty()
                                 && argument.access == CheckedStructuralAccess::Owned)
+                            || call_consumes_result_argument(
+                                argument,
+                                &operations[..operation_index],
+                            )
                     }) => {}
                 CheckedUnitEffectOperationPlan::CallUnit {
                     structural_arguments,
@@ -449,6 +453,10 @@ pub(super) fn build_traced(
                             || (argument.source_parameter_index().is_some()
                                 && argument.path.is_empty()
                                 && argument.access == CheckedStructuralAccess::Owned)
+                            || call_consumes_result_argument(
+                                argument,
+                                &operations[..operation_index],
+                            )
                     }) => {}
                 CheckedUnitEffectOperationPlan::ScalarCall {
                     structural_arguments,
@@ -473,6 +481,10 @@ pub(super) fn build_traced(
                             || (argument.source_parameter_index().is_some()
                                 && argument.path.is_empty()
                                 && argument.access == CheckedStructuralAccess::Owned)
+                            || call_consumes_result_argument(
+                                argument,
+                                &operations[..operation_index],
+                            )
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     discard_result_on_return: false,
@@ -573,7 +585,11 @@ pub(super) fn build_traced(
                             structural_arguments,
                             claim_transfers,
                             ..
-                        } => call_custody_refusal(structural_arguments, claim_transfers),
+                        } => call_custody_refusal(
+                            structural_arguments,
+                            claim_transfers,
+                            &operations[..operation_index],
+                        ),
                         CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
@@ -1120,10 +1136,10 @@ pub(super) fn build_traced(
                 }
                 _ => false,
             } || selection_residual_source;
-            // A linear result moved into an ordinary call is no longer owed by the
-            // state's terminator. Count its exact whole owned uses in the
+            // A result the call owns (`call_owns_result`) is no longer owed by
+            // the state's terminator. Count its exact whole owned uses in the
             // completed sequence; returning it as well would duplicate custody.
-            // Affine call-result consumers retain their ordinary statement
+            // Affine and unrestricted locals keep their ordinary statement
             // owner until graph admission can replay their cleanup partition.
             let call_transfers = operations[producer_index + 1..]
                 .iter()
@@ -1156,7 +1172,7 @@ pub(super) fn build_traced(
                 })
                 .flatten()
                 .filter(|argument| {
-                    result.multiplicity == Multiplicity::Linear
+                    call_owns_result(operation)
                         && argument.source_structural_result_binding_ordinal()
                             == Some(result.binding_ordinal)
                         && argument.access == CheckedStructuralAccess::Owned
@@ -1339,6 +1355,65 @@ fn prefix_initializers(
         .collect()
 }
 
+/// Whether an owned whole call argument moves its structural result's single
+/// custody into the call. A linear result has exactly one owner, so the call
+/// is it. A construction authored as the call's own argument —
+/// `f(Event::Trigger)`, recorded with a `CallArgument` source — has no owner
+/// but the call that reads it, so the call owns it whatever its multiplicity;
+/// the Psi lowering admits exactly that join and no wider one. Every other
+/// result keeps its statement owner: a local is disposed through the state's
+/// exit, and counting a call as well would owe it twice. The result custody
+/// accounting then requires exactly one consumer per result, so a temporary
+/// the sequence also discarded or returned still refuses.
+fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
+    match producer {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            operand_source,
+            ..
+        } => {
+            result.multiplicity == Multiplicity::Linear
+                || matches!(
+                    operand_source,
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+                )
+        }
+        CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+            result.multiplicity == Multiplicity::Linear
+        }
+        _ => false,
+    }
+}
+
+/// Whether an owned whole call argument draws on a result this sequence
+/// produced earlier and the call owns. The result custody accounting counts
+/// that call as the result's one consumption with the same rule, so admitting
+/// the argument here and counting it there cannot disagree.
+fn call_consumes_result_argument(
+    argument: &CheckedUnitStructuralArgumentPlan,
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> bool {
+    let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
+        return false;
+    };
+    argument.path.is_empty()
+        && argument.access == CheckedStructuralAccess::Owned
+        && earlier
+            .iter()
+            .rev()
+            .find(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                        if result.binding_ordinal == ordinal
+                )
+            })
+            .is_some_and(call_owns_result)
+}
+
 /// Name the first requirement a unit or scalar call's custody does not meet,
 /// so a body the selected edges decline reports the argument shape rather
 /// than the whole operation family. Diagnostic only: the admitting guards
@@ -1347,6 +1422,7 @@ fn prefix_initializers(
 fn call_custody_refusal(
     structural_arguments: &[CheckedUnitStructuralArgumentPlan],
     claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+    earlier: &[CheckedUnitEffectOperationPlan],
 ) -> &'static str {
     if !claim_transfers.is_empty() {
         return "state graph: operation custody: call claim transfers";
@@ -1372,6 +1448,36 @@ fn call_custody_refusal(
             && argument.access == CheckedStructuralAccess::Owned
         {
             continue;
+        }
+        if call_consumes_result_argument(argument, earlier) {
+            continue;
+        }
+        if argument.access == CheckedStructuralAccess::Owned {
+            if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
+                let producer = earlier.iter().rev().find_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                        if result.binding_ordinal == ordinal =>
+                    {
+                        Some(result)
+                    }
+                    _ => None,
+                });
+                return match producer.map(|result| result.multiplicity) {
+                    None => "state graph: operation custody: call owned result without a producer",
+                    Some(_) => "state graph: operation custody: call owned local result",
+                };
+            }
+            match argument.source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. } => {
+                    return "state graph: operation custody: call owned structural local";
+                }
+                CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal { .. } => {
+                    return "state graph: operation custody: call owned trivial affine local";
+                }
+                _ => {}
+            }
         }
         return match (
             argument.access,

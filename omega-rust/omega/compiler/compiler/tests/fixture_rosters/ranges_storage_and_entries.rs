@@ -165,6 +165,8 @@ pub(crate) const RUNTIME_FREE_MACHINE_STRUCT_ARG_EXIT: &str =
     "calls/runtime_free_machine_struct_arg_exit";
 pub(crate) const BY_VALUE_CASE_PARAM_SELF_WRITE_EXIT: &str =
     "calls/by_value_case_param_self_write_exit";
+pub(crate) const RUNTIME_OWNED_CASE_TEMPORARIES_EXHAUSTIVE_DISPATCH_EXIT: &str =
+    "calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit";
 pub(crate) const RUNTIME_ATTACHED_MACHINE_STRUCT_ARG_EXIT: &str =
     "calls/runtime_attached_machine_struct_arg_exit";
 pub(crate) const RUNTIME_RECORD_FORWARDING_STATEMENT_CALL_EXIT: &str =

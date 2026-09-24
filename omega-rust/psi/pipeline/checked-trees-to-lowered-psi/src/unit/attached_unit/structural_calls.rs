@@ -19,7 +19,10 @@ mod continuation;
 mod result_uses;
 mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
-pub(super) use result_uses::validate_linear_result_consumer;
+pub(super) use result_uses::{
+    produced_as_call_argument, validate_argument_construction_consumer,
+    validate_linear_result_consumer,
+};
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
 pub(crate) fn validate_custody(

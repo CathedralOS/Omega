@@ -218,6 +218,34 @@ fn by_value_case_param_self_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_owned_case_temporaries_exhaustive_dispatch_exit_canary_runs() {
+    // The by-value case canary's variation that challenges its assumptions:
+    // two case values constructed inline as call arguments in successive
+    // statements, one with a payload and one without, each moved whole into
+    // a callee that dispatches on it exhaustively, so every arm (not a `_`
+    // fallback) consumes the owned subject. Exits 70 only when both
+    // dispatches reached their arms.
+    let canary =
+        pass_canary(fixture_roster::RUNTIME_OWNED_CASE_TEMPORARIES_EXHAUSTIVE_DISPATCH_EXIT);
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-owned-case-temporaries-{}",
+        std::process::id()
+    ));
+
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("owned case temporaries canary should compile");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "owned case temporaries canary",
+        "each inline case argument should reach its callee's arm exactly once",
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_attached_machine_struct_arg_exit_canary_runs() {
     // The attached (data-scoped, receiverless `Worker::run`) spelling of the
     // by-value struct argument shape: the same leaf expansion path lowers it

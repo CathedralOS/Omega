@@ -124,6 +124,9 @@ fn retain_call_target_body<'a>(
         }
         _ => return unsupported("internal call has unsupported claim transfers or result"),
     };
+    // A Unit call borrows its structural operands, except for a construction
+    // authored as one of its own arguments, which it takes whole; the loop
+    // below rejoins that construction to the formal it was written for.
     if !matches!(
         operation,
         CheckedUnitEffectOperationPlan::StructuralCall { .. }
@@ -133,11 +136,18 @@ fn retain_call_target_body<'a>(
                 .source_structural_result_binding_ordinal()
                 .is_none()
             && argument.byte_sequence_literal().is_none())
-            || !matches!(
+            || !(matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::MutableBorrow
                     | checked_trees::CheckedStructuralAccess::SharedBorrow
-            )
+            ) || argument
+                .source_structural_result_binding_ordinal()
+                .is_some_and(|ordinal| {
+                    crate::unit::attached_unit::structural_calls::produced_as_call_argument(
+                        &state.operations,
+                        ordinal,
+                    )
+                }))
     }) {
         return unsupported("composed internal Unit call requires structural transfer lowering");
     }
@@ -196,10 +206,7 @@ fn retain_call_target_body<'a>(
             }
             continue;
         }
-        if argument
-            .source_structural_result_binding_ordinal()
-            .is_some()
-        {
+        if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
             if target.is_self
                 && matches!(
                     argument.access,
@@ -216,6 +223,21 @@ fn retain_call_target_body<'a>(
                     &state.structural_parameters,
                     operation,
                     entry.structural_parameters,
+                )?;
+                continue;
+            }
+            if crate::unit::attached_unit::structural_calls::produced_as_call_argument(
+                &state.operations,
+                ordinal,
+            ) {
+                crate::unit::attached_unit::structural_calls::validate_argument_construction_consumer(
+                    checked,
+                    root,
+                    state.state,
+                    &state.operations,
+                    operation,
+                    argument_index,
+                    target,
                 )?;
                 continue;
             }

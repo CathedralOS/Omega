@@ -523,10 +523,25 @@ fn build_state_plan(
         &mut segments,
     );
     let mut edges = Vec::new();
+    // The subject a run of case-test arms dispatches on. A dispatch is a run
+    // of consecutive transitions; its `_` arm is the unguarded transition that
+    // closes the run, and it consumes the subject exactly as the tested arms
+    // do.
+    let mut dispatch_subject = None;
     for (statement_index, statement) in statements.iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
+            dispatch_subject = None;
             continue;
         };
+        let case_subject = match transition.guard {
+            TransitionGuardNode::When(guard) => case_test_subject_root(program, guard),
+            TransitionGuardNode::Always => None,
+        };
+        let consumed_subject = match transition.guard {
+            TransitionGuardNode::When(_) => case_subject,
+            TransitionGuardNode::Always => dispatch_subject,
+        };
+        dispatch_subject = case_subject;
         if transition.exit != TransitionExit::Ordinary {
             continue;
         }
@@ -576,9 +591,9 @@ fn build_state_plan(
         }
         // A case dispatch on an owned parameter is the subject's own terminal
         // consumption: the arm's guard only tests it, so the edge carries it
-        // as consumed rather than among the arm's no-code discards.
-        if let TransitionGuardNode::When(guard) = transition.guard
-            && let Some(root) = case_test_subject_root(program, guard)
+        // as consumed rather than among the arm's no-code discards. That holds
+        // for the dispatch's `_` arm as well as for each tested case.
+        if let Some(root) = consumed_subject
             && let Some((_, position)) = discard_parameters
                 .iter()
                 .find(|(candidate, _)| *candidate == root)
