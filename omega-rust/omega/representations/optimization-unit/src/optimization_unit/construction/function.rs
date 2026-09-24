@@ -203,6 +203,7 @@ pub(super) fn build_function(
             .map(|claim| claim.claim)
             .collect(),
         published_service_ceiling: function.published_service_ceiling.clone(),
+        declared_service_reach: Vec::new(),
         facts,
         blocks,
     })

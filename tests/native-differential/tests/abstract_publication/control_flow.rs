@@ -72,23 +72,26 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             .unwrap();
 
     assert_eq!(optimized.commits().len(), 2);
-    assert_eq!(optimized.transformation_ledger().records().len(), 2);
-    assert_eq!(
-        optimized
-            .transformation_ledger()
-            .records()
-            .iter()
-            .map(|record| record.provenance.len())
-            .collect::<Vec<_>>(),
-        [6, 6]
-    );
+    let records = optimized.transformation_ledger().records();
+    assert_eq!(records.len(), 2);
+    // The two merges apply in candidate order, which follows unit identity,
+    // so either may run first. Whichever merge absorbs the retained outgoing
+    // edge books it exactly once; a later merge only moves the node that
+    // realizes it. Follow that node to its final location.
     let retained_outgoing_edge = optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(1_501).unwrap(),
         edge: EdgeId::new(1_517).unwrap(),
     };
-    let outgoing_edge_rewrites = optimized
-        .transformation_ledger()
-        .records()
+    let booking = records
+        .iter()
+        .position(|record| {
+            record
+                .provenance
+                .iter()
+                .any(|row| row.input == retained_outgoing_edge)
+        })
+        .expect("one merge books the retained outgoing edge");
+    let outgoing_edge_rewrites = records
         .iter()
         .flat_map(|record| &record.provenance)
         .filter(|row| row.input == retained_outgoing_edge)
@@ -100,15 +103,26 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             EdgeId::new(1_517).unwrap()
         )]
     );
+    let optimization_unit::ProvenanceDisposition::RealizedAt(mut site) =
+        outgoing_edge_rewrites[0].disposition
+    else {
+        panic!("the retained outgoing edge is realized at a node");
+    };
+    for record in &records[booking + 1..] {
+        if let Some(row) = record.provenance.iter().find(|row| row.input == site) {
+            let optimization_unit::ProvenanceDisposition::RealizedAt(next) = row.disposition else {
+                panic!("a later merge moves the realizing node");
+            };
+            site = next;
+        }
+    }
     assert_eq!(
-        outgoing_edge_rewrites[0].disposition,
-        optimization_unit::ProvenanceDisposition::RealizedAt(
-            optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
-                machine: MachineId::new(1_501).unwrap(),
-                block: BlockId::new(1_504).unwrap(),
-                node: 1,
-            },)
-        )
+        site,
+        optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
+            machine: MachineId::new(1_501).unwrap(),
+            block: BlockId::new(1_506).unwrap(),
+            node: 2,
+        })
     );
     assert!(
         optimized

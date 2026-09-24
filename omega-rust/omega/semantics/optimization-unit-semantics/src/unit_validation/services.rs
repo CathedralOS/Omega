@@ -183,6 +183,10 @@ pub(crate) fn derive_root_service_reach(
         let function = functions.get(&machine).copied().ok_or(
             OptimizationUnitValidationError::MissingEntryMachine(machine),
         )?;
+        // A machine's authored reach is a contract input: it stays concrete
+        // even when the body is inert or the service also bounds an
+        // installation dependency.
+        concrete.extend(function.declared_service_reach.iter().copied());
         for operation in function
             .blocks
             .iter()
@@ -242,13 +246,26 @@ pub(crate) fn derive_root_service_reach(
                         },
                     )?;
                     if let Some(dependency) = dependencies.get(declaration.identity.as_str()) {
-                        if declaration.published_service_ceiling != dependency.upper_bound {
+                        // The published ceiling is the boundary's fixed service
+                        // united with the installation bound; installation
+                        // substitutes only the bound, so the fixed service stays
+                        // concrete (wiki/spec/terminal-psi/boundary_calls.md).
+                        let published = declaration
+                            .fixed_service_reach
+                            .iter()
+                            .chain(&dependency.upper_bound)
+                            .copied()
+                            .collect::<BTreeSet<_>>()
+                            .into_iter()
+                            .collect::<Vec<_>>();
+                        if declaration.published_service_ceiling != published {
                             return Err(
                                 OptimizationUnitValidationError::RootInstallationReachBoundaryMismatch(
                                     *boundary,
                                 ),
                             );
                         }
+                        concrete.extend(declaration.fixed_service_reach.iter().copied());
                         used_dependencies.insert(declaration.identity.as_str());
                     } else {
                         concrete.extend(declaration.published_service_ceiling.iter().copied());

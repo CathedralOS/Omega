@@ -2,34 +2,13 @@
 
 use super::super::{BTreeMap, BTreeSet};
 use super::{OptimizationUnitValidationError, PsiOptimizationUnit};
-use optimization_unit::{
-    recompute_psi_optimization_unit_identity, structural_domain_catalog_identity,
-};
+use optimization_unit::structural_domain_catalog_identity;
 pub(super) fn attach_verified_structural_context(
     unit: &mut PsiOptimizationUnit,
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), OptimizationUnitValidationError> {
-    unit.structural_domains = module.structural_domains.clone().into();
-    unit.services = module.services.clone().into();
-    unit.root_service_reach = module.root_service_reach.clone();
-    for function in &mut unit.functions {
-        let source = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == function.machine)
-            .ok_or(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
-        function.structural_places = source.structural_places.clone();
-        function.content_entry_claims = source.content_entry_claims.clone();
-        function.verified_contract = Some(source.contract.clone());
-        function.evidence_contract_lanes = module
-            .evidence_contract_lanes
-            .iter()
-            .filter(|lane| lane.machine == function.machine)
-            .cloned()
-            .collect();
-    }
-    unit.identity = recompute_psi_optimization_unit_identity(unit);
-    Ok(())
+    optimization_unit::attach_verified_module_context(unit, module)
+        .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)
 }
 
 pub(super) fn same_immutable_signature_custody(
@@ -70,6 +49,7 @@ pub(super) fn same_immutable_signature_custody(
                         && seed.evidence_contract_lanes == unit.evidence_contract_lanes
                         && seed.entry_claims == unit.entry_claims
                         && seed.published_service_ceiling == unit.published_service_ceiling
+                        && seed.declared_service_reach == unit.declared_service_reach
                 })
         })
 }
