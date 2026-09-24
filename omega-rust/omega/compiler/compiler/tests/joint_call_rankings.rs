@@ -163,12 +163,19 @@ fn parallel_stalled_call_site_rejects() {
     rejects_cycle(&source);
 }
 
+/// A write to the ranked subject invalidates the entry-relative lineage, and
+/// so does a write reaching it through a mutable alias. FORMING the alias does
+/// not: `c7827b90da` admitted borrowed place operands into the rank-range
+/// prefix walk on the ground that taking a reference stores nothing, leaving
+/// write-frame evidence authoritative for what is stored through it. The
+/// control below pins that half, so neither the relaxation nor this rejection
+/// can be lost without a failure.
 #[test]
-fn assignments_and_borrows_invalidate_entry_rank_lineage() {
+fn writes_and_writes_through_aliases_invalidate_entry_rank_lineage() {
     let source = JOINT.replace("progress: Progress)", "mut progress: Progress)");
     for action in [
         "progress.inner = 4;",
-        "let alias: &mut Progress = &mut progress;",
+        "let alias: &mut Progress = &mut progress;\n    alias.inner = 4;",
     ] {
         let split = source.find("machine Main::scan_b").unwrap();
         let source = format!(
@@ -181,6 +188,18 @@ fn assignments_and_borrows_invalidate_entry_rank_lineage() {
         );
         rejects_cycle(&source);
     }
+
+    // The control: the alias alone changes nothing the ranking depends on.
+    let split = source.find("machine Main::scan_b").unwrap();
+    let unwritten = format!(
+        "{}{}",
+        &source[..split],
+        source[split..].replace(
+            "    transition progress.inner",
+            "    let alias: &mut Progress = &mut progress;\n    transition progress.inner",
+        )
+    );
+    checks(&unwritten);
 }
 
 #[test]
