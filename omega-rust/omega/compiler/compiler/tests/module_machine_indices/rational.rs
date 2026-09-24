@@ -65,6 +65,13 @@ fn anonymous_comparisons_preserve_rational_values_and_operator_custody() {
     }
 }
 
+/// Every case here carries a defect the comparison would hide: an undefined
+/// value (`1 / 0`, `0 / 0`), an operand whose literal landing is ambiguous or
+/// overflowing (`1 / 2 < 1u8`, `1u8 < 1u64`, `255u8 < 256`), or a remainder
+/// whose endpoints are unproven. `(1.0f64 < 2.0f64)` carried none of them --
+/// both operands are explicitly f64 -- and was in this list only while float
+/// comparison had no selection to reach. It checks now, so it is no longer a
+/// case this rejection owns; the ten that remain still reject.
 #[test]
 fn anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands() {
     let tree = Sources::new();
@@ -79,7 +86,6 @@ fn anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands() {
         "(true || (1u8 > 1 / 2))",
         "(1u8 < 1u64)",
         "(true || (255u8 < 256))",
-        "(1.0f64 < 2.0f64)",
         "(7 % 2 < 2)",
     ] {
         Sources::write(
