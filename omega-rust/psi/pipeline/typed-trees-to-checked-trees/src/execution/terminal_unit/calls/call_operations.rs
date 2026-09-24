@@ -2,7 +2,7 @@
 //! to produce.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::calls::byte_subslice;
+use crate::execution::terminal_unit::calls::view_subslice;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_erased_proof_arguments,
@@ -330,7 +330,7 @@ pub(in crate::execution) fn build_call_operation(
                 structural_arguments.push(literal);
                 continue;
             }
-            if let Some(subslice) = byte_subslice::argument(
+            if let Some(subslice) = view_subslice::admit(
                 program,
                 facts,
                 machine,
@@ -339,10 +339,13 @@ pub(in crate::execution) fn build_call_operation(
                 formal,
                 *argument,
                 call.statement_index,
-                call.call_ordinal,
-                structural_arguments.len(),
-            ) {
-                structural_arguments.push(subslice);
+                checked_trees::CheckedSubsliceSite::CallArgument {
+                    call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                    argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                },
+            ) && subslice.range.kind == view_subslice::ViewKind::Bytes
+            {
+                structural_arguments.push(subslice.argument());
                 continue;
             }
 

@@ -192,7 +192,9 @@ fn selected_roots(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 // Whole structural moves and stores evaluate no scalar.
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                // A view-subslice local replays its own endpoints at emission.
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                     continue;
                 }
                 _ => return unsupported("composed scalar selection contains a non-call operation"),

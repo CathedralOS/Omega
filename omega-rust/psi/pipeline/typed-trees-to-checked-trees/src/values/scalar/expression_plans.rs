@@ -12,8 +12,8 @@ use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_retur
 use crate::values::scalar::semantic_casts;
 use checked_trees::{
     CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
+    CheckedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionPlans,
+    CheckedScalarExpressionRole,
 };
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
@@ -176,6 +176,41 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         let Some(primitive_type) =
                             program.primitive_type_reference(local.type_reference)
                         else {
+                            // An immutable view local narrowed from another
+                            // view keeps its range endpoints under the same
+                            // subslice roles a call or transition argument
+                            // uses, at this statement's own binding site.
+                            if !local.is_mutable {
+                                let endpoints = super::subslice_endpoints::subslice_endpoints(
+                                    program,
+                                    operators,
+                                    local.initial_value,
+                                    checked_trees::CheckedSubsliceSite::LocalBinding,
+                                    |endpoint| {
+                                        lower_return_expression(
+                                            program,
+                                            operators,
+                                            endpoint,
+                                            &scalar_parameters,
+                                            parameters,
+                                            &parameter_types,
+                                            &locals,
+                                            PrimitiveType::U64,
+                                            exact_integer_casts,
+                                        )
+                                    },
+                                );
+                                retain_subslice_endpoints(
+                                    endpoints,
+                                    state.symbol,
+                                    statement_ordinal,
+                                    &scalar_parameters,
+                                    &locals,
+                                    &mut expressions,
+                                    &mut source_bindings,
+                                    &mut binding_symbols,
+                                );
+                            }
                             continue;
                         };
                         let binding_ordinal = u32::try_from(
@@ -773,83 +808,37 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     if continuation {
                                         continue;
                                     }
-                                    let ExpressionNode::Indexed(indexed) =
-                                        program.expression_table.expression(*argument)
-                                    else {
-                                        continue;
-                                    };
-                                    let ExpressionNode::Range(range) =
-                                        program.expression_table.expression(indexed.index)
-                                    else {
-                                        continue;
-                                    };
-                                    if range.end_inclusive
-                                        || operators.expression_use(*argument).is_some_and(|selected| {
-                                            selected.spelling != language_core::OperatorSpelling::Range
-                                                || selected.selected_operator_symbol.is_valid()
-                                                || selected.candidate_count != 0
-                                                || !matches!(selected.status,
-                                                    CheckedOperatorResolutionStatus::Missing
-                                                        | CheckedOperatorResolutionStatus::BuiltinFallback)
-                                        })
-                                    {
-                                        continue;
-                                    }
-                                    for (endpoint, role) in [
-                                        (
-                                            range.start,
-                                            CheckedScalarExpressionRole::TransitionSubsliceStart {
-                                                argument_ordinal,
-                                            },
-                                        ),
-                                        (
-                                            range.end,
-                                            CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                                                argument_ordinal,
-                                            },
-                                        ),
-                                    ] {
-                                        if !endpoint.is_valid() {
-                                            continue;
-                                        }
-                                        let Some(expression) = lower_return_expression(
-                                            program,
-                                            operators,
-                                            endpoint,
-                                            &scalar_parameters,
-                                            parameters,
-                                            &parameter_types,
-                                            &locals,
-                                            PrimitiveType::U64,
-                                            exact_integer_casts,
-                                        ) else {
-                                            continue;
-                                        };
-                                        source_bindings.append(CheckedScalarExpressionBindings {
-                                            destination: symbols::SymbolHandle::invalid(),
-                                            state: state.symbol,
-                                            statement_ordinal,
-                                            role,
-                                            expression: endpoint,
-                                            symbols: binding_symbols.insert_many(
-                                                scalar_parameters
-                                                    .iter()
-                                                    .map(|parameter| parameter.symbol)
-                                                    .chain(
-                                                        locals
-                                                            .iter()
-                                                            .filter(|local| !local.is_mutable)
-                                                            .map(|local| local.symbol),
-                                                    ),
-                                            ),
-                                        });
-                                        expressions.push(CheckedLocatedScalarExpression {
-                                            state: state.symbol,
-                                            statement_ordinal,
-                                            role,
-                                            expression,
-                                        });
-                                    }
+                                    let endpoints = super::subslice_endpoints::subslice_endpoints(
+                                        program,
+                                        operators,
+                                        *argument,
+                                        checked_trees::CheckedSubsliceSite::TransitionArgument {
+                                            argument_ordinal,
+                                        },
+                                        |endpoint| {
+                                            lower_return_expression(
+                                                program,
+                                                operators,
+                                                endpoint,
+                                                &scalar_parameters,
+                                                parameters,
+                                                &parameter_types,
+                                                &locals,
+                                                PrimitiveType::U64,
+                                                exact_integer_casts,
+                                            )
+                                        },
+                                    );
+                                    retain_subslice_endpoints(
+                                        endpoints,
+                                        state.symbol,
+                                        statement_ordinal,
+                                        &scalar_parameters,
+                                        &locals,
+                                        &mut expressions,
+                                        &mut source_bindings,
+                                        &mut binding_symbols,
+                                    );
                                     continue;
                                 };
                                 let Some(expression) = lower_return_expression(
@@ -924,6 +913,51 @@ pub(crate) fn build_checked_scalar_expression_plans(
         expressions,
         source_bindings: retained_bindings,
         binding_symbols,
+    }
+}
+
+/// Retain one range's lowered endpoints as source-bound pure plans. Endpoints
+/// read the site's scalar namespace but bind no destination: the range, not
+/// a local or formal, consumes them.
+fn retain_subslice_endpoints(
+    endpoints: Vec<(
+        ExpressionHandle,
+        CheckedScalarExpressionRole,
+        CheckedScalarExpression,
+    )>,
+    state: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    scalar_parameters: &[typed_trees::signature::StateParameter],
+    locals: &[ScalarLocal],
+    expressions: &mut Vec<CheckedLocatedScalarExpression>,
+    source_bindings: &mut arena::Arena<CheckedScalarExpressionBindings>,
+    binding_symbols: &mut arena::Arena<symbols::SymbolHandle>,
+) {
+    for (endpoint, role, expression) in endpoints {
+        source_bindings.append(CheckedScalarExpressionBindings {
+            destination: symbols::SymbolHandle::invalid(),
+            state,
+            statement_ordinal,
+            role,
+            expression: endpoint,
+            symbols: binding_symbols.insert_many(
+                scalar_parameters
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        locals
+                            .iter()
+                            .filter(|local| !local.is_mutable)
+                            .map(|local| local.symbol),
+                    ),
+            ),
+        });
+        expressions.push(CheckedLocatedScalarExpression {
+            state,
+            statement_ordinal,
+            role,
+            expression,
+        });
     }
 }
 

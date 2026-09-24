@@ -111,8 +111,8 @@ pub use flow::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
     CheckedScalarBranchDestination, CheckedScalarCaseFieldPlan, CheckedScalarGraphPlans,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarMachineGraph,
-    CheckedScalarParameterStorage, CheckedScalarPrimitiveLocalPlan, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor,
+    CheckedScalarParameterStorage, CheckedScalarPrimitiveLocalPlan, CheckedScalarReturnPlan,
+    CheckedScalarStateGraph, CheckedScalarStateTerminator, CheckedScalarSuccessor,
     CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedSemanticDependencies,
     CheckedSemanticDependency, CheckedSemanticDependencyExposure, CheckedSemanticDependencyKind,
     CheckedStateNaturalRank, CheckedStructuralAccess, CheckedStructuralBooleanConvergencePlan,
@@ -217,12 +217,12 @@ pub use values::{
     CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
     CheckedScalarDispatchArm, CheckedScalarDispatchPattern, CheckedScalarExpression,
     CheckedScalarExpressionBindings, CheckedScalarExpressionPlans, CheckedScalarExpressionRole,
-    CheckedStructuralDispatchArm, CheckedStructuralParameterField,
+    CheckedStorageRoot, CheckedStructuralDispatchArm, CheckedStructuralParameterField,
     CheckedStructuralPredicatePathSegment, CheckedStructuralRecordField,
     CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
     CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
-    CheckedValueFact, CheckedValueFacts, CheckedValueHandle, CheckedValueOrigin,
-    CheckedValueStatementRole,
+    CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts, CheckedValueHandle,
+    CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

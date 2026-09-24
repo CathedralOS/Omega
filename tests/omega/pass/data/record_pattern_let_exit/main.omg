@@ -6,10 +6,11 @@
 // The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::Coord requires 0 <= self && self <= 100;
 data Point {
-    x: i32 [0..=100];
-    y: i32 [0..=100];
-    z: i32 [0..=100];
+    x: i32 in Coord;
+    y: i32 in Coord;
+    z: i32 in Coord;
 }
 data Main { console: Binding<Console>; point: Point; }
 machine Main::main(&mut self) reaches Console {

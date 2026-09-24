@@ -46,7 +46,10 @@ fn member_subslice_return_establishes_borrowed_element_view() {
     assert_eq!(result.statement_index, 0);
     assert_eq!(result.binding_ordinal, 0);
     let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-        parameter_index,
+        root:
+            checked_trees::CheckedStorageRoot::Parameter {
+                index: parameter_index,
+            },
         expression: _,
         start: Some(_),
         end: Some(_),
@@ -82,7 +85,7 @@ fn member_subslice_return_establishes_borrowed_byte_view() {
         panic!("borrowed byte view return is an EstablishReference producer");
     };
     let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        parameter_index: 0,
+        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         start: Some(_),
         end: Some(_),
         ..

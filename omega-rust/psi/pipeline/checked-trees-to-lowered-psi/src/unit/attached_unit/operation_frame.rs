@@ -1,7 +1,7 @@
 //! One emitter for the Unit effect operations every attached body lowers the
 //! same way: port writes, primitive, indexed, scalar-field and byte-sequence
-//! stores, scalar locals, borrowed-storage windows and call-continuation
-//! cleanup. The ordinary machine (`ordinary_machine::MachineEmission`) and a
+//! stores, scalar locals, view-subslice locals, borrowed-storage windows and
+//! call-continuation cleanup. The ordinary machine (`ordinary_machine::MachineEmission`) and a
 //! composed-graph state (`composed_control/emission.rs::emit_call_operations`)
 //! each build an `OperationFrame` over their per-state environment and hand it
 //! the checked operation; `OperationFrame::emit` dispatches to the one method
@@ -39,17 +39,20 @@
 
 use super::argument_evaluation::Evaluation;
 use super::primitive_locals::{self, PrimitiveLocal};
+use super::view_ranges::{ViewRangeSite, ViewRangeSource};
 use crate::emission::borrowed_window::{BorrowedWindowLedger, BorrowedWindowRepairValue};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::bindings::view_locals;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
     Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
     ServiceReachSummary, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
-    lookup_service_id, lookup_type_id, terminal_scalar_type, unsupported,
+    allocate_dense, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 
@@ -75,9 +78,9 @@ pub(super) struct OperationFrame<'f, 'c> {
     /// Established primitive referents; a composed state establishes none.
     pub(super) primitive_locals: &'f [PrimitiveLocal],
     pub(super) results: StructuralResults<'f>,
-    /// The body's byte-sequence literal places; a literal a store writes
-    /// takes the next declaration ordinal, so this list is the one the
-    /// body's literal ordinals are dense over.
+    /// The roster a store's byte-sequence literal place joins: the ordinary
+    /// machine's literal places, or a composed body's private temporaries.
+    /// Its ordinal counts only the literals already in the roster.
     pub(super) literal_places: &'f mut Vec<StructuralPlaceDeclaration>,
     /// Open borrowed-storage windows on the current straight-line sequence.
     pub(super) windows: &'f mut BorrowedWindowLedger,
@@ -218,6 +221,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
         )
     }
 
@@ -276,6 +280,9 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                 affine_discards, ..
             } => self.call_continuation_cleanup(affine_discards),
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+                self.establish_view_subslice(operation)
+            }
             _ => unsupported("operation frame received a call operation"),
         }
     }
@@ -456,6 +463,8 @@ impl OperationFrame<'_, '_> {
     fn dense_assignment_namespace(&self) -> ScalarBindings {
         ScalarBindings::new(self.values.len())
             .with_primitive_storage(&self.evaluation.primitive_storage)
+            .with_view_locals(&self.evaluation.view_locals)
+            .with_element_views(&self.evaluation.element_views)
             .with_structural_parameters(&self.evaluation.structural_parameters)
     }
 
@@ -697,6 +706,141 @@ impl OperationFrame<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// Bind one immutable view local to an exclusive range of an established
+    /// view: a whole view parameter or an earlier view local. The range
+    /// replays at its `LocalBinding` site and emits through the same replay
+    /// and Terminal operation a call argument or an edge transfer uses. The
+    /// published place joins the local namespace exactly as an `as_slice`
+    /// view local's does, so later edges, calls, lengths and element reads
+    /// resolve either kind of view local the same way.
+    fn establish_view_subslice(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source } = operation
+        else {
+            return unsupported("view subslice binding has no producer");
+        };
+        self.results.require_next(result)?;
+        super::view_ranges::binding_local(self.checked, self.state, operation)?;
+        let (root, family, expression, start, end) = match &source.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+                root,
+                expression,
+                start,
+                end,
+            } => (*root, ViewFamily::Bytes, *expression, start, end),
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+                root,
+                expression,
+                start,
+                end,
+            } => (*root, ViewFamily::Elements, *expression, start, end),
+            _ => return unsupported("view subslice binding lost its range source"),
+        };
+        let range_source = match root {
+            checked_trees::CheckedStorageRoot::Parameter { index } => {
+                let parameter =
+                    self.parameters
+                        .get(index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "view subslice source parameter is absent",
+                        ))?;
+                if parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+                    || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return unsupported("view subslice source parameter is not an immutable view");
+                }
+                let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?;
+                let symbol = self
+                    .checked
+                    .state_parameters(authored)
+                    .get(parameter.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "view subslice source has no authored parameter",
+                    ))?
+                    .symbol;
+                ViewRangeSource {
+                    symbol,
+                    place: self.evaluation.current_structural_place(parameter.place),
+                    structural_type: parameter.structural_type,
+                    family,
+                }
+            }
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                let local = view_locals::resolve(&self.evaluation.view_locals, symbol)?;
+                if (family == ViewFamily::Bytes)
+                    != (local.carrier == view_locals::ViewCarrier::Bytes)
+                {
+                    return unsupported("view subslice source local changed its view family");
+                }
+                ViewRangeSource {
+                    symbol,
+                    place: self.evaluation.current_structural_place(local.place),
+                    structural_type: local.structural_type,
+                    family,
+                }
+            }
+        };
+        // Endpoints read the body's scalar namespace, including the view
+        // locals and parameters a `len` endpoint may observe.
+        let bindings = self
+            .evaluation
+            .scalar_bindings
+            .clone()
+            .unwrap_or_else(|| {
+                self.dense_assignment_namespace()
+                    .with_structural_observations(self.structural_types.declarations())
+            })
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_view_locals(&self.evaluation.view_locals);
+        let destination = place_id(allocate_dense(self.next_place)?);
+        let declaration = super::view_ranges::emit(
+            self.checked,
+            ViewRangeSite {
+                state: self.state,
+                statement: result.statement_index,
+                site: checked_trees::CheckedSubsliceSite::LocalBinding,
+                expression,
+                retained: Some((start, end)),
+            },
+            range_source,
+            lookup_type_id(self.type_ids, &result.type_identity)?,
+            destination,
+            &bindings,
+            self.values,
+            self.next_value,
+            self.operations,
+        )?;
+        let produced = self
+            .operations
+            .operations
+            .last()
+            .and_then(|producer| producer.result.structural())
+            .filter(|produced| produced.place == destination)
+            .cloned()
+            .ok_or(LoweringError::Unsupported(
+                "view subslice established no structural value",
+            ))?;
+        match &mut self.results {
+            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            StructuralResults::StateGraph { places, .. } => places.push(declaration),
+        }
+        self.evaluation.establish_structural_result(
+            self.checked,
+            self.state,
+            result,
+            produced,
+            self.structural_types.declarations(),
+            self.operations,
+        )
     }
 
     /// Store a whole owned result back into its open window. The ledger

@@ -24,8 +24,8 @@ data Main {
     console: Binding<Console>;
     row: [u8; 64] in Utf8;
     palette: [u8; 8] in Utf8;
-    x: i32 [0..=64];
-    y: i32 [0..=28];
+    x: i32;
+    y: i32;
     cr: f64;
     ci: f64;
     zr: f64;
@@ -33,7 +33,7 @@ data Main {
     zr2: f64;
     zi2: f64;
     mag: f64;
-    k: i32 [0..=28];
+    k: i32;
     idx: i32;
     ch: u8 in Wrapping;
     pause: [u8; 256];
@@ -73,8 +73,8 @@ machine Main::main(&mut self) reaches Console {
         self.mag = self.zr2 + self.zi2;
         transition self.mag > 4.0 { true -> pixel_done() _ -> iter_step() }
     }
-    // Re-guard so the increment's direct edge proves `k + 1` back into
-    // [0..=28] -- we only get here with k < 28, so always true.
+    // Re-guard so the increment's direct edge proves `k + 1` lands in
+    // [1..=28] -- we only get here with k < 28, so always true.
     state iter_step(&mut self) {
         self.zi = 2.0 * self.zr * self.zi + self.ci;
         self.zr = self.zr2 - self.zi2 + self.cr;
@@ -84,7 +84,12 @@ machine Main::main(&mut self) reaches Console {
         self.k = self.k + 1;
         transition { _ -> iter_loop() }
     }
+    // Re-guard `0 <= k <= 28` so the shade arithmetic `k * 7 / 28` is exact --
+    // k only counts up to the 28-step cap, so always true.
     state pixel_done(&mut self) {
+        transition self.k >= 0 && self.k <= 28 { true -> pixel_shade() _ -> bad() }
+    }
+    state pixel_shade(&mut self) {
         self.idx = self.k * 7 / 28;
         transition self.idx >= 0 && self.idx < 8 && self.x >= 0 && self.x < 64 {
             true -> write_pixel()
@@ -97,8 +102,8 @@ machine Main::main(&mut self) reaches Console {
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
-    // Re-guard so the increment's direct edge proves `y + 1` back into
-    // [0..=28] (the write_line call severs the row_loop guard anyway).
+    // Re-guard so the increment's direct edge proves `y + 1` lands in
+    // [1..=28] (the write_line call severs the row_loop guard anyway).
     state emit_row(&mut self) {
         self.console.write_line(self.row);
         transition self.y >= 0 && self.y < 28 { true -> row_advance() _ -> done() }

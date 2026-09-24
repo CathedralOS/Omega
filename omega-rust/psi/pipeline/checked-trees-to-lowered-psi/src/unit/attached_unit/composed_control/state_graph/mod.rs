@@ -24,6 +24,16 @@ flag. Copy payloads retain dominance without acquiring disposal obligations.
 */
 
 /*
+A primitive scalar result reuses the ordinary single-state completion rather
+than a graph-specific one. A final expression's value is the binding its last
+operation establishes in the `Return` role (the operation frame evaluates it),
+or an earlier immutable binding a final name reads. Value-only transition exits
+run the ordinary exit evaluator (`Evaluation::scalar_control_result`) inside
+the state and return its joined value. Either way the state then disposes the
+same whole roots a Unit return does. Tests: src/tests/composed_scalar_results.rs.
+*/
+
+/*
 returns.rs checks the selected nominal case and complete field roster against
 the authored return. We evaluate fields once in authored order, then encode them
 in declaration order; those orders can differ. The construction place and the

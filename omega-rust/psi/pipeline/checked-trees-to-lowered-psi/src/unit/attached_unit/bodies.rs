@@ -133,6 +133,37 @@ impl<'a> UnitBody<'a> {
         plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
     }
 
+    pub(crate) fn machine(self) -> symbols::SymbolHandle {
+        match self {
+            Self::Ordinary(plan) => plan.machine,
+            Self::Composed(plan) => plan.machine,
+        }
+    }
+
+    /// The primitive scalar this body completes with, when it owns one: an
+    /// ordinary body's scalar result binding or scalar control, or a state
+    /// graph's scalar result. Such a body is called through the scalar call
+    /// lane, not as a Unit or structural call.
+    pub(crate) fn scalar_result_type(self) -> Option<checked_trees::types::PrimitiveType> {
+        match self {
+            Self::Ordinary(plan) => plan
+                .scalar_result
+                .as_ref()
+                .map(|result| result.primitive_type)
+                .or_else(|| {
+                    plan.scalar_control
+                        .as_ref()
+                        .map(|control| control.primitive_type)
+                }),
+            Self::Composed(plan) => match plan.result {
+                checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+                    Some(primitive_type)
+                }
+                _ => None,
+            },
+        }
+    }
+
     pub(crate) fn result(self) -> Result<checked_trees::CheckedControlResultPlan, LoweringError> {
         if matches!(self, Self::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
         {
@@ -254,6 +285,30 @@ impl<'a> UnitBody<'a> {
         match self {
             Self::Ordinary(plan) => plan.service_reach,
             Self::Composed(plan) => plan.service_reach,
+        }
+    }
+
+    /// Whether the retained reach summary is the checked one. An ordinary
+    /// body describes one state and retains that state's checked summary
+    /// (`entry_state_reaches`); a state graph retains the machine's inferred
+    /// summary, which covers every state, not just its entry.
+    pub(crate) fn retains_checked_reach(
+        self,
+        checked: &super::CheckedTrees,
+        entry_state_reaches: &[ServiceReachSummary],
+    ) -> bool {
+        match self {
+            Self::Ordinary(plan) => entry_state_reaches == [plan.service_reach],
+            Self::Composed(plan) => checked
+                .facts
+                .service_reaches
+                .for_machine(plan.machine)
+                .is_some_and(|reach| {
+                    ServiceReachSummary {
+                        direct: reach.inferred_direct,
+                        transitive: reach.inferred_transitive,
+                    } == plan.service_reach
+                }),
         }
     }
 

@@ -4,6 +4,7 @@
 mod applications;
 mod crash_routes;
 mod crashes;
+mod custom_collection_requires;
 mod destinations;
 mod float_policies_and_spelling_resolution;
 mod index_operator_candidate_narrowing;

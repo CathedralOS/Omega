@@ -92,83 +92,45 @@ the complete product bar; focused successes below do not establish that baseline
     field also cannot take a domain on its own: `self.output.limit = 3` does
     not establish `u64::Limit` despite 3 satisfying the predicate.
 
-  THE FIELD ROW OF THE DECISION TABLE IS TOO BROAD. A field's bracketed range
-  supplied ordinary interval FACTS to its readers; `in D` is a write-side
-  admission obligation and supplies none. Three fixtures witness it, each
-  compiled alone:
+  A DOMAIN NOW CARRIES ITS BOUND, which is what the field and parameter
+  halves were waiting on. Three routes landed together: a predicate-only
+  domain is ESTABLISHED by proving its predicates at a call
+  (`400ecc0f5b`), a declared domain's predicates BOUND the place they
+  qualify so the index and exact-arithmetic readers see the interval the
+  bracketed suffix supplied (`c5a418183a`, `bdeb107345`), and a WRITE
+  establishes a predicate-only domain by satisfying it. A routed domain
+  keeps its provenance obligation in every one of them.
 
-  - `core/zii_default_composite_exit`: `i: u64 [0..=3]` indexes a length-4
-    array. As `u64 in Slot` the read loses the bound -- "cannot prove index
-    `self.i` is within length 4" -- and the write `self.i = 2` additionally
-    fails to establish the domain.
-  - `data/record_pattern_bind_all_exit`: `x`/`y: i32 [0..=100]` are added.
-    As `in Coord` the sum is "not provably in range (decision 17)".
-  - `constants/runtime_scoped_const_exit`: a `const` over the record reports
-    "constrained const declarations require declaration-site proof checking".
+  What migrates today, each with the corpus gate as witness: array element
+  types, case payloads, FIELDS whose bound a reader proves against
+  (`text/` and `data/record_pattern_*` moved once the interval reached
+  those readers), a signature-local parameter bound rewritten as
+  `requires`, a result suffix rewritten as `ensures` -- which carries facts
+  to the caller -- and a local nothing downstream needs.
 
-  A field migrates only when its bound is NOT load-bearing for a downstream
-  index, arithmetic or const proof -- which is why the `wire` decode fields
-  moved and these did not. A local's suffix likewise drops cleanly only when
-  nothing downstream needed it (`storage/runtime_dispatch_helper_local_alias_
-  add_compile` drops; `control_flow/copy_enum_cycle_edge_write_frame` cannot).
+  What still does not:
 
-  PARTLY REPAIRED. A dominating taken-arm guard now discharges a
-  RECEIVER-QUALIFIED callee's `requires`; it previously did not, because
-  `transition_guard_proves_requires` admitted only `CallSite::TransitionNamed`
-  and a receiver-qualified callee is always a value call. Two routes exist and
-  they are not equivalent, which is the remaining asymmetry:
+  - A LOCAL asserting a NARROWING its source does not guarantee.
+    `control_flow/copy_enum_cycle_edge_write_frame` reads a field bounded
+    at 8 into a local the original declared at 3 and indexes a length-4
+    array.
+  - A STATE PARAMETER, because the caller must establish membership at the
+    transition and a guard only discharges it when the guard's spelling
+    matches the predicate's. `structs/runtime_copy_sum_array_receiver_exit`
+    threads one index through six of them. The remaining asymmetry is that
+    the fact route carries numeric implication but the transition-guard
+    route compares spellings; closing that is the next lever, and it is
+    what would open the 212 parameter sites.
+  - A parameter of a BUILD-TIME EVALUATED machine: `in D` becomes an
+    authored `requires` premise and the pre-check has no checked invocation
+    proof (`wire/runtime_wire_policy_authored_*` keep `fuel`).
+  - A parameter feeding `as ... in D`: the mint route accepts only literals
+    or names whose DECLARED RANGE entails the facts, so it still reads the
+    syntax being removed.
 
-  - The fact route, which handles NUMERIC IMPLICATION. `transition index < 16
-    { true -> (read_free(index)) }` discharges `requires index <= 15`. It does
-    not fire for a receiver-qualified callee at all.
-  - The transition-guard route, which is TEXTUAL. It now reaches
-    `self.read(index)`, but `guard_conjunct_matches` compares spellings, so
-    `index <= 15` discharges `requires index <= 15` while `index < 16` does
-    not.
-
-  The next step is to find why the fact route misses a receiver-qualified
-  call; that would subsume the textual route rather than teaching it
-  arithmetic. Minimal repros: an attached caller whose arm target is
-  `(read_free(index))` versus `(self.read(index))`, each with
-  `requires index <= 15` and each guard form.
-
-  A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP -- tracked as
-  **PREDICATE-ONLY-DOMAIN-MEMBERSHIP**, which this item depends on -- and that
-  is why the 212
-  parameter sites are the hard half. `structs/runtime_copy_sum_array_receiver_
-  exit` threads `index: u64 [0..=15]` through six state parameters to index a
-  16-element array; as `u64 in Slot16` the guarded caller rejects with "cannot
-  prove requires contract for call classify from Main::main: index in
-  u64::Slot16". The same guard satisfied the suffix. A state parameter whose
-  argument is a library-owned case payload is blocked the same way until the
-  library leg lands (`host/runtime_console_byte_branch_return` takes
-  `ByteRead::Byte { value }` from std console).
-
-  `ensures` is the exception that does carry facts: `expressions/arithmetic_
-  domain_return_range_proven_exact_exit` moves `-> i32 [0..=10]` to
-  `ensures 0 <= result && result <= 10` and its caller's `a + b + 60` stays
-  exact. Result suffixes are therefore the reliable parameter-side route;
-  argument-side membership is not.
-
-  A THIRD GAP, and the sharpest: the domain-mint route itself depends on the
-  syntax being removed. `domains/semantic_cast_range_mint` rejects with
-  "`as ... in Km` mints LITERAL values, or names whose DECLARED RANGE entails
-  the domain facts, in this rung" -- a `requires` fact is not consulted, so a
-  parameter feeding a mint cannot leave the suffix behind until that path
-  reads contract facts.
-
-  What DOES migrate cleanly, with the gate as witness: array element types
-  (`[i32 in Sample; 2]`), case payloads, fields whose bound no reader proves
-  against, a signature-local parameter bound rewritten as `requires`, and a
-  local nothing downstream needs. A fuel parameter carrying `terminates by
-  fuel` accepts `in D` when the machine is NOT build-time evaluated. A
-  parameter reached by a recursive call through arithmetic does NOT:
-  `proofs/kernel_integer_subtract_order` cannot prove `remaining - 1 <= 5`
-  from `requires remaining <= 5`, the recorded binary-argument gap.
-
-  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not the
-  canary filter: `OMEGA_PASS_CANARY_FILTER` reported PASS for two fixtures the
-  gate showed moving checked -> rejected, because dedicated exact-native
+  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
+  the canary filter: the filter reported PASS for two fixtures the gate
+  showed moving checked -> rejected, because dedicated exact-native
   coverage elides them from the canary run.
 
   Acceptance: Squalr's alignment machine returns plain `u64` with
@@ -182,51 +144,6 @@ the complete product bar; focused successes below do not establish that baseline
   inference to explicit domains/type arguments without extracting capacities
   from flow facts or inventing implicit variance; retain useful negative
   arithmetic/ownership controls from obsolete syntax tests.
-
-- **PREDICATE-ONLY-DOMAIN-MEMBERSHIP.** (new-scope) Establish membership in a
-  PREDICATE-ONLY domain from a proof of its predicate.
-  [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
-  this -- "Predicates alone establish predicate-only membership", and a routed
-  domain is the case that "additionally needs exact authorized provenance" --
-  but no route implements it for an ordinary arithmetic predicate. Only the
-  comptime BYTE predicates (`valid_utf8`/`no_nul`/`ascii_only`) have a grant.
-
-  Three repros, each a whole program, each currently rejected:
-
-  - `domain u64::Limit requires self <= 8;` with a field `limit: u64 in Limit`
-    rejects `self.output.limit = 3` -- "pass a value already proven in the
-    domain, or a literal its byte-predicate fact accepts". The literal 3
-    satisfies the predicate and there is no byte predicate to accept it.
-  - `domain u64::Slot16 requires self <= 15;` with
-    `machine Store::read(&mut self, index: u64 in Slot16)` rejects
-    `transition index <= 15 { true -> (self.read(index)) }` -- the guard proves
-    exactly the domain's predicate for exactly that value.
-  - The same with the guard spelled `index < 16`.
-
-  Owner: `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`, beside
-  `parameter_domain_grants` and `reference_domains::proves` in the
-  `ContractDomainMembership` satisfaction chain. Those routes match a domain
-  against another DOMAIN the subject already carries; the missing one matches
-  it against the subject's proven FACTS. The boolean routes it would reuse are
-  already there (`call_bounds::proves`, `proves_in_context`,
-  `incoming_guard_proves_requires`) -- the work is selecting predicate-only
-  domains, substituting `self` with the subject, and discharging every
-  predicate fact, not new proof machinery.
-
-  Gate it on the domain being predicate-only: no `established by` routes and
-  no routed provenance. A routed domain must keep rejecting even when every
-  predicate is proved, and a predicate-free domain keeps its current
-  behavior. Carrier obligations stay where they are.
-
-  This blocks **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: `in D` is the migration's
-  destination for fields and for caller-facing parameter bounds, and until a
-  proof of D's predicate establishes D, every such site either rejects or
-  loses the facts its readers need. That item records which positions migrate
-  today and which do not.
-
-  Acceptance: each repro above checks, a routed domain with the same predicate
-  still rejects with its provenance diagnostic, and a fixture pins both
-  directions. Do not weaken the routed case or add a runtime domain tag.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
@@ -2203,10 +2120,42 @@ syntax and other terminal services are not prerequisites.
   `ElementViewRead`, `ElementViewSubslice`, the catalog's `BorrowedSliceView`
   mapping, and `terminal-interpreter/src/element_views.rs`.
 
-  Two distinct source routes remain:
+  A view local (`as_slice` loan or `let tail = view[a..b]`) is an established
+  view place: `CheckedStorageRoot` roots its ranges, lengths and scalar-element
+  reads, every narrowing site shares `CheckedSubsliceSite`, and lowering
+  replays and emits each range through `view_ranges`/`view_subslice`. The
+  remaining routes are:
   - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
     and subslices but reports `unsupported statement kind` at local construction.
     Repair its checked producer and continue through native execution.
+  - Record-element access through a view (`entries[i].value`,
+    `let e: Entry = tail[0]`) has no Terminal operation: `ElementViewRead`
+    yields scalar elements only. `slices/runtime_subslice_dynamic_index_exit`
+    and its end/bounded/nested siblings stop at `state graph: terminator:
+    conditional successors: guard expression` in the callee state;
+    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
+    and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
+    structural call binding` on the element copy.
+  - Native legalization accepts only primitive-scalar element views:
+    `established_element_window` in
+    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/element_view.rs`
+    refuses a record element, so `runtime_subslice_range_len_exit`,
+    `runtime_subslice_bounded_range_len_exit`, `runtime_slice_len_transition_exit`
+    and `runtime_local_slice_len_comparison_value_exit` produce verified Terminal
+    Psi over `self.entries.as_slice()` and stop at native
+    `Selection(Legalization(SourceCustodyMismatch))` (`target/unit.rs` custody
+    check on `EstablishElementView`). The `i32` element counterparts
+    `runtime_slice_length_local_binding_exit` and
+    `runtime_slice_length_local_param_binding_exit` run natively.
+  - An element read whose bound is only a caller's guard
+    (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
+    `requires i <= 3`) lowers but has no read proof
+    (`OperationProofUnavailable`); a non-`u64` index
+    (`runtime_slice_indexed_read_exit`: `s[self.i]` with `i32`) is refused by
+    lowering's exact-`u64` index requirement.
+  - A range over a fixed-array field (`self.source[0..2]` in
+    `runtime_subslice_len_exit`) establishes no view to narrow and stops at
+    `statement sequence: local data: structural call binding`.
   - State forwarding passes Unit-graph admission but reports
     `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
     a reborrow place missing from the successor frontier. Complete that custody
@@ -2405,7 +2354,15 @@ syntax and other terminal services are not prerequisites.
      the scalar call closure, chosen by `requires_shared_catalog`. The pure
      closure assembler drops each member module's structural types and
      refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it.
+     catalog rather than widen it. A multi-state scalar machine now has two
+     possible owners: the scalar graph and the Unit state graph
+     (`CheckedControlResultPlan::Scalar`). The state graph yields to an
+     existing scalar graph (`state graph: result signature: scalar owner
+     precedence`), but `scalar_targets::registered_structural_graph_target`
+     accepts only single-state graphs as Unit-call targets. So no Unit
+     closure can call a multi-state scalar graph that has a receiver. Let the
+     state graph own that machine, then drop the scalar graph's receiver
+     path.
   3. Forwarded dynamic Unit helpers retain no body plan, so the checked
      `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
      a helper whose body is its one call, while scalar helpers retain
@@ -2479,11 +2436,53 @@ syntax and other terminal services are not prerequisites.
   8. There are nine structural-type namespaces, one `ShapeCollector` per
      plan roster, rejoined by hand (`finalize_execution.rs`,
      `attached_unit/bodies.rs::UnitPlans::with_staged`).
+  9. A composed `GuardedJumps` chain refuses a short-circuit (`&&`/`||`)
+     guard ("guarded jump chain has a short-circuit guard" in
+     `composed_control/state_graph/emission/state.rs`). A two-arm
+     `Conditional` already stages that guard through
+     `evaluation.branch_guard` and `case_payload_dispatch::plan`. Stage every
+     chain guard through that path and delete the refusal.
+     `arithmetic_and_data::enum_and_comparison_canaries::const_fold_{saturating,wrapping}_narrow_canary_runs`
+     stop there.
   The Terminal module literals already start from
   `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
   the replaced family and its recognizer are deleted; programs it lowered
   still lower and verify; the pass-canary and run-test groups show no new
   failures.
+
+- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
+  now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
+  `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
+  composed callers reach it through the scalar call lane. The 27 run canaries
+  that stopped at `state graph: result signature`, plus
+  `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
+  next missing capability. Repair the capability, not the fixture:
+  - `state graph: natural ranks` (12 run canaries, and
+    `termination/rank_range_state_call`): the ranking witness is
+    `(j, i) -> Nat::BoundedDistance`, a signed `n -> Nat::Descending`, or a
+    `remaining in 0..=9` rank range.
+    `checks/termination/ranking::proven_state_natural_ranks_with_call_frames`
+    derives only unsigned countdowns and slice lengths. The composed ranking
+    emitter has no computed (distance) rank value.
+  - `state graph: terminator: unsupported tail: single guarded transition`
+    (8, `Holder::run`, `Tally::get`): `transition true { true -> done(v) }` in a
+    returning state. No route has a checked fact that its false path is
+    unreachable.
+  - `state graph: prefix initializers: short-circuit boolean` (2,
+    `Store::check`), `guarded jump successors: receiver transfer` (1,
+    `runtime_tuple_transition_exit`), and `conditional successors` (2).
+  - A composed caller's scalar call to a projected receiver
+    (`self.store.pick(..)`) fails `composed_control/admission.rs` with "composed
+    scalar call structural actual lost its authored position" (1 run canary,
+    and the re-pinned fail canary `calls/value_call_param_effect_arm_rejected`).
+  - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
+    (`call operation: structural arguments: parameter access`).
+    `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
+    native target lowering (`UnsupportedControlFlow`, `borrowed_calls.rs`).
+  `termination/rank_range_state_call` also needs its entry's tail-call
+  transition (`_ -> self.count(5)`: statement sequence, unsupported statement
+  kind), and the Unit closure rejects its `count`/`step` recursion.
+  Acceptance: the run canaries named in the omission roster execute.
 
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
   is removed by `consume_terminal_self_receiver` before cleanup validation,
@@ -4332,16 +4331,15 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 17 | `recast_views` | ProgramEntry/Terminal attachment |
   | 9 | `plan_laid_repeated_runtime` | claimed elsewhere |
   | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
-  | 3 | `private_joint_progress` | progress-premise propagation |
+  | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
   | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
-  | 2 | `source_evaluated_native_realization` | import custody, Linux dynamic leg |
+  | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
   | 1 | `runtime_value_generics` | specialization identity |
   | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
-  | 1 | `literal_dispatch_unit_plan_stops` | omission stop moved earlier |
   | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
 
   Read that table before picking work. 89 need a host and 23 --
@@ -4371,6 +4369,50 @@ but report the missing runtime leg explicitly; it does not close that host row.
   state-parameter conjunct shared the `&&`, and runtime ranking admission not
   recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
   attached machine, as the tail arrival its bare form was.
+
+  `private_joint_progress` keeps three, and they are ONE missing rule: a
+  private call component does not retain an UNDECLARED external requirement as
+  a premise. The four that pass do so because the caller DECLARES the
+  requirement it forwards -- `Main::b` declares `requires forwarded.scheduler
+  in WeakFair` and calls `wait`, which requires exactly that. The three that
+  fail call something whose requirement the caller does not declare, and the
+  contract checker rejects at `checks/contracts/calls.rs` before the progress
+  machinery in `checks/termination/progress/` can retain anything:
+
+  - `independent_external_premises_converge_as_a_set` calls `wait_backup`,
+    needing `forwarded.backup in WeakFair`; the test asserts the component
+    retains BOTH premises (`premises.len() == 2`).
+  - `recursively_projected_requirements_do_not_become_a_finite_promise` needs
+    a nested projection, `forwarded.next.scheduler in WeakFair`.
+  - `private_external_wrapper_can_be_solved_after_the_cycle` compiles but
+    `Main::a` retains `NoGuarantee` where the test expects the external
+    premise with the caller's parameter root.
+
+  `WeakFair` is ROUTED (`established by SchedulerAdmission::grant`), so this is
+  not the predicate-only gap; the requirement genuinely cannot be proved inside
+  the component and is meant to become the component's own published premise
+  for its caller to discharge. An independent survey of every
+  `TransitionTargetNode::Named` reader reached the same place: no
+  ProgressProfile-aware rule exists under `checks/contracts/`, and `FactOrigin`
+  has no premise-derived variant. The three tests are the acceptance
+  specification; the soundness question to settle first is who discharges a
+  retained premise at the component's boundary.
+
+  `source_evaluated_native_realization` keeps two, both NEGATIVE tests that
+  now pass their subject instead of refusing it.
+  `rejected_native_reentry_returns_the_exact_dynamic_interpreter` and
+  `retained_source_evaluated_import_realizes_exact_macho_image` each realize a
+  program whose boundary import has no supplied execution, with `imports: &[]`,
+  and each expects the refusal
+  `retained_native_product.rs`'s "demanded import `...` has no supplied
+  execution and stack custody" still spells. That guard scans `exact_plans`,
+  so an empty plan set makes it unreachable: the demand is no longer reaching
+  settlement rather than the check being wrong. Making the import actually
+  CALLED (`include_marker: true`) does not restore the refusal, so it is not
+  the fixture eliding an uncalled binding. Look upstream of the guard: the
+  question is why provider planning no longer produces an exact plan for that
+  import, not why the scan finds nothing. Owner: `native-realization` and
+  provider planning; unclaimed at the time of writing.
 
   `package_compilation_inputs` keeps one, diagnosed: the preliminary
   finalization allowance is keyed on SOURCE PROVENANCE, not on whether the

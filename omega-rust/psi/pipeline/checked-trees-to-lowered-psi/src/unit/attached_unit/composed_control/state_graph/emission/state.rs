@@ -45,6 +45,8 @@ impl StateGraphEmission<'_, '_> {
             structural_value_owners: Vec::new(),
             selection_cleanups: Vec::new(),
             structural_locals: Vec::new(),
+            view_locals: Vec::new(),
+            element_views: std::collections::BTreeMap::new(),
             local_cases: Vec::new(),
             record_fields: crate::scalar_graph::scalar_computations::fields::prepare(
                 checked,
@@ -122,6 +124,10 @@ impl StateGraphEmission<'_, '_> {
                 &evaluation.structural_parameters,
                 &self.catalogs.structural_types,
             );
+        evaluation.element_views = crate::expression_preparation::bindings::element_views(
+            &evaluation.structural_parameters,
+            &self.catalogs.structural_types,
+        );
         super::super::super::emission::emit_call_operations(
             checked,
             plan.machine,
@@ -266,6 +272,57 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
         )?;
         let is_guarded_return = guarded_return.is_some();
+        // A scalar-result state evaluates the value its selected exit returns
+        // through the same exit evaluator an ordinary scalar body uses; its
+        // private arm and join blocks stay inside this state.
+        let scalar_return = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
+            } => {
+                let mut calls = self.catalogs.scalar_calls.emission_context();
+                let value = evaluation.scalar_control_result(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    exits,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut calls,
+                )?;
+                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                Some(value)
+            }
+            // The operation sequence above already bound the returned value;
+            // read it from the state's scalar namespace at its ordinal.
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+            } => {
+                let slot = usize::try_from(binding.binding_ordinal)
+                    .ok()
+                    .and_then(|ordinal| ordinal.checked_add(state.scalar_parameters.len()))
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar return binding ordinal overflows",
+                    ))?;
+                let position = match &evaluation.scalar_bindings {
+                    Some(bindings) => bindings.immutable_position(slot)?,
+                    None => slot,
+                };
+                let value = values
+                    .get(position)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar return binding is absent",
+                    ))?;
+                if value.scalar_type != terminal_scalar_type(binding.primitive_type)? {
+                    return unsupported("Unit graph scalar return binding changed its carrier");
+                }
+                Some(value)
+            }
+            _ => None,
+        };
         let inherited_lengths = operations.byte_lengths.clone();
         let inherited_field_lengths = operations.field_byte_lengths.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
@@ -522,6 +579,7 @@ impl StateGraphEmission<'_, '_> {
             )) || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. }
                     )));
             let operation_start = operations.len();
             let staged = if stage {
@@ -610,21 +668,15 @@ impl StateGraphEmission<'_, '_> {
                                     LoweringError::Unsupported("Unit graph transfer source descriptor disappeared"),
                                 )?.place)
                             }
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { parameter_index, expression } => {
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
+                            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
                                 let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
-                                let source = state_parameters.get(parameter_index as usize).ok_or(
-                                    LoweringError::Unsupported("Unit graph subslice source descriptor disappeared"),
-                                )?;
                                 self.structural_places.push(subslices::emit(
-                                    checked, state, edge.statement_ordinal, target_parameter.position, expression,
-                                    source, destination, &bindings, &edge_values, &mut next_value, &mut operations,
+                                    checked, state, edge.statement_ordinal, target_parameter.position, &transfer.source,
+                                    &state_parameters, &edge_evaluation.view_locals, destination, &bindings, &edge_values,
+                                    &mut next_value, &mut operations,
                                 )?);
                                 destination
-                            }
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
-                                return unsupported(
-                                    "element view subslice transfer has no Terminal descriptor",
-                                );
                             }
                             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                                 ref subject, ref case_identity, ref field_identity, ref path,
@@ -1012,7 +1064,8 @@ impl StateGraphEmission<'_, '_> {
                     trivial_affine_discards: Vec::new(),
                 }
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let source = checked
                     .machines()
                     .iter()
@@ -1040,9 +1093,28 @@ impl StateGraphEmission<'_, '_> {
                         .into_iter()
                         .map(|index| state_parameters[index].place),
                 );
-                Terminator::ReturnUnit {
-                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                    trivial_affine_discards: local_discards,
+                let edge = edge_id(allocate_dense(&mut next_edge)?);
+                // A scalar return disposes the same whole roots a Unit return
+                // does, after the returned value is established.
+                match (&state.terminator, scalar_return) {
+                    (
+                        CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. },
+                        Some(value),
+                    ) => Terminator::Return {
+                        edge,
+                        value: value.id,
+                        cleanup_actions: local_discards
+                            .into_iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                            .collect(),
+                    },
+                    (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, None) => {
+                        Terminator::ReturnUnit {
+                            edge,
+                            trivial_affine_discards: local_discards,
+                        }
+                    }
+                    _ => return unsupported("Unit graph return lost its scalar value"),
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {

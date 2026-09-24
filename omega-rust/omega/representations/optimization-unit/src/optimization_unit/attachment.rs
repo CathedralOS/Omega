@@ -5,6 +5,39 @@ use super::{
     AcceptedObligationFact, OwnershipFrontierFact, OwnershipFrontierSnapshot, ProofQuestion,
     PsiOptimizationUnit,
 };
+/// Attach the verified Terminal module's catalogs and each machine's contract
+/// inputs to a reconstructed unit, then reseal its identity. The optimizer's
+/// verified constructor and its independent projection replay both use this,
+/// so a replayed seed carries exactly the custody the admitted unit carried.
+/// Returns the machine the module does not declare.
+pub fn attach_verified_module_context(
+    unit: &mut PsiOptimizationUnit,
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), semantic_vocabulary::MachineId> {
+    unit.structural_domains = module.structural_domains.clone().into();
+    unit.services = module.services.clone().into();
+    unit.root_service_reach = module.root_service_reach.clone();
+    for function in &mut unit.functions {
+        let source = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == function.machine)
+            .ok_or(function.machine)?;
+        function.structural_places = source.structural_places.clone();
+        function.content_entry_claims = source.content_entry_claims.clone();
+        function.verified_contract = Some(source.contract.clone());
+        function.evidence_contract_lanes = module
+            .evidence_contract_lanes
+            .iter()
+            .filter(|lane| lane.machine == function.machine)
+            .cloned()
+            .collect();
+        function.declared_service_reach = source.declared_service_reach.clone();
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(unit);
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OwnershipFrontierFactIndexError {
     AlreadyAttached,

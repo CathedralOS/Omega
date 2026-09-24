@@ -907,7 +907,13 @@ fn transition_guard_proves_requires(
         }
         _ => return false,
     };
-    if !guard_conjunct_matches(program, guard, &required_label) {
+    let guard_establishes = guard_conjunct_matches(program, guard, &required_label)
+        || predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
+            labels
+                .iter()
+                .all(|label| guard_conjunct_matches(program, guard, label))
+        });
+    if !guard_establishes {
         return false;
     }
     // The guard was read before the arm's operands ran. An operand evaluated
@@ -1394,6 +1400,48 @@ mod transition_arm_guard_probes {
         );
     }
 
+    /// A PREDICATE-ONLY domain is established by proving its predicates.
+    /// wiki/spec/language/domains.md: "Predicates alone establish
+    /// predicate-only membership", and a ROUTED domain is the case that
+    /// "additionally needs exact authorized provenance". Both controls are the
+    /// point: the routed twin carries the SAME predicate and the SAME guard and
+    /// must still reject, and a two-predicate domain whose guard proves only
+    /// one of them must reject, because membership is every obligation rather
+    /// than any of them.
+    #[test]
+    fn a_predicate_only_domain_is_established_by_proving_its_predicates() {
+        let program = |domain: &str| {
+            format!(
+                "{domain}
+                data Main {{}}
+                machine Main::take(&mut self, index: u64 in Slot16) -> u64 {{
+                    transition {{ _ -> (0) }}
+                }}
+                machine Main::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (self.take(index)) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("domain u64::Slot16 requires self <= 15;")),
+            "a guard proving the whole predicate must establish predicate-only membership"
+        );
+        assert!(
+            !accepted(&program(
+                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot16; }
+                 pub domain u64::Slot16 requires self <= 15 established by Granter::grant;"
+            )),
+            "a ROUTED domain still needs provenance, however well its predicate is proved"
+        );
+        assert!(
+            !accepted(&program(
+                "domain u64::Slot16 requires self <= 15 && self >= 4;"
+            )),
+            "a guard proving one of two predicates establishes neither membership"
+        );
+    }
+
     /// The FACT route carries numeric implication -- `index < 16` discharges
     /// `index <= 15` -- where the transition-guard route only compares
     /// spellings. It reached a free callee but not a receiver-qualified one,
@@ -1468,4 +1516,69 @@ mod transition_arm_guard_probes {
             "the parenthesized taken-arm target is the same arrival as the bare one"
         );
     }
+}
+
+/// The predicates a PREDICATE-ONLY domain membership reduces to, each rendered
+/// at the subject, or `None` when the domain is not predicate-only.
+///
+/// [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
+/// the rule: "Predicates alone establish predicate-only membership", and a
+/// ROUTED domain is the case that "additionally needs exact authorized
+/// provenance". So a routed, aliased or indexed domain returns `None` here and
+/// keeps its provenance obligation; only a domain whose whole content is
+/// predicates over `self` reduces, and then EVERY predicate must be
+/// established, never a subset.
+///
+/// The rendering is `instantiate_domain_expression_label`, the same
+/// substitution `contracts::domains` already runs in the MEMBERSHIP ->
+/// PREDICATE direction. This is that rendering read the other way.
+fn predicate_only_domain_labels(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    fact: &facts::Fact,
+) -> Option<Vec<String>> {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+        return None;
+    };
+    let FactPlace::Place(place_handle) = fact.place else {
+        return None;
+    };
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
+    // The same list `domain_byte_predicate` enforces, so one definition governs
+    // both grants: an alias expands to constituent requirements, index binders
+    // carry an identity this substitution cannot supply, and `established by`
+    // routes restrict who may mint membership at all.
+    if domain.alias.is_some()
+        || !domain.index_arguments.is_empty()
+        || !domain.establishment_routes.is_empty()
+        || !typed_trees::domain::index_parameters(program, domain).is_empty()
+    {
+        return None;
+    }
+    let declared = program.proof_facts(domain);
+    if declared.is_empty() {
+        // A predicate-free domain adds no membership obligation predicates
+        // could discharge; whatever it asks for is not this.
+        return None;
+    }
+    let subject_label = facts.semantic.place_label(program, place_handle);
+    declared
+        .iter()
+        .map(|declared_fact| match declared_fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                Some(super::labels::instantiate_domain_expression_label(
+                    program,
+                    *expression,
+                    &subject_label,
+                ))
+            }
+            // A nested membership or a proposition needs more than this
+            // substitution gives; refuse the whole domain rather than
+            // establish a subset of its obligations.
+            _ => None,
+        })
+        .collect()
 }

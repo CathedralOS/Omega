@@ -137,3 +137,5 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T08:52:00Z	leaf/element-arg-boundary-types->main	fa87aecefd2 z5 element-view arg element-type check at machine-call boundaries (merged by foreign coordinator)
 2026-09-24T09:05:00Z	leaf/whole-view-indexed-reads->main	b0db92219d z4 IndexedPrimitiveRead on fixed-array fields end-to-end (codec 87, verifier index<extent, interpreter) 1553/1553
 2026-09-24T09:35:00Z	leaf/case-result-ownership->main	1fcfb90cc9 Devin-coord verifier admits plain-owned sums with structural payloads (APR::make lowers+verifies) 902+99 green
+2026-09-24T10:00:00Z	leaf/skill-jev-gate->main	15abb5642d coordinator cloud-swarm merge gate carries --jev record_safe advisory (skill doc only)
+2026-09-24T10:15:35Z	leaf/outer-calls-residual->main	de66645562 coordinator merge-check: outer-call walk iterates every structural root per statement (bool-guarded transition arms own their calls); t2c lib 5311/5311

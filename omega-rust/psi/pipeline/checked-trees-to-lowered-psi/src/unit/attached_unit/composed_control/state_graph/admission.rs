@@ -363,6 +363,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             {
                 edges::return_discards(checked, plan.machine, source, state)?;
             }
+            (CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }, _) => {
+                super::returns::validate_scalar(
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    completion,
+                    terminator_ordinal,
+                )?;
+                edges::return_discards(checked, plan.machine, source, state)?;
+            }
             (
                 CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal },
                 [StatementNode::Transition(transition)],

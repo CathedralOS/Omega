@@ -2,9 +2,10 @@
 // access family end to end: both-runtime reads (`a[i][k]`, `b[k][j]`), a
 // both-runtime write (`c[i][j] = acc`), and self-transition loops (Omega has
 // NO recursion; `-> dot(..)` is a jump with re-bound arguments). The indices
-// travel as RANGE-TYPED STATE PARAMS (`i: u64 [0..=2]`) -- the declared
-// range discharges every index bound, and each increment is proven in range
-// by its dominating back-edge guard (`k < 2` proves `k + 1` fits [0..=2]).
+// travel as STATE PARAMS under one `requires i <= 2` clause per index -- the
+// contract discharges every index bound, and each increment lands in a local
+// whose back-edge guard (`next_k <= 2`) admits it into the next state's
+// contract.
 //
 //   A = |1 2 3|   B = |9 8 7|   C = A*B = | 30  24  18|
 //       |4 5 6|       |6 5 4|             | 84  69  54|
@@ -25,25 +26,33 @@ machine Main::main(&mut self) reaches Console {
     self.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
     self.b = [[9, 8, 7], [6, 5, 4], [3, 2, 1]];
     transition { _ -> col(0, 0) }
-    state col(&mut self, i: u64 [0..=2], j: u64 [0..=2]) {
+    state col(&mut self, i: u64, j: u64) requires i <= 2 requires j <= 2 {
         transition { _ -> dot(i, j, 0, 0) }
     }
-    state dot(&mut self, i: u64 [0..=2], j: u64 [0..=2], k: u64 [0..=2], acc: i32 in Wrapping) {
-        transition k < 2 {
-            true -> dot(i, j, k + 1, acc + self.a[i][k] * self.b[k][j])
+    state dot(&mut self, i: u64, j: u64, k: u64, acc: i32 in Wrapping)
+    requires i <= 2
+    requires j <= 2
+    requires k <= 2 {
+        let next_k: u64 = k + 1;
+        transition next_k <= 2 {
+            true -> dot(i, j, next_k, acc + self.a[i][k] * self.b[k][j])
             false -> store(i, j, acc + self.a[i][k] * self.b[k][j])
         }
     }
-    state store(&mut self, i: u64 [0..=2], j: u64 [0..=2], acc: i32 in Wrapping) {
+    state store(&mut self, i: u64, j: u64, acc: i32 in Wrapping)
+    requires i <= 2
+    requires j <= 2 {
         self.c[i][j] = acc;
-        transition j < 2 {
-            true -> col(i, j + 1)
+        let next_j: u64 = j + 1;
+        transition next_j <= 2 {
+            true -> col(i, next_j)
             false -> row_step(i)
         }
     }
-    state row_step(&mut self, i: u64 [0..=2]) {
-        transition i < 2 {
-            true -> col(i + 1, 0)
+    state row_step(&mut self, i: u64) requires i <= 2 {
+        let next_i: u64 = i + 1;
+        transition next_i <= 2 {
+            true -> col(next_i, 0)
             false -> checksum()
         }
     }

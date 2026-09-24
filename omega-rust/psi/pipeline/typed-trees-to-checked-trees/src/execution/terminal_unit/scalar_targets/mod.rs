@@ -140,10 +140,13 @@ pub(super) fn registered_primitive_store_target<'plans>(
 }
 
 /// A registered scalar producer survives ordinary candidate pruning. Only the
-/// ordinary-body fallback carries an edge into that changing roster.
+/// body fallbacks carry an edge into that changing roster: an ordinary
+/// single-state body by its index among the ordinary candidates, and a
+/// multi-state state graph by its index among the composed candidates.
 pub(super) enum AvailableScalarTarget {
     Registered,
     OrdinaryBody(usize),
+    ComposedBody(usize),
 }
 
 /// The call-site half of a scalar-call availability check. Ordinary machine
@@ -199,6 +202,7 @@ fn is_available(
         facts,
         scalar_callees,
         candidates,
+        &[],
         &ScalarCallSite::of_plan(caller),
         operation,
     )
@@ -210,6 +214,7 @@ pub(super) fn available_target(
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
     candidates: &[CheckedUnitEffectMachinePlan],
+    composed_candidates: &[checked_trees::CheckedComposedUnitControlMachinePlan],
     caller: &ScalarCallSite<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
@@ -241,8 +246,19 @@ pub(super) fn available_target(
             .then_some(AvailableScalarTarget::Registered);
     }
     let machine = crate::lookup::machine_by_symbol(program, *target_machine)?;
-    let [state] = program.machine_states(machine) else {
-        return None;
+    // A scalar-result state graph is entered at its first authored state; every
+    // other body owner describes exactly one state.
+    let composed = composed_candidates.iter().enumerate().find(|(_, plan)| {
+        plan.machine == *target_machine
+            && matches!(
+                plan.result,
+                checked_trees::CheckedControlResultPlan::Scalar { .. }
+            )
+    });
+    let state = match (composed, program.machine_states(machine)) {
+        (Some(_), [entry, _, ..]) => entry,
+        (None, [state]) => state,
+        _ => return None,
     };
     let contract = facts.contract_plans.for_machine(*target_machine)?;
     let mut availability = AvailableScalarTarget::Registered;
@@ -324,6 +340,42 @@ pub(super) fn available_target(
             &plan.scalar_parameters,
             plan.entry_claims.as_slice(),
             plan.result_type,
+        )
+    } else if let Some((composed_index, plan)) = composed {
+        // A state graph reaches callers through its entry state's signature,
+        // exactly as its internal Unit calls do. Rebuild that signature so a
+        // drifted plan cannot select this body.
+        let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = plan.result else {
+            return None;
+        };
+        let entry = plan.states.first()?;
+        if entry.state != state.symbol
+            || plan.contract_report_fingerprint != contract.report_fingerprint
+            || plan.contract_commitment != contract.commitment
+        {
+            return None;
+        }
+        let mut shapes = ShapeCollector::new(program);
+        let signature = if machine.attached_data.is_none() {
+            free_structural_scalar_signature(program, &mut shapes, state, &[])
+                .map(|(structural, scalar)| (None, structural, scalar))
+        } else {
+            structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
+                .map(|(attachment, structural, scalar)| (Some(attachment), structural, scalar))
+        };
+        let (attachment, structural, scalar) = signature?;
+        if attachment != plan.attachment_type_identity
+            || structural != entry.structural_parameters
+            || scalar != entry.scalar_parameters
+        {
+            return None;
+        }
+        availability = AvailableScalarTarget::ComposedBody(composed_index);
+        (
+            &entry.structural_parameters,
+            &entry.scalar_parameters,
+            entry.entry_claims.as_slice(),
+            primitive_type,
         )
     } else {
         // Availability borrows the complete immutable ordinary body roster.

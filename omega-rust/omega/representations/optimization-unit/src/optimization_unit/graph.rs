@@ -193,6 +193,10 @@ pub struct PsiOptimizationFunction {
     /// Exact verifier-normalized service ceiling in canonical Terminal-Psi
     /// order. It is semantic custody, not an optimizer-selected reach set.
     pub published_service_ceiling: Vec<ServiceId>,
+    /// The Terminal machine's authored fixed service contribution. Root reach
+    /// replay counts it as concrete for every reachable machine, inert bodies
+    /// included; bare reconstruction seeds leave it empty.
+    pub declared_service_reach: Vec<ServiceId>,
     pub facts: Vec<OptimizationFact>,
     pub blocks: Vec<OptimizationBlock>,
 }

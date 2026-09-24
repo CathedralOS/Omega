@@ -14,8 +14,8 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     cells: u64 in Wrapping;        // the 31-bit row (bit i = cell i), seed bit 15
-    g: i32 [0..=16];             // guard-proven generation counter
-    i: i32 [0..=31];             // render index (guard-proven)
+    g: i32;                      // guard-proven generation counter
+    i: i32;                      // render index (guard-proven)
     b: u64;                      // the cell bit under render
     pause: [u8; 256];
 }
@@ -66,7 +66,7 @@ machine Main::main(&mut self) reaches Console {
             ((self.cells << 1) ^ (self.cells | (self.cells >> 1))) % 2147483648;
         transition { _ -> gen_next() }
     }
-    // Re-guard `g < 16` so the increment proves into [0..=16].
+    // Re-guard `g < 16` so the increment proves into [1..=16].
     state gen_next(&mut self) {
         transition self.g < 16 { true -> g_bump() _ -> gen_loop() }
     }

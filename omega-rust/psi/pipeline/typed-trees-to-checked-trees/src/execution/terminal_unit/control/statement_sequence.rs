@@ -1,6 +1,7 @@
 //! The single-state body producer: authored-order scalar bindings, primitive
 //! and structural field stores, borrowed-window moves and repairs, selected
-//! operator and FMA applications, structural bindings, calls and completion.
+//! operator and FMA applications, structural bindings, view-subslice locals,
+//! calls and completion.
 //! Constructors and calls share structural binding ordinals. Completion selects
 //! one existing result or constructs its final expression in this same sequence.
 //! Each statement is planned by the emitter its kind and evidence select; no
@@ -688,6 +689,23 @@ pub(super) fn first_unsupported_statement(
                     })
                     || erased_locals.contains(&local.symbol)
                     || is_record_pattern_marker(local)
+                    // A view local narrowing an established view has the
+                    // view-subslice route by kind; the sequence decides
+                    // whether its range and source are admissible.
+                    || (!local.is_mutable
+                        && crate::execution::terminal_unit::calls::view_subslice::view_kind(
+                            program,
+                            local.type_reference,
+                        )
+                        .is_some()
+                        && matches!(
+                            program.expression_table.expression(local.initial_value),
+                            ExpressionNode::Indexed(indexed)
+                                if matches!(
+                                    program.expression_table.expression(indexed.index),
+                                    ExpressionNode::Range(_)
+                                )
+                        ))
             }
             _ => false,
         })
@@ -1169,6 +1187,47 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
                     structural_local_symbols.push(local.symbol);
                     operations.push(operation);
+                    continue;
+                }
+                // A `let` narrowing an established view binds the range the
+                // argument lane admits for a call operand: one admission, one
+                // source vocabulary, keyed at this statement's binding site.
+                // The result is a shared view in the structural namespace, so
+                // edges, calls and observations read it as any view local.
+                local_phase("statement sequence: local data: view subslice");
+                if let Some(subslice) = crate::execution::terminal_unit::calls::view_subslice::admit(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    structural_parameters,
+                    local.type_reference,
+                    local.initial_value,
+                    index,
+                    checked_trees::CheckedSubsliceSite::LocalBinding,
+                ) {
+                    if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = subslice.range.root
+                        && !structural_local_symbols.contains(&symbol)
+                    {
+                        return None;
+                    }
+                    let type_identity = shapes.add_type(local.type_reference, &binders, &[])?;
+                    if type_identity != subslice.range.type_identity {
+                        return None;
+                    }
+                    let result = CheckedUnitStructuralResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(structural_count).ok()?,
+                        type_identity,
+                        multiplicity: Multiplicity::Unrestricted,
+                    };
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
+                    structural_local_symbols.push(local.symbol);
+                    operations.push(CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                        result,
+                        source: subslice.argument(),
+                    });
                     continue;
                 }
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
@@ -2583,6 +2642,7 @@ fn consume_result(
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                     if result.binding_ordinal == binding_ordinal)
     });
     let producer = producers.next()?;
@@ -2599,6 +2659,7 @@ fn consume_result(
     if matches!(producer,
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
                 | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
                     if result.multiplicity == Multiplicity::Unrestricted)
     {

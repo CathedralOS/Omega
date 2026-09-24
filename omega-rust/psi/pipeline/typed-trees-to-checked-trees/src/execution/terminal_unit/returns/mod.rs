@@ -21,6 +21,72 @@ mod structural_scalar_returns;
 
 pub(crate) use boundary_scalar_returns::build_boundary_scalar_return_machine;
 pub(crate) use primitive_effects::build_checked_primitive_store_scalar_return_plans;
+
+/// The structural scalar returns Unit planning may call before the full return
+/// roster exists. The call-free primitive-reference bodies are one cohort.
+/// The other is every return that performs no effects and whose cleanup needs
+/// no Unit plan (its builder succeeds without the cleanup catalog), such as a
+/// selected operator's realization: it can be offered to Unit callers before
+/// those plans exist.
+/// Returns with nominal cleanup depend on the Unit plans and join only in the
+/// later `build_checked_structural_scalar_return_plans` phase.
+pub(crate) fn build_checked_scalar_callee_return_plans(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> CheckedStructuralScalarReturnPlans {
+    let mut plans = build_checked_primitive_store_scalar_return_plans(program, facts);
+    let mut shapes = ShapeCollector::new(program);
+    // A declined return reports through the full phase; this pre-pass only
+    // offers the plans that succeed without a cleanup catalog.
+    let mut diagnostics = Vec::new();
+    let independent = program
+        .machines()
+        .iter()
+        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
+        .filter(|machine| {
+            !plans
+                .machines
+                .iter()
+                .any(|plan| plan.machine == machine.symbol)
+        })
+        .filter_map(|machine| {
+            build_structural_scalar_return_machine(
+                program,
+                facts,
+                None,
+                &mut shapes,
+                machine,
+                &mut diagnostics,
+            )
+        })
+        .filter(|plan| plan.effects.is_empty())
+        .collect::<Vec<_>>();
+    let retained = independent
+        .iter()
+        .flat_map(|plan| {
+            plan.attachment_type_identity.as_deref().into_iter().chain(
+                plan.structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity.as_str()),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    shapes.retain_transitive(&retained);
+    for shape in shapes.types.into_values() {
+        if !plans
+            .structural_types
+            .iter()
+            .any(|existing| existing.identity == shape.identity)
+        {
+            plans.structural_types.push(shape);
+        }
+    }
+    plans
+        .structural_types
+        .sort_by(|left, right| left.identity.cmp(&right.identity));
+    plans.machines.extend(independent);
+    plans
+}
 pub(crate) use scalar_return_expressions::checked_boolean_contains_short_circuit;
 pub(crate) use structural_return_machine::build_structural_return_machine;
 pub(crate) use structural_scalar_returns::build_structural_scalar_return_machine;

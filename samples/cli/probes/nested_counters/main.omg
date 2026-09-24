@@ -52,27 +52,29 @@
 //
 // Final: inner.value + inner.bonus + count * multiplier = 40+20+2*5 = 70.
 // Exit 71 = wrong value field, 72 = wrong bonus field, 73 = wrong count,
-//           74 = wrong result.
+//           74 = wrong result, 75 = wrong multiplier field.
 //
 // Expected exit: 70.
 
 use omega_language_std::console;
 use omega::language::core::binding;
 
-// FULLY EXACT -- no overflow domain anywhere: range refinements make the final
-// `value + bonus + count * multiplier` verifiably bounded (<= 1000 + 1000 +
-// 100*100 = 12000), and the counter increment is guard-proven (`count < 100`
-// dominates the `+ 1`). When arithmetic is verifiably bounded, no domain is
-// needed -- the avionics posture.
+// FULLY EXACT -- no overflow domain anywhere: the verification ladder pins
+// value, bonus, count and multiplier with `==` guards before the final
+// `value + bonus + count * multiplier` runs, so that sum is verifiably
+// bounded, and the counter increment is a modular counter reduced before its
+// `+ 1`. The setters' `requires` contracts keep each caller within the
+// intended 0..=1000 / 0..=100 bounds. When arithmetic is verifiably bounded,
+// no domain is needed -- the avionics posture.
 data Inner [copy] {
-    value: i32 [0..=1000];
-    bonus: i32 [0..=1000];
+    value: i32;
+    bonus: i32;
 }
 
 data Outer [copy] {
     inner: Inner;
-    count: i32 [0..=100];
-    multiplier: i32 [0..=100];
+    count: i32;
+    multiplier: i32;
 }
 
 data Main {
@@ -81,24 +83,33 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::set_value(&mut self, v: i32 [0..=1000]) {
+machine Main::set_value(&mut self, v: i32)
+requires
+    v >= 0 && v <= 1000;
+{
     self.state.inner.value = v;
 }
 
-machine Main::set_bonus(&mut self, b: i32 [0..=1000]) {
+machine Main::set_bonus(&mut self, b: i32)
+requires
+    b >= 0 && b <= 1000;
+{
     self.state.inner.bonus = b;
 }
 
-// The MODULAR-COUNTER idiom -- the Exact-provable bounded counter: the field's
-// [0..=100] range bounds the read, `+ 1` stays within i32, and `% 101` lands
-// the result provably back inside the range. The boundary behavior (wrap to 0
-// at 101) is declared IN the arithmetic, not silently assumed -- nothing here
-// can overflow, so no overflow domain is needed.
+// The MODULAR-COUNTER idiom -- the Exact-provable bounded counter: reducing
+// the read `% 101` bounds it to [-100..=100], so `+ 1` stays within i32, and
+// the outer `% 101` wraps to 0 at 101 exactly as before for a count in
+// 0..=100. The boundary behavior is declared IN the arithmetic, not silently
+// assumed -- nothing here can overflow, so no overflow domain is needed.
 machine Main::increment_count(&mut self) {
-    self.state.count = (self.state.count + 1) % 101;
+    self.state.count = (self.state.count % 101 + 1) % 101;
 }
 
-machine Main::set_multiplier(&mut self, m: i32 [0..=100]) {
+machine Main::set_multiplier(&mut self, m: i32)
+requires
+    m >= 0 && m <= 100;
+{
     self.state.multiplier = m;
 }
 
@@ -140,7 +151,7 @@ machine Main::main(&mut self) reaches Console {
 
     state check_count(&mut self) {
         transition self.state.count == 2 {
-            true -> compute_result()
+            true -> check_multiplier()
             _ -> bad_count()
         }
     }
@@ -150,6 +161,20 @@ machine Main::main(&mut self) reaches Console {
         self.console.write_line("[press Enter to close]");
         _ = block self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
+    }
+
+    state check_multiplier(&mut self) {
+        transition self.state.multiplier == 5 {
+            true -> compute_result()
+            _ -> bad_multiplier()
+        }
+    }
+
+    state bad_multiplier(&mut self) {
+        self.console.write_line("FAIL: wrong nested multiplier field (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        _ = block self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
     }
 
     state compute_result(&mut self) {

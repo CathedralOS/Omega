@@ -652,6 +652,52 @@ fn unknown_slice_index_meets_guard_seeded_upper_bounds_against_length_facts() {
 /// bound, and a `requires` clause. The collection lives on `self` rather
 /// than in a parameter position, but the label-keyed proof facts are the
 /// same ones the parameter fixtures exercise.
+/// A place declared `in D` establishes D at every write, and membership
+/// requires every predicate D declares, so each predicate the reader
+/// recognizes as a closed integer bound is a true bound of the place -- the
+/// same store-enforced invariant a bracketed range supplied. The controls are
+/// what keeps that honest: a bound that does not reach the extent, and a
+/// predicate that is not a bound at all, must both leave the index unproven.
+#[test]
+fn a_declared_domain_bounds_the_index_its_predicates_bound() {
+    for (domain, accepted) in [
+        ("domain u64::Slot16 requires self <= 15;", true),
+        // The exclusive spelling states the same interval.
+        ("domain u64::Slot16 requires self < 16;", true),
+        // Two predicates, and the narrow one decides.
+        ("domain u64::Slot16 requires self <= 15 && self >= 2;", true),
+        // Too weak for a 16-element array.
+        ("domain u64::Slot16 requires self <= 20;", false),
+        // Not an interval at all.
+        ("domain u64::Slot16 requires self != 3;", false),
+        // A bound on a FIELD of the subject says nothing about the subject.
+        (
+            "domain u64::Slot16 requires self <= 15 || self >= 99;",
+            false,
+        ),
+    ] {
+        let source = format!(
+            "{domain}
+            data Store {{ arr: [u64; 16]; }}
+            machine Store::read(&mut self, index: u64 in Slot16) -> u64 {{
+                transition {{ _ -> (self.arr[index]) }}
+            }}
+            data Main {{}}
+            machine Main::main(&mut self) {{}}"
+        );
+        match (check_source(&source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{domain}: {messages:?}"
+            ),
+            (result, _) => panic!("{domain}: {result:?}"),
+        }
+    }
+}
+
 #[test]
 fn member_index_guards_meet_guard_and_state_bounds() {
     for (fields, machine, accepted) in [
