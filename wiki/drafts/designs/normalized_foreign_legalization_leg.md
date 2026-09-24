@@ -52,13 +52,13 @@ A source-produced scalar+record foreign call reaches
 `Selection(Legalization(SourceCustodyMismatch))`. Both mirrors admit only
 the borrowed single-pointer class:
 
-- `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+- `06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
   (:148) — requires a non-empty all-`Field` path, borrowed access,
   `Unrestricted` multiplicity, empty qualifications, and a destination of
   exactly one pointer-width integer word; `source` is always the caller
   parameter `Placement`. Owned whole-place, owned-from-call-result, and
   `BorrowedView` descriptor arguments all fail closed here.
-- `target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
+- `06_target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
   — `plan_operand_views` (:43) accepts only single-word register/stack
   placements (`byte_size == shape.byte_size`), so a multi-word by-value
   aggregate or two-word descriptor destination yields no catalog row;
@@ -99,7 +99,7 @@ the borrowed single-pointer class:
    `structural_parameter_positions` stays: operand count must still equal
    plan parameters minus scalars minus the callback slot.
 4. Witnesses. Mirror the four a2t tests in
-   `target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`
+   `06_target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`
    (borrowed flat-record precedent: `flat_record_lane_projects_source_rooted_borrow_and_replays`,
    :363) — owned whole-place replay across native targets, stored view and
    stored descriptor field replay, owned-from-call-result affine home, and

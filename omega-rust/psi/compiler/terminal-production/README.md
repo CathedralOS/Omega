@@ -510,7 +510,7 @@ local write order, one-unit fuel resumption, and exact source/contract rejection
 Array state transfers, borrowed/projected payloads, and boundary-provider array
 payloads still need their complete value/storage paths. Native constructors and
 direct array results now use the ordinary aggregate graph; see the
-[native transport owner](../../../omega/pipeline/target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow).
+[native transport owner](../../../omega/pipeline/06_target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow).
 The transitive example also reaches native owned-argument and incoming-result
 transport through those shared homes; the native differential
 `scalar_array_results` test loads this complete source, publishes all four

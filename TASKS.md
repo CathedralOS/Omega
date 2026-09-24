@@ -868,7 +868,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
 
   Carry exclusion envelopes through ordinary custody in
-  `target-operations-to-selected-instructions/src/legalization`, image emission,
+  `06_target-operations-to-selected-instructions/src/legalization`, image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
   Preserve `compiler --test build_behavior_exclusions -E 'test(sink_composition)'`:
   it covers retained native artifacts, host execution, source-free replay, and
@@ -1623,7 +1623,7 @@ syntax and other terminal services are not prerequisites.
     `narrow_i16_to_i8_exact`, whose sub-64-bit signed-to-signed
     `IntegerExactCast` lies outside `exact_cast_has_native_carriers`
     (`Selection(Legalization(SourceCustodyMismatch))` in
-    `target-operations-to-selected-instructions/.../nodes.rs`);
+    `06_target-operations-to-selected-instructions/.../nodes.rs`);
     `runtime_numeric_cross_signed_conversion_surface` stops at "direct scalar
     call has no matching checked crash-refinement row" (the `clamp` call
     inside the cross-signed saturating narrowings); `runtime_addr_field_exit`
@@ -2519,7 +2519,7 @@ syntax and other terminal services are not prerequisites.
     natural-ranks canaries run. The other four stop later:
     `runtime_dispatch_float_terminal_exit` in native legalization (the mixed
     structural-scalar ABI admits only Boolean and integer results,
-    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
+    `06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
     `runtime_dispatch_result_enum_case_exit` at c2l
     `expression_preparation/bindings/structural_fields` ("runtime field
     observation requires a record-only field path", a `Verdict` case result

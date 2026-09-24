@@ -180,8 +180,8 @@
       "item": "EXACT-SELECTION-FAMILIES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection",
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/optimized"
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection",
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized"
       ],
       "suggested_first_slice": "Add one exact address-mode, compare/branch, extension, or constant-materialization selection family with independent validation."
     },
