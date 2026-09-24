@@ -189,6 +189,23 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   broader changing-reference transfers; those need represented loans/aliasing
   and ranking substitution, not a parameter-count-only relaxation.
 
+- **ROOT-REACH-REPLAY-PARITY.** (new-scope) The optimizer's root service
+  reach replay disagrees with Terminal verification.
+  `optimization-unit-semantics` `derive_root_service_reach` requires an
+  installation-bound boundary's published ceiling to equal the dependency's
+  upper bound, never counts the boundary's fixed service as concrete, and omits
+  each machine's declared reach, which `PsiOptimizationFunction` does not
+  carry. `terminal-verifier` `validate_root_service_reach_exact` and
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md) define the
+  ceiling as the fixed nominal service united with the bound, keep that fixed
+  service concrete, and count declared reach. An explicit bounded trait call
+  therefore verifies in Terminal and is rejected by optimizer replay with
+  `RootInstallationReachBoundaryMismatch`. The replay's own baseline,
+  `installation_root_service_unit`, still has the retired nominal-binder shape.
+  Acceptance: native-differential
+  `terminal_psi_runnable::source_bounded_root_service_reach_reaches_verified_optimizer_admission`
+  passes, and the replay baseline matches the spec's shape.
+
 - **GENERAL-LICM.** Extend invariant motion beyond the authenticated
   shared-source preheader in
   `abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
