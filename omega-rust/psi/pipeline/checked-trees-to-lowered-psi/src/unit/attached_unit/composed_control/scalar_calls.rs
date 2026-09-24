@@ -71,21 +71,24 @@ fn selected_roots(
                 }
             }
         }
-        if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
-            &state.terminator
-        {
-            for arm in arms {
-                if let Some(root) = checked.facts.values.scalar_computations.root_at(
-                    state.state,
-                    arm.successor.statement_ordinal,
-                    CheckedScalarExpressionRole::Guard,
-                ) {
-                    if root.machine != machine {
-                        return unsupported("ordered jump guard changed its computation owner");
-                    }
-                    pending.push(root.root);
-                }
+        // Two-way and ordered graph guards name their computation root on the
+        // plan; admission rejoins that handle to its unique Guard coordinate.
+        match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Conditional {
+                guard: CheckedCallScalarArgument::Computation(root),
+                ..
             }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                guard: CheckedCallScalarArgument::Computation(root),
+                ..
+            } => pending.push(*root),
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
+                pending.extend(arms.iter().filter_map(|arm| match arm.guard {
+                    CheckedCallScalarArgument::Computation(root) => Some(root),
+                    CheckedCallScalarArgument::Pure(_) => None,
+                }));
+            }
+            _ => {}
         }
         for operation in state.operation_dependencies() {
             if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {

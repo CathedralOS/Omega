@@ -729,7 +729,7 @@ pub(crate) fn lower_unit_closure(
             body: admitted,
         } = admitted
         {
-            let (machine, mut occurrences, mut invariants) = composed_control::callable::emit(
+            let (machine, occurrences, mut invariants) = composed_control::callable::emit(
                 checked,
                 source_plan,
                 admitted,
@@ -759,7 +759,12 @@ pub(crate) fn lower_unit_closure(
                 },
             )?;
             machines.push(machine);
-            source_call_occurrences.append(&mut occurrences);
+            source_call_occurrences.extend(occurrences.source_calls);
+            selected_ieee_float_fma_occurrences.extend(occurrences.selected_ieee_float_fmas);
+            selected_ieee_float_comparison_occurrences
+                .extend(occurrences.selected_ieee_float_comparisons);
+            selected_integer_comparison_occurrences
+                .extend(occurrences.selected_integer_comparisons);
             scalar_block_invariants.append(&mut invariants);
             continue;
         }

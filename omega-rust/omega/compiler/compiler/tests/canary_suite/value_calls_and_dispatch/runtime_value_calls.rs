@@ -147,6 +147,38 @@ fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guard_call_vs_call_exit_canary_runs() {
+    let canary = pass_canary(fixture_roster::RUNTIME_GUARD_CALL_VS_CALL_EXIT);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .expect("call-vs-call guard canary should compile to checked trees");
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None, "should interpret cleanly");
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "interpreter must take the fallback edge for 10 != 12 and the true edge for 6 == 6"
+    );
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-guard-call-vs-call-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("call-vs-call guard canary should compile");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "call-vs-call guard canary",
+        "a guard over two value-call results should select the same edges natively",
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_view_linked_input_unrelated_ref_write_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_VIEW_LINKED_INPUT_UNRELATED_REF_WRITE_EXIT);
     let build_dir = std::env::temp_dir().join(format!(

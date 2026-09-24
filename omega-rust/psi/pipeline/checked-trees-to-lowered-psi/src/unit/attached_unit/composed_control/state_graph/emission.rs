@@ -3,8 +3,7 @@
 //! `StateGraphEmission::emit_state`, then assembles the machine from the
 //! blocks, ranks and places that walk accumulated.
 use super::super::super::super::{
-    LoweredSourceCallOccurrence, MachineId, StructuralArgument, StructuralParameterDeclaration,
-    block_id,
+    MachineId, StructuralArgument, StructuralParameterDeclaration, block_id,
 };
 use super::super::super::{
     Block, MachineContract, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
@@ -53,7 +52,7 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
-    occurrences: Vec<LoweredSourceCallOccurrence>,
+    occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
 }
@@ -70,7 +69,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
 ) -> Result<
     (
         TerminalMachine,
-        Vec<LoweredSourceCallOccurrence>,
+        super::super::ComposedOccurrences,
         Vec<terminal_psi::ScalarBlockInvariant>,
     ),
     LoweringError,
@@ -292,7 +291,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             },
         });
     }
-    let occurrences = Vec::new();
+    let occurrences = super::super::ComposedOccurrences::default();
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
     let mut emission = StateGraphEmission {

@@ -244,9 +244,11 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 else {
                     panic!("conditional");
                 };
-                *guard = checked_trees::CheckedScalarExpression::Boolean(Box::new(
-                    checked_trees::CheckedBooleanExpression::Constant(false),
-                ));
+                *guard = checked_trees::CheckedCallScalarArgument::Pure(
+                    checked_trees::CheckedScalarExpression::Boolean(Box::new(
+                        checked_trees::CheckedBooleanExpression::Constant(false),
+                    )),
+                );
             }
             2 => {
                 let checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {

@@ -66,7 +66,9 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
     else {
         panic!("the carrier guard survives as a conditional terminator");
     };
-    let CheckedScalarExpression::Boolean(guard) = guard else {
+    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(guard)) =
+        guard
+    else {
         panic!("the composed guard stays boolean");
     };
     let conjuncts = conjuncts(guard);

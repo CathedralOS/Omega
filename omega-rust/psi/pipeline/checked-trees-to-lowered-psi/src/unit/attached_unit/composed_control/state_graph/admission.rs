@@ -412,35 +412,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
                 edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
-                if checked.facts.values.scalar_expressions.expression_at(
-                    state.state,
-                    u32::try_from(terminator_ordinal)
-                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
-                    CheckedScalarExpressionRole::Guard,
-                ) != Some(guard)
-                {
-                    return unsupported("Unit graph guard disagrees with checked expression");
+                if when_true.statement_ordinal as usize != terminator_ordinal {
+                    return unsupported("Unit graph guard drifted from its authored ordinal");
                 }
-                let (binding, _) = checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(
-                        state.state,
-                        when_true.statement_ordinal,
-                        CheckedScalarExpressionRole::Guard,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph guard has no exact source binding",
-                    ))?;
-                crate::expression_preparation::source_custody::validate_pure(
+                validate_guard(
                     checked,
-                    binding,
-                    ScalarType::Boolean,
+                    plan.machine,
+                    state.state,
+                    terminator_ordinal,
+                    guard,
                 )?;
-                if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
-                    return unsupported("Unit graph guard is not Boolean");
-                }
                 edges::validate(
                     checked,
                     plan,
@@ -473,15 +454,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 ],
             ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
                 edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
-                if checked.facts.values.scalar_expressions.expression_at(
+                validate_guard(
+                    checked,
+                    plan.machine,
                     state.state,
-                    u32::try_from(terminator_ordinal)
-                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
-                    CheckedScalarExpressionRole::Guard,
-                ) != Some(guard)
-                {
-                    return unsupported("Unit graph guard disagrees with checked expression");
-                }
+                    terminator_ordinal,
+                    guard,
+                )?;
                 let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result: return_result,
                     ..
@@ -502,26 +481,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     return unsupported(
                         "Unit graph conditional return drifted from its authored ordinals",
                     );
-                }
-                let (binding, _) = checked
-                    .facts
-                    .values
-                    .scalar_expressions
-                    .bound_expression_at(
-                        state.state,
-                        terminator_ordinal as u32,
-                        CheckedScalarExpressionRole::Guard,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit graph guard has no exact source binding",
-                    ))?;
-                crate::expression_preparation::source_custody::validate_pure(
-                    checked,
-                    binding,
-                    ScalarType::Boolean,
-                )?;
-                if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
-                    return unsupported("Unit graph guard is not Boolean");
                 }
                 edges::validate(
                     checked,
@@ -586,34 +545,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     {
                         return unsupported("guarded jump arm drifted from the shared roster");
                     }
-                    if checked.facts.values.scalar_expressions.expression_at(
-                        state.state,
-                        statement_ordinal,
-                        CheckedScalarExpressionRole::Guard,
-                    ) != Some(&arm.guard)
-                    {
-                        return unsupported("guarded jump guard disagrees with checked expression");
+                    if arm.successor.statement_ordinal != statement_ordinal {
+                        return unsupported("guarded jump guard drifted from its authored ordinal");
                     }
-                    let (binding, _) = checked
-                        .facts
-                        .values
-                        .scalar_expressions
-                        .bound_expression_at(
-                            state.state,
-                            arm.successor.statement_ordinal,
-                            CheckedScalarExpressionRole::Guard,
-                        )
-                        .ok_or(LoweringError::Unsupported(
-                            "guarded jump guard has no exact source binding",
-                        ))?;
-                    crate::expression_preparation::source_custody::validate_pure(
-                        checked,
-                        binding,
-                        ScalarType::Boolean,
-                    )?;
-                    if !matches!(arm.guard, CheckedScalarExpression::Boolean(_)) {
-                        return unsupported("guarded jump guard is not Boolean");
-                    }
+                    validate_guard(checked, plan.machine, state.state, ordinal, &arm.guard)?;
                     edges::validate(
                         checked,
                         plan,
@@ -727,4 +662,67 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         boundaries,
         internal_targets,
     })
+}
+
+/// A graph guard names exactly the value its `Guard` coordinate retains: the
+/// pure Boolean expression with its source binding, or the unique Boolean
+/// computation root this machine owns there. Emission evaluates that root once
+/// through the shared computation expander, which rejoins its source custody.
+fn validate_guard(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    ordinal: usize,
+    guard: &checked_trees::CheckedCallScalarArgument,
+) -> Result<(), LoweringError> {
+    let statement = u32::try_from(ordinal)
+        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?;
+    let role = CheckedScalarExpressionRole::Guard;
+    let values = &checked.facts.values;
+    let pure = values
+        .scalar_expressions
+        .expression_at(state, statement, role);
+    match guard {
+        checked_trees::CheckedCallScalarArgument::Pure(expression) => {
+            if pure != Some(expression) {
+                return unsupported("Unit graph guard disagrees with checked expression");
+            }
+            let (binding, _) = values
+                .scalar_expressions
+                .bound_expression_at(state, statement, role)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph guard has no exact source binding",
+                ))?;
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                ScalarType::Boolean,
+            )?;
+            if !matches!(expression, CheckedScalarExpression::Boolean(_)) {
+                return unsupported("Unit graph guard is not Boolean");
+            }
+        }
+        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+            if pure.is_some() {
+                return unsupported("Unit graph guard computation competes with a pure guard");
+            }
+            let computations = &values.scalar_computations;
+            let root =
+                computations
+                    .root_at(state, statement, role)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph guard has no unique computation root",
+                    ))?;
+            if root.machine != machine
+                || root.root != *handle
+                || !computations.nodes.is_valid(*handle)
+            {
+                return unsupported("Unit graph guard disagrees with its computation root");
+            }
+            if computations.nodes.get(*handle).primitive_type != PrimitiveType::Bool {
+                return unsupported("Unit graph guard computation is not Boolean");
+            }
+        }
+    }
+    Ok(())
 }

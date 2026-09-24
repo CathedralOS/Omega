@@ -1,0 +1,30 @@
+// A guard comparing two value calls (`dbl(a) == dbl(b)`) has no pure Boolean
+// form: its checked meaning is one computation root that calls both operands
+// in authored order and then compares their results. The composed Unit graph
+// evaluates that root once before choosing an edge. The unequal pair must
+// take the fallback edge and the equal pair the true edge; either wrong edge
+// exits with its own code.
+//
+// Expected: 10 != 12 falls through, 6 == 6 holds -> exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine dbl(x: i32 in Wrapping) -> i32 in Wrapping {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition dbl(5) == dbl(6) { true -> bad(71) _ -> equal_pair() }
+
+    state equal_pair(&mut self) {
+        transition dbl(3) == dbl(3) { true -> good() _ -> bad(72) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

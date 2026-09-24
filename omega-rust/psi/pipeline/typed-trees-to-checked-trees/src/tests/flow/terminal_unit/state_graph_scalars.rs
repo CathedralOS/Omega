@@ -438,7 +438,9 @@ fn state_graph_composes_a_field_equality_guard_inside_a_named_state() {
     };
     assert_eq!(when_true.target_state, have.state);
     assert_eq!(when_false.target_state, stop.state);
-    let CheckedScalarExpression::Boolean(boolean) = guard else {
+    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(boolean)) =
+        guard
+    else {
         panic!("the equality guard is a Boolean scalar: {guard:?}")
     };
     let checked_trees::CheckedBooleanExpression::Equal { left, right } = boolean.as_ref() else {
@@ -512,7 +514,9 @@ fn state_graph_composes_a_constant_indexed_member_guard_inside_a_named_state() {
     };
     assert_eq!(when_true.target_state, have.state);
     assert_eq!(when_false.target_state, stop.state);
-    let CheckedScalarExpression::Boolean(boolean) = guard else {
+    let checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Boolean(boolean)) =
+        guard
+    else {
         panic!("the indexed guard is a Boolean scalar: {guard:?}")
     };
     let checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } =
@@ -541,4 +545,95 @@ fn state_graph_composes_a_constant_indexed_member_guard_inside_a_named_state() {
         ]
     ));
     let _ = entry;
+}
+
+#[test]
+fn state_graph_guard_names_the_selected_comparison_computation_root() {
+    // A selected IEEE comparison has no pure Boolean form: its meaning is
+    // the exact selected requirement, retained as a scalar computation. The
+    // conditional pair names that Guard coordinate's unique root rather than
+    // omitting the whole machine.
+    let checked = checked(
+        r#"
+        boundary operator < Float::less(left: f64, right: f64) -> bool;
+        data Helper {}
+        machine Helper::quiet(code: i32) {}
+        machine choose(left: f64, right: f64) {
+            transition left < right {
+                true -> below()
+                _ -> above()
+            }
+            state below() { Helper::quiet(21); }
+            state above() { Helper::quiet(22); }
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "choose");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "the selected float guard composes: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions
+            )
+        });
+    let entry = &plan.states[0];
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        guard: checked_trees::CheckedCallScalarArgument::Computation(guard),
+        when_true,
+        ..
+    } = &entry.terminator
+    else {
+        panic!(
+            "the selected float guard is a computed conditional: {:?}",
+            entry.terminator
+        )
+    };
+    let computations = &checked.facts.values.scalar_computations;
+    let root = computations
+        .root_at(
+            entry.state,
+            when_true.statement_ordinal,
+            CheckedScalarExpressionRole::Guard,
+        )
+        .expect("the guard coordinate owns one computation root");
+    assert_eq!(root.root, *guard);
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                entry.state,
+                when_true.statement_ordinal,
+                CheckedScalarExpressionRole::Guard
+            )
+            .is_none(),
+        "a selected comparison has no competing pure guard"
+    );
+    // The authored `transition left < right { true -> .. }` subject is the
+    // Boolean equality of the selected comparison with `true`.
+    let mut pending = vec![*guard];
+    let mut selected = 0;
+    while let Some(node) = pending.pop() {
+        match &computations.nodes.get(node).kind {
+            checked_trees::CheckedScalarComputationKind::SelectedComparison { .. } => {
+                selected += 1;
+            }
+            checked_trees::CheckedScalarComputationKind::Apply { operands, .. } => {
+                pending.extend(
+                    computations
+                        .operands
+                        .span_or_empty(*operands)
+                        .iter()
+                        .copied(),
+                );
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(selected, 1, "one selected comparison feeds the guard");
 }

@@ -1827,14 +1827,6 @@
   ]
  },
  {
-  "fixture": "fail/calls/guard_call_vs_call_rejected",
-  "tier": "fail",
-  "status": "checked",
-  "millis": 818,
-  "expected_satisfied": false,
-  "diagnostics": []
- },
- {
   "fixture": "fail/calls/immutable_arg_for_mut_param_rejected",
   "tier": "fail",
   "status": "rejected",

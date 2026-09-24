@@ -1,8 +1,7 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
 use super::super::super::{
-    BoundaryMachineId, LoweredSourceCallOccurrence, MachineId, ServiceDeclaration, ServiceId,
-    ServiceReachId, StructuralDomainDeclaration, StructuralParameterDeclaration,
-    StructuralTypeDeclaration,
+    BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId,
+    StructuralDomainDeclaration, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::super::bodies::UnitPlans;
 use super::super::{
@@ -74,7 +73,7 @@ pub(in crate::unit::attached_unit) fn emit(
 ) -> Result<
     (
         TerminalMachine,
-        Vec<LoweredSourceCallOccurrence>,
+        super::ComposedOccurrences,
         Vec<terminal_psi::ScalarBlockInvariant>,
     ),
     LoweringError,

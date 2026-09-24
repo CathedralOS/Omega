@@ -2,8 +2,9 @@
 //! closed-sum successors.
 
 use crate::checked_trees::flow::terminal::{
-    CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBranchDestination,
-    CheckedScalarGuardedExit, CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
+    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding,
+    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
@@ -122,12 +123,13 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         successor: CheckedStructuralControlSuccessorPlan,
     },
     Conditional {
-        /// Exact checked scalar expression recorded under the `Guard` role at
-        /// `when_true.statement_ordinal`. The lane admits any retained pure
-        /// Boolean expression — parameter reads, closed comparisons, locals,
-        /// and structural projections alike — the same contract the
-        /// `GuardedJumps` arm roster carries.
-        guard: CheckedScalarExpression,
+        /// Exact checked Boolean value recorded under the `Guard` role at
+        /// `when_true.statement_ordinal`: either the retained pure expression
+        /// (parameter reads, closed comparisons, locals, structural
+        /// projections) or the unique computation root that coordinate owns
+        /// (selected comparisons, calls), evaluated once before either edge.
+        /// The `GuardedJumps` arm roster carries the same contract.
+        guard: CheckedCallScalarArgument,
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
@@ -141,7 +143,7 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     /// whose two arms are both `(expression)` targets checks as `Guarded`,
     /// never this variant.)
     ConditionalReturn {
-        guard: CheckedScalarExpression,
+        guard: CheckedCallScalarArgument,
         jump: CheckedStructuralControlSuccessorPlan,
         return_arm: CheckedUnitEffectOperationPlan,
         return_when_true: bool,
@@ -192,9 +194,10 @@ impl CheckedComposedUnitControlStatePlan {
 /// expression the authored guard selected and the selected edge's custody plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedGuardedJumpPlan {
-    /// Exact checked scalar expression at `successor.statement_ordinal` under
-    /// the `Guard` role. The current family admits pure Boolean expressions.
-    pub guard: CheckedScalarExpression,
+    /// Exact checked Boolean value at `successor.statement_ordinal` under the
+    /// `Guard` role: the retained pure expression or that coordinate's unique
+    /// computation root.
+    pub guard: CheckedCallScalarArgument,
     pub successor: CheckedStructuralControlSuccessorPlan,
 }
 

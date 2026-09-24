@@ -7,6 +7,7 @@ pub(crate) const RUNTIME_MUTABLE_CALL_BEFORE_TRANSITION_ARGS_EXIT: &str =
     "calls/runtime_mutable_call_before_transition_args_exit";
 pub(crate) const RUNTIME_REFERENCED_LOCAL_OUTLIVES_SIBLING_GUARD_CALL_EXIT: &str =
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit";
+pub(crate) const RUNTIME_GUARD_CALL_VS_CALL_EXIT: &str = "calls/runtime_guard_call_vs_call_exit";
 pub(crate) const RUNTIME_VIEW_LINKED_INPUT_UNRELATED_REF_WRITE_EXIT: &str =
     "borrow/runtime_view_linked_input_unrelated_ref_write_exit";
 pub(crate) const RUNTIME_VALUE_CALL_SINGLE_EXECUTION_EXIT: &str =
@@ -218,6 +219,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_INDEXED_COPY_AGGREGATE_HANDOFF_EXIT,
     RUNTIME_MUTABLE_CALL_BEFORE_TRANSITION_ARGS_EXIT,
     RUNTIME_REFERENCED_LOCAL_OUTLIVES_SIBLING_GUARD_CALL_EXIT,
+    RUNTIME_GUARD_CALL_VS_CALL_EXIT,
     RUNTIME_VIEW_LINKED_INPUT_UNRELATED_REF_WRITE_EXIT,
     RUNTIME_VALUE_CALL_SINGLE_EXECUTION_EXIT,
     RUNTIME_EXPLICIT_DISCARD_EXECUTES_EXIT,
