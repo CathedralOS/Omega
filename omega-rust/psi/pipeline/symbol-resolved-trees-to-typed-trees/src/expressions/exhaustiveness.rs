@@ -530,6 +530,31 @@ fn format_assignment(
     }
 }
 
+/// The value of a guard built only from Boolean literals: a literal, or an
+/// equality of two literals. Anything that reads a place or calls stays
+/// undecided.
+pub(crate) fn closed_boolean_guard(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    let expressions = &program.tables.bodies.expressions;
+    match expressions.expression(expression) {
+        ExpressionNode::Boolean(value) => Some(*value),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            match (
+                expressions.expression(binary.left),
+                expressions.expression(binary.right),
+            ) {
+                (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => {
+                    Some(left == right)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> ArmShape {
     let TransitionGuardNode::When(expression) = guard else {
         return ArmShape::Default;
@@ -546,13 +571,12 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
                 ArmShape::UncountedCase(claim)
             };
         }
-        // A literal `true` guard is always satisfied (`transition { true ->
-        // main() }`); it closes the dispatch like `_`. A literal `false`
-        // never matches and contributes nothing.
-        if let ExpressionNode::Boolean(value) =
-            program.tables.bodies.expressions.expression(conjunct)
-        {
-            return if *value {
+        // A closed Boolean guard is decided here: `true` and `true == true`
+        // (the desugar of `transition true { true -> .. }`) always match and
+        // close the dispatch like `_`; a closed false never matches and
+        // contributes nothing.
+        if let Some(value) = closed_boolean_guard(program, conjunct) {
+            return if value {
                 ArmShape::Default
             } else {
                 ArmShape::Opaque
@@ -565,18 +589,6 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
             program.tables.bodies.expressions.expression(conjunct)
         {
             if binary.operator == BinaryOperator::Equal {
-                // `true == true` (the desugar of `transition true { true ->
-                // .. }`) is constant and always satisfied: Default.
-                if let (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) = (
-                    program.tables.bodies.expressions.expression(binary.left),
-                    program.tables.bodies.expressions.expression(binary.right),
-                ) {
-                    return if left == right {
-                        ArmShape::Default
-                    } else {
-                        ArmShape::Opaque
-                    };
-                }
                 if let ExpressionNode::Boolean(value) =
                     program.tables.bodies.expressions.expression(binary.right)
                 {

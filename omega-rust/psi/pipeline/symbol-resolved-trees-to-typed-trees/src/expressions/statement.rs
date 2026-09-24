@@ -14,11 +14,13 @@ use self::calls::lower_call_statement;
 use self::hoist_temp_type::infer_hoist_temp_type;
 use self::transitions::lower_transition_statement;
 
+/// `closes_run` says no transition follows this statement in its state.
 pub(crate) fn lower_statement_node(
     lowerer: &mut Lowerer,
     attached_data: Option<&resolved::name::DiagnosticName>,
     state: &resolved::state::State,
     statement: &resolved::statement::StatementNode,
+    closes_run: bool,
 ) -> Result<typed::statement::StatementNode, Diagnostic> {
     match statement {
         resolved::statement::StatementNode::RootBinding(binding) => Ok(
@@ -143,7 +145,7 @@ pub(crate) fn lower_statement_node(
         }
         resolved::statement::StatementNode::Transition(transition) => {
             Ok(typed::statement::StatementNode::Transition(
-                lower_transition_statement(lowerer, transition)?,
+                lower_transition_statement(lowerer, transition, closes_run)?,
             ))
         }
     }

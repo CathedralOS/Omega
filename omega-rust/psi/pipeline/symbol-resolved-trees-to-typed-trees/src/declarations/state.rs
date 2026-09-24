@@ -124,13 +124,17 @@ pub(crate) fn lower_state(
             .push_state_contract(&mut typed_state, contract);
     }
 
-    for statement in lowerer
+    let statements = lowerer
         .source_trees
         .tables
         .bodies
         .statements
-        .statements(state.statement_nodes)
-    {
+        .statements(state.statement_nodes);
+    for (index, statement) in statements.iter().enumerate() {
+        let closes_run = !matches!(
+            statements.get(index + 1),
+            Some(resolved::statement::StatementNode::Transition(_))
+        );
         if let resolved::statement::StatementNode::ProofOutputBindingStatement(package) = statement
         {
             let call =
@@ -183,7 +187,7 @@ pub(crate) fn lower_state(
                 });
             continue;
         }
-        let statement = lower_statement_node(lowerer, attached_data, state, statement)?;
+        let statement = lower_statement_node(lowerer, attached_data, state, statement, closes_run)?;
         lowerer
             .typed_trees
             .statement_table
