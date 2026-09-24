@@ -14,7 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
-    BlockId, PlaceId, Proposition, ScalarTerm, StructuralPlaceKind, ValueId,
+    BlockId, IntegerValue, PlaceId, Proposition, ScalarTerm, StructuralPlaceKind, ValueId,
 };
 use terminal_psi::{ScalarBlockInvariant, TerminalMachine, TerminalModule, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
@@ -151,15 +151,16 @@ pub(super) fn candidates(
                         .filter(|guard| *guard != predicate && scope.validate(guard).is_ok())
                         .cloned()
                         .collect::<Vec<_>>();
+                    let conclusion = without_refuted_alternatives(predicate.clone(), &guards);
                     let predicate = match guards.as_slice() {
-                        [] => predicate.clone(),
+                        [] => conclusion,
                         [guard] => Proposition::Implication {
                             premise: Box::new(guard.clone()),
-                            conclusion: Box::new(predicate.clone()),
+                            conclusion: Box::new(conclusion),
                         },
                         _ => Proposition::Implication {
                             premise: Box::new(Proposition::Conjunction(guards)),
-                            conclusion: Box::new(predicate.clone()),
+                            conclusion: Box::new(conclusion),
                         },
                     };
                     // The exact invariant telescope decides scope: a predicate
@@ -183,6 +184,80 @@ pub(super) fn candidates(
     candidates
 }
 
+/// A carrier question often states every way an operation can be defined
+/// (`d <= -2 || 1 <= d || ...` for a remainder's divisor), while the retained
+/// guards already fix which alternatives an arrival can take. Drop the
+/// alternatives a guard's literal bound contradicts: under the premise the
+/// proposal is unchanged, and the surviving alternative is the atomic bound
+/// the operation's own proof consumes. A disjunction the guards refute
+/// entirely stays as proposed for the ordinary arrival check to decide.
+fn without_refuted_alternatives(predicate: Proposition, guards: &[Proposition]) -> Proposition {
+    let Proposition::Disjunction(alternatives) = predicate else {
+        return predicate;
+    };
+    let mut surviving = alternatives
+        .iter()
+        .filter(|alternative| !refuted(alternative, guards))
+        .cloned()
+        .collect::<Vec<_>>();
+    match surviving.len() {
+        0 => Proposition::Disjunction(alternatives),
+        1 => surviving.pop().expect("one surviving alternative"),
+        _ => Proposition::Disjunction(surviving),
+    }
+}
+
+fn refuted(alternative: &Proposition, guards: &[Proposition]) -> bool {
+    if let Proposition::Conjunction(members) = alternative {
+        return members.iter().any(|member| refuted(member, guards));
+    }
+    let Some((field, bound)) = literal_bound(alternative) else {
+        return false;
+    };
+    guards
+        .iter()
+        .filter_map(literal_bound)
+        .any(|(guarded, guard)| {
+            guarded == field
+                && match (bound, guard) {
+                    (LiteralBound::AtMost(upper), LiteralBound::AtLeast(lower))
+                    | (LiteralBound::AtLeast(lower), LiteralBound::AtMost(upper)) => upper < lower,
+                    _ => false,
+                }
+        })
+}
+
+#[derive(Clone, Copy)]
+enum LiteralBound {
+    AtLeast(i128),
+    AtMost(i128),
+}
+
+/// An observed field compared with a literal, as one inclusive bound.
+fn literal_bound(relation: &Proposition) -> Option<(&ScalarTerm, LiteralBound)> {
+    let (left, right, strict) = match relation {
+        Proposition::LessOrEqual(left, right) => (left, right, false),
+        Proposition::LessThan(left, right) => (left, right, true),
+        _ => return None,
+    };
+    let literal = |term: &ScalarTerm| match term.integer_value()?.1 {
+        IntegerValue::Signed(value) => Some(value),
+        IntegerValue::Unsigned(value) => i128::try_from(value).ok(),
+    };
+    let step = i128::from(strict);
+    match (left, right) {
+        (field @ ScalarTerm::IntegerField { .. }, bound) => Some((
+            field,
+            LiteralBound::AtMost(literal(bound)?.checked_sub(step)?),
+        )),
+        (bound, field @ ScalarTerm::IntegerField { .. }) => Some((
+            field,
+            LiteralBound::AtLeast(literal(bound)?.checked_add(step)?),
+        )),
+        _ => None,
+    }
+}
+
 fn literal_comparison(proposition: &Proposition) -> bool {
     match proposition {
         Proposition::Equal(left, right)
@@ -195,23 +270,36 @@ fn literal_comparison(proposition: &Proposition) -> bool {
 }
 
 /// Transport one goal's value endpoints through the arrival's exact field-read
-/// equations. Each member of a conjunction is an independent claim; a
-/// disjunction transports only when every alternative names observed storage,
-/// because a weaker remainder would change the proposed question.
+/// equations. Each member of a conjunction is an independent claim; any other
+/// connective transports whole, because a weaker remainder would change the
+/// proposed question.
 fn transported(goal: &Proposition, equations: &FieldEquations<'_>) -> Option<Vec<Proposition>> {
     match goal {
         Proposition::Conjunction(members) => Some(
             members
                 .iter()
-                .filter_map(|member| transport_relation(member, equations))
+                .filter_map(|member| transport_claim(member, equations))
                 .collect(),
         ),
+        _ => transport_claim(goal, equations).map(|predicate| vec![predicate]),
+    }
+}
+
+/// A disjunction transports only when every alternative names observed
+/// storage, and a conjunction inside one only when every member does.
+fn transport_claim(claim: &Proposition, equations: &FieldEquations<'_>) -> Option<Proposition> {
+    match claim {
+        Proposition::Conjunction(members) => members
+            .iter()
+            .map(|member| transport_claim(member, equations))
+            .collect::<Option<Vec<_>>>()
+            .map(Proposition::Conjunction),
         Proposition::Disjunction(members) => members
             .iter()
-            .map(|member| transport_relation(member, equations))
+            .map(|member| transport_claim(member, equations))
             .collect::<Option<Vec<_>>>()
-            .map(|members| vec![Proposition::Disjunction(members)]),
-        _ => transport_relation(goal, equations).map(|predicate| vec![predicate]),
+            .map(Proposition::Disjunction),
+        _ => transport_relation(claim, equations),
     }
 }
 
@@ -236,7 +324,10 @@ fn transport_relation(
             _ => term.clone(),
         })
     };
-    let proposition = match proposition {
+    // Operation questions state carrier bounds in mathematical integers; one
+    // value against literals is the same typed relation over its carrier.
+    let scalar = crate::proofs::contract_predicates::scalar_relation_for_math(proposition);
+    let proposition = match scalar.as_ref().unwrap_or(proposition) {
         Proposition::Equal(left, right) => Proposition::Equal(endpoint(left)?, endpoint(right)?),
         Proposition::LessThan(left, right) => {
             Proposition::LessThan(endpoint(left)?, endpoint(right)?)

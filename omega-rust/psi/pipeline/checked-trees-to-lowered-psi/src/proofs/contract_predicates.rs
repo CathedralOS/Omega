@@ -4,6 +4,7 @@ use super::{
     CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression, LoweringError,
     Proposition, ScalarTerm, unsupported,
 };
+use semantic_vocabulary::{IntegerMathTerm, ScalarType};
 pub(crate) trait PredicateTerms {
     fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
@@ -218,4 +219,42 @@ pub(crate) fn connective(
     } else {
         Ok(Proposition::Disjunction(parts))
     }
+}
+
+/// The same relation over one fixed-width carrier value: a math relation
+/// between a `MathValue` and literals that fit its carrier is exactly the typed
+/// scalar relation, so producers that speak only scalar terms can read it.
+/// Any other math term (arithmetic, two distinct values, an unrepresentable
+/// literal) has no scalar spelling and stays out.
+pub(crate) fn scalar_relation_for_math(goal: &Proposition) -> Option<Proposition> {
+    let (kind, left, right) = match goal {
+        Proposition::IntegerMathEqual(left, right) => (0, left, right),
+        Proposition::IntegerMathLessThan(left, right) => (1, left, right),
+        Proposition::IntegerMathLessOrEqual(left, right) => (2, left, right),
+        _ => return None,
+    };
+    let (source_type, value) = match (left, right) {
+        (IntegerMathTerm::MathValue { source_type, value }, _)
+        | (_, IntegerMathTerm::MathValue { source_type, value }) => (*source_type, *value),
+        _ => return None,
+    };
+    let convert = |term: &IntegerMathTerm| match term {
+        IntegerMathTerm::MathValue {
+            source_type: term_type,
+            value: term_value,
+        } if *term_type == source_type && *term_value == value => {
+            Some(ScalarTerm::value(value, ScalarType::Integer(source_type)))
+        }
+        IntegerMathTerm::IntegerLiteral(literal) => {
+            ScalarTerm::integer(source_type, literal.as_integer_value(source_type)?).ok()
+        }
+        _ => None,
+    };
+    let left = convert(left)?;
+    let right = convert(right)?;
+    Some(match kind {
+        0 => Proposition::Equal(left, right),
+        1 => Proposition::LessThan(left, right),
+        _ => Proposition::LessOrEqual(left, right),
+    })
 }

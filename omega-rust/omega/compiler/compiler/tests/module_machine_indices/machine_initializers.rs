@@ -239,6 +239,35 @@ fn machine_constant_customer_publishes_and_executes_without_source() {
 }
 
 #[test]
+fn machine_constant_initializers_evaluate_against_the_selected_target_program() {
+    // Build-time evaluation checks its probe program whole. `uses_leaf` calls
+    // a per-target leaf, so the probe resolves only if target selection has
+    // already made the host's row an ordinary machine.
+    let tree = Sources::new();
+    let root = tree.package("root");
+    let leaves = [
+        "macos_arm64",
+        "macos_x86_64",
+        "linux_x86_64",
+        "linux_arm64",
+        "windows_x86_64",
+    ]
+    .map(|target| format!("{target} machine leaf() -> u64 {{ 1 }}"))
+    .join("\n");
+    Sources::write(
+        root.join("main.omg"),
+        &format!(
+            "{leaves}
+            machine uses_leaf() -> u64 {{ leaf() }}
+            machine size() -> u64 {{ 7 }}
+            const SIZE: u64 = size();
+            machine read() -> u64 {{ SIZE }}"
+        ),
+    );
+    assert_source_free_result(compile(&root, root_inputs(&root)), "read", 7);
+}
+
+#[test]
 fn machine_constant_closure_preserves_module_selection_and_index_identity() {
     let tree = Sources::new();
     let root = tree.package("root");
