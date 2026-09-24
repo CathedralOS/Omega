@@ -441,7 +441,7 @@ pub(crate) fn expression_type_reference(
     }
 }
 
-fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigInt)> {
+pub(crate) fn primitive_range(primitive: PrimitiveType) -> Option<(BigInt, BigInt)> {
     let (minimum, maximum) = match primitive {
         PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
         PrimitiveType::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),

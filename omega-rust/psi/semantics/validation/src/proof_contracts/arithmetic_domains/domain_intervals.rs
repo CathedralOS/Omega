@@ -60,6 +60,27 @@ pub fn exact_declared_domain_interval(
     .then_some((interval.minimum, interval.maximum))
 }
 
+/// [`exact_declared_domain_interval`] closed over its integer carrier: an
+/// unstated side is the carrier's extreme, and a stated side never widens
+/// past it.
+pub fn exact_declared_domain_carrier_interval(
+    program: &typed_trees::TypedTrees,
+    carrier: typed_trees::types::PrimitiveType,
+    domain: &typed_trees::types::DomainConstraint,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    let (minimum, maximum) = exact_declared_domain_interval(program, domain)?;
+    let (carrier_minimum, carrier_maximum) =
+        crate::proof_contracts::proof_embeddings::primitive_range(carrier)?;
+    Some((
+        minimum.map_or(carrier_minimum.clone(), |minimum| {
+            minimum.max(carrier_minimum)
+        }),
+        maximum.map_or(carrier_maximum.clone(), |maximum| {
+            maximum.min(carrier_maximum)
+        }),
+    ))
+}
+
 /// The recognized sides of a declared domain's predicates, and whether every
 /// predicate was recognized.
 struct PredicateInterval {
