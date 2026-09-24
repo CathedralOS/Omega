@@ -1303,3 +1303,74 @@ fn lowers_joined_two_parameter_equality_guard_into_entry_comparison() {
         equality.result.expect_scalar().id
     );
 }
+
+const JOINED_ORDERING_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        transition pick < 5 {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_ordering_guard_into_entry_less_than() {
+    let caller = lower_joined_guard_caller(JOINED_ORDERING_GUARD_SOURCE);
+    let [parameter] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps its one integer parameter")
+    };
+    assert!(matches!(
+        parameter.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(_)
+    ));
+    let [constant, comparison] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "ordering guard lowers to a constant plus a comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let OperationKind::IntegerLessThan { left, right } = comparison.kind else {
+        panic!("ordering guard lowers to IntegerLessThan: {comparison:?}")
+    };
+    assert_eq!(left, parameter.id);
+    assert_eq!(right, constant.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}
