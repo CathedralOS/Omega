@@ -235,17 +235,17 @@ pub(crate) fn emit(
         emission.direct_element_view(source)?
     } else {
         let place = emission.value(*value, None)?;
+        // A moved place is materialized into the result binding; a copied
+        // parameter is already a fresh operation result.
         if emission.sources.is_empty()
-            && matches!(
-                checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .get(*value)
-                    .kind,
-                CheckedStructuralValueKind::Place(_)
-            )
+            && let CheckedStructuralValueKind::Place(argument) = &checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .kind
+            && emission.copied_parameter(argument)?.is_none()
         {
             emission.materialize_place(place)?
         } else {
@@ -927,6 +927,9 @@ impl Emission<'_, '_, '_> {
                 Ok(place)
             }
             CheckedStructuralValueKind::Place(argument) => {
+                if let Some(source) = self.copied_parameter(&argument)? {
+                    return self.copied_leaf_place(&source, continuation);
+                }
                 if self.sources.is_empty()
                     && continuation.is_none()
                     && self.structural_types.iter().any(|declaration| {
@@ -1571,6 +1574,39 @@ impl Emission<'_, '_, '_> {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<PlaceId>, LoweringError> {
+        let Some(declaration) = self.parameter_declaration(argument)? else {
+            return Ok(None);
+        };
+        if declaration.multiplicity != StructuralMultiplicity::Affine {
+            return unsupported("owned selection parameter lacks whole plain-affine custody");
+        }
+        Ok(Some(declaration.place))
+    }
+
+    /// Naming a whole `Unrestricted` parameter reads it: its value is a copy
+    /// and the parameter stays usable, so it is never moved. Returns the
+    /// parameter's ingress place to copy from.
+    fn copied_parameter(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<Option<StructuralArgument>, LoweringError> {
+        Ok(self
+            .parameter_declaration(argument)?
+            .filter(|declaration| declaration.multiplicity == StructuralMultiplicity::Unrestricted)
+            .map(|declaration| StructuralArgument {
+                place: declaration.place,
+                path: Vec::new(),
+                access: StructuralAccess::Owned,
+            }))
+    }
+
+    /// The signature declaration of the immutable owned parameter a checked
+    /// source plan names, with its whole, unqualified custody checked against
+    /// the argument; `None` when the plan names no parameter.
+    fn parameter_declaration(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<Option<&StructuralParameterDeclaration>, LoweringError> {
         let (_, authored) = crate::expression_preparation::source_custody::authored_state(
             self.checked,
             self.state,
@@ -1621,15 +1657,14 @@ impl Emission<'_, '_, '_> {
                 "owned selection parameter has no signature place",
             ))?;
         if declaration.access != StructuralAccess::Owned
-            || declaration.multiplicity != StructuralMultiplicity::Affine
             || declaration.structural_type
                 != lookup_type_id(self.type_ids, &argument.type_identity)?
             || !declaration.qualifications.is_empty()
             || !declaration.projected_qualifications.is_empty()
         {
-            return unsupported("owned selection parameter lacks whole plain-affine custody");
+            return unsupported("owned selection parameter lacks whole plain owned custody");
         }
-        Ok(Some(declaration.place))
+        Ok(Some(declaration))
     }
 
     /// The once-evaluated root carrying a projected move: an established local

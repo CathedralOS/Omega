@@ -231,6 +231,39 @@ a boundary trait acquires it by default.
   saying what keeps a live borrow sound across a park. The rejection is the only
   thing currently preventing a borrow from crossing a suspension.
 
+### Q7 - May `[copy]` data hold shared references?
+
+Named decision: `copy-data-shared-reference-fields`.
+
+**Context:** Default owned data is Affine, and `Unrestricted` requires `[copy]`.
+`validation/src/proof_contracts/properties.rs::validate_structural_property`
+admits only primitives, `[copy]` data and `[copy]`-bounded type parameters as
+fields of `[copy]` data. It rejects "references, slices, owned text, dyn traits"
+"until a ruling extends the set". The value planner already treats a stored
+`&'a [T]` view leaf as `Unrestricted`
+(`typed-trees-to-checked-trees/src/values/scalar/computations/structural_values.rs::copied_place_type`).
+
+**Problem:** Nine pass canaries copy a record with a shared view field, e.g.
+`data Room { label: &[u8] in Utf8; }`, out of `&mut self` storage by value
+(`_ -> render(self.source)`). Examples are
+`text/runtime_local_struct_string_field_concat_exit`,
+`text/runtime_string_stored_suffix_exit` and
+`runtime_slice_indexed_string_guard_exit`. Without `[copy]`, the transfer is an
+illegal move out of borrowed storage: "cannot transfer a non-copy value out of
+borrowed storage", followed by the lost default-domain facts. With `[copy]`,
+the declaration is rejected: "field `label` is not `copy`".
+
+**Proposed solution:** Admit shared (`&`) reference and view fields in `[copy]`
+data. Copying one duplicates a shared loan without extending its lifetime, just as
+copying the view itself already does. Keep `&mut`, write-only references, owned
+text and dyn traits excluded. Then the canaries declare `Room [copy]`.
+
+**Alternatives:**
+- Keep the exclusion. The canaries must then pass `&self.source` to a `&Room`
+  state parameter, or move and restore the field. That changes what they exercise.
+- Tempting but wrong: make records implicitly copyable when every field could be.
+  The spec makes Affine the default deliberately.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
