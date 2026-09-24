@@ -266,6 +266,28 @@ fn pipeline_crate_names_and_packages_follow_the_route_shape() {
     }
 }
 
+#[test]
+fn psi_pipeline_directories_follow_route_order() {
+    let mut directory_names: Vec<String> = pipeline_crates()
+        .into_iter()
+        .filter_map(|(parent, directory_name)| {
+            (parent == "omega-rust/psi/pipeline").then_some(directory_name)
+        })
+        .collect();
+    directory_names.sort();
+
+    for (position, directory_name) in directory_names.iter().enumerate() {
+        let (ordering_prefix, _) = directory_name.split_once('_').unwrap_or_else(|| {
+            panic!("Psi pipeline directory {directory_name} is missing its two-digit prefix")
+        });
+        assert_eq!(
+            ordering_prefix,
+            format!("{position:02}"),
+            "Psi pipeline directories must follow their connected route order"
+        );
+    }
+}
+
 /// The placement rule's other direction: `omega-rust/{psi,omega}/pipeline/` is
 /// the only home for transform crates. An `X-to-Y`/`X-to-X`-named crate nested
 /// under any other bucket — or deeper inside `pipeline/` than the direct

@@ -86,7 +86,7 @@
    "item": "TRANSLATION-VALIDATION",
    "owning_paths": [
     "omega-rust/omega/backend/artifacts/native-artifact/src/physical",
-    "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
+    "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
    ],
    "suggested_first_slice": "Coordinator slot. Continue the operator-span investigation from parked WIP branch swarm/linw3-translation-validation (9b0bf63f90, tests/linw3_translation_probe.rs): derive_operator_physical_span returns Ok(None) -> UnsupportedOperatorSpan for non-FMA/non-comparison ExactCompilerIntrinsic realizations and non-static-callee operations under checked-body realizations. Witness an end-to-end gap on a fixture that currently compiles natively, or extend replay_scope/operator_applications for one bounded arm. Corpus fixtures currently omit unit plans upstream at ProgramEntry establishment (pre-existing on base) - attribute failures to their actual stage, do not repair upstream admission. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   }

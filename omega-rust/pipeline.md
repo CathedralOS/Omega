@@ -21,7 +21,7 @@ setup are not additional public program stages.
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/pipeline/04_typed-trees-to-checked-trees/README.md) |
 | Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/05_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/lowered-psi-to-terminal-psi/src/lib.rs) |
+| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/abstract-operations-to-target-operations/README.md) |

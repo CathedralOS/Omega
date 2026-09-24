@@ -2324,7 +2324,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/04_typed-trees-to-checked-trees",
         "psi/pipeline/05_checked-trees-to-lowered-psi",
         "psi/pipeline/06_lowered-psi-to-lowered-psi",
-        "psi/pipeline/lowered-psi-to-terminal-psi",
+        "psi/pipeline/07_lowered-psi-to-terminal-psi",
         "omega/pipeline/terminal-psi-to-abstract-operations",
         "omega/pipeline/abstract-operations-to-abstract-operations",
         "omega/pipeline/abstract-operations-to-target-operations",

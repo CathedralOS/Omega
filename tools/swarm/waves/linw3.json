@@ -97,7 +97,7 @@
    "item": "TRANSLATION-VALIDATION",
    "owning_paths": [
     "omega-rust/omega/backend/artifacts/native-artifact/src/physical",
-    "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
+    "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
    ],
    "suggested_first_slice": "Coordinator slot. physical/operator_applications.rs spans CallDynamic* kinds (descriptor/parameter ordinals, no static callee) and non-FMA/non-IEEE intrinsic kinds still land as named gap subjects. Take one bounded arm: derive the physical child for one CallDynamic* kind or the next intrinsic span arm, extending the same per-occurrence attribution so failures keep naming the exact subject. Controls: physical_child_replay tests. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   }

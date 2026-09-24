@@ -69,7 +69,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **TRANSLATION-VALIDATION.** Complete source-to-physical occurrence coverage
   for admitted operations/transfers on the common graph under
   [closed application and physical occurrence](wiki/spec/terminal-psi/boundary_calls.md#closed-application-and-physical-occurrence).
-  Owners: `lowered-psi-to-terminal-psi/src/boundary_operator_custody.rs`
+  Owners: `07_lowered-psi-to-terminal-psi/src/boundary_operator_custody.rs`
   and `native-artifact/src/physical/{operator_applications.rs,derivation/}`.
 
   For remaining intrinsic families, retain checked demand and exact Terminal

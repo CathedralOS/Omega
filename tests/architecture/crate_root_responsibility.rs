@@ -268,7 +268,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "psi/pipeline/lowered-psi-to-terminal-psi",
+        "psi/pipeline/07_lowered-psi-to-terminal-psi",
         &["boundary_operator_custody", "publish_artifact"],
     ),
     ("psi/pipeline/00_source-files-to-tokens", &["lexer"]),
