@@ -640,10 +640,10 @@ fn asm_intrinsic_result_type(
 /// entry state, and the trait signature's contracts when the callable is a
 /// bodyless requirement. State and signature symbols are globally unique, so
 /// each source contributes at most once.
-fn collect_callable_contracts<'plans>(
-    program: &'plans typed_trees::TypedTrees,
+fn collect_callable_contracts(
+    program: &typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Vec<&'plans typed_trees::signature::SignatureContract> {
+) -> Vec<&typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
     for machine in program.machines() {
         for (position, state) in program.machine_states(machine).iter().enumerate() {
