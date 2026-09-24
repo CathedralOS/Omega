@@ -309,7 +309,9 @@ pub(super) fn header(
                 declaration.id == result.structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::Sum { .. } | StructuralTypeShape::FixedArray { .. }
+                        StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::FixedArray { .. }
+                            | StructuralTypeShape::Mixed { .. }
                     )
             }) {
                 home_layout(
