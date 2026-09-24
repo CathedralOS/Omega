@@ -389,6 +389,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "ranges/float_exclusive_supremum_discharges_finite",
     // The native differential owner publishes `observe` on all four targets.
     "structural/local_record_receivers",
+    // A single-state union match producing a scalar result: the checked
+    // witness for the scalar graph's case dispatch. It carries no entry.
+    "structural/union_match_scalar_payload_result",
     "constants/lexical_aggregate_values",
     "operators/crash_routes",
     // Routed scalar-domain establishment: the source compiles through
