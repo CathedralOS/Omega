@@ -2004,3 +2004,19 @@ environmental. Live dogfood: catalog-path failure under a tools/ diff
 flagged YOURS (defensible — the diff touched the neighboring file), Float
 wall and FIFO flake both read baseline. Parses nextest/pytest/error lines,
 skips result-summary lines, solo calls per failure.
+
+## 2026-09-24 (cont.) — commit-message accuracy: tested, NOT a fit (negative result)
+
+Worked example: 5 real commits verified accurate + 3 synthetics
+(overclaim-perf, mismatched-docs, overclaim-scope). Result: all 5 real
+commits flagged overclaims under both question wordings; all 3 synthetics
+correct. Root cause is structural, not tuning: the repo rule allows claims
+supported by "observed validation," and a commit body's validation claims
+are self-reported assertions — unverifiable from (message, diff) alone.
+Jev applies the strict reading and will not trust assertions, so every
+honest commit false-flags. The mismatched-only slice works (docs-only diff
+under a "psi fix" subject caught), but that narrow check cannot carry a
+deployment. NOT DEPLOYED. Reusable lesson: Jev-shaped surfaces need
+verifiable evidence in the packet — self-reported claims are unverifiable
+by construction. If commit-evidence receipts (e.g., a landed report-file
+artifact referenced by hash) ever exist, this surface becomes real.
