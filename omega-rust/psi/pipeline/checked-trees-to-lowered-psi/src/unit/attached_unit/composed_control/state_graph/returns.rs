@@ -400,7 +400,11 @@ pub(super) fn validate_structural(
                 ))?;
             if parameter.type_identity != result.type_identity
                 || parameter.multiplicity != result.multiplicity
-                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || !matches!(
+                    parameter.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                )
                 || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
             {
                 return unsupported("structural return exchanged its owned parameter");
