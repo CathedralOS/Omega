@@ -67,7 +67,7 @@
       "item_closed": false,
       "commits": [],
       "acus_consumed": null,
-      "notes": "Needs Optimization tag in optimization-core/src/selection.rs and compiler/src/pipeline/optimization/build_vocabulary/fragments.rs; pipeline dir claimed by macw4-snapshot-outputs (BUILD-SNAPSHOT-OUTPUTS, lease to 2026-09-15T08:17Z). Real family seam is selected-instructions-to-selected-instructions/src/rewrites/selected_lowering, not the coordinator-assigned selection/optimized paths — revise owning_paths next wave."
+      "notes": "Needs Optimization tag in optimization-core/src/selection.rs and compiler/src/pipeline/optimization/build_vocabulary/fragments.rs; pipeline dir claimed by macw4-snapshot-outputs (BUILD-SNAPSHOT-OUTPUTS, lease to 2026-09-15T08:17Z). Real family seam is 07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering, not the coordinator-assigned selection/optimized paths — revise owning_paths next wave."
     },
     {
       "name": "allocation-refinement",

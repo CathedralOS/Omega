@@ -67,7 +67,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // The pre-allocation executor: `run_pre_allocation_optimizations` is
         // the rewrite the stage entrance runs for that slice.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            caller: "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
             evidence: "run_pre_allocation_optimizations",
         },
     },
@@ -86,7 +86,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // The selected-lowering executor: `run_selected_lowering_
         // optimizations` is the only rewrite the stage entrance runs.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            caller: "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
             evidence: "run_selected_lowering_optimizations",
         },
     },
@@ -99,7 +99,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // The pre-allocation executor: `run_pre_allocation_optimizations` is
         // the rewrite the stage entrance runs for that slice.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+            caller: "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
             evidence: "run_pre_allocation_optimizations",
         },
     },
@@ -109,7 +109,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // `remove_selected_redundant_extension` for the exact rule the
         // catalog admits.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            caller: "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
             evidence: "remove_selected_redundant_extension",
         },
     },
@@ -136,7 +136,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // Its rule catalog is resolved by the `literal_folds` executor and
         // consulted during native phase selection.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
+            caller: "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_folds/mod.rs",
             evidence: "resolve_selected_lowering_rules",
         },
     },
@@ -326,7 +326,7 @@ mod tests {
         );
 
         let rewrites_dir = repository_root().join(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites",
         );
         let unexecuted = unexecuted_modules();
         let missing_backing: Vec<&String> = declared
@@ -421,7 +421,7 @@ mod tests {
     fn orphaned_modules_have_no_production_callers() {
         let repository = repository_root();
         let rewrites_dir = repository.join(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites",
         );
 
         /// Public functions declared by a source file (`pub fn name`).

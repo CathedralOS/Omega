@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 artifacts = { path = "../../tooling/artifacts" }
-selected-instructions-to-selected-instructions = { path = "../../pipeline/selected-instructions-to-selected-instructions" }
+selected-instructions-to-selected-instructions = { path = "../../pipeline/07_selected-instructions-to-selected-instructions" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }

@@ -43,8 +43,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/range_comparisons.rs",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/global_value_numbering/expression_keys.rs",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/tests/structural_catalog.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate/replay.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate/tests.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate/replay.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/live_ranges/validate/tests.rs",
         "omega-rust/omega/representations/optimization-unit/src/ledger.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/allocation/register_allocation.rs",
         "tests/native-differential/tests/pipeline_ownership/stages/machine/selected_lowering.rs",
@@ -56,7 +56,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate.rs",
         "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation/straight_line_scalar_crash.rs",
         "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/codec.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/codec.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
         "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
         "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
@@ -72,15 +72,15 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/empty_block_threading/path_qualified.rs",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/block_merging/adjacent.rs",
         "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/control_flow_cleanup/block_merging/non_adjacent.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_arithmetic.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/mod.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/admission.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/rewrite.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/validation.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/tests.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_arithmetic.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/mod.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/admission.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/rewrite.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/validation.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/tests.rs",
         "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {
@@ -202,8 +202,8 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec_tests.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -264,7 +264,7 @@ pub(crate) fn check(audit: &mut Audit) {
             && (path.starts_with(
                 "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/",
             ) || path.starts_with(
-                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/",
+                "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/",
             ) || path.starts_with(
                 "omega-rust/omega/compiler/native-realization/src/stages/machine/literal_folds/",
             ))

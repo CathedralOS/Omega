@@ -234,7 +234,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   frames to stack provisioning.
   [Register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
   chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
-  `selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
+  `07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
   inserts and independently replays the private stores and reload pairs.
 
   Remaining work:
@@ -443,7 +443,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
   compare/test, and scheduling rewrites on compiler-produced selected programs.
-  Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
+  Owner: `omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/`.
   Same-block copy removal and redundant-extension removal already use the
   public catalog executor. Complete address, compare/test, and scheduling
   families through that same route; preserve the existing `PreAllocationPolicy`.
@@ -488,7 +488,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and store motion through the selected-stage catalog with source-bound
   candidates, independently checked receipts, and publication replay.
   Owners: `load_forwarding`, `dead_store`, and `store_motion` under
-  `selected-instructions-to-selected-instructions/src/rewrites/`;
+  `07_selected-instructions-to-selected-instructions/src/rewrites/`;
   EXACT-MACHINE-SIMPLIFICATIONS owns their shared stage-execution join.
 
   Bind distinct-place non-aliasing to retained fact identities, or independently

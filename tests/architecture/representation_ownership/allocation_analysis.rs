@@ -83,7 +83,7 @@ fn allocation_analysis_data_and_canonical_encoders_have_one_owner() {
     let root = repository();
     let owner = root.join("omega-rust/omega/representations/register-homes/src/register_homes");
     let stage =
-        root.join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+        root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let stage_text = rust_source(&stage);
     let allocator = rust_source(
         &root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
@@ -174,7 +174,7 @@ fn allocation_analysis_admission_stays_sealed_in_the_transform() {
     let representation =
         rust_source(&root.join("omega-rust/omega/representations/register-homes/src"));
     let stage = root.join(
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses",
     );
     for family in FAMILIES {
         let model =
@@ -213,7 +213,7 @@ fn allocation_recovery_codecs_decode_only_raw_plans() {
     let owner =
         root.join("omega-rust/omega/representations/register-homes/src/register_homes/recovery");
     let stage = root.join(
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses",
     );
     for (module, source, plan, error) in [
         (
