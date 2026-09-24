@@ -32,6 +32,18 @@ pub(super) fn exact_guard(
         {
             Some(expression.clone())
         }
+        // Negated spellings of the same single-Bool-parameter guards:
+        // `!flag` is `Not{Parameter{0}}` and `flag != literal` is
+        // `Not{Equal{Parameter{0}, Constant}}` — the authored polarity is
+        // carried inside the retained expression, so the join admits them
+        // verbatim.
+        ([parameter], [], checked_trees::CheckedBooleanExpression::Not(inner))
+            if parameter.source_position <= 1
+                && parameter.primitive_type == PrimitiveType::Bool
+                && negated_parameter_guard(inner) =>
+        {
+            Some(expression.clone())
+        }
         ([], [], boolean) if closed_boolean(boolean) => Some(expression.clone()),
         (
             [],
@@ -48,6 +60,16 @@ pub(super) fn exact_guard(
             Some(expression.clone())
         }
         _ => None,
+    }
+}
+
+fn negated_parameter_guard(expression: &checked_trees::CheckedBooleanExpression) -> bool {
+    match expression {
+        checked_trees::CheckedBooleanExpression::Parameter { position: 0 } => true,
+        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+            parameter_and_literal(left, right) || parameter_and_literal(right, left)
+        }
+        _ => false,
     }
 }
 
