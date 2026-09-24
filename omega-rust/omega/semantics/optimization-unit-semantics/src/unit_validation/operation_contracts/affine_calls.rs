@@ -136,6 +136,23 @@ fn finite_owned_shape(
         terminal_psi::StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
             finite_owned_shape(types, *element, active, complete)
         }
+        terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
+            .iter()
+            .chain(cases.iter().flat_map(|case| case.fields.iter()))
+            .all(|field| {
+                !field.relevance.is_erased()
+                    && match field.field_type {
+                        terminal_psi::StructuralFieldType::Structural(child) => {
+                            finite_owned_shape(types, child, active, complete)
+                        }
+                        terminal_psi::StructuralFieldType::Scalar(_)
+                        | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                        | terminal_psi::StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                        ) => true,
+                        _ => false,
+                    }
+            }),
         _ => false,
     };
     active.remove(&root);
