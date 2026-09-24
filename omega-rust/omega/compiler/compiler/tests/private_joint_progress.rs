@@ -185,23 +185,23 @@ established by SchedulerAdmission::grant;
 pub boundary trait SchedulerAdmission {
     machine grant(scheduler: SchedulerHandle) -> SchedulerHandle in WeakFair;
 }
-pub machine wait(context: Context)
+pub machine wait(context: Context) -> u64
 requires context.scheduler in WeakFair
 terminates;
--> u64 { 0 }
+{ 0 }
 
 data Main {}
 machine Main::main(&mut self) -> u64 { 0 }
-machine Main::a(&mut self, remaining: u64, context: Context)
+machine Main::a(&mut self, remaining: u64, context: Context) -> u64
 requires context.scheduler in WeakFair
 terminates by remaining;
--> u64 { transition { _ -> self.b(context, remaining) } }
-machine Main::b(&mut self, forwarded: Context, count: u64)
+{ transition { _ -> self.b(context, remaining) } }
+machine Main::b(&mut self, forwarded: Context, count: u64) -> u64
 requires forwarded.scheduler in WeakFair
 terminates by count;
--> u64 {
+{
     transition count {
-        0 -> wait(forwarded)
+        0 -> (wait(forwarded))
         _ -> self.a(count - 1, forwarded)
     }
 }
@@ -218,7 +218,10 @@ fn private_external_wrapper_can_be_solved_after_the_cycle() {
         "{}\nmachine wait_for_scheduler(context: Context) -> u64
          requires context.scheduler in WeakFair
          {{ transition {{ _ -> wait(context) }} }}",
-        QUALIFIED_CYCLE.replace("0 -> wait(forwarded)", "0 -> wait_for_scheduler(forwarded)")
+        QUALIFIED_CYCLE.replace(
+            "0 -> (wait(forwarded))",
+            "0 -> (wait_for_scheduler(forwarded))"
+        )
     );
     assert_exact_external_premise(&checked(&source));
 }
@@ -292,14 +295,14 @@ fn assert_exact_external_premise(program: &CheckedTrees) {
 fn independent_external_premises_converge_as_a_set() {
     let source = QUALIFIED_CYCLE
         .replace("scheduler: SchedulerHandle; }", "scheduler: SchedulerHandle; backup: SchedulerHandle; }")
-        .replace("{ transition { _ -> self.b(context, remaining) } }", "{ transition remaining > 0 { true -> self.b(context, remaining) false -> wait(context) } }")
-        .replace("0 -> wait(forwarded)\n        _ -> self.a(count - 1, forwarded)", "_ -> self.a(count - 1, forwarded)")
-        .replace("transition count {\n        _ -> self.a(count - 1, forwarded)", "transition count > 0 {\n        true -> self.a(count - 1, forwarded)\n        false -> wait_backup(forwarded)");
+        .replace("{ transition { _ -> self.b(context, remaining) } }", "{ transition remaining > 0 { true -> self.b(context, remaining) false -> (wait(context)) } }")
+        .replace("0 -> (wait(forwarded))\n        _ -> self.a(count - 1, forwarded)", "_ -> self.a(count - 1, forwarded)")
+        .replace("transition count {\n        _ -> self.a(count - 1, forwarded)", "transition count > 0 {\n        true -> self.a(count - 1, forwarded)\n        false -> (wait_backup(forwarded))");
     let source = format!(
-        "{source}\npub machine wait_backup(context: Context)
+        "{source}\npub machine wait_backup(context: Context) -> u64
         requires context.backup in WeakFair
         terminates;
-        -> u64 {{ 0 }}"
+        {{ 0 }}"
     );
     let program = checked(&source);
     for name in ["Main::a", "Main::b"] {
