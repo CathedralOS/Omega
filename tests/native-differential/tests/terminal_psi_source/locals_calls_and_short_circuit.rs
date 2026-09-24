@@ -444,10 +444,13 @@ fn aggregate_member_crash_contract_fails_closed_at_terminal_production() {
     )
     .expect("the paired scalar crash contract should verify from its artifact");
 
+    // The machine now plans; the refusal is the member crash predicate itself.
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("member_guarded"))
             .expect_err("aggregate/member crash predicates must remain fail-closed"),
-        LoweringError::Unsupported("machine has no source-independent checked scalar control plan")
+        LoweringError::Unsupported(
+            "structural crash predicates require structural signature lowering"
+        )
     );
 }
 
