@@ -16,12 +16,15 @@ that the compiler or an untested base is correct. See tools/testing.md.
 """
 
 import argparse
+import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 
 
 # terminal-codec embeds these crates' source. Record those edges explicitly,
@@ -182,6 +185,167 @@ def slow_tail_filter(excluded):
     return " | ".join(clauses)
 
 
+JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+JEV_MODEL = "jev-1.13.0"
+JEV_FLAG = 0.5
+JEV_TIMEOUT_S = 15
+JEV_CATALOG = Path(__file__).with_name("test_select_candidates.json")
+JEV_CACHE = "build/test-select-cache"
+JEV_MAX_PATHS = 60
+
+
+def jev_api_key(root):
+    """Resolve the TypeSafe key; None means the augment is unconfigured."""
+    if os.environ.get("TYPESAFE_API_KEY"):
+        return os.environ["TYPESAFE_API_KEY"]
+    for candidate in (root / "build/typesafe.env.txt",
+                      Path.home() / ".config/typesafe/typesafe.env.txt"):
+        if candidate.exists():
+            keys = [line.partition("=")[2].strip().strip('"\'')
+                    for line in candidate.read_text(encoding="utf-8-sig").splitlines()
+                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
+            if len(keys) == 1 and keys[0]:
+                return keys[0]
+    return None
+
+
+def jev_payload(paths, affected, doc_audit_runs, candidates):
+    baseline = [
+        "the full omega-architecture-test suite (always runs on every diff)",
+        "library tests of every changed crate and its reverse dependencies: "
+        + (", ".join(affected) if affected
+           else "all crates — the diff touched shared or unknown inputs so "
+                "every library test already runs")]
+    if doc_audit_runs:
+        baseline.append("the documentation canary (audited docs changed)")
+    questions = {
+        f"needs_run::{c['id']}": {
+            "type": "noul",
+            "instructions": (
+                "Decide whether running test `tests." + c["id"] + "` could catch "
+                "a regression `change` might introduce that `baseline_runs` does "
+                "NOT already cover. Flag yes when what the test observes "
+                "intersects the change (modified code, moved or renamed paths, "
+                "changed contracts or spellings, behavior produced by that "
+                "code, consumers of the changed surface) AND the baseline does "
+                "not already exercise it. A test asserting a catalog, roster, "
+                "golden, or path list breaks when covered files move or are "
+                "deleted — that IS an intersection. Answer no when coverage "
+                "does not intersect, when the baseline already covers it, or "
+                "when the only justification is \"everything might break\"."),
+            "criteria": {
+                "true": "adds coverage the baseline lacks for something this "
+                        "change could break",
+                "false": "cannot observe this change, or the baseline already "
+                         "covers it"}}
+        for c in candidates}
+    return {"model": JEV_MODEL,
+            "state": {"change": {"changed_paths": paths[:JEV_MAX_PATHS],
+                                 "total_changed": len(paths)},
+                      "baseline_runs": baseline,
+                      "tests": {c["id"]: c["covers"] for c in candidates}},
+            "questions": questions}
+
+
+def jev_post(root, payload, key):
+    """POST one selection request, cached by payload hash under build/."""
+    body = json.dumps(payload, sort_keys=True).encode()
+    cache = root / JEV_CACHE / (hashlib.sha256(body).hexdigest() + ".json")
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+    request = urllib.request.Request(
+        JEV_ENDPOINT, data=json.dumps(payload).encode(),
+        headers={"Authorization": "Bearer " + key,
+                 "Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(request, timeout=JEV_TIMEOUT_S) as response:
+        result = json.load(response)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(result), encoding="utf-8")
+    return result
+
+
+def fixture_filters(paths):
+    """tests/omega/<tier>/<group>/... -> corpus gate filter fragments."""
+    filters = []
+    for path in paths:
+        parts = path.split("/")
+        if len(parts) >= 4 and parts[:2] == ["tests", "omega"]:
+            filters.append("/".join(parts[2:4]))
+    return sorted(set(filters))
+
+
+def jev_augment(root, runner, paths, affected, commands, disabled, full):
+    """Union augment: Jev flags test candidates the deterministic baseline
+    lacks. It can only add commands, never remove baseline coverage.
+
+    Availability tiers: unconfigured (no API key) -> silent no-op; configured
+    but unreachable or rejected -> one stderr warning, baseline unchanged."""
+    summary = {"state": "unconfigured", "flagged": [], "added": [],
+               "covered": [], "suggested": []}
+    if disabled or os.environ.get("OMEGA_JEV_OFFLINE"):
+        summary["state"] = "disabled"
+        return summary
+    if full:
+        summary["state"] = "skipped (--full selects everything)"
+        return summary
+    key = jev_api_key(root)
+    if key is None or not JEV_CATALOG.exists():
+        return summary
+    candidates = json.loads(
+        JEV_CATALOG.read_text(encoding="utf-8"))["candidates"]
+    doc_audit_runs = any("test_release_matrix" in " ".join(c)
+                         for c in commands)
+    payload = jev_payload(paths, affected, doc_audit_runs, candidates)
+    try:
+        result = jev_post(root, payload, key)
+    except Exception as error:  # augment must never break selection
+        summary["state"] = f"unavailable: {error}"
+        print(f"test_affected: Jev augment unavailable ({error}); "
+              "deterministic selection only", file=sys.stderr)
+        return summary
+    answers = result.get("answers", {})
+    flagged = {c["id"]: answers.get(f"needs_run::{c['id']}", {}).get("noul", 0.0)
+               for c in candidates}
+    summary["flagged"] = [cid for cid, p in flagged.items() if p >= JEV_FLAG]
+    summary["state"] = "augmented"
+    existing = {" ".join(c) for c in commands}
+    affected_set = set(affected or [])
+    for cand in candidates:
+        cid = cand["id"]
+        if flagged.get(cid, 0.0) < JEV_FLAG:
+            continue
+        command = cand.get("command")
+        if cand.get("baseline"):
+            summary["covered"].append(cid)
+            continue
+        if command is None or cand.get("auto_run") is False:
+            summary["suggested"].append(cid)
+            continue
+        argv = [part.replace("{runner}", runner)
+                      .replace("{python}", sys.executable)
+                for part in command]
+        if cand.get("auto_run") == "filterable":
+            fragments = fixture_filters(paths)
+            if not fragments:
+                summary["suggested"].append(cid)
+                continue
+            argv = argv + ["--filter", ",".join(fragments)]
+        # Affected-crate coverage applies only to nextest -p commands; an
+        # mbx-run binary invocation is not something the baseline executes.
+        is_nextest_pkg = "nextest" in argv and "-p" in argv
+        package = argv[argv.index("-p") + 1] if is_nextest_pkg else None
+        # --lib never runs bin-crate tests; those candidates are not covered
+        # merely because their package is in the affected set.
+        covered_by_baseline = (package and package in affected_set
+                               and not cand.get("bin_package"))
+        if covered_by_baseline or " ".join(argv) in existing:
+            summary["covered"].append(cid)
+            continue
+        commands.append(argv)
+        summary["added"].append(cid)
+    return summary
+
+
 def make_plan(root, runner, base, full=False, with_slow_tail=False):
     paths = [] if full else changed_paths(root, base)
     documentation_paths = [path for path in paths if is_documentation(path)]
@@ -261,6 +425,9 @@ def main():
     parser.add_argument("--with-slow-tail", action="store_true",
                         help="Include measured multi-minute tests excluded from "
                              "routine-diff selections; --full never excludes them")
+    parser.add_argument("--no-jev", action="store_true",
+                        help="Skip the Jev semantic test-selection augment "
+                             "(also suppressed by OMEGA_JEV_OFFLINE=1)")
     args = parser.parse_args()
     try:
         root = Path(output(Path.cwd(), ["git", "rev-parse", "--show-toplevel"]).strip()).resolve()
@@ -272,6 +439,9 @@ def main():
         if not runner:
             raise ValueError("Install mbx (preferred) or Cargo, and cargo-nextest")
         plan = make_plan(root, runner, base, args.full, args.with_slow_tail)
+        plan["jev"] = jev_augment(root, runner, plan["changed_paths"],
+                                  plan["affected_packages"], plan["commands"],
+                                  args.no_jev, args.full)
         print(json.dumps(plan, indent=2), flush=True)
         if args.plan:
             return 0
