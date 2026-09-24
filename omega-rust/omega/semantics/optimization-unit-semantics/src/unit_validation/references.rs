@@ -8,7 +8,7 @@ use crate::OptimizationUnitValidationError;
 use crate::PlaceId;
 use crate::PsiOptimizationFunction;
 use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::constructible_record;
+use crate::unit_validation::operation_contracts::constructible;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 
 /// Stable loan identity: the place and path where the carrier was formed.
@@ -128,9 +128,53 @@ pub(crate) fn leaf_paths(
                     }
                 }
             }
+            // Case payloads hold leaves under field-identity paths as well.
+            // Identical segments across cases collapse into the single leaf
+            // the authored path names.
+            terminal_psi::StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields).rev() {
+                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+                        if !contains_reference(types, child) {
+                            continue;
+                        }
+                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                            return None;
+                        }
+                        let mut child_path = path.clone();
+                        child_path.push(terminal_psi::StructuralPathSegment::Field(
+                            field.identity.clone(),
+                        ));
+                        pending.push((child, child_path));
+                    }
+                }
+            }
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                for field in cases
+                    .iter()
+                    .flat_map(|case| &case.fields)
+                    .chain(fields)
+                    .rev()
+                {
+                    if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
+                        if !contains_reference(types, child) {
+                            continue;
+                        }
+                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                            return None;
+                        }
+                        let mut child_path = path.clone();
+                        child_path.push(terminal_psi::StructuralPathSegment::Field(
+                            field.identity.clone(),
+                        ));
+                        pending.push((child, child_path));
+                    }
+                }
+            }
             _ => {}
         }
     }
+    output.sort();
+    output.dedup();
     Some(output)
 }
 
@@ -171,17 +215,35 @@ pub(crate) fn leaf_referent(
             return None;
         };
         let declaration = types.get(&current)?;
-        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return None;
+        // Field segments name fields by identity; a sum or mixed payload keeps
+        // a segment legal while every matching case field resolves to one
+        // structural type.
+        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            terminal_psi::StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            _ => return None,
         };
-        let field = fields.iter().find(|field| &field.identity == identity)?;
-        if field.relevance.is_erased() {
-            return None;
+        let mut resolved = None;
+        for field in matching {
+            if field.identity != *identity || field.relevance.is_erased() {
+                continue;
+            }
+            let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
+                return None;
+            };
+            match resolved {
+                None => resolved = Some(child),
+                Some(previous) if previous != child => return None,
+                _ => {}
+            }
         }
-        let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
-        };
-        current = child;
+        current = resolved?;
     }
     referent(types, current)
 }
@@ -395,7 +457,7 @@ pub(crate) fn validate_function_references(
             || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Affine
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !constructible_record(types, parameter.structural_type)
+            || !constructible(types, parameter.structural_type)
             || function
                 .entry_claim_declarations
                 .iter()
@@ -442,7 +504,7 @@ pub(crate) fn validate_function_references(
         };
     }
     if referent(types, result.structural_type).is_none()
-        && !constructible_record(types, result.structural_type)
+        && !constructible(types, result.structural_type)
     {
         return Err(invalid());
     }

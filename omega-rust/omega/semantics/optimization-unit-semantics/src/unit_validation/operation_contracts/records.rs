@@ -272,6 +272,57 @@ fn record_type(
     true
 }
 
+/// A locally constructible whole-carrier type: records, sums, and mixed sums
+/// compose scalar leaves and bare primitive-reference leaves. Other owned
+/// containers have no relocation vocabulary yet.
+pub(crate) fn constructible(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+) -> bool {
+    let mut pending = vec![root];
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if complete.contains(&current) {
+            continue;
+        }
+        if !active.insert(current) {
+            return false;
+        }
+        let Some(declaration) = types.get(&current).copied() else {
+            return false;
+        };
+        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            _ => return false,
+        };
+        for field in matching {
+            if field.relevance.is_erased() {
+                return false;
+            }
+            match field.field_type {
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::BoundedInteger(_) => {}
+                StructuralFieldType::Structural(child)
+                    if crate::unit_validation::references::referent(types, child).is_some() => {}
+                StructuralFieldType::Structural(child) => pending.push(child),
+                _ => return false,
+            }
+        }
+        active.remove(&current);
+        complete.insert(current);
+    }
+    true
+}
+
 /// Reconstruct the completed owner, not merely a same-shaped source contract.
 /// Borrowed receivers retain this owner's storage and do not change its disposal debt.
 pub(crate) fn completed_record_source<'a>(

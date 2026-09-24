@@ -316,13 +316,60 @@ fn plain_aggregate(
         StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
             case.fields.iter().all(|field| {
                 !field.relevance.is_erased()
-                    && field
-                        .field_type
-                        .scalar_type()
-                        .and_then(scalar_shape)
-                        .is_some()
+                    && match field.field_type {
+                        StructuralFieldType::Structural(nested) => {
+                            // A reference leaf carries custody metadata, not
+                            // transported storage, so it shares the case
+                            // payload's value layout as an empty slot.
+                            declarations.iter().any(|declaration| {
+                                declaration.id == nested
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::Reference { .. }
+                                    )
+                            }) || plain_aggregate(nested, declarations, active)
+                        }
+                        StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+                        StructuralFieldType::BoundedInteger(bounds) => {
+                            scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
+                        }
+                        StructuralFieldType::IeeeFloat(format) => {
+                            scalar_shape(ScalarType::IeeeFloat(format)).is_some()
+                        }
+                        StructuralFieldType::Erased { .. } => true,
+                        _ => false,
+                    }
             })
         }),
+        StructuralTypeShape::Mixed { fields, cases } => fields
+            .iter()
+            .chain(cases.iter().flat_map(|case| case.fields.iter()))
+            .all(|field| {
+                !field.relevance.is_erased()
+                    && match field.field_type {
+                        StructuralFieldType::Structural(nested) => {
+                            // A reference leaf carries custody metadata, not
+                            // transported storage, so it shares the carrier's
+                            // value layout as an empty slot.
+                            declarations.iter().any(|declaration| {
+                                declaration.id == nested
+                                    && matches!(
+                                        declaration.shape,
+                                        StructuralTypeShape::Reference { .. }
+                                    )
+                            }) || plain_aggregate(nested, declarations, active)
+                        }
+                        StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
+                        StructuralFieldType::BoundedInteger(bounds) => {
+                            scalar_shape(ScalarType::Integer(bounds.integer_type())).is_some()
+                        }
+                        StructuralFieldType::IeeeFloat(format) => {
+                            scalar_shape(ScalarType::IeeeFloat(format)).is_some()
+                        }
+                        StructuralFieldType::Erased { .. } => true,
+                        _ => false,
+                    }
+            }),
         StructuralTypeShape::Record { fields } => fields.iter().all(|field| {
             !field.relevance.is_erased()
                 && match field.field_type {
