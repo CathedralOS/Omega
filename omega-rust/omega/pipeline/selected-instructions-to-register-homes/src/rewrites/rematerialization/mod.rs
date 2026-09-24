@@ -11,7 +11,10 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::{
+    OptimizedActiveResidentRematerializationCustodyFieldForTest,
+    OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
+};
 pub use validation::{
     validate_optimized_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization_pressure,
@@ -20,18 +23,23 @@ pub use validation::{
 use optimization_core::OptimizationWorkBudget;
 
 use crate::{
-    AllocationLegalityError, PostAllocationOptimizationManifestError,
-    PressureRematerializationError, RecoveryClassificationError, RegisterHomeError,
-    SpillChoiceError, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPostAllocationOptimizationManifest, ValidatedPressureRematerialization,
-    ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
+    RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
-use crate::{
-    OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegalityCustodyReceipt,
+use register_homes::{
+    AllocationLegalityIdentity, PostAllocationOptimizationManifestError,
+    RecoveryClassificationIdentity, RecoveryClassificationPolicy, SpillChoiceIdentity,
+    SpillChoicePolicy,
 };
-use crate::{
-    PressureRematerializationPolicy, RecoveryClassificationPolicy, SpillChoicePolicy,
-    StagedOptimizedAllocationLegality,
+use selected_instructions::{
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+};
+use selected_instructions_to_selected_instructions::{
+    AllocationLegalityError, LiveRangeError, LivenessError,
+    OptimizedAllocationLegalityCustodyError, PressureRematerializationError,
+    PressureRematerializationPolicy, RecoveryClassificationError, SpillChoiceError,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
 };
 
 /// Stage the proven rematerialization sweep without attempting terminal
@@ -182,20 +190,20 @@ impl StagedOptimizedActiveResidentRematerialization {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    choices: crate::SpillChoiceIdentity,
+    choices: SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
     choice_usage: optimization_core::OptimizationWorkUsage,
-    classifications: crate::RecoveryClassificationIdentity,
+    classifications: RecoveryClassificationIdentity,
     classification_policy: RecoveryClassificationPolicy,
     classification_usage: optimization_core::OptimizationWorkUsage,
-    rematerialization: crate::PressureRematerializationIdentity,
+    rematerialization: PressureRematerializationIdentity,
     rematerialization_policy: PressureRematerializationPolicy,
     rematerialization_usage: optimization_core::OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
     transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: crate::LivenessIdentity,
-    ranges: crate::LiveRangeIdentity,
-    legality: crate::AllocationLegalityIdentity,
+    liveness: LivenessIdentity,
+    ranges: LiveRangeIdentity,
+    legality: AllocationLegalityIdentity,
     homes: crate::RegisterHomeIdentity,
     manifest: optimization_core::PostAllocationOptimizationManifestIdentity,
     function_count: usize,
@@ -209,7 +217,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
     }
-    pub const fn choices(self) -> crate::SpillChoiceIdentity {
+    pub const fn choices(self) -> SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -218,7 +226,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn choice_usage(self) -> optimization_core::OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn classifications(self) -> crate::RecoveryClassificationIdentity {
+    pub const fn classifications(self) -> RecoveryClassificationIdentity {
         self.classifications
     }
     pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
@@ -227,7 +235,7 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     pub const fn classification_usage(self) -> optimization_core::OptimizationWorkUsage {
         self.classification_usage
     }
-    pub const fn rematerialization(self) -> crate::PressureRematerializationIdentity {
+    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
         self.rematerialization
     }
     pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
@@ -244,13 +252,13 @@ impl StagedOptimizedActiveResidentRematerializationCustodyReceipt {
     ) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
-    pub const fn liveness(self) -> crate::LivenessIdentity {
+    pub const fn liveness(self) -> LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> crate::LiveRangeIdentity {
+    pub const fn ranges(self) -> LiveRangeIdentity {
         self.ranges
     }
-    pub const fn legality(self) -> crate::AllocationLegalityIdentity {
+    pub const fn legality(self) -> AllocationLegalityIdentity {
         self.legality
     }
     pub const fn homes(self) -> crate::RegisterHomeIdentity {
@@ -328,20 +336,20 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    choices: crate::SpillChoiceIdentity,
+    choices: SpillChoiceIdentity,
     choice_policy: SpillChoicePolicy,
     choice_usage: optimization_core::OptimizationWorkUsage,
-    classifications: crate::RecoveryClassificationIdentity,
+    classifications: RecoveryClassificationIdentity,
     classification_policy: RecoveryClassificationPolicy,
     classification_usage: optimization_core::OptimizationWorkUsage,
-    rematerialization: crate::PressureRematerializationIdentity,
+    rematerialization: PressureRematerializationIdentity,
     rematerialization_policy: PressureRematerializationPolicy,
     rematerialization_usage: optimization_core::OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
     transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
-    liveness: crate::LivenessIdentity,
-    ranges: crate::LiveRangeIdentity,
-    legality: crate::AllocationLegalityIdentity,
+    liveness: LivenessIdentity,
+    ranges: LiveRangeIdentity,
+    legality: AllocationLegalityIdentity,
     function_count: usize,
     virtual_register_count: usize,
     applied_count: usize,
@@ -352,7 +360,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     pub const fn source(self) -> StagedOptimizedAllocationLegalityCustodyReceipt {
         self.source
     }
-    pub const fn choices(self) -> crate::SpillChoiceIdentity {
+    pub const fn choices(self) -> SpillChoiceIdentity {
         self.choices
     }
     pub const fn choice_policy(self) -> SpillChoicePolicy {
@@ -361,7 +369,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     pub const fn choice_usage(self) -> optimization_core::OptimizationWorkUsage {
         self.choice_usage
     }
-    pub const fn classifications(self) -> crate::RecoveryClassificationIdentity {
+    pub const fn classifications(self) -> RecoveryClassificationIdentity {
         self.classifications
     }
     pub const fn classification_policy(self) -> RecoveryClassificationPolicy {
@@ -370,7 +378,7 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     pub const fn classification_usage(self) -> optimization_core::OptimizationWorkUsage {
         self.classification_usage
     }
-    pub const fn rematerialization(self) -> crate::PressureRematerializationIdentity {
+    pub const fn rematerialization(self) -> PressureRematerializationIdentity {
         self.rematerialization
     }
     pub const fn rematerialization_policy(self) -> PressureRematerializationPolicy {
@@ -387,13 +395,13 @@ impl StagedOptimizedActiveResidentRematerializationPressureCustodyReceipt {
     ) -> selected_instructions::SelectedInstructionPlanIdentity {
         self.transformed_selected
     }
-    pub const fn liveness(self) -> crate::LivenessIdentity {
+    pub const fn liveness(self) -> LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> crate::LiveRangeIdentity {
+    pub const fn ranges(self) -> LiveRangeIdentity {
         self.ranges
     }
-    pub const fn legality(self) -> crate::AllocationLegalityIdentity {
+    pub const fn legality(self) -> AllocationLegalityIdentity {
         self.legality
     }
     pub const fn function_count(self) -> usize {
@@ -418,8 +426,8 @@ pub enum OptimizedActiveResidentRematerializationError {
     Classification(RecoveryClassificationError),
     Rematerialization(PressureRematerializationError),
     NoAppliedAction,
-    Liveness(crate::LivenessError),
-    Ranges(crate::LiveRangeError),
+    Liveness(LivenessError),
+    Ranges(LiveRangeError),
     Legality(AllocationLegalityError),
     RemainingTransitions { count: usize },
     Homes(RegisterHomeError),

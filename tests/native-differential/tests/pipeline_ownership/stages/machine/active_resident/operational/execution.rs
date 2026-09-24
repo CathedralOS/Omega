@@ -1,9 +1,10 @@
 //! Positive, disabled, deterministic, and fixed-point behavior.
 
 use optimization_core::OptimizationWorkBudget;
-use selected_instructions_to_register_homes::{
-    PostAllocationSelectedTransformation, PressureRematerializationError, choose_spill_victims,
-    classify_pressure_recovery, rematerialize_selected_active_resident,
+use selected_instructions_to_register_homes::PostAllocationSelectedTransformation;
+use selected_instructions_to_selected_instructions::{
+    PressureRematerializationError, choose_spill_victims, classify_pressure_recovery,
+    rematerialize_selected_active_resident,
 };
 
 use crate::tests::{

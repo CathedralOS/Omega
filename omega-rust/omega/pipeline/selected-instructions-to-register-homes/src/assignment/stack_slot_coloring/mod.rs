@@ -14,10 +14,15 @@ mod validate;
 #[cfg(test)]
 mod tests;
 
-use crate::LogicalSpillOperationIdentity;
-use crate::{AllocatorAvailabilityIdentity, LogicalSpillStorageId};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-pub use register_homes::stack_slot_coloring::*;
+pub use register_homes::stack_slot_coloring::{
+    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
+    StackSlotColoringIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
+    stack_slot_coloring_identity,
+};
+use register_homes::{
+    AllocatorAvailabilityIdentity, LogicalSpillOperationIdentity, LogicalSpillStorageId,
+};
 use register_model::TargetRegisterEnvironmentIdentity;
 use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_stack_slot_coloring;

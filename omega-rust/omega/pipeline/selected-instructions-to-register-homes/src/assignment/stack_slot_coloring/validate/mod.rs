@@ -5,10 +5,8 @@ mod replay;
 mod root;
 mod work;
 
-use crate::{
-    LogicalSpillStorageClass, StackSlotColoringError, StackSlotColoringPlan,
-    StackSlotColoringPolicy, ValidatedLogicalSpillOperations, ValidatedStackSlotColoring,
-};
+use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
+use register_homes::{LogicalSpillStorageClass, StackSlotColoringPlan, StackSlotColoringPolicy};
 
 pub fn validate_stack_slot_coloring(
     source: &ValidatedLogicalSpillOperations,

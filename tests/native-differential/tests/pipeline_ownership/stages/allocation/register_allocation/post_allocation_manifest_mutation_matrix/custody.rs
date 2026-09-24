@@ -3,7 +3,7 @@ use crate::tests::{
     validate_post_allocation_optimization_manifest,
 };
 use optimization_core::PrePhysicalOptimizationManifestIdentity;
-use selected_instructions_to_register_homes::FixedViewCopyIdentity;
+use selected_instructions::FixedViewCopyIdentity;
 
 use super::fixture::{staged, validate};
 

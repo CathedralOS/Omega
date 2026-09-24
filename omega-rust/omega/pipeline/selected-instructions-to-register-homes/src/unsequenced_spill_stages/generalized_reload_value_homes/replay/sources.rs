@@ -2,20 +2,21 @@
 
 use std::collections::BTreeMap;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillEvent, ValidatedSpillRecoveryActions,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{ReplaySpec, homes};
+use register_homes::FunctionAllocationLegality;
 
 pub(super) fn index(
     function: usize,
     generalized: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
     first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
 ) -> Result<Vec<ReplaySpec>, GeneralizedReloadValueHomeError> {
     let mut slots = BTreeMap::new();
     for slot in &generalized.slots {

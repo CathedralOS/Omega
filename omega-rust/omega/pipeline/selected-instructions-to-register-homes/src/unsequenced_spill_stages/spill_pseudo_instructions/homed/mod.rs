@@ -10,7 +10,6 @@ mod identity;
 mod replay;
 mod validate;
 
-use crate::AllocatorAvailabilityIdentity;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, RecursiveReloadValueHomeIdentity, SpillPseudoInstructionId,
     SpillPseudoInstructionPlanIdentity, SpillPseudoOperandRewrite, SpillPseudoStorage,
@@ -18,8 +17,9 @@ use crate::unsequenced_spill_stages::{
 };
 pub use identity::homed_spill_pseudo_instruction_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::AllocatorAvailabilityIdentity;
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use selected_instructions::{LiveRangePoint, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_homed_spill_pseudo_instructions;
 
@@ -81,7 +81,7 @@ pub enum HomedSpillPseudoInstruction {
         id: SpillPseudoInstructionId,
         action: GeneralizedSpillActionId,
         block: SelectedBlockId,
-        point: crate::LiveRangePoint,
+        point: LiveRangePoint,
         before_instruction: SelectedInstructionId,
         before_reload: Option<SpillPseudoInstructionId>,
         source: SpillPseudoStoredValue,
@@ -92,7 +92,7 @@ pub enum HomedSpillPseudoInstruction {
         id: SpillPseudoInstructionId,
         action: GeneralizedSpillActionId,
         block: SelectedBlockId,
-        point: crate::LiveRangePoint,
+        point: LiveRangePoint,
         before_instruction: SelectedInstructionId,
         storage: GeneralizedSpillActionId,
         result: GeneralizedSpillActionId,

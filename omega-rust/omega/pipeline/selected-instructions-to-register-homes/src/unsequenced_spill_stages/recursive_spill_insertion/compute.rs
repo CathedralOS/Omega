@@ -2,13 +2,14 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, GeneralizedSpillEvent, RecursiveSpillActionSource,
     RecursiveSpillEvent, RecursiveSpillInsertionError, RecursiveSpillInsertionPlan,
     RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -18,8 +19,8 @@ struct PendingAction {
     source: RecursiveSpillActionSource,
     class: LogicalSpillStorageClass,
     block: selected_instructions::SelectedBlockId,
-    from: crate::LiveRangePoint,
-    through: crate::LiveRangePoint,
+    from: LiveRangePoint,
+    through: LiveRangePoint,
     store_instruction: selected_instructions::SelectedInstructionId,
     before_reload: Option<GeneralizedSpillActionId>,
     stored_value: RecursiveSpillStoredValue,
@@ -32,7 +33,7 @@ struct PendingAction {
 #[derive(Clone, Copy)]
 struct PendingRewrite {
     block: selected_instructions::SelectedBlockId,
-    point: crate::LiveRangePoint,
+    point: LiveRangePoint,
     instruction: selected_instructions::SelectedInstructionId,
     operand: u16,
 }

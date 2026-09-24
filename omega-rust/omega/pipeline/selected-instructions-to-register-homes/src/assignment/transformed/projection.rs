@@ -1,10 +1,10 @@
-use crate::PostAllocationSelectedTransformation;
 use optimization_core::PrePhysicalOptimizationManifestIdentity;
+use register_homes::PostAllocationSelectedTransformation;
 
-use crate::{
+use selected_instructions_to_selected_instructions::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationRun,
+    StagedSelectedLoweringOptimizationRun, ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 pub(super) fn literal_fold_transformations(
@@ -26,10 +26,7 @@ pub(super) fn literal_fold_pre_physical(
 
 pub(super) fn selected_lowering_final_analysis(
     run: &StagedSelectedLoweringOptimizationRun,
-) -> (
-    &crate::ValidatedLiveRanges,
-    &crate::ValidatedAllocationLegality,
-) {
+) -> (&ValidatedLiveRanges, &ValidatedAllocationLegality) {
     match run.steps().last() {
         Some(step) => (step.ranges(), step.legality()),
         None => (
@@ -44,10 +41,7 @@ pub(super) fn selected_lowering_final_analysis(
 /// found no admissible copy.
 pub(super) fn pre_allocation_final_analysis(
     run: &StagedPreAllocationOptimizationRun,
-) -> (
-    &crate::ValidatedLiveRanges,
-    &crate::ValidatedAllocationLegality,
-) {
+) -> (&ValidatedLiveRanges, &ValidatedAllocationLegality) {
     (run.ranges(), run.legality())
 }
 

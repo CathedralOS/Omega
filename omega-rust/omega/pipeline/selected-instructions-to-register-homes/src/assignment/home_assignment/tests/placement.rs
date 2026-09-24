@@ -2,8 +2,10 @@ use register_model::RegisterViewId;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
 use super::super::compute::scan_reference;
-use super::{compute_function, fixtures::*, validate};
-use crate::{CopyAffinity, RegisterHomeError};
+use super::fixtures::*;
+use super::{compute_function, validate};
+use crate::RegisterHomeError;
+use selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 #[test]
 fn flexible_competitors_rank_stably_expire_and_fail_at_exact_pressure() {
@@ -61,7 +63,7 @@ fn noninterfering_vertex_reuses_a_home_while_overlapping_vertices_conflict() {
     );
 }
 
-fn copy_ranges(interference: &[(u32, u32)]) -> crate::FunctionLiveRanges {
+fn copy_ranges(interference: &[(u32, u32)]) -> FunctionLiveRanges {
     let mut ranges = ranges(2, interference);
     ranges.copy_affinities.push(CopyAffinity {
         block: SelectedBlockId(0),

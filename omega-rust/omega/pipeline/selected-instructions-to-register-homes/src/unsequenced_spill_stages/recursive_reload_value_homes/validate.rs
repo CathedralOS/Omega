@@ -12,7 +12,9 @@ use crate::unsequenced_spill_stages::{
     ValidatedRecursiveReloadValueHomes, ValidatedRecursiveSpillInsertion,
     recursive_reload_value_home_identity,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_recursive_reload_value_homes(

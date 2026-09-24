@@ -4,13 +4,14 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, GeneralizedSpillActionSource, GeneralizedSpillEvent,
     GeneralizedSpillInsertionError, GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
     GeneralizedSpillSlot, SpillRecoveryLogicalAction, ValidatedAbstractSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -20,8 +21,8 @@ pub(super) struct PendingAction {
     pub source: GeneralizedSpillActionSource,
     pub class: LogicalSpillStorageClass,
     pub block: selected_instructions::SelectedBlockId,
-    pub live_from: crate::LiveRangePoint,
-    pub live_through: crate::LiveRangePoint,
+    pub live_from: LiveRangePoint,
+    pub live_through: LiveRangePoint,
     pub store_instruction: selected_instructions::SelectedInstructionId,
     pub before_reload: Option<GeneralizedSpillActionId>,
     pub store_source: selected_instructions::VirtualRegisterId,
@@ -34,7 +35,7 @@ pub(super) struct PendingAction {
 #[derive(Clone, Copy)]
 pub(super) struct PendingRewrite {
     pub block: selected_instructions::SelectedBlockId,
-    pub point: crate::LiveRangePoint,
+    pub point: LiveRangePoint,
     pub instruction: selected_instructions::SelectedInstructionId,
     pub operand: u16,
 }

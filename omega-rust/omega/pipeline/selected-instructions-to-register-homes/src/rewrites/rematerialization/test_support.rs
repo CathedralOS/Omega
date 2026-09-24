@@ -2,7 +2,11 @@ use super::{
     StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationPressure,
 };
-use crate::PressureRematerializationPolicy;
+use register_homes::{
+    AllocationLegalityIdentity, RecoveryClassificationIdentity, SpillChoiceIdentity,
+};
+use selected_instructions::PressureRematerializationIdentity;
+use selected_instructions_to_selected_instructions::PressureRematerializationPolicy;
 
 fn other_rematerialization_policy(
     policy: PressureRematerializationPolicy,
@@ -71,21 +75,21 @@ impl StagedOptimizedActiveResidentRematerialization {
                 self.custody.source = donor.custody.source;
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::Choices => {
-                self.custody.choices = crate::SpillChoiceIdentity::from_bytes([0xb2; 32]);
+                self.custody.choices = SpillChoiceIdentity::from_bytes([0xb2; 32]);
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::ChoiceUsage => {
                 self.custody.choice_usage.iterations += 1;
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::Classifications => {
                 self.custody.classifications =
-                    crate::RecoveryClassificationIdentity::from_bytes([0xb3; 32]);
+                    RecoveryClassificationIdentity::from_bytes([0xb3; 32]);
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::ClassificationUsage => {
                 self.custody.classification_usage.iterations += 1;
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::Rematerialization => {
                 self.custody.rematerialization =
-                    crate::PressureRematerializationIdentity::from_bytes([0xb4; 32]);
+                    PressureRematerializationIdentity::from_bytes([0xb4; 32]);
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::RematerializationPolicy => {
                 self.custody.rematerialization_policy =
@@ -111,7 +115,7 @@ impl StagedOptimizedActiveResidentRematerialization {
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::Legality => {
                 self.custody.legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedActiveResidentRematerializationCustodyFieldForTest::Homes => {
                 self.custody.homes = crate::RegisterHomeIdentity::from_bytes([0xb5; 32]);
@@ -188,21 +192,21 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
                 self.custody.source = donor.custody.source;
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::Choices => {
-                self.custody.choices = crate::SpillChoiceIdentity::from_bytes([0xb2; 32]);
+                self.custody.choices = SpillChoiceIdentity::from_bytes([0xb2; 32]);
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::ChoiceUsage => {
                 self.custody.choice_usage.iterations += 1;
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::Classifications => {
                 self.custody.classifications =
-                    crate::RecoveryClassificationIdentity::from_bytes([0xb3; 32]);
+                    RecoveryClassificationIdentity::from_bytes([0xb3; 32]);
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::ClassificationUsage => {
                 self.custody.classification_usage.iterations += 1;
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::Rematerialization => {
                 self.custody.rematerialization =
-                    crate::PressureRematerializationIdentity::from_bytes([0xb4; 32]);
+                    PressureRematerializationIdentity::from_bytes([0xb4; 32]);
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::RematerializationPolicy => {
                 self.custody.rematerialization_policy =
@@ -228,7 +232,7 @@ impl StagedOptimizedActiveResidentRematerializationPressure {
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::Legality => {
                 self.custody.legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedActiveResidentRematerializationPressureCustodyFieldForTest::FunctionCount => {
                 self.custody.function_count += 1;

@@ -1,8 +1,8 @@
 use crate::assignment::stack_slot_coloring::compute::{
     StackSlotInterval, color_intervals_first_fit,
 };
-use crate::{LiveRangePoint, LogicalSpillStorageClass, LogicalSpillStorageId};
-use selected_instructions::SelectedBlockId;
+use register_homes::{LogicalSpillStorageClass, LogicalSpillStorageId};
+use selected_instructions::{LiveRangePoint, SelectedBlockId};
 use semantic_vocabulary::MachineId;
 
 fn interval(storage: u32, block: u32, from: u32, through: u32) -> StackSlotInterval {

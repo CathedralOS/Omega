@@ -7,7 +7,10 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
+use crate::ValidatedRegisterHomes;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 use super::{
     PostAllocationManifestStage, PostAllocationOptimizationManifest,

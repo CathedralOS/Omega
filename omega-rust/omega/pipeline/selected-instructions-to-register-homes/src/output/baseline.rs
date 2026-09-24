@@ -2,8 +2,8 @@ use super::{
     AllocationEvidence, AllocationOutput, AllocationReplayError, AllocationSource,
     ProjectAllocation, sealed,
 };
-use crate::SelectedProgramRef;
 use crate::{StagedOptimizedRegisterHomes, validate_optimized_register_home_custody};
+use selected_instructions_to_selected_instructions::SelectedProgramRef;
 
 impl sealed::Sealed for StagedOptimizedRegisterHomes {}
 

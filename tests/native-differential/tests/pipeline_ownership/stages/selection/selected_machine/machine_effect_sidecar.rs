@@ -96,7 +96,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
             .alternatives
             .clear();
         assert!(matches!(
-            selected_instructions_to_register_homes::validate_pre_allocation_machine_effects(
+            selected_instructions_to_selected_instructions::validate_pre_allocation_machine_effects(
                 selected.selected(),
                 selected.register_environment().identity(),
                 selected.register_environment().physical(),
@@ -132,7 +132,7 @@ fn machine_effect_sidecar_reconstructs_subtraction_and_control_barriers() {
                 corrupted,
             ),
             Err(
-                selected_instructions_to_register_homes::MachineEffectError::InstructionMismatch { .. }
+                selected_instructions_to_selected_instructions::MachineEffectError::InstructionMismatch { .. }
             )
         ));
     }

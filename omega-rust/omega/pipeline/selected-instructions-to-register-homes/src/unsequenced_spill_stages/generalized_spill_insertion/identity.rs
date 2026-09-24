@@ -2,11 +2,11 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionSource, GeneralizedSpillEvent, GeneralizedSpillInsertionIdentity,
     GeneralizedSpillInsertionPlan, GeneralizedSpillInsertionPolicy,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub fn generalized_spill_insertion_identity(
     plan: &GeneralizedSpillInsertionPlan,

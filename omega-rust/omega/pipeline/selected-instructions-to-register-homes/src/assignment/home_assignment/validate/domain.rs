@@ -6,7 +6,9 @@ use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::VirtualRegisterId;
 
 use super::conflicts;
-use crate::{LiveRangePoint, RegisterHomeError};
+use crate::RegisterHomeError;
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Debug, Clone)]
 pub(super) struct ReplayDomain {
@@ -19,8 +21,8 @@ pub(super) struct ReplayDomain {
 
 pub(super) fn reconstruct(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
 ) -> Result<Vec<ReplayDomain>, RegisterHomeError> {
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
@@ -120,8 +122,8 @@ fn component_containing(
 fn build(
     function: usize,
     component: BTreeSet<VirtualRegisterId>,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
 ) -> Result<ReplayDomain, RegisterHomeError> {
     let members = legality
         .virtual_registers
@@ -193,7 +195,7 @@ fn build(
 fn reject_internal_interference(
     function: usize,
     registers: &[VirtualRegisterId],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> Result<(), RegisterHomeError> {
     for edge in &ranges.edge_transfers {
         if registers.contains(&edge.parameter)
@@ -237,7 +239,7 @@ fn reject_internal_interference(
 
 fn interval(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), RegisterHomeError> {
     let first = register
         .points
@@ -258,7 +260,7 @@ fn interval(
 
 fn candidates(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, RegisterHomeError> {
     let first = register
         .points

@@ -6,12 +6,13 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
-use crate::{
-    FunctionAllocationLegality, FunctionLiveRanges, FunctionSpillChoices, LogicalReloadValueId,
-    LogicalSpillAction, LogicalSpillOperationError, LogicalSpillReload, LogicalSpillStorage,
-    LogicalSpillStorageClass, LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
-    VirtualFixedConstraintSite,
+use crate::LogicalSpillOperationError;
+use register_homes::{
+    FunctionAllocationLegality, FunctionSpillChoices, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
+    LogicalSpillStore, LogicalSpillUseRewrite,
 };
+use selected_instructions::{FunctionLiveRanges, VirtualFixedConstraintSite, VirtualLiveRange};
 
 pub(in crate::assignment::logical_spill_operations) fn compute_action(
     function_index: usize,
@@ -312,7 +313,7 @@ fn range(
     function: usize,
     ranges: &FunctionLiveRanges,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualLiveRange, LogicalSpillOperationError> {
+) -> Result<&VirtualLiveRange, LogicalSpillOperationError> {
     ranges
         .virtual_registers
         .iter()

@@ -21,15 +21,15 @@ use crate::{
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomeCustodyReceipt,
-};
-use crate::{
-    SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+    StagedOptimizedRegisterHomeCustodyReceipt, ValidatedPostAllocationOptimizationManifest,
+    ValidatedRegisterHomes,
 };
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 pub use retained::RetainedAllocation;
+use selected_instructions_to_selected_instructions::{
+    SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+};
 
 mod sealed {
     pub trait Sealed {}

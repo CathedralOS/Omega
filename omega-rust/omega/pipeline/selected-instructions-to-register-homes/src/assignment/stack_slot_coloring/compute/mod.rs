@@ -6,14 +6,13 @@ mod work;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
-    FunctionStackSlotColoring, StackSlotColoringError, StackSlotColoringPlan,
-    StackSlotColoringPolicy, ValidatedLogicalSpillOperations,
-};
+use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations};
+use register_homes::{FunctionStackSlotColoring, StackSlotColoringPlan, StackSlotColoringPolicy};
 
 pub(in crate::assignment::stack_slot_coloring) use first_fit::color_intervals_first_fit;
 pub(in crate::assignment::stack_slot_coloring) use intervals::StackSlotInterval;
 use intervals::intervals_for_function;
+use register_homes::logical_spill_operation_identity;
 
 pub(super) fn compute_stack_slot_coloring(
     source: &ValidatedLogicalSpillOperations,
@@ -49,7 +48,7 @@ pub(super) fn admit_source(
 ) -> Result<(), StackSlotColoringError> {
     let plan = source.plan();
     let receipt = source.receipt();
-    if receipt.identity() != crate::logical_spill_operation_identity(plan)
+    if receipt.identity() != logical_spill_operation_identity(plan)
         || receipt.register_environment() != plan.register_environment
         || receipt.allocator_availability() != plan.allocator_availability
         || receipt.optimization_unit() != plan.optimization_unit

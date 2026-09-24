@@ -1,10 +1,10 @@
-use crate::{
+use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
+use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPostAllocationOptimizationManifest, ValidatedPressureRematerialization,
-    ValidatedRecoveryClassifications, ValidatedRegisterHomes, ValidatedSpillChoices,
+    ValidatedPressureRematerialization, ValidatedRecoveryClassifications, ValidatedSpillChoices,
 };
 
-use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 use super::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,

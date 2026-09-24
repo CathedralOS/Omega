@@ -3120,10 +3120,6 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let facade = std::fs::read_to_string(&facade_source)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
     assert!(
-        facade.contains("pub use register_model::*;"),
-        "allocation uses the canonical representation-owned register vocabulary"
-    );
-    assert!(
         !facade.contains("pub struct PhysicalRegisterModel")
             && !facade.contains("pub struct RegisterConstraintCatalog"),
         "canonical register-model declarations must not drift back into selected-instructions-to-register-homes"
@@ -3132,6 +3128,12 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/Cargo.toml");
     let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
+    assert!(
+        regalloc_manifest_source
+            .lines()
+            .any(|line| line.trim_start().starts_with("register-model =")),
+        "allocation uses the canonical representation-owned register vocabulary"
+    );
     for forbidden in ["assigned-target-operations", "native-realization"] {
         assert!(
             !regalloc_manifest_source

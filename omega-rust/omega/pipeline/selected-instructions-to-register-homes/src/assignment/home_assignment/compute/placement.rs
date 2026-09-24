@@ -6,16 +6,16 @@ use std::collections::BTreeMap;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use super::{
-    domain::{AllocationDomain, build_domains},
-    prepared_conflicts::PreparedConflicts,
-};
-use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use super::domain::{AllocationDomain, build_domains};
+use super::prepared_conflicts::PreparedConflicts;
+use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 pub(crate) fn compute_function(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {

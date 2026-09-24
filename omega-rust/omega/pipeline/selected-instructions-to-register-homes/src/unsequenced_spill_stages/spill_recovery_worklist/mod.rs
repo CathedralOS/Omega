@@ -18,19 +18,21 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
-use crate::unsequenced_spill_stages::ValidatedAbstractSpillInsertion;
+use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, ReloadValueHomeError, ReloadValueHomePolicy,
-    SyntheticReloadValueId,
+    SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    LogicalReloadValueId, LogicalSpillOperationIdentity,
-};
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
+    LogicalSpillOperationIdentity,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::SelectedBlockId;
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint, SelectedBlockId};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 #[allow(clippy::too_many_arguments)]

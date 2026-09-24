@@ -10,9 +10,10 @@ use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
-use crate::{LiveRangePoint, VirtualFixedConstraintSite};
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{Work, add, count};
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn is_eligible(
@@ -21,7 +22,7 @@ pub(super) fn is_eligible(
     point: LiveRangePoint,
     resident: &GeneralizedSpillRecoveryResident,
     selected: &SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     work: &mut Work,
 ) -> Result<bool, GeneralizedSpillRecoveryChoiceError> {
     add(&mut work.steps, count(selected.virtual_registers.len())?)?;
@@ -73,7 +74,7 @@ pub(super) fn is_eligible(
         || ranges.machine != selected.machine
         || range.class != resident.class
         || range.fragments.as_slice()
-            != [crate::LiveRangeFragment {
+            != [LiveRangeFragment {
                 block,
                 start: resident.start,
                 end: resident.exclusive_end,

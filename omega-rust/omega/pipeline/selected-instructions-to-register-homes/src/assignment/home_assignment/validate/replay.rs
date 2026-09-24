@@ -7,13 +7,15 @@ use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
 use super::{conflicts, domain};
-use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 pub(in crate::assignment::home_assignment) fn validate_function(
     function: usize,
     actual: &FunctionRegisterHomes,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), RegisterHomeError> {
     if actual.machine != legality.machine || actual.machine != ranges.machine {
@@ -55,8 +57,8 @@ pub(in crate::assignment::home_assignment) fn validate_function(
 
 pub(crate) fn replay_function(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
     let mut domains = domain::reconstruct(function, legality, ranges)?;
@@ -182,7 +184,7 @@ fn preferred_view(
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Option<RegisterViewId>, RegisterHomeError> {
     let domain = &domains[domain_index];
@@ -271,7 +273,7 @@ fn stolen_coalesces(
     unassigned: &BTreeSet<usize>,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<usize, RegisterHomeError> {
     let domain = &domains[domain_index];
@@ -332,7 +334,7 @@ fn partner_outlooks(
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     affinities: &[CopyAffinity],
     domain_of: &BTreeMap<VirtualRegisterId, usize>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> BTreeMap<usize, PartnerOutlook> {
     let domain = &domains[domain_index];
     let mut outlooks = BTreeMap::<usize, PartnerOutlook>::new();
@@ -386,7 +388,7 @@ fn strands_neighbor(
     view: RegisterViewId,
     domains: &[domain::ReplayDomain],
     unassigned: &BTreeSet<usize>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<bool, RegisterHomeError> {
     let domain = &domains[domain_index];

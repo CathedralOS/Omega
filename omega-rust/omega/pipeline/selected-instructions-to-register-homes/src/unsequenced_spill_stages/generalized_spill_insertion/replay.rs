@@ -4,13 +4,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     FunctionGeneralizedSpillInsertion, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillEvent, GeneralizedSpillInsertionError, GeneralizedSpillInsertionPlan,
     GeneralizedSpillInsertionPolicy, GeneralizedSpillSlot, ValidatedAbstractSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -19,8 +20,8 @@ struct ReplayAction {
     source: GeneralizedSpillActionSource,
     class: LogicalSpillStorageClass,
     block: selected_instructions::SelectedBlockId,
-    from: crate::LiveRangePoint,
-    through: crate::LiveRangePoint,
+    from: LiveRangePoint,
+    through: LiveRangePoint,
     store_instruction: selected_instructions::SelectedInstructionId,
     before_reload: Option<GeneralizedSpillActionId>,
     store_source: selected_instructions::VirtualRegisterId,
@@ -33,7 +34,7 @@ struct ReplayAction {
 #[derive(Clone, Copy)]
 struct ReplayRewrite {
     block: selected_instructions::SelectedBlockId,
-    point: crate::LiveRangePoint,
+    point: LiveRangePoint,
     instruction: selected_instructions::SelectedInstructionId,
     operand: u16,
 }
@@ -439,7 +440,7 @@ fn replay_function(
 type EventKey = (u32, u8, u32, u32, u32, u16);
 
 fn event_key(
-    point: crate::LiveRangePoint,
+    point: LiveRangePoint,
     rank: u8,
     action: GeneralizedSpillActionId,
     instruction: selected_instructions::SelectedInstructionId,

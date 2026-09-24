@@ -22,9 +22,8 @@ use crate::tests::{
     staged_composition_pressure_module_legality,
 };
 use selected_instructions::LocalStorageSlotId;
-use selected_instructions_to_register_homes::{
-    AllocationSource, RegisterAllocationError, ValidatedSelectedAnalysis,
-};
+use selected_instructions_to_register_homes::{AllocationSource, RegisterAllocationError};
+use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 fn transformations(
     retained: &selected_instructions_to_register_homes::RetainedAllocation,
@@ -356,7 +355,7 @@ fn changed_real_spill_slot_geometry_invalidates_retained_demand() {
 
 fn active_resident_ranges(
     staged: StagedOptimizedSelectedInstructions,
-) -> selected_instructions_to_register_homes::StagedOptimizedLiveRanges {
+) -> selected_instructions_to_selected_instructions::StagedOptimizedLiveRanges {
     stage_optimized_live_ranges(stage_optimized_liveness(staged).unwrap()).unwrap()
 }
 

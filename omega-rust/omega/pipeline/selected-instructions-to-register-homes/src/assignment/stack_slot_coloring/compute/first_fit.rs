@@ -1,6 +1,7 @@
 use semantic_vocabulary::MachineId;
 
-use crate::{FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringError};
+use crate::StackSlotColoringError;
+use register_homes::{FunctionStackSlotColoring, StackSlotAssignment};
 
 use super::StackSlotInterval;
 

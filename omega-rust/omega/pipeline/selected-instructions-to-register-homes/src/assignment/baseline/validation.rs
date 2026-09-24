@@ -1,11 +1,13 @@
 use crate::{
-    PostAllocationSelectedTransformation, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, validate_post_allocation_optimization_manifest,
-    validate_register_homes,
+    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+    validate_post_allocation_optimization_manifest, validate_register_homes,
 };
+use register_homes::PostAllocationSelectedTransformation;
 
-use crate::{StagedOptimizedAllocationLegality, validate_optimized_allocation_legality_custody};
-use crate::{StagedOptimizedSelectedReanalysis, validate_optimized_selected_reanalysis_custody};
+use selected_instructions_to_selected_instructions::{
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    validate_optimized_allocation_legality_custody, validate_optimized_selected_reanalysis_custody,
+};
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
 use super::{

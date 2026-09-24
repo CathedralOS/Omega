@@ -14,11 +14,13 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, GeneralizedSpillActionSource, GeneralizedSpillInsertionIdentity,
     GeneralizedSpillRecoveryActionIdentity, GeneralizedSpillRecoveryWorkItemId,
 };
-use crate::{AllocatorAvailabilityIdentity, LiveRangePoint, LogicalSpillStorageClass};
 pub use identity::recursive_spill_insertion_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_recursive_spill_insertion;
 

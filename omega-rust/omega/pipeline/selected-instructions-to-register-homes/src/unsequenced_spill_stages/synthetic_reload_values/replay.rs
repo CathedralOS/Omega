@@ -4,12 +4,12 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::LogicalReloadValueId;
 use crate::unsequenced_spill_stages::{
     FunctionSyntheticReloadValues, SyntheticReloadValueBinding, SyntheticReloadValueError,
     SyntheticReloadValueId, SyntheticReloadValuePlan, SyntheticReloadValuePolicy,
     ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes,
 };
+use register_homes::LogicalReloadValueId;
 
 struct PendingBinding {
     function: usize,

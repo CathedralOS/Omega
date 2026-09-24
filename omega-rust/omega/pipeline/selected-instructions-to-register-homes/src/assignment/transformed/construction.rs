@@ -1,11 +1,13 @@
-use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest_after_pre_allocation;
-use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest_after_selected_lowering;
+use crate::assignment::post_allocation_manifest::{
+    project_post_allocation_optimization_manifest,
+    project_post_allocation_optimization_manifest_after_pre_allocation,
+    project_post_allocation_optimization_manifest_after_selected_lowering,
+};
 use crate::{
     ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes, assign_register_homes,
 };
 
-use crate::{
+use selected_instructions_to_selected_instructions::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     validate_optimized_literal_fold_custody, validate_pre_allocation_optimization_custody,

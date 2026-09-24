@@ -4,10 +4,11 @@ mod receipt;
 mod replay;
 mod work;
 
-use crate::{
-    LogicalSpillOperationError, LogicalSpillOperationPlan, LogicalSpillOperationPolicy,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices,
+use crate::{LogicalSpillOperationError, ValidatedLogicalSpillOperations};
+use register_homes::{LogicalSpillOperationPlan, LogicalSpillOperationPolicy};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    ValidatedSpillChoices,
 };
 
 pub fn validate_logical_spill_operations<S: ValidatedSelectedAnalysis>(

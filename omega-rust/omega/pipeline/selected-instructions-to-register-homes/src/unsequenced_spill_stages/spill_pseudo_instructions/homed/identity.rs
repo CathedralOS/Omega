@@ -2,12 +2,12 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     HomedSpillPseudoInstruction, HomedSpillPseudoInstructionPlan,
     HomedSpillPseudoInstructionPlanIdentity, HomedSpillPseudoInstructionPolicy,
     SpillPseudoStoredValue,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub fn homed_spill_pseudo_instruction_plan_identity(
     plan: &HomedSpillPseudoInstructionPlan,

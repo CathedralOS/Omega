@@ -16,8 +16,9 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryVictimChoice,
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryWorklist,
 };
-use crate::{
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 mod original_eligibility;

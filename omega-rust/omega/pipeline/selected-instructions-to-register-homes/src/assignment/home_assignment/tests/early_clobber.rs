@@ -1,10 +1,13 @@
 use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
-use super::{compute_function, fixtures::*, validate};
-use crate::{
+use super::fixtures::*;
+use super::{compute_function, validate};
+use crate::RegisterHomeError;
+use register_homes::VirtualEarlyClobberPointLegality;
+use selected_instructions::{
     DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, LiveRangePoint, LivenessPosition,
-    RegisterHomeError, VirtualEarlyClobberPointLegality, VirtualLiveRange,
+    VirtualLiveRange,
 };
 
 #[test]

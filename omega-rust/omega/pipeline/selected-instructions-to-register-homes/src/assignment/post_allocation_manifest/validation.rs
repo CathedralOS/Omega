@@ -3,12 +3,15 @@ use optimization_core::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
+use crate::ValidatedRegisterHomes;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
+use super::reconstruction::expected_record;
 use super::{
     PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
     PostAllocationSelectedTransformation, ValidatedPostAllocationOptimizationManifest,
-    reconstruction::expected_record,
 };
 
 pub(super) fn validate(

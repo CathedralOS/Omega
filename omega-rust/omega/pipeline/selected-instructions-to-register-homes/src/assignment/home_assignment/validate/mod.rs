@@ -15,9 +15,9 @@ use register_model::{
     ValidatedRegisterReservationProfile,
 };
 
-use crate::{
-    RegisterHomeError, RegisterHomePlan, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedRegisterHomes,
+use crate::{RegisterHomeError, RegisterHomePlan, ValidatedRegisterHomes};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 #[allow(unused_imports)]

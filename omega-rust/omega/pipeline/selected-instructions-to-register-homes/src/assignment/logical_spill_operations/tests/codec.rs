@@ -1,5 +1,5 @@
 use super::fixtures::fixture;
-use crate::LogicalSpillOperationPlan;
+use register_homes::LogicalSpillOperationPlan;
 
 #[test]
 fn canonical_codec_round_trips() {

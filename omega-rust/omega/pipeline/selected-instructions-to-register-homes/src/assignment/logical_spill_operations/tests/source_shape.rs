@@ -4,11 +4,15 @@ use selected_instructions::{VirtualRegisterId, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 use super::fixtures::raw_fixture;
-use crate::{LogicalSpillOperationError, VirtualFixedConstraint, VirtualFixedConstraintSite};
+use crate::LogicalSpillOperationError;
+use register_homes::LogicalSpillAction;
+use selected_instructions::{
+    LiveRangePoint, LivenessPosition, VirtualFixedConstraint, VirtualFixedConstraintSite,
+};
 
 fn compute(
     fixture: &super::fixtures::RawFixture,
-) -> Result<Option<crate::LogicalSpillAction>, LogicalSpillOperationError> {
+) -> Result<Option<LogicalSpillAction>, LogicalSpillOperationError> {
     super::super::compute::action::compute_action(
         0,
         &fixture.selected,
@@ -99,8 +103,8 @@ fn v1_refuses_nonlocal_fixed_missing_and_non_use_future_suffixes() {
         .fixed_constraints
         .push(VirtualFixedConstraint {
             site: VirtualFixedConstraintSite::Operand {
-                position: crate::LivenessPosition(3),
-                point: crate::LiveRangePoint(6),
+                position: LivenessPosition(3),
+                point: LiveRangePoint(6),
                 instruction: selected_instructions::SelectedInstructionId(3),
                 operand: 0,
                 access: RegisterOperandAccess::Use,
@@ -131,7 +135,7 @@ fn v1_refuses_nonlocal_fixed_missing_and_non_use_future_suffixes() {
 #[test]
 fn v1_refuses_pressure_definition_drift() {
     let mut fixture = raw_fixture();
-    fixture.ranges.virtual_registers[2].occurrences[0].point = crate::LiveRangePoint(4);
+    fixture.ranges.virtual_registers[2].occurrences[0].point = LiveRangePoint(4);
     assert!(matches!(
         compute(&fixture),
         Err(LogicalSpillOperationError::IncomingDefinitionMismatch { .. })

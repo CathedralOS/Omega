@@ -1,4 +1,5 @@
-use crate::{StackSlotColoringError, StackSlotColoringPlan, ValidatedLogicalSpillOperations};
+use crate::{StackSlotColoringError, ValidatedLogicalSpillOperations};
+use register_homes::{StackSlotColoringPlan, logical_spill_operation_identity};
 
 pub(super) fn validate_roots(
     source: &ValidatedLogicalSpillOperations,
@@ -6,7 +7,7 @@ pub(super) fn validate_roots(
 ) -> Result<(), StackSlotColoringError> {
     let logical = source.plan();
     let receipt = source.receipt();
-    if receipt.identity() != crate::logical_spill_operation_identity(logical)
+    if receipt.identity() != logical_spill_operation_identity(logical)
         || receipt.register_environment() != logical.register_environment
         || receipt.allocator_availability() != logical.allocator_availability
         || receipt.optimization_unit() != logical.optimization_unit

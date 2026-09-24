@@ -1,4 +1,5 @@
 use super::{compute_function, fixtures, validate};
+use register_homes::VirtualEarlyClobberPointLegality;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{
     EdgeRegisterTransfer, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePoint,
@@ -77,7 +78,7 @@ fn empty_legality_cannot_discard_any_remaining_physical_requirement() {
                     view: RegisterViewId(0),
                 }),
             4 => legality.virtual_registers[1].early_clobber_points.push(
-                crate::VirtualEarlyClobberPointLegality {
+                VirtualEarlyClobberPointLegality {
                     block: SelectedBlockId(0),
                     position: LivenessPosition(1),
                     instruction: SelectedInstructionId(1),

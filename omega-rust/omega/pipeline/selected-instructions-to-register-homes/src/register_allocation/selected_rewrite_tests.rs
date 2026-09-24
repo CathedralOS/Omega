@@ -1,12 +1,14 @@
 //! Rewritten selected programs remain assignable by the downstream phase.
 
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::FunctionLiveRanges;
 use selected_instructions_to_selected_instructions::test_support::{
     exercise_multiple_use_rematerialization, exercise_single_use_rematerialization,
 };
 
 fn check_assignment(
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &register_model::ValidatedPhysicalRegisterModel,
 ) {
     let homes = crate::assignment::home_assignment::compute::compute_function(

@@ -1,7 +1,7 @@
 //! Exact component usage and every representable first-over work boundary.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions_to_register_homes::{
+use selected_instructions_to_selected_instructions::{
     PressureRematerializationError, RecoveryClassificationError, SpillChoiceError,
 };
 

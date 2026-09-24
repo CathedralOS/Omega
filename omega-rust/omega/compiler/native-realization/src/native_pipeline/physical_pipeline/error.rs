@@ -16,7 +16,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     AllocationRecoveryRuleCatalog(
-        selected_instructions_to_register_homes::AllocationRecoveryRuleCatalogError,
+        selected_instructions_to_selected_instructions::AllocationRecoveryRuleCatalogError,
     ),
     SelectedLoweringRuleCatalog(
         selected_instructions_to_selected_instructions::SelectedLoweringRuleCatalogError,

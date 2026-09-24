@@ -22,7 +22,10 @@ use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, ValidatedGeneralizedSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
-use crate::{LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges};
+use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[derive(Clone)]
 struct ReloadSpec {

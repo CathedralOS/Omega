@@ -7,12 +7,12 @@ use optimization_core::{
 };
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
-use selected_instructions::{LiveRangeIdentity, LivenessIdentity};
-use selected_instructions_to_register_homes::{
-    FixedViewCopyIdentity, LiteralFoldIdentity, PressureRematerializationIdentity,
-    RegisterHomeIdentity,
+use selected_instructions::{
+    FixedViewCopyIdentity, LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    SelectedInstructionPlanIdentity,
 };
+use selected_instructions_to_register_homes::RegisterHomeIdentity;
+use selected_instructions_to_selected_instructions::LiteralFoldIdentity;
 use target::{Architecture, ObjectFormat};
 
 use super::fixture::{staged, validate};

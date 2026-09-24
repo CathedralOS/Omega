@@ -1,5 +1,5 @@
 use super::fixtures::fixture;
-use crate::logical_spill_operation_identity;
+use register_homes::logical_spill_operation_identity;
 
 #[test]
 fn identity_binds_the_complete_logical_decision() {

@@ -19,10 +19,13 @@ use crate::tests::{
 };
 use register_homes::AllocationLegalityIdentity;
 use selected_instructions_to_register_homes::{
-    RegisterHomeError, RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
-    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, assign_register_homes,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
-    validate_register_homes, validate_runtime_spill, validate_runtime_spill_with_span_policy,
+    RegisterHomeError, assign_register_homes, validate_register_homes,
+};
+use selected_instructions_to_selected_instructions::{
+    RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef, analyze_allocation_legality,
+    analyze_live_ranges, analyze_liveness, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_span_policy, validate_runtime_spill,
+    validate_runtime_spill_with_span_policy,
 };
 
 #[test]

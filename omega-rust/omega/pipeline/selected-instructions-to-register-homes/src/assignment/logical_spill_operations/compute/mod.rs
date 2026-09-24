@@ -5,10 +5,13 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
-    FunctionLogicalSpillOperations, LogicalSpillOperationError, LogicalSpillOperationPlan,
-    LogicalSpillOperationPolicy, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedSelectedAnalysis, ValidatedSpillChoices,
+use crate::LogicalSpillOperationError;
+use register_homes::{
+    FunctionLogicalSpillOperations, LogicalSpillOperationPlan, LogicalSpillOperationPolicy,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    ValidatedSpillChoices,
 };
 
 pub(super) fn compute_terminal_logical_spill_operations<S: ValidatedSelectedAnalysis>(

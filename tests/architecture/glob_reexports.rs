@@ -9,24 +9,18 @@
 //! that orchestration"). Named re-exports say what an owner offers; globs say
 //! only that something is offered.
 //!
-//! The repository still carries several hundred such lines under `src/`. This
-//! ratchet records, per crate, how many production lines re-export with a
-//! glob today and fails when that number grows. An entry records the exact
-//! count its crate has right now: growing past it fails as a regression,
-//! shrinking fails as a stale entry, and the entry is lowered or deleted. The
-//! list moves one direction. Adding a named re-export is always allowed;
-//! adding a glob re-export is allowed only by removing one elsewhere in the
-//! same crate.
+//! This ratchet recorded, per crate, how many lines under `src/` re-exported
+//! with a glob, and each entry moved one direction until every crate reached
+//! zero. The table is now empty, so any glob re-export fails. An entry still
+//! records an exact count: growing past it fails as a regression, shrinking
+//! fails as a stale entry. Adding a named re-export is always allowed.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, production lines under its
 /// `src/` that re-export a module with a glob).
-const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[(
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
-    12,
-)];
+const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -12,6 +12,7 @@ use crate::unsequenced_spill_stages::{
 };
 
 use super::{ActiveHome, ReloadSpec, homes};
+use register_homes::FunctionAllocationLegality;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn assign(
@@ -20,7 +21,7 @@ pub(super) fn assign(
     recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
     recovery: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
     prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RecursiveReloadValueHomeAssignment>, RecursiveReloadValueHomeError> {
     let mut pressure = None;

@@ -1,13 +1,16 @@
+use crate::assign_register_homes;
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::{
-    PostAllocationSelectedTransformation, PressureRematerializationPolicy,
-    RecoveryClassificationPolicy, SpillChoicePolicy, analyze_allocation_legality,
-    analyze_live_ranges, analyze_liveness, assign_register_homes, choose_spill_victims,
-    classify_pressure_recovery, rematerialize_selected_active_resident,
-};
 use optimization_core::OptimizationWorkBudget;
+use register_homes::{
+    PostAllocationSelectedTransformation, RecoveryClassificationPolicy, SpillChoicePolicy,
+};
+use selected_instructions_to_selected_instructions::{
+    PressureRematerializationPolicy, analyze_allocation_legality, analyze_live_ranges,
+    analyze_liveness, choose_spill_victims, classify_pressure_recovery,
+    rematerialize_selected_active_resident,
+};
 
-use crate::StagedOptimizedAllocationLegality;
+use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegality;
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
 use super::validation::validate_source;

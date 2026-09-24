@@ -1,7 +1,7 @@
 use super::fixtures::{budget, source};
-use crate::{
+use crate::color_logical_spill_stack_slots;
+use register_homes::{
     StackSlotColoringDecodeError, StackSlotColoringPlan, StackSlotColoringPolicy,
-    color_logical_spill_stack_slots,
 };
 
 fn plan() -> StackSlotColoringPlan {

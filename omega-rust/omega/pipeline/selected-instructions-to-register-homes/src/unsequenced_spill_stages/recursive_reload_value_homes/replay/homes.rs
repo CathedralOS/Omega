@@ -3,14 +3,15 @@
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::RecursiveReloadValueHomeError;
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::LiveRangePoint;
 
 pub(super) fn find_legality(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualRegisterAllocationLegality, RecursiveReloadValueHomeError> {
+) -> Result<&VirtualRegisterAllocationLegality, RecursiveReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -23,7 +24,7 @@ pub(super) fn find_legality(
 
 pub(super) fn original_exclusive_end(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
 ) -> Result<LiveRangePoint, RecursiveReloadValueHomeError> {
     let last = row
         .points
@@ -45,7 +46,7 @@ pub(super) fn original_exclusive_end(
 
 pub(super) fn domain(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
     block: selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,

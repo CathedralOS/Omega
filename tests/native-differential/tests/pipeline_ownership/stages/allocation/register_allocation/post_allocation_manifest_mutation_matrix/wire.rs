@@ -1,9 +1,8 @@
 use crate::tests::{
     NativeTarget, PostAllocationOptimizationManifest, PostAllocationSelectedTransformation,
 };
-use selected_instructions_to_register_homes::{
-    FixedViewCopyIdentity, PostAllocationOptimizationManifestDecodeError,
-};
+use selected_instructions::FixedViewCopyIdentity;
+use selected_instructions_to_register_homes::PostAllocationOptimizationManifestDecodeError;
 
 use super::fixture::staged;
 use super::wire_offsets::locate;

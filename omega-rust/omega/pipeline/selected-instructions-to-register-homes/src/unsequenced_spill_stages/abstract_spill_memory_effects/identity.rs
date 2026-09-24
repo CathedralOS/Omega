@@ -2,11 +2,11 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectPlan,
     AbstractSpillMemoryEffectPlanIdentity, AbstractSpillMemoryEffectPolicy, SpillPseudoStoredValue,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub fn abstract_spill_memory_effect_plan_identity(
     plan: &AbstractSpillMemoryEffectPlan,

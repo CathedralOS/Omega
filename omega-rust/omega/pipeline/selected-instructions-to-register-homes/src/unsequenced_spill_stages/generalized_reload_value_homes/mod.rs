@@ -16,18 +16,19 @@ pub use validate::validate_generalized_reload_value_homes;
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillInsertionIdentity, SpillRecoveryActionIdentity,
-};
-use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, ValidatedGeneralizedSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-};
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionPlanIdentity, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+    VirtualRegisterId,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 #[allow(clippy::too_many_arguments)]

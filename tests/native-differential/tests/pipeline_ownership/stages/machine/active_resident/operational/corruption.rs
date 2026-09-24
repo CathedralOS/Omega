@@ -1,6 +1,6 @@
 //! Direct action-plan and enclosing custody corruption rejection.
 
-use selected_instructions_to_register_homes::{
+use selected_instructions_to_selected_instructions::{
     PressureRematerializationError, validate_pressure_rematerialization,
 };
 use semantic_vocabulary::IntegerValue;

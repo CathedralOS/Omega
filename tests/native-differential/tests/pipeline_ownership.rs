@@ -24,6 +24,7 @@ use register_homes_to_post_allocation_machine::*;
 use resolved_layout_to_resolved_layout::*;
 use selected_form_encoding_to_resolved_layout::*;
 use selected_instructions_to_register_homes::*;
+use selected_instructions_to_selected_instructions::*;
 use target_operations_to_selected_instructions::{
     OptimizedSelectionCustodyError, OptimizedSelectionCustodyFieldForTest,
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,

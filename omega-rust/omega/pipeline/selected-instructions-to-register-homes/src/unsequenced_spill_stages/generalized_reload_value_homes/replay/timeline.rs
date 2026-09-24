@@ -4,14 +4,16 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{Occupant, ReplaySpec, homes};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::FunctionLiveRanges;
 
 #[derive(Default)]
 struct PointEvents<'a> {
@@ -21,7 +23,7 @@ struct PointEvents<'a> {
 
 #[derive(Clone, Copy)]
 struct OriginalEvent<'a> {
-    row: &'a crate::VirtualRegisterAllocationLegality,
+    row: &'a VirtualRegisterAllocationLegality,
     exclusive_end: LiveRangePoint,
 }
 
@@ -29,8 +31,8 @@ pub(super) fn reconstruct(
     function: usize,
     specs: &[ReplaySpec],
     first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<GeneralizedReloadValueHomeOutcome>, GeneralizedReloadValueHomeError> {
     let mut points = BTreeMap::<LiveRangePoint, PointEvents<'_>>::new();

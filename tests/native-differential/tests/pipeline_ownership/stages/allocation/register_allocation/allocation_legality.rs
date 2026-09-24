@@ -125,7 +125,7 @@ fn allocation_legality_is_phase_exact_with_explicit_abi_transfers() {
             )
             .unwrap();
             let reduced_legality =
-                selected_instructions_to_register_homes::analyze_allocation_legality(
+                selected_instructions_to_selected_instructions::analyze_allocation_legality(
                     staged.live_range_stage().ranges(),
                     &reduced_availability,
                     reduced_identity,

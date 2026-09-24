@@ -17,9 +17,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryVictim, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
 };
-use crate::{
-    LogicalSpillStorageClass, ValidatedLiveRanges, ValidatedSelectedAnalysis,
-    VirtualFixedConstraintSite,
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::{LiveRangeFragment, VirtualFixedConstraintSite};
+use selected_instructions_to_selected_instructions::{
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 pub(super) fn replay<S: ValidatedSelectedAnalysis>(
@@ -245,7 +246,7 @@ pub(super) fn replay<S: ValidatedSelectedAnalysis>(
             || value.class != resident.class
             || range.class != resident.class
             || range.fragments.as_slice()
-                != [crate::LiveRangeFragment {
+                != [LiveRangeFragment {
                     block: choice.block,
                     start: resident.start,
                     end: resident.exclusive_end,

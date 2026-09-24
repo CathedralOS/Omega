@@ -2,8 +2,10 @@
 
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 
-use super::{conflicts::registers_interfere, domain::AllocationDomain};
-use crate::{FunctionLiveRanges, RegisterHomeError};
+use super::conflicts::registers_interfere;
+use super::domain::AllocationDomain;
+use crate::RegisterHomeError;
+use selected_instructions::FunctionLiveRanges;
 
 #[derive(Clone, Copy)]
 struct DomainPair {

@@ -90,7 +90,8 @@ fn budget_for(usage: OptimizationWorkUsage) -> OptimizationWorkBudget {
 
 pub(super) struct SplitFixture {
     pub(super) source: StagedOptimizedAllocationLegality,
-    pub(super) fixed: selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
+    pub(super) fixed:
+        selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredIntervals,
 }
 
 pub(super) fn source(target: NativeTarget) -> SplitFixture {
@@ -120,7 +121,7 @@ fn staged(selected: StagedOptimizedSelectedInstructions) -> SplitFixture {
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();
     let source = stage_optimized_allocation_legality(ranges).unwrap();
-    let fixed = selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
+    let fixed = selected_instructions_to_selected_instructions::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
         register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
@@ -138,10 +139,10 @@ pub(super) fn analyze(
     fixture: &SplitFixture,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
-    selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError,
+    selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredSplitRequirements,
+    selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError,
 > {
-    selected_instructions_to_register_homes::analyze_fixed_precolored_split_requirements(
+    selected_instructions_to_selected_instructions::analyze_fixed_precolored_split_requirements(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,
@@ -154,10 +155,10 @@ pub(super) fn validate(
     fixture: &SplitFixture,
     plan: register_homes::FixedPrecoloredSplitRequirementPlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
-    selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError,
+    selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredSplitRequirements,
+    selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError,
 > {
-    selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
+    selected_instructions_to_selected_instructions::validate_fixed_precolored_split_requirements(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,

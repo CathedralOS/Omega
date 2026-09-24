@@ -22,9 +22,14 @@
 //!   through that module path, so the root's names are the route's names.
 //!
 //! Every name the route owns is re-exported below from the module that owns
-//! it, so the root reads as a map. The `register_model` and
-//! `selected_instructions_to_selected_instructions` vocabularies are upstream
-//! representation crates this stage consumes; they are re-exported whole.
+//! it, so the root reads as a map. Upstream vocabulary (`register_model`,
+//! `register_homes`, `selected_instructions`, and the preceding stage
+//! `selected_instructions_to_selected_instructions`) is imported from its
+//! owner where it is used. The root re-exports upstream names in two places
+//! only: the `register_homes` records a stage publishes beside its operations
+//! (post-allocation manifest, logical spill operations, stack-slot coloring),
+//! and the seven selected-program analysis names listed last, which the
+//! post-allocation stages still import through this crate.
 
 mod assignment;
 mod output;
@@ -79,23 +84,26 @@ pub use assignment::transformed::{
     validate_optimized_register_home_after_selected_lowering_custody,
 };
 
-// Rematerialization staged by the active-resident recovery rule.
-#[cfg(feature = "test-support")]
+// Custody-field inventories the one-field substitution matrices drive.
+#[cfg(any(test, feature = "test-support"))]
 pub use assignment::baseline::{
     OptimizedPostCopyRegisterHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
 };
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub use assignment::transformed::{
     OptimizedPostLiteralFoldHomeCustodyFieldForTest,
     OptimizedPostPreAllocationHomeCustodyFieldForTest,
     OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
 };
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub use rewrites::{
     OptimizedActiveResidentRematerializationCustodyFieldForTest,
     OptimizedActiveResidentRematerializationPressureCustodyFieldForTest,
-    corrupt_active_resident_rematerialization_custody_for_test,
 };
+
+// Rematerialization staged by the active-resident recovery rule.
+#[cfg(feature = "test-support")]
+pub use rewrites::corrupt_active_resident_rematerialization_custody_for_test;
 pub use rewrites::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
@@ -141,27 +149,10 @@ pub use assignment::stack_slot_coloring::{
     color_logical_spill_stack_slots, stack_slot_coloring_identity, validate_stack_slot_coloring,
 };
 
-// Upstream vocabularies consumed by every stage above.
-pub use register_model::*;
-pub use selected_instructions_to_selected_instructions::*;
-
-use register_homes::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
-    FunctionSpillChoices, RecoveryClassificationIdentity, RecoveryClassificationPolicy,
-    SpillChoiceIdentity, SpillChoicePolicy, VirtualRegisterAllocationLegality,
-};
-#[cfg(test)]
-use register_homes::{
-    PressureContender, PressureResident, SpillChoice, VirtualEarlyClobberPointLegality,
-    VirtualPointLegality,
-};
-#[cfg(test)]
-use selected_instructions::{
-    BlockPointDomain, EarlyClobberConstraint, EarlyClobberUse, EdgeRegisterTransfer,
-    LivenessPosition, VirtualFixedConstraint, VirtualOccurrence,
-};
-use selected_instructions::{
-    CopyAffinity, DistinctUseDefTie, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity,
-    LiveRangePoint, LivenessIdentity, VirtualFixedConstraintSite, VirtualInterference,
-    VirtualLiveRange,
+// Upstream selected-program analyses. `AllocationOutput` carries the ranges
+// and legality; the post-allocation stages name these through this crate.
+pub use selected_instructions_to_selected_instructions::{
+    MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
+    validate_machine_effects,
 };

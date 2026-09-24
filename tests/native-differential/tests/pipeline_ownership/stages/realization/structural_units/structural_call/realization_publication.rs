@@ -13,7 +13,7 @@ use crate::tests::{
     validate_optimized_relocation_free_object_container,
 };
 use selected_instructions_to_register_homes::AllocationSource;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 pub(super) fn realize_and_publish_structural_call(homes: StagedOptimizedRegisterHomes) {
     let current = homes.replay_allocation().unwrap();

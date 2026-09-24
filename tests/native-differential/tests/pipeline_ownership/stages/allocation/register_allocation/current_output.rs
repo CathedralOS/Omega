@@ -17,7 +17,7 @@ use crate::tests::{
     validate_optimized_post_allocation_machine_plan_custody,
 };
 use selected_instructions_to_register_homes::AllocationSource;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 fn callee_saved_budget() -> OptimizationWorkBudget {
     // Requirement traversal counts every selected operand, unlike rewrite rounds.
@@ -322,8 +322,10 @@ fn fixed_view_recovery_publishes_the_same_owned_program_contract() {
         .unwrap();
         let selected = stage_optimized_instruction_selection(target_input).unwrap();
         let retained = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
-                .unwrap(),
+            selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                selected,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_owned_program(&retained);
@@ -351,8 +353,10 @@ fn pre_allocation_copy_removal_publishes_the_same_owned_program_contract() {
             selected_lowering_budget(),
         );
         let retained = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
-                .unwrap(),
+            selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                selected,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_owned_program(&retained);
@@ -379,7 +383,7 @@ fn pre_allocation_copy_removal_publishes_the_same_owned_program_contract() {
 
 #[test]
 fn selected_optimization_rejects_a_substituted_current_program_before_assignment() {
-    use selected_instructions_to_register_homes::{
+    use selected_instructions_to_selected_instructions::{
         SelectedInstructionOptimizationError, optimize_selected_instructions,
     };
     let target = NativeTarget::linux_x64();
@@ -410,8 +414,10 @@ fn allocation_phase_matches_explicit_recovery_on_both_targets() {
         );
         let declared_budget = selected.optimized_target().optimized().budget_per_pass();
         let allocation = stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
-                .unwrap(),
+            selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                selected,
+            )
+            .unwrap(),
         )
         .unwrap();
         assert_owned_program(&allocation);

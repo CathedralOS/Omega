@@ -15,13 +15,17 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryActionIdentity, RecursiveSpillActionSource,
     RecursiveSpillInsertionIdentity,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-};
 pub use identity::recursive_reload_value_home_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionPlanIdentity, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+    VirtualRegisterId,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_recursive_reload_value_homes;
 
@@ -31,8 +35,8 @@ pub fn assign_recursive_reload_value_homes(
     recovery: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
     prior: &crate::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
     selected: &target_operations_to_selected_instructions::ValidatedSelectedInstructions,
-    ranges: &crate::ValidatedLiveRanges,
-    legality: &crate::ValidatedAllocationLegality,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
     reservations: &register_model::ValidatedRegisterReservationProfile,

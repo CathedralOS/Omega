@@ -5,11 +5,14 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
+use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
     ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy, ReloadValueHomeReceipt,
     ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes, reload_value_home_identity,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_reload_value_homes(

@@ -6,13 +6,14 @@ use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterMode
 use selected_instructions::VirtualRegisterId;
 
 use super::domain::ReplayDomain;
-use crate::{RegisterHomeError, VirtualInterference};
+use crate::RegisterHomeError;
+use selected_instructions::{FunctionLiveRanges, VirtualInterference};
 
 pub(super) fn viable_candidates(
     function: usize,
     domain: &ReplayDomain,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
     domain
@@ -35,7 +36,7 @@ pub(super) fn viable_candidates(
 pub(super) fn constrained(
     left: &ReplayDomain,
     right: &ReplayDomain,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> bool {
     left.registers.iter().any(|left| {
         right.registers.iter().any(|right| {
@@ -57,7 +58,7 @@ fn compatible(
     domain: &ReplayDomain,
     candidate: &RegisterView,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     !domain.registers.iter().any(|register| {
@@ -72,7 +73,7 @@ fn directional_early_clobber_conflict(
     domain: &ReplayDomain,
     candidate: &RegisterView,
     assigned: &BTreeMap<VirtualRegisterId, RegisterViewId>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     ranges.early_clobbers.iter().any(|early| {

@@ -4,10 +4,9 @@ use std::collections::BTreeSet;
 
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    DistinctUseDefTie, RegisterHomePlan, RegisterHomeValidationReceipt, ValidatedLiveRanges,
-    register_home_identity,
-};
+use crate::{RegisterHomePlan, RegisterHomeValidationReceipt, register_home_identity};
+use selected_instructions::DistinctUseDefTie;
+use selected_instructions_to_selected_instructions::ValidatedLiveRanges;
 
 pub(super) fn build(
     plan: &RegisterHomePlan,
