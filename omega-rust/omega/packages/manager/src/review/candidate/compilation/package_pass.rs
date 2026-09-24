@@ -160,6 +160,12 @@ pub(super) fn compile_dependency_closure(
         // Every dependency package is complete before its consumer; role slots
         // retain the exact generated output and never alias equal-profile builds.
         for &purpose in purposes {
+            // One line per package occurrence: the review pass repeats this
+            // whole loop, so attributing a pass without attributing its
+            // members cannot show WHICH package the second pass repeats.
+            let _occurrence = crate::review::timings::subject_stage(|| {
+                format!("package {} purpose={purpose:?}", key.name().as_str())
+            });
             let checked_target = if purpose.is_product() {
                 target_closure.target_profile()
             } else {

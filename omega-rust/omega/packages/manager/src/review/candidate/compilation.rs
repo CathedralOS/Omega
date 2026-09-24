@@ -384,6 +384,17 @@ fn compile_candidate(
     let _stage = timings::stage("candidate_compilation");
     preparation.size_for(target_closure.source_closure());
     if let SemanticBindingReview::Explicit(inputs) = bindings {
+        let _pass = timings::subject_stage(|| {
+            format!(
+                "review_pass explicit root={}",
+                target_closure
+                    .source_closure()
+                    .graph()
+                    .root()
+                    .name()
+                    .as_str()
+            )
+        });
         return compile_pass(
             target_closure,
             build_root,
@@ -395,16 +406,29 @@ fn compile_candidate(
             preparation,
         );
     }
-    let preliminary = compile_pass(
-        target_closure,
-        build_root,
-        &[],
-        retained_root_entry,
-        root_build_snapshot,
-        restricted_build_checkpoint,
-        TargetEntryDiscovery::Dependencies,
-        preparation,
-    )?;
+    let preliminary = {
+        let _pass = timings::subject_stage(|| {
+            format!(
+                "review_pass discovery root={}",
+                target_closure
+                    .source_closure()
+                    .graph()
+                    .root()
+                    .name()
+                    .as_str()
+            )
+        });
+        compile_pass(
+            target_closure,
+            build_root,
+            &[],
+            retained_root_entry,
+            root_build_snapshot,
+            restricted_build_checkpoint,
+            TargetEntryDiscovery::Dependencies,
+            preparation,
+        )?
+    };
     let discovered = candidate_semantic_binding_inputs(
         &preliminary.reviews,
         target_closure.source_closure().graph().root(),
@@ -415,6 +439,18 @@ fn compile_candidate(
     // Discovery cannot survive as a checked product when it proposed bindings.
     // Only source preparation is reused; custody, builds and checking run again.
     drop(preliminary);
+    let _pass = timings::subject_stage(|| {
+        format!(
+            "review_pass bound root={} discovered_bindings={}",
+            target_closure
+                .source_closure()
+                .graph()
+                .root()
+                .name()
+                .as_str(),
+            discovered.len()
+        )
+    });
     compile_pass(
         target_closure,
         build_root,
