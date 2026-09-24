@@ -9,9 +9,12 @@
 //! backend owners. Component policy and installation remain outside this owner.
 //!
 //! Two entrances start from a compiler product rather than a bare artifact:
-//! `native_product` admits one checked compilation and realizes its
-//! program-entry Terminal artifact, and `retained_native_product` re-enters a
-//! retained Terminal product with source-evaluated imports.
+//! `prepare_native_product` (`native_product`) admits one checked compilation
+//! and realizes its program-entry Terminal artifact, and
+//! `realize_retained_native_artifact` (`retained_native_product`) re-enters a
+//! retained Terminal product with source-evaluated imports. Both run the same
+//! staged route, `stage_optimized_verified_physical_pipeline_with_provider_executions`
+//! (`native_pipeline`).
 
 mod entry_settlement;
 mod native_pipeline;

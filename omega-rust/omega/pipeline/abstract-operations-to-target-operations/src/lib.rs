@@ -1,11 +1,18 @@
 #![forbid(unsafe_code)]
-//! Optimizer module role: crate map. Start at `lowering.rs`, then descend by result family and semantic responsibility.
+//! Abstract operations to target operations.
 //!
-//! `lower_to_target_operations` turns validated abstract operations into target
-//! operations with call placement; beneath it `model` carries the admitted
-//! settlements the lowering publishes, `optimized` the selected-optimization
-//! carriers and `placed_view_inputs` the placed-view plans. `validation` is
-//! the independent replay of every result.
+//! Production enters through `lower_optimized_to_target_operations`
+//! (`lowering/optimized.rs`). It takes a validated optimized abstract plan and
+//! its admitted settlements, lowers it, joins the provider installation, and
+//! seals the result with the settlement-aware translation validation, which
+//! replays every target row independently (`validation`;
+//! `validate_abstract_to_target_translation` is its settlement-free form).
+//! `lower_to_target_operations` (`lowering.rs`) is the unvalidated lowering
+//! core that entrance calls; tests use it directly. Beneath it,
+//! `lowering/coordination.rs` binds settlements and lowers each function by
+//! result family, and `model` carries the admitted settlements. The
+//! `placed_view_inputs` route is the in-progress direct-entry placed-view
+//! slice (TASKS.md PLAN-LAID-VIEWS).
 
 mod lowering;
 mod validation;

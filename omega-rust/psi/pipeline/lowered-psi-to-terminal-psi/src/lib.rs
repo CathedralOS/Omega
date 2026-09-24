@@ -1,9 +1,12 @@
 #![forbid(unsafe_code)]
 
-//! Canonical publication of validated, optimized Psi.
+//! Lowered Psi to the canonical Terminal Psi artifact.
 //!
-//! This stage seals source-free semantics and their proof and debug companions.
-//! It accepts only the output of the explicit pre-Terminal optimization stage.
+//! The stage operation is `finalize_terminal_artifact` (`publish_artifact`).
+//! It seals source-free semantics with their proof and debug companions, and
+//! accepts only the output of the explicit pre-Terminal optimization stage.
+//! `boundary_operator_custody` supplies the checked boundary-operator scope
+//! that publication rejoins.
 
 mod boundary_operator_custody;
 mod publish_artifact;
