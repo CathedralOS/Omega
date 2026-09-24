@@ -632,12 +632,11 @@ fn mutable_self_receiver_named_view_result_remains_declined() {
 }
 
 #[test]
-fn generic_self_return_named_view_remains_declined() {
-    // A generic view receiver `Nv<'r>` returning `&'r Nv<'r>` still
-    // declines at `result type`: the return-type catalog admits named
-    // views over concrete data, not a generic application spelled through
-    // the machine's binder — a genuinely different wall than the
-    // receiver-as-return surface.
+fn generic_self_return_named_view_composes() {
+    // The generic sibling of the receiver-as-return surface: `&'r Nv<'r>`
+    // names the receiver's storage through the machine binder — the
+    // referee is a `Generic` application node, which the named-view
+    // family and the `Self`-alias join both admit by base symbol.
     let checked = checked(
         r#"
         data Nv<'r> { tag: &'r u64 }
@@ -650,8 +649,9 @@ fn generic_self_return_named_view_remains_declined() {
     let plans = &checked.facts.flow.terminal_unit_effects;
     let selfish = machine_named(&checked, "Nv::selfish");
     assert!(
-        plans.for_machine(selfish).is_none() && plans.composed_for_machine(selfish).is_none(),
-        "generic `self` named-view return unexpectedly composed",
+        plans.for_machine(selfish).is_some() || plans.composed_for_machine(selfish).is_some(),
+        "generic `self` named-view return declined: {:?}",
+        plans.omission_for_machine(selfish)
     );
 }
 

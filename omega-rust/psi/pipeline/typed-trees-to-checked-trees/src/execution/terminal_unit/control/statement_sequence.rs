@@ -235,14 +235,13 @@ fn self_referent_is_attached_application(
     if name.as_str() != "Self" {
         return false;
     }
-    let TypeReferenceNode::Named {
-        symbol: view_data, ..
-    } = program.type_reference_table.type_reference(referee)
-    else {
-        return false;
+    let view_data = match program.type_reference_table.type_reference(referee) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => return false,
     };
     crate::lookup::machine_by_symbol(program, *self_machine)
-        .is_some_and(|machine| machine.attached_data_symbol == *view_data)
+        .is_some_and(|machine| machine.attached_data_symbol == view_data)
 }
 
 /// A `&'a V` named-result completion borrows the referent it names from one
