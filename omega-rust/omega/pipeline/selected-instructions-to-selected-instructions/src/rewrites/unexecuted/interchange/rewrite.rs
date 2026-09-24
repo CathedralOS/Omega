@@ -8,7 +8,7 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionId;
 
-use super::{CommutingRunInterchangeError, ValidatedCommutingRunInterchange, admission};
+use super::{InterchangeError, ValidatedInterchange, admission};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 
@@ -27,7 +27,7 @@ use crate::rewrites::unexecuted::commuting_accesses as accesses;
 /// appear in the order the program performs them; every other instruction,
 /// register, roster row, call, settlement, and edge is retained, and
 /// replay independently confirms that.
-pub fn interchange_selected_commuting_runs(
+pub fn interchange_selected_runs(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     earlier_first: SelectedInstructionId,
@@ -36,7 +36,7 @@ pub fn interchange_selected_commuting_runs(
     later_last: SelectedInstructionId,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<ValidatedCommutingRunInterchange, CommutingRunInterchangeError> {
+) -> Result<ValidatedInterchange, InterchangeError> {
     let admitted = admission::admit(
         source,
         function_index,
@@ -83,7 +83,7 @@ pub fn interchange_selected_commuting_runs(
     for (position, access) in positions.into_iter().zip(ordered) {
         function.memory_accesses[position] = access;
     }
-    super::validate_commuting_run_interchange(
+    super::validate_selected_interchange(
         source,
         function_index,
         earlier_first,
