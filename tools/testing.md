@@ -96,6 +96,13 @@ warning and reports `unavailable`. Suppress it with `--no-jev` or
 descriptions state what each test observes and what breaks it — keep them
 current or recall silently degrades.
 
+[triage_advisor.py](triage_advisor.py) is the companion advisory for the
+other half of the debug ledger: pipe it captured failure output plus the
+command and it names the most likely suspect commit inside a ranked window
+(or `none_in_window` for infrastructure and pre-window history), the owning
+layer, and a recent-change confidence. Advisory only — it orders
+investigation, discharges nothing, and exits 0 on its own failures.
+
 For an explicitly scoped manual library check, a nextest filter can select a
 crate and its reverse dependencies while retaining workspace features:
 

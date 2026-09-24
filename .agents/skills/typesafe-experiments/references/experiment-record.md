@@ -1905,3 +1905,21 @@ lacks") trims but doesn't eliminate tail over-flagging; run-to-run
 variance ~±0.1 on borderline flags (std_package_check 0.39-0.56);
 ~10k input tokens + ~0.4s per diff. Watch: catalog completeness is the
 recall surface — every uncovered test surface is a silent hole.
+
+## 2026-09-24 (cont.) — failure-triage: suspect-commit attribution deployed as advisory
+
+Second deployment from the same session. Worked example: three witnessed
+failures with known attributions, packets carrying failure output + a ranked
+commit window (the v1 canary-triage fix: history questions need commits).
+Results: float-wall -> 7b9dce26d7 picked out of 40 commits with the right
+layer (name_resolution, 0.93); catalog-break -> 824c66a762 out of 25
+(test_infra, 0.83); stack-overflow -> correctly chose none_in_window for a
+host platform wall (cli_host) rather than hallucinating a suspect —
+the anti-false-positive that makes triage deployable. Borderline
+recent-change noul on the infra case (0.54).
+
+Deployed as tools/triage_advisor.py: failure output + command + git window
+-> advisory stderr line (suspect | layer | confidence). Advisory only,
+key-less silent, exits 0 on its own failures. Live dogfood at current HEAD
+on a replayed historical failure correctly answered none_in_window (the bug
+is ~500 commits back).
