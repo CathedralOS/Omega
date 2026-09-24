@@ -396,7 +396,8 @@ pub(super) fn validate_operation(
             )?;
         }
         (TargetUnitOperation::ScalarDefinition { result_home, .. }, abstracted)
-            if super::scalar_definitions::observed_family(abstracted) => {
+            if super::scalar_definitions::observed_family(abstracted) =>
+        {
             super::scalar_definitions::observation(target, abstracted, &checker)?;
             sources.push((result_home.source_value, Source::Home(*result_home)));
         }
