@@ -11,10 +11,9 @@ use crate::rewrites::unexecuted::{
     ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
     ValidatedBoundaryBranch, ValidatedCommutingRelocation, ValidatedConfluenceRelocation,
     ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedDeadCompare,
-    ValidatedDeadStoreElimination, ValidatedEquivalentCompare, ValidatedForkRelocation,
-    ValidatedInflowRelocation, ValidatedInterchange, ValidatedMemberRunRelocation,
-    ValidatedRedundantCompare, ValidatedScheduledRelocation, ValidatedStoreMutationMotion,
-    ValidatedStoredLoadForwarding,
+    ValidatedDeadStoreElimination, ValidatedEquivalentCompare, ValidatedInflowRelocation,
+    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedRedundantCompare,
+    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 use crate::{
     ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
@@ -372,26 +371,6 @@ impl ValidatedSelectedAnalysis for ValidatedDeadStoreElimination {
 impl sealed::Sealed for ValidatedEquivalentCompare {}
 
 impl ValidatedSelectedAnalysis for ValidatedEquivalentCompare {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedForkRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedForkRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
