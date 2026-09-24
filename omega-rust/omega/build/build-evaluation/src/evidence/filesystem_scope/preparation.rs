@@ -99,6 +99,16 @@ pub fn prepare_filesystem_scope(
                 ))]
             })?;
             build_machine_filesystem_scope.build_dir = canonical_root.join("output");
+            // The admitted key must follow the root it describes. Admission
+            // resolved the CALLER's requested spelling, and this provisioning
+            // has just replaced it with a root created privately here, so the
+            // baseline is re-bound to the new root -- its admission IS that
+            // private creation. Establishment's comparison keeps its meaning
+            // for every caller-supplied spelling, which is the case the
+            // baseline exists to protect: an ancestor swapped to a host alias
+            // after admission still changes the resolution and still rejects.
+            build_machine_filesystem_scope.admitted_build_dir_key =
+                super::overlap_key(&build_machine_filesystem_scope.build_dir);
             build_machine_filesystem_scope.sponsor = Some(sponsor);
         }
         // One capture authority produces the immutable input inventory and
