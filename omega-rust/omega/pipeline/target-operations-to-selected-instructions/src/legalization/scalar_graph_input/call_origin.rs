@@ -17,7 +17,7 @@ pub(in crate::legalization) fn installed_operation(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<Option<(AbstractOperation, NativeCallOrigin)>, LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     let AbstractOperation::BoundaryCall {
         psi_operation,
         result,

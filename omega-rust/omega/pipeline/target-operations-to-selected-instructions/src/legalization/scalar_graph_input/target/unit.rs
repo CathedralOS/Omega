@@ -29,7 +29,7 @@ pub(super) fn validate_operation(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if matches!(abstracted, AbstractOperation::BoundaryCall { .. }) {
         let node = optimized
             .blocks

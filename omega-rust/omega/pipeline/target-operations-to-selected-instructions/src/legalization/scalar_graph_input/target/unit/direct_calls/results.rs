@@ -19,7 +19,7 @@ pub(super) fn validate(
     caller: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     match (retained, source) {
         (TargetCallResult::Unit, AbstractOperation::CallUnit { .. }) => {
             if call_plan.result.is_some() {
@@ -121,7 +121,7 @@ fn scalar(
     result: AbstractResult,
     call_plan: &CallPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     let shape = scalar_shape(result.scalar_type).ok_or_else(invalid)?;
     let expected = TargetUnitScalarHomeRequirement {
         defining_operation: operation,

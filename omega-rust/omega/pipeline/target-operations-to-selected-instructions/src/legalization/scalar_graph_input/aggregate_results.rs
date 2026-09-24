@@ -62,7 +62,7 @@ pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if result.multiplicity == StructuralMultiplicity::Linear
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
@@ -77,7 +77,7 @@ pub(in crate::legalization) fn sum_type_layout(
     structural_type: semantic_vocabulary::StructuralTypeId,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let mut declarations = plan
         .structural_types
         .iter()
@@ -272,7 +272,7 @@ pub(super) fn header(
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let graph = &target.graph;
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
@@ -470,7 +470,7 @@ pub(in crate::legalization) fn block_home_layout(
                 )
         }))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     home_layout(
         &StructuralOperationResult {
@@ -521,7 +521,7 @@ pub(in crate::legalization) fn call_argument(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let destination = callee
         .structural_parameters
         .get(position)
@@ -740,7 +740,7 @@ pub(super) fn result_home(
         }
         // A function parameter is an arrival, not an activation-local home.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-            return Err(LegalizationError::SourceCustodyMismatch);
+            return Err(LegalizationError::custody());
         }
     };
     Ok(target_operations::TargetStructuralHomeRequirement { origin, layout })
@@ -765,7 +765,7 @@ pub(in crate::legalization) fn home_layout(
         // Qualifications ride the home origin verbatim as custody evidence;
         // the layout is the carrier's physical shape alone.
         if result.multiplicity == StructuralMultiplicity::Linear || !result.claims.is_empty() {
-            return Err(LegalizationError::SourceCustodyMismatch);
+            return Err(LegalizationError::custody());
         }
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
             crate::structural_inputs::structural_reference_input::primitive_array_shape(
@@ -778,7 +778,7 @@ pub(in crate::legalization) fn home_layout(
                     &plan.structural_types,
                 )
             })
-            .ok_or(LegalizationError::SourceCustodyMismatch)?,
+            .ok_or(LegalizationError::custody())?,
         ));
     }
     Ok(target_operations::TargetStructuralHomeLayout::Sum(

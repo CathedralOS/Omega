@@ -17,7 +17,7 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let (ordinal, declarations) =
         crate::selection::aggregate_result_input::fields(source, row).ok_or_else(invalid)?;
     let LegalizedScalarInstructionKind::EstablishScalarCase {

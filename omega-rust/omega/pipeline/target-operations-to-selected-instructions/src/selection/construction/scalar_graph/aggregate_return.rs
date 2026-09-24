@@ -15,7 +15,7 @@ pub(super) fn build(
     builder: &mut Builder<'_>,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {

@@ -34,11 +34,11 @@ pub(super) fn project_integer_exact_cast(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         if !optimized.facts.iter().any(|fact| matches!(fact,
         optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
         if referenced == obligation && support == psi_operation)) {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
         LegalizedScalarInstructionKind::IntegerExactCast {
             operand: *operand,
@@ -73,11 +73,11 @@ pub(super) fn project_saturating_integer_add_or_subtract(
         _ => unreachable!("dispatched project_saturating_integer_add_or_subtract"),
     };
     let carrier =
-        scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::SourceCustodyMismatch)?;
+        scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, *value) != Some(ScalarType::Integer(scalar_type))
     }) {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     Ok(if adds {
         LegalizedScalarInstructionKind::SaturatingAdd {
@@ -111,12 +111,12 @@ pub(super) fn project_saturating_integer_divide(
         unreachable!("dispatched project_saturating_integer_divide")
     };
     let carrier =
-        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::SourceCustodyMismatch)?;
+        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, **value)
             != Some(ScalarType::Integer(*scalar_type))
     }) {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     // Saturating clamps signed MIN / -1 to MAX and unsigned division never
     // overflows; neither defines division by zero, so the accepted
@@ -153,12 +153,12 @@ pub(super) fn project_saturating_integer_remainder(
         unreachable!("dispatched project_saturating_integer_remainder")
     };
     let carrier =
-        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::SourceCustodyMismatch)?;
+        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, **value)
             != Some(ScalarType::Integer(*scalar_type))
     }) {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     let accepted_fact =
         accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?;
@@ -184,13 +184,13 @@ fn accepted_nonzero_divisor_fact(
             && fact.operation == psi_operation
             && fact.obligation == obligation
     });
-    let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
+    let fact = facts.next().ok_or(Error::custody())?;
     if facts.next().is_some()
         || !optimized.facts.iter().any(|fact| matches!(fact,
             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if *referenced == obligation && *support == psi_operation))
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     Ok(fact.identity)
 }
@@ -218,7 +218,7 @@ pub(super) fn project_wrapping_integer_remainder(
                     != Some(ScalarType::Integer(*scalar_type))
             })
         {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         }
         // Wrapping defines MIN % -1 as zero, not a failed Exact quotient.
         // It does not define division by zero: retain that accepted fact.
@@ -227,13 +227,13 @@ pub(super) fn project_wrapping_integer_remainder(
                 && fact.operation == *psi_operation
                 && fact.obligation == *obligation
         });
-        let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
+        let fact = facts.next().ok_or(Error::custody())?;
         if facts.next().is_some()
         || !optimized.facts.iter().any(|fact| matches!(fact,
             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if referenced == obligation && support == psi_operation))
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
         LegalizedScalarInstructionKind::WrappingRemainder {
             left: *left,
@@ -271,20 +271,20 @@ pub(super) fn project_wrapping_integer_divide(
                 != Some(ScalarType::Integer(*scalar_type))
         })
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
         fact.machine == optimized.machine
             && fact.operation == *psi_operation
             && fact.obligation == *obligation
     });
-    let fact = facts.next().ok_or(Error::SourceCustodyMismatch)?;
+    let fact = facts.next().ok_or(Error::custody())?;
     if facts.next().is_some()
         || !optimized.facts.iter().any(|fact| matches!(fact,
             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
             if referenced == obligation && support == psi_operation))
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     Ok(LegalizedScalarInstructionKind::WrappingDivide {
         left: *left,
@@ -343,7 +343,7 @@ pub(super) fn project_shift(
         || scalar_graph_input::value_type(optimized, value) != Some(ScalarType::Integer(value_type))
         || scalar_graph_input::value_type(optimized, count) != Some(ScalarType::Integer(count_type))
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     Ok(match &node.operation {
         AbstractOperation::WrappingIntegerShiftLeft { .. } => {
@@ -366,11 +366,11 @@ pub(super) fn project_shift(
                                 && fact.operation == psi_operation
                                 && fact.obligation == *obligation
                         })
-                        .ok_or(Error::SourceCustodyMismatch)?;
+                        .ok_or(Error::custody())?;
                     if !optimized.facts.iter().any(|fact| matches!(fact,
                             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                             if referenced == obligation && *support == psi_operation)) {
-                        return Err(Error::SourceCustodyMismatch);
+                        return Err(Error::custody());
                     }
                     fact.identity
                 },
@@ -390,11 +390,11 @@ pub(super) fn project_shift(
                                 && fact.operation == psi_operation
                                 && fact.obligation == *obligation
                         })
-                        .ok_or(Error::SourceCustodyMismatch)?;
+                        .ok_or(Error::custody())?;
                     if !optimized.facts.iter().any(|fact| matches!(fact,
                             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                             if referenced == obligation && *support == psi_operation)) {
-                        return Err(Error::SourceCustodyMismatch);
+                        return Err(Error::custody());
                     }
                     fact.identity
                 },
@@ -456,11 +456,11 @@ pub(super) fn project_exact_integer_add(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         if !optimized.facts.iter().any(|fact| matches!(fact,
                 optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                 if referenced == obligation && support == psi_operation)) {
-                return Err(Error::SourceCustodyMismatch);
+                return Err(Error::custody());
             }
         LegalizedScalarInstructionKind::ExactBinary {
             operator: if matches!(node.operation, AbstractOperation::ExactIntegerAdd { .. }) {
@@ -507,10 +507,10 @@ pub(super) fn project_boolean_equal(
             }
             AbstractOperation::IntegerLessThan { .. } => LegalizedScalarComparison::LessThan,
             AbstractOperation::IntegerLessOrEqual { .. } => LegalizedScalarComparison::LessOrEqual,
-            _ => return Err(Error::SourceCustodyMismatch),
+            _ => return Err(Error::custody()),
         };
         let operand_type =
-            scalar_graph_input::value_type(optimized, *left).ok_or(Error::SourceCustodyMismatch)?;
+            scalar_graph_input::value_type(optimized, *left).ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::Compare {
             predicate,
             operand_type,

@@ -18,7 +18,7 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
     values: &[(ValueId, TargetUnitScalarArgumentSource)],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (
         TargetUnitOperation::BoundarySettlement {
             psi_operation,

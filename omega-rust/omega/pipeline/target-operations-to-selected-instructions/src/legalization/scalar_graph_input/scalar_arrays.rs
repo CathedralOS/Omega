@@ -8,7 +8,7 @@ pub(in crate::legalization) fn shape(
     result: &terminal_psi::StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<(ScalarType, u64, ValueShape), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()

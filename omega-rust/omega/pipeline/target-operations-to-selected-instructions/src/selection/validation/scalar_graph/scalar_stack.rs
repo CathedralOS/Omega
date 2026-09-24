@@ -17,7 +17,7 @@ use semantic_vocabulary::IntegerType;
 fn address_type() -> Result<ScalarType, SelectedInstructionError> {
     IntegerType::new(IntegerSign::Unsigned, 64)
         .map(ScalarType::Integer)
-        .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)
+        .map_err(|_| SelectedInstructionError::custody())
 }
 
 fn address_register(
@@ -45,7 +45,7 @@ pub(super) fn entry(
     source: &LegalizedScalarFunction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let accepts_stack_parameters =
         crate::selection::scalar_call_abi::accepts_stack_parameter_entry(source);
     for (parameter_index, parameter) in source.parameters.iter().enumerate() {
@@ -151,7 +151,7 @@ pub(super) fn argument(
     else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let (_, input, site, scalar_type) = replay.resolve(value).ok_or_else(invalid)?;
     if scalar_shape(scalar_type) != Some(placement.shape) {
         return Err(invalid());

@@ -12,7 +12,7 @@ use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::IntegerValue;
 
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 /// Mirror of construction `leaf_copy::copy`: the source resolves through its

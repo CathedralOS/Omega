@@ -169,7 +169,7 @@ pub(super) fn match_input(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -489,7 +489,7 @@ pub(super) fn callee_plan(
         abstracts.as_slice(),
         optimized.as_slice(),
     ) else {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     };
     if !aggregate_results::uses(optimized, plan)
         && (!matches!(abstracted.result, AbstractFunctionResult::Unit)
@@ -499,7 +499,7 @@ pub(super) fn callee_plan(
                 .iter()
                 .any(|parameter| scalar_shape(parameter.scalar_type).is_none()))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -534,7 +534,7 @@ pub(super) fn callee_plan(
                     }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment
                 )
     }) {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(call_plan)
 }

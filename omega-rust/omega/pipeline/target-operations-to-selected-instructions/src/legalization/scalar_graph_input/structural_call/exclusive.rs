@@ -15,7 +15,7 @@ pub(super) fn argument(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     // An exclusive root may arrive through control flow rather than the machine
     // entrance. A non-entry block structural parameter carries the same custody
     // as an incoming parameter, and the caller's own parameter roster holds no
@@ -191,7 +191,7 @@ fn block_parameter_argument(
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use semantic_vocabulary::StructuralPlaceKind;
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let shape = ValueShape::borrowed_reference(16, 8);
     if declaration.access != StructuralAccess::MutableBorrow
         || !matches!(

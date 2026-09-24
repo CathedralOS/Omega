@@ -32,7 +32,7 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if function.attachment != optimized.attachment
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types

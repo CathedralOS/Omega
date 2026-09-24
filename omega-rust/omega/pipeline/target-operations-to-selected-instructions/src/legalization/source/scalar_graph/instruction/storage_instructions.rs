@@ -25,7 +25,7 @@ pub(super) fn project_structural_case_membership(
     };
     let kind = {
         if result.scalar_type != ScalarType::Boolean {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         }
         let (case_tag, tag_byte_offset) = scalar_graph_input::structural_case::membership_layout(
             optimized, *source, path, *case, plan,
@@ -65,7 +65,7 @@ pub(super) fn project_structural_leaf_copy(
                 let parameter = usize::try_from(selector)
                     .ok()
                     .and_then(|position| optimized.parameters.get(position))
-                    .ok_or(LegalizationError::SourceCustodyMismatch)?;
+                    .ok_or(LegalizationError::custody())?;
                 Ok(legalized_operations::LegalizedRuntimeIndexOperand {
                     operand: abstract_operations::AbstractResult {
                         value: parameter.value,
@@ -108,7 +108,7 @@ pub(super) fn project_write_only_primitive_store(
                 value.scalar_type,
                 &unit.structural_types,
             )
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination: destination.clone(),
             path: path.clone(),
@@ -145,7 +145,7 @@ pub(super) fn project_write_only_indexed_primitive_store(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         let (byte_offset, byte_size, extent) =
             crate::structural_inputs::structural_reference_input::indexed_primitive_store(
                 destination,
@@ -153,7 +153,7 @@ pub(super) fn project_write_only_indexed_primitive_store(
                 value.scalar_type,
                 &unit.structural_types,
             )
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
             destination: destination.clone(),
             path: path.clone(),
@@ -191,7 +191,7 @@ pub(super) fn project_structural_scalar_field_store(
             value.scalar_type,
             &unit.structural_types,
         )
-        .ok_or(Error::SourceCustodyMismatch)?;
+        .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
             destination: destination.clone(),
             path: path.clone(),
@@ -230,7 +230,7 @@ pub(super) fn project_byte_sequence_subslice(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ByteSequenceSubslice {
             result: result.clone(),
             source: *source,
@@ -267,7 +267,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
             &node.operation,
             &unit.structural_types,
         )
-        .ok_or(Error::SourceCustodyMismatch)?;
+        .ok_or(Error::custody())?;
         let fact = unit
             .accepted_obligation_facts
             .iter()
@@ -276,7 +276,7 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
             destination,
             field: *field,
@@ -312,7 +312,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
             &node.operation,
             &unit.structural_types,
         )
-        .ok_or(Error::SourceCustodyMismatch)?;
+        .ok_or(Error::custody())?;
         let fact = unit
             .accepted_obligation_facts
             .iter()
@@ -321,7 +321,7 @@ pub(super) fn project_structural_byte_sequence_field_store(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
             destination,
             field: *field,
@@ -359,7 +359,7 @@ pub(super) fn project_byte_sequence_write(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ByteSequenceWrite {
             destination: *destination,
             index: *index,
@@ -397,7 +397,7 @@ pub(super) fn project_byte_sequence_read(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ByteSequenceRead {
             source: *source,
             index: *index,
@@ -434,7 +434,7 @@ pub(super) fn project_element_view_read(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ElementViewRead {
             source: *source,
             index: *index,
@@ -472,7 +472,7 @@ pub(super) fn project_element_view_subslice(
                     && fact.operation == *psi_operation
                     && fact.obligation == *obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::ElementViewSubslice {
             result: result.clone(),
             source: *source,

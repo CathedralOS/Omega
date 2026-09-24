@@ -40,7 +40,7 @@ pub(super) fn project_call_structural(
             .functions
             .iter()
             .find(|function| function.machine == *callee)
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         let mut lowered = arguments
             .iter()
             .zip(&call_plan.parameters)
@@ -89,7 +89,7 @@ pub(super) fn project_boundary_call(
     };
     let kind = {
         let [source] = arguments.as_slice() else {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         };
         match scalar_graph_input::hosted_realization(native, optimized.machine, operation)? {
             target_operations::BoundaryRealization::HostedWriteByteI32(_) => {
@@ -104,7 +104,7 @@ pub(super) fn project_boundary_call(
                     source: *source,
                 }
             }
-            _ => return Err(Error::SourceCustodyMismatch),
+            _ => return Err(Error::custody()),
         }
     };
     Ok(kind)
@@ -133,10 +133,10 @@ pub(super) fn project_normalized_foreign_call(
         result_home,
     }) = scalar_graph_input::normalized_foreign::row(native, optimized.machine, operation)?
     else {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     };
     if *psi_operation != operation || *row_boundary != *boundary {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     // The retained callback roster row is the sole carrier of binder/demand
     // custody for a private callback parameter; the exact join fails closed
@@ -196,12 +196,12 @@ pub(super) fn project_call_unit(
             .functions
             .iter()
             .find(|function| function.machine == *callee)
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         if called.parameters.len() != scalar_arguments.len()
             || called.structural_parameters.len() != structural_arguments.len()
             || call_plan.parameters.len() != scalar_arguments.len() + structural_arguments.len()
         {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         }
         let mut arguments = scalar_arguments
             .iter()
@@ -284,7 +284,7 @@ pub(super) fn project_dynamic_parameter_call(
     optimized: &optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let invalid = || Error::SourceCustodyMismatch;
+    let invalid = || Error::custody();
     let (
         psi_operation,
         dynamic_dispatch,

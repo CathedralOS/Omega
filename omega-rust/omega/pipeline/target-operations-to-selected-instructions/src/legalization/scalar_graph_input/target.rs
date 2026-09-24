@@ -27,7 +27,7 @@ pub(super) fn validate_target(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     super::hosted_scalar::validate_tails(native, optimized, plan)?;
     let operations = optimized
         .blocks

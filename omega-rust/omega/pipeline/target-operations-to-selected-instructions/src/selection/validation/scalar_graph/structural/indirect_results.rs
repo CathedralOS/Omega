@@ -246,5 +246,5 @@ pub(in crate::selection) fn returned(
 }
 
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }

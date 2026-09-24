@@ -62,7 +62,7 @@ pub(super) struct Transport {
 }
 
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 pub(super) fn transport_register(

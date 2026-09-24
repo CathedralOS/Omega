@@ -25,7 +25,7 @@ pub(super) fn replay_remaining(
         let ([abstracted], [optimized]) =
             (abstract_matches.as_slice(), optimized_matches.as_slice())
         else {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         };
         let graphs = proposed
             .scalar_functions

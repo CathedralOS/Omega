@@ -78,7 +78,7 @@ impl Custody {
 }
 
 fn invalid() -> LegalizationError {
-    LegalizationError::SourceCustodyMismatch
+    LegalizationError::custody()
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.

@@ -21,7 +21,7 @@ pub(in crate::legalization) fn argument_at(
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let destination_parameter = called
         .structural_parameters
         .get(position)
@@ -277,7 +277,7 @@ pub(super) fn primitive_argument(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if let Some((producer, result, value)) =
         super::primitive_locals::producer(caller, semantic.place)
     {

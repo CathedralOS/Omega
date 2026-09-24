@@ -134,7 +134,7 @@ fn bound_view_roots_recurse(
     extent: ValueId,
     visiting: &mut BTreeSet<PlaceId>,
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let Some(contract) = source.structural.as_ref() else {
         return Err(invalid());
     };

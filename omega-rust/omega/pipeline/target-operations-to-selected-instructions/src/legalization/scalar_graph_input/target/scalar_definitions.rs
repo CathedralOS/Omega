@@ -16,7 +16,7 @@ pub(super) fn validate(
     scalar_parameters: &[ScalarAbiValue],
     sources: &[(ValueId, Source)],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (
         TargetUnitOperation::ScalarDefinition {
             result_home,
@@ -126,7 +126,7 @@ pub(super) fn observation(
     abstracted: &AbstractOperation,
     checker: &Checker<'_>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let TargetUnitOperation::ScalarDefinition {
         result_home,
         expression,

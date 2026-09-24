@@ -15,7 +15,7 @@ pub(super) fn validate(
     sources: &mut Vec<(ValueId, Source)>,
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     let (
         psi_operation,
         dynamic_dispatch,

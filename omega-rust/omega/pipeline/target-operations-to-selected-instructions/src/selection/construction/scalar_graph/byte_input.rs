@@ -24,7 +24,7 @@ pub(super) fn emit(
     else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     if !row.has_valid_hosted_read_byte_shape()
         || row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())

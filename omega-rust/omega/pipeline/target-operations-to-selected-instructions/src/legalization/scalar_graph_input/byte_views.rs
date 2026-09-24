@@ -23,7 +23,7 @@ pub(super) fn validate(
     {
         return super::unobserved_owned::validate(target, abstracted, optimized, native, plan);
     }
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (call_plan, scalar_parameters, structural_parameters) =
         match (&abstracted.result, &target.mixed_structural_scalar_abi) {
             (AbstractFunctionResult::Unit, None) if target.graph.call_plan.result.is_none() => (

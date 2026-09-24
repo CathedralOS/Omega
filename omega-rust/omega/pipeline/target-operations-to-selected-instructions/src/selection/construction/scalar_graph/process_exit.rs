@@ -22,7 +22,7 @@ pub(super) fn build(
     let LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } = row.kind else {
         return Ok(None);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let LegalizedScalarTerminator::Return(returned) = &block.terminator else {
         return Err(invalid());
     };

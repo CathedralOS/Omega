@@ -16,7 +16,7 @@ pub(super) fn load(
     byte_offset: u32,
     byte_size: u16,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let mut operands = vec![pointer, output];
     let (kind, key) = match byte_size {
         1 => (
@@ -62,7 +62,7 @@ pub(super) fn store(
     byte_offset: u32,
     byte_size: u16,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let byte_size = u8::try_from(byte_size).map_err(|_| invalid())?;
     let mut operands = vec![pointer, value];
     let (kind, key) =

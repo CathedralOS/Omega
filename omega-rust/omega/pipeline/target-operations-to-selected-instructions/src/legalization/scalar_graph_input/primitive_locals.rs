@@ -88,7 +88,7 @@ pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
             AbstractOperation::EstablishPrimitiveLocal {

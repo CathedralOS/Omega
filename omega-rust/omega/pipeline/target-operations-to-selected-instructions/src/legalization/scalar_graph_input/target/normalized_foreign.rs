@@ -40,7 +40,7 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
     values: &mut Vec<(ValueId, Source)>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (
         TargetUnitOperation::NormalizedForeignCall {
             psi_operation,

@@ -13,7 +13,7 @@ pub(super) fn validate(
     operation: &legalized_operations::LegalizedScalarInstruction,
     state: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let result = operation.result.ok_or_else(invalid)?;
     let LegalizedScalarInstructionKind::IeeeFloatCompare {
         comparison,
@@ -122,7 +122,7 @@ impl ComparisonReplay<'_, '_> {
             self.site,
             ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64)
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
         )?;
         let provenance = self.provenance();
@@ -269,7 +269,7 @@ impl ComparisonReplay<'_, '_> {
             self.site,
             ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 64)
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
         )?;
         let provenance = self.provenance();

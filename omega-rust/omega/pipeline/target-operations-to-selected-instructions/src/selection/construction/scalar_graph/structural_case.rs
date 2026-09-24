@@ -17,7 +17,7 @@ use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 pub(super) fn build(

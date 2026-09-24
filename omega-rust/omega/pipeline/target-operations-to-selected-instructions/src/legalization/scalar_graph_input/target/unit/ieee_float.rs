@@ -10,7 +10,7 @@ pub(super) fn validate(
     abstracted: &AbstractOperation,
     sources: &mut Vec<(ValueId, Source)>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     match (target, abstracted) {
         (
             TargetUnitOperation::IeeeFloatCompare {

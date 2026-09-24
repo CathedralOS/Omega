@@ -16,7 +16,7 @@ pub(super) fn validate(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let TargetUnitOperation::WriteOnlyPrimitiveStore {
         psi_operation,
         destination,
