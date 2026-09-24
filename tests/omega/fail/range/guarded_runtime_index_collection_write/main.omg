@@ -6,7 +6,7 @@
 // `[i32 [0..=16]; 4]` element suffix; the bound now lives on the admission
 // contract.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     tallies: [i32; 4];

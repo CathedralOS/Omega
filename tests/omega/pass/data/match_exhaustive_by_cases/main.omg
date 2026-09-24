@@ -4,7 +4,7 @@
 // still selects the right arm (exit 70 = the held case's arm).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Command {
     case None;

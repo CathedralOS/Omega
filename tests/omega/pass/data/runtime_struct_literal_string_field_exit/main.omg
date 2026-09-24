@@ -28,7 +28,7 @@ requires
 // object.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data LabelMessage {
     #0 count: u32;

@@ -9,7 +9,7 @@
 // TRUE -> ok (exit 70); a below-threshold element would take the false arm (71).
 // Native must match the interpreter (differential).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) reaches Console {
     self.arr[0] = 3;

@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Evidence is semantic-only. The erased-stripped Pair is still a two-member
 // AAPCS64 HFA and must feed d0/d1 from one aggregate source place.

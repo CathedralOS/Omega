@@ -5,7 +5,7 @@
 // integers, and escapes ride the existing string decoder. Verifies 'H' = 72 at
 // [0], '\n' = 10 at [17], and the NUL terminator at [18].
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; msg: [u16; 19]; a: u16; b: u16; c: u16; }
 machine Main::main(&mut self) reaches Console {
     self.msg = utf16"Hello from Omega\r\n\0";

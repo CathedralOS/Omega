@@ -32,7 +32,7 @@
 // calls/transition_arg_local_from_embedded_call_exit.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Calc {}
 

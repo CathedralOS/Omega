@@ -13,7 +13,7 @@
 // sum_payload_non_case_guard_unproven). Both arms carry `in Fifty` payloads.
 // Exits 20.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 domain i32::Fifty requires 0 <= self && self <= 50;
 data P { case One(v: i32 in Fifty); case Two(w: i32 in Fifty); }
 data Main { console: Binding<Console>; p: P; }

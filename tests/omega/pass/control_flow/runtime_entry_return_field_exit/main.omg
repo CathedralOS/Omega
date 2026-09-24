@@ -3,7 +3,7 @@
 // untouched. The Unit entry consumes that result and exits explicitly.
 // Exit = 200, native==interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; a: i32; }
 machine Main::computed(&mut self) -> i32 {

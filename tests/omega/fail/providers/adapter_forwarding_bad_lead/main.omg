@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // The self-forwarding admission is EXACT: the one extra leading parameter
 // must be the requirement's OWN trait. A leading parameter of any other
 // type keeps the strict positional match and refuses on parameter count --

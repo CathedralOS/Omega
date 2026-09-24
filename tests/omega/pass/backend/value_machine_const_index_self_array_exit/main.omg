@@ -14,7 +14,7 @@
 // Expected exit: 99
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Probe { buf: [u8; 16]; }
 machine Probe::fill(&mut self) -> i64 {
     self.buf[5] = 99;

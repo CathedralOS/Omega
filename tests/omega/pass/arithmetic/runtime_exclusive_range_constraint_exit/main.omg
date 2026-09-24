@@ -3,7 +3,7 @@
 // [0, 15] (exclusive `0..16`) and `y` to [0, 100] (inclusive `0..=100`), so the
 // prover keeps `x + y` (worst case [0, 115]) EXACT with no overflow domain.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; x: i32 [0..16]; y: i32 [0..=100]; }
 machine Main::main(&mut self) reaches Console {
     self.x = 5;

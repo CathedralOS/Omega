@@ -2,7 +2,7 @@
 // ((false,false) absent) keeps the loud fall-through refusal -- the
 // exhaustiveness rewrite only fires for covering matrices.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; out: i32; }
 machine Main::main(&mut self) {
     let found: bool = true;

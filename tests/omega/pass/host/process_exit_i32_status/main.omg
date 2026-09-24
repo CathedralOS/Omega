@@ -8,7 +8,7 @@
 // own exact i32 status, not through the transitional Console Unit call.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     exit: Binding<ProcessExit>;

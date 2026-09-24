@@ -2,7 +2,7 @@
 // decision-17 exact-arith obligation (the payload-binding hole is closed). With
 // no range refinement on `index`, `index + 1` is not provably in range.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Slot { case Found(index: i32); case Full; }
 data Main { console: Binding<Console>; }
 machine Main::run(&mut self, s: Slot) {

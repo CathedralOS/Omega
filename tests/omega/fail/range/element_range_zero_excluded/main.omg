@@ -5,7 +5,7 @@
 // the containing array; the where-clause is the surviving spell-out of a
 // field invariant the constructor must establish.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main
 where

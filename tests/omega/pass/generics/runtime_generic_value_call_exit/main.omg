@@ -6,7 +6,7 @@
 // parameter list -- so the backend compiles it as a concrete value machine and the result
 // materializes. Exit 70. Differential (native must match the interpreter).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) reaches Console {

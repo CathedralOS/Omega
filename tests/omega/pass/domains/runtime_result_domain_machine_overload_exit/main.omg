@@ -4,7 +4,7 @@
 // ordinary LET binds the former. Runtime values differ so symbol/backend
 // identity mistakes are observable.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine convert(value: i32) -> i32 {
     transition { _ -> (69) }

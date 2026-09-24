@@ -4,7 +4,7 @@
 // miscompile. Rejected at check now (decision-17 narrowing sibling for comparison
 // operands). In-range comparisons (`b == 200`, `n == 300` for i32) stay valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; b: u8; }
 machine Main::main(&mut self) {
     self.b = 44;

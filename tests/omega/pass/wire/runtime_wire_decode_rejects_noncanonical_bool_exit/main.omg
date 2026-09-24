@@ -3,7 +3,7 @@
 // The same rule applies to a plain field and packed repeated elements.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Flags {
     #0 enabled: bool;

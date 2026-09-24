@@ -71,7 +71,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         )];
         let mut dependencies = Vec::new();
         if let Some(dependency) = &dependency {
-            dependency.write("service.omg", source);
+            dependency.write("binding.omg", source);
             root.write("main.omg", "use accepted_service::service;\n");
             sources.push(PackageSourceBinding::new(
                 owner,

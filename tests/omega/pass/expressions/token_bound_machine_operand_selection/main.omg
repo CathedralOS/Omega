@@ -12,7 +12,7 @@
 // token route misses, 72 when the named route misses.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Wrapped { value: u8; }
 

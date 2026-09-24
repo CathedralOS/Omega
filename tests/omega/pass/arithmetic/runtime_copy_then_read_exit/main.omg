@@ -6,7 +6,7 @@
 // the stale literal instead of the copied value.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

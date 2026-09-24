@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // XMM1 and XMM3 around integer RCX/R8 arguments, then the fifth argument uses
 // stack slot 32. The f64 result returns in XMM0.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait ScalarFloatImport {
     machine call(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64;

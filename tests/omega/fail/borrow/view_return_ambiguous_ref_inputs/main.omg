@@ -6,7 +6,7 @@
 // declaration.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Cell {
     value: i32;

@@ -10,7 +10,7 @@
 // 71 = wrong fetch_or prior, 72 = wrong stored value.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Cell {
     value: AtomicU32;

@@ -9,7 +9,7 @@
 // indexed element copied through a `&mut out` alias inside a guarded sub-state.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Item {
     key: i32;

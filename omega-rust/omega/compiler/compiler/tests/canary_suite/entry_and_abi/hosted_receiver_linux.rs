@@ -68,7 +68,7 @@ fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: boo
         project.0.join("main.omg"),
         format!(
             r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     value: i32;
@@ -249,7 +249,7 @@ fn linux_hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
     fs::write(
         project.0.join("main.omg"),
         r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pair {
     first: i32;

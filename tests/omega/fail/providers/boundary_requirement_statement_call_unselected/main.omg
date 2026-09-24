@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // A statement-position direct call to a public top-level boundary
 // requirement executes only through a selected provider, exactly like the
 // value-position route. With no checked adapter satisfying the requirement

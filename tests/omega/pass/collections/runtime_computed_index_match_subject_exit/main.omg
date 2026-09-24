@@ -9,7 +9,7 @@
 // direct spelling). Bounds discharge through the dominating compound
 // guard, same as read/write positions.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Cell { case Empty; case Wall; case Goal; }
 data Main {
     console: Binding<Console>;

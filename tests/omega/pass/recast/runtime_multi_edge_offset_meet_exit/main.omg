@@ -5,7 +5,7 @@
 // weakest bound wins, 6 + size(u32) <= 12 discharges. One edge widened
 // past the footprint refuses (fail/recast/multi_edge_offset_meet_rejected).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; buf: [u8; 12]; k: u32; }
 machine Main::main(&mut self) reaches Console {
     self.k = 4;

@@ -157,7 +157,7 @@ fn compile_and_run_hosted_receiver(
         project.0.join("main.omg"),
         format!(
             r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Counter {{ value: i32; }}
 machine copy_counter(source: &Counter, destination: &mut Counter) {{
@@ -446,7 +446,7 @@ machine build(builder: &mut Build) {{
             format!(
                 r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Helper {{}}
 machine Helper::finish() {{}}
 data Main {{ value: i32; {service_field} }}

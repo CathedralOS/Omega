@@ -7,7 +7,7 @@
 // self.acc.sum`), and a two-way nested verify. Sums 1..5 = 15 -> exit 70. Wrapping so it
 // stays valid regardless of the (design-gated) nested-field exact-arith decision.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Acc {
     sum: i32 in Wrapping;

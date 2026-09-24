@@ -2,7 +2,7 @@
 // gate names the literal and the accepted positions; an i64 slot would
 // silently reinterpret the bit pattern as -1.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let wrong: i64 in Wrapping = 18446744073709551615;

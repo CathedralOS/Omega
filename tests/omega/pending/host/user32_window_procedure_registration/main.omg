@@ -22,7 +22,7 @@
 // in the common instruction pipeline) and the Windows host leg itself,
 // which other hosts report unavailable.
 use omega::language::core::layout;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::calling;
 use omega_language_std::console;
 

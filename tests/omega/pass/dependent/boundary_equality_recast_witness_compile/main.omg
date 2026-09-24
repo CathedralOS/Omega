@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // R1/R4: a boundary contract may transport a symbolic bound through equality
 // between out-parameters. `size == cap && cap <= 8` proves the four-byte view
 // beginning at `size` fits in the twelve-byte region.

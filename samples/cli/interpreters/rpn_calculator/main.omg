@@ -16,7 +16,7 @@
 // The program exits with the value it computed. Expected exit: 35.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

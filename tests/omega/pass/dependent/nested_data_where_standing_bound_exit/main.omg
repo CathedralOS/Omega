@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A zero-valid nested record contributes its standing
 // bound at the qualified place, so exact arithmetic sees self.map.value <= 60.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Map
 where
     value <= 60,

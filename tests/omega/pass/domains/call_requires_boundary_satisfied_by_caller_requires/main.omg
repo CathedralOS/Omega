@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Chapter 18 authority flow: a boundary trait signature's `requires` is the
 // caller's proof obligation, discharged here by the caller's own `requires`
 // carrying the same fact for the forwarded argument. Companion to

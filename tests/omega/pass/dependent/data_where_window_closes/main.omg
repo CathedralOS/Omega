@@ -4,7 +4,7 @@
 // before any consumption point (read / call / state exit). The strict
 // store-time order-sensitivity dissolves exactly as ch11 sanctions.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data MemoryMap
 where
     count <= len,

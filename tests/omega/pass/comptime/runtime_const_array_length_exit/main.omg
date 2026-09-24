@@ -10,7 +10,7 @@
 // values only survive if layout sized the field as 16 elements. Exits 70 only
 // when both elements hold their length-dependent values.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

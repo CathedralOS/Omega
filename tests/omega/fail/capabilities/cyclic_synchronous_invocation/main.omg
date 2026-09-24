@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Both selected checked providers realize one direct synchronous edge. The
 // resulting Alpha -> Binding<Beta> -> Binding<Alpha> component-boundary graph is forbidden even
 // though ordinary service reach may remain cyclic.

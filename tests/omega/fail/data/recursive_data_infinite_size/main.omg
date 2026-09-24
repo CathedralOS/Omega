@@ -6,7 +6,7 @@
 // "no finite size" refusal; declaration itself now passes -- see
 // pass/data/runtime_proof_only_data_declared_exit.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Node { value: i32; next: Node; } // Node is proof-only: recursive
 data Main { console: Binding<Console>; n: Node; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

@@ -3,7 +3,7 @@
 // lowers subject.increment() to Counter::increment; there is no runtime trait
 // dictionary. Expected exit: 1.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Incrementable {
     machine increment(&mut self);

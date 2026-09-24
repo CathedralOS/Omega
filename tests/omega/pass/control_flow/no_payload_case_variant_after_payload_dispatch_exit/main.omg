@@ -9,7 +9,7 @@
 // argument resolves to a case variant (see argument_materialization.rs).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data AlarmEvent {
     case Set(hour: i32 in Wrapping, minute: i32 in Wrapping);

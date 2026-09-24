@@ -20,7 +20,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Room { description: &[u8] in Utf8; }
 data Label { text: [u8; 8] in Utf8; }
 data Triple { first: i32; second: i32; third: i32; }

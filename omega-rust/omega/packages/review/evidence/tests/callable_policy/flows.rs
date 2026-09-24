@@ -7,7 +7,7 @@ use flow_effects::CapabilityFlowKind;
 // Direct boundary leaves declare their services; ordinary forwarding helpers
 // intentionally do not. Review must retain transitive authority independently
 // of private helper names and exclude helpers outside the caller's reach.
-const SOURCE: &str = r#"use omega::language::core::service;
+const SOURCE: &str = r#"use omega::language::core::binding;
 
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub boundary trait SubFolder { machine touch() reaches SubFolder; }

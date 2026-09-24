@@ -22,7 +22,7 @@
 // exits: 71 = guard-route leg wrong; 72 = exclusive-sugar leg wrong;
 // 73 = forward leg wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main
 where
     count <= 11,

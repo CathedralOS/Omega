@@ -7,7 +7,7 @@
 // exactly, so the claim is disproved outright. `climb(4, 10)` returns 14 and
 // would have met the true claim.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

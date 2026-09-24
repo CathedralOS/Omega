@@ -1,7 +1,7 @@
 // FloatMeaning is a proof carrier, never a hidden runtime tagged union.
 use omega::language::core::float_meaning;
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

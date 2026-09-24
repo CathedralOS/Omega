@@ -4,7 +4,7 @@
 // the default are exercised at runtime (not constant-folded).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

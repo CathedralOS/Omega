@@ -16,7 +16,7 @@ use omega::language::core::float_operations;
 // native was only coincidentally right via compare-time narrowing, which
 // double-rounds on other shapes).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f32; }
 machine Main::main(&mut self) reaches Console {
     self.f = 16777216.0;

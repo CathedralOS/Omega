@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // *** THE GREETING -- MILESTONE 1: an Omega UEFI application prints "Hello from
 // Omega" through the firmware's SimpleTextOutput protocol. BOOT-VERIFIED under
 // QEMU/OVMF (2026-07-04): serial console shows "Hello from Omega",

@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // ENT2c: fixed arrays are by-value aggregate shapes. They never decay to a
 // pointer merely because a native external leaf consumes them. The explicit

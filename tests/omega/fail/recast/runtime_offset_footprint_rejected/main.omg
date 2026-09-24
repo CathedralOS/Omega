@@ -2,7 +2,7 @@
 // where a 4-byte view would read bytes 9..13 of a 12-byte region --
 // refused at the declaration through the offset's enforced interval.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; buf: [u8; 12]; k: u32 [0..=9]; out: i32; }
 machine Main::main(&mut self) {
     self.buf[4] = 1;

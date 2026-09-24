@@ -6,7 +6,7 @@
 // fixed array as a {address, length} slice on real macOS syscalls.
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

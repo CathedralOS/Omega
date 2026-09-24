@@ -1,7 +1,7 @@
 // A fixed 16-byte non-HFA record is returned by value in x0/x1. The compiler
 // test verifies that both fragments spill into one aggregate result place.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Pair {
     first: u64;

@@ -9,7 +9,7 @@
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

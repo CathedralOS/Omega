@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Chapter 18 makes a boundary trait signature's `requires` the CALLER's proof
 // obligation, the same way a boundary trait machine's `requires` is. Calls
 // through platform-typed contained objects never produced a call obligation

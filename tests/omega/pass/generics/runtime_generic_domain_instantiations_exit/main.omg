@@ -9,7 +9,7 @@
 // and the native layout builder see two ordinary records. Reads 42 from the i32
 // box and 7 from the u8 box; exits 42.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Box<T> { value: T; }
 data Main { console: Binding<Console>; wide: Box<i32 in Wrapping>; small: Box<u8 in Wrapping>; r: i32; }
 machine Main::main(&mut self) reaches Console {

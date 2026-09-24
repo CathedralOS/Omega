@@ -11,7 +11,7 @@
 // Writes "hello" via the chain, then Main reopens + asserts the file is 5 bytes.
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

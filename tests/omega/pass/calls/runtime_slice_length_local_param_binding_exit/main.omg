@@ -7,7 +7,7 @@
 // len, so it is now read at the target's width. `s` views a fixed `[i32; 6]`, so
 // `n == 6` must take the true arm -> exit 6.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

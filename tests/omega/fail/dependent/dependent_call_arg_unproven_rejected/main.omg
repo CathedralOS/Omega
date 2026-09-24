@@ -3,7 +3,7 @@
 // declared minimum discharges -- an argument above it refuses with the
 // route-through-a-guarded-transition hint.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; items: [u8; 12]; count: u32 [0..=11]; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

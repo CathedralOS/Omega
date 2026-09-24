@@ -1,6 +1,6 @@
 // Public reach of one exact ordinary-package Console boundary.
 use host_services::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub machine terminate(console: Binding<Console>, return_code: i32)
 reaches Console

@@ -4,7 +4,7 @@
 // route resolves the concrete instance and folds it like any closed call;
 // an application that still needs inference stays rejected.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine identity<const N: u64>() -> u64 { N }

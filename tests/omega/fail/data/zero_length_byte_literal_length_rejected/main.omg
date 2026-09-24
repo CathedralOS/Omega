@@ -2,6 +2,6 @@
 // `"a"` hands one byte to an owned `[u8; 0]` place and must reject -- literal
 // copying neither truncates nor pads.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { let xs: [u8; 0] = "a"; self.console.exit_process(0); }

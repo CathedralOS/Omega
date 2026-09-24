@@ -7,7 +7,7 @@
 // is positive, else None; over [5, -3, 7] that is Some(5), None, Some(7), so the Some values
 // sum to 12 and one None is counted. Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Opt {
     case Some(value: i32 in Wrapping);

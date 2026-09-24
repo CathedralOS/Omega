@@ -6,7 +6,7 @@
 // every inductive arm.
 use omega::language::core::nat;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 

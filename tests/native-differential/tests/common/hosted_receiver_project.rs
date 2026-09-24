@@ -100,7 +100,7 @@ pub fn author_hosted_receiver_project(
         &root,
         format!(
             r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     value: i32;

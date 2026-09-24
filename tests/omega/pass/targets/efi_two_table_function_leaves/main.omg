@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Two attached external TableFunction leaves in one image:
 // get_memory_map + exit_boot_services on the same trait. The table type owns
 // field placement, each leaf names its field, and the dispatch-only table

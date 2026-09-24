@@ -88,7 +88,7 @@ fn empty_drop_machine_compiles_and_interprets() {
     let checked = compile(
         "drop-empty-hook",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -124,7 +124,7 @@ fn drop_body_helper_list_compiles_and_interprets() {
     let checked = compile(
         "drop-slice-helpers",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data First {
@@ -170,7 +170,7 @@ fn drop_ensures_true_compiles_and_interprets() {
     let checked = compile(
         "drop-ensures-true",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Mutex {
@@ -210,9 +210,9 @@ fn core_drop_explicit_consume_interprets() {
         "core-drop-consume",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -249,7 +249,7 @@ fn ordinary_drop_spellings_compile_and_interpret() {
     let checked = compile(
         "ordinary-drop-spellings",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Resource {
@@ -637,7 +637,7 @@ fn drop_requires_on_empty_body_compiles_and_interprets() {
     let checked = compile(
         "drop-requires-empty-body",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Mutex {
@@ -681,9 +681,9 @@ fn core_drop_use_after_consume_is_currently_admitted() {
         "core-drop-use-after",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -732,7 +732,7 @@ fn two_hooked_locals_in_one_scope_compile_and_interpret() {
     let checked = compile(
         "drop-order-two-hooks",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -771,7 +771,7 @@ fn explicit_consumes_in_authored_order_compile_and_interpret() {
         "drop-order-reverse-explicit",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -843,7 +843,7 @@ fn second_consume_of_already_dropped_local_is_frontend_rejected() {
         "drop-order-double-consume",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -882,7 +882,7 @@ fn reassigning_consumed_local_is_frontend_rejected() {
         "drop-order-reassign-consumed",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -915,7 +915,7 @@ fn drop_of_field_path_is_currently_admitted() {
         "drop-order-field-path",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {
@@ -953,7 +953,7 @@ fn helper_calls_run_in_authored_order_compile_and_interpret() {
     let checked = compile(
         "drop-order-helpers-reversed",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data First {
@@ -1003,7 +1003,7 @@ fn nested_consume_inside_drop_body_orders_its_diagnostics() {
         "drop-order-nested-consume",
         r#"
 use omega::language::core::drop;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Tool {
@@ -1055,7 +1055,7 @@ fn drop_body_statement_diagnostics_follow_authored_order() {
     let diagnostics = frontend_diagnostics(
         "drop-order-statement-diagnostics",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Guard {

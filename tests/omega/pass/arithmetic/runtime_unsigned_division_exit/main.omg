@@ -4,7 +4,7 @@
 // 3_000_000_000 as negative and produce garbage.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

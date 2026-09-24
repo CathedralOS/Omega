@@ -3,7 +3,7 @@
 // about `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- `bump`'s
 // `v < 16` requires must reject at `interpose`'s edge.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     tallies: [i32; 4];

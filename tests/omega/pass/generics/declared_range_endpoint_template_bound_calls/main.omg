@@ -3,7 +3,7 @@
 // template's bound in one round, re-prepares the execution program, and the
 // instance's cloned bound is then the folded literal.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine limit() -> u64 { 256 }

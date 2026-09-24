@@ -2,7 +2,7 @@
 // with an evaluable domain body fact, discharge once for the concrete generic
 // instance. They are not runtime invariants on the synthesized record.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain u64::Positive
 requires

@@ -261,7 +261,7 @@ machine Main::main(&mut self) { }
 fn effectful_policies_are_rejected_at_the_gate() {
     let main_path = write_program(
         "effectful-policy",
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField { key: u64; size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }

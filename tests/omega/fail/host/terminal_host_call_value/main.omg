@@ -12,7 +12,7 @@
 // -- but host calls stay manual: the receiver marks the boundary effect.)
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Probe { host: Binding<FilesystemHost>; fd: i32; }
 machine Probe::shutdown(&mut self, fd: i32) -> i32 reaches FilesystemHost {
     self.fd = fd;

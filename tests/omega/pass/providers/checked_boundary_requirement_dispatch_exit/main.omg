@@ -6,7 +6,7 @@
 // settlement records the requirement/realization association and redirects
 // the direct call to the selected ordinary machine in both engines.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data CheckedMath {}
 

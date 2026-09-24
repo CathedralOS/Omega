@@ -10,7 +10,7 @@
 // (fail canary sum_payload_arith_too_wide).
 // Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 domain i32::Ten requires 0 <= self && self <= 10;
 data Cmd { case Dim(amount: i32 in Ten); case Off; }
 data Main { console: Binding<Console>; c: Cmd; }

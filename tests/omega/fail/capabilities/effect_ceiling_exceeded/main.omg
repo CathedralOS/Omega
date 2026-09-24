@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // When a concrete machine declares a `reaches` row, that row is a ceiling for
 // the machine's reached services. `Worker::run`
 // declares only `Console` but transitively reaches `Disk` through the

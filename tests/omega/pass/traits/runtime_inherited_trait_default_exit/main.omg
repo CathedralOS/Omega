@@ -2,7 +2,7 @@
 // composition. A conformance to the child trait alone receives the inherited
 // machine.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Resettable {
     machine set(&mut self, value: i32);

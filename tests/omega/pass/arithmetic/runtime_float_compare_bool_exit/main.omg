@@ -16,7 +16,7 @@ use omega::language::core::float_operations;
 // ==/!=; byte-verified in a cross-compiled linux_x86_64 ELF from the arm64 host,
 // every leg's sequence found at its expected count.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: f64; b: f64;

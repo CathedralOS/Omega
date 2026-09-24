@@ -34,7 +34,7 @@
 // Exit 73 = total != 70 in do_total (binary arith miscompile -- both guards passed but sum wrong)
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Recursor {}
 

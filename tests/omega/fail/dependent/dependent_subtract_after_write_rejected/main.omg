@@ -5,7 +5,7 @@
 // and exact u32 subtraction refuses with the standard decision-17
 // overflow obligation.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; count: u32 [0..=11]; j: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;

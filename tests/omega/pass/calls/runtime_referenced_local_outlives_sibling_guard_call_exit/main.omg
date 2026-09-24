@@ -12,7 +12,7 @@
 //
 // Expected: build runs hall_two, room_count == 8 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data RandomState {
     seed: u64;

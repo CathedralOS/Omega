@@ -6,7 +6,7 @@
 // selected adapter in both checked interpretation and target-selected Terminal
 // production, exactly as the `boundary operator` spelling did.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CheckedMath {}
 

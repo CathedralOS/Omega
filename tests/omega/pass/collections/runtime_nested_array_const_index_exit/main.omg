@@ -7,7 +7,7 @@
 // admission wall (fail/collections/deep_nested_runtime_indexed_write_rejected). A runtime ROW
 // with a const column (`grid[i][0]`) does work. This canary stays in the working const subset.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

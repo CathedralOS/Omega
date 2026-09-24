@@ -1,7 +1,7 @@
 // The plain-bind face of record patterns: every field bound by its own
 // name, no rename, no waiver. The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Pair {
     x: i32 [0..=100];
     y: i32 [0..=100];

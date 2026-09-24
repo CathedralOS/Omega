@@ -5,7 +5,7 @@
 // to -3.
 // exits: 71 = positive truncation wrong; 72 = negative truncation wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 10.5 as i32;

@@ -2,7 +2,7 @@
 // recast uses structural target identity, preserves the complete byte-region
 // footprint, and writes through to the live backing bytes.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

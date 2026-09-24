@@ -12,7 +12,7 @@
 // the binding; an embedded call's scratch stays anonymous (__call_result).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Calc {}
 

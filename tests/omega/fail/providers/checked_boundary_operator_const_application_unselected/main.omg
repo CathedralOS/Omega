@@ -5,7 +5,7 @@
 // call has no body the selected execution can run.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Math {}
 

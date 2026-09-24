@@ -4,7 +4,7 @@
 // missing lowering, not a typo). The nested walker now reports the missing
 // member on its resolved container at validation, matching the read side.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Inner {
     value: i32;

@@ -5,7 +5,7 @@
 // exit. `Player` is `[copy]` so the live local needs no affine cleanup at the
 // nonreturning boundary call.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player [copy]
 where
     health >= 1,

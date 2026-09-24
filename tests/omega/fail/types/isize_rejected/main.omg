@@ -2,6 +2,6 @@
 // the pointer-width-signed spelling conflates the same axes. Signed 64-bit
 // arithmetic is i64.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; n: isize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

@@ -3,7 +3,7 @@
 // the Trapping and Saturating overloads without changing the requirement path.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 

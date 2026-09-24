@@ -3,7 +3,7 @@
 // in a guard ladder and the process exits 70 only when exact.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

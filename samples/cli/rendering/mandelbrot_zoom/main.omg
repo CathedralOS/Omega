@@ -6,7 +6,7 @@
 // Expected output contains: #
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

@@ -5,7 +5,7 @@
 // the classifier gate now (before the tag-compare lowering). Same-enum case
 // comparisons (`self.c == Color::Red`) stay valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
 data Main { console: Binding<Console>; c: Color; }

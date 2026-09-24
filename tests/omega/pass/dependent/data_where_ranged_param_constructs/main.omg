@@ -4,7 +4,7 @@
 // constructs from runtime data with no spelled requires, and the access
 // gate opens in the constructing machine.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

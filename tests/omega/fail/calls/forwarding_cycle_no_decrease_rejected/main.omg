@@ -3,7 +3,7 @@
 // IS the cycle -- no traversal decreases anything and the machine would
 // spin forever. The ranking witness stays unproven and refuses.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
 terminates by n;

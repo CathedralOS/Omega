@@ -7,7 +7,7 @@
 // traps) -- see pass/arithmetic/runtime_shift_count_proven_range_exit for
 // the proven spelling.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; k: u32; sel: u32; n: u32; }
 machine Main::main(&mut self) {
     transition self.sel == 0 { true -> small() _ -> big() }

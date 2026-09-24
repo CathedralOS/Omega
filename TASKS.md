@@ -880,11 +880,9 @@ syntax and other terminal services are not prerequisites.
 - **ENTRY-CONTENT-ROOTS.** Finish intrinsic receiver activation/completion
   under [entry roots](wiki/spec/build/entry_roots.md) and
   [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
-  Complete the owner-directed `Binding<R>` source naming migration: rename
-  `source/library/core/service.omg` to `binding.omg`, migrate its imports and
-  both source-identity consumers (`is_exact_service_data_symbol` and
-  `exact_service_carrier_data`), and keep exactly one carrier declaration.
-  `ForeignBinding` remains the distinct locator in `external_binding.omg`.
+  The carrier is declared once, as `Binding<R>` in `source/library/core/binding.omg`
+  (`omega::language::core::binding`); `ForeignBinding` remains the distinct
+  locator in `external_binding.omg`.
   Verify the real CLI samples and nested-binding helper-return customer after
   the rename; file-name mismatch is not an intentional compatibility policy.
   Owners: target package assembly, `program-entry-plan`, Psi

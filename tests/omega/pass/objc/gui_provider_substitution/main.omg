@@ -11,7 +11,7 @@
 // SUBSTITUTION in isolation, independent of the large-offset encoder gap (task #59).
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine get_dc(window: u64) -> u64;

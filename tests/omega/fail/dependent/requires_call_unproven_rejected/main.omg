@@ -7,7 +7,7 @@
 // also refuses (the caller state's own preservation scan).
 use omega::language::std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: u32; b: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 9;

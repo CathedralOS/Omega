@@ -6,7 +6,7 @@
 // planning is incomplete; the separate direct-unit control pins that gap.
 module main;
 
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Assert {
     machine check(ok: bool) crashes Trap;

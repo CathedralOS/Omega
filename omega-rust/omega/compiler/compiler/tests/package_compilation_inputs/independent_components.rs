@@ -31,7 +31,7 @@ use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 /// must call the requirement — that call is what puts the checked candidate
 /// in the module's realization roster, so the published export roster is
 /// module-derived rather than asserted.
-const COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 pub boundary trait Pick {
     machine mark(value: i32);
 }
@@ -55,7 +55,7 @@ pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
 /// description of the earlier component — but it exports the earlier
 /// realization coordinate, so it can no longer realize the consumer's
 /// selected plan.
-const RENAMED_ADAPTER_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const RENAMED_ADAPTER_COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 pub boundary trait Pick {
     machine mark(value: i32);
 }
@@ -84,7 +84,7 @@ pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
 /// stop body construction at the provider-attachment gate before any row
 /// is retained, and a direct `pub boundary requirement` call would
 /// demand a selected provider at validation.
-const BOUNDED_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const BOUNDED_COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 pub boundary trait Pick {
     machine mark(value: i32);
 }
@@ -122,7 +122,7 @@ invokes Installer;
 /// An unrelated component: it declares, seals, and realizes a requirement of
 /// its own. Its description is complete and verifiable, and it realizes
 /// nothing the consuming root selected.
-const FOREIGN_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const FOREIGN_COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 pub boundary trait Other {
     machine mark(value: i32);
 }
@@ -143,7 +143,7 @@ pub machine ComponentEntry::main(&mut self) reaches Other invokes Other; {
 
 /// The unrelated component renamed to coexist as a second bound dependency:
 /// its public entry names must not collide with the first dependency's.
-const SECOND_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const SECOND_COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 pub boundary trait Other {
     machine mark(value: i32);
 }
@@ -438,7 +438,7 @@ impl IndependentFixture {
 /// derived `port_mechanism_assumption` digest, so the published description
 /// carries an inseparable assumption roster.
 const MECHANISM_COMPONENT_SOURCE: &str = r#"use omega::language::core::assembly;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Pick {
     machine mark(value: i32);

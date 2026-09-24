@@ -7,7 +7,7 @@ use omega::language::core::float_operations;
 // computes exactly first.
 // exits: 71 = in-range product wrong; 7 = SAILED PAST the overflow trap.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: f64 in Trapping; r: f64 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 3.0;

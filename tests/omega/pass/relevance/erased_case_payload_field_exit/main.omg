@@ -6,7 +6,7 @@
 // would change. Exit 70 = `value` observed as 70; 71 = wrong tag or a
 // payload-position slide.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Evidence { case Only; }
 data Certified {

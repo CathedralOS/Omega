@@ -9,7 +9,7 @@
 // (runtime_assignment_call_post_mutation_value_exit) keeps its slot either way
 // and stays green.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Rng {
     seed: u64 in Wrapping;

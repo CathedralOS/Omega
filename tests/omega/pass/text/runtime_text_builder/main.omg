@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // The builder pattern over NESTED-field owned `[u8; N] in Utf8` carriers (#66):
 // `self.line.text = "Room " + self.room.label` materializes the concat into the
 // nested target carrier's inline `{len, bytes}` storage, then a later state

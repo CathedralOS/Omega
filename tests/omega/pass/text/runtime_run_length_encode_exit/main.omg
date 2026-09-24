@@ -8,7 +8,7 @@
 // the inline write source). Six output bytes checked -> exit 70.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

@@ -25,7 +25,7 @@ fn run_linux_record_counterparty() {
     let fixture = Fixture::with_source(
         "record-foreign-arguments",
         "linux_x86_64",
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Pair {

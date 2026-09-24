@@ -7,7 +7,7 @@
 // NotEqual designed-false leg closes the operator family.
 // exit 70 = all three legs right; 71/72/73 name the leg.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;

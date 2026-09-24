@@ -4,7 +4,7 @@
 // (and `in Wrapping` sums) permissive -- a future over-strict check that rejected
 // these would break real code. All three stores below are sound and must compile.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i8; b: i64; r: i32; s: i8; }
 machine Main::main(&mut self) reaches Console {
     self.a = 5;

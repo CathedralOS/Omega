@@ -6,7 +6,7 @@
 // per-literal (it evaluates the bytes), not an unconditional name-based pass.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::NoNul
 requires

@@ -1,6 +1,6 @@
 // Source i32 status crosses the selected exit lane and normalizes to the OS status.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self)

@@ -1,7 +1,7 @@
 // FAIL CANARY. self.map.start opens Map's window and the call cannot consume
 // the enclosing machine while start=10/end=0 violates Map's default domain.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Map
 where
     start <= end,

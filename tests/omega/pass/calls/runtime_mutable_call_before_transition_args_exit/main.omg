@@ -6,7 +6,7 @@
 // the domain-constrained field stores beneath them are unadmitted
 // (`structural field store: record literal field`, state `present`).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Loader {
     console: Binding<Console>;

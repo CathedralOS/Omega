@@ -359,7 +359,7 @@ machine build(builder: &mut Build) {{
             .expect("write package build declaration");
             std::fs::write(
                 path.join("main.omg"),
-                r#"use omega::language::core::service;
+                r#"use omega::language::core::binding;
 use console_provider::console;
 
 data Main { console: Binding<Console>; }

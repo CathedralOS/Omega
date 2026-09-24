@@ -3,7 +3,7 @@
 // resolves to the `[u8]::Utf8` domain (membership over a slice-carrier domain).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

@@ -3,7 +3,7 @@
 // the two normalized domain identities. The consuming machine's explicit
 // conformance bound supplies the spelled operation and its checked law slots.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain<T, const I: u64> T::Indexed<I>;
 domain<T, const I: u64, const J: u64> T::PairIndexed<I, J>;

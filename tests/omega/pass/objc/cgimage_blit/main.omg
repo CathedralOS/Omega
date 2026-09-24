@@ -15,7 +15,7 @@
 // and CGImageGetWidth(nil) == 0 -> exit 1.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;

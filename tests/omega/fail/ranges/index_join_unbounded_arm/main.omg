@@ -4,7 +4,7 @@
 // runtime-indexed read `arr[idx]` at the join must be REJECTED.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

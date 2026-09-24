@@ -2,7 +2,7 @@
 // refuses -- health omitted reads the ZII zero, and zero health is not a
 // Player (ch12: construction is the gate).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

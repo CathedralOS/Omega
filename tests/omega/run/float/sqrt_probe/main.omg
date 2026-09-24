@@ -5,7 +5,7 @@
 // sqrt(16.0) == 4.0 -> exit 4; else exit 1.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Libm {
     machine square_root(value: f64) -> f64;

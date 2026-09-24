@@ -1,7 +1,7 @@
 // Microsoft x64 returns larger records through a caller-owned destination in
 // hidden RCX. The declared seed argument therefore shifts to RDX.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Triple {
     first: u64;

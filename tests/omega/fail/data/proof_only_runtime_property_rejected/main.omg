@@ -1,6 +1,6 @@
 // `[copy]` is a claim about runtime values; proof-only data never becomes one.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Nat [copy] { case Zero; case Succ(prev: Nat); }
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

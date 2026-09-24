@@ -11,7 +11,7 @@
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; fs: Filesystem; unit_result: UnitResult; present: bool; exists_result: ExistsResult; }
 machine Main::main(&mut self) reaches Console {
     // absent: exists false

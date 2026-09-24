@@ -24,7 +24,7 @@ requires
 
 use omega::language::core::fixed_vec;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Report {
     #0 samples: FixedVec<i32, 4>;

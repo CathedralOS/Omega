@@ -9,7 +9,7 @@
 // Linux profiles, and one Mach-O dylib symbol on macOS AArch64.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 boundary trait Shutdown {
     machine halt(code: i32);

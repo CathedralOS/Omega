@@ -5,7 +5,7 @@
 // param-binding walk; calls/runtime_param_receiver_second_instance_exit).
 // only.count = 9 delivered through the param -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

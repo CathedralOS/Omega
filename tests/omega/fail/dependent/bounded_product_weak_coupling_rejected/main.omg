@@ -4,7 +4,7 @@
 // refused at the store, never trusted by the index prover. (This exact
 // shape read pixels[12] out of bounds natively before the keystone.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; pixels: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) {
     self.rows = 3;

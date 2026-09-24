@@ -7,7 +7,7 @@
 // key_state returns 0 -> exit 4. Validates the substitution registry generalizes past
 // Gui to Input, and the CGEventSourceKeyState lowering runs end-to-end.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main {
     console: Binding<Console>;

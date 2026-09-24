@@ -12,7 +12,7 @@
 // argument through the fixed-range byte-view lane when its place roots at a
 // caller parameter (here the `&mut self` receiver).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data CellSource {}
 

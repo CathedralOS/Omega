@@ -3,7 +3,7 @@
 // self.champion, so its summary joins main's tracking at the call site
 // and the read after the call passes the access gate. RUNS exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

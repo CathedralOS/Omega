@@ -6,7 +6,7 @@
 // destructures two computed copy-record subjects, proving each is captured
 // exactly once before any field projection.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Cell {
     case Empty;

@@ -11,7 +11,7 @@
 // over the long branch chain), and a new column value is computed into a field before the
 // array write (a computed value can't be the inline write source). Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

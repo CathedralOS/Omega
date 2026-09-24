@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // exact value so a dropped or wrong conversion exits non-70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

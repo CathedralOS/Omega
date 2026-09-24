@@ -8,7 +8,7 @@
 // this covers the common std-authoring shape; the INLINE value-call route
 // stays fenced (pending/time/value_machine_receiver_field_postentry).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Counter { value: i32 in Wrapping; }
 machine Counter::increment(&mut self) {
     self.value = self.value + 1;

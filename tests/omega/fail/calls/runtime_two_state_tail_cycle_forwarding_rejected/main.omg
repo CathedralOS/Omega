@@ -2,7 +2,7 @@
 // strictly decrease the selected rank. The entry -> step edge forwards `n`
 // unchanged, so the later strict step -> entry edge cannot rescue it.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
 terminates by n;

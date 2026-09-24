@@ -2,7 +2,7 @@
 // carried to `broken`, which never restores the facts -- the exit call
 // (and the terminal exit) are consumption points and refuse.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data MemoryMap
 where
     count <= len,

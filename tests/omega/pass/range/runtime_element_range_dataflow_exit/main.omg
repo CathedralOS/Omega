@@ -9,7 +9,7 @@
 //   admission boundary instead of an element-type suffix.
 // cells[1]=7 -> 7*2+1 = 15 -> exit 15.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

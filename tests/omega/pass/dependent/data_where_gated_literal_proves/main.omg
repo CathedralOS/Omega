@@ -3,7 +3,7 @@
 // health = 50 satisfies `health >= 1 && health <= 100`; construction is
 // the gate.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

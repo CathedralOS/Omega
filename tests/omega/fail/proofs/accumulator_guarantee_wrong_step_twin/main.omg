@@ -8,7 +8,7 @@
 // exact incoming origin to stand on. The guarantee is genuinely false:
 // `climb(4, 10)` returns 10, not 14.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

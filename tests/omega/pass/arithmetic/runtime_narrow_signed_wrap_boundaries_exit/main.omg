@@ -5,7 +5,7 @@
 // type wraps in two's complement at the correct width -- a real behavior for pixel deltas,
 // small counters, and fixed-width protocol fields. All four corners must hold -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

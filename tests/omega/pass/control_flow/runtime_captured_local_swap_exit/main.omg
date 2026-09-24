@@ -6,7 +6,7 @@
 // its slot, so the swap is correct and gcd(48, 36) = 12 -> exit 70 (the old
 // fold exits 36 after one bogus step).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: i32 in Wrapping;

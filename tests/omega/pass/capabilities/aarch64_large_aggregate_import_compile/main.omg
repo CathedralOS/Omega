@@ -1,7 +1,7 @@
 // A fixed aggregate above 16 bytes crosses AAPCS64 indirectly: the caller
 // passes a pointer to a stack copy in x0 and the result destination in x8.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Triple {
     first: u64;

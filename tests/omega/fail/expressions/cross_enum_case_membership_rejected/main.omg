@@ -5,7 +5,7 @@
 // hole. Rejected at the case-membership lowering now. Same-enum membership
 // (`self.c in Color::Red`, incl. transition match-arm desugars) stays valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
 data Main { console: Binding<Console>; c: Color; }

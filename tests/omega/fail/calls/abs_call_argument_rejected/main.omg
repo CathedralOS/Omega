@@ -1,5 +1,5 @@
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 machine pick(x: i32) -> i32 {
     transition {
         x > 0 -> 100

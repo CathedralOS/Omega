@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // here; `runtime_float_place_comparison_exit` covers float comparison.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     wide: f64;

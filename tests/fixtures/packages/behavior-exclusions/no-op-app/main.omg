@@ -2,7 +2,7 @@
 // entry keeps the requirement's public Trap allowance; the build decides
 // whether the composed product may actually trap.
 use assert_kit::main::Assert;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     assert: Binding<Assert>;

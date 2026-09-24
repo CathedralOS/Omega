@@ -1,7 +1,7 @@
 // A trait machine body supplies a missing attached method for a standalone
 // conformance. A written method of the same name overrides the default.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Resettable {
     machine set(&mut self, value: i32);

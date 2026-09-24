@@ -2,7 +2,7 @@
 // one is therefore unproved, irrespective of whether nonzero floors are
 // supported for other ranked programs.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::climb(&mut self, limit: u64, index: u64)
 terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;

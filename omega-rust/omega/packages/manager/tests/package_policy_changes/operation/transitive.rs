@@ -19,7 +19,7 @@ pub(super) fn source_chain(tree: &Tree, leaf_name: &str, leaf_source: &str) {
     fs::write(tree.path("sources/leaf/main.omg"), leaf_source).unwrap();
 }
 
-const LEAF: &str = r#"use omega::language::core::service;
+const LEAF: &str = r#"use omega::language::core::binding;
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub data FolderHandle { folder: Binding<Folder>; }
 pub boundary trait RootDir { machine open() -> FolderHandle reaches RootDir; }

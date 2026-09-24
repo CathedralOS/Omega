@@ -9,7 +9,7 @@
 // extracted names are NUL-terminated the same way).
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

@@ -854,7 +854,7 @@ machine build(builder: &mut Build) {{
     fs::write(
         root.join("main.omg"),
         r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

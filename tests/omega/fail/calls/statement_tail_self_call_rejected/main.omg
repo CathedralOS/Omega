@@ -10,7 +10,7 @@
 // repetition is a state transition. Cross-machine statement calls
 // (`self.other_machine(..)`) remain legal.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; acc: u32 in Wrapping; }
 machine Main::drip(&mut self, n: u32) {
     self.acc = self.acc + 1;

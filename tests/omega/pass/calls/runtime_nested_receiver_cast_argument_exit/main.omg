@@ -11,7 +11,7 @@
 // conditional successors: parameter transfer`), a separate Unit slice.
 // exits: 70 = the cast byte reached the nested receiver; 71 = it did not.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data ByteInput {
     case Eof;

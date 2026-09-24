@@ -5,7 +5,7 @@
 // a-c is a computed value formed into a field (a computed index is refused in a subscript),
 // and the two dp reads are taken into fields before the comparison. Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

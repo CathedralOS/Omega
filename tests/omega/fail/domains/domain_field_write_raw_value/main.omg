@@ -8,7 +8,7 @@
 // domain; a raw slice does not.) Without this rejection the read-narrowing would
 // rest on an unenforced refinement.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

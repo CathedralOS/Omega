@@ -2,7 +2,7 @@
 // result of a Boolean-returning helper, through the same closed admission
 // plan. The endpoint result itself stays an exact integer carrier.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine upper_bound<const N: u64>(value: u64[0..=N]) -> u64 { N }
 machine pick(wide: bool) -> u64 {

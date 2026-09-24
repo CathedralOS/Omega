@@ -2,6 +2,6 @@
 // i32 used to compile with C-style truthiness (`!5` -> 0); modern strict languages
 // reject int-in-bool. Rejected now. `!bool`, `!(a == 1)`, `!(x && y)` stay valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let x: i32 = 5; let r: bool = !x; let n: i32 = r as i32; self.console.exit_process(n); }

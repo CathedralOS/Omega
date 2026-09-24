@@ -4,7 +4,7 @@
 // CopyRuntimeFrameBaseIndexedToRuntimeFrame -- the LOAD counterpart of the
 // frame-base-indexed address computation. arr=[10,20,30], k=1 -> 20 -> exit 1.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     arr: [i32; 3];

@@ -17,7 +17,7 @@
 // i64::MAX -- the flag-based clamp), and an IN-RANGE add stays exact
 // (40+2 = 42, no clamp). Exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

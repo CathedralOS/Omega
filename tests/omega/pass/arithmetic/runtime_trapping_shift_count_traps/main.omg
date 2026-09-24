@@ -2,7 +2,7 @@
 // the operation, including when the left value is zero.
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; count: u32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 32;

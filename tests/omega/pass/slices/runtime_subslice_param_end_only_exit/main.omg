@@ -3,7 +3,7 @@
 // computed from the runtime base descriptor, not a fixed-array special case.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entry { value: i32; }
 

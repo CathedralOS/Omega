@@ -5,7 +5,7 @@
 // machine-indexed write stores `__hoist + 1` back through the element's field
 // offset. cells[2].v: 4 -> 5 -> exit 1.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Cell {
     v: i32 [0..=9];
 }

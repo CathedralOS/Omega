@@ -54,7 +54,7 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
     typed_program(&source)
 }
 
-/// Same prelude as `parse_typed_trees`, with the toolchain `core/service.omg`
+/// Same prelude as `parse_typed_trees`, with the toolchain `core/binding.omg`
 /// resident so fixtures can spell the intrinsic `Binding<R>` carrier, plus the
 /// settled fused-service erasure authorizations
 /// `bind_fixture_fused_service_erasures` supplies — without one an authored

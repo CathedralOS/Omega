@@ -18,7 +18,7 @@
 // Exit 71 = probe A wrong; 72 = probe B wrong.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entry {
     value: i32 in Wrapping;

@@ -2,7 +2,7 @@
 // must retain both the D32 child for the authored operator occurrence and the
 // helper call inside its exact checked realization closure.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CheckedMath {}
 

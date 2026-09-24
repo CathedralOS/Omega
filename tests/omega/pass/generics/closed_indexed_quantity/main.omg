@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // closed proof-static indices without changing either carrier's layout.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Unit [copy] {
     scale: i32;

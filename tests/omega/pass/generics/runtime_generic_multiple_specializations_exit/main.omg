@@ -2,7 +2,7 @@
 // body per tuple. Both interpreter and native execution must route each call
 // to its concrete clone and materialize the combined result (exit 14).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Light [copy] {
     weight: i32 in Wrapping;

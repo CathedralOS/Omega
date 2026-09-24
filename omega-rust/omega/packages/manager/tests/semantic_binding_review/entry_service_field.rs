@@ -22,7 +22,7 @@ fn entry_service_field_nominates_filesystem_host_binding() {
     write_file(
         application.join("main.omg"),
         r#"use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { raw_fs: Binding<FilesystemHost>; }
 

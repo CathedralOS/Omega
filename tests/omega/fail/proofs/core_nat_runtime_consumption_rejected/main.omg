@@ -3,7 +3,7 @@
 // holding it refuses at the machine face with the chain named.
 use omega::language::core::nat;
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; n: Nat; }
 machine Main::main(&mut self) {
     self.console.exit_process(0);

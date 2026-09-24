@@ -4,7 +4,7 @@
 // callee runs, and the returned value's membership before folding, so the
 // callee keeps `u64 in Positive` instead of being stripped to `u64`.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain u64::Positive
 requires

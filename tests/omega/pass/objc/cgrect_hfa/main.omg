@@ -14,7 +14,7 @@ use omega::language::core::float_operations;
 // CoreGraphics is bindable as a directly-called framework (2nd dylib, no objc).
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Math {
     machine round_nearest(value: f64) -> i64;

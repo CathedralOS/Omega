@@ -4,7 +4,7 @@
 // write. (Was: `value: i32 [0..=7]` field suffix inside `Cell`; the bound now
 // lives on `Cell`'s where-facts.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Cell
 where

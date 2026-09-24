@@ -14,7 +14,7 @@
 // block on a console.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Gui {
     machine window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64

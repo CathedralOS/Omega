@@ -7,7 +7,7 @@
 // bare nullary cases tag-only). Unservable fields stay loud via the
 // call-result blocker. Differential.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Verdict {
     case Nope;
     case Yes(score: i32 in Wrapping);

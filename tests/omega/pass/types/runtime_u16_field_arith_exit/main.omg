@@ -5,7 +5,7 @@
 // compare -- a signed 16-bit compare would read 40000 as -25536 and take the
 // bad arm. Exit 70 on success.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

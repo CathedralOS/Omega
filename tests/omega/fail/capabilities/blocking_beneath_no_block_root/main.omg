@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FFIVAL boundary-coherence gate: an externally callable root that omits
 // `blocks;` promises not to occupy its worker. Calling a blocking service
 // beneath that root cannot hide the operational behavior.

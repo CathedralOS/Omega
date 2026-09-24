@@ -11,7 +11,7 @@
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Leaf {
     machine exit(code: i32) -> i32;

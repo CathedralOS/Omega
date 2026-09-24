@@ -3,7 +3,7 @@
 // generic instantiation nor a layout-policy application. The diagnostic must
 // say both halves so the fix is obvious either way.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data NotAPolicy {
     value: i32;

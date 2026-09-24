@@ -8,7 +8,7 @@
 // opaque call WOULD (see the fail canary guard_invalidated_by_prior_write).
 // Loops 5 times, then asserts the count. Exit 70. Differential.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; count: i32 [0..=100]; scratch: i32; }
 machine Main::main(&mut self) reaches Console {
     transition { _ -> head() }

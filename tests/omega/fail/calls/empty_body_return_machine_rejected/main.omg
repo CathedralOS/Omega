@@ -1,6 +1,6 @@
 // V2: value-returning machine with an EMPTY body -- `machine get -> i32 { }`.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }

@@ -8,7 +8,7 @@
 // Expected exit: 42.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // FULLY EXACT -- no overflow domain: each match arm passes its payload through a
 // guard hop (`radius < 101` etc.) into a compute state with a RANGED parameter, so

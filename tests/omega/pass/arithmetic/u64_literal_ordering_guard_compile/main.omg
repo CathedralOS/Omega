@@ -4,7 +4,7 @@
 // of a sign-blind two's-complement bit pattern, so `stored < u64::MAX`
 // keeps honest unsigned ordering.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::probe(&mut self, stored: u64) reaches Console {
     let under: bool = stored < 18446744073709551615;

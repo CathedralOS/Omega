@@ -4,7 +4,7 @@
 // literal-as-`&[u8]` backend lowering before the corpus sweep relies on it.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

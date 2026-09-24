@@ -44,7 +44,7 @@
 // ====================================================================
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);

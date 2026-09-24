@@ -1,7 +1,7 @@
 // Microsoft x64 returns 1/2/4/8-byte records by value in RAX. The compiler
 // test pins the eight-byte spill into the aggregate result place.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Pair32 {
     first: u32;

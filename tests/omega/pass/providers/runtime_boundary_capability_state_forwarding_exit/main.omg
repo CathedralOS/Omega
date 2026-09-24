@@ -4,7 +4,7 @@
 // layout, while host-call lowering continues to use the capability's type and
 // selected provider identity.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

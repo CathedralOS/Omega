@@ -9,7 +9,7 @@
 // the inner reads are in bounds; `Wrapping` on the pointers frees the +1/-1 from
 // an overflow obligation (the guard bounds them at runtime).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     arr: [i32; 5];

@@ -1317,7 +1317,7 @@ fn compiler_body_general_x86_binary_write_footprints_reach_artifacts() {
         let (case_name, source_text) = (
             "frame-indexed-by-region",
             r#"use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 3]; }
 data Main { console: Binding<Console>; index: u64 [0..=2]; }

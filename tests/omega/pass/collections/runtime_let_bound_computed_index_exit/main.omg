@@ -10,7 +10,7 @@
 // f3: guard subject arr[m] == v   f4: backward offset m = k-1 (guard-narrowed)
 // f5: regression -- bare-copy index (let c = k; arr[c]) still folds+works
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     arr: [i32; 5];

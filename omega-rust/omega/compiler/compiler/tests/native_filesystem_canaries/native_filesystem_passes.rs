@@ -100,7 +100,7 @@ fn posix_directory_wrappers_drain_multiple_native_fills() {
     let source = format!(
         r#"use omega::language::std::filesystem;
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     fs: Filesystem;

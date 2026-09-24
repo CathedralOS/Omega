@@ -1,5 +1,5 @@
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Compact Mandelbrot renderer (40x18) -- a per-pixel f64 escape-time renderer over
 // a 1D carrier framebuffer, exercising floats, nested loops, runtime-indexed carrier

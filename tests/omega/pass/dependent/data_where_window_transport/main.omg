@@ -3,7 +3,7 @@
 // exit is not a consumption point any more) and the successor's write
 // restores the facts (1 <= 2) BEFORE the exit call. RUNS exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data MemoryMap
 where
     count <= len,

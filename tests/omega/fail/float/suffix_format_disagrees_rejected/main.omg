@@ -3,7 +3,7 @@
 // declaring the other format is an error -- an f32-suffixed literal in an
 // f64 place would silently mean the f32-rounded value.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let x: f64 = 1.5f32;

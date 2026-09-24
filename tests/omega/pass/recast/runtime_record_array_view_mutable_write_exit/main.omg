@@ -6,7 +6,7 @@
 // address lowering must read exactly its declared width rather than splicing
 // neighboring bytes into the index.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pair {
     low: u16;

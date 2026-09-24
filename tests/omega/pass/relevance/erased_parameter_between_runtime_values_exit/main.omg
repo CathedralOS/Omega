@@ -10,7 +10,7 @@
 // erased_parameter_proof_only.
 // Exit 70 = low and high observed as 7 and 20; 71 = low wrong; 72 = high wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine first(low: i32, bound [erased]: i32, high: i32) -> i32 {
     low

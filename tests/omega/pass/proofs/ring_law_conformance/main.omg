@@ -4,7 +4,7 @@
 // conformances -- the op machine is named `plus`, NOT `add`, so the slot
 // rewrite is really exercised.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Peano {
     case Zero;

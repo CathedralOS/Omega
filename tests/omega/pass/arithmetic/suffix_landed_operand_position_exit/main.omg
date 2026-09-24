@@ -8,7 +8,7 @@
 // exit 78 = the suffix was stripped (yesterday's behavior) and a signed max
 // picked 5. Disagreement twin: fail/arithmetic/suffix_type_disagrees_rejected.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let z: u64 in Wrapping = 0;

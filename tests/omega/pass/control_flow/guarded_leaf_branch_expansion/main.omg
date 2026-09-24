@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // COMPILE CANARY: a nested OWNED field's declared ZII-admitting domain remains
 // a valid write source after the enclosing record crosses a mutable
 // out-parameter call. Alias invalidation may discard transient facts, but it

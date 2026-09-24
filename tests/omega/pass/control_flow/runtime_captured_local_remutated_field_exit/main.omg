@@ -15,7 +15,7 @@
 // Pushes 3 then 4; if both land (stack[0]=3, stack[1]=4) exits 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Vm [copy] {
     stack: [i32 in Wrapping; 8];

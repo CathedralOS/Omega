@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FROZEN DECISION 9 -- STRICT RESULT USE, trait-receiver path: a bare
 // statement-position call to a boundary trait machine whose signature declares a
 // non-unit return must reject just like a local/attached machine call.

@@ -10,7 +10,7 @@
 // test (bind-first-arg fix), an UNUSED let-bound result is served too --
 // slot written, nothing reads it -- rather than fencing.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Card {
     power: u64;
 }

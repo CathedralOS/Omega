@@ -11,7 +11,7 @@ use omega::language::core::float_operations;
 // Over [5, 2, 8, 3]: lo folds to 2, hi folds to 8, lo + hi = 10 -> exit 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

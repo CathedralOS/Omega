@@ -1,5 +1,5 @@
 use omega::language::core::extent;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // A checked adapter may realize the owner-authored provider requirement, but
 // it does not mint `Granted` when called directly. The selected boundary slot

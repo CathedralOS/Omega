@@ -155,15 +155,15 @@ fn typed_forest(
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
 /// can spell `Binding<R>` against the real core declaration. These unit
 /// harnesses build a bare `SourceMap` with no package scope, so `use
-/// omega::language::core::service` cannot resolve; installing the source with
+/// omega::language::core::binding` cannot resolve; installing the source with
 /// `SourceOrigin::Toolchain` gives the typed-trees service classifier the
 /// exact identity it requires.
 const CORE_SERVICE_OMG: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../source/library/core/service.omg"
+    "/../../../../source/library/core/binding.omg"
 ));
 
-/// [`typed_program_from_source_map`] over `core/service.omg` (registered as a
+/// [`typed_program_from_source_map`] over `core/binding.omg` (registered as a
 /// Toolchain source) followed by `source` (registered as `tests/main.omg`).
 /// Fixtures exercising service-carrier semantics spell `Binding<R>` fields
 /// and parameters; the requirement trait they close over must be `pub`.
@@ -171,7 +171,7 @@ pub(crate) fn typed_program_with_core_service(source: &str) -> TypedTrees {
     let mut sources = SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
-            PathBuf::from("source/library/core/service.omg"),
+            PathBuf::from("source/library/core/binding.omg"),
             CORE_SERVICE_OMG.to_owned(),
             PathBuf::from("source/library/core"),
             None,

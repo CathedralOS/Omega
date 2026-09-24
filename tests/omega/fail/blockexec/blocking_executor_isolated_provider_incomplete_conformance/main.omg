@@ -5,7 +5,7 @@
 // incomplete and must reject — ambient machines never fill trait rows.
 
 use blocking_executor::executor;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Token {
     id: u64;

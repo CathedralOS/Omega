@@ -18,7 +18,7 @@
 // (`&mut Counter`), but the caller lends only immutable access
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Counter { n: i32 in Wrapping; }
 data Main { console: Binding<Console>; c: Counter; }

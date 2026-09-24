@@ -1,6 +1,6 @@
 // Case selection consumes only its subject. Unrelated locals remain available
 // to selected successor arguments, then transfer or clean up on that edge.
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::console;
 
 data Main {

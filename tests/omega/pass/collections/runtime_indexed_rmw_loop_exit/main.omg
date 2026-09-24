@@ -5,7 +5,7 @@
 // guarding the 32-bit zero-extending index load (a 64-bit load would corrupt the index). The RMW
 // index bound is still proven by the loop guard. Differential: native == interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; arr: [i32 in Wrapping; 5]; i: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.marker = 42;

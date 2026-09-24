@@ -3,7 +3,7 @@
 // no-overflow path of the trapping-multiply check). c == 100 -> exit 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

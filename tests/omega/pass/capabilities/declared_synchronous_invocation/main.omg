@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // A bodyless boundary requirement publishes the callback binding it may enter
 // before return. The checked provider's helper-forwarded edge refines that
 // ceiling and remains visible in checked invocation metadata. The adapter's

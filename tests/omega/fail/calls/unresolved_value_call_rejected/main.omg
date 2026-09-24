@@ -2,7 +2,7 @@
 // silently bind 0 (ZII) -- `let y: i32 = bogus_fn(1)` took whatever arm the
 // zero picked. Now a compile error from the complete value-call resolution.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }

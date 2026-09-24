@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // RUN CANARY (stdin-driven, two invocations: "ok\n" -> exit 70, "no\n" -> 75).
 // The callee's ENTRY does a host call that writes self state (read_line into
 // self.buf), and BOTH leaf arms build their payloads from that state:

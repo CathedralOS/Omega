@@ -2,7 +2,7 @@
 // the packed grammar (identity dropped), which is not implemented. The
 // diagnostic names the fix for the derived tagged grammar: number the fields.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Plain {
     value: i32;

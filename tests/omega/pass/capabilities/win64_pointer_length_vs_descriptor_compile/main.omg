@@ -6,7 +6,7 @@
 // target-scoped producer: PE by-name on Windows, versioned ELF on Linux,
 // and one Mach-O dylib symbol on macOS AArch64.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data ByteDescriptor {
     pointer: addr;

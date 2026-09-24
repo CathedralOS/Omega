@@ -4,7 +4,7 @@
 // the obligation across the synthesized continuation edge.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self, marker: bool) -> i32 { self.code }

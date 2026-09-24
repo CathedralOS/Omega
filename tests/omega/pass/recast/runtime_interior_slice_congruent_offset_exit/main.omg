@@ -4,7 +4,7 @@
 // and is always even, so the remaining `8 - k * 2` bytes exactly tile
 // `u16` elements. Mutable projected writes must reach the backing bytes.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

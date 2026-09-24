@@ -2,7 +2,7 @@
 // naming, domain-membership discharge, attached-machine specialization, and
 // both runtimes.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain i8::Negative
 requires

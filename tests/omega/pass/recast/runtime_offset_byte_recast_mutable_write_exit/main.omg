@@ -4,7 +4,7 @@
 // surrounding sentinels untouched, and a subsequent view read observes the
 // same bits. The declared offset range proves k + 4 <= 8.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // subsequent view read still observes the raw bits. This distinguishes write-through
 // from the shared scalar recast's content snapshot.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

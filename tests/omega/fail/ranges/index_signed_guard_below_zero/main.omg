@@ -7,7 +7,7 @@
 // (An unsigned index would be non-negative by type; a signed one must prove it.)
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

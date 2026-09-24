@@ -5,7 +5,7 @@
 // `sp` is a runtime parameter so both edges are live. (Was:
 // `y: i32 [0..=15]` field suffix.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -12,7 +12,7 @@
 // value = 42 at offset 16; an inline read of the 8-byte slot fetches garbage.
 // exit 42.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Big {
     pad0:  u64;
     pad1:  u64;

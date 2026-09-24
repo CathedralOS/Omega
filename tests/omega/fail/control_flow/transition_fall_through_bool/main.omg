@@ -3,7 +3,7 @@
 // the guard is false -- before the rule, the process exited with a leftover
 // register value (probed: garbage, value-dependent).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     x: i32;

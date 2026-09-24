@@ -6,7 +6,7 @@
 // is not spellable on a state: the requires expression itself must be
 // provably finite without sibling-clause bounds.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

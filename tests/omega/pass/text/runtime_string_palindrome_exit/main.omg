@@ -17,7 +17,7 @@ domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -428,7 +428,7 @@ fn authored_physical_exclusion_rejects_exercised_output_not_unrelated_input() {
     project.write(
         "main.omg",
         r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#,
@@ -518,7 +518,7 @@ fn a_retained_physical_exclusion_replays_against_the_product_by_consumers() {
     // and without a receiver permission policy because the physical axis is
     // independent of receiver admission.
     const OUTPUT_PROGRAM: &str = r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#;
@@ -613,7 +613,7 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 /// keeps its exclusion only until a provider that actually exercises the
 /// class is selected back in.
 const SILENT_CONSOLE_MAIN: &str = r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data SilentConsole { }
 
@@ -1312,7 +1312,7 @@ fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
 // and a NativeArtifact request. The fixture directories stay owned by
 // the semantic-exclusions work; this probe replicates the composition
 // inline.
-const LOGGER_KIT_MAIN: &str = r#"use omega::language::core::service;
+const LOGGER_KIT_MAIN: &str = r#"use omega::language::core::binding;
 
 pub boundary trait Sink {
     machine emit(text: &[u8]);
@@ -1339,7 +1339,7 @@ const LOGGER_KIT_BUILD: &str = r#"machine build(builder: &mut Build) {
 "#;
 
 const SINK_APP_MAIN: &str = r#"use logger_kit::main;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     sink: Binding<Sink>;
@@ -1538,7 +1538,7 @@ fn retained_sink_composition_replays_against_the_product_by_consumers() {
 // publishes that an emitting provider may reach the Console service — the
 // satisfies check refuses a provider reach the requirement does not allow.
 const LOUD_LOGGER_KIT_MAIN: &str = r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Sink {
     machine emit(&mut self, text: &[u8])
@@ -1571,7 +1571,7 @@ fn loud_logger_kit_build() -> String {
 
 const LOUD_SINK_APP_MAIN: &str = r#"use logger_kit::main;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data LoudSink {
     console: Binding<Console>;

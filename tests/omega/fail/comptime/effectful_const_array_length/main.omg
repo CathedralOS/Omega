@@ -4,7 +4,7 @@
 // `[i64; loud_size()]` must reject naming the machine and service -- never
 // silently evaluate or fall back.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

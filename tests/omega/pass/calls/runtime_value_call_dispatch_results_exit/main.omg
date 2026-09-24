@@ -9,7 +9,7 @@
 // fenced by calls/value_call_effectful_arm_rejected until arm bodies are
 // guarded per-arm. exit 70 = all four values right; 71..74 name the leg.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main { console: Binding<Console>; d: i32; v: i32; vec: Vec2; }
 machine Main::delta(&self, d: i32) -> Vec2 {

@@ -3,7 +3,7 @@
 // though both are 8 bits wide. Decision 17 rejects it; an explicit `as i8` (or a
 // proven-in-range source) is the escape.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; u: u8; s: i8; }
 machine Main::main(&mut self) {
     self.u = 200;

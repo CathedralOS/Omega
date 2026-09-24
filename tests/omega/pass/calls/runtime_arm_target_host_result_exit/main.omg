@@ -8,7 +8,7 @@
 // exit 70 = errno 2 via both depths; 71 = still-open file; 72/73 = wrong errno.
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; host: Binding<FilesystemHost>; fd: i32; a: i32; b: i32; }
 machine Main::e1(&mut self) -> i32 reaches FilesystemHost {
     let rc: i32 = self.host.errno();

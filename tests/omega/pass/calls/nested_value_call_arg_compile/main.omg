@@ -2,7 +2,7 @@
 // nested initializer calls): a machine call nested as a bound value-call's
 // argument (`let out = self.double(self.inc(3))`) checks cleanly.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }

@@ -59,7 +59,7 @@ fn policy(declaration: &str) -> PackagePolicyCallingPlan {
 #[test]
 fn inherited_array_type_matches_concrete_semantic_parameter() {
     let inherited = policy(
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 
 pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
@@ -84,7 +84,7 @@ pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {
 
 #[test]
 fn inherited_nested_array_argument_uses_ancestor_type_application() {
-    let declaration = r#"use omega::language::core::service;
+    let declaration = r#"use omega::language::core::binding;
 
 pub boundary trait ProcedureBase<Value> {
     machine call(message: &Value) -> u64;
@@ -109,7 +109,7 @@ pub boundary trait HookProcedure: ProcedureMiddle<u8> + Calling<HookProcedurePol
 fn inherited_nested_static_contract_keeps_private_nominal_and_outer_telescope() {
     let declaration = r#"
 pub trait Hidden { machine apply(value: u64) -> u64; }
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait ProcedureBase<Value> {
     machine call<machine Work, Later>(message: u64) -> u64
     where machine Work<machine Nested>(value: Value) -> Value

@@ -5,7 +5,7 @@
 // its bounds or declare a domain. `self.p.x` is an unbounded i32, so `* 10`
 // may overflow and must be rejected.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point { x: i32; y: i32; }
 data Main { console: Binding<Console>; p: Point; out: i32; }
 machine Main::main(&mut self) {

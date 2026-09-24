@@ -3,7 +3,7 @@
 // synthesis. Its result must determine both layout and indexed runtime storage
 // in the native and interpreter engines.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine table_size() -> u64 {
     transition { _ -> (2 + 2) }

@@ -4,7 +4,7 @@
 // its complete carrier is one contiguous bit set even though crossing signed
 // zero initially describes it as two adjacent intervals.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

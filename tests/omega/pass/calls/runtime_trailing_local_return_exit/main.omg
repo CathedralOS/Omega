@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // A machine whose TRAILING TERMINAL EXPRESSION IS A BARE LOCAL NAME must
 // return that local's value -- captured at its declaration, exactly like the

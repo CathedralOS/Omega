@@ -3,7 +3,7 @@
 // FALSE at the post-write valuation (strict store-time semantics; ch11
 // windows are the future relaxation).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data MemoryMap
 where
     count <= len,

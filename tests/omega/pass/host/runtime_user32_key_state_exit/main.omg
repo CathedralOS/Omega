@@ -6,7 +6,7 @@
 // that the import resolves and the call completes; the interpreter's virtual host reports no key
 // down. Exit 70. Differential (native must match the interpreter).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main { console: Binding<Console>; input: Binding<Input>; k: u64; }
 machine Main::main(&mut self)

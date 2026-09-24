@@ -4,7 +4,7 @@
 // verified body never invokes the service.
 module main;
 
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Sink {
     machine emit(text: &[u8]);

@@ -246,7 +246,7 @@ machine build(builder: &mut Build) {
     write_file(
         application.join("main.omg"),
         r#"use ordinary_console::main;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self)

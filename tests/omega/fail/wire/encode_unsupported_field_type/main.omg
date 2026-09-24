@@ -5,7 +5,7 @@
 // instead of silently mis-encoding.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data SampleMessage {
     #0 count: u32;

@@ -4,7 +4,7 @@
 // is checked in a guard ladder and the process exits 70 only when exact.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

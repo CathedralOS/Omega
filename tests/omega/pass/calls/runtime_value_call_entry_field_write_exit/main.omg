@@ -6,7 +6,7 @@
 // exit 70 = both right; 71 = first tag; 72 = first hp; 73 = second tag;
 // 74 = second hp STALE (the bug).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Shaped {
     hp: i32;

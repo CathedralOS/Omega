@@ -1,6 +1,6 @@
 // Consume one affine ByteRead through exactly one explicit sum arm. Byte
 // forwards its selected payload to stdout; Eof exits without a write.
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::console;
 
 data Main {

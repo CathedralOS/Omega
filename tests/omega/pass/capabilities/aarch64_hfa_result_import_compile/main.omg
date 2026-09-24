@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // ENT2c: a flat f64 record returned by value is one AAPCS64 HFA result. The
 // compiler test verifies that d0/d1 are spilled into one aggregate result

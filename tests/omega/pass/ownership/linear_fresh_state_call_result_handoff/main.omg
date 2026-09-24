@@ -2,7 +2,7 @@
 // keeps its original provenance when the caller binds and later consumes it.
 // The receiving continuation must not mint an unrelated caller-side claim.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}

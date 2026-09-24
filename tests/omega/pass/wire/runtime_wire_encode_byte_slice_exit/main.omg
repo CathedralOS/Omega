@@ -18,7 +18,7 @@ requires
 // and exits 70 when byte-exact.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Blob {
     #0 bytes: &[u8];

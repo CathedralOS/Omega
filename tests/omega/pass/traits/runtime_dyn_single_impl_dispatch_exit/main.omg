@@ -3,7 +3,7 @@
 // runtime descriptor/table used by pass-through or escaping dynamic values.
 // `s.code()` routes through Circle::Primary's explicit row to Circle::code().
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Shape {
     machine code(&mut self) -> i32;

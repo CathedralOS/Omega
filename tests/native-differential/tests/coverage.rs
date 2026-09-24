@@ -65,7 +65,7 @@ fn named_float_requirements_route_through_executable_semantics() {
     let main_path = write_program(
         "named-float-requirements",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::core::float_operations;
 
@@ -130,7 +130,7 @@ fn named_float_saturating_policy_clamps_ternary_overflow() {
     let main_path = write_program(
         "named-float-saturating-policy",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::core::float_operations;
 
@@ -301,7 +301,7 @@ fn range_as_let_initializer_is_frontend_rejected() {
     frontend_rejects(
         "range-let",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Main {
@@ -322,7 +322,7 @@ fn range_as_call_argument_is_frontend_rejected() {
     frontend_rejects(
         "range-arg",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Main {
@@ -352,7 +352,7 @@ fn case_payload_construction_and_binding_deliver_payload() {
     let main_path = write_program(
         "case-payload-bind",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Command {
@@ -407,7 +407,7 @@ fn case_equality_is_tag_only_and_mismatched_tag_falls_through() {
     let main_path = write_program(
         "case-payload-tag-equality",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Command {
@@ -468,7 +468,7 @@ fn case_payload_multi_field_binding_with_guard() {
     let main_path = write_program(
         "case-payload-multi-bind",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Command {
@@ -523,7 +523,7 @@ fn paren_variant_construction_is_frontend_rejected() {
     frontend_rejects(
         "case-paren-construct",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Token {
@@ -556,7 +556,7 @@ fn dyn_two_impl_dispatch_selects_impl_by_runtime_type() {
     let main_path = write_program(
         "dyn-two-impls",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 trait Shape {
@@ -629,7 +629,7 @@ fn dyn_two_impl_dispatch_swapped_order() {
     let main_path = write_program(
         "dyn-two-impls-swapped",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 trait Shape {
@@ -783,7 +783,7 @@ fn wire_borrowed_byte_slice_field_round_trips() {
     let main_path = write_program(
         "wire-borrowed-byte-slice-roundtrip",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Blob {
@@ -854,7 +854,7 @@ fn wire_borrowed_scalar_slice_encodes_packed_varints() {
     let main_path = write_program(
         "wire-borrowed-scalar-slice-encode",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Telemetry {
@@ -918,7 +918,7 @@ machine Main::main(&mut self) reaches Console {
 // being re-declared inline here — so these interpreter tests exercise the exact
 // shipped boundary surface.
 const FS_PRELUDE: &str = r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 
@@ -951,7 +951,7 @@ fn filesystem_path_subslice_domain() {
     interpret_fs(
         "fs-path-subslice",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -999,7 +999,7 @@ fn filesystem_path_carrier_concat() {
     interpret_fs(
         "fs-path-concat",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 domain [u8; 32]::Path
 requires
@@ -1040,7 +1040,7 @@ fn filesystem_openat_unlinkat() {
     interpret_fs(
         "fs-at-ops",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -1100,7 +1100,7 @@ fn filesystem_std_module_remove_dir_all() {
     let main_path = write_program(
         "fs-std-rda",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1176,7 +1176,7 @@ fn filesystem_value_returning_crud_round_trip() {
     interpret_fs(
         "fs-vr-crud",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -1225,7 +1225,7 @@ fn filesystem_value_returning_append() {
     interpret_fs(
         "fs-vr-append",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -1280,7 +1280,7 @@ fn filesystem_value_returning_seek_and_missing() {
     interpret_fs(
         "fs-vr-seek",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -1326,7 +1326,7 @@ fn filesystem_value_returning_dirs_and_rename() {
     interpret_fs(
         "fs-vr-dirs",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -1389,7 +1389,7 @@ fn filesystem_ergonomic_wrapper_crud() {
     interpret_fs(
         "fs-ergonomic",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data File [copy] { fd: i32; }
@@ -1500,7 +1500,7 @@ fn filesystem_std_module_create_dir_all() {
     let main_path = write_program(
         "fs-std-cda",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1552,7 +1552,7 @@ fn filesystem_std_module_read_dir_count() {
     let main_path = write_program(
         "fs-std-readdir",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1609,7 +1609,7 @@ fn filesystem_std_module_read_dir_stats() {
     let main_path = write_program(
         "fs-std-dirstats",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1674,7 +1674,7 @@ fn filesystem_std_module_read_dir_nth() {
     let main_path = write_program(
         "fs-std-readdir-nth",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1752,7 +1752,7 @@ fn filesystem_std_module_read_dir_is_empty() {
     let main_path = write_program(
         "fs-std-isempty",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1808,7 +1808,7 @@ fn filesystem_std_module_read_dir_iteration_loop() {
     let main_path = write_program(
         "fs-std-readdir-loop",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1894,7 +1894,7 @@ fn filesystem_std_module_ergonomic_crud() {
     let main_path = write_program(
         "fs-std-module",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -1960,7 +1960,7 @@ fn filesystem_value_returning_set_len() {
     interpret_fs(
         "fs-vr-setlen",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -2008,7 +2008,7 @@ fn filesystem_std_module_metadata_len() {
     let main_path = write_program(
         "fs-metadata",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2074,7 +2074,7 @@ fn filesystem_std_module_file_metadata() {
     let main_path = write_program(
         "fs-file-metadata",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2144,7 +2144,7 @@ fn filesystem_std_module_positioned_io() {
     let main_path = write_program(
         "fs-positioned-io",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2219,7 +2219,7 @@ fn filesystem_std_module_set_times() {
     let main_path = write_program(
         "fs-set-times",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2277,7 +2277,7 @@ fn filesystem_std_module_metadata_nlink() {
     let main_path = write_program(
         "fs-nlink",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2324,7 +2324,7 @@ fn filesystem_std_module_metadata_ext() {
     let main_path = write_program(
         "fs-metadata-ext",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2376,7 +2376,7 @@ fn filesystem_std_module_metadata_ctime_dev() {
     let main_path = write_program(
         "fs-metadata-ctime-dev",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2429,7 +2429,7 @@ fn filesystem_std_module_metadata_blocks() {
     let main_path = write_program(
         "fs-metadata-blocks",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2481,7 +2481,7 @@ fn filesystem_std_module_sync() {
     let main_path = write_program(
         "fs-sync",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2534,7 +2534,7 @@ fn filesystem_std_module_sync_data() {
     let main_path = write_program(
         "fs-sync-data",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2589,7 +2589,7 @@ fn filesystem_std_module_open_options() {
     let main_path = write_program(
         "fs-openopts",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2672,7 +2672,7 @@ fn filesystem_std_module_whole_file_helpers() {
     let main_path = write_program(
         "fs-wholefile",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -2731,7 +2731,7 @@ fn filesystem_value_returning_read_dir() {
     interpret_fs(
         "fs-vr-readdir",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -2808,7 +2808,7 @@ fn filesystem_read_dir_iteration() {
     interpret_fs(
         "fs-readdir-iter",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -2899,7 +2899,7 @@ fn filesystem_value_returning_errno() {
     interpret_fs(
         "fs-vr-errno",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
@@ -2948,7 +2948,7 @@ fn filesystem_std_module_error_kind() {
     let main_path = write_program(
         "fs-errorkind",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3001,7 +3001,7 @@ fn filesystem_std_module_path_queries() {
     let main_path = write_program(
         "fs-pathquery",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3069,7 +3069,7 @@ fn filesystem_std_module_copy() {
     let main_path = write_program(
         "fs-copy",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3148,7 +3148,7 @@ fn filesystem_std_module_is_a_directory() {
     let main_path = write_program(
         "fs-isdir",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3195,7 +3195,7 @@ fn filesystem_std_module_set_permissions() {
     let main_path = write_program(
         "fs-perms",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3260,7 +3260,7 @@ fn filesystem_std_module_hard_link() {
         "fs-hardlink",
         &format!(
             r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3328,7 +3328,7 @@ fn filesystem_std_module_metadata_is_dir() {
     let main_path = write_program(
         "fs-isdir-meta",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3389,7 +3389,7 @@ fn filesystem_std_module_metadata_permissions() {
     let main_path = write_program(
         "fs-meta-perms",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3462,7 +3462,7 @@ fn filesystem_std_module_metadata_modified() {
     let main_path = write_program(
         "fs-meta-mtime",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3512,7 +3512,7 @@ fn filesystem_std_module_metadata_times() {
     let main_path = write_program(
         "fs-meta-times",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3563,7 +3563,7 @@ fn filesystem_std_module_permissions_set_readonly() {
     let main_path = write_program(
         "fs-perm-setro",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3613,7 +3613,7 @@ fn filesystem_std_module_set_file_permissions() {
     let main_path = write_program(
         "fs-fchmod",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3676,7 +3676,7 @@ fn filesystem_std_module_symlink() {
     let main_path = write_program(
         "fs-symlink",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3735,7 +3735,7 @@ fn filesystem_std_module_symlink_metadata() {
     let main_path = write_program(
         "fs-symlink-meta",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3809,7 +3809,7 @@ fn filesystem_std_module_file_type() {
     let main_path = write_program(
         "fs-filetype",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3881,7 +3881,7 @@ fn filesystem_std_module_workflow() {
     let main_path = write_program(
         "fs-workflow",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -3981,7 +3981,7 @@ fn filesystem_std_module_create_new() {
     let main_path = write_program(
         "fs-create-new",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4063,7 +4063,7 @@ fn filesystem_std_module_canonicalize() {
     let main_path = write_program(
         "fs-canonicalize",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4131,7 +4131,7 @@ fn filesystem_std_module_try_clone() {
     let main_path = write_program(
         "fs-try-clone",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4198,7 +4198,7 @@ fn filesystem_std_module_locking() {
     let main_path = write_program(
         "fs-locking",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4267,7 +4267,7 @@ fn filesystem_std_module_ownership() {
     let main_path = write_program(
         "fs-ownership",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4338,7 +4338,7 @@ fn filesystem_std_module_try_exists() {
     let main_path = write_program(
         "fs-tryexists",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::filesystem;
 use omega::language::std::console;
 
@@ -4399,7 +4399,7 @@ fn match_terminal_tag_arithmetic_resolves_type_locally() {
     let main_path = write_program(
         "match-tag-type-local",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 // Declared FIRST so a name-global variant scan would find ITS `Ok` (ordinal 0).
@@ -4454,7 +4454,7 @@ fn console_byte_ops_echo_and_checksum() {
     let main_path = write_program(
         "console-byte-ops",
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::std::console;
 
 data Main {

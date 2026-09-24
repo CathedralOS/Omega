@@ -10,7 +10,7 @@
 // by the operand arm. A bounded 3× loop (guard-before-increment keystone) drives it.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Clock {
     machine sleep(milliseconds: u32);
 }

@@ -2,7 +2,7 @@
 // a 16-byte-aligned caller copy. The declared position still selects the
 // pointer register, so the record between two scalars occupies RDX.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Triple {
     first: u64;

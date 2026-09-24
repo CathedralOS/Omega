@@ -31,7 +31,7 @@
 // module; the `Time` capability below wraps it (the filesystem.omg layering).
 use time_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Ordering [copy] {
     case Less;

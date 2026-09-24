@@ -3,7 +3,7 @@
 // None, so the narrowing store refuses. Over-refusal only, never a
 // fabricated bound.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally
 where
     count <= mid,

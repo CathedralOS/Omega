@@ -10,7 +10,7 @@
 
 use omega_language_std::filesystem_host;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

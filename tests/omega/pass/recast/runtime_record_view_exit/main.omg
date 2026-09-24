@@ -12,7 +12,7 @@
 // goes loud. Footprint refusals:
 // fail/recast/record_view_footprint_rejected.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Desc { a: u32; b: u64; }
 data Main { console: Binding<Console>; buf: [u8; 24]; k: u32 [0..=8]; out: i32; }
 machine Main::main(&mut self) reaches Console {

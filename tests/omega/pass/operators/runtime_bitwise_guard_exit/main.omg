@@ -8,7 +8,7 @@
 // (unlike `>>`, which needs operand-signedness threading -- a follow-up).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

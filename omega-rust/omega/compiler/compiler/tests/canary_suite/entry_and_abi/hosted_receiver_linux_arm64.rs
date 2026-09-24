@@ -66,7 +66,7 @@ fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_servic
         project.0.join("main.omg"),
         format!(
             r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     value: i32;

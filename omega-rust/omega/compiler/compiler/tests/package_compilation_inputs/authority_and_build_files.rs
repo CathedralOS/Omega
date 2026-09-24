@@ -1235,7 +1235,7 @@ fn native_package_entrypoint_uses_the_same_reconciled_binding_mode() {
 
     TempTree::write(
         root.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 use dep::values;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 data ConsoleProvider { }

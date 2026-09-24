@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FAIL canary: decision-17 exact-arithmetic overflow at the TRANSITION-VALUE
 // return boundary. `machine sum -> i32 { transition { _ -> (x + y) } }` with
 // full-range i32 params can overflow, and this boundary used to SKIP the

@@ -108,7 +108,7 @@ fn terminal_and_interpreter_share_canonical_boundary_calls() {
         let fixture = PreparedFixture::new();
         fs::write(
             &fixture.main,
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 
 pub boundary trait Sink { machine emit(value: i32); machine echo(value: i32) -> i32; }
 data SinkProvider {}
@@ -185,7 +185,7 @@ fn selected_boundary_adapter_identity_precedes_builtin_spelling() {
     let fixture = PreparedFixture::new();
     fs::write(
         &fixture.main,
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 
 pub boundary trait Arithmetic { machine max(left: i32, right: i32) -> i32; }
 data Provider {}
@@ -218,7 +218,7 @@ fn selected_boundary_adapter_guard_subject_runs_once() {
     let fixture = PreparedFixture::new();
     fs::write(
         &fixture.main,
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 
 pub boundary trait Switch { machine flip(value: &mut bool) -> bool; }
 data Provider {}

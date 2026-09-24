@@ -9,7 +9,7 @@
 // casts stay fine.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

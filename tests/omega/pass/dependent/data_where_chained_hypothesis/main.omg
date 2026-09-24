@@ -3,7 +3,7 @@
 // read of count fits u32 (requires 0 <= it <= 100) (bound_source_interval falls back to
 // the co-field's own where-fact interval, depth-capped). RUNS exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally
 where
     count <= mid,

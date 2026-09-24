@@ -11,7 +11,7 @@
 // a single requires argument's folded bound, so the operands arrive
 // separately. p=8, dir=1 -> exit 9.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

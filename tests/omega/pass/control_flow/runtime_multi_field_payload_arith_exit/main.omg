@@ -8,7 +8,7 @@
 // pass/calls/value_call_as_host_arg_exit. The rejection formerly cited here, see
 // fail/calls/value_call_as_host_arg_rejected.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Shape {
     case Circle(r: i32 in Wrapping);

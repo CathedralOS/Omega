@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Capability acquisition/return fixture.
 pub data SecretLease {
 }

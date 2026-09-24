@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // THE FIELD MODEL (extern brief SS12.1, decided 2026-07-04): the M1 greeting
 // re-authored with an external leaf attached to the vtable data type -- the
 // binding names the fn-ptr FIELD and the LAYOUT computes its

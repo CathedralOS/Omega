@@ -11,7 +11,7 @@
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 
 machine Main::dec(&mut self, n: u32) -> u32 {

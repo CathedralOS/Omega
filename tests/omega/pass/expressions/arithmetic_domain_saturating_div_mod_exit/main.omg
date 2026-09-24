@@ -11,7 +11,7 @@
 // in i64 and clamps to the i32 range, so the differential oracle agrees.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data State {
     divisor: i32 in Saturating;

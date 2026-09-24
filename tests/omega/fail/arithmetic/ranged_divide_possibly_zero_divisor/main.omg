@@ -2,7 +2,7 @@
 // includes 0, so `c / d` has no provable range and the ranged store rejects
 // (the fold requires a divisor interval that provably excludes zero).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

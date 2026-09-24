@@ -89,7 +89,7 @@ void finish(float small, double result) {
         &fixture.main,
         format!(
             r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::core::external_binding;
 pub boundary trait ScalarProbe {{
     machine choose() -> bool;

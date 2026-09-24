@@ -6,7 +6,7 @@
 // literal 5 -> a plain CompareStaticValue. hi=4 -> true arm -> exit 7. (The
 // false arm is exercised by the same shape with hi=9 in the probe family.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

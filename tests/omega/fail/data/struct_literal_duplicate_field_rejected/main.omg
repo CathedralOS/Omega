@@ -3,7 +3,7 @@
 // x == 1). Rejected now, mirroring the duplicate-member rejection on the data
 // DECLARATION.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point { x: i32; y: i32; }
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let p: Point = Point { x: 1, x: 2, y: 3 }; let r: i32 = p.x; self.console.exit_process(r); }

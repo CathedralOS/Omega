@@ -10,7 +10,7 @@
 // no wrapping-arithmetic instruction yet, so the bodies stay arithmetic-free:
 // identity and a constant distinguish the selections through `==` alone.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Handler {
     machine call(value: i32) -> i32;

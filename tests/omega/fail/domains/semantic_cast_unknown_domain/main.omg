@@ -2,7 +2,7 @@
 // declaration refuses with the honest unknown error (the declaration
 // check the parser could not perform).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 
 domain i64::Km

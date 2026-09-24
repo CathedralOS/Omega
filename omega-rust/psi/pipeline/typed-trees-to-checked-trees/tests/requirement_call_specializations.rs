@@ -32,7 +32,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 /// no package scope, so a `use` of the library path cannot resolve.
 const CORE_SERVICE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../source/library/core/service.omg"
+    "/../../../../source/library/core/binding.omg"
 ));
 
 fn check_with_service(
@@ -41,7 +41,7 @@ fn check_with_service(
     let mut sources = source::SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
-            PathBuf::from("source/library/core/service.omg"),
+            PathBuf::from("source/library/core/binding.omg"),
             CORE_SERVICE.to_owned(),
             PathBuf::from("source/library/core"),
             None,
@@ -53,10 +53,10 @@ fn check_with_service(
         .source_id;
     let service_tokens = source_files_to_tokens::Lexer::new(CORE_SERVICE)
         .tokenize()
-        .expect("tokenize service.omg");
+        .expect("tokenize binding.omg");
     let mut syntax =
         tokens_to_syntax_trees::parse_syntax_trees_with_id(service_source_id, &service_tokens)
-            .expect("parse service.omg");
+            .expect("parse binding.omg");
     let user_tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();

@@ -13,7 +13,7 @@
 // leaf result delivery.) Bind the call to a local first. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Dir {
     case N;

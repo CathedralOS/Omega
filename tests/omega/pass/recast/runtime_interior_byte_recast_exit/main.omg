@@ -10,7 +10,7 @@
 // (fail/recast/interior_recast_footprint_rejected). Rung C (the Cathedral
 // runtime-offset stride) builds on this footprint judgment.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; buf: [u8; 12]; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.buf[4] = 1;

@@ -58,7 +58,7 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
     .expect("write authored target and entry selection");
     let (helper_header, helper_field) = if bare_interface {
         (
-            "use omega::language::core::service;\n\npub boundary trait Helper {\n    machine help();\n}\n\n",
+            "use omega::language::core::binding;\n\npub boundary trait Helper {\n    machine help();\n}\n\n",
             "    helper: Binding<Helper>;\n",
         )
     } else {

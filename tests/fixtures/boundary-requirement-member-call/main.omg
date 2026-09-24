@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::console;
 
 pub data Token [copy] { payload: i32; }

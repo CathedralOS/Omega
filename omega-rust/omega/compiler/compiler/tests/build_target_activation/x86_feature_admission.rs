@@ -266,7 +266,7 @@ fn boundary_operator_and_float_adapters_retain_terminal_execution() {
     let project = TempProject::with_main(
         r#"use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Arithmetic {}
 boundary operator Arithmetic::identity(value: i32) -> i32;

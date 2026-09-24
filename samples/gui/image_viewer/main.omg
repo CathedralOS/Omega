@@ -22,7 +22,7 @@ use omega_language_std::filesystem_host;
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 pub boundary trait Gui {

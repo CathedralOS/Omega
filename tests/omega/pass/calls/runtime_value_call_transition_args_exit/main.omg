@@ -5,7 +5,7 @@
 // callees (a=10, b=18 -- delivery pairing by argument rank).
 // exit 70 = all six params right; 71..76 name the wrong param.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; k: i32; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;

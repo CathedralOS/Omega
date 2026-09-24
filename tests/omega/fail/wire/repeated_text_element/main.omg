@@ -5,7 +5,7 @@
 // call loudly instead of half-supporting it.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8; 8]::Utf8
 requires

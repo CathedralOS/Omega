@@ -2,7 +2,7 @@
 // synthesis. Distinct folded values must still select distinct layouts in both
 // engines; precedence, grouping, and shift parsing are all load-bearing here.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];

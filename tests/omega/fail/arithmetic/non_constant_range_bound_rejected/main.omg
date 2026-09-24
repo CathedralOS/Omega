@@ -3,7 +3,7 @@
 // a constraint the declaration claims but never checks. Rejected at the
 // declaration instead.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

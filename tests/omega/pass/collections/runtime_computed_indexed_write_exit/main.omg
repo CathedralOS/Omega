@@ -5,7 +5,7 @@
 // high dword and store out of bounds). Fills [0,10,20,30,40] -> sum 100, and marker must survive
 // unchanged (997). Differential: native == interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.marker = 997;

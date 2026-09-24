@@ -10,7 +10,7 @@
 // frame locals can't be lowered inside the outer call's argument context), not a silent
 // miscompile. The sequential form below is the idiom and is fully sound.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

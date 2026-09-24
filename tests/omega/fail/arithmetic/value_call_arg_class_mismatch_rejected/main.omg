@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FAIL canary: a cross-CLASS argument at a VALUE-position call site --
 // `let v: i32 = self.take(self.b)` where `self.b` is a `bool` and `take`'s
 // parameter is `i32` -- is rejected at type-check. This was the 4th silent

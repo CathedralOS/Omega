@@ -1,6 +1,6 @@
 // A struct literal over a PRIMITIVE type (`i32 { a: 1 }`) is not constructible
 // -- it used to compile silently and bind a ZII value. Rejected now.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let x: i32 = i32 { a: 1 }; self.console.exit_process(x); }

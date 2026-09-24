@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // RUN CANARY (exit 70) -- BUILD-MACHINE IDENTITY IS FILE-BASED
 // (2026-07-11m, owner answer #3: build.omg is the home): a machine
 // literally named `Maker::build(b: &mut Build)` in MAIN source is an

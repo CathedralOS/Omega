@@ -10,7 +10,7 @@
 // saturated; fixed by resolving the expression's declared scalar type at
 // binary nodes.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i8 in Saturating)
 terminates by (j, i) -> Nat::BoundedDistance;

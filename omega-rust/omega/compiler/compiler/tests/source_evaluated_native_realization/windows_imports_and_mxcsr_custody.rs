@@ -76,7 +76,7 @@ fn windows_catalog_dll_case_variants_preserve_imports_and_execute() {
         ("upper", "KERNEL32.DLL"),
     ] {
         let source = format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait WindowsCalls {{

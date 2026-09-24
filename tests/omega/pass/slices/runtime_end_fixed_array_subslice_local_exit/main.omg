@@ -7,7 +7,7 @@
 // descriptor construction ... not lowered"); a machine-field START remains
 // fenced (the indexed-address op's index is frame-only). hi=4 -> len 3 -> 3.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

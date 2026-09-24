@@ -14,7 +14,7 @@
 // The sound pattern is to bind the inner call to a local first. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Point {
     x: i32 in Trapping;

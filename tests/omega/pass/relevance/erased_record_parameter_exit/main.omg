@@ -10,7 +10,7 @@
 // exit 70 = the retained runtime argument reached the callee intact;
 // 71 = an erased-position slide displaced it.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Proof {
     tag: i32;

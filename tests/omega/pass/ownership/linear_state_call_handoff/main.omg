@@ -4,7 +4,7 @@
 // selection site, even when no runtime dispatch edge performs the handoff.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}

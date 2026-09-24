@@ -278,7 +278,7 @@ fn toolchain_source_identity(
 
 #[test]
 fn retained_toolchain_source_identity_matches_raw_digest_and_requires_exact_source_row() {
-    let source = toolchain_source("service.omg", "trait Host {}");
+    let source = toolchain_source("binding.omg", "trait Host {}");
     let digest = package_compilation::toolchain_source_identity_digest(&source).unwrap();
     let retained =
         super::declarations::toolchain_source_identity(&source, &[(source.source_id, digest)])
@@ -301,14 +301,14 @@ fn retained_toolchain_source_identity_matches_raw_digest_and_requires_exact_sour
 
 #[test]
 fn toolchain_source_identity_is_framed_over_path_and_exact_bytes() {
-    let first = toolchain_source_identity(&toolchain_source("service.omg", "trait Host {}"))
+    let first = toolchain_source_identity(&toolchain_source("binding.omg", "trait Host {}"))
         .expect("canonical toolchain source identity");
-    let repeated = toolchain_source_identity(&toolchain_source("service.omg", "trait Host {}"))
+    let repeated = toolchain_source_identity(&toolchain_source("binding.omg", "trait Host {}"))
         .expect("repeated canonical toolchain source identity");
     let changed_path = toolchain_source_identity(&toolchain_source("other.omg", "trait Host {}"))
         .expect("changed-path toolchain source identity");
     let changed_source =
-        toolchain_source_identity(&toolchain_source("service.omg", "trait Host { }"))
+        toolchain_source_identity(&toolchain_source("binding.omg", "trait Host { }"))
             .expect("changed-source toolchain source identity");
 
     assert_eq!(first, repeated);
@@ -318,7 +318,7 @@ fn toolchain_source_identity_is_framed_over_path_and_exact_bytes() {
         first,
         toolchain_source_identity(&namespaced_toolchain_source(
             "core",
-            "service.omg",
+            "binding.omg",
             "trait Host {}",
         ))
         .expect("changed-namespace toolchain source identity")

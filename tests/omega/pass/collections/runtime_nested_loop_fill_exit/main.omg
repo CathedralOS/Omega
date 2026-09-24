@@ -5,7 +5,7 @@
 // outer loop runs the fill 3 times (idempotent: grid = [0,1,2] each pass). Sum self-checks to 3.
 // Differential: native == interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; grid: [i32 in Wrapping; 3]; i: i32 in Wrapping; j: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.i = 0;

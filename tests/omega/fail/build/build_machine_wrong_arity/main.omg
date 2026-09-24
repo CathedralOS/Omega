@@ -3,7 +3,7 @@
 // shared project-entry projection rejects before build-time evaluation (never
 // silently ZII the extra parameter).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

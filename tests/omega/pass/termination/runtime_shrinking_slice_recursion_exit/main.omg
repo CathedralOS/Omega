@@ -14,7 +14,7 @@
 // handing `take` the data pointer's low bytes (exit saw 152 = (4*ptr+24) & 0xff).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entry {
     value: u32 in Wrapping;

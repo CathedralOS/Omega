@@ -4,7 +4,7 @@
 //   - runtime shift amount: 1 << n with n == 5 a runtime value == 32 (count from CL, not an imm)
 // Each is discriminated; exits 70 iff all hold.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

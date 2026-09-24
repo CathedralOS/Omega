@@ -12,7 +12,7 @@
 // Loud-edge siblings: fail/traits/ring_requirement_unknown_rejected,
 // ring_requirement_signature_rejected, free_machine_bare_satisfies_rejected.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Peano {
     case Zero;

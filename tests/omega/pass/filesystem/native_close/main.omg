@@ -11,7 +11,7 @@
 // ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with other work).
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

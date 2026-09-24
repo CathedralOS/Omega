@@ -2,7 +2,7 @@
 // `self.o.bogus.value = 7` where Outer has no field `bogus`. Reported at
 // validation with the container attribution, like the read side.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Inner {
     value: i32;

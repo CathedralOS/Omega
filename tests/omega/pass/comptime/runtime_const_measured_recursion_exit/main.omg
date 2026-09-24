@@ -9,7 +9,7 @@
 // = 10, so buf[9] is the last legal slot). Proof-stratum machines ride
 // the same evaluator; the fuel cap is the defense-in-depth ceiling.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine triangle(n: u64 [0..=100], acc: u64 [0..=5050]) -> u64
 terminates by n;

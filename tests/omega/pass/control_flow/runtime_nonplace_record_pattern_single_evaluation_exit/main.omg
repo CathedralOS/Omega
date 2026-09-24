@@ -4,7 +4,7 @@
 // current eligibility fence for extracting fields from a non-place subject.
 // Native and interpreter both exit 70; exit 2/3 exposes repeated evaluation.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point [copy] { x: i32; y: i32; }
 data Main { console: Binding<Console>; calls: u32 in Wrapping; }
 

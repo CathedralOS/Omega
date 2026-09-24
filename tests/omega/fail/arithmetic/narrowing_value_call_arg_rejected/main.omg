@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FAIL canary: decision-17 narrowing at the VALUE-POSITION call-argument boundary.
 // `let v: i32 = self.take_i8(self.big)` where `big: i64 = 300` passes an i64 to an
 // i8 parameter -- a narrowing store that is not provably in range. This was the

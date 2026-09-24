@@ -2,7 +2,7 @@
 // `[i32; 5]` (high == length) must still reject -- the range only discharges
 // the upper bound when high < length.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

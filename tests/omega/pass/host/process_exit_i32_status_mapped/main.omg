@@ -11,7 +11,7 @@
 // the retained boundary custody may clamp the status to the presented range.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     exit: Binding<ProcessExit>;

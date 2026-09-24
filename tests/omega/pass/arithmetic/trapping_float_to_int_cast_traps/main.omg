@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 // failure the suite asserts against). x86 performs the same value guard
 // before cvttsd2si can produce its ambiguous integer-indefinite result.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f64; r: i32; }
 machine Main::main(&mut self) reaches Console {
     self.f = 7.9;

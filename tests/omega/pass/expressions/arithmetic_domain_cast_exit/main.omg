@@ -5,7 +5,7 @@
 // compile error. 200 + 100 saturates to the u8 max 255.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
