@@ -13,9 +13,11 @@ applications have not answered this question: each stops once, at one wall.
 The corpus of 2,059 small pass fixtures, each pinning one rule, reports a
 coverage fraction per tier and per language surface instead.
 
-Revision `117f2abc9c` (origin/main, 2026-09-22). Host: Windows x86-64. The
-suites ran through Cargo in the dev profile: the pass umbrella in 1,310 s, the
-fail umbrella in 56 s.
+Revision `e526ef3f54` (origin/main, 2026-09-23). Host: Windows x86-64. The
+owner verdicts come from one release-profile run of the whole `canary_suite`
+(1,511 tests, 1,518 s); the umbrella rows from the dev-profile pass and fail
+umbrellas at `bf3640c39d` (1,310 s and 56 s), whose route the change between
+the two revisions does not exercise.
 
 ```text
 python tools/progress.py --pass-log <pass.log> --fail-log <fail.log> --samples-log <samples.log>
@@ -35,63 +37,70 @@ some run actually verified. The three predicates, in order:
 - **checks**: it passes checked semantics (parse, resolve, type, check, proof)
   and nothing native was attempted or succeeded.
 
-**4 of 66 core and typical language-spec sections have a fixture that runs;
-36 at best compile; 21 at best check; 1 has no verified fixture.** Across all
-120 sections: 8 run, 45 compile, 40 check, 27 have none.
+**52 of 66 core and typical language-spec sections have a fixture that runs
+on this Windows host; 5 at best compile; 5 at best check; none is without a
+verified fixture.** Across all 120 sections: 72 run, 10 compile, 13 check,
+25 have none.
 
-Of the 2,059 pass fixtures, 5 run, 90 compile, 690 check, 1,073 fail some run
-and 201 are judged by neither route. The five that run are
-`core/runtime_natural_termination_exit` and four `host/` console fixtures.
+Of the 2,061 pass fixtures, 154 run, 92 compile, 689 check, 925 fail some run
+and 201 are judged by neither route. On 2026-09-22 the same numbers were 5,
+90, 690, 1,073 and 201, and 4 of 66 sections ran; the difference is one wall,
+described below.
 
 | Measurement | Value | Reads as |
 | --- | --- | --- |
-| core+typical sections with a fixture that runs natively | 4/66 | the feature works end to end |
-| core+typical sections whose best fixture only compiles | 36/66 | a native artifact exists, never executed |
-| core+typical sections whose best fixture only checks | 21/66 | the language rule is understood, not realized |
-| all sections: runs / compiles / checks / none | 8 / 45 / 40 / 27 of 120 | breadth over the whole language |
-| pass fixtures: runs / compiles / checks / fails / unmeasured | 5 / 90 / 690 / 1,073 / 201 of 2,059 | depth: distinct fixtures |
-| elided fixtures judged by their dedicated owner: runs | 5/911 | the rooted native route with execution |
-| owner failures by stage | compile 896, other 7, run 3 | almost nothing reaches execution |
+| core+typical sections with a fixture that runs natively | 52/66 | the feature works end to end |
+| core+typical sections whose best fixture only compiles | 5/66 | a native artifact exists, never executed |
+| core+typical sections whose best fixture only checks | 5/66 | the language rule is understood, not realized |
+| all sections: runs / compiles / checks / none | 72 / 10 / 13 / 25 of 120 | breadth over the whole language |
+| pass fixtures: runs / compiles / checks / fails / unmeasured | 154 / 92 / 689 / 925 / 201 of 2,061 | depth: distinct fixtures |
+| elided fixtures judged by their dedicated owner: runs | 154/913 | the rooted native route with execution |
+| owner failures by stage | compile 752, other 4, run 3 | what fails, fails before execution |
 | spec sections exercised by any pass fixture | 98/120 | the corpus's own coverage of the spec |
-| fail fixtures rejecting with their expected diagnostic | 1,156/1,156 | the compiler refuses what it should |
-| pass fixtures some roster runs | 2,029/2,059 | how much of the corpus is rostered at all |
+| fail fixtures rejecting with their expected diagnostic | 1,158/1,158 | the compiler refuses what it should |
+| pass fixtures some roster runs | 2,031/2,061 | how much of the corpus is rostered at all |
 | construct pairs that matter, covered by a fixture | 31/31 | combinations real samples spell |
 
 The distance, stated plainly: the compiler understands most of the language
-(690 fixtures check; 61 of 66 core and typical sections reach at least
-checking), produces a native artifact for about a tenth of the native corpus
-on the compile-only route, and runs 5 fixtures end to end on the route a real
-application takes. Of the 911 fixtures the owners judged, 896 fail at
-compile: 532 at the Unit-plan omission (the same mechanism the umbrella's own
-failures show, below), 181 because the selected compiler intrinsic for
-`Console::exit_process` on `windows_x86_64` has no closed native catalog
-identity, 58 in Terminal production, and the rest are proof and ownership
-refusals. Those two walls stand between the 90 that compile and running.
+(689 fixtures check; every core and typical section reaches at least
+checking), and on the route a real application takes it runs 154 fixtures
+end to end on Windows. Of the 913 fixtures the owners judged, 752 fail at
+compile: 499 at the Unit-plan omission (the same mechanism the umbrella's own
+failures show, below), 75 in Terminal production, 17 in physical staging and
+legalization, 29 at exact-arithmetic overflow proofs, 14 at a boundary call
+while a moved value is absent, 13 at translation validation of a structural
+call argument, 7 at a non-copy transfer out of borrowed storage. Three fail
+at run time, all interpreter-oracle filesystem fixtures on Windows
+(`repeated_dir_walk_scan_exit`, `windows_fs_raw_breadth_exit`,
+`windows_fs_wrapper_breadth_exit`) that exit 0 where 70 is expected.
 
-This is a Windows-host measurement of one wall before it is a measurement
-of the compiler. The 181 catalog failures and, behind them, every rooted
-fixture that exits through `Console::exit_process` on this host stop at a
-deliberate gap: `target::HostedIntrinsicBundle` admits `linux_x86_64`,
-`linux_arm64` and `macos_arm64` as hosted intrinsic bundles and not
-`windows_x86_64`, because `HostedExitProcessI32` (and the byte write/read
-intrinsics) have hosted realizations only as kernel syscalls, which Windows
-has no stable form of; the Process-exit contract row on TASKS.md records
-"the current hosted-exit target support excludes Windows". Closing it needs
-a Windows encoding of the hosted exit (kernel32 `ExitProcess` through an
-import slot the image must declare), its decoder and exact-shape check in
-`object_artifact/replay/boundary/runtime_scalar_custody/process_exit.rs`,
-`supports_target` in `target-operations/.../boundary/realizations.rs`, the
-bundle admission with its two `include_bytes!` copies, and the tests that
-pin each. The same owner tests run on a Linux or macOS host measure the
-compiler without that wall; that run has not been made.
+On the rooted route the omission sites are: call operation 58, structural
+field store with a case-typed leaf 55, with no pure source 52, with a
+scalar-typed leaf 36, result signature 34, structural call binding 32, guard
+expression 29, unsupported statement kind 27, destination parameter 26, pure
+scalar initializer 21, write-frame agreement 13, bound prefix initializer 12.
+Every site is in `typed-trees-to-checked-trees`, so this wall is
+host-neutral.
+
+The Windows wall that hid all of this is gone. Until 2026-09-23 every rooted
+fixture that exited through `Console::exit_process` stopped at "selected
+compiler intrinsic ... has no closed native catalog identity": std's Windows
+console leaves were compiler intrinsics whose only hosted realization was a
+kernel syscall, which Windows does not have. They now bind kernel32
+`ExitProcess` by DLL linkage, and two general gaps that spelling exposed
+closed with it: provider planning follows the machine filter's host fallback,
+so an unprofiled check plans the leaves it selected (`bec0f4a0c7`); and
+source-evaluated imports mint their native settlement on both compile
+routes, which no production route had done (`2268d68a02`). What remains
+Windows-specific: `write_byte` and `read_byte` are still intrinsics without
+a hosted realization, so the 5 fixtures that print stop there.
 
 Provenance: the owner verdicts are one release-profile run of the whole
-`canary_suite` (1,509 tests, 293 passed, 30 min on this host); three owners
-re-run in the dev profile fail with the same diagnostics, so the profile is
-not the cause. The dev-profile suite runs about three tests a minute here and
-was not completed. Earlier drafts of this record quoted "sections natively
-established"; that predicate counted an umbrella compile without execution
-and counted every elided fixture as passing, and is retired.
+`canary_suite` at `e526ef3f54` (1,511 tests, 447 passed, 25 min on this
+Windows x86-64 host); the run at `bf3640c39d` the day before passed 293.
+Earlier drafts of this record quoted "sections natively established"; that
+predicate counted an umbrella compile without execution and every elided
+fixture as passing, and is retired.
 
 ## Where it fails
 
