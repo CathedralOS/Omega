@@ -62,7 +62,8 @@ pub(super) fn validate(
             || validation::has_plain_owned_contents_with_numeric_constraints(
                 &checked.typed,
                 state.return_type,
-            ))
+            )
+            || validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type))
         || checked
             .typed
             .normalized_type_identity(state.return_type)

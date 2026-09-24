@@ -45,9 +45,10 @@ pub use value_custody::scalar_case_constructor::{
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{
-    has_cleanup_owned_contents, has_linear_owned_contents, has_plain_owned_contents,
-    has_plain_owned_contents_with_numeric_constraints, has_plain_owned_contents_with_substitutions,
-    has_service_seam_contents, has_stable_observable_contents,
+    has_cleanup_owned_contents, has_linear_owned_contents, has_owned_or_shared_view_fields,
+    has_plain_owned_contents, has_plain_owned_contents_with_numeric_constraints,
+    has_plain_owned_contents_with_substitutions, has_service_seam_contents,
+    has_stable_observable_contents,
 };
 
 pub use value_custody::locals::receiver_allows_mutation;

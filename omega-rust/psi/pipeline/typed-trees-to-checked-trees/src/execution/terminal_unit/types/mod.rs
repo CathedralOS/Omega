@@ -2527,6 +2527,16 @@ pub(crate) fn borrowed_named_view_referent(
     }
 }
 
+/// A named record whose fields are each either plain owned contents or a
+/// shared borrowed view — the record owns its scalars while each `&` field
+/// keeps its own statically named loan.
+pub(crate) fn record_with_owned_or_shared_view_fields(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    validation::has_owned_or_shared_view_fields(program, type_reference)
+}
+
 /// The view's own identity is the borrowed `[T]` carrier, with the reference
 /// and constraint shells peeled exactly as the borrowed byte view peels them:
 /// borrow access belongs to the plan carrying the view, not to its shape.
