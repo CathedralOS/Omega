@@ -41,7 +41,13 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 ## Workflow
 
 1. Write a manifest (see `manifest.schema.json`; `waves/wave-1.json` is the
-   worked example).
+   worked example). Optional top-level `secret_ids` lists Devin organization
+   secrets to inject into every session's environment — e.g.
+   `"secret_ids": ["TYPESAFE_API_KEY"]` gives cloud sessions the Jev
+   test-selection augment (`tools/test_affected.py` reads the variable
+   directly). Create each secret once in Devin's organization settings;
+   values never enter prompts, receipts, or transcripts, and sessions
+   launched without them simply run the deterministic baseline.
 2. `plan --manifest <file>` — validates the manifest, runs `host_gates` and
    the omega-route check, probes owning-path freshness (including each path's
    crate), checks each item and its owning paths against the live claims

@@ -136,6 +136,11 @@ def validate_manifest(manifest, repository):
     sessions = manifest["sessions"]
     if not isinstance(sessions, list) or not sessions:
         raise SwarmError("manifest.sessions must be a non-empty list.")
+    secrets = manifest.get("secret_ids", [])
+    if not isinstance(secrets, list) or not all(
+            isinstance(entry, str) and entry for entry in secrets):
+        raise SwarmError("manifest.secret_ids must be a list of Devin "
+                         "organization secret ids (e.g. TYPESAFE_API_KEY).")
     claimed = []
     for session in sessions:
         where = f"session {session.get('name', '?')!r}"
@@ -785,6 +790,10 @@ def request_body(manifest, session, prompt):
     }
     if manifest.get("devin_mode") is not None:
         body["devin_mode"] = manifest["devin_mode"]
+    if manifest.get("secret_ids"):
+        # Devin injects these organization secrets as environment variables
+        # inside the session; values never appear in prompts or receipts.
+        body["secret_ids"] = manifest["secret_ids"]
     return body
 
 

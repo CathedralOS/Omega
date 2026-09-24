@@ -9,6 +9,7 @@
     "wave": {"type": "string", "description": "Wave identifier used in titles, tags, and build/swarm/<wave>/ output.", "pattern": "^[A-Za-z0-9._-]+$"},
     "max_acu_limit": {"type": "integer", "minimum": 1, "description": "Per-session ACU cap passed as max_acu_limit."},
     "devin_mode": {"type": ["string", "null"], "enum": ["normal", "fast", "lite", "ultra", "fusion", null], "description": "Only per-session knob; the model cannot be chosen; null means the org default mode. Omitted from the request when null."},
+    "secret_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Optional Devin organization secret ids injected as environment variables into every session of the wave (e.g. [\"TYPESAFE_API_KEY\"] enables the Jev test-selection augment on cloud VMs). Values never appear in prompts, receipts, or transcripts."},
     "bypass_approval": {"type": "boolean"},
     "resumable": {"type": "boolean"},
     "tags": {"type": "array", "items": {"type": "string"}},
