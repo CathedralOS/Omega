@@ -1992,3 +1992,15 @@ judgment-call code shapes for mechanical candidate hunting, and the
 before+after-checks apply-loop discipline for any future write path.
 Honest caveats: profile trained on 7 Jev sites / 4 contrasts / 6 projects;
 bands are display thresholds, not calibrated.
+
+## 2026-09-24 (cont.) — recheck-failure attribution: sixth instrument
+
+--base X --attribute LOG on test_affected.py: classifies each failure in a
+captured log against the candidate diff (YOURS / baseline / environmental).
+Worked example 7/7 — the discriminating cases were the hard ones: a real
+regression attributed to its own commit while a real regression under an
+innocent docs commit read baseline, and the FIFO timing flake read
+environmental. Live dogfood: catalog-path failure under a tools/ diff
+flagged YOURS (defensible — the diff touched the neighboring file), Float
+wall and FIFO flake both read baseline. Parses nextest/pytest/error lines,
+skips result-summary lines, solo calls per failure.

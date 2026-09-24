@@ -416,12 +416,93 @@ def run_commands(root, commands):
     return failed
 
 
+def extract_failures(log_text):
+    """Failure identifiers from a captured test log — nextest FAIL lines,
+    pytest FAILED lines, and compile error: lines — deduplicated, capped."""
+    failures, seen = [], set()
+    for line in log_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("test result:", "error: test failed")):
+            continue
+        token = None
+        if stripped.startswith("FAIL ") or " FAILED" in stripped:
+            token = stripped[:160]
+        elif stripped.startswith("FAILED "):
+            token = stripped[:160]
+        elif stripped.startswith(("error:", "error[")):
+            token = stripped[:160]
+        if token and token not in seen:
+            seen.add(token)
+            failures.append(stripped)
+    return failures[:12]
+
+
+def attribute_failures(root, base, log_path, disabled):
+    """Advisory: classify each failure in the log as caused by the
+    candidate diff, unrelated baseline, or environmental. Worked example:
+    build/experiments/failure-triage/ATTRIBUTE.md — 7/7, including the
+    discriminating pair (real regression under its own commit vs an
+    innocent one). Solo calls per failure: batch contamination poisons
+    sibling labels."""
+    log_text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+    failures = extract_failures(log_text)
+    if not failures:
+        print("test_affected attribute: no failures parsed from the log",
+              file=sys.stderr)
+        return 0
+    paths = changed_paths(root, base)
+    if disabled or os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
+        key = ""
+    else:
+        key = jev_api_key(root)
+    if not key:
+        print("test_affected attribute: advisory unavailable "
+              "(no TYPESAFE_API_KEY)", file=sys.stderr)
+        return 0
+    subject = output(root, ["git", "log", "-1", "--format=%s"]).strip()
+    for failure in failures:
+        payload = {"model": "jev-1.13.0",
+                   "state": {"candidate_subject": subject,
+                             "changed_paths": paths[:40],
+                             "failure": failure},
+                   "questions": {"attribution": {
+                       "type": "choice",
+                       "instructions": (
+                           "This failure appeared while the candidate diff "
+                           "(subject + changed_paths) was under test. Could "
+                           "the diff plausibly produce it? "
+                           "`caused_by_candidate`: the touched files could "
+                           "produce this output — investigate the commit. "
+                           "`unrelated_baseline`: outside the diff's reach "
+                           "— check whether it fails at base. "
+                           "`environmental`: flake/host/load/timing."),
+                       "criteria": {
+                           "caused_by_candidate": "the diff could plausibly "
+                                                  "produce this failure",
+                           "unrelated_baseline": "outside the diff's reach",
+                           "environmental": "flake, host, load, or timing"}}}}
+        try:
+            answers = jev_post(root, payload, key).get("answers", {})
+            verdict = answers.get("attribution", {}).get("choice", "?")
+        except Exception:
+            verdict = "unavailable"
+        mark = {"caused_by_candidate": "YOURS", "unrelated_baseline":
+                "baseline", "environmental": "environmental"}.get(
+                verdict, "unknown")
+        print(f"  = attribution [{mark}] {failure[:120]}", file=sys.stderr)
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--base", help="Previously verified commit; compared to working files")
     mode.add_argument("--full", action="store_true", help="Run the complete portable baseline")
     parser.add_argument("--plan", action="store_true", help="Print JSON without building/running tests")
+    parser.add_argument("--attribute", metavar="LOG",
+                        help="With --base: classify each failure in LOG "
+                             "against the candidate diff (advisory; runs no "
+                             "tests)")
     parser.add_argument("--with-slow-tail", action="store_true",
                         help="Include measured multi-minute tests excluded from "
                              "routine-diff selections; --full never excludes them")
@@ -435,6 +516,11 @@ def main():
         if args.base:
             base = output(root, ["git", "rev-parse", "--verify", "--end-of-options",
                                  args.base + "^{commit}"]).strip()
+        if args.attribute:
+            if not args.base:
+                raise ValueError("--attribute requires --base")
+            return attribute_failures(root, base, args.attribute,
+                                      args.no_jev)
         runner = shutil.which("mbx") or shutil.which("cargo")
         if not runner:
             raise ValueError("Install mbx (preferred) or Cargo, and cargo-nextest")
