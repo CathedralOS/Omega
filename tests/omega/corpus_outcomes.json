@@ -3643,7 +3643,7 @@
   "millis": 3,
   "expected_satisfied": true,
   "diagnostics": [
-   "cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `Command satisfies Equatable;` to synthesize structural equality"
+   "cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `CommandEquatable: Command satisfies Equatable;` to synthesize structural equality"
   ]
  },
  {
