@@ -37,7 +37,7 @@ symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-t
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }

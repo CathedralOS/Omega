@@ -29,4 +29,4 @@ tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-tre
 
 [dev-dependencies]
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

@@ -19,7 +19,7 @@ limits, not a different generated-source language.
   Evaluation and replay consume the admitted route.
 - [source assembly](../../pipeline/source-files-to-assembled-syntax/src/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
-- [seeded resolution](../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
+- [seeded resolution](../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
 - [typed continuation](../../../psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation.rs)
   validates append cohorts and preserves the base. The

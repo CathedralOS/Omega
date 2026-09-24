@@ -319,7 +319,7 @@ fn generic_data_normalization_is_private_work_inside_name_resolution() {
             .join("omega-rust/psi/pipeline/psi-generic-instances/Cargo.toml")
             .exists()
     );
-    let owner = root.join("omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src");
+    let owner = root.join("omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src");
     let entrance = std::fs::read_to_string(owner.join("lib.rs")).unwrap();
     assert!(entrance.contains("mod preparation;"));
     let preparation = std::fs::read_to_string(owner.join("preparation/mod.rs")).unwrap();
@@ -2319,7 +2319,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     const PROGRAM_ROUTE: &[&str] = &[
         "psi/pipeline/00_source-files-to-tokens",
         "psi/pipeline/01_tokens-to-syntax-trees",
-        "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
+        "psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
         "psi/pipeline/symbol-resolved-trees-to-typed-trees",
         "psi/pipeline/typed-trees-to-checked-trees",
         "psi/pipeline/checked-trees-to-lowered-psi",

@@ -66,8 +66,8 @@ test-only channels are cataloged, not flagged.
 | `TokenStream` | psi/representations/tokens | 2 | 2 | 0 | 0 |
 | `SyntaxTrees` | psi/representations/syntax-trees | 19 | 16 | 1 | 2 |
 | `SymbolResolvedTrees` | psi/representations/symbol-resolved-trees | 43 | 40 | 2 | 1 |
-| `SeededSymbolResolvedTrees` | psi/pipeline/syntax-trees-to-symbol-resolved-trees | 4 | 2 | 0 | 2 |
-| `ConstInitializerSelection` | psi/pipeline/syntax-trees-to-symbol-resolved-trees | 6 | 5 | 0 | 1 |
+| `SeededSymbolResolvedTrees` | psi/pipeline/02_syntax-trees-to-symbol-resolved-trees | 4 | 2 | 0 | 2 |
+| `ConstInitializerSelection` | psi/pipeline/02_syntax-trees-to-symbol-resolved-trees | 6 | 5 | 0 | 1 |
 | `TypedTrees` | psi/representations/typed-trees | 162 | 145 | 8 | 9 |
 | `CheckedTrees` | psi/representations/checked-trees | 2 | 1 | 1 | 0 |
 | `LoweredPsi` | psi/representations/lowered-psi | 0 | — | — | — |

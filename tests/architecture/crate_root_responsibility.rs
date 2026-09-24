@@ -284,7 +284,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
+        "psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
         &[
             "constant",
             "lowering",

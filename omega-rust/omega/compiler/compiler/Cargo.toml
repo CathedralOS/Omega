@@ -29,7 +29,7 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

@@ -33,63 +33,63 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
     // One generic application's own parameter spellings bound to chosen
     // arguments — substitution environments, not declaration lookup.
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/arguments.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/arguments.rs",
         "one application's const parameter names bound to evaluated values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/constant_selection.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/constant_selection.rs",
         "one application's const/type parameter names bound to selected arguments",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/eligibility.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/eligibility.rs",
         "one application's parameter names bound to argument handles",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/module_constants.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/module_constants.rs",
         "one module's authored const spellings bound to lexical values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/substitution.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/substitution.rs",
         "one application's parameter names bound to argument handles/identities",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/synthesis.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/synthesis.rs",
         "one application's const parameter names bound to values/expressions",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/assignments.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/assignments.rs",
         "one application's local binder spellings bound to reference handles",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/calls.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/calls.rs",
         "one application's local/self owner spellings bound to owner types",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/patterns.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/uses/patterns.rs",
         "one application's local binder spellings bound to reference handles",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/arguments.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/arguments.rs",
         "one application's const parameter names bound to definitions/values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/domains.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/domains.rs",
         "one application's const parameter names bound to definitions/values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/facts.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/facts.rs",
         "one application's const parameter names bound to scalar values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/templates.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/templates.rs",
         "one application's const parameter names bound to expressions/values",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/trait_defaults.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/trait_defaults.rs",
         "one application's type parameter names bound to default candidates",
     ),
     (
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/type_equations.rs",
         "one equation's const parameter names bound to evaluated values",
     ),
     // Evaluation environments — runtime binder spellings inside one activated

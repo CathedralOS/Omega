@@ -29,7 +29,7 @@ sha2 = "0.10"
 [dev-dependencies]
 source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../pipeline/01_tokens-to-syntax-trees" }
 
 [[test]]
