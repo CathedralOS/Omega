@@ -131,6 +131,83 @@ fn rejects_parameter_backed_view_call_result_in_persistent_storage() {
     );
 }
 
+#[test]
+fn accepts_construction_seeded_persistent_field_source_in_persistent_storage() {
+    // An attached-data field arrives holding the caller's 'storage-scoped
+    // loan: reading it back supplies a persistent source for another
+    // persistent store without any authored establishment.
+    let source = r#"
+        data Main<'storage> {
+            view: &'storage mut [u8];
+            alias: &'storage mut [u8];
+        }
+
+        machine Main::store(&mut self) {
+            self.alias = self.view;
+        }
+    "#;
+
+    check_program(source)
+        .expect("a borrow read back from a persistent field is persistent-backed by construction");
+}
+
+#[test]
+fn accepts_construction_seeded_source_across_a_state_edge() {
+    let source = r#"
+        data Main<'storage> {
+            view: &'storage mut [u8];
+            alias: &'storage mut [u8];
+        }
+
+        machine Main::store(&mut self) {
+            transition { _ -> copy() }
+
+            state copy(&mut self) {
+                self.alias = self.view;
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("construction provenance meets across graph-state edges like any seeded path");
+}
+
+#[test]
+fn rejects_construction_seeded_source_after_a_may_write_frame() {
+    // The construction seed is still invalidated normally: an opaque frame
+    // that may write `view` retires its path even though the callee happened
+    // to store program-static data — the caller cannot see that.
+    let source = r#"
+        data Main {
+            view: &[u8];
+            alias: &[u8];
+        }
+
+        machine Main::fill(&mut self) {
+            self.view = "filled";
+        }
+
+        machine Main::store(&mut self) {
+            self.fill();
+            self.alias = self.view;
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("an opaque call frame drops the seeded persistent source");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `alias`")),
+        "expected the persistent fence after a may-write frame, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
 // These aggregate snapshots deliberately copy shared loan carriers. Explicit
 // copy permission does not establish static provenance: the paired negatives
 // still require every borrowed leaf and index to retain its exact source.
@@ -180,10 +257,18 @@ fn accepts_cross_state_copy_from_static_persistent_storage() {
 
 #[test]
 fn rejects_cross_state_static_provenance_missing_on_one_predecessor() {
+    // Attached borrow fields enter construction-seeded: the caller populated
+    // `first`, so `establish` does not need its own write to carry coverage
+    // into `join`. `bypass` still loses it — the `scribble` frame may write
+    // `first`, which retires the seeded path on that predecessor alone.
     let source = r#"
         data Main {
             first: &[u8];
             second: &[u8];
+        }
+
+        machine Main::scribble(&mut self) {
+            self.first = "scribbled";
         }
 
         machine Main::store(&mut self, choose_static: bool) {
@@ -193,11 +278,11 @@ fn rejects_cross_state_static_provenance_missing_on_one_predecessor() {
             }
 
             state establish(&mut self) {
-                self.first = "program static";
                 transition { _ -> join() }
             }
 
             state bypass(&mut self) {
+                self.scribble();
                 transition { _ -> join() }
             }
 
@@ -1257,6 +1342,10 @@ fn accepts_indexed_aggregate_copy_after_all_borrowed_leaves_become_static() {
 
 #[test]
 fn rejects_aggregate_copy_with_only_partial_static_leaf_coverage() {
+    // Attached aggregates are construction-seeded leaf by leaf, so the fence
+    // now needs coverage hidden another way: `retouch` may write `second`,
+    // which retires exactly that leaf's seeded path. Re-establishing `first`
+    // afterwards leaves `second` unproven — genuinely partial coverage.
     let source = r#"
         data Message [copy] {
             first: &[u8];
@@ -1268,7 +1357,12 @@ fn rejects_aggregate_copy_with_only_partial_static_leaf_coverage() {
             copy: Message;
         }
 
+        machine Main::retouch(&mut self) {
+            self.source.second = "rewritten";
+        }
+
         machine Main::store(&mut self) {
+            self.retouch();
             self.source.first = "program static";
             self.copy = self.source;
         }
