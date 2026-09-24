@@ -1,8 +1,8 @@
 //! Owned indexed leaves stop at the same lowering boundary a literal spells:
-//! `lower_machine` reports the missing source-independent scalar plan for
-//! `items[1]` and `items[0 + 1]` alike, so the widened fold adds no new
-//! downstream divergence — the remaining gap is owned `FixedIndex` leaf
-//! emission, not the folded spelling.
+//! `lower_machine` reports the same refusal for `items[1]` and `items[0 + 1]`,
+//! so the widened fold adds no new downstream divergence. Both now plan
+//! through checking and stop where lowering meets the fixed-array literal the
+//! locals are built from; the folded spelling is not the gap.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
@@ -25,24 +25,30 @@ const FOLDED_SOURCE: &str = "data Cell { tag: u64; }
     }";
 
 /// Both spellings check — the fold produces exactly the checked `FixedIndex`
-/// leaf a literal does — and both then meet the documented consumer-side
-/// boundary identically.
+/// leaf a literal does — and both then meet the same consumer-side boundary.
 #[test]
 fn folded_index_faces_the_literal_lowering_boundary() {
-    for (label, source) in [("literal", LITERAL_SOURCE), ("folded", FOLDED_SOURCE)] {
+    let refusal = |label: &str, source: &str| {
         let checked = crate::front_end::checked_program_result(source)
             .unwrap_or_else(|errors| panic!("{label}: {errors:#?}"));
-        assert_eq!(
-            format!(
-                "{:?}",
-                checked_trees_to_lowered_psi::lower_machine(
-                    &checked,
-                    TerminalMachineSelection::Name("choose")
-                )
-                .unwrap_err()
-            ),
-            r#"Unsupported("machine has no source-independent checked scalar control plan")"#,
-            "{label}: an owned indexed leaf meets the scalar-plan boundary, same as a literal"
-        );
-    }
+        format!(
+            "{:?}",
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("choose")
+            )
+            .unwrap_err()
+        )
+    };
+    let literal = refusal("literal", LITERAL_SOURCE);
+    assert_eq!(
+        literal,
+        r#"Unsupported("fixed array literal has no Terminal establishment")"#,
+        "an owned indexed leaf stops at the fixed-array literal it reads"
+    );
+    assert_eq!(
+        refusal("folded", FOLDED_SOURCE),
+        literal,
+        "the folded index meets the literal's boundary"
+    );
 }
