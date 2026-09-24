@@ -354,7 +354,7 @@ pub(super) fn validate<'a>(
                     *realization_contract_report_fingerprint,
                     *realization_contract_commitment,
                     *service_reach,
-                    scalar_arguments.len(),
+                    scalar_arguments,
                 )?;
             }
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {

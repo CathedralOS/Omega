@@ -215,6 +215,26 @@ pub(crate) fn locate(
                 .nth(argument_ordinal as usize)
                 .map(|((expression, primitive), _)| (*expression, absent, *primitive))
         }
+        // The operand roster is reread from the operator facts and the settled
+        // body, never from the checked plan whose argument is being replayed.
+        (
+            StatementNode::LocalData(local),
+            CheckedScalarExpressionRole::SelectedOperatorOperand { operand_ordinal },
+        ) if !local.is_mutable => checked
+            .facts
+            .operators
+            .boundary_application_operands(
+                program,
+                local.initial_value,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    statement_index: statement as usize,
+                    role: checked_trees::CheckedValueStatementRole::LocalInitializer,
+                },
+            )
+            .and_then(|application| application.scalar_operand(operand_ordinal as usize))
+            .map(|(expression, primitive)| (expression, absent, primitive)),
         (
             _,
             CheckedScalarExpressionRole::ErasedUnitCallArgument {

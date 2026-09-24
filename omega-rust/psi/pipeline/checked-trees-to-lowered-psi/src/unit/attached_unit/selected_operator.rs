@@ -22,8 +22,106 @@ pub(super) fn validate_selected_operator_scalar_call(
     realization_contract_report_fingerprint: u64,
     realization_contract_commitment: checked_trees::MachineContractCommitment,
     service_reach: language_semantics::ServiceReachSummary,
-    scalar_argument_count: usize,
+    scalar_arguments: &[checked_trees::CheckedScalarExpression],
 ) -> Result<(), LoweringError> {
+    let realization = validate_selected_application(
+        checked,
+        machine,
+        coordinate,
+        result,
+        requirement_operator,
+        provider_plan_report_fingerprint,
+        provider_plan_commitment,
+        realization_machine,
+        realization_state,
+        realization_contract_report_fingerprint,
+        realization_contract_commitment,
+        service_reach,
+        scalar_arguments.len(),
+    )?;
+    let operands = checked
+        .typed
+        .state_parameters(realization)
+        .iter()
+        .zip(scalar_arguments)
+        .enumerate()
+        .map(|(position, (parameter, argument))| {
+            let primitive_type = checked
+                .typed
+                .primitive_type_reference(parameter.type_reference)
+                .ok_or(LoweringError::Unsupported(
+                    "selected Unit operator realization formal is not scalar",
+                ))?;
+            Ok((position, primitive_type, argument))
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    validate_scalar_operands(checked, machine, coordinate, operands)
+}
+
+/// Rejoin each scalar argument of a selected application to the operand the
+/// values stage bound to its authored source
+/// (`CheckedScalarExpressionRole::SelectedOperatorOperand`), exactly as an
+/// ordinary call argument is rejoined in
+/// `emission::call_source_custody::validate_operation`. Settlement leaves no
+/// flow call occurrence for a selected application, so without this replay an
+/// edited checked argument would be emitted unchallenged.
+fn validate_scalar_operands(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    operands: Vec<(
+        usize,
+        PrimitiveType,
+        &checked_trees::CheckedScalarExpression,
+    )>,
+) -> Result<(), LoweringError> {
+    for (position, primitive_type, argument) in operands {
+        let role = checked_trees::CheckedScalarExpressionRole::SelectedOperatorOperand {
+            operand_ordinal: u32::try_from(position).map_err(|_| {
+                LoweringError::Unsupported("selected operator operand position exceeds u32")
+            })?,
+        };
+        let (binding, selected) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(machine.state, coordinate.statement_index, role)
+            .ok_or(LoweringError::Unsupported(
+                "selected operator operand has no unique source-bound checked plan",
+            ))?;
+        if binding.destination.is_valid()
+            || selected != argument
+            || argument.primitive_type() != Some(primitive_type)
+        {
+            return unsupported("selected operator operand disagrees with its authored operand");
+        }
+        crate::expression_preparation::source_custody::validate_pure(
+            checked,
+            binding,
+            terminal_scalar_type(primitive_type)?,
+        )?;
+    }
+    Ok(())
+}
+
+/// The exact checked authored use, realization entry, contract and reach one
+/// selected application names, independent of its operands.
+#[allow(clippy::too_many_arguments)]
+fn validate_selected_application<'checked>(
+    checked: &'checked CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    result: checked_trees::CheckedUnitScalarResultBindingPlan,
+    requirement_operator: symbols::SymbolHandle,
+    provider_plan_report_fingerprint: u64,
+    provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
+    realization_machine: symbols::SymbolHandle,
+    realization_state: symbols::SymbolHandle,
+    realization_contract_report_fingerprint: u64,
+    realization_contract_commitment: checked_trees::MachineContractCommitment,
+    service_reach: language_semantics::ServiceReachSummary,
+    operand_count: usize,
+) -> Result<&'checked checked_trees::state::State, LoweringError> {
     let origin = checked_trees::CheckedValueOrigin::StateStatement {
         machine_symbol: machine.machine,
         state_symbol: machine.state,
@@ -117,7 +215,7 @@ pub(super) fn validate_selected_operator_scalar_call(
             .typed
             .primitive_type_reference(realization.return_type)
             != Some(result.primitive_type)
-        || checked.typed.state_parameters(realization).len() != scalar_argument_count
+        || checked.typed.state_parameters(realization).len() != operand_count
         || realization_reaches.as_slice() != [service_reach]
     {
         return unsupported(
@@ -141,7 +239,7 @@ pub(super) fn validate_selected_operator_scalar_call(
             "selected scalar realization with services requires terminal scalar service lowering",
         );
     }
-    Ok(())
+    Ok(realization)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -161,7 +259,7 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
     scalar_arguments: &[checked_trees::CheckedScalarExpression],
     structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
 ) -> Result<(), LoweringError> {
-    validate_selected_operator_scalar_call(
+    validate_selected_application(
         checked,
         machine,
         coordinate,
@@ -215,6 +313,12 @@ pub(super) fn validate_selected_operator_structural_scalar_call(
             );
         }
     }
+    validate_scalar_operands(
+        checked,
+        machine,
+        coordinate,
+        scalar_operand_positions(&realization.scalar_parameters, scalar_arguments)?,
+    )?;
     let mut sources = BTreeSet::new();
     for (argument, target) in structural_arguments
         .iter()
@@ -421,6 +525,12 @@ pub(super) fn validate_selected_operator_structural_call(
             );
         }
     }
+    validate_scalar_operands(
+        checked,
+        machine,
+        coordinate,
+        scalar_operand_positions(&realization.scalar_parameters, scalar_arguments)?,
+    )?;
     let [argument] = structural_arguments else {
         unreachable!("one structural argument was required above")
     };
@@ -480,4 +590,32 @@ pub(super) fn validate_selected_operator_structural_call(
         );
     }
     Ok(())
+}
+
+/// Pair a mixed realization's scalar arguments with the authored operand
+/// positions its checked signature retains for them.
+fn scalar_operand_positions<'argument>(
+    parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+    arguments: &'argument [checked_trees::CheckedScalarExpression],
+) -> Result<
+    Vec<(
+        usize,
+        PrimitiveType,
+        &'argument checked_trees::CheckedScalarExpression,
+    )>,
+    LoweringError,
+> {
+    if parameters.len() != arguments.len() {
+        return unsupported("selected operator scalar operands disagree with their realization");
+    }
+    parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| {
+            let position = usize::try_from(parameter.source_position).map_err(|_| {
+                LoweringError::Unsupported("selected operator operand position exceeds usize")
+            })?;
+            Ok((position, parameter.primitive_type, argument))
+        })
+        .collect()
 }

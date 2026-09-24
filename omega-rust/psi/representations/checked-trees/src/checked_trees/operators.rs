@@ -6,8 +6,10 @@
 //! the saved subject again or to publish builtin equality facts.
 
 use crate::{CheckedValueOrigin, CrashCause};
+mod application_operands;
 mod comparisons;
 mod selected_float_comparison_execution;
+pub use application_operands::CheckedBoundaryApplicationOperands;
 pub use selected_float_comparison_execution::CheckedSelectedFloatComparisonExecution;
 pub type CheckedOperatorUseHandle = arena::Handle<CheckedOperatorUseFact>;
 use arena::{Arena, Handle, HandleSpan};

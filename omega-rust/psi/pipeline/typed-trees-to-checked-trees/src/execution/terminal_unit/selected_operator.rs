@@ -93,6 +93,33 @@ pub(super) fn selected_operator_structural_result(
     })
 }
 
+/// The values-stage expression bound to one scalar operand of `application`
+/// (`CheckedScalarExpressionRole::SelectedOperatorOperand`), when it names
+/// that authored operand and lands at `primitive_type`. Taking the bound
+/// expression rather than lowering the operand again is what lets
+/// Checked-to-Lowered Psi replay the plan's argument against its source.
+fn bound_operand(
+    facts: &CheckFacts,
+    source_state: &typed_trees::state::State,
+    statement_index: u32,
+    application: &crate::SelectedOperatorApplication,
+    position: usize,
+    primitive_type: typed_trees::types::PrimitiveType,
+) -> Option<checked_trees::CheckedScalarExpression> {
+    let operand = *application.operands.get(position)?;
+    let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
+        source_state.symbol,
+        statement_index,
+        checked_trees::CheckedScalarExpressionRole::SelectedOperatorOperand {
+            operand_ordinal: u32::try_from(position).ok()?,
+        },
+    )?;
+    (binding.expression == operand
+        && !binding.destination.is_valid()
+        && expression.primitive_type() == Some(primitive_type))
+    .then(|| expression.clone())
+}
+
 pub(super) fn build_selected_operator_scalar_call(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -131,17 +158,16 @@ pub(super) fn build_selected_operator_scalar_call(
     {
         return None;
     }
-    let scalar_arguments = application
-        .operands
+    let scalar_arguments = parameters
         .iter()
-        .zip(parameters)
-        .map(|(operand, parameter)| {
-            crate::values::lower_unit_scalar_argument(
-                program,
-                &facts.operators,
+        .enumerate()
+        .map(|(position, parameter)| {
+            bound_operand(
+                facts,
                 source_state,
-                usize::try_from(result.statement_index).ok()?,
-                *operand,
+                result.statement_index,
+                application,
+                position,
                 program.primitive_type_reference(parameter.type_reference)?,
             )
         })
@@ -399,15 +425,12 @@ pub(super) fn build_selected_operator_structural_scalar_call(
         .scalar_parameters
         .iter()
         .map(|target| {
-            let operand = *application
-                .operands
-                .get(usize::try_from(target.source_position).ok()?)?;
-            crate::values::lower_unit_scalar_argument(
-                program,
-                &facts.operators,
+            bound_operand(
+                facts,
                 source_state,
-                usize::try_from(result.statement_index).ok()?,
-                operand,
+                result.statement_index,
+                application,
+                usize::try_from(target.source_position).ok()?,
                 target.primitive_type,
             )
         })
@@ -561,15 +584,12 @@ pub(super) fn build_selected_operator_structural_call(
         .scalar_parameters
         .iter()
         .map(|target| {
-            let operand = *application
-                .operands
-                .get(usize::try_from(target.source_position).ok()?)?;
-            crate::values::lower_unit_scalar_argument(
-                program,
-                &facts.operators,
+            bound_operand(
+                facts,
                 source_state,
-                usize::try_from(result.statement_index).ok()?,
-                operand,
+                result.statement_index,
+                application,
+                usize::try_from(target.source_position).ok()?,
                 target.primitive_type,
             )
         })
