@@ -164,16 +164,21 @@ fn resolve_source(
                 });
                 cursor = member.receiver;
             }
-            // An assignment destination's own selector is the statement's
-            // `AssignmentIndex` scalar: the target's runtime element, which
-            // the store evaluates and whose bound Terminal re-proves.
+            // An assignment destination's runtime selector is the statement's
+            // `AssignmentIndex { depth }` scalar, numbered along the whole
+            // assignment target: the store evaluates it, and Terminal re-proves
+            // the element's bound.
             ExpressionNode::Indexed(indexed)
                 if !require_endpoint_stamp
-                    && cursor == expression
-                    && is_assignment_target(checked, state, statement_index, expression)
                     && !matches!(
                         checked.expression_table.expression(indexed.index),
                         ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                    )
+                    && let Some(depth) = assignment_selector_depth(
+                        checked,
+                        state,
+                        statement_index,
+                        indexed.index,
                     ) =>
             {
                 if !validation::place_has_builtin_coordinates(
@@ -206,7 +211,7 @@ fn resolve_source(
                     return unsupported("store destination index has no literal array length");
                 }
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ));
                 captured_segments.push(facts::PlaceSegment::Index {
                     expression: indexed.index,
@@ -378,26 +383,27 @@ fn resolve_source(
     })
 }
 
-/// Whether `expression` is the target of the statement's assignment. A
-/// read of the same shape elsewhere in the statement names no
-/// `AssignmentIndex` coordinate.
-fn is_assignment_target(
+/// The `AssignmentIndex` depth of `index` among the selectors of the
+/// statement's assignment target, when the statement is an assignment whose
+/// target selects through it.
+fn assignment_selector_depth(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
     statement_index: Option<(usize, bool)>,
-    expression: ExpressionHandle,
-) -> bool {
-    statement_index
-        .and_then(|(statement_index, _)| {
-            checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(statement_index)
-        })
-        .is_some_and(|statement| {
-            matches!(statement, checked_trees::statement::StatementNode::Assignment(assignment)
-                if assignment.target == expression)
-        })
+    index: ExpressionHandle,
+) -> Option<u32> {
+    let (statement_index, _) = statement_index?;
+    let checked_trees::statement::StatementNode::Assignment(assignment) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?
+    else {
+        return None;
+    };
+    let depth = validation::assignment_target_selectors(&checked.typed, assignment.target)
+        .iter()
+        .position(|selector| *selector == index)?;
+    u32::try_from(depth).ok()
 }
 
 fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {

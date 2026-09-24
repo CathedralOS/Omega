@@ -3,20 +3,22 @@
 //! A primitive leaf is written by `WriteOnlyPrimitiveStore` over one checked
 //! path from an exclusive borrowed parameter (or a whole initialized mutable
 //! primitive local). The path composes fields, literal elements, and the
-//! target's runtime element: `self.cells[self.i] = v` is the store over
-//! `[cells, RuntimeIndex(AssignmentIndex)]`, not a separate indexed store
-//! with the selector as an operand. The planner proves no bound for that
-//! element. The selector is the statement's retained `AssignmentIndex`
-//! scalar, and Terminal re-proves `index < extent` for the segment's
-//! obligation from the facts that hold at the store (entry requires,
-//! dominating guards, stored-field snapshots), so a selector the planner
-//! cannot bound syntactically still composes and an unproven one still
-//! fails verification rather than being trusted here.
+//! target's runtime elements: `self.cells[self.i] = v` is the store over
+//! `[cells, RuntimeIndex(AssignmentIndex { depth: 0 })]` and
+//! `self.grid[i][j] = v` the store over `[grid, RuntimeIndex(depth 1),
+//! RuntimeIndex(depth 0)]`, not a separate indexed store with a selector as
+//! an operand. The planner proves no bound for a runtime element: each
+//! selector is the statement's retained `AssignmentIndex { depth }` scalar,
+//! and Terminal re-proves `index < extent` for the segment's obligation from
+//! the facts that hold at the store (entry requires, dominating guards,
+//! stored-field snapshots), so a selector the planner cannot bound
+//! syntactically still composes and an unproven one still fails
+//! verification rather than being trusted here.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, DataMember, ExpressionNode, Multiplicity, PrimitiveType,
-    StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralPathSegment, DataMember, Multiplicity, PrimitiveType, StatementNode,
+    SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
 };
 
 /// Find only initialized primitive storage established before this occurrence.
@@ -248,11 +250,10 @@ pub(super) fn store_at(
 }
 
 /// The checked path from the destination root to its primitive leaf: empty
-/// for whole primitive storage, otherwise fields and literal elements ending
-/// at an array element, the last of which may be the target's runtime
-/// element. Only the target's own selector has a retained scalar coordinate
-/// (`AssignmentIndex`), so every earlier selector must be a literal within
-/// its declared extent.
+/// for whole primitive storage, otherwise fields, literal elements and
+/// runtime elements ending at an array element. Every selector of the
+/// target is admitted by `TargetSelectors`; a runtime one becomes the
+/// statement's `RuntimeIndex(AssignmentIndex { depth })` segment.
 fn primitive_path(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -262,183 +263,27 @@ fn primitive_path(
     target: typed_trees::expression::ExpressionHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
-    let Some((last, prefix)) = segments.split_last() else {
+    let Some(last) = segments.last() else {
         return Some(Vec::new());
     };
-    if !validation::place_has_builtin_coordinates(program, machine, Some(state), target) {
+    // A field leaf is the scalar field store's; this store ends at an element.
+    if !matches!(
+        last,
+        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+    ) || !validation::place_has_builtin_coordinates(program, machine, Some(state), target)
+    {
         return None;
     }
     primitive_leaf(program, machine, state, target)?;
-    match last {
-        facts::PlaceSegment::FixedIndex { .. } => {
-            static_index_chain(program, machine, state, target)?;
-            checked_unit_path(program, segments)
-        }
-        facts::PlaceSegment::Index { expression } => {
-            let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target)
-            else {
-                return None;
-            };
-            if *expression != indexed.index
-                || matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                )
-            {
-                return None;
-            }
-            static_index_chain(program, machine, state, indexed.collection)?;
-            // A runtime element selects from a declared fixed array; a byte
-            // view or bounded byte field keeps its own live-length store.
-            let collection = validation::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                indexed.collection,
-            )?;
-            let collection = validation::unwrapped_type_reference(program, collection)?;
-            if !matches!(
-                program.type_reference_table.type_reference(collection),
-                TypeReferenceNode::FixedArray {
-                    length: typed_trees::types::FixedArrayLength::Literal(_),
-                    ..
-                }
-            ) {
-                return None;
-            }
-            retained_assignment_index(facts, machine, state, statement_index, indexed.index)?;
-            let mut path = checked_unit_path(program, prefix)?;
-            path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
-            ));
-            Some(path)
-        }
-        _ => None,
-    }
-}
-
-/// The statement's `AssignmentIndex` coordinate retains exactly this
-/// authored selector at an integer carrier: a bound pure expression, or the
-/// computation root the ordinary scalar evaluator completes.
-///
-/// One admission limit is about proof cost, not meaning. A selector narrower
-/// than Terminal's `u64` coordinate reaches the store through a widening or
-/// exact cast, and re-proving `index < extent` through that conversion *and*
-/// the selector's own arithmetic outgrows the c2l integer proof producers:
-/// an unprovable goal such as `widen(y * 4 + x) < 12` searches for minutes
-/// before failing (C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT). Until that search
-/// is bounded, a narrower selector must be a parameter or a stored field
-/// read, whose published or stored bound crosses the conversion in one step;
-/// a local (including the temporary the front end hoists `a[y * 4 + x]`
-/// into) carries its initializer's arithmetic into the goal. A `u64`
-/// selector needs no conversion and composes freely.
-fn retained_assignment_index(
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    index: typed_trees::expression::ExpressionHandle,
-) -> Option<()> {
-    let integer = |primitive_type: Option<PrimitiveType>| {
-        matches!(
-            primitive_type,
-            Some(
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-        )
-    };
-    if let Some((binding, value)) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
+    let selectors = super::selectors::TargetSelectors::resolve(
+        program,
+        facts,
+        machine,
+        state,
         statement_index,
-        CheckedScalarExpressionRole::AssignmentIndex,
-    ) {
-        let primitive_type = crate::values::scalar_expression_type(value);
-        return (binding.expression == index
-            && integer(primitive_type)
-            && (primitive_type == Some(PrimitiveType::U64) || direct_selector(value)))
-        .then_some(());
-    }
-    let computations = &facts.values.scalar_computations;
-    let root = computations.root_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentIndex,
+        target,
     )?;
-    if root.machine != machine.symbol || !computations.nodes.is_valid(root.root) {
-        return None;
-    }
-    let node = computations.nodes.get(root.root);
-    (node.authored_root == index
-        && integer(Some(node.primitive_type))
-        && (node.primitive_type == PrimitiveType::U64
-            || match &node.kind {
-                checked_trees::CheckedScalarComputationKind::StructuralField { .. } => true,
-                checked_trees::CheckedScalarComputationKind::Value(value) => direct_selector(value),
-                _ => false,
-            }))
-    .then_some(())
-}
-
-/// A selector value that is passed or read from a stored field, not
-/// computed in this body.
-fn direct_selector(value: &CheckedScalarExpression) -> bool {
-    matches!(
-        value,
-        CheckedScalarExpression::Parameter { .. }
-            | CheckedScalarExpression::StructuralParameterField { .. }
-    )
-}
-
-/// Every selector in this expression chain is a proven literal index or a
-/// member; a runtime index never walks this loop.
-fn static_index_chain(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<()> {
-    let mut cursor = expression;
-    loop {
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Integer(index) =
-                    program.expression_table.expression(indexed.index)
-                else {
-                    return None;
-                };
-                let index = index.value_bignum()?.to_u64()?;
-                let collection = validation::declared_place_type_raw(
-                    program,
-                    machine,
-                    Some(state),
-                    indexed.collection,
-                )?;
-                let collection = validation::unwrapped_type_reference(program, collection)?;
-                let TypeReferenceNode::FixedArray {
-                    length: typed_trees::types::FixedArrayLength::Literal(length),
-                    ..
-                } = program.type_reference_table.type_reference(collection)
-                else {
-                    return None;
-                };
-                if usize::try_from(index).ok()? >= *length {
-                    return None;
-                }
-                cursor = indexed.collection;
-            }
-            ExpressionNode::Member(member) => cursor = member.receiver,
-            ExpressionNode::Name(_) => break,
-            _ => return None,
-        }
-    }
-    Some(())
+    checked_unit_path(program, &selectors, segments)
 }
 
 /// The assignment leaf's declared type must be a named primitive, after the
@@ -482,14 +327,17 @@ fn primitive_leaf(
 }
 
 /// Literal path segments keep their exact source identity; fields reject an
-/// erased or domain-constrained declaration.
+/// erased or domain-constrained declaration; a runtime element names its
+/// selector's retained coordinate.
 fn checked_unit_path(
     program: &TypedTrees,
+    selectors: &super::selectors::TargetSelectors,
     segments: &[facts::PlaceSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     segments
         .iter()
         .map(|segment| match segment {
+            facts::PlaceSegment::Index { expression } => selectors.runtime_segment(*expression),
             facts::PlaceSegment::FixedIndex { index } => Some(
                 CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(*index).ok()?),
             ),

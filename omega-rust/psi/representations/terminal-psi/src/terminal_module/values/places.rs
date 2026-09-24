@@ -81,16 +81,31 @@ pub fn is_static_structural_path(path: &[StructuralPathSegment]) -> bool {
     path.iter().all(|segment| segment.runtime_index().is_none())
 }
 
-/// Whether a scalar-store carrier path is within the currently executable
-/// bounded projection grammar: record fields, optionally followed by one
-/// literal fixed-array index. A bare fixed-array root has no record-field
-/// owner, so its carrier path is the literal element index alone. Anything
-/// after the first index — a second index or a further field — is excluded
-/// by the grammar itself, not by path resolution, and `Referent` crossings
-/// are outside the store contract: borrowing through another borrow's
-/// boundary is different custody, not a projection. A runtime index is the
-/// primitive leaf store's projection, not this field store's; resolution
-/// still requires each literal index below its declared extent.
+/// Whether a `StructuralScalarFieldStore` carrier path is within the store
+/// grammar: record fields and fixed-array elements, literal or
+/// runtime-selected, in any order (`ents[i].pos` for `ents[i].pos.x`,
+/// `values[0][1]` for `values[0][1].first`). `Referent` crossings and byte
+/// windows are outside the store contract: borrowing through another
+/// borrow's boundary is different custody, not a projection. Resolution
+/// still requires each literal index below its declared extent, and a
+/// runtime element's bound is the obligation the store owns.
+pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
+    path.iter().all(|segment| match segment {
+        StructuralPathSegment::Field(identity) => !identity.is_empty(),
+        StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
+        StructuralPathSegment::FixedByteRange { .. } | StructuralPathSegment::Referent => false,
+    })
+}
+
+/// Whether a carrier path is within the bounded projection grammar the
+/// byte-sequence field stores, structural call arguments and the Omega
+/// backend's field stores currently execute: record fields, optionally
+/// followed by one literal fixed-array index. A bare fixed-array root has no
+/// record-field owner, so its carrier path is the literal element index
+/// alone. Anything after the first index -- a second index or a further
+/// field -- is excluded by the grammar itself, not by path resolution, and
+/// `Referent` crossings are outside the store contract. The scalar field
+/// store's own grammar is `is_structural_scalar_store_path`.
 pub fn is_bounded_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
     let first_index = path
         .iter()
@@ -356,15 +371,50 @@ fn argument_projection(argument: &crate::StructuralArgument) -> OperationProject
 
 #[cfg(test)]
 mod tests {
-    use super::{StructuralPathSegment, is_bounded_structural_scalar_store_path};
+    use super::{
+        StructuralPathSegment, is_bounded_structural_scalar_store_path,
+        is_structural_scalar_store_path,
+    };
     use semantic_vocabulary::{ObligationId, ValueId};
 
     fn field(identity: &str) -> StructuralPathSegment {
         StructuralPathSegment::Field(identity.to_owned())
     }
 
+    fn runtime() -> StructuralPathSegment {
+        StructuralPathSegment::RuntimeIndex {
+            index: ValueId::new(1).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        }
+    }
+
     #[test]
-    fn scalar_store_carrier_paths_are_fields_then_one_literal_index() {
+    fn field_store_carriers_compose_fields_and_elements_in_any_order() {
+        for path in [
+            vec![],
+            vec![field("items"), StructuralPathSegment::FixedIndex(2)],
+            vec![field("items"), runtime(), field("pos")],
+            vec![
+                field("grid"),
+                runtime(),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+            vec![StructuralPathSegment::FixedIndex(0), field("nested")],
+        ] {
+            assert!(is_structural_scalar_store_path(&path), "{path:?}");
+        }
+        for path in [
+            vec![StructuralPathSegment::Referent],
+            vec![field("record"), StructuralPathSegment::Referent],
+            vec![StructuralPathSegment::FixedByteRange { start: 0, end: 1 }],
+            vec![StructuralPathSegment::Field(String::new())],
+        ] {
+            assert!(!is_structural_scalar_store_path(&path), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn bounded_carrier_paths_are_fields_then_one_literal_index() {
         for path in [
             vec![],
             vec![field("record")],
@@ -387,14 +437,8 @@ mod tests {
                 StructuralPathSegment::FixedIndex(0),
                 field("nested"),
             ],
-            // A runtime element is the primitive leaf store's projection.
-            vec![
-                field("items"),
-                StructuralPathSegment::RuntimeIndex {
-                    index: ValueId::new(1).unwrap(),
-                    obligation: ObligationId::new(1).unwrap(),
-                },
-            ],
+            // A runtime element is outside the bounded grammar.
+            vec![field("items"), runtime()],
             // Borrowing through another borrow's boundary is different
             // custody, not a projection.
             vec![StructuralPathSegment::Referent],

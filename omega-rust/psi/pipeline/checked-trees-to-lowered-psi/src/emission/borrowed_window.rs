@@ -460,8 +460,8 @@ fn spell_place(
                 spelling.push_str(&format!("[selector#{position}]"));
             }
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
-            ) => spelling.push_str("[index]"),
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+            ) => spelling.push_str(&format!("[index#{depth}]")),
         }
     }
     spelling

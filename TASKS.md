@@ -1328,27 +1328,27 @@ syntax and other terminal services are not prerequisites.
   `RuntimeIndex` obligation the verifier reconstructs
   (`terminal_semantics::runtime_index_bound`), native `indexed_stores.rs`, and
   the controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
-  Terminal `PrimitiveScalarRead`/`WriteOnlyPrimitiveStore` take runtime
-  elements at any depth of their path; t2a's `primitive_projection::split`
-  still feeds only a static path or one trailing runtime element to the
-  abstract indexed read/store and refuses a field or second index after it
-  (`UnsupportedRuntimeIndexProjection`) until lowering composes
-  `(index, stride)` runs for primitive leaves as leaf copies do.
-  Element stores plan in `structural_scalar_store/primitive.rs`: the checked
-  `WriteOnlyPrimitiveStore` path ends in `RuntimeIndex(AssignmentIndex)`, c2l
-  evaluates that selector before the value, and the planner proves no bound.
-  Remaining store frontier: a field or second selector after the element
-  (`self.ents[i].hp`, `self.grid[i][j]`, the canaries stopping at
-  `structural field store: carrier path`) needs one `AssignmentIndex`
-  coordinate per target selector from the `values/scalar` producers, a
-  runtime carrier in `StructuralScalarFieldStore`, and the t2a composition
-  above. Field-held loop counters
+  Stores plan through `structural_scalar_store/`: every selector of an
+  assignment target is its own `AssignmentIndex { depth }` coordinate
+  (`validation::assignment_target_selectors`), a primitive leaf is one
+  `WriteOnlyPrimitiveStore` and a record field one `StructuralScalarFieldStore`
+  whose path composes fields and literal or runtime elements in any order
+  (`self.grid[i][j]`, `self.ents[i].pos.y`); c2l's `emission/runtime_elements.rs`
+  evaluates the selectors before the value, and the verifier re-proves each
+  element's bound. The backend still executes only a static path or one
+  trailing runtime element for primitive leaves (t2a
+  `primitive_projection::split`, `UnsupportedRuntimeIndexProjection`) and only
+  fields-then-one-literal-element field carriers
+  (`is_bounded_structural_scalar_store_path`, `UnsupportedScalarFieldCarrier`):
+  lower the general path as `(index, stride)` runs the way leaf copies do and
+  retire the abstract `IndexedPrimitiveRead`/`WriteOnlyIndexedPrimitiveStore`.
+  Field-held loop counters
   (`runtime_{write_first_loop_index,nested_loop_fill,indexed_rmw_loop}_exit`)
   reach c2l, but no fact at the store bounds the field read
   (`OperationProofUnavailable`) until storage-field loop invariants reach
   Terminal. A selector narrower than `u64` must be a parameter or stored
-  field read (`primitive.rs::retained_assignment_index`): proving a computed
-  one through its `u64` widening fails only after minutes of search
+  field read (`structural_scalar_store/selectors.rs`): proving a computed one
+  through its `u64` widening fails only after minutes of search
   (`runtime_hoisted_index_write_exit`), so the limit lifts with
   C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.
   The dynamic shared receiver `cells[i].get()` still needs CML4's checked

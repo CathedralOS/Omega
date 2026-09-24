@@ -73,6 +73,40 @@ pub fn has_builtin_subslice_meaning(
         )
 }
 
+/// The selector expressions of an assignment target's indexed steps, from
+/// the target inward: `a[i][j]` yields `[j, i]`, `a[i].f` yields `[i]`, and
+/// `a.f` yields none. A range selector names a view rather than an element,
+/// so it contributes no selector. Position `depth` in the result is the
+/// `AssignmentIndex { depth }` coordinate a checked assignment evaluates for
+/// that step, before its value; producers and consumers of those rows share
+/// this one walk.
+pub fn assignment_target_selectors(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    let mut selectors = Vec::new();
+    let mut cursor = target;
+    for _ in 0..128 {
+        if !program.expression_table.expression_is_valid(cursor) {
+            break;
+        }
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Indexed(indexed) => {
+                if !matches!(
+                    program.expression_table.expression(indexed.index),
+                    ExpressionNode::Range(_)
+                ) {
+                    selectors.push(indexed.index);
+                }
+                cursor = indexed.collection;
+            }
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            _ => break,
+        }
+    }
+    selectors
+}
+
 /// Check only the operation meaning of a place spine. Consumers separately
 /// establish declaration identity, reference origins, bounds, and authority.
 /// A dynamic builtin selector may pass without establishing a fixed index.

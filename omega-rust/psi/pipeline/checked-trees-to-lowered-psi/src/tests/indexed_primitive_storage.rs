@@ -344,10 +344,10 @@ fn runtime_element_store_rejects_a_substituted_path() {
         vec![CheckedUnitStructuralPathSegment::FixedIndex(3)],
         vec![
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 },
             ),
             CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 },
             ),
         ],
         vec![CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -372,7 +372,7 @@ fn runtime_element_store_rejects_a_substituted_path() {
             [
                 CheckedUnitStructuralPathSegment::Field(_),
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                 )
             ]
         ));
@@ -383,4 +383,110 @@ fn runtime_element_store_rejects_a_substituted_path() {
             "substituted element path {substitute:?}"
         );
     }
+}
+
+/// Produce `Buffer::update`'s verified Terminal entry machine and return the
+/// projected stores (the selector fields' own root-level stores excluded),
+/// each flagged whether it is a scalar field store.
+fn store_paths(source: &str) -> Vec<(bool, Vec<StructuralPathSegment>)> {
+    let checked = checked_source_with_core_service(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Buffer::update"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("verified Terminal for {source}: {error:?}"))
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::WriteOnlyPrimitiveStore { path, .. } => Some((false, path.clone())),
+            OperationKind::StructuralScalarFieldStore { path, .. } if !path.is_empty() => {
+                Some((true, path.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Every selector of a target is its own runtime element, numbered by depth
+/// from the target: `self.grid[self.i][self.j]` stores through two runtime
+/// elements, each with its own obligation, in one primitive store.
+#[test]
+fn nested_selectors_store_through_two_runtime_elements() {
+    let stores = store_paths(
+        "data Buffer { grid: [[u8; 4]; 3]; i: u64; j: u64; }
+        machine Buffer::update(&mut self) {
+            self.i = 2;
+            self.j = 1;
+            self.grid[self.i][self.j] = 65;
+        }",
+    );
+    let [(false, path)] = stores.as_slice() else {
+        panic!("one element store: {stores:#?}");
+    };
+    let [
+        StructuralPathSegment::Field(_),
+        StructuralPathSegment::RuntimeIndex {
+            obligation: outer, ..
+        },
+        StructuralPathSegment::RuntimeIndex {
+            obligation: inner, ..
+        },
+    ] = path.as_slice()
+    else {
+        panic!("field, then two runtime elements: {path:#?}");
+    };
+    assert_ne!(outer, inner, "each element owns its obligation");
+}
+
+/// A record field below a runtime element is one scalar field store over a
+/// carrier that ends in the runtime element, and a literal element followed
+/// by fields is the same carrier grammar.
+#[test]
+fn field_after_runtime_and_literal_elements_is_one_field_store() {
+    let stores = store_paths(
+        "data Point { x: u8; y: u8; }
+        data Entity { pos: Point; hp: u8; }
+        data Buffer { ents: [Entity; 3]; i: u64; }
+        machine Buffer::update(&mut self) {
+            self.i = 1;
+            self.ents[self.i].hp = 7;
+            self.ents[0].pos.x = 9;
+        }",
+    );
+    let [(true, runtime), (true, literal)] = stores.as_slice() else {
+        panic!("two field stores: {stores:#?}");
+    };
+    assert!(
+        matches!(
+            runtime.as_slice(),
+            [
+                StructuralPathSegment::Field(_),
+                StructuralPathSegment::RuntimeIndex { .. }
+            ]
+        ),
+        "`ents[i]` carries `hp`: {runtime:#?}"
+    );
+    assert!(
+        matches!(
+            literal.as_slice(),
+            [
+                StructuralPathSegment::Field(_),
+                StructuralPathSegment::FixedIndex(0),
+                StructuralPathSegment::Field(_)
+            ]
+        ),
+        "`ents[0].pos` carries `x`: {literal:#?}"
+    );
 }

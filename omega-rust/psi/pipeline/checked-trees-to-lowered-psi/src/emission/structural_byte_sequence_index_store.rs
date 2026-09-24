@@ -78,7 +78,7 @@ pub(crate) fn validate_assignment(
         .bound_expression_at(
             state_symbol,
             store.statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex,
+            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         )
         .ok_or(LoweringError::Unsupported(
             "byte replacement lost a scalar source binding",
@@ -94,7 +94,7 @@ pub(crate) fn validate_assignment(
                 checked,
                 state_symbol,
                 store.statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
+                CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
             )?
             .primitive_type,
         )?,

@@ -7,6 +7,8 @@ use super::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
     ValueId, allocate_dense, obligation_id, terminal_scalar_type, unsupported,
 };
+use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::runtime_elements::ProjectionStep;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StoreAccessPolicy {
     MutableOnly,
@@ -14,30 +16,41 @@ pub(crate) enum StoreAccessPolicy {
 }
 
 pub(crate) struct LoweredStructuralScalarStore {
-    pub path: Vec<StructuralPathSegment>,
+    /// Carrier steps from the destination root; a runtime element's selector
+    /// is evaluated by the emitter before the stored value.
+    pub steps: Vec<ProjectionStep>,
     pub field: StructuralFieldId,
     pub scalar_type: ScalarType,
     pub requires_range_obligation: bool,
 }
 
 impl LoweredStructuralScalarStore {
+    /// The static carrier path, for routes that evaluate no selector.
+    pub(crate) fn static_path(&self) -> Result<Vec<StructuralPathSegment>, LoweringError> {
+        crate::emission::runtime_elements::static_segments(self.steps.clone())
+    }
+
     /// Each replacement requests its own declaration-derived range proof against
     /// the completed RHS. Neither an earlier read nor the root's initial validity
-    /// can stand in for proving the value about to be stored.
+    /// can stand in for proving the value about to be stored. `indexes` are the
+    /// carrier's evaluated runtime elements, in path order.
     pub(crate) fn into_operation(
         self,
         destination: PlaceId,
+        indexes: Vec<ValueId>,
         value: ValueId,
-        next_obligation: &mut u64,
+        calls: &mut CallEmissionContext<'_>,
     ) -> Result<OperationKind, LoweringError> {
         let range_obligation = if self.requires_range_obligation {
-            Some(obligation_id(allocate_dense(next_obligation)?))
+            Some(obligation_id(allocate_dense(
+                &mut calls.next_obligation_identity,
+            )?))
         } else {
             None
         };
         Ok(OperationKind::StructuralScalarFieldStore {
             destination,
-            path: self.path,
+            path: crate::emission::runtime_elements::complete_path(self.steps, indexes, calls)?,
             field: self.field,
             value,
             range_obligation,
@@ -83,7 +96,7 @@ pub(crate) fn lower_structural_scalar_store_place(
     access_policy: StoreAccessPolicy,
 ) -> Result<LoweredStructuralScalarStore, LoweringError> {
     let scalar_type = terminal_scalar_type(store.primitive_type)?;
-    let (path, field) = lower_structural_field_place(
+    let (steps, field) = lower_structural_field_place_steps(
         store.statement_index,
         expected_statement_index,
         store
@@ -102,7 +115,7 @@ pub(crate) fn lower_structural_scalar_store_place(
         return unsupported("structural scalar store field has a different type");
     }
     Ok(LoweredStructuralScalarStore {
-        path,
+        steps,
         field: field.id,
         scalar_type,
         requires_range_obligation: matches!(
@@ -112,7 +125,9 @@ pub(crate) fn lower_structural_scalar_store_place(
     })
 }
 
-/// Reconstruct the exact carrier and relevant field independently of payload type.
+/// Reconstruct the exact carrier and relevant field independently of payload
+/// type, for routes whose carrier names no runtime element.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_field_place<'a>(
     statement_index: u32,
     expected_statement_index: u32,
@@ -125,6 +140,40 @@ pub(crate) fn lower_structural_field_place<'a>(
 ) -> Result<
     (
         Vec<StructuralPathSegment>,
+        &'a terminal_psi::StructuralFieldDeclaration,
+    ),
+    LoweringError,
+> {
+    let (steps, field) = lower_structural_field_place_steps(
+        statement_index,
+        expected_statement_index,
+        destination_parameter_position,
+        carrier_path,
+        field_identity,
+        parameter,
+        structural_types,
+        access_policy,
+    )?;
+    Ok((
+        crate::emission::runtime_elements::static_segments(steps)?,
+        field,
+    ))
+}
+
+/// Reconstruct the exact carrier and relevant field independently of payload type.
+#[allow(clippy::too_many_arguments)]
+fn lower_structural_field_place_steps<'a>(
+    statement_index: u32,
+    expected_statement_index: u32,
+    destination_parameter_position: u32,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    parameter: &StructuralParameterDeclaration,
+    structural_types: &'a [StructuralTypeDeclaration],
+    access_policy: StoreAccessPolicy,
+) -> Result<
+    (
+        Vec<ProjectionStep>,
         &'a terminal_psi::StructuralFieldDeclaration,
     ),
     LoweringError,
@@ -148,7 +197,7 @@ pub(crate) fn lower_structural_field_place<'a>(
     {
         return unsupported("structural scalar store lost exact exclusive custody");
     }
-    lower_structural_field_path(
+    lower_structural_field_steps(
         parameter.structural_type,
         carrier_path,
         field_identity,
@@ -157,7 +206,8 @@ pub(crate) fn lower_structural_field_place<'a>(
 }
 
 /// Shared geometry follows exact declarations; callers separately establish the
-/// root's current ownership or exclusive-borrow authority.
+/// root's current ownership or exclusive-borrow authority. The carrier names
+/// no runtime element.
 pub(crate) fn lower_structural_field_path<'a>(
     root_type: StructuralTypeId,
     carrier_path: &[CheckedUnitStructuralPathSegment],
@@ -170,6 +220,29 @@ pub(crate) fn lower_structural_field_path<'a>(
     ),
     LoweringError,
 > {
+    let (steps, field) =
+        lower_structural_field_steps(root_type, carrier_path, field_identity, structural_types)?;
+    Ok((
+        crate::emission::runtime_elements::static_segments(steps)?,
+        field,
+    ))
+}
+
+/// Walk a carrier path of record fields and fixed-array elements, literal or
+/// the assignment's runtime elements, in any order, to the record that
+/// declares `field_identity`.
+fn lower_structural_field_steps<'a>(
+    root_type: StructuralTypeId,
+    carrier_path: &[CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    structural_types: &'a [StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<ProjectionStep>,
+        &'a terminal_psi::StructuralFieldDeclaration,
+    ),
+    LoweringError,
+> {
     let declaration = structural_types
         .iter()
         .find(|declaration| declaration.id == root_type)
@@ -177,13 +250,10 @@ pub(crate) fn lower_structural_field_path<'a>(
             "structural scalar store root type is absent",
         ))?;
     let mut field_owner = declaration;
-    let mut path = Vec::with_capacity(carrier_path.len());
-    let mut reached_array = false;
+    let mut steps = Vec::with_capacity(carrier_path.len());
     for segment in carrier_path {
         let nested = match segment {
-            CheckedUnitStructuralPathSegment::Field(identity)
-                if !reached_array && !identity.is_empty() =>
-            {
+            CheckedUnitStructuralPathSegment::Field(identity) if !identity.is_empty() => {
                 let StructuralTypeShape::Record { fields } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a record");
                 };
@@ -201,21 +271,30 @@ pub(crate) fn lower_structural_field_path<'a>(
                 let StructuralFieldType::Structural(nested) = carrier.field_type else {
                     unreachable!("carrier shape was checked above")
                 };
-                path.push(StructuralPathSegment::Field(identity.clone()));
+                steps.push(ProjectionStep::Static(StructuralPathSegment::Field(
+                    identity.clone(),
+                )));
                 nested
             }
-            // A bare borrowed fixed-array root legitimately starts its carrier
-            // path with the literal element index; record-carrier roots reach
-            // the same shape after their field hops.
-            CheckedUnitStructuralPathSegment::FixedIndex(index) if !reached_array => {
-                reached_array = true;
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 let StructuralTypeShape::FixedArray { element, length } = &field_owner.shape else {
                     return unsupported("structural scalar store carrier is not a fixed array");
                 };
                 if *index >= *length {
                     return unsupported("structural scalar store fixed index is out of bounds");
                 }
-                path.push(StructuralPathSegment::FixedIndex(*index));
+                steps.push(ProjectionStep::Static(StructuralPathSegment::FixedIndex(
+                    *index,
+                )));
+                *element
+            }
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
+            ) if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
+                let StructuralTypeShape::FixedArray { element, .. } = &field_owner.shape else {
+                    return unsupported("structural scalar store carrier is not a fixed array");
+                };
+                steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
                 *element
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
@@ -237,7 +316,7 @@ pub(crate) fn lower_structural_field_path<'a>(
     let [field] = matching.as_slice() else {
         return unsupported("structural scalar store field is absent or ambiguous");
     };
-    Ok((path, field))
+    Ok((steps, field))
 }
 
 fn checked_store_source_matches(

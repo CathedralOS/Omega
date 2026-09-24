@@ -475,13 +475,14 @@ fn admits_leading_index_scalar_store_on_a_bare_array_root() {
 }
 
 #[test]
-fn rejects_indexed_scalar_stores_with_malformed_carrier_paths() {
+fn field_store_carriers_admit_any_element_composition_but_no_malformed_step() {
     let mut empty_field = indexed_scalar_field_store_module(0);
     scalar_store_path(&mut empty_field)[0] = StructuralPathSegment::Field(String::new());
     assert_invalid_scalar_store(&empty_field);
 
-    // These paths are well typed and in bounds; only the bounded store grammar
-    // excludes a second array index or a field after the first index.
+    // A second array index and a field after the first index are ordinary
+    // carrier steps: the field store's grammar composes fields and elements
+    // in any order, and resolution checks each literal against its extent.
     let mut repeated_index = indexed_scalar_field_store_module(0);
     repeated_index.structural_types[2].shape = StructuralTypeShape::FixedArray {
         element: id::<StructuralTypeId>(4),
@@ -498,7 +499,12 @@ fn rejects_indexed_scalar_stores_with_malformed_carrier_paths() {
             },
         });
     scalar_store_path(&mut repeated_index).push(StructuralPathSegment::FixedIndex(1));
-    assert_invalid_scalar_store(&repeated_index);
+    validate_module(&repeated_index).expect("a second literal element is a carrier step");
+    let mut past_inner_extent = repeated_index.clone();
+    *scalar_store_path(&mut past_inner_extent)
+        .last_mut()
+        .unwrap() = StructuralPathSegment::FixedIndex(2);
+    assert_invalid_scalar_store(&past_inner_extent);
 
     let mut field_after_index = indexed_scalar_field_store_module(0);
     field_after_index.structural_types[2].shape = StructuralTypeShape::FixedArray {
@@ -520,7 +526,18 @@ fn rejects_indexed_scalar_stores_with_malformed_carrier_paths() {
             },
         });
     scalar_store_path(&mut field_after_index).push(StructuralPathSegment::Field("nested".into()));
-    assert_invalid_scalar_store(&field_after_index);
+    validate_module(&field_after_index).expect("a field after an element is a carrier step");
+
+    // Borrowing through another borrow's boundary and byte windows are not
+    // carrier steps.
+    for step in [
+        StructuralPathSegment::Referent,
+        StructuralPathSegment::FixedByteRange { start: 0, end: 1 },
+    ] {
+        let mut module = indexed_scalar_field_store_module(0);
+        scalar_store_path(&mut module).push(step);
+        assert!(validate_module(&module).is_err());
+    }
 }
 
 #[test]

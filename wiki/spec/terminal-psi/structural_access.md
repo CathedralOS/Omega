@@ -192,8 +192,8 @@ unit, charged before execution.
 
 | Operation | Retained subject |
 | --- | --- |
-| `WriteOnlyPrimitiveStore` | Original destination root, canonical path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. The referent is not represented as a synthetic record. |
-| `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
+| `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
+| `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source view, exact dominating source-length observation, and capacity obligation. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
@@ -218,7 +218,10 @@ execution, and Omega's current-IR validation binds the retained obligation to
 the current destination, value and bounds before native lowering. Accepting
 only the underlying scalar carrier would invalidate later range snapshots.
 Integer and Boolean field observations
-remain distinct operations and require readable access.
+remain distinct operations and require readable access. A field or primitive
+store whose path crosses a runtime element names no canonical leaf: it
+publishes no field equation, forgets the current facts of its destination
+root, and overlaps every element of the array it selects in.
 
 `IntegerStructuralField` and `BooleanStructuralField` retain the whole source
 place, an ordered canonical carrier path, and the final declaration-local field

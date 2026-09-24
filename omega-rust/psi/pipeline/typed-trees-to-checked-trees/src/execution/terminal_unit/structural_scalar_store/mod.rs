@@ -38,6 +38,7 @@ mod byte_stores;
 mod destination;
 mod frame;
 mod primitive;
+mod selectors;
 #[cfg(test)]
 mod tests;
 mod value;
@@ -310,7 +311,19 @@ fn plan_assignment(
         }
         _ => None,
     };
+    // Byte-field and whole-sum stores, and the scalar-graph lane's record
+    // locals, lower a static carrier only: none of them evaluates a selector.
+    let static_carrier = !carrier
+        .path
+        .iter()
+        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)));
+    if !static_carrier && matches!(destination.root, Root::Local { .. }) {
+        return None;
+    }
     if let Some(capacity) = byte_leaf {
+        if !static_carrier {
+            return None;
+        }
         return byte_stores::field_store(
             program,
             facts,
@@ -398,6 +411,9 @@ fn plan_assignment(
         );
     }
     trace.phase("structural field store: case field type");
+    if !static_carrier {
+        return None;
+    }
     case_field_store(
         program,
         state,

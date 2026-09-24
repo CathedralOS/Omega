@@ -336,7 +336,7 @@ fn lower_realization_store_operation(
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
                 destination: parameter.place,
-                path: lowered.path,
+                path: lowered.static_path()?,
                 field: lowered.field,
                 value: constant_value,
                 range_obligation: None,

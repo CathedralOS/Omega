@@ -1,4 +1,5 @@
-//! Runtime-selected elements inside a structural call argument.
+//! Runtime-selected elements inside structural projections: call arguments,
+//! primitive leaves, and scalar field store carriers.
 //!
 //! A `RuntimeIndex { index, obligation }` segment names a runtime scalar and
 //! an obligation the carrying call owns; nothing in the segment states a
@@ -813,4 +814,194 @@ fn primitive_leaves_store_and_read_through_nested_runtime_elements() {
     // Without the column bound, nothing proves `j < 2` for either operation.
     let unbounded = byte_grid_module(vec![at_most(ROW_SELECTOR, 2)]);
     rejection(&unbounded, &ProofBundle::default());
+}
+
+const CELL: u64 = 97;
+const CELLS: u64 = 98;
+const CELL_OWNER: u64 = 99;
+
+/// `Owner { cells: [Cell; 3] }` with `Cell { value: i32 }`, lent `&mut`:
+/// `self.cells[i].value = 77`, then return the literal-path read of
+/// `self.cells[1].value`. The scalar field store's carrier ends in the runtime
+/// element and the stored field follows it.
+fn field_store_module(requires: Vec<Proposition>) -> TerminalModule {
+    let mut module = runtime_index_module(Vec::new(), requires);
+    module.machines.truncate(1);
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: structural_type_id(CELL),
+            identity: "test::Cell".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(1, "value", StructuralFieldType::Scalar(i32_type()))],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(CELLS),
+            identity: "test::Cells".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: structural_type_id(CELL),
+                length: 3,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(CELL_OWNER),
+            identity: "test::CellOwner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(
+                    1,
+                    "cells",
+                    StructuralFieldType::Structural(structural_type_id(CELLS)),
+                )],
+            },
+        },
+    ];
+    let owner = &mut module.machines[0];
+    owner.attachment = Some(structural_type_id(CELL_OWNER));
+    owner.structural_parameters[0].structural_type = structural_type_id(CELL_OWNER);
+    owner.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    owner.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(12),
+        scalar_type: i32_type(),
+    });
+    let scalar = |id| {
+        OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(id),
+            scalar_type: i32_type(),
+        })
+    };
+    owner.blocks[0].operations = vec![
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(1),
+            result: scalar(10),
+            kind: OperationKind::IntegerConstant {
+                value: IntegerValue::Signed(77),
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(2),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: place_id(CALLER_ROOT),
+                path: vec![
+                    StructuralPathSegment::Field("cells".into()),
+                    runtime(ROW_SELECTOR, 1),
+                ],
+                field: structural_field_id(1),
+                value: value_id(10),
+                range_obligation: None,
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(3),
+            result: scalar(11),
+            kind: OperationKind::IntegerStructuralField {
+                source: place_id(CALLER_ROOT),
+                path: vec![
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                        structural_field_id(1),
+                    ),
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1),
+                ],
+                field: structural_field_id(1),
+            },
+        },
+    ];
+    owner.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(11),
+        cleanup_actions: Vec::new(),
+    };
+    module
+}
+
+/// Run the cell owner with `self.cells[k].value = 10 + k` seeded.
+fn run_cells(module: &TerminalModule, bundle: &ProofBundle, row: u64) -> i128 {
+    let semantic = encode_module(module).unwrap();
+    assert_eq!(decode_module(&semantic).unwrap(), *module);
+    let proof = encode_proof_section(module, bundle).unwrap();
+    let selectors = [row, 0].map(|value| TerminalScalarValue::Integer {
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(u128::from(value)),
+    });
+    let fields = (0..3)
+        .map(|cell| TerminalStructuralScalarFieldValue {
+            argument_index: 0,
+            path: vec![
+                StructuralPathSegment::Field("cells".into()),
+                StructuralPathSegment::FixedIndex(cell),
+            ],
+            field: structural_field_id(1),
+            value: TerminalScalarValue::Integer {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                value: IntegerValue::Signed(10 + i128::from(cell)),
+            },
+        })
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &selectors,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type: structural_type_id(CELL_OWNER),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            scalar_fields: &fields,
+            ..Default::default()
+        },
+    )
+    .expect("the verified artifact starts");
+    match execution
+        .resume(
+            &mut TerminalFuelMeter::unbounded(),
+            &mut AcceptTerminalEffects,
+        )
+        .unwrap()
+    {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: IntegerValue::Signed(value),
+                ..
+            },
+        )) => value,
+        other => panic!("the read returns the observed cell: {other:?}"),
+    }
+}
+
+/// A scalar field store's carrier may end in a runtime element. The store
+/// owns the element's bound; the serialized artifact writes exactly the
+/// selected cell's field, which a later literal-path read observes, and a
+/// missing bound rejects.
+#[test]
+fn a_field_store_carrier_crosses_a_runtime_element() {
+    let module = field_store_module(vec![at_most(ROW_SELECTOR, 2)]);
+    let sites = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    assert_eq!(
+        sites
+            .obligations()
+            .iter()
+            .map(|site| (site.obligation.id, site.obligation.proposition.clone()))
+            .collect::<Vec<_>>(),
+        vec![(
+            obligation_id(1),
+            Proposition::LessThan(selector(ROW_SELECTOR), literal(3))
+        )]
+    );
+    let bundle = certificates(&module);
+    for row in 0..3 {
+        let expected = if row == 1 { 77 } else { 11 };
+        assert_eq!(run_cells(&module, &bundle, row), expected, "row {row}");
+    }
+    rejection(&field_store_module(Vec::new()), &ProofBundle::default());
 }

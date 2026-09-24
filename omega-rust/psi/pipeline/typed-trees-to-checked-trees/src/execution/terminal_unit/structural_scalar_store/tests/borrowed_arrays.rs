@@ -90,9 +90,10 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
 }
 
 #[test]
-fn borrowed_fixed_array_element_store_needs_a_literal_index() {
-    // A mutable dynamic index still checks, but must not fabricate a
-    // content-independent unit store plan.
+fn borrowed_fixed_array_element_store_carries_its_runtime_element() {
+    // A dynamic index is the carrier's runtime element: the store names the
+    // selector's retained coordinate, never a fabricated literal hop, and
+    // Terminal re-proves the element's bound.
     let checked = checked(
         "data Record [copy] { value: u16; }
          machine store(records: &mut [Record; 2], index: u64 [0..=1], value: u16) {
@@ -111,20 +112,30 @@ fn borrowed_fixed_array_element_store_needs_a_literal_index() {
     let (structural, scalar) =
         super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[])
             .expect("borrowed array signature");
-    assert!(
-        build_structural_scalar_field_store_sequence(
-            program,
-            &checked.facts,
-            machine,
-            state,
-            &structural,
-            &scalar,
-            0,
-            None,
-        )
-        .is_none(),
-        "a dynamic index is not a source-independent carrier hop"
+    let stores = build_structural_scalar_field_store_sequence(
+        program,
+        &checked.facts,
+        machine,
+        state,
+        &structural,
+        &scalar,
+        0,
+        None,
+    )
+    .expect("a runtime element composes into the carrier");
+    let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] = stores.as_slice()
+    else {
+        panic!("one field store: {stores:#?}");
+    };
+    assert_eq!(
+        store.carrier_path,
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
+            )
+        ]
     );
+    assert_eq!(store.field_identity, "value");
 }
 
 #[test]
