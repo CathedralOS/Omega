@@ -74,13 +74,22 @@ at run time, all interpreter-oracle filesystem fixtures on Windows
 (`repeated_dir_walk_scan_exit`, `windows_fs_raw_breadth_exit`,
 `windows_fs_wrapper_breadth_exit`) that exit 0 where 70 is expected.
 
-On the rooted route the omission sites are: call operation 58, structural
-field store with a case-typed leaf 55, with no pure source 52, with a
-scalar-typed leaf 36, result signature 34, structural call binding 32, guard
-expression 29, unsupported statement kind 27, destination parameter 26, pure
-scalar initializer 21, write-frame agreement 13, bound prefix initializer 12.
-Every site is in `typed-trees-to-checked-trees`, so this wall is
-host-neutral.
+On the rooted route the omission sites, by the phase the construction
+trace names (622 owner failures name one, over 57 phases at `3b4e69c19b`),
+group into families. Stores into a structural field own 230: no pure source
+74, a case-typed leaf 60, a scalar-typed leaf 40, the destination parameter
+40, the carrier path 11, a byte carrier 5. Then structural call binding of a
+local 48, the state graph's result signature 35 (a multi-state machine that
+returns a scalar has no route there), a guard expression 33, an unsupported
+statement kind 31, a pure scalar initializer 28, write-frame agreement 18,
+a bound prefix initializer 16. The 76 that stopped at "call operation" now
+name their guard: a scalar result over structural operands with no
+registered producer 14 (admitted to the closure since `71687a843b`), the
+argument planner's parameter path 11, caller structural result 11, source
+symbol 7, parameter access 4, alias and identity 3, parameter source 1;
+projected operand support 8; boundary arguments 8 and boundary claim
+transfers 7; scalar arguments 1; a linear structural result 1. Every site is
+in `typed-trees-to-checked-trees`, so this wall is host-neutral.
 
 The Windows wall that hid all of this is gone. Until 2026-09-23 every rooted
 fixture that exited through `Console::exit_process` stopped at "selected
@@ -97,7 +106,9 @@ a hosted realization, so the 5 fixtures that print stop there.
 
 Provenance: the owner verdicts are one release-profile run of the whole
 `canary_suite` at `e526ef3f54` (1,511 tests, 447 passed, 25 min on this
-Windows x86-64 host); the run at `bf3640c39d` the day before passed 293.
+Windows x86-64 host); the run at `bf3640c39d` the day before passed 293,
+and the run at `3b4e69c19b` that named the call-operation guards passed
+the same 447 (1,633 s beside other builds).
 Earlier drafts of this record quoted "sections natively established"; that
 predicate counted an umbrella compile without execution and every elided
 fixture as passing, and is retired.
