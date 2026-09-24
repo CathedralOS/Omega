@@ -1,4 +1,10 @@
 //! Type-directed maximal residual complement for finite records and arrays.
+//!
+//! Only the complement is validated: a partially touched node must be a
+//! record or nonempty array whose fields are partial-affine leaves, and each
+//! untouched subtree must be a finite tree of them. A moved subtree transfers
+//! whole with its own custody, so its shape (references included) is the
+//! consumer's concern, not this discard roster's.
 use super::{
     BTreeMap, CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
@@ -64,6 +70,10 @@ fn visit(
     emit: bool,
 ) -> Option<usize> {
     if moved_paths.is_empty() {
+        // Only the complement is discarded here, so only the complement must
+        // be a finite record/array tree of cleanup-free leaves. A moved
+        // subtree leaves whole with its own custody and is never inspected.
+        validate_type(types, current_type, &mut Vec::new(), &mut Vec::new())?;
         if emit {
             residuals.push(CheckedUnitPartialAffineDiscardPlan {
                 source: source.clone(),
@@ -80,6 +90,16 @@ fn visit(
     let mut count = 0_usize;
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields } => {
+            if fields.iter().enumerate().any(|(index, field)| {
+                field.identity.is_empty()
+                    || field.relevance.is_erased()
+                    || !is_partial_affine_field_type(&field.field_type)
+                    || fields[..index]
+                        .iter()
+                        .any(|earlier| earlier.identity == field.identity)
+            }) {
+                return None;
+            }
             let mut matched = 0_usize;
             for field in fields.iter().rev() {
                 let matching = moved_paths.iter().filter_map(|(path, moved_type)| {
@@ -116,7 +136,7 @@ fn visit(
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length,
-        } => {
+        } if *length > 0 => {
             let mut touched = Vec::new();
             for (path, _) in moved_paths {
                 let CheckedUnitStructuralPathSegment::FixedIndex(index) = path[0] else {
@@ -177,7 +197,6 @@ pub(super) fn reconstruct(
     {
         return None;
     }
-    validate_type(types, root_type, &mut Vec::new(), &mut Vec::new())?;
     let mut residuals = Vec::new();
     let count = visit(
         types,

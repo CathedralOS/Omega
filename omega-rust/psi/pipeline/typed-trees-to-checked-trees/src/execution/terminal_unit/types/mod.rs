@@ -47,6 +47,7 @@ pub(super) fn return_unit_affine_discards(
     structural_types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
     let mut structural_result_statements = BTreeMap::new();
+    let mut constructed_result_types = BTreeMap::new();
     for operation in operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())
@@ -62,11 +63,19 @@ pub(super) fn return_unit_affine_discards(
             _ => continue,
         };
         structural_result_statements.insert(result.binding_ordinal, result.statement_index);
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+        ) {
+            constructed_result_types.insert(result.binding_ordinal, result.type_identity.clone());
+        }
     }
     let mut transferred_parameters = BTreeSet::new();
     let mut moved_parameter_paths =
         BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
     let mut named_result_projection = false;
+    let mut moved_result_paths =
+        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
     for operation in operations
         .iter()
         .flat_map(|operation| operation.with_value_calls())
@@ -144,7 +153,21 @@ pub(super) fn return_unit_affine_discards(
                                 })
                         });
                     if !anonymous_temporary {
-                        named_result_projection = true;
+                        // A named local construction moves its projected
+                        // subtree out; the complement check below decides
+                        // whether anything remains that this return edge
+                        // would owe. A named call result's projections belong
+                        // to the partial-result cleanup carrier instead.
+                        match argument
+                            .source_structural_result_binding_ordinal()
+                            .filter(|ordinal| constructed_result_types.contains_key(ordinal))
+                        {
+                            Some(binding_ordinal) => moved_result_paths
+                                .entry(binding_ordinal)
+                                .or_default()
+                                .push((argument.path.clone(), argument.type_identity.clone())),
+                            None => named_result_projection = true,
+                        }
                     }
                 }
             }
@@ -165,6 +188,22 @@ pub(super) fn return_unit_affine_discards(
     }
     if named_result_projection {
         return None;
+    }
+    // Projections that cover a named construction's whole type consume it;
+    // a remaining complement would need a residual discard this return edge
+    // cannot express, so that body stays outside the ordinary lane.
+    for (binding_ordinal, moved_paths) in &moved_result_paths {
+        let rows = super::cleanup::partial_affine_residuals(
+            structural_types,
+            &CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: *binding_ordinal,
+            },
+            constructed_result_types.get(binding_ordinal)?,
+            moved_paths,
+        )?;
+        if !rows.is_empty() {
+            return None;
+        }
     }
     let mut residual_roots = BTreeSet::new();
     let mut residual_affine_discards = Vec::new();
