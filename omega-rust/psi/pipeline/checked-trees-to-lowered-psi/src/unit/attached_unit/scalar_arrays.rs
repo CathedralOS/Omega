@@ -211,6 +211,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {

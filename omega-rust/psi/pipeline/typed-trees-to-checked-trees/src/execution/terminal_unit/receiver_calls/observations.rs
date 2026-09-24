@@ -129,17 +129,15 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
 
 fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
     match expression {
-        CheckedScalarExpression::StructuralParameterByteLength {
-            parameter_position, ..
+        CheckedScalarExpression::StructuralParameterByteLength { root, .. } => {
+            root.parameter() == Some(receiver)
         }
-        | CheckedScalarExpression::StructuralParameterField {
+        CheckedScalarExpression::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == receiver,
-        CheckedScalarExpression::StructuralParameterIndexedRead {
-            parameter_position,
-            index,
-            ..
-        } => *parameter_position == receiver || scalar_reads(index, receiver),
+        CheckedScalarExpression::StructuralParameterIndexedRead { root, index, .. } => {
+            root.parameter() == Some(receiver) || scalar_reads(index, receiver)
+        }
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_reads(left, receiver) || scalar_reads(right, receiver)
         }

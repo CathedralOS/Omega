@@ -38,19 +38,19 @@ data Main {
     line: [u8; 24] in Utf8;       // one rendered row (visible width)
     chars: [u8; 2] in Utf8;       // " #"  dead / alive
     home: [u8; 3] in Utf8;        // ESC [ H
-    gen: i32 [0..=40];
-    c: i32 [0..=364];       // cell flat index
+    gen: i32;               // guard-proven generation counter
+    c: i32;                 // cell flat index
     y: i32;                 // cell row (comparison-only; comparisons carry no obligation)
     x: i32;                 // cell col (comparison-only)
-    noff: i32 [0..=9];      // neighbour offset 0..9
-    nf: i32;                // neighbour flat index (bounded fold from y/x/noff ranges)
-    count: i32 [0..=8];     // live neighbour count (modular-counter increment)
+    noff: i32;              // neighbour offset 0..9
+    nf: i32;                // neighbour flat index (bounded fold from the c/noff guards)
+    count: i32;             // live neighbour count (modular-counter increment)
     v: i32;                 // a read cell value (array reads carry no range facts)
     alive: i32;             // self cell value
     nv: i32;                // next cell value (written 0/1)
-    ry: i32 [0..=13];       // render row
-    vx: i32 [0..=24];       // render visible col 0..24
-    rf: i32;                // render flat index (bounded fold from ry/vx ranges)
+    ry: i32;                // render row
+    vx: i32;                // render visible col 0..24
+    rf: i32;                // render flat index (bounded fold from the ry/vx guards)
     glyph: u8;
     pause: [u8; 256];
 }
@@ -106,7 +106,12 @@ machine Main::main(&mut self) reaches Clock + Console {
     state render_col(&mut self) {
         transition self.vx >= 0 && self.vx < 24 { true -> render_cell() _ -> emit_row() }
     }
+    // Re-assert the row bound: render_row's guard sits behind the render_col
+    // join, so the flat-index arithmetic needs `ry` bounded on its own edge.
     state render_cell(&mut self) {
+        transition self.ry >= 1 && self.ry <= 12 { true -> render_index() _ -> bad() }
+    }
+    state render_index(&mut self) {
         self.rf = self.ry * 26 + (self.vx + 1); // skip the left border column
         transition self.rf >= 0 && self.rf < 364 { true -> render_read() _ -> bad() }
     }
@@ -114,8 +119,8 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.v = self.grid[self.rf];
         transition self.v >= 0 && self.v < 2 { true -> render_put() _ -> bad() }
     }
-    // Re-guard so the increment's direct edge proves `vx + 1` back into
-    // [0..=24] (the edge into render_put carries only the v guard).
+    // Re-guard so the increment's direct edge proves `vx + 1` lands in
+    // [1..=24] (the edge into render_put carries only the v guard).
     state render_put(&mut self) {
         self.glyph = self.chars[self.v];
         self.line[self.vx] = self.glyph;
@@ -125,8 +130,8 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.vx = self.vx + 1;
         transition { _ -> render_col() }
     }
-    // Re-guard so the increment's direct edge proves `ry + 1` back into
-    // [0..=13] (the write_line call severs the render_row guard anyway).
+    // Re-guard so the increment's direct edge proves `ry + 1` lands in
+    // [1..=13] (the write_line call severs the render_row guard anyway).
     state emit_row(&mut self) {
         self.console.write_line(self.line);
         transition self.ry >= 0 && self.ry <= 12 { true -> row_advance() _ -> after_render() }
@@ -150,7 +155,7 @@ machine Main::main(&mut self) reaches Clock + Console {
     }
     // Division/modulo results feed no RANGE fact yet (only the overflow fold
     // understands them), so the (row, col) go through plain temps and a guard:
-    // the guarded edge commits them into the ranged y/x fields.
+    // the guarded edge decides whether c is a real cell or border.
     state cell_xy(&mut self) {
         self.y = self.c / 26;
         self.x = self.c % 26;
@@ -180,13 +185,18 @@ machine Main::main(&mut self) reaches Clock + Console {
         transition self.noff >= 0 && self.noff < 9 { true -> nb_center() _ -> apply_rules() }
     }
     state nb_center(&mut self) {
-        transition self.noff == 4 { true -> nb_advance() _ -> nb_compute() }
+        transition self.noff == 4 { true -> nb_advance() _ -> nb_bounds() }
+    }
+    // Re-guard c: the neighbour loop's join blocks the cell_loop bound from
+    // carrying here, and the flat-index fold below needs it.
+    state nb_bounds(&mut self) {
+        transition self.c >= 0 && self.c < 364 { true -> nb_compute() _ -> bad() }
     }
     state nb_compute(&mut self) {
         // Since c == y*26 + x by construction, the neighbour's flat index is
-        // c + (noff/3 - 1)*26 + (noff%3 - 1) -- computed from the RANGED c so
-        // the overflow fold bounds it (y/x carry no range facts; c does), and
-        // the transition below runtime-guards it as an index.
+        // c + (noff/3 - 1)*26 + (noff%3 - 1) -- computed from the re-guarded c
+        // so the overflow fold bounds it (y/x carry no facts past the join; c
+        // does), and the transition below runtime-guards it as an index.
         self.nf = self.c + (self.noff / 3 - 1) * 26 + (self.noff % 3 - 1);
         transition self.nf >= 0 && self.nf < 364 { true -> nb_read() _ -> nb_advance() }
     }
@@ -194,14 +204,15 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.v = self.grid[self.nf];
         transition self.v == 1 { true -> nb_inc() _ -> nb_advance() }
     }
-    // The modular-counter idiom: `% 9` lands the tally provably back inside
-    // [0..=8] (a cell has at most 8 neighbours, so the wrap never fires).
+    // The modular-counter idiom: reducing the tally `% 9` before the `+ 1`
+    // bounds the operand, and the outer `% 9` keeps it below 9 (a cell has at
+    // most 8 neighbours, so the wrap never fires).
     state nb_inc(&mut self) {
-        self.count = (self.count + 1) % 9;
+        self.count = (self.count % 9 + 1) % 9;
         transition { _ -> nb_advance() }
     }
-    // Re-guard so the increment's direct edge proves `noff + 1` back into
-    // [0..=9] -- always true here (nb_loop only admits noff < 9).
+    // Re-guard so the increment's direct edge proves `noff + 1` lands in
+    // [1..=9] -- always true here (nb_loop only admits noff < 9).
     state nb_advance(&mut self) {
         transition self.noff >= 0 && self.noff < 9 { true -> nb_bump() _ -> apply_rules() }
     }
@@ -256,8 +267,8 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.c = self.c + 1;
         transition { _ -> copy_loop() }
     }
-    // Re-guard so the increment's direct edge proves `gen + 1` back into
-    // [0..=40] (the copy loop's exit edge carries only a c fact).
+    // Re-guard so the increment's direct edge proves `gen + 1` lands in
+    // [1..=40] (the copy loop's exit edge carries only a c fact).
     state gen_next(&mut self) {
         transition self.gen >= 0 && self.gen < 40 { true -> gen_bump() _ -> finish() }
     }

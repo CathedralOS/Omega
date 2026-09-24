@@ -25,10 +25,10 @@ data Main {
     clock: Binding<Clock>;
     line: [u8; 40] in Utf8;
     cr: [u8; 1] in Utf8;
-    p: i32 [0..=40];     // ball column; each move is re-guarded so +1/-1 stays in range
-    dir: i32;            // -1 or +1; only compared, never fed to ranged arithmetic
-    frame: i32 [0..=50]; // guard-proven Exact frame counter
-    x: i32 [0..=40];     // guard-proven Exact clear counter
+    p: i32;              // ball column; each move is re-guarded so +1/-1 stays in [0, 40]
+    dir: i32;            // -1 or +1; only compared, never fed to arithmetic
+    frame: i32;          // guard-proven Exact frame counter
+    x: i32;              // guard-proven Exact clear counter
     pause: [u8; 256];
 }
 

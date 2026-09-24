@@ -229,3 +229,190 @@ fn a_view_of_another_element_type_is_not_admitted() {
             .is_none()
     );
 }
+
+/// The `let` symbol of the local named `name` in `machine`'s entry state.
+fn local_symbol(
+    checked: &checked_trees::CheckedTrees,
+    machine: &str,
+    name: &str,
+) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
+    let machine = crate::lookup::machine_by_symbol(&checked.typed, machine_named(checked, machine))
+        .expect("the machine is present");
+    let state = checked
+        .typed
+        .machine_states(machine)
+        .iter()
+        .next()
+        .expect("the machine has an entry state");
+    let local = checked
+        .typed
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.name.as_str() == name =>
+            {
+                Some(local.symbol)
+            }
+            _ => None,
+        })
+        .expect("the authored local is present");
+    (state.symbol, local)
+}
+
+/// A `let` narrowing an established view local binds the same element range
+/// a call argument carries, rooted at the local instead of a parameter, and
+/// its endpoint is keyed at the statement's own binding site. The narrowed
+/// local is then forwarded as any view local is.
+#[test]
+fn a_view_local_is_narrowed_by_the_argument_range_builder() {
+    let checked = checked(
+        r#"
+        data Holder {
+            values: [i32 in Wrapping; 4];
+        }
+
+        machine observe(view: &[i32 in Wrapping]) {}
+
+        machine Holder::run(&mut self) {
+            let view: &[i32 in Wrapping] = self.values.as_slice();
+            let tail: &[i32 in Wrapping] = view[1..];
+            observe(tail);
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "run"))
+        .unwrap_or_else(|| {
+            panic!(
+                "a narrowed view local keeps its machine in the unit roster: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine_named(&checked, "run"))
+            )
+        });
+    let [
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result: view, .. },
+        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::Complete { .. },
+    ] = plan.operations.as_slice()
+    else {
+        panic!("authored order: view local, narrowed local, call: {plan:?}");
+    };
+    let (state, view_symbol) = local_symbol(&checked, "run", "view");
+    assert_eq!(result.statement_index, 1);
+    assert_eq!(result.binding_ordinal, view.binding_ordinal + 1);
+    assert_eq!(result.type_identity, VIEW_IDENTITY);
+    assert_eq!(
+        result.multiplicity,
+        language_semantics::Multiplicity::Unrestricted
+    );
+    let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+        root,
+        start: Some(start),
+        end: None,
+        ..
+    } = &source.source
+    else {
+        panic!("an element range with a present start and an omitted end: {source:?}");
+    };
+    assert_eq!(
+        *root,
+        checked_trees::CheckedStorageRoot::ViewLocal {
+            symbol: view_symbol
+        }
+    );
+    assert_eq!(source.access, CheckedStructuralAccess::SharedBorrow);
+    let (_, bound) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            state,
+            1,
+            checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+                site: checked_trees::CheckedSubsliceSite::LocalBinding,
+            },
+        )
+        .expect("the start endpoint is source-bound at the binding site");
+    assert_eq!(bound, start);
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one forwarded view argument: {structural_arguments:?}");
+    };
+    assert_eq!(
+        argument.source,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        }
+    );
+}
+
+/// Lengths and element reads of a view local root at the local itself, the
+/// same observation vocabulary a whole view parameter uses.
+#[test]
+fn view_local_lengths_and_reads_root_at_the_local() {
+    let checked = checked(
+        r#"
+        boundary trait Output {
+            machine observe(value: u64) reaches Output;
+        }
+
+        data Holder {
+            values: [u64; 4];
+        }
+
+        machine Holder::run(&mut self) reaches Output {
+            let view: &[u64] = self.values.as_slice();
+            let tail: &[u64] = view[1..];
+            Output::observe(tail.len);
+            Output::observe(tail[0]);
+        }
+    "#,
+    );
+    let (state, tail) = local_symbol(&checked, "run", "tail");
+    let observed = |statement| {
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .find(|expression| {
+                expression.state == state
+                    && expression.statement_ordinal == statement
+                    && matches!(
+                        expression.role,
+                        checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                    )
+            })
+            .map(|expression| expression.expression.clone())
+            .expect("the boundary operand has a pure scalar plan")
+    };
+    let root = checked_trees::CheckedStorageRoot::ViewLocal { symbol: tail };
+    assert_eq!(
+        observed(2),
+        checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+            root,
+            path: Vec::new(),
+        }
+    );
+    assert!(matches!(
+        observed(3),
+        checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+            root: read_root,
+            ref path,
+            primitive_type: typed_trees::types::PrimitiveType::U64,
+            ..
+        } if read_root == root && path.is_empty()
+    ));
+}

@@ -109,25 +109,16 @@ pub(super) fn obligation(
     // A nominal user collection may select its own indexing operation without
     // having builtin array/slice geometry. Selection still rejoins exactly, but
     // this ranges checker has no storage-bound judgment to manufacture for it.
-    // Preconditions on that custom operation cannot silently disappear here.
+    // Its `requires` do not disappear: the selected-operator discharge in
+    // `checks/operators/requires.rs` proves them over the actual operands like
+    // any other selected operator, exactly when `ranges_seam_owns` says no.
     if operands
         .first()
         .copied()
         .flatten()
         .is_some_and(|collection| !has_builtin_collection_geometry(program, collection))
     {
-        return if program
-            .operator_contracts(candidate.operator)
-            .iter()
-            .any(|contract| {
-                contract.kind == typed_trees::signature::SignatureContractKind::Requires
-            }) {
-            Err(failure(
-                "has unsupported selected `requires` on a non-array, non-slice collection",
-            ))
-        } else {
-            Ok(None)
-        };
+        return Ok(None);
     }
     let clauses = clauses::validate(program, candidate.operator, spelling).map_err(&failure)?;
     if !lower_bounds::prove(
@@ -154,6 +145,22 @@ pub(super) fn obligation(
         clauses.labels.join(" && "),
         spelling.symbol()
     )))
+}
+
+/// Whether this ranges seam discharges the selected `[]`/`[..]` operator's
+/// `requires` at `indexed` (builtin array or slice geometry). Otherwise the
+/// selected-operator discharge proves them over the actual operands; the two
+/// checks split every indexed occurrence between them by this one answer.
+pub(in crate::checks) fn ranges_seam_owns(
+    program: &TypedTrees,
+    indexed: &typed_trees::expression::TableIndexedExpression,
+    origin: checked_trees::CheckedValueOrigin,
+) -> bool {
+    crate::operators::indexed_operand_types(program, indexed, origin)
+        .first()
+        .copied()
+        .flatten()
+        .is_none_or(|collection| has_builtin_collection_geometry(program, collection))
 }
 
 fn has_builtin_collection_geometry(

@@ -10,6 +10,8 @@
 //! `expression_plans.rs` drives the plan walk; `scalar_lowering.rs`,
 //! `boolean_lowering.rs`, `call_lowering.rs` and
 //! `machine_parameter_booleans.rs` lower each expression family, and
+//! `subslice_endpoints.rs` lowers range endpoints for every site that narrows
+//! a view, and
 //! `expression_facts.rs` answers the questions they share. The remaining
 //! modules own array constructions, call arguments, case membership,
 //! computations, constant array projection, contract entries, primitive
@@ -31,6 +33,7 @@ mod result_contract;
 mod scalar_lowering;
 mod semantic_casts;
 mod structural_fields;
+mod subslice_endpoints;
 #[cfg(test)]
 mod tests;
 

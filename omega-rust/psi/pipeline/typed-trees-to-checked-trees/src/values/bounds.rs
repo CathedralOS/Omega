@@ -56,12 +56,14 @@ fn integer(
 ) -> Option<(PrimitiveType, IntegerRange)> {
     use CheckedScalarExpression as Expression;
     let (primitive, bounds) = match expression {
-        Expression::StructuralParameterByteLength {
-            parameter_position,
-            path,
-        } => (
+        // A view local's extent has no parameter snapshot; its `u64`
+        // carrier bounds every length it can store.
+        Expression::StructuralParameterByteLength { root, path } => (
             PrimitiveType::U64,
-            source.byte_length(*parameter_position, path)?,
+            match root.parameter() {
+                Some(position) => source.byte_length(position, path)?,
+                None => primitive_range(PrimitiveType::U64)?,
+            },
         ),
         Expression::Parameter {
             position,
@@ -85,7 +87,7 @@ fn integer(
             source.structural_field(*parameter_position, path)?,
         ),
         Expression::StructuralParameterIndexedRead {
-            parameter_position,
+            root,
             path,
             index,
             primitive_type,
@@ -93,7 +95,11 @@ fn integer(
             let index = evaluate(index, source);
             (
                 *primitive_type,
-                source.indexed_field(*parameter_position, path, index.as_ref())?,
+                match root.parameter() {
+                    Some(position) => source.indexed_field(position, path, index.as_ref())?,
+                    // A view local's elements carry only their element type.
+                    None => primitive_range(*primitive_type)?,
+                },
             )
         }
         Expression::IntegerLiteral { literal } => {

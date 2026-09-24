@@ -37,6 +37,20 @@ pub struct CheckedComposedUnitControlMachinePlan {
 pub enum CheckedControlResultPlan {
     Unit,
     Structural(CheckedStructuralResultPlan),
+    /// One primitive scalar value. Each returning state completes it through
+    /// `CheckedComposedUnitControlTerminatorPlan::ReturnScalar`.
+    Scalar {
+        primitive_type: PrimitiveType,
+    },
+}
+
+impl CheckedControlResultPlan {
+    pub fn structural_identity(&self) -> Option<&str> {
+        match self {
+            Self::Structural(result) => Some(&result.type_identity),
+            Self::Unit | Self::Scalar { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +118,11 @@ pub struct CheckedStructuralCaseReturnPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedComposedUnitControlTerminatorPlan {
     ReturnUnit,
+    /// Complete a scalar-result machine with the same completion an ordinary
+    /// single-state body retains; see `CheckedScalarReturnPlan`.
+    ReturnScalar {
+        completion: CheckedScalarReturnPlan,
+    },
     /// Return a completed result from the ordinary structural value namespace.
     ReturnStructural {
         result: crate::CheckedUnitStructuralReturnPlan,
@@ -172,6 +191,22 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     Crash {
         statement_ordinal: u32,
     },
+}
+
+/// How a returning state of a scalar-result graph completes its value. These
+/// are the two completions an ordinary single-state body retains
+/// (`CheckedUnitEffectMachinePlan::scalar_result` and `scalar_control`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarReturnPlan {
+    /// The state's final expression: its last operation binds the returned
+    /// value (a pure or computed `Return`-role expression, or a returned call
+    /// result), or a final name returns an earlier immutable binding.
+    Binding(crate::CheckedUnitScalarResultBindingPlan),
+    /// Value-only transition exits after the ordered prefix: an unconditional
+    /// return, or conditional/ordered arms that each return. Every value is the
+    /// one checking recorded under the `Return` (or `ContinuationReturn`) role
+    /// at the arm's exact statement coordinate.
+    Exits(crate::CheckedUnitScalarControlPlan),
 }
 
 impl CheckedComposedUnitControlStatePlan {

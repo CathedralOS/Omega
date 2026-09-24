@@ -29,22 +29,23 @@ requires
     valid_utf8(self);
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
-// FULLY EXACT -- no overflow domain anywhere: the counters carry ranges with
+// FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 with
 // guard-proven increments (re-guard hops where the loop-head guard is several
-// states upstream), the offsets/distance fold bounded from those ranges, and the
-// ramp level folds through `% 8` (modulo bounds by the divisor).
+// states upstream), the offsets/distance fold bounded from re-guards placed
+// where joins drop the loop guards, and the ramp level folds through `% 8`
+// (modulo bounds by the divisor).
 data Main {
     console: Binding<Console>;
     clock: Binding<Clock>;
     line: [u8; 30] in Utf8;   // one rendered row
     ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
     home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
-    frame: i32 [0..=60];
-    y: i32 [0..=16];
-    x: i32 [0..=30];
-    dx: i32 [-15..=15];       // x - 15 folds bounded from x's range
-    dy: i32 [-8..=8];         // y - 8 folds bounded from y's range
-    dist: i32 [-23..=23];     // dx + dy folds bounded from their ranges
+    frame: i32;
+    y: i32;
+    x: i32;
+    dx: i32;                  // x - 15, then its magnitude; bounded by the re-guards
+    dy: i32;                  // y - 8, then its magnitude; bounded by the re-guards
+    dist: i32;                // dx + dy folds bounded from level_bounds' guard
     level: i32;               // (dist + frame) % 8 folds bounded; range-checked at `bounds`
     c: u8;
     pause: [u8; 256];
@@ -81,24 +82,41 @@ machine Main::main(&mut self) reaches Clock + Console {
     state col_loop(&mut self) {
         transition self.x >= 0 && self.x < 30 { true -> cell() _ -> emit_row() }
     }
+    // Re-assert the row bound: the row_loop guard sits behind the col_loop
+    // join, so the offset arithmetic needs `y` bounded on its own edge.
     state cell(&mut self) {
+        transition self.y >= 0 && self.y < 16 { true -> offsets() _ -> bad() }
+    }
+    state offsets(&mut self) {
         self.dx = self.x - 15; // offset from centre column
         self.dy = self.y - 8;  // offset from centre row
         transition { _ -> abs_dx() }
     }
+    // Each abs step's guard also carries the offset's lower bound (always true:
+    // dx >= -15, dy >= -8) so the negation is exact.
     state abs_dx(&mut self) {
-        transition self.dx < 0 { true -> neg_dx() _ -> chk_dy() }
+        transition self.dx < 0 && self.dx >= -15 { true -> neg_dx() _ -> chk_dy() }
     }
     state neg_dx(&mut self) {
         self.dx = 0 - self.dx;
         transition { _ -> chk_dy() }
     }
     state chk_dy(&mut self) {
-        transition self.dy < 0 { true -> neg_dy() _ -> level_calc() }
+        transition self.dy < 0 && self.dy >= -8 { true -> neg_dy() _ -> level_bounds() }
     }
     state neg_dy(&mut self) {
         self.dy = 0 - self.dy;
-        transition { _ -> level_calc() }
+        transition { _ -> level_bounds() }
+    }
+    // The two abs arms join here, so re-assert the folded magnitudes and the
+    // frame counter on the direct edge into level_calc (always true: |dx| <= 15,
+    // |dy| <= 8, 0 <= frame < 60).
+    state level_bounds(&mut self) {
+        transition self.dx >= 0 && self.dx <= 15 && self.dy >= 0 && self.dy <= 8
+                && self.frame >= 0 && self.frame < 60 {
+            true -> level_calc()
+            _ -> bad()
+        }
     }
     state level_calc(&mut self) {
         // Manhattan distance to centre (LINEAR in radius -> evenly spaced rings),

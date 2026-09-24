@@ -34,7 +34,7 @@ fn range_source(
         panic!("selected edge");
     };
     let CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-        parameter_index: 0,
+        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         expression,
     } = when_true.transfers[0].source
     else {
@@ -82,14 +82,18 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
     );
     for (role, endpoint) in [
         (
-            CheckedScalarExpressionRole::TransitionSubsliceStart {
-                argument_ordinal: 1,
+            CheckedScalarExpressionRole::SubsliceStart {
+                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                    argument_ordinal: 1,
+                },
             },
             range.start,
         ),
         (
-            CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                argument_ordinal: 1,
+            CheckedScalarExpressionRole::SubsliceEnd {
+                site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                    argument_ordinal: 1,
+                },
             },
             range.end,
         ),
@@ -109,12 +113,10 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
         bindings.expression_at(
             state,
             0,
-            CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                argument_ordinal: 1
-            }
+            CheckedScalarExpressionRole::SubsliceEnd { site: checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal: 1 } }
         ),
         Some(CheckedScalarExpression::StructuralParameterByteLength {
-            parameter_position: 0, path
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path
         }) if path.is_empty()
     ));
     assert!(
@@ -122,8 +124,10 @@ fn guarded_byte_tail_retains_full_source_and_authored_endpoint_positions() {
             .bound_expression_at(
                 state,
                 0,
-                CheckedScalarExpressionRole::TransitionSubsliceStart {
-                    argument_ordinal: 0
+                CheckedScalarExpressionRole::SubsliceStart {
+                    site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        argument_ordinal: 0
+                    }
                 }
             )
             .is_none(),
@@ -144,11 +148,15 @@ fn byte_tail_plan_rejects_missing_duplicate_or_drifted_endpoint_custody() {
         .states[0]
         .state;
     for role in [
-        CheckedScalarExpressionRole::TransitionSubsliceStart {
-            argument_ordinal: 1,
+        CheckedScalarExpressionRole::SubsliceStart {
+            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                argument_ordinal: 1,
+            },
         },
-        CheckedScalarExpressionRole::TransitionSubsliceEnd {
-            argument_ordinal: 1,
+        CheckedScalarExpressionRole::SubsliceEnd {
+            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                argument_ordinal: 1,
+            },
         },
     ] {
         for mutation in 0..5 {
@@ -315,8 +323,10 @@ fn whole_byte_view_and_omitted_subslice_endpoints_keep_distinct_transfers() {
                 .bound_expression_at(
                     plan.states[0].state,
                     0,
-                    CheckedScalarExpressionRole::TransitionSubsliceStart {
-                        argument_ordinal: 1
+                    CheckedScalarExpressionRole::SubsliceStart {
+                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                            argument_ordinal: 1
+                        }
                     }
                 )
                 .is_some(),
@@ -327,8 +337,10 @@ fn whole_byte_view_and_omitted_subslice_endpoints_keep_distinct_transfers() {
                 .bound_expression_at(
                     plan.states[0].state,
                     0,
-                    CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                        argument_ordinal: 1
+                    CheckedScalarExpressionRole::SubsliceEnd {
+                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                            argument_ordinal: 1
+                        }
                     }
                 )
                 .is_some(),

@@ -23,7 +23,7 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     nums: [f64; 6];
-    i: i32 [0..=6];
+    i: i32;
     cur: f64;
     lo: f64;
     hi: f64;
@@ -72,7 +72,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
-    // `bump` proves `i + 1` stays within [0..=6] -- fully Exact, no domain.
+    // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
     state advance(&mut self) {
         transition self.i < 6 {
             true -> bump()

@@ -1960,3 +1960,47 @@ construction (consolidated same-day) — a standalone tool would be machinery
 without a customer. When task-board-cleanup runs next, cite this: generate
 keyword-overlap candidate pairs, per-pair merge/distinct/needs_review
 requests (~$0.0005 each), act only on `merge` picks.
+
+## 2026-09-24 (cont.) — spec-drift + claims-fence: two more advisories deployed
+
+Fence adequacy (tools/swarm/launch.py partition_hints -> jev_fence): 12-case
+worked example caught every real under-fence (7/7), runs strict toward
+flagging — the safe direction for a launch advisory. Live: fired on 5/5
+probe-manifest sessions.
+
+Spec drift (tools/spec_drift_advisor.py): worked example 9/10 — both real
+moved-file drift cases caught, plus honest unverifiable hedging on partial
+evidence (Jev refused to confirm canary-jobs-cap when the evidence excerpt
+omitted the available_parallelism call — fourth out-labeling instance).
+Deployment lesson: path claims need a crate-relative resolver (`psi/` ->
+`omega-rust/psi/`); naive root-only resolution manufactures false drift.
+Mechanical stale-path layer is the high-precision one; semantic verdicts
+stay hedged on policy prose.
+
+## 2026-09-24 (cont.) — recheck-failure attribution: sixth instrument
+
+--base X --attribute LOG on test_affected.py: classifies each failure in a
+captured log against the candidate diff (YOURS / baseline / environmental).
+Worked example 7/7 — the discriminating cases were the hard ones: a real
+regression attributed to its own commit while a real regression under an
+innocent docs commit read baseline, and the FIFO timing flake read
+environmental. Live dogfood: catalog-path failure under a tools/ diff
+flagged YOURS (defensible — the diff touched the neighboring file), Float
+wall and FIFO flake both read baseline. Parses nextest/pytest/error lines,
+skips result-summary lines, solo calls per failure.
+
+## 2026-09-24 (cont.) — commit-message accuracy: tested, NOT a fit (negative result)
+
+Worked example: 5 real commits verified accurate + 3 synthetics
+(overclaim-perf, mismatched-docs, overclaim-scope). Result: all 5 real
+commits flagged overclaims under both question wordings; all 3 synthetics
+correct. Root cause is structural, not tuning: the repo rule allows claims
+supported by "observed validation," and a commit body's validation claims
+are self-reported assertions — unverifiable from (message, diff) alone.
+Jev applies the strict reading and will not trust assertions, so every
+honest commit false-flags. The mismatched-only slice works (docs-only diff
+under a "psi fix" subject caught), but that narrow check cannot carry a
+deployment. NOT DEPLOYED. Reusable lesson: Jev-shaped surfaces need
+verifiable evidence in the packet — self-reported claims are unverifiable
+by construction. If commit-evidence receipts (e.g., a landed report-file
+artifact referenced by hash) ever exist, this surface becomes real.

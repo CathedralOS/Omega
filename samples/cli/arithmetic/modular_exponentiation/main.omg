@@ -4,24 +4,24 @@
 // large base^exponent. Here 3 ^ 7 mod 100 = 2187 mod 100 = 87.
 //
 // Showcases the full integer-arithmetic kit over a self-transition loop, FULLY
-// EXACT -- no Trapping, no Wrapping: the RANGE refinements make every product
-// verifiably bounded ((result * base) <= 99*99 = 9801, far under i32::MAX) and
-// every `% m` divisor provably nonzero, so the decision-17 obligations
-// discharge by proof. When arithmetic is verifiably bounded, no overflow
-// domain is needed -- the avionics posture. `% 2` / `/ 2` are constant
-// divisors; the parity branch reads the exponent's low bit.
+// EXACT -- no Trapping, no Wrapping: each factor is reduced `% 100` before it
+// is multiplied, so every product is verifiably bounded (|result * base| <=
+// 99*99 = 9801, far under i32::MAX) and every `% m` divisor is provably
+// nonzero, so the decision-17 obligations discharge by proof. When arithmetic
+// is verifiably bounded, no overflow domain is needed -- the avionics posture.
+// `% 2` / `/ 2` are constant divisors; the parity branch reads the exponent's
+// low bit.
 // Expected exit: 87.
 
 use omega_language_std::console;
 use omega::language::core::binding;
 
 // The modulus is the CONSTANT 100 at each `%` site (a constant divisor is
-// provably nonzero). A `modulus: i32 [1..=100]` FIELD would be rejected: this
-// data is zero-initialized, and a range excluding 0 on a ZII field would let
-// reads trust a bound the startup value violates.
+// provably nonzero). A `modulus` FIELD would need its own nonzero proof at
+// every `%`: this data is zero-initialized, so a stored field starts at 0.
 data ModExp [copy] {
-    result: i32 [0..=99];
-    base: i32 [0..=99];
+    result: i32;
+    base: i32;
     exponent: i32;
 }
 
@@ -61,7 +61,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state accumulate(&mut self) {
-        self.state.result = (self.state.result * self.state.base) % 100;
+        self.state.result = ((self.state.result % 100) * (self.state.base % 100)) % 100;
         transition {
             _ -> square()
         }
@@ -69,7 +69,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Square the base and halve the exponent for the next bit.
     state square(&mut self) {
-        self.state.base = (self.state.base * self.state.base) % 100;
+        self.state.base = ((self.state.base % 100) * (self.state.base % 100)) % 100;
         self.state.exponent = self.state.exponent / 2;
         transition {
             _ -> step()

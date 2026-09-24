@@ -264,6 +264,24 @@ fn enforced_range_of_type_reference(
                     return None;
                 }
                 for constraint in constraints {
+                    // A DECLARED domain on the place carries its predicates as
+                    // an invariant of every value that reaches it: membership
+                    // requires every predicate, and a place declared `in D`
+                    // establishes D at every write. So each predicate the
+                    // reader recognizes as a closed integer bound is a true
+                    // bound of the place, exactly as a bracketed range is.
+                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                        && let Some((minimum, maximum)) =
+                            validation::declared_domain_predicate_bounds(program, domain)
+                    {
+                        bounds = Some(match bounds {
+                            Some((prior_minimum, prior_maximum)) => {
+                                (minimum.max(prior_minimum), maximum.min(prior_maximum))
+                            }
+                            None => (minimum, maximum),
+                        });
+                        continue;
+                    }
                     let typed_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,

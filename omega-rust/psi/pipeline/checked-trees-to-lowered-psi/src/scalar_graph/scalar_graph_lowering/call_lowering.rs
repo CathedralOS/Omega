@@ -357,11 +357,17 @@ pub(crate) fn lower_scalar_graph_successor(
                 });
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                parameter_index,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
                 expression,
             }
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                parameter_index,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_index,
+                    },
                 expression,
             } => {
                 let element = matches!(
@@ -413,8 +419,10 @@ pub(crate) fn lower_scalar_graph_successor(
                     };
                 let start = endpoint(
                     range.start,
-                    CheckedScalarExpressionRole::TransitionSubsliceStart {
-                        argument_ordinal: retained_target.position,
+                    CheckedScalarExpressionRole::SubsliceStart {
+                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                            argument_ordinal: retained_target.position,
+                        },
                     },
                 )?
                 .ok_or(LoweringError::Unsupported(
@@ -422,8 +430,10 @@ pub(crate) fn lower_scalar_graph_successor(
                 ))?;
                 let end = endpoint(
                     range.end,
-                    CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                        argument_ordinal: retained_target.position,
+                    CheckedScalarExpressionRole::SubsliceEnd {
+                        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                            argument_ordinal: retained_target.position,
+                        },
                     },
                 )?;
                 let source = scalar_bindings.shared_structural_argument(

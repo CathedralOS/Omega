@@ -22,7 +22,7 @@ use crate::optimization_unit::identity::structural_encoding::{
     encode_structural_domain, encode_structural_type,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v29\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v30\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -404,6 +404,7 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
         bytes.id(*claim);
     }
     encode_ids(bytes, &function.published_service_ceiling);
+    encode_ids(bytes, &function.declared_service_reach);
     bytes.slice(&function.facts, encode_fact);
     bytes.len(function.blocks.len());
     for block in &function.blocks {

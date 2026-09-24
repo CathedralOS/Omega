@@ -40,10 +40,18 @@ pub(super) fn validate_establishment(
     let parameter_index = match &source.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
         | CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         }
         | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         } => *parameter_index,
         _ => return unsupported("reference establishment requires retained ingress custody"),
     };

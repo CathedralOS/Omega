@@ -19,6 +19,7 @@ pub(in crate::unit::attached_unit::composed_control) fn successors(
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
     match &state.terminator {
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
         | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
         | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
         | CheckedComposedUnitControlTerminatorPlan::Crash { .. } => Vec::new(),
@@ -193,35 +194,43 @@ pub(super) fn validate_bindings(
             binding_ordinal,
         } = transfer.source
         {
-            let mut matching = state
-                .operations
-                .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    } if result.binding_ordinal == binding_ordinal => Some(result),
-                    _ => None,
-                });
+            let mut matching =
+                state
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::StructuralCall {
+                            result,
+                            discard_result_on_return: false,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                            result,
+                            discard_result_on_return: false,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                            result,
+                            discard_result_on_return: false,
+                            ..
+                        }
+                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                            result, ..
+                        } if result.binding_ordinal == binding_ordinal => Some(result),
+                        _ => None,
+                    });
             let result = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit graph transferred result missing",
             ))?;
+            // An owned local moves into the target; a view local lends its
+            // shared view, which owns nothing and so leaves no partition.
+            let shared_view = target.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
             if matching.next().is_some()
                 || result.statement_index >= edge.statement_ordinal
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || !(target.access == checked_trees::CheckedStructuralAccess::Owned
+                    || (shared_view && result.multiplicity == Multiplicity::Unrestricted))
                 || !target.qualifications.is_empty()
                 || target.multiplicity != result.multiplicity
                 || target.type_identity != result.type_identity
@@ -246,7 +255,44 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph result argument lost its actual local");
             }
-            result_custody::validate(checked, plan.machine, source, local, result)?;
+            if shared_view {
+                view_local_result(checked, source, state, local.symbol, edge.statement_ordinal)?;
+            } else {
+                result_custody::validate(checked, plan.machine, source, local, result)?;
+            }
+            continue;
+        }
+        if let Some((root, _, expression)) = subslices::transfer_range(&transfer.source) {
+            // A view subslice narrows a whole view parameter or a view local
+            // the state body established; either way the target receives a
+            // fresh shared view of the source's own type. The range itself is
+            // replayed at its edge site when the edge emits it.
+            if arguments.get(target.position as usize) != Some(&expression) {
+                return unsupported("Unit graph subslice disagrees with its source argument");
+            }
+            let source_type = match root {
+                checked_trees::CheckedStorageRoot::Parameter { index } => {
+                    let source = state.structural_parameters.get(index as usize).ok_or(
+                        LoweringError::Unsupported("Unit graph borrowed transfer source missing"),
+                    )?;
+                    if source.access != target.access || source.multiplicity != target.multiplicity
+                    {
+                        return unsupported("Unit graph borrowed transfer type or order drifted");
+                    }
+                    &source.type_identity
+                }
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
+                    view_local_result(checked, source, state, symbol, edge.statement_ordinal)?
+                }
+            };
+            if transfer.target_parameter_index as usize != position
+                || target.is_self
+                || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || target.multiplicity != Multiplicity::Unrestricted
+                || *source_type != target.type_identity
+            {
+                return unsupported("Unit graph borrowed transfer type or order drifted");
+            }
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
@@ -426,13 +472,11 @@ pub(super) fn validate_bindings(
             } => return unsupported("Unit graph result was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => index,
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                parameter_index,
                 ..
             }
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                parameter_index,
                 ..
-            } => parameter_index,
+            } => return unsupported("Unit graph subslice was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
@@ -464,26 +508,11 @@ pub(super) fn validate_bindings(
                 }
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                expression,
                 ..
-            } => {
-                if arguments.get(target.position as usize) != Some(&expression) {
-                    return unsupported("Unit graph subslice disagrees with its source argument");
-                }
-                subslices::validate(
-                    checked,
-                    state,
-                    edge.statement_ordinal,
-                    target.position,
-                    source.position,
-                    expression,
-                )?;
             }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+            | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
-            } => {
-                return unsupported("element view subslice transfer has no Terminal descriptor");
-            }
+            } => return unsupported("Unit graph subslice was not independently rejoined"),
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
@@ -560,6 +589,42 @@ pub(super) fn validate_bindings(
         )?;
     }
     Ok(())
+}
+
+/// The type identity of the view local `symbol` that the state body
+/// established before `statement`: the unique shared view result an
+/// `as_slice` loan or a subslice binding published for that `let`.
+fn view_local_result<'a>(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    state: &'a CheckedComposedUnitControlStatePlan,
+    symbol: symbols::SymbolHandle,
+    statement: u32,
+) -> Result<&'a String, LoweringError> {
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    let mut matching = state.operations.iter().filter_map(|operation| {
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
+            _ => return None,
+        };
+        matches!(
+            statements.get(result.statement_index as usize),
+            Some(checked_trees::statement::StatementNode::LocalData(local))
+                if local.symbol == symbol && !local.is_mutable
+        )
+        .then_some(result)
+    });
+    let result = matching.next().ok_or(LoweringError::Unsupported(
+        "Unit graph view local has no establishment",
+    ))?;
+    if matching.next().is_some()
+        || result.statement_index >= statement
+        || result.multiplicity != Multiplicity::Unrestricted
+    {
+        return unsupported("Unit graph view local establishment drifted");
+    }
+    Ok(&result.type_identity)
 }
 
 fn validate_cleanup(

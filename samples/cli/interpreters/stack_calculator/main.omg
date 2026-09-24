@@ -5,11 +5,11 @@
 //   push v   ->  stack[sp] = v; sp = sp + 1     (guard sp < CAP first)
 //   pop      ->  sp = sp - 1;   x = stack[sp]    (guard sp > 0 first)
 //
-// AUTHORING RECIPE: the stack pointer is `i32 [0..=8]`, fully Exact -- every
+// AUTHORING RECIPE: the stack pointer is a plain `i32`, fully Exact -- every
 // push/pop step is guard-proven, because this sample already re-guards
 // `sp >= 0 && sp < CAP` (or the pop-side `sp >= k && sp <= CAP`) on the DIRECT
 // edge into each state that moves `sp`, which both discharges the index-bounds
-// obligation and proves `sp + 1` / `sp - 1` land back inside the range. The
+// obligation and proves the `sp + 1` / `sp - 1` steps exact. The
 // operand VALUES flow through the stack array, and array elements carry no
 // range facts yet, so the value plumbing (stack/a/b/acc) is declared Wrapping.
 //
@@ -24,7 +24,7 @@ data Main {
     // Wrapping DECLARED (stack/a/b/acc): the operands round-trip through array
     // elements, which carry no range facts yet.
     stack: [i32; 8] in Wrapping;
-    sp: i32 [0..=8];
+    sp: i32;
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     acc: i32 in Wrapping;

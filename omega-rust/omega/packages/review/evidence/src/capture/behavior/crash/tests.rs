@@ -3,7 +3,7 @@ use super::expressions::project_boolean_expression;
 #[test]
 fn byte_length_observation_is_not_projected_as_scalar_parameter_evidence() {
     let operand = checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
-        parameter_position: 0,
+        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
         path: Vec::new(),
     };
     let expression = checked_trees::CheckedBooleanExpression::IntegerComparison {

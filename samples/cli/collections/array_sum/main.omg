@@ -7,7 +7,7 @@
 // Exact result is qualified `in Wrapping` to match the accumulator's arithmetic
 // domain. Wrapping is DECLARED on the accumulator because array elements carry
 // no range facts yet, so the sum cannot prove its bounds; the loop counter is a
-// guard-proven Exact range.
+// guard-proven Exact i32.
 //
 // Expected exit: 70.
 
@@ -18,7 +18,7 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     nums: [i32; 2];
-    i: i32 [0..=2];
+    i: i32;
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
     pause: [u8; 256];
 }

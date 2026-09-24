@@ -350,8 +350,10 @@ fn unconditional_windows_preserve_omitted_endpoints_and_empty_views() {
 #[test]
 fn endpoint_bindings_cannot_move_between_state_edges() {
     let checked = crate::front_end::checked_program(SOURCE);
-    let role = checked_trees::CheckedScalarExpressionRole::TransitionSubsliceStart {
-        argument_ordinal: 0,
+    let role = checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+        site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+            argument_ordinal: 0,
+        },
     };
     let handles = checked
         .facts

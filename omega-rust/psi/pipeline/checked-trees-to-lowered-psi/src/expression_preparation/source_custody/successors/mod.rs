@@ -215,11 +215,17 @@ pub(super) fn validate(
                 }
             }
             CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                parameter_index: source_index,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: source_index,
+                    },
                 expression,
             }
             | CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                parameter_index: source_index,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: source_index,
+                    },
                 expression,
             } => {
                 let retained_source = source
@@ -304,14 +310,18 @@ pub(super) fn validate(
                 for (endpoint, role) in [
                     (
                         range.start,
-                        checked_trees::CheckedScalarExpressionRole::TransitionSubsliceStart {
-                            argument_ordinal: retained_target.position,
+                        checked_trees::CheckedScalarExpressionRole::SubsliceStart {
+                            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                                argument_ordinal: retained_target.position,
+                            },
                         },
                     ),
                     (
                         range.end,
-                        checked_trees::CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                            argument_ordinal: retained_target.position,
+                        checked_trees::CheckedScalarExpressionRole::SubsliceEnd {
+                            site: checked_trees::CheckedSubsliceSite::TransitionArgument {
+                                argument_ordinal: retained_target.position,
+                            },
                         },
                     ),
                 ] {
