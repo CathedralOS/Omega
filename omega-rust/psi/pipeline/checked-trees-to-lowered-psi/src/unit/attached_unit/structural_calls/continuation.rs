@@ -1,4 +1,5 @@
 //! Rejoin the exact temporary owner and its normal call cleanup.
+use super::super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     StatementNode, shared_temporary, unsupported,
@@ -212,7 +213,13 @@ pub(crate) fn validate_cleanup(
         else {
             return unsupported("call cleanup lost its expression-owned source");
         };
-        return shared_temporary::validate(checked, caller, producer, *coordinate, expression);
+        return shared_temporary::validate(
+            checked,
+            &CallerView::ordinary(caller),
+            producer,
+            *coordinate,
+            expression,
+        );
     }
     if call != coordinate || coordinate.call_ordinal != 0 {
         return unsupported("call cleanup substituted its consumer");

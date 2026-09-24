@@ -1,17 +1,23 @@
 //! Fail-closed rejoin of the composed carrier to checked flow and contracts.
+//!
+//! A state's calls are admitted by the same call admission an ordinary
+//! body's are (`attached_unit::admission::calls`), over a `CallerView` of
+//! that state; `admit_calls` only runs it per state and names which other
+//! operations a state may hold. The graph itself (`state_graph::admission`)
+//! and the direct dynamic continuation below decide what else each route
+//! admits: the dynamic continuation's leaves stay exact call-and-return
+//! states whose boundaries carry no claims (`validate_leaf`,
+//! `validate_claim_free_boundary`).
 use super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, CheckedUnitStructuralTypeShape, terminal_scalar_type,
+    CheckedComposedUnitControlTerminatorPlan, CheckedUnitStructuralTypeShape,
 };
+use super::super::admission::{CallerView, admit_call};
 use super::super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan, Multiplicity, checked_unit_target_reach_matches,
-    retain_exact_unit_boundary, unique_unit_boundary, unsupported,
+    CheckedUnitEffectOperationPlan, Multiplicity, checked_terminal_machine_name, unsupported,
 };
-use super::{CheckedTrees, LoweringError, internal_calls};
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use super::{CheckedTrees, LoweringError};
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
 
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
@@ -299,10 +305,11 @@ pub(super) fn admit_call_targets<'a>(
     ),
     LoweringError,
 > {
-    let (boundaries, internal_targets) = retain_call_targets(checked, machine, call_states)?;
+    let boundaries = admit_calls(checked, machine, call_states)?;
     for (boundary, _) in &boundaries {
         validate_claim_free_boundary(boundary)?;
     }
+    let internal_targets = unit_targets(checked, machine, call_states)?;
     // Only signature-directed boundary calls are provider obligations; a
     // boundary-declaration call (`target_machine != target_state`) settles
     // through the called machine's own boundary seam.
@@ -379,64 +386,31 @@ pub(super) fn validate_claim_free_boundary(
     Ok(())
 }
 
-pub(super) fn retain_call_targets<'a>(
+/// Admit every call the given states make through the one call admission an
+/// ordinary body's calls take (`admission::calls`), each against its own
+/// state's operations, parameters and entry claims, and return the boundaries
+/// those calls name. The operations a state may hold besides calls are the
+/// graph's to decide; any other operation is refused here.
+pub(super) fn admit_calls<'a>(
     checked: &'a CheckedTrees,
     machine: symbols::SymbolHandle,
     call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
-) -> Result<
-    (
-        Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-        Vec<(UnitBody<'a>, String)>,
-    ),
-    LoweringError,
-> {
+) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, String)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut boundaries = Vec::new();
-    let mut internal_targets = Vec::new();
     for state in call_states.iter().copied() {
+        let caller = CallerView::state(machine, state);
         for operation in state.operation_dependencies() {
+            admit_call(checked, plans, &caller, operation, &mut boundaries)?;
             match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
-                    retain_call_boundary(
-                        checked,
-                        machine,
-                        state,
-                        operation,
-                        plans,
-                        &mut boundaries,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::CallUnit { .. }
-                | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                    internal_calls::admission::retain_call_target(
-                        checked,
-                        machine,
-                        state,
-                        operation,
-                        plans,
-                        &mut internal_targets,
-                    )?;
-                }
-                CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                    retain_scalar_call(checked, machine, state, operation)?;
-                }
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } => {
-                    // A call bound inside the construction shares its owner's
-                    // statement custody; only the callee's own retention
-                    // applies to the member call.
-                    for call in calls {
-                        internal_calls::admission::retain_value_call_target(
-                            checked,
-                            machine,
-                            state,
-                            call.operation(),
-                            plans,
-                            &mut internal_targets,
-                        )?;
-                    }
-                }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+                | CheckedUnitEffectOperationPlan::CallUnit { .. }
+                | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -459,15 +433,49 @@ pub(super) fn retain_call_targets<'a>(
     if boundaries.windows(2).any(|pair| pair[0].1 == pair[1].1) {
         return unsupported("composed Unit boundaries have duplicate canonical identities");
     }
-    internal_targets.sort_by(|left, right| left.1.cmp(&right.1));
-    for pair in internal_targets.windows(2) {
-        if pair[0].1 == pair[1].1 && pair[0].0.entry()?.machine != pair[1].0.entry()?.machine {
-            return unsupported(
-                "composed Unit internal targets have duplicate canonical identities",
-            );
+    Ok(boundaries)
+}
+
+/// The Unit bodies a standalone composed catalog must lower for these
+/// states' calls, member calls included, in canonical identity order.
+fn unit_targets<'a>(
+    checked: &'a CheckedTrees,
+    machine: symbols::SymbolHandle,
+    call_states: &[&'a checked_trees::CheckedComposedUnitControlStatePlan],
+) -> Result<Vec<(UnitBody<'a>, String)>, LoweringError> {
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    let mut targets = Vec::<(UnitBody<'a>, String)>::new();
+    for operation in call_states
+        .iter()
+        .flat_map(|state| state.operation_dependencies())
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+    {
+        let (CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }) = operation
+        else {
+            continue;
+        };
+        // A standalone catalog lowers its callees as a closure of their own;
+        // its root is not one of them.
+        if *target_machine == machine {
+            return unsupported("composed internal Unit call is recursive");
         }
+        if targets
+            .iter()
+            .any(|(target, _)| target.machine() == *target_machine)
+        {
+            continue;
+        }
+        targets.push((
+            UnitBody::find(plans, *target_machine)?,
+            checked_terminal_machine_name(checked, *target_machine)?.to_owned(),
+        ));
     }
-    Ok((boundaries, internal_targets))
+    targets.sort_by(|left, right| left.1.cmp(&right.1));
+    if targets.windows(2).any(|pair| pair[0].1 == pair[1].1) {
+        return unsupported("composed Unit internal targets have duplicate canonical identities");
+    }
+    Ok(targets)
 }
 
 pub(super) fn validate_contract(
@@ -490,257 +498,6 @@ pub(super) fn validate_contract(
     Ok(())
 }
 
-pub(super) fn retain_call_boundary<'a>(
-    checked: &'a CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &'a checked_trees::CheckedComposedUnitControlStatePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-    plans: UnitPlans<'a>,
-    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-) -> Result<(), LoweringError> {
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        machine,
-        state.state,
-        operation,
-        &state.structural_parameters,
-    )?;
-    let (CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        ..
-    }) = operation
-    else {
-        unreachable!("leaf shape was validated")
-    };
-    retain_exact_flow_call(checked, machine, state.state, *coordinate, *target_state)?;
-    let expected_result = match operation {
-        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            result,
-            completion_receipts,
-            ..
-        } => {
-            let target = unique_unit_boundary(plans, *target_machine)?;
-            // A discarded structural result pairs with its call's cleanup
-            // continuation: custody stays inside the state sequence and the
-            // boundary keeps its declared result shape rather than the
-            // claim-free affine transfer roster.
-            let cleanup_disposed = state.operations.iter().any(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                        coordinate: cleanup_coordinate,
-                        affine_discards,
-                    } if *cleanup_coordinate == *coordinate
-                        && affine_discards.iter().any(|discard| matches!(
-                            discard.source,
-                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal,
-                            } if binding_ordinal == result.binding_ordinal
-                        ))
-                )
-            });
-            if cleanup_disposed {
-                if !completion_receipts.is_empty() {
-                    return unsupported("composed Unit discarded result kept receipt custody");
-                }
-                return retain_exact_unit_boundary(
-                    checked,
-                    plans,
-                    boundaries,
-                    *target_machine,
-                    *target_state,
-                    *target_contract_report_fingerprint,
-                    *service_reach,
-                    target.result.clone(),
-                );
-            }
-            // The graph validates the shared result namespace and each
-            // edge's ownership disposition. Target retention must not infer
-            // either from the number of boundary calls or the terminator shape.
-            // Borrowed operands do not become ownership of the result. Source
-            // custody above and validate_transfer_shape at emission replay each
-            // input independently; the result keeps its exact declared type and
-            // multiplicity. Copy results owe dominance, affine results also owe
-            // the per-edge disposal checked by result_custody.
-            // Qualified results are admitted: the caller-side establishment
-            // mint for each declared result domain is replayed at emission
-            // from the CallEnsures evidence (call_result_qualification_
-            // establishments), so the boundary keeps its declared quals.
-            if !completion_receipts.is_empty()
-                || !matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                )
-                || !matches!(&target.result, CheckedBoundaryMachineResultPlan::Structural {
-                    type_identity, multiplicity, ..
-                } if type_identity == &result.type_identity && *multiplicity == result.multiplicity)
-            {
-                return unsupported(
-                    "composed Unit local result escaped its claim-free return custody",
-                );
-            }
-            target.result.clone()
-        }
-        _ => CheckedBoundaryMachineResultPlan::Unit,
-    };
-    retain_exact_unit_boundary(
-        checked,
-        plans,
-        boundaries,
-        *target_machine,
-        *target_state,
-        *target_contract_report_fingerprint,
-        *service_reach,
-        expected_result,
-    )
-}
-
-/// A scalar call in a composed state rejoins the same checked custody the
-/// ordinary operation path requires: exact flow occurrence, a callee resolvable
-/// by the shared scalar-call catalog, and its exact contract, signature, and
-/// reach. The callee enters the composed scalar catalog during preparation;
-/// structural custody has no composed rejoiner yet, so claim or structural
-/// operands stay unsupported.
-fn retain_scalar_call(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Result<(), LoweringError> {
-    crate::emission::call_source_custody::validate_operation(
-        checked,
-        machine,
-        state.state,
-        operation,
-        &state.structural_parameters,
-    )?;
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate,
-        result,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        target_contract_commitment,
-        service_reach,
-        scalar_arguments,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
-    else {
-        unreachable!("dispatched scalar call");
-    };
-    let source_call =
-        crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
-            checked,
-            machine,
-            state.state,
-            *coordinate,
-            *target_state,
-        )?;
-    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
-    // Claim custody still has no composed rejoiner. Structural actuals do join:
-    // the checked rows must name the exact authored operand at each structural
-    // formal position, and every shape the composed emitter cannot materialize
-    // stays unsupported.
-    if matches!(target, CheckedScalarCallee::Boundary(_)) || !claim_transfers.is_empty() {
-        return unsupported("composed Unit scalar call requires structural call custody");
-    }
-    retain_scalar_call_structural_arguments(
-        checked,
-        machine,
-        state,
-        *coordinate,
-        *target_machine,
-        *target_state,
-        structural_arguments,
-    )?;
-    let contract = checked
-        .facts
-        .contract_plans
-        .for_machine(*target_machine)
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit scalar call target has no checked contract",
-        ))?;
-    let target_reaches = checked
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, candidate)| {
-            candidate.machine_symbol == *target_machine && candidate.state_symbol == *target_state
-        })
-        .map(|(_, candidate)| candidate.service_reach)
-        .collect::<Vec<_>>();
-    let reach_matches = match &target {
-        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
-            target_reaches.as_slice() == [*service_reach]
-        }
-        CheckedScalarCallee::Operations(body) => {
-            let contract_service_reach = body.entry()?.contract_service_reach;
-            // The body owns its direct effects; an ordinary call contributes
-            // the published callee ceiling transitively.
-            source_call.service_reach == *service_reach
-                && body.retains_checked_reach(checked, &target_reaches)
-                && checked
-                    .facts
-                    .service_reaches
-                    .plan_for_machine(*target_machine)
-                    == Some(contract_service_reach)
-                && checked_unit_target_reach_matches(*service_reach, contract_service_reach)
-        }
-        CheckedScalarCallee::Boundary(plan) => {
-            target_reaches.as_slice() == [plan.service_reach]
-                && checked_unit_target_reach_matches(*service_reach, plan.contract_service_reach)
-        }
-    };
-    if target.entry_state()? != *target_state
-        || target.parameter_types()?.len() != scalar_arguments.len()
-        || target.result_type()? != terminal_scalar_type(result.primitive_type)?
-        || contract.report_fingerprint != *target_contract_report_fingerprint
-        || contract.commitment != *target_contract_commitment
-        || !reach_matches
-    {
-        return unsupported(
-            "composed Unit scalar call disagrees with its checked target signature, contract, or reach",
-        );
-    }
-    if matches!(
-        target,
-        CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_)
-    ) && (!checked
-        .facts
-        .service_reaches
-        .rows
-        .services(service_reach.direct)
-        .is_empty()
-        || !checked
-            .facts
-            .service_reaches
-            .rows
-            .services(service_reach.transitive)
-            .is_empty())
-    {
-        return unsupported(
-            "composed Unit scalar call with services requires scalar service lowering",
-        );
-    }
-    Ok(())
-}
-
 pub(super) fn validate_leaf(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
 ) -> Result<(), LoweringError> {
@@ -758,253 +515,6 @@ pub(super) fn validate_leaf(
         )
     {
         return unsupported("composed Unit leaf is outside the exact call-and-return slice");
-    }
-    Ok(())
-}
-
-pub(super) fn retain_exact_flow_call(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target: symbols::SymbolHandle,
-) -> Result<(), LoweringError> {
-    let states = checked
-        .facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter_map(|(_, candidate)| {
-            (candidate.machine_symbol == machine && candidate.state_symbol == state)
-                .then_some(candidate)
-        })
-        .collect::<Vec<_>>();
-    let [flow] = states.as_slice() else {
-        return unsupported("composed Unit leaf does not rejoin one checked flow state");
-    };
-    let statement_index = usize::try_from(coordinate.statement_index).map_err(|_| {
-        LoweringError::Unsupported("composed Unit statement coordinate exceeds usize")
-    })?;
-    let call_ordinal = usize::try_from(coordinate.call_ordinal)
-        .map_err(|_| LoweringError::Unsupported("composed Unit call coordinate exceeds usize"))?;
-    let authored =
-        crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
-    if authored.target_state != target {
-        return unsupported("composed Unit call disagrees with its authored resolved target");
-    }
-    let mut calls = checked
-        .facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(flow.calls)
-        .iter()
-        .filter(|call| {
-            call.statement_index == statement_index && call.call_ordinal == call_ordinal
-        });
-    if calls
-        .next()
-        .is_none_or(|call| call.target_symbol != authored.source_target)
-        || calls.next().is_some()
-    {
-        return unsupported("composed Unit boundary call drifted from checked flow");
-    }
-    Ok(())
-}
-
-/// Whether an authored actual names exactly the planned parameter place, path
-/// and loan. A dotted name spells the path in its members; any other place
-/// spelling -- a receiver the call was made on, a member chain, a literal
-/// index -- resolves through the shared structural source path, where whole
-/// `self` may spell the machine namespace. An authored `&x` / `&mut x` must
-/// spell exactly the planned loan, so a shared spelling cannot stand in for a
-/// mutable one or back.
-fn parameter_actual_names_its_source(
-    checked: &CheckedTrees,
-    caller: &checked_trees::machine::Machine,
-    parameter: &checked_trees::signature::StateParameter,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> Result<bool, LoweringError> {
-    let (named, spelled) = match checked.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => (
-            borrow.target,
-            Some(match borrow.access {
-                language_core::ReferenceAccess::Shared => {
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                }
-                language_core::ReferenceAccess::Mutable => {
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                }
-                language_core::ReferenceAccess::WriteOnly => {
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                }
-            }),
-        ),
-        _ => (expression, None),
-    };
-    if let ExpressionNode::Name(name) = checked.expression_table.expression(named) {
-        let members = checked.expression_table.name_path_members(name.members);
-        if members.len() > 1 {
-            return Ok(spelled.is_none_or(|access| access == argument.access)
-                && name.symbol == parameter.symbol
-                && name.head_symbol == parameter.symbol
-                && members.len() == argument.path.len() + 1
-                && members.first() == Some(&parameter.name)
-                && members.iter().skip(1).zip(&argument.path).all(|(spelling, segment)| {
-                    matches!(segment, checked_trees::CheckedUnitStructuralPathSegment::Field(field) if field == spelling.as_str())
-                }));
-        }
-    }
-    let (root, path, spelled) = crate::unit::attached_unit::parameters::source_path(
-        checked,
-        caller,
-        parameter.type_reference,
-        expression,
-    )?;
-    Ok(parameter.symbol.is_valid()
-        && (root == parameter.symbol || (parameter.is_self && root == caller.symbol))
-        && path == argument.path
-        && spelled.is_none_or(|access| access == argument.access))
-}
-
-/// Structural actuals on a composed scalar call rejoin the same checked
-/// custody the state-graph edge lane already proves: a completed result names
-/// its immutable authored local, a whole parameter names the ambient formal,
-/// and an established structural local names itself. Literal or subslice
-/// materialization has no composed evaluator yet and stays unsupported.
-fn retain_scalar_call_structural_arguments(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target_machine: symbols::SymbolHandle,
-    target_state: symbols::SymbolHandle,
-    structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-) -> Result<(), LoweringError> {
-    if structural_arguments.is_empty() {
-        return Ok(());
-    }
-    let (caller, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
-    let call = crate::emission::call_source_custody::authored::locate(
-        checked,
-        machine,
-        state.state,
-        coordinate,
-        target_machine,
-        target_state,
-    )?;
-    let signature = crate::emission::call_source_custody::authored::target_signature(
-        checked,
-        machine,
-        call.source_target,
-    )?;
-    let positions = crate::emission::call_source_custody::literal_arguments::structural_positions(
-        checked,
-        &signature,
-        structural_arguments.len(),
-    )?;
-    for (argument, position) in structural_arguments.iter().zip(positions.iter().copied()) {
-        let is_self = signature
-            .parameters
-            .get(position as usize)
-            .is_some_and(|parameter| parameter.is_self);
-        let expression = call.structural_argument(checked, position, is_self).ok_or(
-            LoweringError::Unsupported(
-                "composed scalar call structural actual lost its authored position",
-            ),
-        )?;
-        match argument.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            } => {
-                let mut matching =
-                    state
-                        .operations
-                        .iter()
-                        .filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::StructuralCall {
-                                result,
-                                discard_result_on_return: false,
-                                ..
-                            }
-                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                result,
-                                discard_result_on_return: false,
-                                ..
-                            }
-                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                result,
-                                discard_result_on_return: false,
-                                ..
-                            } if result.binding_ordinal == binding_ordinal => Some(result),
-                            _ => None,
-                        });
-                let result = matching.next().ok_or(LoweringError::Unsupported(
-                    "composed scalar call result source is absent",
-                ))?;
-                if matching.next().is_some()
-                    || result.statement_index >= coordinate.statement_index
-                    || result.type_identity != argument.type_identity
-                    || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                    || !argument.path.is_empty()
-                {
-                    return unsupported("composed scalar call result source drifted");
-                }
-                let Some(StatementNode::LocalData(local)) = checked
-                    .statement_table
-                    .statements(authored.statement_nodes)
-                    .get(result.statement_index as usize)
-                else {
-                    return unsupported("composed scalar call result local is missing");
-                };
-                if local.is_mutable
-                    || !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
-                        if name.symbol == local.symbol && name.head_symbol == local.symbol
-                            && checked.expression_table.name_path_members(name.members).len() == 1)
-                {
-                    return unsupported("composed scalar call lost its authored view local");
-                }
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } => {
-                let source = state
-                    .structural_parameters
-                    .get(parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "composed scalar call parameter source is absent",
-                    ))?;
-                let parameter = checked
-                    .state_parameters(authored)
-                    .get(source.position as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "composed scalar call has no authored parameter",
-                    ))?;
-                if !parameter_actual_names_its_source(
-                    checked, caller, parameter, argument, expression,
-                )? {
-                    return unsupported(
-                        "composed scalar call parameter actual changed its root or path",
-                    );
-                }
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                if !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
-                    if name.symbol == symbol && name.head_symbol == symbol
-                        && checked.expression_table.name_path_members(name.members).len() == 1)
-                {
-                    return unsupported("composed scalar call lost its authored local");
-                }
-            }
-            _ => {
-                return unsupported(
-                    "composed scalar call cannot materialize this structural actual",
-                );
-            }
-        }
     }
     Ok(())
 }

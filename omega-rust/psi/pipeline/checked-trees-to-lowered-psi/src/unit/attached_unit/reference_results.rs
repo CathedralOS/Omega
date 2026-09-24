@@ -1,5 +1,6 @@
 //! Reference carriers retain ingress provenance and the exact source loan end.
 use super::super::StructuralArgument;
+use super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, Operation, OperationKind,
@@ -356,7 +357,7 @@ pub(super) fn validate_releases(
 
 pub(super) fn validate_consumer(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
