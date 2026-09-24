@@ -57,3 +57,55 @@ fn the_value_arm_may_follow_the_named_arm() {
         "Main::read_at",
     );
 }
+
+#[test]
+fn a_value_arm_returns_an_earlier_local() {
+    verifies(
+        r#"
+        data Item { id: i32; price: i32; }
+        data Main { items: [Item; 2]; }
+        machine Main::find_price(&mut self, target: i32) -> i32 {
+            transition { _ -> check0(target) }
+            state check0(&mut self, target: i32) {
+                let p0: i32 = self.items[0].price;
+                transition self.items[0].id == target {
+                    true -> (p0)
+                    _ -> check1(target)
+                }
+            }
+            state check1(&mut self, target: i32) {
+                let p1: i32 = self.items[1].price;
+                transition self.items[1].id == target {
+                    true -> (p1)
+                    _ -> (0)
+                }
+            }
+        }
+        "#,
+        "Main::find_price",
+    );
+}
+
+/// An arithmetic policy on the element field (`i32 in Saturating`) governs
+/// arithmetic only; the local still reads the same primitive element, so source
+/// custody finds the authored read the checked value retains.
+#[test]
+fn a_value_arm_returns_a_local_read_from_a_policy_qualified_element() {
+    verifies(
+        r#"
+        data Item { id: i32 in Saturating; price: i32 in Saturating; }
+        data Main { items: [Item; 2]; }
+        machine Main::find_price(&mut self, target: i32 in Saturating) -> i32 in Saturating {
+            transition { _ -> check0(target) }
+            state check0(&mut self, target: i32 in Saturating) {
+                let p0: i32 in Saturating = self.items[0].price;
+                transition self.items[0].id == target {
+                    true -> (p0)
+                    _ -> (0)
+                }
+            }
+        }
+        "#,
+        "Main::find_price",
+    );
+}
