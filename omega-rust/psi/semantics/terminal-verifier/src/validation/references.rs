@@ -211,6 +211,16 @@ fn projected_carrier_type(
 
 fn leaf_referent(
     module: &TerminalModule,
+    current: StructuralTypeId,
+    fields: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    referent(module, leaf_reference_type(module, current, fields)?)
+}
+
+/// The reference type declared at `fields` below `current`: the carrier a
+/// `[fields.., Referent]` projection dereferences.
+fn leaf_reference_type(
+    module: &TerminalModule,
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -234,7 +244,83 @@ fn leaf_referent(
         };
         current = child;
     }
-    referent(module, current)
+    Some(current)
+}
+
+/// The access a reference type grants over its referent.
+fn reference_access(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+) -> Option<StructuralAccess> {
+    module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference { access, .. } => Some(access),
+            _ => None,
+        })
+}
+
+/// Loan strength: whether a place held with `authority` may lend
+/// `requested`. Ownership lends any loan, a mutable loan may be reborrowed
+/// shared or write-only, and a shared loan lends only a shared one. Every
+/// reference this module mints, projects or returns must sit below its
+/// source on this order; the `&'a` shared arms admitted beside the `&mut`
+/// ones rely on it to keep a shared loan from becoming a mutable one.
+fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
+    authority == requested
+        || matches!(
+            (authority, requested),
+            (StructuralAccess::Owned, _)
+                | (
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+        )
+}
+
+/// The loan authority `source` holds over the storage it names. A whole
+/// parameter holds its declared access and a machine-owned place holds
+/// ownership. A `[fields.., Referent]` projection holds the weaker of its
+/// carrier's authority and the dereferenced reference's own access, so a
+/// `&mut` leaf read through a shared carrier lends only shared.
+fn source_authority(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: &StructuralArgument,
+) -> Option<StructuralAccess> {
+    let carrier = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source.place)
+        .map_or(StructuralAccess::Owned, |parameter| parameter.access);
+    let Some((StructuralPathSegment::Referent, fields)) = source.path.split_last() else {
+        return source.path.is_empty().then_some(carrier);
+    };
+    let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
+    let leaf = reference_access(
+        module,
+        leaf_reference_type(module, signature.structural_type, fields)?,
+    )?;
+    Some(if access_covers(carrier, leaf) {
+        leaf
+    } else {
+        carrier
+    })
+}
+
+/// Whether the reference leaf at `path` below `root` grants no more than
+/// `source` lends.
+fn leaf_access_within(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    source: StructuralAccess,
+) -> bool {
+    leaf_reference_type(module, root, path)
+        .and_then(|leaf| reference_access(module, leaf))
+        .is_some_and(|granted| access_covers(source, granted))
 }
 
 pub(crate) fn is_reference_projection(
@@ -498,6 +584,7 @@ pub(super) fn validate_machine(
                 .iter()
                 .any(|parameter| parameter.place == mapping.source.place)
             || source_type(module, machine, &mapping.source) != Some(expected_referent)
+            || !leaf_access_within(module, result.structural_type, path, mapping.source.access)
             || formal_origin(machine, &mapping.source).is_none()
         {
             return Err(invalid(
@@ -586,7 +673,9 @@ pub(super) fn source_type(
         StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow
             | StructuralAccess::WriteOnlyBorrow
-    ) {
+    ) || !source_authority(module, machine, source)
+        .is_some_and(|authority| access_covers(authority, source.access))
+    {
         return None;
     }
     if !source.path.is_empty() {
@@ -647,6 +736,7 @@ pub(super) fn validate_establishment(
         source.access,
         StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
     ) || source_type(module, machine, source) != Some(expected)
+        || !leaf_access_within(module, result.structural_type, &[], source.access)
     {
         return Err(invalid(
             machine,
@@ -866,10 +956,18 @@ pub(super) fn establishment_moves_leaf(
     let OperationKind::EstablishReference { source } = &operation.kind else {
         return None;
     };
+    // Only an owned carrier can give its leaf away; a shared carrier lends
+    // through it and keeps the leaf live for its caller.
     if !matches!(
         formal_origin(machine, source),
         Some(ReferenceOrigin::IngressLeaf(_))
-    ) {
+    ) || !machine
+        .structural_parameters
+        .iter()
+        .any(|parameter| {
+            parameter.place == source.place && parameter.access == StructuralAccess::Owned
+        })
+    {
         return None;
     }
     let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() else {
@@ -1404,6 +1502,12 @@ pub(super) fn apply_operation(
                 return Err(invalid(
                     machine,
                     "reference result changes its mapped source type",
+                ));
+            }
+            if !leaf_access_within(module, result.structural_type, &path, source.access) {
+                return Err(invalid(
+                    machine,
+                    "reference result exceeds its mapped source authority",
                 ));
             }
             let reference = if transfers_existing {

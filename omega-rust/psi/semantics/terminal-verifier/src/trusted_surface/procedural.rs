@@ -366,10 +366,10 @@ rows! {
     FORM_MODULE_STRUCTURE => (
         "formation:module-structure",
         SharedFormation,
-        "the terminal module's canonical representation: machines, blocks, structural types, and declared surfaces, including leaf-typed structural fields resolved through their canonical leaf shape",
+        "the terminal module's canonical representation: machines, blocks, structural types, and declared surfaces, including leaf-typed structural fields resolved through their canonical leaf shape and explicit leaf copies through `leaf_copy_shape`",
         "structural validation accepting exactly well-formed modules before any reconstruction; malformed representations reject with a ModuleError",
         &["root:verification-contract"],
-        &[tv!( "validation.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs")]
+        &[tv!( "validation.rs"), tv!( "validation/byte_sequence.rs"), tv!( "validation/element_view.rs"), tv!( "validation/scalar.rs"), tv!( "validation/structural.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs")]
     );
     FORM_MACHINE => (
         "formation:machine-validation",
@@ -487,7 +487,7 @@ rows! {
         "formation:frontier",
         SharedFormation,
         "the machine's claim frontier and the referent roots pinned by shared-borrow join parameters at each block and traversal point",
-        "the reconstructed frontier used by crash guards and cleanup checks is the validated one",
+        "the reconstructed frontier used by crash guards and cleanup checks is the validated one; copy-payload sources the owned-read gate exempts are availability-checked at every consuming establishment",
         &["scope:dominance-order"],
         &[tv!( "validation/frontier.rs"), tv!( "validation/frontier/block_entry.rs"), tv!( "validation/frontier/block_parameters.rs"), tv!( "validation/frontier/operations.rs"), tv!( "validation/frontier/terminators.rs"), tv!( "validation/frontier/traversal.rs")]
     );
@@ -558,15 +558,15 @@ rows! {
     FORM_REFERENCES => (
         "formation:references",
         SharedFormation,
-        "the machine's establish/release reference discipline",
-        "reference operations validate against declared custody before observations are reconstructed",
+        "the machine's establish/release discipline over `&mut` primitive referents and `&'a` shared named referents",
+        "reference operations validate against declared custody — a minted, projected, or returned reference never exceeds its source's access, and shared carriers never move an ingress leaf — before observations are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/references.rs")]
     );
     FORM_PARTIAL_AFFINE => (
         "formation:partial-affine",
         SharedFormation,
-        "the machine's partial and trivial affine locals and discards, plus projected affine roots reached through locals, call products, constructed records, and join block parameters",
+        "the machine's partial and trivial affine locals and discards, plus projected affine roots reached through locals, call products, constructed records and structural cases, and join block parameters",
         "partial affine structure validates before affine facts or obligations are reconstructed",
         &["formation:machine-validation"],
         &[tv!( "validation/partial_affine.rs")]

@@ -149,6 +149,67 @@ fn repeated_owned_arrays_and_nonfirst_parameter_returns_are_verified() {
     }
 }
 
+/// A record that stores a plain array owns a copy, so the ownership
+/// frontier does not track the array. The record still may not consume it
+/// before the array's establishment has run.
+#[test]
+fn record_fields_require_an_established_plain_array() {
+    let mut module = array_call(&[2]);
+    module.machines.truncate(1);
+    let holder = structural_type_id(3);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: holder,
+        identity: "holder".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "items".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: terminal_psi::StructuralFieldType::Structural(structural_type_id(1)),
+            }],
+        },
+    });
+    let caller = &mut module.machines[0];
+    let TerminalMachineResult::Structural(result) = &mut caller.result else {
+        unreachable!()
+    };
+    result.structural_type = holder;
+    for place in &mut caller.structural_places {
+        if place.id == place_id(2) {
+            place.kind = StructuralPlaceKind::OperationResult {
+                producer: operation_id(3),
+                structural_type: holder,
+            };
+        }
+    }
+    let record = &mut caller.blocks[0].operations[2];
+    let OperationResult::Structural(record_result) = &mut record.result else {
+        unreachable!()
+    };
+    record_result.structural_type = holder;
+    record.kind = OperationKind::EstablishRecord {
+        fields: vec![terminal_psi::RecordFieldInitializer {
+            field: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            value: terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+                place: place_id(1),
+                path: vec![],
+                access: StructuralAccess::Owned,
+            }),
+        }],
+    };
+    validate_module(&module).expect("a record stores an established plain array");
+    let mut early = module;
+    early.machines[0].blocks[0].operations.swap(1, 2);
+    assert!(
+        matches!(
+            validate_module(&early),
+            Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { .. })
+        ),
+        "{:?}",
+        validate_module(&early)
+    );
+}
+
 #[test]
 fn array_arguments_require_live_exact_whole_owned_sources() {
     let valid = array_call(&[2]);

@@ -355,11 +355,37 @@ pub(super) fn validate_uses(
             Ok(())
         }
     };
+    // `frontier::validate_owned_reads` exempts copy payloads from the owned
+    // frontier because consuming one leaves it intact. Their producer's
+    // dominance is checked here instead: a record or case never consumes a
+    // plain scalar case or array whose establishment has not run on every
+    // path to it. Machine parameters are live at entry and are not
+    // operation results.
+    let copy_payload = |place| {
+        let produced = !machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == place);
+        if produced
+            && (super::scalar::case::plain_return_source(module, machine, place)
+                || super::scalar::array::plain_return_source(module, machine, place))
+            && !available.contains(&place)
+        {
+            Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                operation: operation.id,
+                place,
+            })
+        } else {
+            Ok(())
+        }
+    };
     match &operation.kind {
-        OperationKind::EstablishRecord { fields } => {
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => {
             for field in fields {
                 if let RecordFieldValue::Structural(argument) = &field.value {
                     validate(argument.place)?;
+                    copy_payload(argument.place)?;
                 }
             }
         }
