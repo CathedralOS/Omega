@@ -458,6 +458,16 @@ pub(super) fn is_scalar_case_place_value(
 /// access needs where moving or case-fan-out cannot apply; anything affine
 /// still needs move semantics.
 fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+    // A stored `&'a [T]` view leaf copies the view value out of the carrier
+    // the same way an `Unrestricted` named leaf does — the referent's loan
+    // stays exactly where the field's `&` put it. Its bare `Slice` rung
+    // unwraps to `Affine`, so the shared-borrow view's own multiplicity is
+    // what decides admission.
+    if crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
+        && program.type_multiplicity(expected) == language_semantics::Multiplicity::Unrestricted
+    {
+        return true;
+    }
     let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
         return false;
     };
@@ -970,13 +980,30 @@ impl Builder<'_, '_> {
         {
             return None;
         }
+        // The structural-type registry names a `&[T]` leaf by its borrowed
+        // view carrier — the same identity `add_type` mints for the result —
+        // so a view leaf records its unwrapped referee's identity; an owned
+        // leaf keeps its own.
+        let type_identity =
+            if crate::execution::terminal_unit::types::borrowed_slice_view(self.program, projected)
+            {
+                validation::unwrapped_type_reference(self.program, projected).map(|unwrapped| {
+                    self.program
+                        .normalized_type_identity(unwrapped)
+                        .into_string()
+                })
+            } else {
+                None
+            }
+            .unwrap_or_else(|| {
+                self.program
+                    .normalized_type_identity(projected)
+                    .into_string()
+            });
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             source,
             path,
-            type_identity: self
-                .program
-                .normalized_type_identity(projected)
-                .into_string(),
+            type_identity,
             access: checked_trees::CheckedStructuralAccess::SharedBorrow,
         })
     }
