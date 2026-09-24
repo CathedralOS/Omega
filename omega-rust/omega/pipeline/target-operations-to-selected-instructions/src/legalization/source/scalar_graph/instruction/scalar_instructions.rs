@@ -72,8 +72,7 @@ pub(super) fn project_saturating_integer_add_or_subtract(
         } => (false, *scalar_type, *left, *right),
         _ => unreachable!("dispatched project_saturating_integer_add_or_subtract"),
     };
-    let carrier =
-        scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
+    let carrier = scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, *value) != Some(ScalarType::Integer(scalar_type))
     }) {
@@ -110,8 +109,7 @@ pub(super) fn project_saturating_integer_divide(
     else {
         unreachable!("dispatched project_saturating_integer_divide")
     };
-    let carrier =
-        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
+    let carrier = scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, **value)
             != Some(ScalarType::Integer(*scalar_type))
@@ -152,8 +150,7 @@ pub(super) fn project_saturating_integer_remainder(
     else {
         unreachable!("dispatched project_saturating_integer_remainder")
     };
-    let carrier =
-        scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
+    let carrier = scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, **value)
             != Some(ScalarType::Integer(*scalar_type))

@@ -43,10 +43,7 @@ pub(super) fn derive(
         .blocks
         .iter()
         .map(|block| {
-            let (last, body) = block
-                .nodes
-                .split_last()
-                .ok_or(Error::custody())?;
+            let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
             let mut custody = custody_entries
                 .get(&block.id)
                 .cloned()

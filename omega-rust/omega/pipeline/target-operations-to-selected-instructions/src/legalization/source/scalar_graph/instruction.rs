@@ -37,8 +37,7 @@ pub(super) fn project(
             .map_err(|_| Error::custody())?;
         return Ok(instruction);
     }
-    let (operation, result) =
-        scalar_graph_input::instruction(node).ok_or(Error::custody())?;
+    let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     let kind = match &node.operation {
         AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             let (_, _, source, field) = scalar_graph_input::structural_fields::read(

@@ -95,9 +95,7 @@ pub(in crate::legalization) fn source_owner(
             .filter(move |parameter| parameter.place == place)
             .map(move |parameter| (block.id, parameter))
     });
-    let (block, declaration) = parameters
-        .next()
-        .ok_or(LegalizationError::custody())?;
+    let (block, declaration) = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || declaration.access != terminal_psi::StructuralAccess::Owned
         || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
@@ -129,9 +127,7 @@ pub(in crate::legalization) fn case_source(
         .structural_parameters
         .iter()
         .filter(|parameter| parameter.place == place);
-    let declaration = parameters
-        .next()
-        .ok_or(LegalizationError::custody())?;
+    let declaration = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || declaration.is_self
         || declaration.access != terminal_psi::StructuralAccess::Owned
