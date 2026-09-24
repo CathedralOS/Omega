@@ -1923,3 +1923,23 @@ Deployed as tools/triage_advisor.py: failure output + command + git window
 key-less silent, exits 0 on its own failures. Live dogfood at current HEAD
 on a replayed historical failure correctly answered none_in_window (the bug
 is ~500 commits back).
+
+## 2026-09-24 (cont.) — corpus-diff classification: third deployment + the batch-contamination lesson
+
+Third Jev deployment: corpus_gate --jev. Worked example (4 frozen cases,
+real 7b9dce26d7 diffs + synthetic labeled sets): record_safe verdict 4/4
+(docs-only diffs -> "would pin a regression" 0.22; zero-diff -> safe 0.92).
+Two NEW failure modes worth recording for every future batch workload:
+
+1. **Batch contamination**: a dangerous diff poisons sibling labels — two
+   timing-only diffs scored `intended` at confidence 1.0 alone but
+   `accidental` inside a batch containing a rejection->checked flip.
+2. **Unexplained conflates with intended**: a solo intended/accidental
+   re-ask called the dangerous flip "intended" under a formatting commit —
+   the model resolves "this commit can't cause this" as "fine" rather than
+   "suspicious". The fix is the CAUSAL question: "could this commit
+   plausibly produce this diff?" — the flip scored 0.43 (SUSPECT).
+
+Deployed shape (tools/corpus_gate.py --jev): one batch call for the
+record_safe verdict; if low, causal-question solo calls localize suspects.
+Advisory only, silent without key, OMEGA_JEV_OFFLINE=1.
