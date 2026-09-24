@@ -167,7 +167,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
       ],
       "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input \u2014 remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z \u2014 prove via existing replay/crate tests in owned paths or report blocked.",
       "backfill_for": "tpr6"

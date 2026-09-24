@@ -508,7 +508,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["analyses", "rewrites", "selected_optimization"],
     ),
     (
-        "omega/pipeline/06_target-operations-to-selected-instructions",
+        "omega/pipeline/03_target-operations-to-selected-instructions",
         &[
             "legalization",
             "optimized",

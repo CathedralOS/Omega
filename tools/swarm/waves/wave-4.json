@@ -120,7 +120,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
         "tests/native-differential/tests/terminal_psi_indexed_receivers"
       ],
       "suggested_first_slice": "Carry one projected write-only scalar receiver through scalar-graph legalization and the existing indexed-receiver native fixture, checking caller-visible mutation and read rejection."

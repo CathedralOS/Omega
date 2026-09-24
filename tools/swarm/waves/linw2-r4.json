@@ -15,7 +15,7 @@
     "omega-rust/psi/representations/syntax-trees/src/syntax_trees/inspection/snapshot",
     "omega-rust/psi/foundation/language-semantics/src/external_bindings"
    ],
-   "suggested_first_slice": "Branch carries unpublished 47dca27142 (normalized foreign calls select through per-plan ABI constraint rosters, 181 files) on current origin/main: validate and land it via tools/landing.py BEFORE new work. Then next frontier: foreign call inside a ranked machine stops at legalization source-custody replay \u2014 06_target-operations-to-selected-instructions/src/legalization is claim-fenced this round (dev-l3-corp4, ~16:17Z); if still held, take the port_effects production-writer leg wherever it lives on the omega route, or report blocked after landing. Never git stash. cargo."
+   "suggested_first_slice": "Branch carries unpublished 47dca27142 (normalized foreign calls select through per-plan ABI constraint rosters, 181 files) on current origin/main: validate and land it via tools/landing.py BEFORE new work. Then next frontier: foreign call inside a ranked machine stops at legalization source-custody replay \u2014 03_target-operations-to-selected-instructions/src/legalization is claim-fenced this round (dev-l3-corp4, ~16:17Z); if still held, take the port_effects production-writer leg wherever it lives on the omega route, or report blocked after landing. Never git stash. cargo."
   },
   {
    "name": "crash-contract",
@@ -94,9 +94,9 @@
    "owning_paths": [
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src",
     "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/structural_inputs",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/tests",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/tests",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses",

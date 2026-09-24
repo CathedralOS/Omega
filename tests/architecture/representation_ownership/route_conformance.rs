@@ -294,7 +294,7 @@ fn omega_pipeline_directories_follow_route_order() {
         "00_terminal-psi-to-abstract-operations",
         "01_abstract-operations-to-abstract-operations",
         "02_abstract-operations-to-target-operations",
-        "06_target-operations-to-selected-instructions",
+        "03_target-operations-to-selected-instructions",
         "07_selected-instructions-to-selected-instructions",
         "08_selected-instructions-to-register-homes",
         "09_register-homes-to-post-allocation-machine",
