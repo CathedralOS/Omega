@@ -17,7 +17,7 @@ image-emission = { path = "../../images/image-emission", features = ["installed-
 
 [dev-dependencies]
 calling-conventions = { path = "../../../representations/calling-conventions" }
-checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 extents = { path = "../../../../psi/foundation/extents" }
 function-identity = { path = "../../../representations/function-identity" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }

@@ -340,7 +340,7 @@ the complete product bar; focused successes below do not establish that baseline
     inventing fixture-local authority or weakening exact declaration selection.
   - `capabilities/windows_provides_import_exit`: preserve the producing
     statement for `self.m = self.beeper.beep(self.v)`. The packaged Windows
-    fixture reaches `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
+    fixture reaches `05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
     which excludes call-result stores from its plain-field-store exception.
     Keep the ordinary-machine assignment as a control and the actual
     `Binding<R>`/`ForeignBinding` package inputs in the reproduction.
@@ -367,7 +367,7 @@ the complete product bar; focused successes below do not establish that baseline
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
   actual missing operation/facts, not just its phase label. The diagnostic route
-  is covered by `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
+  is covered by `05_checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
   another diagnostic-only change does not close corpus behavior.
 
   Current integration targets:
@@ -561,7 +561,7 @@ contract bounds, and two-sided emitted-call replay already exist. Remaining:
   specialization/contract identities and the PCC ledger/bridge work; do not
   invent a parallel selection identity or a second proof system.
 
-Owners: `checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
+Owners: `05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
 `validation/src/machine_calls/static_machine_call_contracts.rs`, and
 `terminal-verifier/src/validation/reach_applications.rs`. Keep ordinary semantic
 replay distinct from optional producer-correspondence certification; neither
@@ -1146,7 +1146,7 @@ syntax and other terminal services are not prerequisites.
 - **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS.** Execute nonempty content
   claims through source, Terminal, provider selection and native realization
   under [content conservation](wiki/spec/resources/content_custody.md).
-  Reuse `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
+  Reuse `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
   Terminal frontier verification and
   `terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
   normalized equations and partition lowering already exist.
@@ -1506,7 +1506,7 @@ syntax and other terminal services are not prerequisites.
   [safety/progress checking](wiki/spec/language/termination.md) for the unchanged
   decimal/Console loop and `print_squares`.
   Owners: `terminal-verifier/src/validation/control_flow/`, Psi's
-  `execution/terminal_unit/`, `checked-trees-to-lowered-psi/src/unit/attached_unit/`
+  `execution/terminal_unit/`, `05_checked-trees-to-lowered-psi/src/unit/attached_unit/`
   and expression preparation. The same-name optimizer-board task owns native
   receiving/replay coverage. Unit/scalar/aggregate functions already share the
   common native graph; no countdown or whole-Unit fallback.
@@ -1600,7 +1600,7 @@ syntax and other terminal services are not prerequisites.
 - **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete executable policies
   from [numeric values](wiki/spec/language/numeric_values.md) through Terminal,
   interpretation and native realization. Owners:
-  `checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
+  `05_checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
   operation/observation vocabulary and its independent checking/realization.
 
   - Trapping integer arithmetic is realized end to end. Each
@@ -1649,7 +1649,7 @@ syntax and other terminal services are not prerequisites.
   Acceptance: the six `core/numeric_*` canaries and Trapping conversions in
   `source/library/core/numeric_conversion.omg` reach native execution with
   policy-correct success/failure and independent crash-site replay.
-  Advance `checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`
+  Advance `05_checked-trees-to-lowered-psi/tests/integer_policy_realization.rs`
   controls beside valid neighbors differing in one relevant coordinate.
   Reproduce `float/float_trapping_*`,
   `expressions/arithmetic_domain_trapping_*` and
@@ -1714,7 +1714,7 @@ syntax and other terminal services are not prerequisites.
 
   Top-level mathematical `let`/`boundary let` parse, resolve and receive
   bounded kernel-signature checking. The production frontier is
-  `checked-trees-to-lowered-psi/src/proofs/mathematical_declarations.rs`:
+  `05_checked-trees-to-lowered-psi/src/proofs/mathematical_declarations.rs`:
   it rejects every declaration-bearing program because Terminal evidence
   does not carry the checked signature. The mathematical certificate codec
   exists but is not connected to that producer.
@@ -1786,7 +1786,7 @@ syntax and other terminal services are not prerequisites.
   loops, independently of termination, under the
   [publication contract](wiki/spec/proofs/publication.md). Owners:
   `04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`,
-  `checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
+  `05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
   and their independent Terminal verifier.
 
   Reuse `ClosedIntegerRelation`'s exact compound normalization in
@@ -2100,7 +2100,7 @@ syntax and other terminal services are not prerequisites.
   Acceptance: one authored program rejects, retries, replaces using returned
   capacity, and unregisters. Dropped, repeated, stale/cross-occurrence
   registrations and spent-capacity reuse reject. Preserve
-  `checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs` and
+  `05_checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs` and
   the interpreted ledger tests, but manual ledger sequencing or injected
   provider-conformance rows do not close this authored acceptance.
   CALLBACK-PRIVATE-MATERIALIZATION supplies the native entry; FFIVAL owns
@@ -2189,7 +2189,7 @@ syntax and other terminal services are not prerequisites.
   - State forwarding passes Unit-graph admission but reports
     `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
     a reborrow place missing from the successor frontier. Complete that custody
-    join and retain `checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
+    join and retain `05_checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
     and byte-view forwarding as controls. An empty callee does not exercise it.
 
   Core `Slice::index<T [copy]>` settles shared by-value access. Keep
@@ -2725,7 +2725,7 @@ syntax and other terminal services are not prerequisites.
     `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
     checked interpretation covers `restricted(saved, value)` under
     `observe(left) == observe(right)`, but the test stops before Terminal.
-    `checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs` pins
+    `05_checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs` pins
     `covered_requires`'s unrepresentable clause and its rejection in
     `scalar_graph_lowering/graph_preparation.rs`. Replace those limitation
     expectations with canonical reload, independent verification, interpretation,
@@ -3045,7 +3045,7 @@ syntax and other terminal services are not prerequisites.
   Do not rebuild them or treat package-row recovery as artifact acceptance.
 
   The remaining ordinary-call producer gap is in
-  `checked-trees-to-lowered-psi/src/unit/attached_unit.rs` and its `catalog.rs`:
+  `05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs` and its `catalog.rs`:
   ordinary attached units publish no conformance applications, and
   `call_result_qualification_establishments` emits only boundary-requirement
   bindings backed by an exact `CallEnsures` admitted receipt. Retain the
@@ -3269,7 +3269,7 @@ syntax and other terminal services are not prerequisites.
 
   Complete compositional nested structural-result operands through the shared
   checked/lowered evaluation path with **STATE-LOCAL-VALUE-FRONTIER**.
-  `checked-trees-to-lowered-psi/tests/reference_result_source.rs` already
+  `05_checked-trees-to-lowered-psi/tests/reference_result_source.rs` already
   executes selected reference leaves, projected record arguments and
   `select(forward_outer(outer).inner)` from encoded Terminal evidence.
   The superficially similar rejection fixtures in `tests/borrow/carrier_results.rs`
@@ -3347,7 +3347,7 @@ syntax and other terminal services are not prerequisites.
   reverse establishment order, as the [language rule](wiki/spec/language/ownership.md#construction-and-disposal-order) requires.
   Crash/abort/process-exit abandonment has no cleanup successor.
   Owners: `04_typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
-  and `execution/terminal_unit/cleanup/`, `checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
+  and `execution/terminal_unit/cleanup/`, `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
   and Omega's `abstract-operations-to-target-operations/src/lowering/`.
 
   Bounded parameter/local/result partial moves already reach encoded Terminal
@@ -3586,7 +3586,7 @@ syntax and other terminal services are not prerequisites.
     ordinary consuming helper and a valid snapshot copied before consumption.
     The fixture has not been rerun during this board audit.
   - Compose contextual requirements and dying local owners through ordinary
-    cleanup edges. `checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
+    cleanup edges. `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
     still excludes nonempty caller/hook prerequisites, and
     `04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
     rejects nominal-drop locals left owned at return. Retain independently

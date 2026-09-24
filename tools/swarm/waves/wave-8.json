@@ -268,8 +268,8 @@
       "item": "MATCH-SELECTIVE-LOWERING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission/call_source_custody",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission/call_source_custody.rs"
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/emission/call_source_custody",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/emission/call_source_custody.rs"
       ],
       "suggested_first_slice": "Backfill for the verification-only registered-callback-lifetime slot. Owned call arms / record fields that move existing affine children still need exact residual transport \u2014 the seam is emission/call_source_custody (projected_receivers, occurrences, boundary_buffers, aliases). Extend one residual-transport class with custody-preserving lowering + rejection matrix; keep match_anonymous_result_landing and numeric_operand_destinations as source probes.",
       "backfill_for": "registered-callback-lifetime"
@@ -333,7 +333,7 @@
       "owning_paths": [
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Backfill for the blocked sample-corpus slot \u2014 its probe evidence names this item directly: print_squares' Terminal production stops at Lowering(OperationProofUnavailable(ObligationId(25))) \u2014 the guarded-exit lockstep invariant for nonzero divisor '1 <= self.place' at digit_div. Extend bounded safety/proof admission for guarded exits (qualified/partial owned custody or effectful calls) in terminal-verifier validation/control_flow so that proof class admits; preserve dominance, exact successor transfers, current-iteration guards, test-fuel suspension. flow/terminal_unit is owned by wave sibling callback-private-retry \u2014 do not touch it.",

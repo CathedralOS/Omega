@@ -13,9 +13,9 @@
             "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate",
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests/nominal_affine_source"
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/nominal_affine_source"
             ],
             "suggested_first_slice": "resume parked WIP: merge or rebase branch swarm/macw4-c2l-blowup (97228fe69f — unvalidated drain checkpoint spanning nonzero_divisor_certificate integer_selection + affine_custody + cast_custody/chain refactor) into your worktree first, review or discard it, then re-measure the named nominal_affine integer_comparison test with an explicit timeout — ebd634e638's exact.rs gating may already resolve the historical stall",
             "host_gates": [
@@ -62,8 +62,8 @@
             "item": "DOMAIN-ISSUER-ROUTES",
             "host": "local",
             "owning_paths": [
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit",
                 "omega-rust/psi/semantics/terminal-verifier/tests/calls/qualification_establishments.rs",
                 "omega-rust/psi/semantics/terminal-verifier/tests/straight_line/scalar_qualifications.rs"
             ],
@@ -126,7 +126,7 @@
             "layer": 1,
             "owning_paths": [
                 "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs",
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
                 "omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs",
                 "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc",
                 "omega-rust/omega/compiler/compiler/tests/pcc_publication.rs"
@@ -160,7 +160,7 @@
             "host": "local",
             "owning_paths": [
                 "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/primitive_store.rs",
-                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission",
+                "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/emission",
                 "omega-rust/psi/semantics/terminal-interpreter/tests/unit"
             ],
             "suggested_first_slice": "extend the contract-fact index derivation d61f983d6a added to proven_runtime_index (authored requires conjuncts folded into the closed interval) to one further placed-access operation beyond the indexed store — contract/domain facts only, no revived bracketed-range annotation syntax",

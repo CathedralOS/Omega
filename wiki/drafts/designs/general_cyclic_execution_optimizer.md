@@ -53,7 +53,7 @@ production.
 ## Fences past the first refusal (static, verified at this revision)
 
 - The authored `self.step(remaining - 1)` is a machine-level self-call. Even
-  with a produced plan, `checked-trees-to-lowered-psi/src/unit/
+  with a produced plan, `05_checked-trees-to-lowered-psi/src/unit/
   attached_unit/call_closure.rs::reject_recursive_unit_closure` ("recursive
   Unit call closure is not yet terminal") and the Terminal verifier's
   `validation/call_graph.rs` (`RecursiveCallSliceNotYetSupported`) refuse

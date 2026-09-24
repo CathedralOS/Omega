@@ -490,12 +490,12 @@ Repeated array establishment in cycles and block-parameter payload transport rem
 unsupported. The source probe is
 `cargo run -p omega -- inspect-terminal --machine computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`;
 decoded execution returns `[42u8, 9u8]` for input `42u8`. The
-[`computation argument tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/computation_arguments.rs)
+[`computation argument tests`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_array_source/computation_arguments.rs)
 exercise nested/empty arrays, mixed formal effects, selective construction,
 source substitutions, and fuel suspension without replay.
 Transitive scalar callees retain this same ordered operation sequence. The
 producer prunes callers against a stable roster of complete body candidates;
-`checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs` then closes
+`05_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs` then closes
 operation, scalar-helper and provider dependencies before assigning identities,
 including Unit statements retained inside scalar graphs.
 Each operation body uses the existing ordered emitter once. A helper's local
@@ -504,7 +504,7 @@ the module entry names the selected source, not whichever helper was allocated
 first. The companion probe is
 `cargo run -p omega -- inspect-terminal --machine transitive_computation_row tests/omega/pass/modules/module_array_constant_indices/main.omg`.
 The decoded regression fixtures return `[42u8, 9u8]` for input `42u8`. The
-[`operation-body callee tests`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_array_source/operation_body_callees.rs)
+[`operation-body callee tests`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_array_source/operation_body_callees.rs)
 retain scalar/Unit/array entries, mixed helper dependencies, empty arrays,
 local write order, one-unit fuel resumption, and exact source/contract rejection.
 Array state transfers, borrowed/projected payloads, and boundary-provider array
@@ -555,8 +555,8 @@ realization remain separate dependencies; this does not make `print_squares`
 an executable native product.
 
 Natural-cycle production retains the authored witness in
-[ranking.rs](../../pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/ranking.rs).
-[control_cycle_proofs.rs](../../pipeline/checked-trees-to-lowered-psi/src/proofs/control_cycle_proofs.rs)
+[ranking.rs](../../pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/ranking.rs).
+[control_cycle_proofs.rs](../../pipeline/05_checked-trees-to-lowered-psi/src/proofs/control_cycle_proofs.rs)
 answers verifier-reconstructed questions. Proof-only recursive calls use their
 own complete reachable closure; neither producer supplies semantic obligation
 identities or substitutes a synthetic countdown for a view's extent.
@@ -850,7 +850,7 @@ requires a remaining Boolean parameter; nested/second fields, field-only trees,
 and arbitrary call/effect mixtures need further support.
 
 The proof producer enters through
-[nonzero_divisor_certificate.rs](../../pipeline/checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate.rs),
+[nonzero_divisor_certificate.rs](../../pipeline/05_checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate.rs),
 despite that file's narrower historical name. It consumes machine requirements
 and independently reconstructed pre-operation facts, then emits kernel-checked
 certificates for canonical integer goals. The operation's own later result
@@ -901,7 +901,7 @@ and affine-identity plans reject. Source admission checks the graph and exact
 result, and canonical verification independently checks the conformance signature
 and service refinement. Provider selection and native entry provisioning remain
 separate obligations. See the
-[composed-provider regressions](../../pipeline/checked-trees-to-lowered-psi/src/tests/composed_provider_candidates.rs).
+[composed-provider regressions](../../pipeline/05_checked-trees-to-lowered-psi/src/tests/composed_provider_candidates.rs).
 
 The first suspension retention path covers receiver-free direct scalar calls
 with checked primitive liveness and empty claim rosters. Receiver/threaded-local,

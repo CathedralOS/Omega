@@ -55,7 +55,7 @@ exact source projection operations. The checked
 [proof-row producer](../../pipeline/04_typed-trees-to-checked-trees/src/proof/float_meaning.rs)
 retains direct machine parameters, reserved machine results, and direct
 structural leaves separately from transitional typed-expression custody.
-The [lowering join](../../pipeline/checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs)
+The [lowering join](../../pipeline/05_checked-trees-to-lowered-psi/src/proofs/float_meaning_projection.rs)
 rejoins exact owner/parameter/result/path identities with emitted Terminal rows.
 
 The direct structural source path currently supports nonempty field/case paths

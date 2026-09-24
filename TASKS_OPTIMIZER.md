@@ -141,7 +141,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   block invariant can be rewritten alongside the parameters it names, or
   whether its presence must keep refusing the rewrite. `a0cc5b2830` began
   proposing an interval from literal arrivals at a scalar join
-  (`checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/joins.rs`),
+  (`05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/joins.rs`),
   so a merge block joining two same-type integer literals now retains a
   `ScalarBlockInvariant`. That makes the machine proof-bearing, and both
   copy propagation and dead pure scalar elimination then propose their full
@@ -160,7 +160,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     the refusal an observable report so the loss is not silent.
   - Either way, cover the shape at the corpus level. The only fixture that
     exercised it is `dead_block_parameter_fixture` in
-    `checked-trees-to-lowered-psi/src/tests/preterminal_optimization.rs`,
+    `05_checked-trees-to-lowered-psi/src/tests/preterminal_optimization.rs`,
     which now spells its arm constants at the declared type's endpoints
     precisely so no invariant is proposed and the non-proof-bearing lane stays
     reachable.

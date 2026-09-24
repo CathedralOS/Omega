@@ -6,7 +6,7 @@ payload; an unrelated record remains live and is observed afterward. This is not
 a test of direct nested local field reads.
 
 The source and canonical Terminal replay controls live in
-[`value_dispatch/owned_results.rs`](../../../../../omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests/value_dispatch/owned_results.rs).
+[`value_dispatch/owned_results.rs`](../../../../../omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch/owned_results.rs).
 Native execution and publication controls live in
 [`owned_selection.rs`](../../../../native-differential/tests/scalar_case_results/owned_selection.rs)
 and its [`records`](../../../../native-differential/tests/scalar_case_results/owned_selection/records.rs) module.

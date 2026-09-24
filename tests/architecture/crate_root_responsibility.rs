@@ -238,7 +238,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ("psi/foundation/symbols", &["builtin", "symbol", "table"]),
     // Psi pipeline.
     (
-        "psi/pipeline/checked-trees-to-lowered-psi",
+        "psi/pipeline/05_checked-trees-to-lowered-psi",
         &[
             "emission",
             "expression_preparation",

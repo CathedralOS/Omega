@@ -24,7 +24,7 @@ package-compilation = { path = "build/package-compilation" }
 resolver-execution = { path = "packages/sources/execution" }
 target = { path = "representations/target" }
 trust-ledger = { path = "build/trust-ledger" }
-checked-trees-to-lowered-psi = { path = "../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../psi/pipeline/05_checked-trees-to-lowered-psi" }
 semantic-vocabulary = { path = "../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../psi/foundation/diagnostics" }
 checked-interpreter = { path = "../psi/semantics/checked-interpreter" }

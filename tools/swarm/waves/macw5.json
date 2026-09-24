@@ -20,10 +20,10 @@
         "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/finite_family.rs",
         "omega-rust/psi/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/dynamic_conformances",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit.rs"
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit.rs"
       ],
       "suggested_first_slice": "In execution/terminal_unit/dynamic_scalar_calls/, replace the static-only dynamic_family_tuple path for runtime-capable calls with checked roster membership and generated selection among the closed bodies: one scalar binder, one common concrete result, dispatch around a region-sized operation. Unproved membership rejects.",
       "host_gates": ["which mbx || which cargo"],
@@ -69,7 +69,7 @@
         "omega-rust/omega/backend/object",
         "omega-rust/omega/compiler/compilation-report/src/package.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs",
         "samples/gui/window_app",
         "samples/gui/window_demo",
         "samples/gui/windowed_calculator"
@@ -123,8 +123,8 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering"
       ],
       "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",

@@ -60,7 +60,7 @@ native-realization = { path = "../../../compiler/native-realization" }
 optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }
 checked-trees = { path = "../../../../psi/representations/checked-trees" }
 extents = { path = "../../../../psi/foundation/extents" }
-checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }

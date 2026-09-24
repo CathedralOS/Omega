@@ -64,7 +64,7 @@
       "item": "ARITHMETIC-POLICY-REALIZATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/expression_preparation"
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation"
       ],
       "suggested_first_slice": "complete one executable arithmetic policy leg per the item text \u2014 expression_preparation owners; trapping sites stay owner-blocked on OWNER_QUESTIONS (do not fabricate a boundary identity), so take a non-trapping lane: primitive denotation and path-conditioned crash evidence through Terminal interpretation/native realization. The coordinator checkout holds uncommitted WIP in expression_preparation from a dead session \u2014 work your own worktree on fresh origin/main.",
       "host_gates": [
