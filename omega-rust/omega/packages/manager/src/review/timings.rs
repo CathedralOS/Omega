@@ -16,6 +16,7 @@
 //! reached from `--timings` on `install|update|audit packages` or folded
 //! into it before it is documented as a user-facing knob.
 
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::time::Instant;
 
@@ -25,7 +26,7 @@ thread_local! {
     /// Completed `(stage, elapsed µs)` pairs for the current run, in
     /// finishing order; the outermost stage completes last, so its elapsed
     /// is the run total.
-    static COMPLETED: RefCell<Vec<(&'static str, u64)>> = const { RefCell::new(Vec::new()) };
+    static COMPLETED: RefCell<Vec<(Cow<'static, str>, u64)>> = const { RefCell::new(Vec::new()) };
     /// Live stage guards on this thread. A stage nested inside another
     /// (for example triage inside source-review assembly) reports inside
     /// the outermost stage's run instead of flushing alone.
@@ -34,7 +35,7 @@ thread_local! {
 
 /// Measures one review stage from construction to drop.
 pub(crate) struct StageTiming {
-    name: &'static str,
+    name: Cow<'static, str>,
     started: Instant,
 }
 
@@ -46,10 +47,23 @@ pub(crate) fn stage(name: &'static str) -> Option<StageTiming> {
     Some(StageTiming::start(name))
 }
 
+/// The same measurement for a stage whose name carries its subject -- the
+/// review pass, or one package occurrence inside it. The name is built only
+/// when the variable is set, so an ordinary run still pays one env-var check
+/// and no formatting.
+pub(crate) fn subject_stage(name: impl FnOnce() -> String) -> Option<StageTiming> {
+    std::env::var_os(TIMINGS_VARIABLE)?;
+    Some(StageTiming::start_owned(Cow::Owned(name())))
+}
+
 impl StageTiming {
     /// `stage`'s unconditional half, split so tests exercise the ledger
     /// without mutating process environment.
     fn start(name: &'static str) -> Self {
+        Self::start_owned(Cow::Borrowed(name))
+    }
+
+    fn start_owned(name: Cow<'static, str>) -> Self {
         ACTIVE.with(|active| active.set(active.get() + 1));
         Self {
             name,
@@ -62,7 +76,9 @@ impl Drop for StageTiming {
     fn drop(&mut self) {
         let microseconds = u64::try_from(self.started.elapsed().as_micros()).unwrap_or(u64::MAX);
         COMPLETED.with(|completed| {
-            completed.borrow_mut().push((self.name, microseconds));
+            completed
+                .borrow_mut()
+                .push((std::mem::take(&mut self.name), microseconds));
         });
         let remaining = ACTIVE.with(|active| {
             let remaining = active.get().saturating_sub(1);
@@ -81,7 +97,7 @@ impl Drop for StageTiming {
 }
 
 #[cfg(test)]
-fn completed_stages() -> Vec<(&'static str, u64)> {
+fn completed_stages() -> Vec<(Cow<'static, str>, u64)> {
     COMPLETED.with(|completed| completed.borrow().clone())
 }
 
