@@ -195,3 +195,51 @@ fn restating_let_keeps_a_cast_mint_on_an_all_vacuous_domain_carrier() {
         &[],
     );
 }
+
+/// A predicate-bearing sibling does not make a freely duplicable carrier's
+/// vacuous member custody. `domains.md` admits `5 as i32::Km` with no
+/// obligation beyond carrier compatibility, and whether some other part of the
+/// program declares `i32::Positive` cannot decide that: duplicating a tagged
+/// `i32` duplicates nothing an owner granted. The mint refusal needs the
+/// carrier to be linear as well as route-managed.
+#[test]
+fn a_predicate_bearing_sibling_does_not_mark_an_unrestricted_carrier() {
+    check_rejecting(
+        r#"
+            domain i32::Positive requires self >= 0;
+            domain i32::Km;
+            machine tag(distance: i32) -> i32 in Km
+            {
+                let tagged: i32 in Km = distance as i32 in Km;
+                tagged
+            }
+        "#,
+        true,
+        &[],
+    );
+}
+
+/// The same shape on a linear carrier keeps the refusal: `Held` is used
+/// exactly once and `Checked` route-manages it, so the vacuous `Tag` names
+/// custody the cast would fabricate. This is the control for the test above --
+/// only the carrier's multiplicity differs.
+#[test]
+fn a_predicate_bearing_sibling_marks_a_linear_carrier() {
+    check_rejecting(
+        r#"
+            data Held [linear] { id: u64; }
+            domain Held::Checked requires self.id > 0;
+            domain Held::Tag;
+            machine tag(held: Held) -> Held in Tag
+            {
+                let tagged: Held in Tag = held as Held in Tag;
+                tagged
+            }
+        "#,
+        false,
+        &[
+            "`as` mints an instance of domain family `Tag`",
+            "carrier `Held`",
+        ],
+    );
+}
