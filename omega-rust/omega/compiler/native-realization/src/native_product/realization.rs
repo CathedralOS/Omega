@@ -71,6 +71,23 @@ pub(super) fn realize(
             &demanded_intrinsics,
         )?;
     let selected_plans = checked.selected_provider_plans().plans();
+    // A `via` leaf that evaluated to an import has no installed provider
+    // behind it; its settlement is minted from the selected plan itself.
+    let minted_imports =
+        crate::native_realization::source_evaluated_imports::mint_source_evaluated_imports(
+            selected_plans,
+            &demanded_intrinsics,
+        )?;
+    let import_settlements = minted_imports
+        .iter()
+        .map(|minted| crate::NativeProviderSettlement {
+            provider_execution: &minted.execution,
+            provider_plan: minted.plan,
+            realization: crate::NativeBoundaryRealization::NormalizedForeignCall(
+                &minted.same_stack,
+            ),
+        })
+        .collect::<Vec<_>>();
     let compiler_builtins = intrinsic_proposals
         .iter()
         .map(|proposal| crate::NativeCompilerBuiltinSettlement {
@@ -135,7 +152,7 @@ pub(super) fn realize(
         optimization_selections,
         selected_provider_plans: checked.selected_provider_plans(),
         external_binding_rows: checked.external_binding_rows(),
-        settlements: &[],
+        settlements: &import_settlements,
         compiler_builtins: &compiler_builtins,
         boundary_application_coverage: Some(&boundary_application_coverage),
         ieee_float_fma: &[],

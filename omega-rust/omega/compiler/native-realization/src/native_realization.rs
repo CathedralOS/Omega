@@ -16,6 +16,7 @@ mod physical_stage;
 pub(crate) mod providers;
 mod realization_diagnostics;
 mod realization_request;
+pub(crate) mod source_evaluated_imports;
 mod target_stage;
 mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;

@@ -872,12 +872,18 @@ Remaining work:
   an OS with a stable syscall ABI; on `windows_x86_64` the console and
   process-exit leaves therefore bind kernel32 `ExitProcess` by `DllImport`
   rather than a hosted intrinsic, and the accepted Console/ProcessExit
-  binding is consumed by that row whatever its realization. Connect the retained
-  external implementation contract to native settlement in
-  `providers/settlements/source_imports.rs`; the reported Windows exit-only
-  refusal is `Console::exit_process has no admitted native settlement`.
-  Preserve receiving-policy classifications in `terminal_authority_policy/console_host.rs`:
-  ProcessTermination for exit, ProcessOutput for writers, ProcessInput for readers.
+  binding is consumed by that row whatever its realization. Landed 2026-09-23:
+  provider planning follows the machine filter's host fallback, so an
+  unprofiled check plans the leaves it selected; source-evaluated import
+  settlements are minted on both native routes
+  (`native_realization/source_evaluated_imports.rs`, a 256 KiB same-stack
+  reserve because the callee runs on the guard-free receiver stack); the
+  receiving policy classifies the cohort in
+  `terminal_authority_policy/console_host.rs`. Exit-through-console fixtures
+  compile, run and exit 70 on a Windows host. Remaining on Windows:
+  `write_byte` and `read_byte` stay compiler intrinsics with no hosted
+  realization (kernel32 `WriteFile`/`ReadFile` through the same route), and
+  the foreign-entry stack reserve is a constant, not a per-callee declaration.
 
 Acceptance: source-produced unconditional and conditional/helper exits replay
 independently after serialization. Tampered identities, arguments, completion or
