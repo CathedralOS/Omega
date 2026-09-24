@@ -263,7 +263,10 @@ pub(super) fn guarded(
     operations: &[CheckedUnitEffectOperationPlan],
     start: usize,
     trace: &control::LocalConstructionTrace,
-) -> Option<CheckedComposedUnitControlTerminatorPlan> {
+) -> Option<(
+    CheckedComposedUnitControlTerminatorPlan,
+    Vec<CheckedUnitEffectOperationPlan>,
+)> {
     if is_unit(program, state.return_type)
         || program.type_multiplicity(state.return_type) == Multiplicity::Linear
     {
@@ -289,6 +292,7 @@ pub(super) fn guarded(
     }
     let mut count = next_result_ordinal(operations)?;
     let mut return_values = Vec::new();
+    let mut preamble = Vec::new();
     for destination in arms
         .iter()
         .map(|arm| &arm.destination)
@@ -326,7 +330,7 @@ pub(super) fn guarded(
             }
             _ => return None,
         };
-        return_values.push(return_value_operation(
+        let (operation, operand_calls) = return_value_operation(
             program,
             facts,
             scalar_callees,
@@ -339,13 +343,18 @@ pub(super) fn guarded(
             *statement_ordinal,
             expression,
             trace,
-        )?);
+        )?;
+        return_values.push(operation);
+        preamble.extend(operand_calls);
     }
-    Some(CheckedComposedUnitControlTerminatorPlan::Guarded {
-        arms: tail.arms,
-        fallback: tail.fallback.clone(),
-        return_values,
-    })
+    Some((
+        CheckedComposedUnitControlTerminatorPlan::Guarded {
+            arms: tail.arms,
+            fallback: tail.fallback.clone(),
+            return_values,
+        },
+        preamble,
+    ))
 }
 
 /// First free structural result binding ordinal after `operations`' owned
@@ -371,7 +380,10 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
 /// The `EstablishStructuralValue` producer for one authored `(expression)`
 /// return target: its structural root must already be retained by the value
 /// fact for this exact statement, carry this machine's result type, and lower
-/// through the same call decomposition the guarded-return roster uses.
+/// through the same call decomposition the guarded-return roster uses. The
+/// second tuple member holds the call operands the arm's own calls consume —
+/// established as ordinary operations before the terminator since arms have
+/// no statement sequence of their own to pre-plan them.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn return_value_operation(
     program: &TypedTrees,
@@ -386,7 +398,10 @@ pub(super) fn return_value_operation(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
     trace: &control::LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
+) -> Option<(
+    CheckedUnitEffectOperationPlan,
+    Vec<CheckedUnitEffectOperationPlan>,
+)> {
     if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
         return view_result_operation(
             program,
@@ -398,7 +413,8 @@ pub(super) fn return_value_operation(
             count,
             statement_ordinal,
             expression,
-        );
+        )
+        .map(|operation| (operation, Vec::new()));
     }
     if crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type) {
         return named_view_result_operation(
@@ -409,7 +425,8 @@ pub(super) fn return_value_operation(
             count,
             statement_ordinal,
             expression,
-        );
+        )
+        .map(|operation| (operation, Vec::new()));
     }
     let root = facts.values.structural_values.root_for_expression(
         state.symbol,
@@ -419,6 +436,7 @@ pub(super) fn return_value_operation(
     if root.machine != machine.symbol || root.type_reference != state.return_type {
         return None;
     }
+    let mut operand_calls = Vec::new();
     let calls = control::structural_operands::value_calls(
         program,
         facts,
@@ -430,6 +448,7 @@ pub(super) fn return_value_operation(
         &[],
         claims,
         &[],
+        &mut operand_calls,
         count,
         root.root,
         trace,
@@ -441,13 +460,16 @@ pub(super) fn return_value_operation(
         multiplicity: program.type_multiplicity(state.return_type),
     };
     *count = count.checked_add(1)?;
-    Some(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        result,
-        value: root.root,
-        calls,
-        operand_source: None,
-        discard_result_on_return: false,
-    })
+    Some((
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            value: root.root,
+            calls,
+            operand_source: None,
+            discard_result_on_return: false,
+        },
+        operand_calls,
+    ))
 }
 
 /// The `EstablishReference` producer for one authored `(place[a..b])` return

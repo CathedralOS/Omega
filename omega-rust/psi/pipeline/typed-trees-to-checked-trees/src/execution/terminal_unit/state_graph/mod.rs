@@ -692,20 +692,21 @@ pub(super) fn build_traced(
         }
         trace.phase("state graph: terminator");
         let ordinal = u32::try_from(terminator_index).ok()?;
-        let edge = |transition, edge_ordinal, kind| {
-            successor(
-                program,
-                facts,
-                machine,
-                state_index,
-                &signatures,
-                &operations,
-                transition,
-                edge_ordinal,
-                kind,
-                trace,
-            )
-        };
+        let edge =
+            |operations: &[CheckedUnitEffectOperationPlan], transition, edge_ordinal, kind| {
+                successor(
+                    program,
+                    facts,
+                    machine,
+                    state_index,
+                    &signatures,
+                    operations,
+                    transition,
+                    edge_ordinal,
+                    kind,
+                    trace,
+                )
+            };
         let terminator = if let Some(terminator) = closed_sum::build(
             program,
             facts,
@@ -740,7 +741,7 @@ pub(super) fn build_traced(
                 shapes,
             )?;
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
-        } else if let Some(terminator) = returns::guarded(
+        } else if let Some((terminator, operand_calls)) = returns::guarded(
             program,
             facts,
             scalar_callees,
@@ -753,6 +754,7 @@ pub(super) fn build_traced(
             terminator_index,
             trace,
         ) {
+            operations.extend(operand_calls);
             terminator
         } else {
             match &statements[terminator_index..] {
@@ -800,7 +802,7 @@ pub(super) fn build_traced(
                 {
                     trace.phase("state graph: terminator: jump successor");
                     CheckedComposedUnitControlTerminatorPlan::Jump {
-                        successor: edge(transition, ordinal, SuccessorEdge::Jump)?,
+                        successor: edge(&operations, transition, ordinal, SuccessorEdge::Jump)?,
                     }
                 }
                 [
@@ -831,7 +833,10 @@ pub(super) fn build_traced(
                      -> Option<
                         Result<
                             CheckedStructuralControlSuccessorPlan,
-                            CheckedUnitEffectOperationPlan,
+                            (
+                                CheckedUnitEffectOperationPlan,
+                                Vec<CheckedUnitEffectOperationPlan>,
+                            ),
                         >,
                     > {
                         if let TransitionTargetNode::Value(expression) =
@@ -886,7 +891,8 @@ pub(super) fn build_traced(
                                 when_false,
                             }
                         }
-                        (Ok(jump), Err(return_arm)) => {
+                        (Ok(jump), Err((return_arm, operand_calls))) => {
+                            operations.extend(operand_calls);
                             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                                 guard,
                                 jump,
@@ -894,7 +900,8 @@ pub(super) fn build_traced(
                                 return_when_true: false,
                             }
                         }
-                        (Err(return_arm), Ok(jump)) => {
+                        (Err((return_arm, operand_calls)), Ok(jump)) => {
+                            operations.extend(operand_calls);
                             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                                 guard,
                                 jump,
@@ -970,7 +977,12 @@ pub(super) fn build_traced(
                         if !guard_is_boolean(facts, &guard) {
                             return None;
                         }
-                        let successor = edge(transition, arm_ordinal, SuccessorEdge::GuardedJump)?;
+                        let successor = edge(
+                            &operations,
+                            transition,
+                            arm_ordinal,
+                            SuccessorEdge::GuardedJump,
+                        )?;
                         if successor.target_state != selected.target {
                             return None;
                         }
@@ -989,6 +1001,7 @@ pub(super) fn build_traced(
                         return None;
                     }
                     let fallback = edge(
+                        &operations,
                         fallback_transition,
                         fallback_ordinal,
                         SuccessorEdge::GuardedJump,
@@ -1118,8 +1131,13 @@ pub(super) fn build_traced(
                                 })
                     });
             let consumed = match &terminator {
-                CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
+                CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                     result.multiplicity == Multiplicity::Unrestricted
+                        || return_values.iter().any(|value| {
+                            value.with_value_calls().skip(1).any(|operation| {
+                                terminator_call_consumes_result(operation, result.binding_ordinal)
+                            })
+                        })
                 }
                 CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
@@ -1149,7 +1167,11 @@ pub(super) fn build_traced(
                             &disposable_locals,
                         )
                 }
-                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => {
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    jump,
+                    return_arm,
+                    ..
+                } => {
                     // The return arm consumes its producers through the
                     // `EstablishStructuralValue` operands like Guarded; only
                     // the named edge participates in transfer custody.
@@ -1161,6 +1183,9 @@ pub(super) fn build_traced(
                             &[jump],
                             &disposable_locals,
                         )
+                        || return_arm.with_value_calls().skip(1).any(|operation| {
+                            terminator_call_consumes_result(operation, result.binding_ordinal)
+                        })
                 }
                 CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
                     let successors = arms
@@ -1506,6 +1531,48 @@ fn prefix_initializers(
 /// exit, and counting a call as well would owe it twice. The result custody
 /// accounting then requires exactly one consumer per result, so a temporary
 /// the sequence also discarded or returned still refuses.
+/// A call retained inside a value-returning terminator (`Guarded` arm
+/// payloads, `ConditionalReturn`'s value arm) consumes its producers through
+/// owned whole arguments the same way an in-sequence call does: the argument
+/// names the exact result binding it moves into the call's custody.
+fn terminator_call_consumes_result(
+    operation: &CheckedUnitEffectOperationPlan,
+    binding_ordinal: u32,
+) -> bool {
+    let structural_arguments = match operation {
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return false,
+    };
+    structural_arguments.iter().any(|argument| {
+        argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+            && argument.access == CheckedStructuralAccess::Owned
+            && argument.path.is_empty()
+    })
+}
+
 fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
     match producer {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {

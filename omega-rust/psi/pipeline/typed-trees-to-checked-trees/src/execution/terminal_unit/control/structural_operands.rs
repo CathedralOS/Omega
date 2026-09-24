@@ -73,6 +73,13 @@ fn constructed_value_root<'a>(
 /// Retain ordinary call plans at their expression nodes. Their order here is
 /// catalog order only: the structural value evaluator invokes each call when
 /// that operand is reached, after all earlier authored field evaluations.
+///
+/// A call node's own call operands are established in `preamble` (the state's
+/// operation stream) before the consuming call — the same shape the statement
+/// sequence produces. Operands whose binding `results` already carries are
+/// skipped, so callers that pre-plan operands see no duplication; callers
+/// without a pre-planning route (value-return arms) get the nested calls
+/// their arguments need minted as ordinary structural call operations.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn value_calls(
     program: &TypedTrees,
@@ -85,11 +92,13 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     trivial_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    preamble: &mut Vec<CheckedUnitEffectOperationPlan>,
     count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
     trace: &LocalConstructionTrace,
 ) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
     let plans = &facts.values.structural_values;
+    let mut scoped_results = results.to_vec();
     let mut pending = vec![root];
     let mut visited = Vec::new();
     let mut output = Vec::new();
@@ -106,6 +115,58 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 let call = facts.flow.control.calls.get(*source_call);
                 if call.authored_expression != plans.nodes.get(value).expression {
                     return None;
+                }
+                for operand in operations_for_call(program, facts, machine, state, call)? {
+                    let Operand::Call(nested) = operand else {
+                        continue;
+                    };
+                    if scoped_results.iter().any(|(_, root)| {
+                        matches!(root, facts::PlaceRoot::Expression(expression)
+                            if *expression == nested.authored_expression)
+                    }) {
+                        continue;
+                    }
+                    let nested_return =
+                        crate::flow::call_target_return_type(program, nested.target_symbol)?;
+                    let mut nested_result = checked_structural_result_type(
+                        program,
+                        shapes,
+                        nested_return,
+                        &machine_binders(program, machine),
+                    )?;
+                    nested_result.statement_index = u32::try_from(nested.statement_index).ok()?;
+                    nested_result.binding_ordinal = u32::try_from(*count).ok()?;
+                    let operation = build_call_operation(
+                        program,
+                        facts,
+                        Some(scalar_callees),
+                        machine,
+                        state,
+                        parameters,
+                        trivial_locals,
+                        entry_claims,
+                        nested,
+                        false,
+                        Some(ExpectedCallValueResult::Structural(&nested_result)),
+                        &scoped_results,
+                        trace,
+                    )?;
+                    let mut operation =
+                        bind_structural_call_result(operation, nested_result.clone())?;
+                    let CheckedUnitEffectOperationPlan::StructuralCall {
+                        discard_result_on_return,
+                        ..
+                    } = &mut operation
+                    else {
+                        return None;
+                    };
+                    *discard_result_on_return = false;
+                    preamble.push(operation);
+                    scoped_results.push((
+                        nested_result,
+                        facts::PlaceRoot::Expression(nested.authored_expression),
+                    ));
+                    *count = count.checked_add(1)?;
                 }
                 let reference = crate::flow::call_target_return_type(program, call.target_symbol)?;
                 let mut result = checked_structural_result_type(
@@ -128,10 +189,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     call,
                     false,
                     Some(ExpectedCallValueResult::Structural(&result)),
-                    results,
+                    &scoped_results,
                     trace,
                 )?;
-                let mut operation = bind_structural_call_result(operation, result)?;
+                let mut operation = bind_structural_call_result(operation, result.clone())?;
                 let CheckedUnitEffectOperationPlan::StructuralCall {
                     discard_result_on_return,
                     ..
@@ -143,6 +204,10 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 output.push(checked_trees::CheckedStructuralValueCall::new(
                     value, operation,
                 )?);
+                scoped_results.push((
+                    result,
+                    facts::PlaceRoot::Expression(call.authored_expression),
+                ));
                 *count = count.checked_add(1)?;
             }
             checked_trees::CheckedStructuralValueKind::Record { fields, .. }
