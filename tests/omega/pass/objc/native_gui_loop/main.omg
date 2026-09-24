@@ -17,7 +17,7 @@ use omega::language::core::float_operations;
 // is the end-goal behavior; the only remaining piece is the source-transparent
 // wiring so the UNCHANGED samples' boundary Gui/Clock/Input calls reach it.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -73,7 +73,7 @@ data Main {
     rc: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + CoreGraphics + ObjectiveC {
     self.fx = 0.0;
     self.fy = 0.0;
     self.fw = 64.0;

@@ -5,7 +5,7 @@
 // message send dispatched correctly through the libobjc runtime. obj != 0 ->
 // exit 7; a broken send (wrong regs / unbound symbol) -> 0 or crash.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -25,7 +25,7 @@ data Main {
     obj: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.cls = self.objc.get_class("NSObject");
     self.sel = self.objc.register_selector("alloc");
     self.obj = self.objc.send(self.cls, self.sel);

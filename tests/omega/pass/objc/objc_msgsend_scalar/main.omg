@@ -9,7 +9,7 @@
 // register gives something else -> exit 1. Uses only NSObject (defined in
 // libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -30,7 +30,7 @@ data Main {
     r: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.cls = self.objc.get_class("NSObject");
     self.sel_resp = self.objc.register_selector("respondsToSelector:");
     self.sel_alloc = self.objc.register_selector("alloc");
