@@ -459,3 +459,86 @@ fn state_graph_composes_a_field_equality_guard_inside_a_named_state() {
     ));
     let _ = entry;
 }
+
+#[test]
+fn state_graph_composes_a_constant_indexed_member_guard_inside_a_named_state() {
+    // `self.<array-field>[<literal>] <cmp> <literal>` inside a declared `state`
+    // block: the constant-indexed member read stays a live checked dependency
+    // and the comparison lane mints the conditional pair.
+    let checked = checked(
+        r#"
+        pub data Root { control: [u8; 64]; hit: i32; }
+        machine Root::run(&mut self) {
+            state open(&mut self) {
+                transition self.control[3] >= 48 {
+                    true -> have()
+                    _ -> stop()
+                }
+            }
+            state have(&mut self) { self.hit = 70; }
+            state stop(&mut self) { self.hit = 71; }
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "the named-state indexed member guard composes: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions
+            )
+        });
+    let [entry, open, have, stop] = plan.states.as_slice() else {
+        panic!(
+            "the named-state indexed guard pair keeps the entry, its state, and both leaves: {:?}",
+            plan.states.len()
+        )
+    };
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        guard,
+        when_true,
+        when_false,
+        ..
+    } = &open.terminator
+    else {
+        panic!(
+            "the indexed member guard mints a conditional terminator: {:?}",
+            open.terminator
+        )
+    };
+    assert_eq!(when_true.target_state, have.state);
+    assert_eq!(when_false.target_state, stop.state);
+    let CheckedScalarExpression::Boolean(boolean) = guard else {
+        panic!("the indexed guard is a Boolean scalar: {guard:?}")
+    };
+    let checked_trees::CheckedBooleanExpression::IntegerComparison { kind, left, right } =
+        boolean.as_ref()
+    else {
+        panic!("the indexed guard keeps the authored comparison: {boolean:?}")
+    };
+    assert_eq!(
+        *kind,
+        checked_trees::CheckedIntegerComparisonKind::LessOrEqual
+    );
+    assert!(matches!(
+        left.as_ref(),
+        CheckedScalarExpression::IntegerLiteral { literal }
+            if literal.value_u64() == Some(48)
+    ));
+    assert!(matches!(
+        right.as_ref(),
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position: 0,
+            path,
+            primitive_type: PrimitiveType::U8,
+        } if path.as_slice() == [
+            checked_trees::CheckedStructuralPredicatePathSegment::Field("control".to_owned()),
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(3),
+        ]
+    ));
+    let _ = entry;
+}
