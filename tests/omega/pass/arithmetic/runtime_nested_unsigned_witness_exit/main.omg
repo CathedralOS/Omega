@@ -11,6 +11,7 @@
 // witness funnel. Exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u32::U320To9 requires self <= 9;
 data Main {
     console: Binding<Console>;
     a: u32;
@@ -57,7 +58,7 @@ machine Main::main(&mut self) reaches Console {
         self.z = 5;
         transition self.z < 10 { true -> write_go(self.z) _ -> bad5() }
     }
-    state write_go(&mut self, zz: u32 [0..=9]) {
+    state write_go(&mut self, zz: u32 in U320To9) {
         self.r = (((self.a / self.b) % 100) as u32 in Wrapping)
             + (zz as u32 in Wrapping);
         transition self.r == 5 { true -> good() _ -> bad6() }

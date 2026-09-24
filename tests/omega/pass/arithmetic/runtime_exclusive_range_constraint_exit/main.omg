@@ -4,7 +4,9 @@
 // prover keeps `x + y` (worst case [0, 115]) EXACT with no overflow domain.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; x: i32 [0..16]; y: i32 [0..=100]; }
+domain i32::I320To15 requires 0 <= self && self <= 15;
+domain i32::I320To100 requires 0 <= self && self <= 100;
+data Main { console: Binding<Console>; x: i32 in I320To15; y: i32 in I320To100; }
 machine Main::main(&mut self) reaches Console {
     self.x = 5;
     self.y = 60;

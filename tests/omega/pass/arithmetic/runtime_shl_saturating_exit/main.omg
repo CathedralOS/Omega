@@ -9,7 +9,8 @@
 // plain-shl behavior).
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
+domain u8::U80To7 requires self <= 7;
+data Main { console: Binding<Console>; a: u8 in Saturating; b: u8 in U80To7; r: u8 in Saturating; }
 machine Main::main(&mut self) reaches Console {
     self.a = 17;
     self.b = 4;
