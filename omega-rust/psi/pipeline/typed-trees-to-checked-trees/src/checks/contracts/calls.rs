@@ -1257,3 +1257,73 @@ mod prerequisite_roster_probes {
         ));
     }
 }
+
+#[cfg(test)]
+mod transition_arm_guard_probes {
+    //! `transition_guard_proves_requires` lets a transition's taken-arm guard
+    //! discharge the target's `requires`. Two things decide whether that is
+    //! sound and complete: WHICH ARM the call sits on, and how the arm target
+    //! is SPELLED.
+
+    use crate::tests::front_end::checked_program_result;
+
+    fn accepted(source: &str) -> bool {
+        checked_program_result(source).is_ok()
+    }
+
+    const CALLEE: &str = "machine check(value: u64) -> u64
+        requires
+            value > 0
+        { value }";
+
+    /// The taken arm establishes the guard, so the arrival requirement is
+    /// discharged; the CONTINUATION arm establishes its negation, so the same
+    /// call there must stay rejected. Both are free machines, which keep the
+    /// bare named-target spelling.
+    #[test]
+    fn only_the_taken_arm_discharges_the_arrival_requirement() {
+        assert!(
+            accepted(&format!(
+                "{CALLEE}
+                machine run(value: u64) -> u64 {{
+                    transition value > 0 {{ true -> check(value) false -> (0) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the taken arm's guard must discharge `requires value > 0`"
+        );
+        assert!(
+            !accepted(&format!(
+                "{CALLEE}
+                machine run(value: u64) -> u64 {{
+                    transition value > 0 {{ true -> (0) false -> check(value) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the continuation arm holds `!(value > 0)`, which cannot discharge \
+             `requires value > 0`"
+        );
+    }
+
+    /// An ATTACHED machine must spell a foreign tail call with the value-call
+    /// parentheses, so the same taken-arm edge arrives as a value call. It is
+    /// the same edge and the guard is evaluated in the same place, so it must
+    /// discharge the same requirement.
+    #[test]
+    fn a_parenthesized_taken_arm_target_discharges_what_its_bare_form_does() {
+        assert!(
+            accepted(&format!(
+                "{CALLEE}
+                data Runner {{}}
+                machine Runner::run(&mut self, value: u64) -> u64 {{
+                    transition value > 0 {{ true -> (check(value)) false -> (0) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the parenthesized taken-arm target is the same arrival as the bare one"
+        );
+    }
+}
