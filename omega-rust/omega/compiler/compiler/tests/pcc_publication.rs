@@ -649,20 +649,20 @@ fn macos_gui_psi_pcc_installs_the_inner_sidecar_pair() {
         .checked_native_package_path()
         .expect("checked package root")
         .to_path_buf();
-    assert_eq!(package_root, out.join("pcc-gui.app"));
+    assert_eq!(package_root, out.join("pcc_gui.app"));
     assert_eq!(
         published
             .checked_native_executable_path()
             .expect("checked inner executable"),
-        package_root.join("Contents/MacOS/pcc-gui").as_path()
+        package_root.join("Contents/MacOS/pcc_gui").as_path()
     );
     let [pair] = published.pcc_publications() else {
         panic!("expected exactly one published pair")
     };
     assert_eq!(pair.product, PccProductKind::Psi);
     let macos_dir = package_root.join("Contents").join("MacOS");
-    assert_eq!(pair.artifact_path, macos_dir.join("pcc-gui.psi"));
-    assert_eq!(pair.sidecar_path, macos_dir.join("pcc-gui.psi.proof"));
+    assert_eq!(pair.artifact_path, macos_dir.join("pcc_gui.psi"));
+    assert_eq!(pair.sidecar_path, macos_dir.join("pcc_gui.psi.proof"));
     assert_eq!(
         pair.artifact_byte_len,
         fs::metadata(&pair.artifact_path)
@@ -713,8 +713,8 @@ fn macos_gui_native_pcc_installs_the_inner_sidecar() {
         panic!("expected exactly one published pair")
     };
     assert_eq!(pair.product, PccProductKind::Native);
-    assert_eq!(pair.artifact_path, macos_dir.join("pcc-gui"));
-    assert_eq!(pair.sidecar_path, macos_dir.join("pcc-gui.proof"));
+    assert_eq!(pair.artifact_path, macos_dir.join("pcc_gui"));
+    assert_eq!(pair.sidecar_path, macos_dir.join("pcc_gui.proof"));
     assert_eq!(
         pair.artifact_byte_len,
         fs::metadata(&pair.artifact_path)
@@ -1739,15 +1739,15 @@ fn published_pair_framing_names_both_files_and_both_sizes() {
     let [gui_pair] = gui.pcc_publications() else {
         panic!("expected exactly one published pair")
     };
-    let macos_dir = gui_out.join("pcc-gui.app").join("Contents").join("MacOS");
+    let macos_dir = gui_out.join("pcc_gui.app").join("Contents").join("MacOS");
     let gui_framing = gui_pair.to_string();
     assert_eq!(
         gui_framing,
         format!(
             "psi proof-carrying pair: {} ({} bytes) + {} ({} bytes)",
-            macos_dir.join("pcc-gui.psi").display(),
+            macos_dir.join("pcc_gui.psi").display(),
             gui_pair.artifact_byte_len,
-            macos_dir.join("pcc-gui.psi.proof").display(),
+            macos_dir.join("pcc_gui.psi.proof").display(),
             gui_pair.sidecar_byte_len,
         )
     );
