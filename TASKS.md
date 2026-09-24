@@ -446,6 +446,27 @@ the complete product bar; focused successes below do not establish that baseline
   cycle. Start with `src/tests/termination/rank_ranges/` and matching
   `tests/omega/{pass,fail}/termination/` controls.
 
+- **CHECK-CLOSURE-ONCE.** (new-scope) `omega --check` of a 20-line fixture
+  importing `omega_language_std` takes 40 s in the release build (`--timings`
+  at `589a1f1951`, Windows x86-64): the package review compiles every closure
+  package to checked trees twice, once for semantic-binding discovery
+  (`review/candidate/compilation.rs::compile_candidate`) and once with the
+  discovered bindings, and each std pass runs `typed_trees_to_checked_trees`
+  twice (build continuation, then `execution_settlement::check_selected_execution`),
+  so the 27.5k-line library is checked four times at 7.2 s each
+  (`checks::check_checked_facts` 2.8 s, `build_check_facts` 1.6 s,
+  `validate_typed_program` 1.3 s, `finalize_execution` 0.6 s) before the
+  root's own 1.9 s; a fixture without std checks in 14 ms. Owners:
+  `packages/manager` review candidate passes and
+  `assembled-syntax-to-checked-compilation` settlement. Reuse a dependency
+  package's checked review across the two passes when its consumer-scoped
+  bindings and discovery tolerance are unchanged, and skip settlement's
+  re-check when selection landed no fold or float destination in the typed
+  program; do not weaken review evidence or trust settlement to get there.
+  Acceptance: the same command checks std once per invocation and completes
+  in under 12 s, and `--timings` names each review pass with its package and
+  duration.
+
 ## Automatic service reach
 
 Finish portable coverage of
