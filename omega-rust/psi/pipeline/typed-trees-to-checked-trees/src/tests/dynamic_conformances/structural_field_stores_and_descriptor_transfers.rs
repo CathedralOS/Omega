@@ -1155,3 +1155,487 @@ fn two_branch_dynamic_calls_under_an_integer_inequality_guard_share_one_join() {
         when_false.call.selection.conformance,
     );
 }
+
+#[test]
+fn two_branch_dynamic_calls_under_a_retained_field_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { flag: bool; first: Item; second: Item; }
+
+        machine Main::run(&self) {
+            transition self.flag {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert!(control.scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the retained field guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: 0,
+            ..
+        }
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
+
+#[test]
+fn two_branch_dynamic_calls_under_a_retained_field_equality_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { flag: bool; first: Item; second: Item; }
+
+        machine Main::run(&self) {
+            transition self.flag == true {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert!(control.scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the field equality guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
+            if matches!(
+                left.as_ref(),
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position: 0,
+                    ..
+                }
+            ) && matches!(
+                right.as_ref(),
+                checked_trees::CheckedBooleanExpression::Constant(true)
+            )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
+
+#[test]
+fn two_branch_dynamic_calls_under_a_retained_field_inequality_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { flag: bool; first: Item; second: Item; }
+
+        machine Main::run(&self) {
+            transition self.flag != true {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert!(control.scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the field inequality guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::Not(inner)
+            if matches!(
+                inner.as_ref(),
+                checked_trees::CheckedBooleanExpression::Equal { left, right }
+                    if matches!(
+                        left.as_ref(),
+                        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                            parameter_position: 0,
+                            ..
+                        }
+                    ) && matches!(
+                        right.as_ref(),
+                        checked_trees::CheckedBooleanExpression::Constant(true)
+                    )
+            )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
+
+#[test]
+fn two_branch_dynamic_calls_under_a_negated_retained_field_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { flag: bool; first: Item; second: Item; }
+
+        machine Main::run(&self) {
+            transition !self.flag {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert!(control.scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the negated field guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::Not(inner)
+            if matches!(
+                inner.as_ref(),
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position: 0,
+                    ..
+                }
+            )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
+
+#[test]
+fn two_branch_dynamic_calls_under_a_retained_integer_field_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { count: u64; first: Item; second: Item; }
+
+        machine Main::run(&self) {
+            transition self.count == 5 {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert!(control.scalar_parameters.is_empty());
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the integer field guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::IntegerComparison {
+            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+            left,
+            right,
+        } if matches!(
+            left.as_ref(),
+            checked_trees::CheckedScalarExpression::StructuralParameterField {
+                parameter_position: 0,
+                primitive_type: typed_trees::types::PrimitiveType::U64,
+                ..
+            }
+        ) && matches!(
+            right.as_ref(),
+            checked_trees::CheckedScalarExpression::IntegerLiteral { .. }
+        )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
+
+#[test]
+fn two_branch_dynamic_calls_under_a_field_and_parameter_equality_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { flag: bool; first: Item; second: Item; }
+
+        machine Main::run(&self, pick: bool) {
+            transition self.flag == pick {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert_eq!(control.scalar_parameters.len(), 1);
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the field-parameter equality guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
+            if matches!(
+                left.as_ref(),
+                checked_trees::CheckedBooleanExpression::StructuralParameterField {
+                    parameter_position: 0,
+                    ..
+                }
+            ) && matches!(
+                right.as_ref(),
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+            )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}

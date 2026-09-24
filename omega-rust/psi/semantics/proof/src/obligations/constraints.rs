@@ -115,7 +115,15 @@ pub(crate) fn collect_constraints(
                     .constraints(*constraints)
                     .iter()
                     .filter_map(|constraint| {
-                        ProofConstraint::from_node(program, *base_type, constraint)
+                        // A VALUE of an exact-interval domain satisfies that
+                        // interval, so the fact is honest evidence wherever it
+                        // is read. What an obligation may DEMAND as an
+                        // interval is the separate question
+                        // `store_constraint_nodes_with_domain_intervals`
+                        // answers.
+                        ProofConstraint::from_node_with_domain_intervals(
+                            program, *base_type, constraint,
+                        )
                     }),
             );
             augment_constraints_with_named_facts(&mut derived);
