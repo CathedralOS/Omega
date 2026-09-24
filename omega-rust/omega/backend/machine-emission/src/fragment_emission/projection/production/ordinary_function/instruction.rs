@@ -16,7 +16,7 @@ use machine_code::{
 };
 
 use super::control;
-use crate::fragments::ResolvedFragmentEmissionError;
+use crate::fragment_emission::projection::ResolvedFragmentEmissionError;
 
 pub(super) fn emit(
     block: &SelectedBlock,

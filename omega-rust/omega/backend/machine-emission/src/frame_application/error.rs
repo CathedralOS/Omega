@@ -1,8 +1,12 @@
+use super::insertion::FrameApplicationError;
+use crate::fragment_emission::FunctionFragmentEmissionError;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::MachineId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FrameApplicationError {
+pub enum FunctionFragmentFrameApplicationError {
+    Source(FunctionFragmentEmissionError),
+    SourceKindMismatch,
     RootMismatch,
     FunctionRosterMismatch,
     MissingFunction(MachineId),
@@ -23,9 +27,10 @@ pub enum FrameApplicationError {
     ),
     OffsetOverflow,
     ArtifactMismatch,
+    ReceiptMismatch,
 }
 
-impl std::fmt::Display for FrameApplicationError {
+impl std::fmt::Display for FunctionFragmentFrameApplicationError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
@@ -34,4 +39,26 @@ impl std::fmt::Display for FrameApplicationError {
     }
 }
 
-impl std::error::Error for FrameApplicationError {}
+impl std::error::Error for FunctionFragmentFrameApplicationError {}
+
+impl From<FrameApplicationError> for FunctionFragmentFrameApplicationError {
+    fn from(error: FrameApplicationError) -> Self {
+        use FrameApplicationError as Source;
+        match error {
+            Source::RootMismatch => Self::RootMismatch,
+            Source::FunctionRosterMismatch => Self::FunctionRosterMismatch,
+            Source::MissingFunction(value) => Self::MissingFunction(value),
+            Source::InvalidProtocolSpan(value) => Self::InvalidProtocolSpan(value),
+            Source::UnsupportedFramedControl(value) => Self::UnsupportedFramedControl(value),
+            Source::MissingFinalReturn(value) => Self::MissingFinalReturn(value),
+            Source::SourceShapeMismatch(value) => Self::SourceShapeMismatch(value),
+            Source::MissingTargetBlock(value) => Self::MissingTargetBlock(value),
+            Source::BranchFallthroughMismatch(value) => Self::BranchFallthroughMismatch(value),
+            Source::BranchEffectsMismatch(value) => Self::BranchEffectsMismatch(value),
+            Source::X86_64Branch(instruction, error) => Self::X86_64Branch(instruction, error),
+            Source::Aarch64Branch(instruction, error) => Self::Aarch64Branch(instruction, error),
+            Source::OffsetOverflow => Self::OffsetOverflow,
+            Source::ArtifactMismatch => Self::ArtifactMismatch,
+        }
+    }
+}

@@ -2,13 +2,13 @@ use machine_code::FunctionFragmentEmissionPlan;
 use machine_code::RelocationFreeTextSectionPlacement;
 use optimization_core::FunctionFragmentTextSectionManifestIdentity;
 
-use crate::StagedFunctionFragmentFrameApplication;
+use crate::frame_application::StagedFunctionFragmentFrameApplication;
 
 use super::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
     FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
     StagedFixedFrameTextSectionCustodyReceipt, ValidatedFunctionFragmentTextSectionManifest,
-    placement::place_fixed_frame_fragments,
+    placement::{TextPlacementInput, place_fragment_text_section, text_section_statistics},
 };
 
 pub(super) fn compute_fixed_frame(
@@ -22,7 +22,8 @@ pub(super) fn compute_fixed_frame(
 > {
     let fragments = source.fragments();
     let source_manifest = source.source().manifest().record();
-    let text_section = place_fixed_frame_fragments(source)?;
+    let text_section =
+        place_fragment_text_section(TextPlacementInput::InternalCalls(source.fragments()))?;
     let manifest = manifest(
         source_manifest,
         FunctionFragmentTextSectionStage::ValidatedFixedFrameInternalCallTextSectionPlacementV1,
@@ -40,7 +41,7 @@ fn manifest(
     text_section: &RelocationFreeTextSectionPlacement,
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<ValidatedFunctionFragmentTextSectionManifest, RelocationFreeTextSectionPlacementError> {
-    let statistics = crate::text_section_statistics(text_section, fragments)?;
+    let statistics = text_section_statistics(text_section, fragments)?;
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
     let mut record = FunctionFragmentTextSectionManifest {
         identity: FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"pending"),

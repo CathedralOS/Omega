@@ -1,4 +1,4 @@
-use crate::validate_fixed_frame_function_relative_realization;
+use crate::function_realization::validate_fixed_frame_function_relative_realization;
 use machine_code::FunctionFragmentEmissionPlan;
 
 use super::error::FunctionFragmentEmissionError;

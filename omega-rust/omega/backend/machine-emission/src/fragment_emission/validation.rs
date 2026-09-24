@@ -3,6 +3,7 @@
 use super::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionUnavailableData, StagedOptimizedFunctionFragmentEmission,
+    projection::function_fragment_emission_statistics,
 };
 
 pub(super) fn manifest(
@@ -12,7 +13,7 @@ pub(super) fn manifest(
     let source = current.function_relative_manifest().record();
     let fragments = &staged.fragments;
     let record = staged.manifest.record();
-    let counts = crate::function_fragment_emission_statistics(fragments)?;
+    let counts = function_fragment_emission_statistics(fragments)?;
     let stage = if counts.unresolved_internal_machine_fixups == 0 {
         FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
     } else {

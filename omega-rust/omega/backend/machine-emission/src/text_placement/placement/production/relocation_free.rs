@@ -15,7 +15,7 @@ use target::Architecture;
 use super::super::TextPlacementError;
 use super::super::conversion::usize_to_u64;
 
-pub(in crate::text_placement) fn place(
+pub(in crate::text_placement::placement) fn place(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     let section_alignment = match fragments.target.architecture {

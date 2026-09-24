@@ -5,7 +5,7 @@ use optimization_core::{
 };
 use std::sync::Arc;
 
-use crate::StagedFunctionFragmentFrameApplication;
+use crate::frame_application::StagedFunctionFragmentFrameApplication;
 use machine_code::FunctionFragmentFrameApplicationIdentity;
 
 use machine_code::FunctionFragmentTextSectionManifest;

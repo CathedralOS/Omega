@@ -5,8 +5,8 @@ use super::{
     WholeFunctionExitLayoutCustody,
 };
 use super::{compute, validation};
-use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
+use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::ValidatedPhysicalRegisterModel;

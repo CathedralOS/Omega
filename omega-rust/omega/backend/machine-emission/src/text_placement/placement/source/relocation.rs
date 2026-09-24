@@ -6,7 +6,7 @@ use selected_instructions::{MachineAlternativeFamily, MachineEncodedControlEffec
 
 use super::super::TextPlacementError;
 
-pub(in crate::text_placement) fn prove_none(
+pub(in crate::text_placement::placement) fn prove_none(
     function: &FunctionFragment,
 ) -> Result<(), TextPlacementError> {
     for block in &function.blocks {

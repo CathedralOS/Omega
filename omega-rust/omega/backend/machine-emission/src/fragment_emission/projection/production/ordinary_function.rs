@@ -7,7 +7,7 @@ use selected_instructions::SelectedFunction;
 
 use machine_code::ResolvedSelectedFunctionLayout;
 
-use crate::fragments::ResolvedFragmentEmissionError;
+use crate::fragment_emission::projection::ResolvedFragmentEmissionError;
 
 pub(super) fn emit(
     selected: &SelectedFunction,

@@ -1,6 +1,14 @@
-//! Optimizer module role: stage group. Function-relative realization after physical homes are known.
+//! Function-relative realization: the first machine-emission stage.
 //!
-//! One canonical framed realization retains allocation and layout replay evidence.
+//! [`stage_fixed_frame_function_relative_realization`] (`fixed_frame`)
+//! replays the retained allocation against the post-allocation machine plan,
+//! stages the function frame (`frame`: callee-save requirements, their
+//! storage, the frame layout and its byte protocol), encodes and lays out the
+//! selected forms, runs the phase-local layout optimization, stages the
+//! whole-function exit contract, and seals the manifest defined here with its
+//! custody receipt (`assembly`, `carriers`). Its validator replays each of
+//! those joins against the same immutable inputs. `codec` encodes, decodes
+//! and renders the manifest.
 
 mod assembly;
 mod carriers;

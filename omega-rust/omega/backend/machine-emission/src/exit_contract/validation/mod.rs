@@ -14,8 +14,8 @@ use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 use super::{
     WholeFunctionExitContract, WholeFunctionExitContractError, WholeFunctionExitLayoutCustody,
 };
-use crate::ValidatedTargetFrameProtocolEncoding;
 use crate::frame_layout::ValidatedTargetFrameLayout;
+use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
 use machine_code::ResolvedMachineLayout;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

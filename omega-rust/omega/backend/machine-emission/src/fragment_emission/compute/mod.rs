@@ -4,6 +4,7 @@
 
 mod manifest;
 
+use super::projection::emit_resolved_function_fragments;
 use super::{
     FunctionFragmentEmissionError, StagedOptimizedFunctionFragmentEmissionSource,
     ValidatedFunctionFragmentEmissionManifest,
@@ -17,7 +18,7 @@ pub(super) type Emission = (
 pub(super) fn compute(
     source: &StagedOptimizedFunctionFragmentEmissionSource,
 ) -> Result<Emission, FunctionFragmentEmissionError> {
-    let fragments = crate::emit_resolved_function_fragments(source.program())?;
+    let fragments = emit_resolved_function_fragments(source.program())?;
     let source_manifest = source.function_relative_manifest().record();
     if source.post_allocation_manifest().record().selected != fragments.selected
         || source_manifest.selected != fragments.selected

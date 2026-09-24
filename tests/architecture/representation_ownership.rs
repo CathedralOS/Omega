@@ -118,9 +118,9 @@ fn structural_calls_share_current_graph_storage_and_publication_owners() {
     let emission = root.join("omega-rust/omega/backend/machine-emission/src");
     for retired in [
         "function_realization/structural_unit",
-        "fragments/production/structural_unit",
-        "fragments/validation/structural.rs",
-        "text_placement/production/structural_unit.rs",
+        "fragment_emission/projection/production/structural_unit",
+        "fragment_emission/projection/validation/structural.rs",
+        "text_placement/placement/production/structural_unit.rs",
     ] {
         assert!(
             !emission.join(retired).exists(),
@@ -538,16 +538,17 @@ fn text_placement_data_and_independent_checking_have_separate_owners() {
     ))
     .unwrap();
     assert!(record.contains("pub struct RelocationFreeTextSectionPlacement"));
-    let coordinator =
-        root.join("omega-rust/omega/backend/machine-emission/src/text_placement/custody");
-    let placement = rust_source(&coordinator.join("placement"));
+    // The stage root owns admission and the publication join; its placement
+    // call reaches the mechanism below instead of building placed records.
+    let coordinator = root.join("omega-rust/omega/backend/machine-emission/src/text_placement");
+    let placement = std::fs::read_to_string(coordinator.join("assembly.rs")).unwrap();
     assert!(placement.contains("place_fragment_text_section"));
     assert!(!placement.contains("PlacedFunctionFragment {"));
     let replay = std::fs::read_to_string(coordinator.join("validation.rs")).unwrap();
     assert!(replay.contains("validate_fragment_text_section"));
     assert!(!replay.contains("compute("));
     assert!(!replay.contains("compute_fixed_frame("));
-    let backend = root.join("omega-rust/omega/backend/machine-emission/src/text_placement");
+    let backend = coordinator.join("placement");
     let checker = rust_source(&backend.join("validation"));
     for forbidden in [
         "production::",
@@ -561,7 +562,7 @@ fn text_placement_data_and_independent_checking_have_separate_owners() {
             "checker re-enters production: {forbidden}"
         );
     }
-    // Admission/replay joins live in custody; the placement algorithm and its
+    // Admission/replay joins live at the stage root; the placement algorithm and its
     // independent checker still consume only current fragment data.
     let source = format!(
         "{}\n{}\n{}",
@@ -608,8 +609,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
             "representation imports producer: {forbidden}"
         );
     }
-    let coordinator =
-        root.join("omega-rust/omega/backend/machine-emission/src/text_placement/custody");
+    let coordinator = root.join("omega-rust/omega/backend/machine-emission/src/text_placement");
     let source = rust_source(&coordinator);
     assert!(!source.contains("pub struct FunctionFragmentTextSectionManifest {"));
     assert!(!source.contains("fn encode_manifest_content"));
@@ -1460,7 +1460,8 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
 #[test]
 fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
     let root = repository();
-    let backend = root.join("omega-rust/omega/backend/machine-emission/src/fragments");
+    let backend =
+        root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission/projection");
     let replay = rust_source(&backend.join("validation"));
     for forbidden in [
         "production::",
@@ -1532,8 +1533,9 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
     }
     assert!(coordinator.contains("pub struct ValidatedFunctionFragmentEmissionManifest"));
     assert!(coordinator.contains("function_fragment_emission_statistics"));
-    let backend =
-        root.join("omega-rust/omega/backend/machine-emission/src/fragments/statistics.rs");
+    let backend = root.join(
+        "omega-rust/omega/backend/machine-emission/src/fragment_emission/projection/statistics.rs",
+    );
     let counting = std::fs::read_to_string(backend).unwrap();
     assert!(counting.contains("pub fn function_fragment_emission_statistics("));
     assert!(!counting.contains("FunctionFragmentEmissionManifest {"));
@@ -1560,8 +1562,7 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     }
     assert!(data.contains("omega.function-fragment-frame-application.v3"));
     assert!(!pipeline.contains("omega.function-fragment-frame-application.v3"));
-    let coordinator = root
-        .join("omega-rust/omega/backend/machine-emission/src/fragment_emission/frame_application");
+    let coordinator = root.join("omega-rust/omega/backend/machine-emission/src/frame_application");
     for retired in [
         "compute.rs",
         "reflow.rs",
@@ -1573,8 +1574,9 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
             "coordinator owns {retired}"
         );
     }
-    let backend =
-        rust_source(&root.join("omega-rust/omega/backend/machine-emission/src/frame_application"));
+    let backend = rust_source(
+        &root.join("omega-rust/omega/backend/machine-emission/src/frame_application/insertion"),
+    );
     assert!(!backend.contains("native_realization::"));
     assert!(!backend.contains("StagedFunctionFragmentFrameApplication"));
     assert!(!data.contains("pub struct StagedFunctionFragmentFrameApplication"));
@@ -2267,8 +2269,8 @@ fn fragment_consumers_read_current_data_and_only_replay_walks_history() {
     ));
     assert!(custody.contains("source.validate_current()?"));
     for consumer in [
-        "fragment_emission/frame_application",
-        "text_placement/custody/placement",
+        "frame_application",
+        "text_placement",
         "fragment_emission/compute",
     ] {
         let text = rust_source(&backend.join(consumer));

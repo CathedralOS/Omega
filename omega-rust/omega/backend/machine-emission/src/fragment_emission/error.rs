@@ -1,6 +1,7 @@
 use semantic_vocabulary::MachineId;
 
-use crate::FunctionRelativeOptimizationRealizationError;
+use super::projection::{FunctionFragmentStatisticsOverflow, ResolvedFragmentEmissionError};
+use crate::function_realization::FunctionRelativeOptimizationRealizationError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionError {
@@ -28,9 +29,9 @@ impl std::fmt::Display for FunctionFragmentEmissionError {
 
 impl std::error::Error for FunctionFragmentEmissionError {}
 
-impl From<crate::ResolvedFragmentEmissionError> for FunctionFragmentEmissionError {
-    fn from(error: crate::ResolvedFragmentEmissionError) -> Self {
-        use crate::ResolvedFragmentEmissionError as Source;
+impl From<ResolvedFragmentEmissionError> for FunctionFragmentEmissionError {
+    fn from(error: ResolvedFragmentEmissionError) -> Self {
+        use ResolvedFragmentEmissionError as Source;
         match error {
             Source::MissingFunction(value) => Self::MissingFunction(value),
             Source::MissingBlock(value) => Self::MissingBlock(value),
@@ -44,8 +45,8 @@ impl From<crate::ResolvedFragmentEmissionError> for FunctionFragmentEmissionErro
 
 pub use machine_code::FunctionFragmentEmissionManifestDecodeError;
 
-impl From<crate::FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError {
-    fn from(_: crate::FunctionFragmentStatisticsOverflow) -> Self {
+impl From<FunctionFragmentStatisticsOverflow> for FunctionFragmentEmissionError {
+    fn from(_: FunctionFragmentStatisticsOverflow) -> Self {
         Self::StatisticsOverflow
     }
 }

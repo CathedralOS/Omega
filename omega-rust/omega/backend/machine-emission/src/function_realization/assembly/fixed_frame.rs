@@ -39,7 +39,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     FunctionRelativeOptimizationRealizationError,
 > {
     let selections = allocation.selections();
-    super::rel8::validate_layout_optimization_manifest_roots(
+    super::layout_roots::validate_layout_optimization_manifest_roots(
         baseline_layout,
         layout_optimization,
         selections,

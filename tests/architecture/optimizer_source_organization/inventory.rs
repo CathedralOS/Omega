@@ -12,7 +12,6 @@ use crate::Audit;
 pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/text_placement",
     "omega-rust/omega/backend/machine-emission/src/exit_contract",
-    "omega-rust/omega/backend/machine-emission/src/fragments",
     "omega-rust/omega/backend/machine-emission/src/frame_application",
     "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src",
     "omega-rust/psi/representations/optimization/src",

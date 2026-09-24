@@ -1,5 +1,7 @@
 use super::FunctionFragmentEmissionError;
 use super::replay::FunctionFragmentReplayInputs;
+use crate::exit_contract::ValidatedWholeFunctionExitContract;
+use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;
 use machine_code::ResolvedMachineProgram;
 use std::sync::Arc;
 
@@ -10,8 +12,8 @@ pub(super) struct CurrentFunctionFragmentInput {
         register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan,
     pub(super) homes: selected_instructions_to_register_homes::ValidatedRegisterHomes,
     pub(super) environment: register_environment::ValidatedTargetRegisterEnvironment,
-    pub(super) exit: crate::ValidatedWholeFunctionExitContract,
-    pub(super) manifest: crate::ValidatedFunctionRelativeOptimizationRealizationManifest,
+    pub(super) exit: ValidatedWholeFunctionExitContract,
+    pub(super) manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     pub(super) post_allocation_manifest:
         selected_instructions_to_register_homes::ValidatedPostAllocationOptimizationManifest,
     pub(super) target_input:

@@ -1,6 +1,6 @@
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::StagedFixedFrameFunctionRelativeRealization;
+use crate::function_realization::StagedFixedFrameFunctionRelativeRealization;
 
 #[derive(Debug)]
 /// Retained inputs for independently replaying the completed realization.
@@ -51,7 +51,9 @@ impl FunctionFragmentReplayInputs {
     }
 
     /// The canonical frame protocol retained for independent replay.
-    pub fn frame_protocol(&self) -> Option<&crate::ValidatedTargetFrameProtocolEncoding> {
+    pub fn frame_protocol(
+        &self,
+    ) -> Option<&crate::frame_protocol::ValidatedTargetFrameProtocolEncoding> {
         Some(self.realization.protocol())
     }
 
@@ -73,13 +75,14 @@ impl FunctionFragmentReplayInputs {
         self.allocation().current().register_environment()
     }
 
-    pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
+    pub const fn exit_contract(&self) -> &crate::exit_contract::ValidatedWholeFunctionExitContract {
         self.realization.exit_contract()
     }
 
     pub const fn function_relative_manifest(
         &self,
-    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+    ) -> &crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest
+    {
         self.realization.manifest()
     }
 

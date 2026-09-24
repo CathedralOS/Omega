@@ -2,7 +2,9 @@
 
 This backend joins current allocation and machine facts to frame, encoding,
 layout, and exit evidence, then emits replayable fragments and placed text.
-Start at [lib.rs](src/lib.rs). The public contracts are
+Start at [lib.rs](src/lib.rs): it names the four route stages in the order
+native realization drives them, the three evidence owners realization joins,
+and the x86-64 byte recipes outside the route. The public contracts are
 [optimization validation](../../../../wiki/spec/build/optimizations.md),
 [machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md),
 and [stack provisioning](../../../../wiki/spec/resources/storage.md).
@@ -61,17 +63,24 @@ probing, faults, or execution authority by itself.
 
 [Frame protocol](src/frame_protocol/mod.rs) uses target encoders and independent
 replay over a packed byte arena with per-function spans. It excludes the selected
-return instruction. [Frame application](src/frame_application/mod.rs) inserts
-one entry prologue and the required epilogue at each retained return, reflows
-block/row/fixup coordinates, and re-encodes affected branches. Its independent
-checker validates sites and branch bytes. Callers still admit the source
-fragments and protocol: successful byte projection alone is not publication.
+return instruction. [Frame application](src/frame_application/mod.rs) admits
+the emitted fragments; its [insertion](src/frame_application/insertion/mod.rs)
+mechanism adds one entry prologue and the required epilogue at each retained
+return, reflows block/row/fixup coordinates, and re-encodes affected branches.
+Its independent checker validates sites and branch bytes. The stage still
+admits the source fragments and protocol: successful byte insertion alone is
+not publication.
 
 ## Fragments, placement, and reports
 
 [Fragment emission](src/fragment_emission/mod.rs) consumes validated current
-function realization. [Text placement](src/text_placement/mod.rs) retains the
-source and applied-frame identities while resolving placement. Child manifests
+function realization and delegates the byte
+[projection](src/fragment_emission/projection/mod.rs).
+[Text placement](src/text_placement/mod.rs) retains the source and applied-frame
+identities while its [placement](src/text_placement/placement/mod.rs) mechanism
+resolves calls and offsets. Each stage keeps admission and custody at its
+folder root and the current-data mechanism with its independent checker one
+level down. Child manifests
 are rebound and replayed; changing a rule does not require copying its custody
 fields into parallel object, artifact, and callable schemas.
 

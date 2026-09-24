@@ -1,4 +1,15 @@
-//! Optimizer module role: stage group. Whole-function exit-contract staging, replay validation, and canonical identity.
+//! Whole-function exit contract: evidence that every exit, call and
+//! preserved-register effect of each function matches its target contract.
+//!
+//! Function realization stages the contract through
+//! [`stage_whole_function_exit_contract_for_layout`] (`layout_optimization`):
+//! it replays the layout phase, produces the contract for the layout that
+//! phase selected (`compute`), and admits it only through the independent
+//! record replay (`validation`). Producer and replay share the target catalogs
+//! and effect predicates in `validation_rules`, not each other's algorithms.
+//! `stage` holds the entrances fixed to one layout form: the baseline layout
+//! with a frame, and the layout after x86 branch relaxation. `identity` names
+//! the canonical contract encoder.
 
 mod compute;
 mod error;
