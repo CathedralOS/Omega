@@ -6,12 +6,12 @@
 //! resolution stays separate: materializing a value grants no source-place
 //! assignment or borrowing authority.
 
-use super::{
+use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
 impl Evaluator<'_> {
-    pub(super) fn eval_read_cell(
+    pub(in crate::interpreter::evaluator) fn eval_read_cell(
         &mut self,
         expression: ExpressionHandle,
         frame: &mut Frame,

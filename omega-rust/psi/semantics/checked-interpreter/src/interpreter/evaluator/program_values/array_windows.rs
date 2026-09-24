@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, Value, trap, unsupported,
 };
 impl Evaluator<'_> {
@@ -6,7 +6,7 @@ impl Evaluator<'_> {
     /// array or observing the previous element values. Source checking owns
     /// write permission and admissible range shapes; execution checks bounds
     /// again and never clamps an invalid replacement into a different window.
-    pub(super) fn assign_array_window(
+    pub(in crate::interpreter::evaluator) fn assign_array_window(
         &mut self,
         target: ExpressionHandle,
         value: ExpressionHandle,

@@ -53,13 +53,8 @@ use typed_trees::statement::{
 };
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-// Program and values.
-mod array_windows;
-mod names_recasts_and_places;
-mod program_lookup;
-mod record_views;
-mod type_metadata;
-mod value_projections;
+// Program and values, beneath the coordinator that names them.
+mod program_values;
 
 // Execution.
 mod boundary_adapter_dispatch;
