@@ -11,6 +11,7 @@ mod byte_write_bounds;
 mod call_computations;
 mod call_result_relations;
 mod case_predicate_meaning;
+mod domain_operand_bounds;
 mod exact_cancellation;
 mod guard_boolean_custody;
 mod guard_operator_custody;
