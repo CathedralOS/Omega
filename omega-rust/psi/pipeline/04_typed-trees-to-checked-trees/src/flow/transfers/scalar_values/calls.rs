@@ -28,7 +28,10 @@ pub(super) fn capture_call<Value: CapturedValue>(
     if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
         return None;
     }
-    let caller = crate::semantic::calls::find_state(program, caller_state)?;
+    let (caller_machine_index, caller_state_index) =
+        context.state_location(program, caller_state)?;
+    let caller =
+        &program.machine_states(&program.machines()[caller_machine_index])[caller_state_index];
     let caller_statements = program.statement_table.statements(caller.statement_nodes);
     let caller_statement = caller_statements.get(statement_index)?;
     let local_ordinal = u32::try_from(caller_statements[..statement_index].iter().filter(|statement| {
@@ -63,6 +66,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     let occurrence = exact_call_occurrence(
         program,
         borrow,
+        context,
         caller_state,
         statement_index,
         source,
@@ -72,8 +76,11 @@ pub(super) fn capture_call<Value: CapturedValue>(
             _ => None,
         }),
     )?;
-    let (machine, _) =
-        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+    let (machine_index, entry_state_index) = context.state_location(program, call.target_symbol)?;
+    if entry_state_index != 0 {
+        return None;
+    }
+    let machine = &program.machines()[machine_index];
     if !machine.body_is_present
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.owned_data.is_empty()
@@ -169,23 +176,23 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 _ => return None,
             };
             let plans = context.scalar_expressions;
-            let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-                binding.state == caller_state
-                    && binding.statement_ordinal == statement_ordinal
-                    && binding.role == role
-            });
-            if let Some((_, binding)) = bindings.next() {
+            let mut bindings = context
+                .scalar_binding_handles_at(caller_state, statement_ordinal)
+                .iter()
+                .map(|handle| plans.source_bindings.get(*handle))
+                .filter(|binding| binding.role == role);
+            if let Some(binding) = bindings.next() {
                 if bindings.next().is_some()
                     || binding.expression != *argument
                     || binding.destination.is_valid()
                 {
                     return None;
                 }
-                let mut expressions = plans.expressions.iter().filter(|expression| {
-                    expression.state == caller_state
-                        && expression.statement_ordinal == statement_ordinal
-                        && expression.role == binding.role
-                });
+                let mut expressions = context
+                    .scalar_expression_rows_at(caller_state, statement_ordinal)
+                    .iter()
+                    .map(|row| &plans.expressions[*row])
+                    .filter(|expression| expression.role == binding.role);
                 let expression = &expressions.next()?.expression;
                 if expressions.next().is_some() {
                     return None;
@@ -264,12 +271,14 @@ pub(super) fn capture_call<Value: CapturedValue>(
         // resolves against the receiver place in the caller: a live snapshot
         // first, then the levels `field_fallback` can still vouch for.
         let mut paths: Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>> = Vec::new();
-        for plan in plans
-            .expressions
-            .iter()
-            .filter(|expression| expression.state == state.symbol)
-        {
-            collect_self_field_paths(&plan.expression, self_position, &mut paths);
+        for statement_ordinal in 0..statements.len() as u32 {
+            for row in context.scalar_expression_rows_at(state.symbol, statement_ordinal) {
+                collect_self_field_paths(
+                    &plans.expressions[*row].expression,
+                    self_position,
+                    &mut paths,
+                );
+            }
         }
         for path in paths {
             let (_, segments, reference, frozen) =
@@ -355,24 +364,26 @@ pub(super) fn capture_call<Value: CapturedValue>(
             ),
             _ => return None,
         };
-        let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-            binding.state == state.symbol
-                && binding.statement_ordinal == statement_ordinal
-                && binding.role == role
-                && binding.expression == source
-                && binding.destination == destination
-        });
-        let (_, binding) = bindings.next()?;
+        let mut bindings = context
+            .scalar_binding_handles_at(state.symbol, statement_ordinal)
+            .iter()
+            .map(|handle| plans.source_bindings.get(*handle))
+            .filter(|binding| {
+                binding.role == role
+                    && binding.expression == source
+                    && binding.destination == destination
+            });
+        let binding = bindings.next()?;
         if bindings.next().is_some()
             || plans.binding_symbols.span_or_empty(binding.symbols) != symbols
         {
             return None;
         }
-        let mut expressions = plans.expressions.iter().filter(|expression| {
-            expression.state == state.symbol
-                && expression.statement_ordinal == statement_ordinal
-                && expression.role == role
-        });
+        let mut expressions = context
+            .scalar_expression_rows_at(state.symbol, statement_ordinal)
+            .iter()
+            .map(|row| &plans.expressions[*row])
+            .filter(|expression| expression.role == role);
         let expression = expressions.next()?;
         let expression = &expression.expression;
         if expressions.next().is_some() {
@@ -418,18 +429,15 @@ pub(super) fn capture_call<Value: CapturedValue>(
 fn exact_call_occurrence<'facts>(
     program: &typed_trees::TypedTrees,
     borrow: &'facts BorrowFacts,
+    context: &mut FlowBuildContext,
     caller_state: SymbolHandle,
     statement_index: usize,
     source: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
     receiver_root: Option<SymbolHandle>,
 ) -> Option<&'facts checked_trees::BorrowCallFact> {
-    let owner = program.machines().iter().find(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(|state| state.symbol == caller_state)
-    })?;
+    let (machine_index, _) = context.state_location(program, caller_state)?;
+    let owner = &program.machines()[machine_index];
     let mut states = borrow.states.iter().filter(|(_, state)| {
         state.machine_symbol == owner.symbol && state.state_symbol == caller_state
     });

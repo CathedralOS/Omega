@@ -55,13 +55,10 @@ pub(super) fn capture_statement(
         )
         .and_then(|value| selected.convert(value));
     }
-    if let Some((expression, symbols)) = selected_statement(
-        program,
-        context.scalar_expressions,
-        state,
-        statement_index,
-        statement,
-    ) && builtin_bound_meaning_source(program, machine_symbol, state, source)
+    let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
+    if let Some((expression, symbols)) =
+        selected_statement(program, context, state, statement_index, statement)
+        && builtin
     {
         return crate::values::evaluate_checked_scalar(
             expression,
@@ -137,13 +134,10 @@ pub(super) fn capture_bounds(
         )
         .and_then(|value| selected.convert(value));
     }
-    if let Some((expression, symbols)) = selected_statement(
-        program,
-        context.scalar_expressions,
-        state,
-        statement_index,
-        statement,
-    ) && builtin_bound_meaning_source(program, machine_symbol, state, source)
+    let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
+    if let Some((expression, symbols)) =
+        selected_statement(program, context, state, statement_index, statement)
+        && builtin
     {
         let contexts = context
             .contexts
@@ -192,24 +186,24 @@ pub(super) fn capture_bounds(
 /// builtin meaning may be captured as this statement's recorded evidence.
 fn builtin_bound_meaning_source(
     program: &typed_trees::TypedTrees,
+    context: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state: SymbolHandle,
     source: ExpressionHandle,
 ) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
+    let Some(machine_index) = context.machine_index(program, machine_symbol) else {
         return false;
     };
-    validation::has_builtin_bound_expression_meaning(
-        program,
-        machine,
-        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state),
-        source,
-    )
+    let machine = &program.machines()[machine_index];
+    let state = context
+        .state_index_in_machine(program, machine_symbol, state)
+        .and_then(|index| program.machine_states(machine).get(index));
+    validation::has_builtin_bound_expression_meaning(program, machine, state, source)
 }
 
 fn selected_statement<'plans>(
     program: &typed_trees::TypedTrees,
-    plans: &'plans checked_trees::CheckedScalarExpressionPlans,
+    context: &'plans FlowBuildContext<'plans>,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -217,6 +211,7 @@ fn selected_statement<'plans>(
     &'plans checked_trees::CheckedScalarExpression,
     &'plans [SymbolHandle],
 )> {
+    let plans = context.scalar_expressions;
     let (source, destination) = match statement {
         StatementNode::LocalData(local) => (local.initial_value, local.symbol),
         StatementNode::Assignment(assignment) => (
@@ -232,34 +227,36 @@ fn selected_statement<'plans>(
         return None;
     }
     let statement_ordinal = u32::try_from(statement_index).ok()?;
-    let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-        binding.state == state
-            && binding.statement_ordinal == statement_ordinal
-            && binding.expression == source
-            && binding.destination == destination
-            && match statement {
-                StatementNode::LocalData(local) if local.is_mutable => {
-                    binding.role == CheckedScalarExpressionRole::StorageInitializer
+    let mut bindings = context
+        .scalar_binding_handles_at(state, statement_ordinal)
+        .iter()
+        .map(|handle| plans.source_bindings.get(*handle))
+        .filter(|binding| {
+            binding.expression == source
+                && binding.destination == destination
+                && match statement {
+                    StatementNode::LocalData(local) if local.is_mutable => {
+                        binding.role == CheckedScalarExpressionRole::StorageInitializer
+                    }
+                    StatementNode::LocalData(_) => matches!(
+                        binding.role,
+                        CheckedScalarExpressionRole::LocalInitializer { .. }
+                    ),
+                    StatementNode::Assignment(_) => {
+                        binding.role == CheckedScalarExpressionRole::AssignmentValue
+                    }
+                    _ => false,
                 }
-                StatementNode::LocalData(_) => matches!(
-                    binding.role,
-                    CheckedScalarExpressionRole::LocalInitializer { .. }
-                ),
-                StatementNode::Assignment(_) => {
-                    binding.role == CheckedScalarExpressionRole::AssignmentValue
-                }
-                _ => false,
-            }
-    });
-    let (_, binding) = bindings.next()?;
+        });
+    let binding = bindings.next()?;
     if bindings.next().is_some() {
         return None;
     }
-    let mut expressions = plans.expressions.iter().filter(|expression| {
-        expression.state == state
-            && expression.statement_ordinal == statement_ordinal
-            && expression.role == binding.role
-    });
+    let mut expressions = context
+        .scalar_expression_rows_at(state, statement_ordinal)
+        .iter()
+        .map(|row| &plans.expressions[*row])
+        .filter(|expression| expression.role == binding.role);
     let expression = &expressions.next()?.expression;
     if expressions.next().is_some() {
         return None;
@@ -289,8 +286,12 @@ fn retains_values_across_unit_call<Value>(
     {
         return None;
     }
-    let (callee, entry) =
-        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+    let (machine_index, state_index) = context.state_location(program, call.target_symbol)?;
+    let callee = &program.machines()[machine_index];
+    let entry = &program.machine_states(callee)[state_index];
+    if state_index != 0 {
+        return None;
+    }
     if !callee.body_is_present
         || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.owned_data.is_empty()
@@ -334,7 +335,7 @@ fn retains_values_across_unit_call<Value>(
                 // borrows, or writes, so it cannot extend the call's checked
                 // storage footprint.
                 !selected_scalar_argument(
-                    context.scalar_expressions,
+                    context,
                     state.symbol,
                     statement_index,
                     argument_ordinal,
@@ -384,46 +385,49 @@ fn retains_values_across_unit_call<Value>(
 /// each occur exactly once at the coordinate; selected scalars cannot express
 /// nested calls, borrows, or storage writes.
 fn selected_scalar_argument(
-    plans: &checked_trees::CheckedScalarExpressionPlans,
+    context: &FlowBuildContext,
     state: SymbolHandle,
     statement_index: usize,
     argument_ordinal: usize,
     argument: ExpressionHandle,
 ) -> bool {
+    let plans = context.scalar_expressions;
     let (Ok(statement_ordinal), Ok(argument_ordinal)) = (
         u32::try_from(statement_index),
         u32::try_from(argument_ordinal),
     ) else {
         return false;
     };
-    let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-        binding.state == state
-            && binding.statement_ordinal == statement_ordinal
-            && binding.expression == argument
-            && !binding.destination.is_valid()
-            && match binding.role {
-                CheckedScalarExpressionRole::UnitCallArgument {
-                    call_ordinal: 0,
-                    argument_ordinal: ordinal,
+    let mut bindings = context
+        .scalar_binding_handles_at(state, statement_ordinal)
+        .iter()
+        .map(|handle| plans.source_bindings.get(*handle))
+        .filter(|binding| {
+            binding.expression == argument
+                && !binding.destination.is_valid()
+                && match binding.role {
+                    CheckedScalarExpressionRole::UnitCallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: ordinal,
+                    }
+                    | CheckedScalarExpressionRole::BoundaryCallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: ordinal,
+                    } => ordinal == argument_ordinal,
+                    _ => false,
                 }
-                | CheckedScalarExpressionRole::BoundaryCallArgument {
-                    call_ordinal: 0,
-                    argument_ordinal: ordinal,
-                } => ordinal == argument_ordinal,
-                _ => false,
-            }
-    });
-    let Some((_, binding)) = bindings.next() else {
+        });
+    let Some(binding) = bindings.next() else {
         return false;
     };
     if bindings.next().is_some() {
         return false;
     }
-    let mut expressions = plans.expressions.iter().filter(|expression| {
-        expression.state == state
-            && expression.statement_ordinal == statement_ordinal
-            && expression.role == binding.role
-    });
+    let mut expressions = context
+        .scalar_expression_rows_at(state, statement_ordinal)
+        .iter()
+        .map(|row| &plans.expressions[*row])
+        .filter(|expression| expression.role == binding.role);
     expressions.next().is_some() && expressions.next().is_none()
 }
 
