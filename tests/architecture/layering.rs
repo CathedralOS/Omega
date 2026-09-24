@@ -4691,7 +4691,7 @@ fn native_publication_has_no_countdown_execution_fork() {
 fn selected_form_encoding_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let stage = root
-        .join("omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding/src");
+        .join("omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src");
     let entrance = std::fs::read_to_string(stage.join("selected_form_encoding.rs"))
         .expect("read selected-form encoding entrance");
     let validate_candidate = entrance

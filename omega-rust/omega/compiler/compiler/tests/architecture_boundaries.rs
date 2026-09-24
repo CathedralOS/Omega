@@ -53,7 +53,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "post-allocation-machine-to-selected-form-encoding",
-            "../../pipeline/post-allocation-machine-to-selected-form-encoding",
+            "../../pipeline/10_post-allocation-machine-to-selected-form-encoding",
         ),
         (
             "machine-emission/Cargo.toml",

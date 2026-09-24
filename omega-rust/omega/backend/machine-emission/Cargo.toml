@@ -15,7 +15,7 @@ abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-
 terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/04_abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }
-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/post-allocation-machine-to-selected-form-encoding" }
+post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/10_post-allocation-machine-to-selected-form-encoding" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/09_register-homes-to-post-allocation-machine" }
 selected-form-encoding-to-resolved-layout = { path = "../../pipeline/selected-form-encoding-to-resolved-layout" }
 resolved-layout-to-resolved-layout = { path = "../../pipeline/resolved-layout-to-resolved-layout" }

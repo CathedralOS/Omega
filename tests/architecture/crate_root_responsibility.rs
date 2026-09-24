@@ -487,7 +487,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
         &[
             "frame_address",
             "row_encoding",
