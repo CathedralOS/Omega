@@ -327,7 +327,16 @@ fn plain_aggregate(
             !field.relevance.is_erased()
                 && match field.field_type {
                     StructuralFieldType::Structural(nested) => {
-                        plain_aggregate(nested, declarations, active)
+                        // A reference leaf carries custody metadata, not
+                        // transported storage, so it shares the aggregate's
+                        // value layout as an empty slot.
+                        declarations.iter().any(|declaration| {
+                            declaration.id == nested
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                        }) || plain_aggregate(nested, declarations, active)
                     }
                     StructuralFieldType::Scalar(scalar) => scalar_shape(scalar).is_some(),
                     StructuralFieldType::BoundedInteger(bounds) => {
