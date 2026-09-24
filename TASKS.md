@@ -4335,7 +4335,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
   | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
-  | 2 | `source_evaluated_native_realization` | import custody, Linux dynamic leg |
+  | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
@@ -4398,6 +4398,22 @@ but report the missing runtime leg explicitly; it does not close that host row.
   has no premise-derived variant. The three tests are the acceptance
   specification; the soundness question to settle first is who discharges a
   retained premise at the component's boundary.
+
+  `source_evaluated_native_realization` keeps two, both NEGATIVE tests that
+  now pass their subject instead of refusing it.
+  `rejected_native_reentry_returns_the_exact_dynamic_interpreter` and
+  `retained_source_evaluated_import_realizes_exact_macho_image` each realize a
+  program whose boundary import has no supplied execution, with `imports: &[]`,
+  and each expects the refusal
+  `retained_native_product.rs`'s "demanded import `...` has no supplied
+  execution and stack custody" still spells. That guard scans `exact_plans`,
+  so an empty plan set makes it unreachable: the demand is no longer reaching
+  settlement rather than the check being wrong. Making the import actually
+  CALLED (`include_marker: true`) does not restore the refusal, so it is not
+  the fixture eliding an uncalled binding. Look upstream of the guard: the
+  question is why provider planning no longer produces an exact plan for that
+  import, not why the scan finds nothing. Owner: `native-realization` and
+  provider planning; unclaimed at the time of writing.
 
   `package_compilation_inputs` keeps one, diagnosed: the preliminary
   finalization allowance is keyed on SOURCE PROVENANCE, not on whether the
