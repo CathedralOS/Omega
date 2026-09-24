@@ -18,7 +18,7 @@ use super::{
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, PermissionEventSource,
-    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
+    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call_operation};
@@ -206,6 +206,45 @@ fn returned_reference_leaf(
     })
 }
 
+/// The `&Self` receiver's referee is `Named { machine, "Self" }` — the
+/// machine's alias for its owner application — while the named view's `V`
+/// referee is `Named { data-symbol, ... }`. They name the same storage when
+/// the `Self` machine's attached data is the referee's data: a `self`
+/// whole-borrow then loans the storage its `&'a V` result names.
+fn self_referent_is_attached_application(
+    program: &TypedTrees,
+    self_type_reference: TypeReferenceHandle,
+    referee: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Reference {
+        referee: self_referee,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(self_type_reference)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Named {
+        symbol: self_machine,
+        name,
+    } = program.type_reference_table.type_reference(*self_referee)
+    else {
+        return false;
+    };
+    if name.as_str() != "Self" {
+        return false;
+    }
+    let TypeReferenceNode::Named {
+        symbol: view_data, ..
+    } = program.type_reference_table.type_reference(referee)
+    else {
+        return false;
+    };
+    crate::lookup::machine_by_symbol(program, *self_machine)
+        .is_some_and(|machine| machine.attached_data_symbol == *view_data)
+}
+
 /// A `&'a V` named-result completion borrows the referent it names from one
 /// immutable structural carrier: `self` for a whole receiver borrow,
 /// `self.field` for a stored named reference. The whole stored borrow is the
@@ -269,10 +308,15 @@ fn returned_named_view(
     )?;
     // The stored value the projection bottoms out in must be exactly the
     // result's `&'a V` — a carrier parameter already holding the named borrow
-    // — or its referent `V` — the `&'a self` receiver's own storage.
+    // — or its referent `V` — the `&'a self` receiver's own storage. The
+    // receiver's storage spells the `&Self` machine alias, whose referent
+    // resolves through the machine's attached data application to the same
+    // `V` the referee names.
     if program.normalized_type_identity(storage)
         != program.normalized_type_identity(state.return_type)
         && program.normalized_type_identity(storage) != program.normalized_type_identity(referee)
+        && !(carrier.is_self
+            && self_referent_is_attached_application(program, carrier.type_reference, referee))
     {
         return None;
     }

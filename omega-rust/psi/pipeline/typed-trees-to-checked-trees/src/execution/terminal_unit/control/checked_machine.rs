@@ -171,6 +171,17 @@ pub(crate) fn build_checked_machine_residual_parts(
             && program.state_parameters(state).iter().any(|parameter| parameter.is_self
                 && matches!(program.type_reference_table.type_reference(parameter.type_reference),
                     TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. })))
+        // A `&'a V` named-view return borrows the receiver's storage through
+        // its declared result — the shared `&self` operand is retained
+        // exactly as the scalar-return clause above keeps it.
+        || (crate::execution::terminal_unit::types::borrowed_named_view(
+            program,
+            state.return_type,
+        ) && program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self
+                && matches!(program.type_reference_table.type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. })
+        }))
         || crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
             program, facts, machine, state,
         )

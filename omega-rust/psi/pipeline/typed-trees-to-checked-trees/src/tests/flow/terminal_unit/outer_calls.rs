@@ -551,3 +551,49 @@ fn transition_arm_runtime_index_reads_remain_declined() {
         );
     }
 }
+
+const SELF_RETURN_NAMED_VIEW: &str = r#"
+    data Nv { tag: u64 }
+
+    machine Nv::selfish(&self) -> &Nv {
+        self
+    }
+"#;
+
+#[test]
+fn self_receiver_named_view_result_composes() {
+    // The receiver-as-return surface: `self` tails of a `-> &'a V` machine
+    // name the shared receiver's own storage — the `&Self` machine alias —
+    // which resolves through the attached data application to the `V` the
+    // declared referee names.
+    let checked = checked(SELF_RETURN_NAMED_VIEW);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let selfish = machine_named(&checked, "Nv::selfish");
+    assert!(
+        plans.for_machine(selfish).is_some() || plans.composed_for_machine(selfish).is_some(),
+        "self-returned `&'a V` named view declined: {:?}",
+        plans.omission_for_machine(selfish)
+    );
+}
+
+#[test]
+fn mutable_self_receiver_named_view_result_remains_declined() {
+    // `&mut self` carriers are outside the named-view arm's immutable-carrier
+    // family — a mutably borrowed receiver cannot source a shared `&'a V`
+    // loan.
+    let checked = checked(
+        r#"
+        data Nv { tag: u64 }
+
+        machine Nv::selfish_mut(&mut self) -> &Nv {
+            self
+        }
+    "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let selfish = machine_named(&checked, "Nv::selfish_mut");
+    assert!(
+        plans.for_machine(selfish).is_none() && plans.composed_for_machine(selfish).is_none(),
+        "mutable `self` named-view return unexpectedly composed",
+    );
+}
