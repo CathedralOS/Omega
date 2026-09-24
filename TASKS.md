@@ -112,6 +112,26 @@ the complete product bar; focused successes below do not establish that baseline
   nothing downstream needed it (`storage/runtime_dispatch_helper_local_alias_
   add_compile` drops; `control_flow/copy_enum_cycle_edge_write_frame` cannot).
 
+  PARTLY REPAIRED. A dominating taken-arm guard now discharges a
+  RECEIVER-QUALIFIED callee's `requires`; it previously did not, because
+  `transition_guard_proves_requires` admitted only `CallSite::TransitionNamed`
+  and a receiver-qualified callee is always a value call. Two routes exist and
+  they are not equivalent, which is the remaining asymmetry:
+
+  - The fact route, which handles NUMERIC IMPLICATION. `transition index < 16
+    { true -> (read_free(index)) }` discharges `requires index <= 15`. It does
+    not fire for a receiver-qualified callee at all.
+  - The transition-guard route, which is TEXTUAL. It now reaches
+    `self.read(index)`, but `guard_conjunct_matches` compares spellings, so
+    `index <= 15` discharges `requires index <= 15` while `index < 16` does
+    not.
+
+  The next step is to find why the fact route misses a receiver-qualified
+  call; that would subsume the textual route rather than teaching it
+  arithmetic. Minimal repros: an attached caller whose arm target is
+  `(read_free(index))` versus `(self.read(index))`, each with
+  `requires index <= 15` and each guard form.
+
   A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP, which is why the 212
   parameter sites are the hard half. `structs/runtime_copy_sum_array_receiver_
   exit` threads `index: u64 [0..=15]` through six state parameters to index a
