@@ -164,6 +164,7 @@ fn operation_leaves_custody(
         OperationKind::ReleaseReference { source }
         | OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
+        | OperationKind::StructuralByteSequenceFieldRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. }
         | OperationKind::ByteSequenceLength { source }
         | OperationKind::ByteSequenceRead { source, .. }
@@ -476,15 +477,17 @@ fn cycle_operation_eligible(
         // Requirement obligations and crash continuations carry no custody:
         // ordinary call validation still checks their arity, substitution and
         // caller coverage symbolically, and obligation reconstruction cuts
-        // feedback edges rather than enumerating iterations. Claim transfers
-        // stay fenced until cyclic machines admit claim-bearing custody.
+        // feedback edges rather than enumerating iterations. A callee with its
+        // own structural frame takes this spelling even when no structural
+        // argument crosses; that call moves no caller custody, exactly like
+        // `Call` above. Claim transfers stay fenced until cyclic machines admit
+        // claim-bearing custody.
         OperationKind::CallStructuralScalar {
             structural_arguments,
             claim_transfers,
             ..
         } => {
             operation.result.scalar().is_some()
-                && !structural_arguments.is_empty()
                 && structural_arguments.iter().all(|argument| {
                     argument.path.is_empty()
                         && ((argument.access != StructuralAccess::Owned
@@ -613,6 +616,7 @@ fn cycle_operation_eligible(
         OperationKind::ByteSequenceLength { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
+        | OperationKind::StructuralByteSequenceFieldRead { .. }
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ElementViewRead { .. }
         | OperationKind::IntegerStructuralField { .. }

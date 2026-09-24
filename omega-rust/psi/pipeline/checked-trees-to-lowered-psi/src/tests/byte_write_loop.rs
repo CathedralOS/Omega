@@ -921,3 +921,48 @@ fn byte_write_loop_empty_initialized_view_never_writes() {
     assert!(generous.effects().is_empty());
     assert_eq!(fuel.usage(), generous_fuel.usage());
 }
+
+#[test]
+fn a_receiver_byte_field_read_cycles_without_a_rank() {
+    let source = r#"
+        domain [u8]::Utf8 requires valid_utf8(self);
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        data Scan { text: [u8; 4] in Utf8; i: u64; last: u8; }
+        machine Scan::run(&mut self) {
+            self.text = "abcd";
+            self.i = 0;
+            transition { _ -> scan() }
+            state scan(&mut self) {
+                transition self.i < 4 { true -> step() _ -> done() }
+            }
+            state step(&mut self) {
+                self.last = self.text[self.i];
+                self.i = self.i + 1;
+                transition { _ -> scan() }
+            }
+            state done(&mut self) { }
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered =
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Scan::run"))
+            .unwrap_or_else(|error| panic!("the byte scan lowers: {error:?}"));
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                OperationKind::StructuralByteSequenceFieldRead { .. }
+            ))
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap_or_else(|error| panic!("the unranked byte scan verifies: {error:?}"));
+}
