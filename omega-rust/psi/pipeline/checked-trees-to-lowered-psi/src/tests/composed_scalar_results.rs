@@ -312,6 +312,52 @@ fn forged_scalar_completions_reject_lowering() {
     );
 }
 
+/// Only a single-state scalar graph retains a receiver, so a multi-state body
+/// that reads its borrowed `self` is a state graph: the receiver is an
+/// ordinary structural parameter with a machine-scope `self` place, and no
+/// edge forwards it.
+#[test]
+fn borrowed_receiver_reads_lower_through_the_state_graph() {
+    let checked = crate::front_end::checked_program(
+        "data Filter { width: u64; }
+         machine Filter::count(&self, alignment: u64) -> u64
+         crashes Abort
+         {
+             transition alignment > 0 {
+                 true -> divide(alignment)
+                 false -> violated(alignment)
+             }
+             state violated(&self, alignment: u64) -> u64 {
+                 crash Abort;
+             }
+             state divide(&self, alignment: u64) -> u64 {
+                 transition {
+                     _ -> (self.width / alignment)
+                 }
+             }
+         }",
+    );
+    let graph = state_graph(&checked, "Filter::count");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(graph.machine)
+            .is_none()
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Filter::count"))
+        .expect("a receiver-reading state graph lowers");
+    let machine = &lowered.semantic_module.machines[0];
+    assert!(
+        machine.structural_places.iter().any(|place| matches!(
+            place.kind,
+            semantic_vocabulary::StructuralPlaceKind::Parameter { is_self: true, .. }
+        )),
+        "the receiver keeps a machine-scope self place"
+    );
+}
+
 /// A promised result guarantee has no Terminal publication on this route, so
 /// the body stays unadmitted instead of silently dropping the promise.
 #[test]
