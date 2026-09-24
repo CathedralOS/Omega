@@ -356,20 +356,6 @@ the complete product bar; focused successes below do not establish that baseline
     which excludes call-result stores from its plain-field-store exception.
     Keep the ordinary-machine assignment as a control and the actual
     `Binding<R>`/`ForeignBinding` package inputs in the reproduction.
-  - `dungeon/runtime_direct_boolean_conjunction_dispatch`: extend the direct
-    boolean-decision route from `Conditional` to each ordered `GuardedJumps`
-    arm in `unit/attached_unit/composed_control/state_graph/emission/state.rs`.
-    One conjunction plus default works; two conjunction arms plus default
-    encounter the short-circuit refusal. Reuse
-    `emission::boolean_control::emit_inlined_boolean_guard_blocks` with true
-    targeting the selected successor and false targeting the next arm/fallback.
-    Carry a value or planned decision in each arm draft, including the first,
-    and preserve deterministic checked block/edge allocation. Do not merely
-    delete the refusal and materialize guards eagerly: the right operand of
-    `self.x == 2 && (self.y / self.z) == 1` must not execute when the left is
-    false, including `z == 0`. Pin this with native execution and an effectful
-    operand control when its upstream admission is available; no trap outcome
-    was established by the earlier lowering-only probe.
   - `providers/external_leaf_dllimport_compile`: connect the checked per-call
     authority derivation to ordinary native production. `NormalizedForeign`
     needs an explicit policy row, while the ordinary policy has none outside
@@ -2436,14 +2422,6 @@ syntax and other terminal services are not prerequisites.
   8. There are nine structural-type namespaces, one `ShapeCollector` per
      plan roster, rejoined by hand (`finalize_execution.rs`,
      `attached_unit/bodies.rs::UnitPlans::with_staged`).
-  9. A composed `GuardedJumps` chain refuses a short-circuit (`&&`/`||`)
-     guard ("guarded jump chain has a short-circuit guard" in
-     `composed_control/state_graph/emission/state.rs`). A two-arm
-     `Conditional` already stages that guard through
-     `evaluation.branch_guard` and `case_payload_dispatch::plan`. Stage every
-     chain guard through that path and delete the refusal.
-     `arithmetic_and_data::enum_and_comparison_canaries::const_fold_{saturating,wrapping}_narrow_canary_runs`
-     stop there.
   The Terminal module literals already start from
   `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
   the replaced family and its recognizer are deleted; programs it lowered
