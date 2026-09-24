@@ -128,7 +128,7 @@ pub(super) fn prepare<'a>(
 }
 
 /// Rejoin a state-local result to its exact emitted source occurrence.
-pub(in crate::unit::attached_unit::composed_control) fn result<'a>(
+pub(in crate::unit::attached_unit) fn result<'a>(
     state: &CheckedComposedUnitControlStatePlan,
     binding_ordinal: u32,
     operations: &'a OperationBuffer,

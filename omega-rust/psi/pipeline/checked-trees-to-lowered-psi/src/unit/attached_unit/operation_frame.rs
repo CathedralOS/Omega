@@ -1,0 +1,794 @@
+//! One emitter for the Unit effect operations every attached body lowers the
+//! same way: port writes, primitive, indexed, scalar-field and byte-sequence
+//! stores, scalar locals, borrowed-storage windows and call-continuation
+//! cleanup. The ordinary machine (`ordinary_machine::MachineEmission`) and a
+//! composed-graph state (`composed_control/emission.rs::emit_call_operations`)
+//! each build an `OperationFrame` over their per-state environment and hand it
+//! the checked operation; `OperationFrame::emit` dispatches to the one method
+//! for that kind, which delegates the lowering itself to the shared
+//! `crate::emission::*` helpers.
+//!
+//! A frame borrows the parameters, structural type roster, evaluation, value
+//! namespace, identity counters, operation buffer and scalar-call context of
+//! the body it emits into. The scalar-call context's obligation counter is the
+//! body's only call-obligation counter while a frame is open, so helpers that
+//! take a bare `&mut u64` and helpers that take the context advance the same
+//! identity space.
+//!
+//! The two routes keep two genuinely different representations, and both are
+//! explicit here rather than hidden in parallel copies of each operation:
+//!
+//! - `StructuralResults`: the ordinary machine keeps a dense roster indexed by
+//!   authored binding ordinal, with each row's return-discard custody; a
+//!   composed state registers completed results in the operation buffer and a
+//!   machine-wide place catalog.
+//! - `StructuralTypeRoster`: a body that owns its type roster may add the
+//!   generated literal-view carrier; a composed callee borrowing the closure's
+//!   published roster may not.
+//!
+//! Every other check either route applied runs for both. In particular a
+//! borrowed-window move or repair must name a machine-parameter root the
+//! sequence still holds (Terminal verification anchors windows on machine
+//! parameters only), and a repair value must be a whole owned result binding.
+//!
+//! Calls and structural-value construction (whose operands are calls) still
+//! emit through each route's own call emitter: `ordinary_machine/calls.rs`,
+//! `ordinary_machine/boundary_calls.rs` and `ordinary_machine/locals.rs` on the
+//! ordinary side, `composed_control/emission.rs` and
+//! `composed_control/internal_calls` on the composed side.
+
+use super::argument_evaluation::Evaluation;
+use super::primitive_locals::{self, PrimitiveLocal};
+use crate::emission::borrowed_window::{BorrowedWindowLedger, BorrowedWindowRepairValue};
+use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::expression_preparation::bindings::ScalarBindings;
+use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::unit::{
+    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
+    Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
+    ServiceReachSummary, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
+    lookup_service_id, lookup_type_id, terminal_scalar_type, unsupported,
+};
+use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
+
+/// The per-state environment one operation emits into. Each route builds a
+/// frame per operation; the frame only borrows, so the route keeps ownership
+/// of its namespaces, counters and buffer between operations.
+pub(super) struct OperationFrame<'f, 'c> {
+    pub(super) checked: &'f CheckedTrees,
+    pub(super) machine: symbols::SymbolHandle,
+    pub(super) state: symbols::SymbolHandle,
+    /// The machine's scalar completion binding, whose initializer lowers in
+    /// the `Return` role. A composed state completes without one.
+    pub(super) scalar_result: Option<&'f checked_trees::CheckedUnitScalarResultBindingPlan>,
+    /// Scalar formals ahead of the dense local namespace.
+    pub(super) scalar_parameter_count: usize,
+    /// Values the operation's authored source can name; staged argument
+    /// temporaries past this count are private to their call.
+    pub(super) source_value_count: usize,
+    pub(super) parameters: &'f [StructuralParameterDeclaration],
+    pub(super) structural_types: StructuralTypeRoster<'f>,
+    pub(super) type_ids: &'f [(String, StructuralTypeId)],
+    pub(super) service_ids: &'f [(ServiceReachId, ServiceId)],
+    /// Established primitive referents; a composed state establishes none.
+    pub(super) primitive_locals: &'f [PrimitiveLocal],
+    pub(super) results: StructuralResults<'f>,
+    /// The body's byte-sequence literal places; a literal a store writes
+    /// takes the next declaration ordinal, so this list is the one the
+    /// body's literal ordinals are dense over.
+    pub(super) literal_places: &'f mut Vec<StructuralPlaceDeclaration>,
+    /// Open borrowed-storage windows on the current straight-line sequence.
+    pub(super) windows: &'f mut BorrowedWindowLedger,
+    pub(super) evaluation: &'f mut Evaluation,
+    pub(super) values: &'f mut Vec<ValueDeclaration>,
+    pub(super) next_place: &'f mut u64,
+    pub(super) next_value: &'f mut u64,
+    pub(super) next_block: &'f mut u64,
+    pub(super) next_edge: &'f mut u64,
+    pub(super) calls: &'f mut CallEmissionContext<'c>,
+    pub(super) operations: &'f mut OperationBuffer,
+}
+
+/// The structural type roster a frame reads.
+pub(super) enum StructuralTypeRoster<'f> {
+    /// A roster the emitting body owns; it may grow generated carriers.
+    Owned(&'f mut Vec<StructuralTypeDeclaration>),
+    /// The closure's published roster, borrowed by a shared callee.
+    Published(&'f [StructuralTypeDeclaration]),
+}
+
+impl StructuralTypeRoster<'_> {
+    fn declarations(&self) -> &[StructuralTypeDeclaration] {
+        match self {
+            Self::Owned(types) => types,
+            Self::Published(types) => types,
+        }
+    }
+}
+
+/// Where the emitting body keeps its completed structural results.
+pub(super) enum StructuralResults<'f> {
+    /// The ordinary machine's roster: one row per authored result binding in
+    /// ordinal order, with whether the machine's return discards it.
+    Dense(&'f mut Vec<(StructuralPlaceDeclaration, bool)>),
+    /// A composed state: each binding is registered in the operation buffer,
+    /// and every result place joins the machine-wide place catalog.
+    StateGraph {
+        state: &'f CheckedComposedUnitControlStatePlan,
+        places: &'f mut Vec<StructuralPlaceDeclaration>,
+    },
+}
+
+impl StructuralResults<'_> {
+    /// The place a call continuation discards for `binding_ordinal`.
+    fn continuation_place(
+        &self,
+        binding_ordinal: u32,
+        operations: &OperationBuffer,
+    ) -> Result<PlaceId, LoweringError> {
+        match self {
+            Self::Dense(roster) => {
+                let (place, discard_on_return) =
+                    roster
+                        .get(binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "call continuation result has not been produced",
+                        ))?;
+                if *discard_on_return {
+                    return unsupported("call continuation cleanup has conflicting custody");
+                }
+                Ok(place.id)
+            }
+            Self::StateGraph { state, .. } => {
+                super::composed_control::state_graph_result(state, binding_ordinal, operations)
+                    .map(|produced| produced.place)
+            }
+        }
+    }
+
+    /// The completed whole value a borrowed-window repair stores back.
+    fn repair_value(
+        &self,
+        binding_ordinal: u32,
+        operations: &OperationBuffer,
+    ) -> Result<BorrowedWindowRepairValue, LoweringError> {
+        match self {
+            Self::Dense(roster) => {
+                let (declaration, _) =
+                    roster
+                        .get(binding_ordinal as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "borrowed-window repair binding is absent",
+                        ))?;
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = declaration.kind
+                else {
+                    return unsupported(
+                        "borrowed-window repair binding is not an operation result",
+                    );
+                };
+                Ok(BorrowedWindowRepairValue {
+                    place: declaration.id,
+                    structural_type,
+                })
+            }
+            Self::StateGraph { state, .. } => {
+                super::composed_control::state_graph_result(state, binding_ordinal, operations).map(
+                    |produced| BorrowedWindowRepairValue {
+                        place: produced.place,
+                        structural_type: produced.structural_type,
+                    },
+                )
+            }
+        }
+    }
+
+    /// A dense roster admits only the next ordinal; a composed state rejects
+    /// a repeated binding when it registers the result.
+    fn require_next(
+        &self,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    ) -> Result<(), LoweringError> {
+        match self {
+            Self::Dense(roster) if result.binding_ordinal as usize != roster.len() => {
+                unsupported("borrowed-window move result binding is not dense")
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl OperationFrame<'_, '_> {
+    /// Whether `operation` emits through a frame. Each route sends every such
+    /// operation to `emit` and keeps only its calls for itself.
+    pub(super) fn lowers(operation: &CheckedUnitEffectOperationPlan) -> bool {
+        matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        )
+    }
+
+    /// Emit one operation `lowers` admits.
+    pub(super) fn emit(
+        mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        match operation {
+            CheckedUnitEffectOperationPlan::PortWrite {
+                service_reach,
+                port,
+                value,
+                ..
+            } => self.port_write(service_reach, *port, *value),
+            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index,
+                destination,
+                path,
+                value,
+            } => self.write_only_primitive_store(*statement_index, destination, path, value),
+            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
+                statement_index,
+                destination,
+                path,
+                index,
+                value,
+            } => self.write_only_indexed_primitive_store(
+                *statement_index,
+                destination,
+                path,
+                index,
+                value,
+            ),
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                self.structural_byte_sequence_field_store(store)
+            }
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                self.structural_byte_sequence_field_byte_store(store)
+            }
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
+                self.byte_sequence_write(write)
+            }
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                self.structural_scalar_field_store(store)
+            }
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
+                self.establish_scalar_local(result, value)
+            }
+            CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } => {
+                self.move_structural_field(result, source)
+            }
+            CheckedUnitEffectOperationPlan::StoreStructuralField {
+                destination, value, ..
+            } => self.store_structural_field(destination, value),
+            CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                affine_discards, ..
+            } => self.call_continuation_cleanup(affine_discards),
+            _ => unsupported("operation frame received a call operation"),
+        }
+    }
+
+    /// Append one Unit-result operation at the next identity.
+    fn push_unit(&mut self, kind: OperationKind) {
+        let id = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Unit,
+            kind,
+        });
+    }
+
+    fn port_write(
+        &mut self,
+        service_reach: &ServiceReachSummary,
+        port: u16,
+        value: u8,
+    ) -> Result<(), LoweringError> {
+        let checked = self.checked;
+        let rows = &checked.facts.service_reaches.rows;
+        let [port_service] = rows.services(service_reach.direct) else {
+            return unsupported(
+                "port output does not carry the unique exact checked PortIo service",
+            );
+        };
+        if !rows
+            .services(service_reach.transitive)
+            .contains(port_service)
+        {
+            return unsupported(
+                "port output does not carry the unique exact checked PortIo service",
+            );
+        }
+        // `CheckedUnitEffectOperationPlan::PortWrite` is minted only for the
+        // exact checked asm-port-out builtin. Its singleton direct row is
+        // therefore the symbol-backed PortIo authority; no spelling lookup is
+        // repeated here.
+        let service = lookup_service_id(self.service_ids, *port_service)?;
+        self.push_unit(OperationKind::PortWrite {
+            service,
+            port,
+            value,
+        });
+        Ok(())
+    }
+
+    /// A primitive store names an exclusive borrowed parameter projection or
+    /// an established primitive local.
+    fn write_only_primitive_store(
+        &mut self,
+        statement_index: u32,
+        destination: &checked_trees::CheckedPrimitiveStoreDestination,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+        value: &checked_trees::CheckedCallScalarArgument,
+    ) -> Result<(), LoweringError> {
+        let destination = match destination {
+            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } => {
+                let parameter = self.parameters.get(*parameter_index as usize).ok_or(
+                    LoweringError::Unsupported("primitive store parameter is absent"),
+                )?;
+                crate::emission::primitive_store::parameter_destination(
+                    parameter,
+                    path,
+                    self.structural_types.declarations(),
+                )?
+            }
+            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
+                if !path.is_empty() {
+                    return unsupported("primitive local store has a projected destination");
+                }
+                let local = primitive_locals::find(self.primitive_locals, *symbol)?;
+                crate::emission::primitive_store::Destination {
+                    place: local.declaration.id,
+                    path: Vec::new(),
+                    scalar_type: local.scalar_type,
+                }
+            }
+        };
+        let kind = crate::emission::primitive_store::emit_assignment(
+            self.checked,
+            self.machine,
+            self.state,
+            statement_index,
+            destination,
+            value,
+            self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    fn write_only_indexed_primitive_store(
+        &mut self,
+        statement_index: u32,
+        destination: &checked_trees::CheckedPrimitiveStoreDestination,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+        index: &checked_trees::CheckedScalarExpression,
+        value: &checked_trees::CheckedCallScalarArgument,
+    ) -> Result<(), LoweringError> {
+        // Runtime-indexed stores only ever select a borrowed parameter's
+        // fixed array; the producer rejects local destinations on the
+        // projected lane.
+        let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
+            destination
+        else {
+            return unsupported("indexed primitive store has a local destination");
+        };
+        let parameter =
+            self.parameters
+                .get(*parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "indexed primitive store parameter is absent",
+                ))?;
+        let destination = crate::emission::primitive_store::indexed_parameter_destination(
+            parameter,
+            path,
+            self.structural_types.declarations(),
+        )?;
+        let kind = crate::emission::primitive_store::emit_indexed_assignment(
+            self.checked,
+            self.machine,
+            self.state,
+            statement_index,
+            destination,
+            index,
+            value,
+            self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    fn structural_byte_sequence_field_store(
+        &mut self,
+        store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    ) -> Result<(), LoweringError> {
+        // Only a roster this body owns may gain the generated literal-view
+        // carrier; the store below rejects a published roster without it.
+        if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
+            crate::emission::structural_byte_sequence_store::literal_view_type(types)?;
+        }
+        let kind = crate::emission::structural_byte_sequence_store::emit(
+            store,
+            self.parameters,
+            self.structural_types.declarations(),
+            self.literal_places,
+            self.next_place,
+            self.next_value,
+            &mut self.calls.next_obligation_identity,
+            self.operations,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    /// The scalar namespace an assignment's index and value resolve in: the
+    /// composed state's own namespace when the evaluation carries one, and
+    /// otherwise the ordinary dense source prefix over primitive storage and
+    /// structural parameters.
+    fn dense_assignment_namespace(&self) -> ScalarBindings {
+        ScalarBindings::new(self.values.len())
+            .with_primitive_storage(&self.evaluation.primitive_storage)
+            .with_structural_parameters(&self.evaluation.structural_parameters)
+    }
+
+    fn structural_byte_sequence_field_byte_store(
+        &mut self,
+        store: &checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan,
+    ) -> Result<(), LoweringError> {
+        let dense;
+        let bindings = match &self.evaluation.scalar_bindings {
+            Some(bindings) => bindings,
+            None => {
+                dense = self
+                    .dense_assignment_namespace()
+                    .with_resolved_structural_observations(
+                        &self.evaluation.structural_fields,
+                        &self.evaluation.structural_cases,
+                    );
+                &dense
+            }
+        };
+        let index = bindings.expression_at(
+            self.checked,
+            self.state,
+            store.statement_index,
+            CheckedScalarExpressionRole::AssignmentIndex,
+        )?;
+        let value = crate::emission::byte_store_scalar_value(
+            bindings,
+            self.checked,
+            self.state,
+            store.statement_index,
+            &store.value,
+            self.values,
+        )?;
+        let kind = crate::emission::structural_byte_sequence_index_store::emit(
+            store,
+            self.parameters,
+            self.structural_types.declarations(),
+            &index,
+            &value,
+            self.values,
+            self.next_value,
+            &mut self.calls.next_obligation_identity,
+            self.operations,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    fn byte_sequence_write(
+        &mut self,
+        write: &checked_trees::CheckedByteSequenceWritePlan,
+    ) -> Result<(), LoweringError> {
+        let dense;
+        let bindings = match &self.evaluation.scalar_bindings {
+            Some(bindings) => bindings,
+            None => {
+                dense = self.dense_assignment_namespace();
+                &dense
+            }
+        };
+        let index = bindings.expression_at(
+            self.checked,
+            self.state,
+            write.statement_index,
+            CheckedScalarExpressionRole::AssignmentIndex,
+        )?;
+        let value = crate::emission::byte_store_scalar_value(
+            bindings,
+            self.checked,
+            self.state,
+            write.statement_index,
+            &write.value,
+            self.values,
+        )?;
+        let kind = crate::emission::byte_sequence_write::emit(
+            write,
+            self.parameters,
+            self.structural_types.declarations(),
+            &index,
+            &value,
+            self.values,
+            self.next_value,
+            &mut self.calls.next_obligation_identity,
+            self.operations,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    fn structural_scalar_field_store(
+        &mut self,
+        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    ) -> Result<(), LoweringError> {
+        let destination = self
+            .parameters
+            .iter()
+            .find(|parameter| Some(parameter.position) == store.destination.parameter_position())
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar store names an unknown parameter",
+            ))?;
+        let lowered =
+            crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
+                store,
+                store.statement_index,
+                destination,
+                self.structural_types.declarations(),
+                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+            )?;
+        let value = self.evaluation.field_assignment_value(
+            self.checked,
+            self.machine,
+            self.state,
+            store,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
+        if value.scalar_type != lowered.scalar_type {
+            return unsupported("structural scalar store RHS differs from its field type");
+        }
+        let kind = lowered.into_operation(
+            destination.place,
+            value.id,
+            &mut self.calls.next_obligation_identity,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
+    /// Bind one scalar local. A composed state names it in its own scalar
+    /// namespace at its dense position; without that namespace the source
+    /// bindings are the dense prefix of formals followed by locals in ordinal
+    /// order, so the ordinal must name the next position.
+    fn establish_scalar_local(
+        &mut self,
+        result: &checked_trees::CheckedUnitScalarResultBindingPlan,
+        value: &checked_trees::CheckedCallScalarArgument,
+    ) -> Result<(), LoweringError> {
+        if self.evaluation.scalar_bindings.is_none()
+            && usize::try_from(result.binding_ordinal)
+                .ok()
+                .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
+                != Some(self.values.len())
+        {
+            return unsupported("Unit scalar expression local binding drifted from source order");
+        }
+        let role = if self.scalar_result == Some(result) {
+            CheckedScalarExpressionRole::Return
+        } else {
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: result.binding_ordinal,
+            }
+        };
+        let lowered = self.evaluation.source_value(
+            self.checked,
+            self.machine,
+            self.state,
+            result.statement_index,
+            role,
+            value,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
+        if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
+            return unsupported("Unit scalar expression local type disagrees with its binding");
+        }
+        if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
+            bindings.append(
+                checked_trees::CheckedScalarBindingDestination::Immutable,
+                lowered.scalar_type,
+                self.values.len(),
+            )?;
+        }
+        self.values.push(lowered);
+        Ok(())
+    }
+
+    /// Move one whole structural field out of borrowed storage into the
+    /// authored result binding. The opened window stays in the ledger until
+    /// the matching `StoreStructuralField`; each route requires the ledger
+    /// closed before its sequence's exits.
+    fn move_structural_field(
+        &mut self,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<(), LoweringError> {
+        self.results.require_next(result)?;
+        require_parameter_window_root(self.parameters, source, self.evaluation)?;
+        let moved = self.windows.emit_move(
+            source,
+            result,
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            self.next_place,
+            self.operations,
+        )?;
+        let producer = self
+            .operations
+            .operations
+            .last()
+            .ok_or(LoweringError::Unsupported(
+                "borrowed-window move emitted no operation",
+            ))?;
+        let OperationResult::Structural(produced) = &producer.result else {
+            return unsupported("borrowed-window move established no structural value");
+        };
+        let declaration = StructuralPlaceDeclaration {
+            id: moved,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: producer.id,
+                structural_type: produced.structural_type,
+            },
+        };
+        let produced = produced.clone();
+        match &mut self.results {
+            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            // The composed namespace resolves later operands through the
+            // operation buffer's registry, so the moved value registers there.
+            StructuralResults::StateGraph { places, .. } => {
+                places.push(declaration);
+                self.evaluation.establish_structural_result(
+                    self.checked,
+                    self.state,
+                    result,
+                    produced,
+                    self.structural_types.declarations(),
+                    self.operations,
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Store a whole owned result back into its open window. The ledger
+    /// closes the hole; the repaired place reads through any selection that
+    /// transported the result.
+    fn store_structural_field(
+        &mut self,
+        destination: &CheckedUnitStructuralArgumentPlan,
+        value: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<(), LoweringError> {
+        let (Some(binding_ordinal), true, checked_trees::CheckedStructuralAccess::Owned) = (
+            value.source_structural_result_binding_ordinal(),
+            value.path.is_empty(),
+            value.access,
+        ) else {
+            return unsupported("borrowed-window repair value is not a whole owned result");
+        };
+        let repair = self
+            .results
+            .repair_value(binding_ordinal, self.operations)?;
+        let repair = BorrowedWindowRepairValue {
+            place: self.evaluation.current_structural_place(repair.place),
+            structural_type: repair.structural_type,
+        };
+        require_parameter_window_root(self.parameters, destination, self.evaluation)?;
+        self.windows.emit_store(
+            destination,
+            repair,
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            self.operations,
+        )
+    }
+
+    /// Commit the dying affine results on a completed call's normal
+    /// continuation while its evaluated scalar bindings stay live.
+    fn call_continuation_cleanup(
+        &mut self,
+        affine_discards: &[checked_trees::CheckedUnitPartialAffineDiscardPlan],
+    ) -> Result<(), LoweringError> {
+        let mut discards = Vec::new();
+        let mut residuals = Vec::new();
+        for discard in affine_discards {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } = discard.source
+            else {
+                return unsupported("call continuation cleanup requires a result binding");
+            };
+            let place = self
+                .results
+                .continuation_place(binding_ordinal, self.operations)?;
+            if discard.path.is_empty() {
+                discards.push(place);
+            } else {
+                residuals.push(terminal_psi::StructuralAffineDiscard {
+                    place,
+                    path: lower_structural_path(&discard.path),
+                    structural_type: lookup_type_id(self.type_ids, &discard.type_identity)?,
+                });
+            }
+        }
+        self.evaluation.cleanup_continuation(
+            discards,
+            residuals,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )
+    }
+}
+
+/// The exclusive parameter root a borrowed-storage window names, as the
+/// sequence currently holds it. An owned selection that transported the root
+/// to a join parameter leaves no machine-parameter root for the window, and
+/// Terminal verification anchors windows on machine parameters only.
+fn require_parameter_window_root(
+    parameters: &[StructuralParameterDeclaration],
+    place: &CheckedUnitStructuralArgumentPlan,
+    evaluation: &Evaluation,
+) -> Result<(), LoweringError> {
+    let transported = place.source_parameter_index().is_some_and(|position| {
+        parameters.iter().any(|parameter| {
+            parameter.position == position
+                && evaluation.current_structural_place(parameter.place) != parameter.place
+        })
+    });
+    if transported {
+        return unsupported("borrowed-window root was transported to a join parameter");
+    }
+    Ok(())
+}

@@ -2267,9 +2267,20 @@ syntax and other terminal services are not prerequisites.
      (`composed_control/dynamic_join.rs`) still requires an authored `_`
      fallback; other graphs accept an exact-complement pair through
      `execution::guard_complement::complementary`.
-  4. Composed-graph states re-emit operations through
-     `composed_control/emission.rs`, a narrower copy of
-     `attached_unit/ordinary_machine` emission.
+  4. Composed-graph states share `attached_unit/operation_frame.rs` with the
+     ordinary machine for stores, scalar locals, borrowed windows and
+     continuation cleanup, but still emit calls through their own copies:
+     structural-value member calls and the boundary and scalar call emitters
+     in `composed_control/emission.rs`, and
+     `composed_control/internal_calls/emission.rs`, beside
+     `ordinary_machine/{calls,boundary_calls,locals}.rs`. The composed copies
+     admit fewer shapes (no result-sourced boundary arguments, no linear
+     boundary results, no `CallUnit` claim transfers). Next: give
+     `operation_frame::StructuralResults` the dense `(declaration, discard)`
+     roster view composed calls already rebuild as `earlier_results`, route
+     composed internal calls through `ordinary_calls::prepare` (its member
+     calls already do), then the boundary and scalar calls through the
+     ordinary methods, and delete the composed call emitters.
   5. Eight return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
      A dispatch probe skipped one family at a time over the c2l suite. The
@@ -3173,8 +3184,8 @@ syntax and other terminal services are not prerequisites.
   - Reconcile authored parameter positions with dense Terminal positions when
     `calls/signatures.rs` omits an unread reference `self`.
     `Random::next_u32(&mut self, state: &mut RandomState)` exposes mismatches in
-    store planning and `ordinary_machine/stores.rs`, `state_graph/body.rs`,
-    and `emission/structural_scalar_store.rs`. Preserve the authored-to-retained
+    store planning, `attached_unit/operation_frame.rs` and
+    `emission/structural_scalar_store.rs`. Preserve the authored-to-retained
     relation; admitting the planner alone does not repair lowering.
   - Complete store sources for float reads/arithmetic and policy casts,
     recast reference locals, case and qualified byte-slice literals, nested

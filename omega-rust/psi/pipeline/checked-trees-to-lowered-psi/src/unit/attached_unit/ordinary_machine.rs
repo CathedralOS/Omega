@@ -1,13 +1,19 @@
 //! One ordinary attached Unit machine lowered from its checked effect plan:
 //! `emit` establishes the provider attachment, local and literal places,
-//! walks the argument schedule through `MachineEmission::lower_step` (one
-//! method per operation kind in `locals`, `calls`, `boundary_calls` and
-//! `stores`), then seals completion, the cleanup roster, crash routes and
-//! the machine's single block.
+//! walks the argument schedule through `MachineEmission::lower_step`, then
+//! seals completion, the cleanup roster, crash routes and the machine's
+//! single block.
+//!
+//! `lower_step` sends stores, scalar locals, borrowed-storage windows and
+//! continuation cleanup to `operation_frame::OperationFrame`, the emitter
+//! composed-graph states share, and keeps one method per remaining kind in
+//! `locals` (structural values and ordinary-only establishments), `calls` and
+//! `boundary_calls`.
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
+use super::operation_frame::{OperationFrame, StructuralResults, StructuralTypeRoster};
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
 use super::provider_attachments::lower_provider_attachment_places;
@@ -69,7 +75,6 @@ mod boundary_calls;
 mod calls;
 mod locals;
 mod projected_moves;
-mod stores;
 
 /// One ordinary machine's emission in flight: the shared catalog it resolves
 /// against, the identity counters it advances, and the places, values and
@@ -1062,48 +1067,14 @@ impl MachineEmission<'_> {
             _ => return unsupported("call schedule disagrees with its active argument group"),
         };
         let operation = &plan.operations[operation_index];
-        if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            affine_discards, ..
-        } = operation
-        {
-            let mut discards = Vec::new();
-            let mut residuals = Vec::new();
-            for discard in affine_discards {
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal,
-                } = discard.source
-                else {
-                    return unsupported("call continuation cleanup requires a result binding");
-                };
-                let (place, discard_on_return) = self
-                    .structural_result_places
-                    .get(binding_ordinal as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "call continuation result has not been produced",
-                    ))?;
-                if *discard_on_return {
-                    return unsupported("call continuation cleanup has conflicting custody");
-                }
-                if discard.path.is_empty() {
-                    discards.push(place.id);
-                } else {
-                    residuals.push(terminal_psi::StructuralAffineDiscard {
-                        place: place.id,
-                        path: lower_structural_path(&discard.path),
-                        structural_type: lookup_type_id(self.type_ids, &discard.type_identity)?,
-                    });
-                }
-            }
-            self.evaluation.cleanup_continuation(
-                discards,
-                residuals,
-                &mut self.scalar_result_values,
-                &mut self.next_value_identity,
-                &mut self.next_block,
-                &mut self.next_edge,
-                &self.operations,
-            )?;
-            return Ok(());
+        // A continuation cleanup reads no operands; it commits the completed
+        // call's dying results before the next operation evaluates any.
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+        ) {
+            let source_value_count = self.scalar_result_values.len();
+            return self.emit_through_frame(operation, source_value_count);
         }
         let source_value_count = self
             .retained_scalar_prefix
@@ -1144,6 +1115,18 @@ impl MachineEmission<'_> {
             evaluated_scalar_arguments,
         };
         let kind = match operation {
+            CheckedUnitEffectOperationPlan::PortWrite { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
+                return self.emit_through_frame(operation, step.source_value_count);
+            }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 self.establish_structural_value(operation)?
             }
@@ -1175,9 +1158,6 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. } => {
                 self.scalar_call(operation, &step)?
             }
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {
-                self.establish_scalar_local(operation, &step)?
-            }
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. } => {
                 self.selected_operator_structural_scalar_call(operation)?
             }
@@ -1196,33 +1176,8 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
                 self.boundary_structural_call(operation, &step)?
             }
-            CheckedUnitEffectOperationPlan::PortWrite { .. } => self.port_write(operation)?,
-            CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => {
-                self.write_only_primitive_store(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. } => {
-                self.write_only_indexed_primitive_store(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore { .. } => {
-                self.structural_byte_sequence_field_store(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore { .. } => {
-                self.structural_byte_sequence_field_byte_store(operation)?
-            }
-            CheckedUnitEffectOperationPlan::ByteSequenceWrite { .. } => {
-                self.byte_sequence_write(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore { .. } => {
-                self.structural_scalar_field_store(operation)?
-            }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
                 return unsupported("Unit structural case field store has no lowered operation");
-            }
-            CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => {
-                self.move_structural_field(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
-                self.store_structural_field(operation)?
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
@@ -1260,6 +1215,45 @@ impl MachineEmission<'_> {
             result: terminal_psi::OperationResult::Unit,
             kind,
         });
+        Ok(())
+    }
+}
+
+impl<'a> MachineEmission<'a> {
+    /// Lower one store, scalar local, borrowed window or continuation cleanup
+    /// through the operation frame composed states share.
+    fn emit_through_frame(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+        source_value_count: usize,
+    ) -> Result<(), LoweringError> {
+        let plan = self.plan;
+        OperationFrame {
+            checked: self.checked,
+            machine: plan.machine,
+            state: plan.state,
+            scalar_result: plan.scalar_result.as_ref(),
+            scalar_parameter_count: self.scalar_parameter_count,
+            source_value_count,
+            parameters: self.parameters,
+            structural_types: StructuralTypeRoster::Owned(self.structural_types),
+            type_ids: self.type_ids,
+            service_ids: self.service_ids,
+            primitive_locals: &self.primitive_local_places,
+            results: StructuralResults::Dense(&mut self.structural_result_places),
+            literal_places: &mut self.literal_places,
+            windows: &mut self.borrowed_windows,
+            evaluation: &mut self.evaluation,
+            values: &mut self.scalar_result_values,
+            next_place: &mut self.next_place,
+            next_value: &mut self.next_value_identity,
+            next_block: &mut self.next_block,
+            next_edge: &mut self.next_edge,
+            calls: &mut self.scalar_calls,
+            operations: &mut self.operations,
+        }
+        .emit(operation)?;
+        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
         Ok(())
     }
 }

@@ -1,6 +1,7 @@
-//! Places and values a body establishes for itself: structural values,
-//! primitive and trivial affine locals, references, scalar arrays and
-//! scalar locals.
+//! Places a body establishes for itself: structural values (whose member
+//! operands are ordinary calls), primitive and trivial affine locals,
+//! references and scalar arrays. Scalar locals emit through the shared
+//! `operation_frame`.
 
 use super::super::{
     ordinary_calls, parameters, primitive_locals, reference_results, scalar_arrays, signatures,
@@ -332,53 +333,5 @@ impl MachineEmission<'_> {
         Ok(Some(OperationKind::EstablishTrivialAffineLocal {
             destination: local.id,
         }))
-    }
-
-    pub(super) fn establish_scalar_local(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-        step: &StepInputs,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let checked = self.checked;
-        let plan = self.plan;
-        let CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } = operation
-        else {
-            unreachable!("dispatched establish_scalar_local")
-        };
-        if usize::try_from(result.binding_ordinal)
-            .ok()
-            .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
-            != Some(self.scalar_result_values.len())
-        {
-            return unsupported("Unit scalar expression local binding drifted from source order");
-        }
-        let role = if plan.scalar_result.as_ref() == Some(result) {
-            CheckedScalarExpressionRole::Return
-        } else {
-            CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: result.binding_ordinal,
-            }
-        };
-        let lowered = self.evaluation.source_value(
-            checked,
-            plan.machine,
-            plan.state,
-            result.statement_index,
-            role,
-            value,
-            step.source_value_count,
-            &mut self.scalar_result_values,
-            &mut self.next_value_identity,
-            &mut self.next_block,
-            &mut self.next_edge,
-            &mut self.operations,
-            &mut self.scalar_calls,
-        )?;
-        if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
-            return unsupported("Unit scalar expression local type disagrees with its binding");
-        }
-        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        self.scalar_result_values.push(lowered);
-        Ok(None)
     }
 }

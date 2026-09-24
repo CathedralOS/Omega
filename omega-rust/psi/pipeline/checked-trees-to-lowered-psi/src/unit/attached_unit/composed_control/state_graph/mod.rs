@@ -47,7 +47,7 @@ use checked_trees::{
 };
 
 mod admission;
-pub(super) mod body;
+mod body;
 pub(super) mod case_emission;
 mod case_leaf_copy;
 mod cases;

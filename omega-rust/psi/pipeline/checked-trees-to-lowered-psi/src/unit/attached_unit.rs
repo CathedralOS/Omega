@@ -6,7 +6,8 @@
 //! `signatures` allocates each machine's formals, claims and requirements.
 //! Emission borrows those records in the single shared namespace:
 //! `ordinary_machine` emits each ordinary body and `composed_control::callable`
-//! each composed one.
+//! each composed one. Both lower their stores, scalar locals, borrowed-storage
+//! windows and continuation cleanup through one `operation_frame::OperationFrame`.
 use std::collections::BTreeMap;
 
 use super::{
@@ -46,6 +47,7 @@ mod call_closure;
 pub(crate) mod catalog;
 mod claims;
 mod composed_control;
+mod operation_frame;
 mod ordinary_calls;
 mod ordinary_machine;
 mod parameters;
