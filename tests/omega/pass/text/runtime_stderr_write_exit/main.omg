@@ -1,5 +1,5 @@
 use omega::language::core::binding;
-domain [u8]::Utf8
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 pub boundary trait Console {

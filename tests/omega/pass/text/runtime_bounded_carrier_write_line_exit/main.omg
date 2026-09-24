@@ -6,7 +6,7 @@ use omega::language::core::binding;
 // the inline bytes) rather than as a `{ptr, len}` descriptor. Prints "Room A1"
 // then exits 70. The interpreter agrees on both the output and the exit code
 // (differential).
-domain [u8]::Utf8
+pub domain [u8]::Utf8
 requires
     valid_utf8(self);
 domain [u8; 4]::Utf8
