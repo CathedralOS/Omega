@@ -9,10 +9,13 @@ local and bounded. Each promoted head gets at most three minutes. See landing.md
 
 import argparse
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
+import os
 from pathlib import Path
 import random
 import re
+import subprocess
 import sys
 import time
 import uuid
@@ -20,10 +23,13 @@ import uuid
 # Sibling-script import; both files live in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import coordination
+import trusted_surface_digests
 
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
 LEASE_SECONDS = 180
+TRUSTED_SITES = trusted_surface_digests.SITES_RS.relative_to(
+    trusted_surface_digests.REPO_ROOT).as_posix()
 COORDINATION_FILE = re.compile(
     r"^(?:TASKS[^/]*\.md|OWNER_QUESTIONS\.md|tools/swarm/waves/.+)$")
 # Patience budgets. Collisions are lost compare-and-swap races against
@@ -83,6 +89,38 @@ class Landing:
     def git(self, *arguments, input_text="", allow_failure=False):
         return coordination.git(self.repository, *arguments, input_text=input_text,
                                 allow_failure=allow_failure)
+
+    def blob(self, revision, path):
+        """Exact bytes of `path` at `revision`, or None when it is absent."""
+        result = subprocess.run(
+            ["git", "-C", str(self.repository), "cat-file", "blob", f"{revision}:{path}"],
+            capture_output=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+        return result.stdout if result.returncode == 0 else None
+
+    def stale_trusted_sites(self, candidate, changed):
+        """Pinned trusted-surface files the candidate changes without re-recording.
+
+        `sites.rs` pins a SHA-256 for every bound verifier implementation file,
+        and terminal-verifier's `recorded_digests_match_the_working_tree` fails
+        when one drifts. A candidate that changes such a file without updating
+        its digest landed a verifier change nobody revalidated against the
+        ledger entries that cite it, so the queue refuses it at the source.
+        Only the candidate's own changes are checked; drift already on main
+        does not block unrelated work.
+        """
+        sites = self.blob(candidate, TRUSTED_SITES)
+        if sites is None:
+            return []
+        recorded = dict(trusted_surface_digests.collect_sites(sites.decode("utf-8")))
+        stale = []
+        for path in changed:
+            digest = recorded.get(path)
+            if digest is None:
+                continue
+            contents = self.blob(candidate, path)
+            if contents is None or hashlib.sha256(contents).hexdigest() != digest:
+                stale.append(path)
+        return stale
 
     def references(self):
         references = coordination.remote_refs(self.repository, self.push_url,
@@ -292,6 +330,12 @@ class Landing:
             raise LandingError("The candidate changes no files; there is nothing to publish. "
                                "Attach the finding to its claim ticket with `claims.py note` "
                                "and release the reservation instead.")
+        stale = self.stale_trusted_sites(options.candidate, changed)
+        if stale:
+            raise LandingError("The candidate changes trusted-surface implementation sites "
+                               "without re-recording their digests: " + ", ".join(stale) +
+                               ". Revalidate the ledger entries that cite them, then run "
+                               "`python3 tools/trusted_surface_digests.py --write`.")
         if not options.board_update and all(COORDINATION_FILE.match(path)
                                             for path in changed):
             raise LandingError("The candidate touches only coordination files "
