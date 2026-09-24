@@ -216,6 +216,18 @@ pub enum OperationKind {
         value: ValueId,
         obligation: ObligationId,
     },
+    /// Read one primitive element of a declared fixed array through a runtime
+    /// index. `path` resolves from the source root to the fixed array itself;
+    /// `index` is the exact `u64` runtime selector and `obligation` certifies
+    /// `index < declared extent`. The dynamic index is a runtime operand, not
+    /// a path segment, so a stored field or a second index cannot follow it.
+    /// The source place and its custody stay intact.
+    IndexedPrimitiveRead {
+        source: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        index: ValueId,
+        obligation: ObligationId,
+    },
     /// Replace a bounded byte field's live prefix and live length from an
     /// immutable view. The exact source's length observation must satisfy
     /// length <= the independently resolved destination field capacity.
@@ -819,6 +831,9 @@ impl OperationKind {
             Self::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
                 *index = map(*index);
                 *value = map(*value);
+            }
+            Self::IndexedPrimitiveRead { index, .. } => {
+                *index = map(*index);
             }
             Self::ByteSequenceRead { index, length, .. } => {
                 *index = map(*index);

@@ -20,14 +20,14 @@ fn i8_type() -> ScalarType {
 
 #[test]
 fn operation_inventory_is_exact_unique_and_closed() {
-    assert_eq!(OperationSemanticTag::ALL.len(), 79);
-    assert_eq!(OperationSemanticRow::ALL.len(), 79);
+    assert_eq!(OperationSemanticTag::ALL.len(), 80);
+    assert_eq!(OperationSemanticRow::ALL.len(), 80);
     assert_eq!(
         OperationSemanticRow::ALL
             .iter()
             .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
             .count(),
-        69,
+        70,
     );
     assert_eq!(
         OperationSemanticRow::ALL
@@ -49,7 +49,7 @@ fn operation_inventory_is_exact_unique_and_closed() {
             .map(|row| row.tag)
             .collect::<BTreeSet<_>>()
             .len(),
-        79,
+        80,
     );
     assert_eq!(
         OperationSemanticRow::ALL
@@ -57,7 +57,7 @@ fn operation_inventory_is_exact_unique_and_closed() {
             .map(|row| row.identity)
             .collect::<BTreeSet<_>>()
             .len(),
-        79,
+        80,
     );
     assert!(
         OperationSemanticRow::ALL
