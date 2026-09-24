@@ -201,40 +201,41 @@ impl StateGraphEmission<'_, '_> {
             &state.terminator
         {
             // Only the first guard is observed on the entry path. Every
-            // later guard is staged below into its own private block.
+            // later guard is staged below into its own private block. A
+            // short-circuit guard is planned below exactly like a two-arm
+            // conditional's, so it evaluates no value here.
             let Some(first) = arms.first() else {
                 return unsupported("guarded jump chain lost its first arm");
             };
             if arms.len() < 2 {
                 return unsupported("guarded jump chain lost its ordered arms");
             }
-            if evaluation
-                .branch_guard(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    first.successor.statement_ordinal,
-                    &values,
-                )?
-                .is_some()
-            {
-                return unsupported("guarded jump chain has a short-circuit guard");
-            }
-            let mut calls = self.catalogs.scalar_calls.emission_context();
-            let condition = evaluation.guard_value(
+            branch_guard = evaluation.branch_guard(
                 checked,
                 plan.machine,
                 state.state,
                 first.successor.statement_ordinal,
-                &mut values,
-                &mut next_value,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-                &mut calls,
+                &values,
             )?;
-            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            Some(condition.id)
+            if branch_guard.is_some() {
+                None
+            } else {
+                let mut calls = self.catalogs.scalar_calls.emission_context();
+                let condition = evaluation.guard_value(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    first.successor.statement_ordinal,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut calls,
+                )?;
+                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                Some(condition.id)
+            }
         } else {
             None
         };
@@ -323,6 +324,21 @@ impl StateGraphEmission<'_, '_> {
             }
             _ => None,
         };
+        // A short-circuit guard is planned before the successor closure so
+        // its case dispatches can allocate payload values; the true edge's
+        // arguments then read the payloads its dispatches established. It is
+        // planned before any later chain guard evaluates, over the namespace
+        // the first guard observes.
+        let planned_guard = match &branch_guard {
+            Some(expression) => Some(plan_short_circuit_guard(
+                expression,
+                &values,
+                &self.catalogs.structural_types,
+                &evaluation.structural_parameters,
+                &mut next_value,
+            )?),
+            None => None,
+        };
         let inherited_lengths = operations.byte_lengths.clone();
         let inherited_field_lengths = operations.field_byte_lengths.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
@@ -351,32 +367,40 @@ impl StateGraphEmission<'_, '_> {
                 evaluation.operation_start = operations.len();
                 evaluation.parameters = Vec::new();
                 evaluation.block_structural_parameters = Vec::new();
-                if evaluation
-                    .branch_guard(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        arm.successor.statement_ordinal,
-                        &values,
-                    )?
-                    .is_some()
-                {
-                    return unsupported("guarded jump chain has a short-circuit guard");
-                }
-                let mut calls = self.catalogs.scalar_calls.emission_context();
-                let guard = evaluation.guard_value(
+                // A short-circuit guard stages the same planned decision a
+                // two-arm conditional uses; any other guard is one value.
+                let guard = if let Some(expression) = evaluation.branch_guard(
                     checked,
                     plan.machine,
                     state.state,
                     arm.successor.statement_ordinal,
-                    &mut values,
-                    &mut next_value,
-                    &mut next_block,
-                    &mut next_edge,
-                    &mut operations,
-                    &mut calls,
-                )?;
-                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                    &values,
+                )? {
+                    ChainGuard::Decision(plan_short_circuit_guard(
+                        &expression,
+                        &values,
+                        &self.catalogs.structural_types,
+                        &evaluation.structural_parameters,
+                        &mut next_value,
+                    )?)
+                } else {
+                    let mut calls = self.catalogs.scalar_calls.emission_context();
+                    let guard = evaluation.guard_value(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        arm.successor.statement_ordinal,
+                        &mut values,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &mut calls,
+                    )?;
+                    self.catalogs.scalar_calls.next_call_obligation =
+                        calls.next_obligation_identity;
+                    ChainGuard::Value(guard.id)
+                };
                 let expanded = evaluation.current != decision;
                 guarded_drafts.push((
                     evaluation.current,
@@ -391,7 +415,7 @@ impl StateGraphEmission<'_, '_> {
                         Vec::new()
                     },
                     operations[evaluation.operation_start..].to_vec(),
-                    guard.id,
+                    guard,
                     values.clone(),
                 ));
             }
@@ -400,49 +424,6 @@ impl StateGraphEmission<'_, '_> {
             evaluation.parameters = entry_parameters;
             evaluation.block_structural_parameters = entry_structural;
         }
-        // A short-circuit guard is planned before the successor closure so
-        // its case dispatches can allocate payload values; the true edge's
-        // arguments then read the payloads its dispatches established.
-        let planned_guard = match &branch_guard {
-            Some(expression) => {
-                let decision = crate::emission::boolean_control::lower_boolean_control_decision(
-                    expression,
-                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                        value: true,
-                    }),
-                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                        value: false,
-                    }),
-                );
-                let mut namespace = values.clone();
-                let structural_types = &self.catalogs.structural_types;
-                let structural_parameters = &evaluation.structural_parameters;
-                let declared_cases = |place| {
-                    let (_, parameter) = structural_parameters
-                        .iter()
-                        .find(|(_, parameter)| parameter.place == place)?;
-                    match &structural_types
-                        .iter()
-                        .find(|declaration| declaration.id == parameter.structural_type)?
-                        .shape
-                    {
-                        terminal_psi::StructuralTypeShape::Sum { cases }
-                        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
-                            Some(cases.as_slice())
-                        }
-                        _ => None,
-                    }
-                };
-                let planned = crate::emission::case_payload_dispatch::plan(
-                    decision,
-                    &declared_cases,
-                    &mut namespace,
-                    &mut next_value,
-                )?;
-                Some((planned, namespace))
-            }
-            None => None,
-        };
         // The authored `(expression)` arm lowers its value producer into its
         // own block closed by ReturnStructural now, before the successor-edge
         // closure borrows this state's emission slots. The staged edge joins
@@ -1190,95 +1171,25 @@ impl StateGraphEmission<'_, '_> {
                     _ => unreachable!(),
                 };
                 if let Some((planned, guard_values)) = &planned_guard {
-                    // Successor staging runs only after selection. Its length
-                    // observations cannot be reused while evaluating the guard.
-                    operations.byte_lengths = inherited_lengths.clone();
-                    operations.field_byte_lengths = inherited_field_lengths.clone();
-                    // The shared decision emitter carries scalar arguments only.
-                    // These outcome blocks retain the original successor edges,
-                    // including structural transfers, cleanup and ranking identity.
-                    let true_block = block_id(allocate_dense(&mut next_block)?);
-                    let false_block = block_id(allocate_dense(&mut next_block)?);
-                    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
-                        if let Some(rank) = current_rank {
-                            self.block_ranks.insert(id, rank);
-                        }
-                        edge_blocks.push(Block {
-                            id,
-                            parameters: Vec::new(),
-                            erased_scalar_formals: self.state_erased[position].clone(),
-                            erased_proof_formals:
-                                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
-                                    &self.state_erased_proof[position],
-                                ),
-                            structural_parameters: Vec::new(),
-                            operations: Vec::new(),
-                            terminator: Terminator::Jump {
-                                edge: successor.edge,
-                                target: successor.target,
-                                arguments: successor.arguments,
-                                erased_arguments: successor.erased_arguments,
-                                erased_proof_arguments: successor.erased_proof_arguments.clone(),
-                                structural_arguments: successor.structural_arguments,
-                                trivial_affine_discards: successor.trivial_affine_discards,
-                                residual_affine_discards: Vec::new(),
-                            },
-                        });
-                    }
-                    let decision = &planned.decision;
-                    let tests =
-                        crate::emission::boolean_control::boolean_decision_test_count(decision);
-                    let decision_block = block_id(next_block);
-                    next_block = next_block
-                        .checked_add(u64::try_from(tests).map_err(|_| {
-                            LoweringError::Unsupported("guard decision count exceeds identities")
-                        })?)
-                        .ok_or(LoweringError::Unsupported(
-                            "guard decision identities overflow",
-                        ))?;
-                    let (root, nested) =
-                        crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
-                            decision,
-                            guard_values,
-                            Vec::new(),
-                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
-                                block: true_block,
-                                arguments: Vec::new(),
-                            },
-                            &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
-                                block: false_block,
-                                arguments: Vec::new(),
-                            },
-                            decision_block,
-                            block_id(decision_block.get().checked_add(1).ok_or(
-                                LoweringError::Unsupported("guard decision identities overflow"),
-                            )?),
-                            &mut next_value,
-                            &mut next_edge,
-                            &mut operations,
-                        );
-                    evaluation.blocks.push(root);
-                    evaluation.blocks.extend(nested);
-                    let edge = edge_id(allocate_dense(&mut next_edge)?);
-                    if let Some(rank) = current_rank {
-                        self.rank_edges.insert(
-                            edge,
-                            (
-                                rank,
-                                terminal_psi::TerminalNaturalRankComparison::Preserving,
-                            ),
-                        );
-                    }
-                    Terminator::Jump {
-                        edge,
-                        target: decision_block,
-                        arguments: Vec::new(),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                    }
+                    emit_short_circuit_decision(
+                        planned,
+                        guard_values,
+                        [when_true, when_false],
+                        ShortCircuitFrame {
+                            erased_scalar_formals: &self.state_erased[position],
+                            erased_proof_formals: &self.state_erased_proof[position],
+                            current_rank,
+                            inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                        },
+                        &mut self.block_ranks,
+                        &mut self.rank_edges,
+                        &mut edge_blocks,
+                        &mut evaluation.blocks,
+                        &mut next_block,
+                        &mut next_value,
+                        &mut next_edge,
+                        &mut operations,
+                    )?
                 } else {
                     Terminator::Conditional {
                         condition: condition.ok_or(LoweringError::Unsupported(
@@ -1292,53 +1203,82 @@ impl StateGraphEmission<'_, '_> {
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
                 // Every arm's successor edge is staged exactly like a
                 // conditional edge; each decision namespace is the one left
-                // by that arm's guard evaluation.
+                // by that arm's guard evaluation, or the one its planned
+                // short-circuit decision established.
                 let mut selected = Vec::with_capacity(arms.len());
                 for (index, arm) in arms.iter().enumerate() {
-                    let namespace = if index == 0 {
-                        guarded_first_namespace.as_slice()
+                    let planned = if index == 0 {
+                        planned_guard.as_ref()
                     } else {
-                        guarded_drafts[index - 1].5.as_slice()
+                        match &guarded_drafts[index - 1].4 {
+                            ChainGuard::Decision(planned) => Some(planned),
+                            ChainGuard::Value(_) => None,
+                        }
                     };
-                    selected.push(successor(&arm.successor, &[], false, namespace, &[])?);
+                    selected.push(match planned {
+                        Some((planned, namespace)) => {
+                            successor(&arm.successor, &[], false, namespace, &planned.established)?
+                        }
+                        None => {
+                            let namespace = if index == 0 {
+                                guarded_first_namespace.as_slice()
+                            } else {
+                                guarded_drafts[index - 1].5.as_slice()
+                            };
+                            successor(&arm.successor, &[], false, namespace, &[])?
+                        }
+                    });
                 }
                 let mut selected = selected.into_iter();
                 let first = selected.next().ok_or(LoweringError::Unsupported(
                     "guarded jump chain lost its first successor",
                 ))?;
                 let mut fallback_edge = Some(successor(fallback, &[], false, &values, &[])?);
-                for (index, (id, parameters, structural_parameters, operations, guard, _)) in
+                let draft_count = guarded_drafts.len();
+                for (index, (id, parameters, structural_parameters, operations_draft, guard, _)) in
                     guarded_drafts.into_iter().enumerate()
                 {
-                    let when_false = if index + 2 == arms.len() {
+                    let when_false = if index + 1 == draft_count {
                         fallback_edge.take().ok_or(LoweringError::Unsupported(
                             "guarded jump chain lost its fallback edge",
                         ))?
                     } else {
-                        let edge = edge_id(allocate_dense(&mut next_edge)?);
-                        if let Some(rank) = current_rank {
-                            self.rank_edges.insert(
-                                edge,
-                                (
-                                    rank,
-                                    terminal_psi::TerminalNaturalRankComparison::Preserving,
-                                ),
-                            );
-                        }
-                        SuccessorEdge {
-                            edge,
-                            target: guarded_decisions[index + 1],
-                            arguments: Vec::new(),
-                            erased_arguments: Vec::new(),
-                            erased_proof_arguments: (0..self.state_erased_proof[position].len())
-                                .map(|position| semantic_vocabulary::ProofTerm::Formal {
-                                    position: u32::try_from(position)
-                                        .expect("erased-proof roster positions fit u32"),
-                                })
-                                .collect(),
-                            structural_arguments: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
-                        }
+                        decision_edge(
+                            guarded_decisions[index + 1],
+                            self.state_erased_proof[position].len(),
+                            current_rank,
+                            &mut self.rank_edges,
+                            &mut next_edge,
+                        )?
+                    };
+                    let when_true = selected.next().ok_or(LoweringError::Unsupported(
+                        "guarded jump chain lost an ordered successor",
+                    ))?;
+                    let terminator = match guard {
+                        ChainGuard::Value(condition) => Terminator::Conditional {
+                            condition,
+                            when_true,
+                            when_false,
+                        },
+                        ChainGuard::Decision((planned, namespace)) => emit_short_circuit_decision(
+                            &planned,
+                            &namespace,
+                            [when_true, when_false],
+                            ShortCircuitFrame {
+                                erased_scalar_formals: &self.state_erased[position],
+                                erased_proof_formals: &self.state_erased_proof[position],
+                                current_rank,
+                                inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                            },
+                            &mut self.block_ranks,
+                            &mut self.rank_edges,
+                            &mut edge_blocks,
+                            &mut evaluation.blocks,
+                            &mut next_block,
+                            &mut next_value,
+                            &mut next_edge,
+                            &mut operations,
+                        )?,
                     };
                     if let Some(rank) = current_rank {
                         self.block_ranks.insert(id, rank);
@@ -1352,44 +1292,43 @@ impl StateGraphEmission<'_, '_> {
                                 &self.state_erased_proof[position],
                             ),
                         structural_parameters,
-                        operations,
-                        terminator: Terminator::Conditional {
-                            condition: guard,
-                            when_true: selected.next().ok_or(LoweringError::Unsupported(
-                                "guarded jump chain lost an ordered successor",
-                            ))?,
-                            when_false,
-                        },
+                        operations: operations_draft,
+                        terminator,
                     });
                 }
-                let edge = edge_id(allocate_dense(&mut next_edge)?);
-                if let Some(rank) = current_rank {
-                    self.rank_edges.insert(
-                        edge,
-                        (
-                            rank,
-                            terminal_psi::TerminalNaturalRankComparison::Preserving,
-                        ),
-                    );
-                }
-                Terminator::Conditional {
-                    condition: condition.ok_or(LoweringError::Unsupported(
-                        "guarded jump chain lost its first guard",
-                    ))?,
-                    when_true: first,
-                    when_false: SuccessorEdge {
-                        edge,
-                        target: guarded_decisions[0],
-                        arguments: Vec::new(),
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: (0..self.state_erased_proof[position].len())
-                            .map(|position| semantic_vocabulary::ProofTerm::Formal {
-                                position: u32::try_from(position)
-                                    .expect("erased-proof roster positions fit u32"),
-                            })
-                            .collect(),
-                        structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                let first_false = decision_edge(
+                    guarded_decisions[0],
+                    self.state_erased_proof[position].len(),
+                    current_rank,
+                    &mut self.rank_edges,
+                    &mut next_edge,
+                )?;
+                match &planned_guard {
+                    Some((planned, namespace)) => emit_short_circuit_decision(
+                        planned,
+                        namespace,
+                        [first, first_false],
+                        ShortCircuitFrame {
+                            erased_scalar_formals: &self.state_erased[position],
+                            erased_proof_formals: &self.state_erased_proof[position],
+                            current_rank,
+                            inherited_lengths: (&inherited_lengths, &inherited_field_lengths),
+                        },
+                        &mut self.block_ranks,
+                        &mut self.rank_edges,
+                        &mut edge_blocks,
+                        &mut evaluation.blocks,
+                        &mut next_block,
+                        &mut next_value,
+                        &mut next_edge,
+                        &mut operations,
+                    )?,
+                    None => Terminator::Conditional {
+                        condition: condition.ok_or(LoweringError::Unsupported(
+                            "guarded jump chain lost its first guard",
+                        ))?,
+                        when_true: first,
+                        when_false: first_false,
                     },
                 }
             }
@@ -1633,4 +1572,242 @@ impl StateGraphEmission<'_, '_> {
         self.occurrences.retain(operations);
         Ok(())
     }
+}
+
+/// Plan one short-circuit guard as a Boolean decision whose case dispatches
+/// allocate payload values. Returns the plan and the scalar namespace its true
+/// outcome reads, which includes the payloads its dispatches established.
+fn plan_short_circuit_guard(
+    expression: &LoweredBooleanReturnExpression,
+    values: &[ValueDeclaration],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    structural_parameters: &[(u32, terminal_psi::StructuralParameterDeclaration)],
+    next_value: &mut u64,
+) -> Result<
+    (
+        crate::emission::case_payload_dispatch::PlannedGuard,
+        Vec<ValueDeclaration>,
+    ),
+    LoweringError,
+> {
+    let decision = crate::emission::boolean_control::lower_boolean_control_decision(
+        expression,
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }),
+        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: false }),
+    );
+    let mut namespace = values.to_vec();
+    let declared_cases = |place| {
+        let (_, parameter) = structural_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.place == place)?;
+        match &structural_types
+            .iter()
+            .find(|declaration| declaration.id == parameter.structural_type)?
+            .shape
+        {
+            terminal_psi::StructuralTypeShape::Sum { cases }
+            | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => Some(cases.as_slice()),
+            _ => None,
+        }
+    };
+    let planned = crate::emission::case_payload_dispatch::plan(
+        decision,
+        &declared_cases,
+        &mut namespace,
+        next_value,
+    )?;
+    Ok((planned, namespace))
+}
+
+/// How one chain arm observes its guard: an evaluated Boolean value, or a
+/// short-circuit decision planned with the namespace its true edge reads.
+enum ChainGuard {
+    Value(semantic_vocabulary::ValueId),
+    Decision(
+        (
+            crate::emission::case_payload_dispatch::PlannedGuard,
+            Vec<ValueDeclaration>,
+        ),
+    ),
+}
+
+/// The state-level facts a short-circuit decision's outcome blocks repeat.
+struct ShortCircuitFrame<'a> {
+    erased_scalar_formals: &'a [ValueDeclaration],
+    erased_proof_formals: &'a [checked_trees::CheckedErasedProofParameterPlan],
+    current_rank: Option<semantic_vocabulary::ValueId>,
+    /// The byte-length observations the state held before any successor
+    /// staging; the decision cannot reuse observations staged after it.
+    inherited_lengths: (
+        &'a [(semantic_vocabulary::PlaceId, semantic_vocabulary::ValueId)],
+        &'a [(
+            semantic_vocabulary::PlaceId,
+            Vec<terminal_psi::StructuralPathSegment>,
+            semantic_vocabulary::StructuralFieldId,
+            semantic_vocabulary::ValueId,
+        )],
+    ),
+}
+
+/// Lower one planned short-circuit guard whose outcomes take `when_true` and
+/// `when_false`, and return the jump into its decision. The shared decision
+/// emitter carries scalar arguments only, so each outcome is a private block
+/// that keeps the original successor edge, including structural transfers,
+/// cleanup and ranking identity. A two-arm conditional and every arm of an
+/// ordered guard chain share this one lowering.
+#[allow(clippy::too_many_arguments)]
+fn emit_short_circuit_decision(
+    planned: &crate::emission::case_payload_dispatch::PlannedGuard,
+    guard_values: &[ValueDeclaration],
+    [when_true, when_false]: [SuccessorEdge; 2],
+    frame: ShortCircuitFrame<'_>,
+    block_ranks: &mut std::collections::BTreeMap<
+        semantic_vocabulary::BlockId,
+        semantic_vocabulary::ValueId,
+    >,
+    rank_edges: &mut std::collections::BTreeMap<
+        semantic_vocabulary::EdgeId,
+        (
+            semantic_vocabulary::ValueId,
+            terminal_psi::TerminalNaturalRankComparison,
+        ),
+    >,
+    edge_blocks: &mut Vec<Block>,
+    decision_blocks: &mut Vec<Block>,
+    next_block: &mut u64,
+    next_value: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Terminator, LoweringError> {
+    // Successor staging runs only after selection. Its length observations
+    // cannot be reused while evaluating the guard.
+    operations.byte_lengths = frame.inherited_lengths.0.to_vec();
+    operations.field_byte_lengths = frame.inherited_lengths.1.to_vec();
+    let true_block = block_id(allocate_dense(next_block)?);
+    let false_block = block_id(allocate_dense(next_block)?);
+    for (id, successor) in [(true_block, when_true), (false_block, when_false)] {
+        if let Some(rank) = frame.current_rank {
+            block_ranks.insert(id, rank);
+        }
+        edge_blocks.push(Block {
+            id,
+            parameters: Vec::new(),
+            erased_scalar_formals: frame.erased_scalar_formals.to_vec(),
+            erased_proof_formals:
+                crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
+                    frame.erased_proof_formals,
+                ),
+            structural_parameters: Vec::new(),
+            operations: Vec::new(),
+            terminator: Terminator::Jump {
+                edge: successor.edge,
+                target: successor.target,
+                arguments: successor.arguments,
+                erased_arguments: successor.erased_arguments,
+                erased_proof_arguments: successor.erased_proof_arguments.clone(),
+                structural_arguments: successor.structural_arguments,
+                trivial_affine_discards: successor.trivial_affine_discards,
+                residual_affine_discards: Vec::new(),
+            },
+        });
+    }
+    let decision = &planned.decision;
+    let tests = crate::emission::boolean_control::boolean_decision_test_count(decision);
+    let decision_block = block_id(*next_block);
+    *next_block =
+        next_block
+            .checked_add(u64::try_from(tests).map_err(|_| {
+                LoweringError::Unsupported("guard decision count exceeds identities")
+            })?)
+            .ok_or(LoweringError::Unsupported(
+                "guard decision identities overflow",
+            ))?;
+    let (root, nested) = crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
+        decision,
+        guard_values,
+        Vec::new(),
+        &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+            block: true_block,
+            arguments: Vec::new(),
+        },
+        &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
+            block: false_block,
+            arguments: Vec::new(),
+        },
+        decision_block,
+        block_id(
+            decision_block
+                .get()
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported(
+                    "guard decision identities overflow",
+                ))?,
+        ),
+        next_value,
+        next_edge,
+        operations,
+    );
+    decision_blocks.push(root);
+    decision_blocks.extend(nested);
+    let edge = edge_id(allocate_dense(next_edge)?);
+    if let Some(rank) = frame.current_rank {
+        rank_edges.insert(
+            edge,
+            (
+                rank,
+                terminal_psi::TerminalNaturalRankComparison::Preserving,
+            ),
+        );
+    }
+    Ok(Terminator::Jump {
+        edge,
+        target: decision_block,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    })
+}
+
+/// The edge a failed chain guard takes to the next staged decision. It carries
+/// no scalar operands and forwards the erased-proof roster; the next decision
+/// stays inside this authored state, so it preserves the incoming rank.
+fn decision_edge(
+    target: semantic_vocabulary::BlockId,
+    erased_proof_count: usize,
+    current_rank: Option<semantic_vocabulary::ValueId>,
+    rank_edges: &mut std::collections::BTreeMap<
+        semantic_vocabulary::EdgeId,
+        (
+            semantic_vocabulary::ValueId,
+            terminal_psi::TerminalNaturalRankComparison,
+        ),
+    >,
+    next_edge: &mut u64,
+) -> Result<SuccessorEdge, LoweringError> {
+    let edge = edge_id(allocate_dense(next_edge)?);
+    if let Some(rank) = current_rank {
+        rank_edges.insert(
+            edge,
+            (
+                rank,
+                terminal_psi::TerminalNaturalRankComparison::Preserving,
+            ),
+        );
+    }
+    Ok(SuccessorEdge {
+        edge,
+        target,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: (0..erased_proof_count)
+            .map(|position| semantic_vocabulary::ProofTerm::Formal {
+                position: u32::try_from(position).expect("erased-proof roster positions fit u32"),
+            })
+            .collect(),
+        structural_arguments: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    })
 }

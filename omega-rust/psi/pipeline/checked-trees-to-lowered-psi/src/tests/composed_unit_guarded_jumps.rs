@@ -1,7 +1,9 @@
 //! Ordered guarded jump chains lower to nested decisions whose guards evaluate
 //! in authored order, with the wildcard transition retained as the fallback.
 //! A graph guard with no pure Boolean form evaluates its checked computation
-//! root once before either edge.
+//! root once before either edge. A short-circuit guard, at any position in
+//! the chain, lowers through the same planned decision a two-arm conditional
+//! uses.
 
 use super::lower_machine;
 use crate::TerminalMachineSelection;
@@ -263,4 +265,163 @@ fn computed_guard_drift_rejects_lowering() {
         lower_machine(&replaced, TerminalMachineSelection::Name("Root::enter")).is_err(),
         "a pure guard replacing the retained computation must reject"
     );
+}
+
+/// A tuple transition checks as an ordered chain of short-circuit (`&&`)
+/// guards. Every arm, including the entry arm, stages its guard through the
+/// same planned decision a two-arm conditional uses.
+#[test]
+fn short_circuit_chain_guards_select_each_arm_in_order() {
+    let checked = crate::front_end::checked_program(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(a: i32, b: i32) reaches Host {
+                transition (a > 0, b > 0) {
+                    (true, true) -> both()
+                    (true, false) -> first()
+                    (false, true) -> second()
+                    (false, false) -> neither()
+                }
+                state both() { Host::exit(11); }
+                state first() { Host::exit(10); }
+                state second() { Host::exit(1); }
+                state neither() { Host::exit(0); }
+            }
+        "#,
+    );
+    assert!(matches!(
+        checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].terminator,
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
+    ));
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a short-circuit guard chain publishes one terminal artifact")
+    .into_artifact();
+
+    run_exits(
+        artifact,
+        &[
+            (vec![signed(1), signed(1)], 11),
+            (vec![signed(1), signed(-1)], 10),
+            (vec![signed(-1), signed(1)], 1),
+            (vec![signed(-1), signed(-1)], 0),
+        ],
+    );
+}
+
+/// The right operand of a chain guard runs only where its left operand holds:
+/// a zero divisor that the left conjunct excludes never reaches the division,
+/// in the entry arm or in a later one.
+#[test]
+fn short_circuit_chain_guards_never_evaluate_an_excluded_right_operand() {
+    let checked = crate::front_end::checked_program(
+        r#"
+            boundary trait Host { machine exit(code: i32); }
+            data Root {}
+            machine Root::enter(z: i32) reaches Host {
+                transition {
+                    z != 0 && (10 / z) == 5 -> five()
+                    z != 0 && (10 / z) == 2 -> two()
+                    _ -> other()
+                }
+                state five() { Host::exit(5); }
+                state two() { Host::exit(2); }
+                state other() { Host::exit(0); }
+            }
+        "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a guarded division chain publishes one terminal artifact")
+    .into_artifact();
+    run_exits(
+        artifact,
+        &[
+            (vec![signed(2)], 5),
+            (vec![signed(5)], 2),
+            (vec![signed(3)], 0),
+            (vec![signed(0)], 0),
+        ],
+    );
+}
+
+fn signed(value: i128) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Signed,
+            32,
+        )
+        .expect("i32 carrier"),
+        value: semantic_vocabulary::IntegerValue::Signed(value),
+    }
+}
+
+/// Execute `artifact` once per argument roster and require exactly the one
+/// expected `Host::exit` status.
+fn run_exits(
+    artifact: terminal_codec::CanonicalTerminalArtifact,
+    cases: &[(Vec<terminal_interpreter::TerminalScalarValue>, i128)],
+) {
+    use terminal_interpreter::{
+        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+        TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralInputs,
+    };
+    #[derive(Default)]
+    struct Trace(Vec<i128>);
+    impl TerminalEffectHandler for Trace {
+        fn handle_effect(
+            &mut self,
+            effect: &TerminalEffect,
+        ) -> Result<(), TerminalEffectRejection> {
+            let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+                panic!("only authored boundary calls are observable");
+            };
+            let [
+                TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Signed(value),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("each exit call receives its one signed status");
+            };
+            self.0.push(*value);
+            Ok(())
+        }
+    }
+    for (arguments, expected) in cases {
+        let mut execution = TerminalExecution::start_artifact(
+            artifact.semantic_bytes(),
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            arguments,
+            TerminalStructuralInputs::default(),
+        )
+        .expect("serialized short-circuit chain independently checks");
+        let mut trace = Trace::default();
+        let status = execution.resume(
+            &mut terminal_fuel::TerminalFuelMeter::with_allowance(200),
+            &mut trace,
+        );
+        assert!(
+            matches!(status, Ok(TerminalExecutionStatus::Complete(_))),
+            "{arguments:?} must execute the chain to completion: {status:?}"
+        );
+        assert_eq!(
+            trace.0,
+            vec![*expected],
+            "{arguments:?} must select exactly one authored arm"
+        );
+    }
 }
