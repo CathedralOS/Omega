@@ -476,7 +476,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["admission", "checking", "optimization", "package"],
     ),
     (
-        "omega/pipeline/checked-compilation-to-terminal-artifact",
+        "omega/pipeline/02_checked-compilation-to-terminal-artifact",
         &[
             "application_coverage",
             "float_comparisons",

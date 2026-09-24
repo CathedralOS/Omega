@@ -1401,7 +1401,7 @@ fn production_subject_projection_is_report_owned() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs"),
     )
     .expect("read native optimization join");
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
         .expect("read Terminal product owner");
     let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
     let projection = std::fs::read_to_string(
@@ -2188,7 +2188,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     // sources would be a second lowering of the same entry beside the one
     // the artifact was published from.
     let terminal_artifact_sources =
-        root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src");
+        root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src");
     let mut stack = vec![terminal_artifact_sources];
     while let Some(directory) = stack.pop() {
         for entry in std::fs::read_dir(&directory)
@@ -2218,8 +2218,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     }
 
     let compiler_terminal = [
-        "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs",
-        "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs",
+        "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs",
+        "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs",
     ]
     .map(|path| {
         std::fs::read_to_string(root.join(path))
@@ -2885,7 +2885,7 @@ fn retained_native_product_enters_only_terminal_realization() {
             &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
         )
     );
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
+    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs"))
         .expect("read Terminal product owner");
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");

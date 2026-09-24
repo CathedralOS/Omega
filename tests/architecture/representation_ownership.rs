@@ -2341,7 +2341,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     const FRONTEND_ROUTE: &[&str] = &[
         "omega/pipeline/00_source-files-to-assembled-syntax",
         "omega/pipeline/01_assembled-syntax-to-checked-compilation",
-        "omega/pipeline/checked-compilation-to-terminal-artifact",
+        "omega/pipeline/02_checked-compilation-to-terminal-artifact",
     ];
     let mut covered = std::collections::BTreeSet::new();
     for route in [PROGRAM_ROUTE, FRONTEND_ROUTE] {
