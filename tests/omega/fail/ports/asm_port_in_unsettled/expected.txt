@@ -1,1 +1,1 @@
-local construction stopped at statement sequence: call: call operation
+local construction stopped at call operation: target state
