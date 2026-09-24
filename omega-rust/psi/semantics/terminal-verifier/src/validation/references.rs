@@ -961,13 +961,9 @@ pub(super) fn establishment_moves_leaf(
     if !matches!(
         formal_origin(machine, source),
         Some(ReferenceOrigin::IngressLeaf(_))
-    ) || !machine
-        .structural_parameters
-        .iter()
-        .any(|parameter| {
-            parameter.place == source.place && parameter.access == StructuralAccess::Owned
-        })
-    {
+    ) || !machine.structural_parameters.iter().any(|parameter| {
+        parameter.place == source.place && parameter.access == StructuralAccess::Owned
+    }) {
         return None;
     }
     let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() else {
