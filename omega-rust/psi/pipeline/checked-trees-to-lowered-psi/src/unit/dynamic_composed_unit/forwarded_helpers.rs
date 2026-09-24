@@ -7,7 +7,7 @@ use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, validate_empty_contract, validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    ForwardedHelperIds, LoweredDynamicRealization,
+    ForwardedHelperCall, ForwardedHelperIds, LoweredDynamicRealization,
 };
 use crate::unit::dynamic_composed_unit::source_lowering::dynamic_parameter_interface;
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
@@ -73,9 +73,9 @@ pub(crate) fn forwarded_helper_chain_ids(
         .collect()
 }
 
-pub(crate) fn extend_parameter_forwarding_catalog(
+pub(crate) fn extend_parameter_forwarding_catalog<Helper: ForwardedHelperCall>(
     catalog: &mut TerminalDynamicDispatchCatalog,
-    helpers: &[ForwardedHelperIds],
+    helpers: &[Helper],
 ) -> Result<(), LoweringError> {
     let [template] = catalog.parameters.as_slice() else {
         return unsupported("multi-hop dynamic forwarding lost its first parameter interface");
@@ -86,13 +86,13 @@ pub(crate) fn extend_parameter_forwarding_catalog(
     };
     for helper in &helpers[1..] {
         let mut parameter = template.clone();
-        parameter.owner = helper.machine;
+        parameter.owner = helper.machine();
         catalog.parameters.push(parameter);
     }
     for pair in helpers.windows(2) {
         catalog.arguments.push(TerminalDynamicDescriptorArgument {
-            owner: pair[0].machine,
-            operation: pair[0].operation,
+            owner: pair[0].machine(),
+            operation: pair[0].operation(),
             parameter_ordinal: 0,
             source: TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
         });
@@ -100,8 +100,8 @@ pub(crate) fn extend_parameter_forwarding_catalog(
     let final_helper = helpers.last().ok_or(LoweringError::Unsupported(
         "multi-hop dynamic forwarding has no final helper",
     ))?;
-    dispatch.owner = final_helper.machine;
-    dispatch.operation = final_helper.operation;
+    dispatch.owner = final_helper.machine();
+    dispatch.operation = final_helper.operation();
     Ok(())
 }
 

@@ -2225,9 +2225,10 @@ syntax and other terminal services are not prerequisites.
      single-member scalar graph, and the scalar call closure.
      `closure.len() == 1` changes the contract mode (float reflexivity) and
      content-effect admission. Start by removing that branch.
-  3. Dynamic dispatch has Scalar and Unit copies of every lowerer and
-     validator (`unit/dynamic_composed_unit/{join,unit_join}.rs`,
-     `dynamic_lanes.rs` against `unit.rs`, forwarded-helper resolvers). The
+  3. Dynamic dispatch has Scalar and Unit copies of every single-call
+     lowerer and validator (`unit/dynamic_composed_unit/dynamic_lanes.rs`
+     against `unit.rs`, forwarded-helper resolvers). The two-predecessor
+     join is already one lowering over `join.rs::JoinedDynamicCall`. The
      checked side has the matching `forwarded_calls.rs` against `unit.rs`.
   4. Composed-graph states re-emit operations through
      `composed_control/emission.rs`, a narrower copy of
