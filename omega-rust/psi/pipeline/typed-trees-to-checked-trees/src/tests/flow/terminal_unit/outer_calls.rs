@@ -457,6 +457,43 @@ fn expression_statement_borrowed_view_calls_consume_the_nested_call() {
     );
 }
 
+const EXPRESSION_STATEMENT_SELF_VIEW_CALL: &str = r#"
+    data Sizer { name: [u8; 64]; name_len: u64; }
+
+    machine Sizer::suffix(&self, place: u64) -> &[u8] {
+        transition place <= self.name.len {
+            true -> (self.name[0..place])
+            false -> (self.name[0..64])
+        }
+    }
+
+    machine format(rounded: u64, suffix: &[u8]) {
+    }
+
+    machine Sizer::render(&self) {
+        format(0, self.suffix(1));
+    }
+"#;
+
+#[test]
+fn expression_statement_self_borrowed_view_calls_consume_the_nested_call() {
+    // `format(rounded, self.suffix(place))` as an expression statement nests
+    // an attached `&self` callee whose `&[u8]` result is the borrowed-view
+    // family: the outer-call roster must plan the anonymous result so the
+    // nested call counts as consumed rather than reading as an unconsumed
+    // nested call.
+    let checked = checked(EXPRESSION_STATEMENT_SELF_VIEW_CALL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let render = machine_named(&checked, "Sizer::render");
+    assert!(
+        plans.for_machine(render).is_some() || plans.composed_for_machine(render).is_some(),
+        "expression-statement nested `&self` `&[u8]` call declined: {:?}\n  suffix: {:?}\n  format: {:?}",
+        plans.omission_for_machine(render),
+        plans.omission_for_machine(machine_named(&checked, "Sizer::suffix")),
+        plans.omission_for_machine(machine_named(&checked, "format"))
+    );
+}
+
 #[test]
 fn transition_arm_runtime_index_reads_remain_declined() {
     // `self.collections[collection_index]` is a runtime-indexed read the
