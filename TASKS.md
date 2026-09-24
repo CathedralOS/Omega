@@ -92,11 +92,41 @@ the complete product bar; focused successes below do not establish that baseline
     field also cannot take a domain on its own: `self.output.limit = 3` does
     not establish `u64::Limit` despite 3 satisfying the predicate.
 
-  What DOES migrate cleanly, with the gate as witness: fields, array element
-  types (`[i32 in Sample; 2]`), case payloads, and a signature-local
-  parameter bound rewritten as `requires`. A fuel parameter carrying
-  `terminates by fuel` also accepts `in D` when the machine is NOT build-time
-  evaluated.
+  THE FIELD ROW OF THE DECISION TABLE IS TOO BROAD. A field's bracketed range
+  supplied ordinary interval FACTS to its readers; `in D` is a write-side
+  admission obligation and supplies none. Three fixtures witness it, each
+  compiled alone:
+
+  - `core/zii_default_composite_exit`: `i: u64 [0..=3]` indexes a length-4
+    array. As `u64 in Slot` the read loses the bound -- "cannot prove index
+    `self.i` is within length 4" -- and the write `self.i = 2` additionally
+    fails to establish the domain.
+  - `data/record_pattern_bind_all_exit`: `x`/`y: i32 [0..=100]` are added.
+    As `in Coord` the sum is "not provably in range (decision 17)".
+  - `constants/runtime_scoped_const_exit`: a `const` over the record reports
+    "constrained const declarations require declaration-site proof checking".
+
+  A field migrates only when its bound is NOT load-bearing for a downstream
+  index, arithmetic or const proof -- which is why the `wire` decode fields
+  moved and these did not. A local's suffix likewise drops cleanly only when
+  nothing downstream needed it (`storage/runtime_dispatch_helper_local_alias_
+  add_compile` drops; `control_flow/copy_enum_cycle_edge_write_frame` cannot).
+
+  A THIRD GAP, and the sharpest: the domain-mint route itself depends on the
+  syntax being removed. `domains/semantic_cast_range_mint` rejects with
+  "`as ... in Km` mints LITERAL values, or names whose DECLARED RANGE entails
+  the domain facts, in this rung" -- a `requires` fact is not consulted, so a
+  parameter feeding a mint cannot leave the suffix behind until that path
+  reads contract facts.
+
+  What DOES migrate cleanly, with the gate as witness: array element types
+  (`[i32 in Sample; 2]`), case payloads, fields whose bound no reader proves
+  against, a signature-local parameter bound rewritten as `requires`, and a
+  local nothing downstream needs. A fuel parameter carrying `terminates by
+  fuel` accepts `in D` when the machine is NOT build-time evaluated. A
+  parameter reached by a recursive call through arithmetic does NOT:
+  `proofs/kernel_integer_subtract_order` cannot prove `remaining - 1 <= 5`
+  from `requires remaining <= 5`, the recorded binary-argument gap.
 
   Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not the
   canary filter: `OMEGA_PASS_CANARY_FILTER` reported PASS for two fixtures the
