@@ -411,6 +411,36 @@ fn cyclic_structural_scalar_call_preserves_surviving_crash_continuations() {
     );
 }
 
+/// A callee with its own structural frame takes the structural spelling even
+/// when no structural argument crosses. That call moves no caller custody, so
+/// it cycles exactly like the ordinary scalar call it otherwise matches.
+#[test]
+fn cyclic_structural_scalar_call_without_structural_arguments_cycles_like_a_scalar_call() {
+    let mut module = scalar_call_cycle();
+    let call = &mut module.machines[0].blocks[0]
+        .operations
+        .last_mut()
+        .expect("the cycle hosts its call")
+        .kind;
+    let OperationKind::Call {
+        callee, arguments, ..
+    } = call.clone()
+    else {
+        unreachable!()
+    };
+    *call = OperationKind::CallStructuralScalar {
+        callee,
+        arguments,
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    assert_verifies(&module, &ProofBundle::default());
+}
+
 #[test]
 fn cyclic_structural_scalar_call_keeps_claim_transfers_outside_bounded_eligibility() {
     let mut module = structural_scalar_call_cycle();
