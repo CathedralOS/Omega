@@ -410,12 +410,31 @@ pub(crate) fn lower_scalar_expression(
             )
             .then_some(field);
         }
-        let (parameter_position, path, mut collection_type) =
-            structural_fields::structural_parameter_place(
-                program,
-                authored_parameters,
-                indexed.collection,
-            )?;
+        // A whole view local reads the view its establishment published, the
+        // same element read a whole view parameter takes.
+        let (root, path, mut collection_type) = match structural_fields::structural_parameter_place(
+            program,
+            authored_parameters,
+            indexed.collection,
+        ) {
+            Some((position, path, collection_type)) => (
+                checked_trees::CheckedStorageRoot::Parameter { index: position },
+                path,
+                collection_type,
+            ),
+            None => {
+                let (symbol, collection_type) = structural_fields::view_local_root(
+                    program,
+                    authored_parameters,
+                    indexed.collection,
+                )?;
+                (
+                    checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                    Vec::new(),
+                    collection_type,
+                )
+            }
+        };
         if !structural_fields::indexed_read_is_builtin(
             program,
             operators,
@@ -459,7 +478,7 @@ pub(crate) fn lower_scalar_expression(
         }
         return Some((
             CheckedScalarExpression::StructuralParameterIndexedRead {
-                parameter_position,
+                root,
                 path,
                 index: Box::new(index),
                 primitive_type,

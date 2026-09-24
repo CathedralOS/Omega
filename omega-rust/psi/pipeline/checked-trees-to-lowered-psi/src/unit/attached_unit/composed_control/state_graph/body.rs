@@ -120,6 +120,9 @@ pub(super) fn validate(
             }
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            // A view-subslice local binds its narrowed view in the same
+            // namespace an `as_slice` view local's value does.
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
@@ -631,6 +634,12 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            (
+                CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {
+                super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
+            }
             _ => return unsupported("Unit graph reordered a source effect"),
         }
     }
@@ -728,6 +737,9 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }

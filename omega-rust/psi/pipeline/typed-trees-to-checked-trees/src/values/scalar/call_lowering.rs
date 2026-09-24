@@ -6,8 +6,8 @@ use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::scalar_lowering::lower_return_expression;
 use checked_trees::{
     CheckedLocatedProofTerm, CheckedLocatedScalarExpression, CheckedOperatorFacts,
-    CheckedOperatorResolutionStatus, CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole,
-    CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    CheckedProofTerm, CheckedProofTermField, CheckedProofTermRole, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole,
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -182,69 +182,40 @@ pub(crate) fn lower_call_arguments(
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
             let argument_ordinal = u32::try_from(structural_index).ok()?;
             structural_index = structural_index.checked_add(1)?;
-            let ExpressionNode::Indexed(indexed) = program.expression_table.expression(argument)
-            else {
-                continue;
+            let site = checked_trees::CheckedSubsliceSite::CallArgument {
+                call_ordinal: u32::try_from(call_ordinal).ok()?,
+                argument_ordinal,
             };
-            let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
-            else {
-                continue;
-            };
-            if range.end_inclusive
-                || operators.expression_use(argument).is_some_and(|selected| {
-                    selected.spelling != language_core::OperatorSpelling::Range
-                        || selected.selected_operator_symbol.is_valid()
-                        || selected.candidate_count != 0
-                        || !matches!(
-                            selected.status,
-                            CheckedOperatorResolutionStatus::Missing
-                                | CheckedOperatorResolutionStatus::BuiltinFallback
-                        )
-                })
-            {
-                continue;
-            }
-            let call_ordinal = u32::try_from(call_ordinal).ok()?;
-            for (endpoint, role) in [
-                (
-                    range.start,
-                    CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                        call_ordinal,
-                        argument_ordinal,
-                    },
-                ),
-                (
-                    range.end,
-                    CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                        call_ordinal,
-                        argument_ordinal,
-                    },
-                ),
-            ] {
-                if !endpoint.is_valid() {
-                    continue;
-                }
-                if let Some(expression) = lower_return_expression(
+            for (endpoint, role, expression) in
+                crate::values::scalar::subslice_endpoints::subslice_endpoints(
                     program,
                     operators,
+                    argument,
+                    site,
+                    |endpoint| {
+                        lower_return_expression(
+                            program,
+                            operators,
+                            endpoint,
+                            parameters,
+                            authored_parameters,
+                            parameter_types,
+                            locals,
+                            PrimitiveType::U64,
+                            exact_integer_casts,
+                        )
+                    },
+                )
+            {
+                output.push((
                     endpoint,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    PrimitiveType::U64,
-                    exact_integer_casts,
-                ) {
-                    output.push((
-                        endpoint,
-                        CheckedLocatedScalarExpression {
-                            state: state.symbol,
-                            statement_ordinal,
-                            role,
-                            expression,
-                        },
-                    ));
-                }
+                    CheckedLocatedScalarExpression {
+                        state: state.symbol,
+                        statement_ordinal,
+                        role,
+                        expression,
+                    },
+                ));
             }
             continue;
         };

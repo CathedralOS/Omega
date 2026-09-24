@@ -463,6 +463,10 @@ pub(super) fn emit(
             &evaluation.structural_parameters,
             structural_types,
         );
+    evaluation.element_views = crate::expression_preparation::bindings::element_views(
+        &evaluation.structural_parameters,
+        structural_types,
+    );
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();
     let retained_scalar_prefix = None;
@@ -1043,6 +1047,7 @@ impl MachineEmission<'_> {
                     ordinal,
                     self.parameters,
                     &self.evaluation.structural_parameters,
+                    &self.evaluation.view_locals,
                     &self.scalar_result_values[..source_value_count],
                     self.type_ids,
                     &mut self.next_place,
@@ -1124,7 +1129,8 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
+            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {

@@ -229,6 +229,7 @@ pub(super) fn validate_unit_operation_sequence(
                 }
             }
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
@@ -555,6 +556,7 @@ pub(super) fn validate_unit_operation_sequence(
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
         | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {

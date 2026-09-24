@@ -67,6 +67,7 @@ mod signatures;
 mod structural_calls;
 mod structural_completion;
 pub(crate) mod structural_values;
+mod view_ranges;
 
 use bodies::{UnitBody, UnitPlans};
 pub(crate) use parameters::validate_direct_unit_parameter_custody;

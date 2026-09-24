@@ -226,7 +226,10 @@ fn changed_subslice_source_range_or_custody_rejects() {
         };
         let argument = &mut structural_arguments[0];
         let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index,
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
             expression,
             ..
         } = &mut argument.source

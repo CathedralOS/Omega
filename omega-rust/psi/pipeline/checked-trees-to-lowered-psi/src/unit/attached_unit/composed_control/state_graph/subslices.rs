@@ -1,219 +1,110 @@
-//! Source-bound exclusive byte windows evaluated only on their selected edge.
-use super::super::super::super::{
-    IntegerValue, PrimitiveType, StructuralParameterDeclaration, ValueId,
-};
-use super::super::super::{
-    CheckedScalarExpressionRole, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    direct_expression_contains_short_circuit, emit_direct_expression, obligation_id,
-    terminal_scalar_type, unsupported, validate_direct_parameter_types,
-};
+//! Source-bound exclusive view windows evaluated only on their selected edge.
+//!
+//! A transfer retains its root and authored range; the endpoints are replayed
+//! at the edge's `TransitionArgument` subslice site by the shared
+//! `view_ranges` replay, which also emits the Terminal range. This module only
+//! resolves the transfer's source place in the state's frontier.
+use super::super::super::super::StructuralParameterDeclaration;
+use super::super::super::view_ranges::{self, ViewRangeSite, ViewRangeSource};
+use super::super::super::{PlaceId, StructuralPlaceDeclaration, ValueDeclaration, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use crate::emission::operation_emission::view_subslice::ViewFamily;
+use crate::expression_preparation::bindings::view_locals::{self, ViewLocalBinding};
+use checked_trees::expression::ExpressionHandle;
+use checked_trees::{CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan};
 
-pub(super) fn validate(
-    checked: &CheckedTrees,
-    state: &CheckedComposedUnitControlStatePlan,
-    statement_ordinal: u32,
-    argument_ordinal: u32,
-    source_position: u32,
-    expression: ExpressionHandle,
-) -> Result<(), LoweringError> {
-    let (machine, authored) =
-        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
-    let parameter = checked
-        .state_parameters(authored)
-        .get(source_position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "state subslice source has no authored parameter",
-        ))?;
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
-        return unsupported("state subslice has no indexed source expression");
-    };
-    let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
-        return unsupported("state subslice has no authored range");
-    };
-    if range.end_inclusive
-        || !matches!(
-            checked.expression_table.expression(indexed.collection), ExpressionNode::Name(name)
-            if name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
-                && checked.expression_table.name_path_members(name.members).len() == 1
-        )
-    {
-        return unsupported("state subslice lost its exclusive range or exact parameter");
-    }
-    let spelling = language_core::OperatorSpelling::Range;
-    if checked.facts.operators.uses.iter().any(|(_, selected)| {
-        selected.expression == expression
-            && (selected.spelling != spelling
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
-    }) {
-        return unsupported("state subslice no longer selects builtin range meaning");
-    }
-    if !validation::has_builtin_subslice_meaning(
-        &checked.typed,
-        machine,
-        Some(authored),
-        expression,
-    ) {
-        return unsupported("state subslice cannot replace an authored range operator");
-    }
-    for (endpoint, role) in [
-        (
-            range.start,
-            CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal },
-        ),
-        (
-            range.end,
-            CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },
-        ),
-    ] {
-        if !endpoint.is_valid() {
-            continue;
+/// The root, family and authored range of a subslice transfer.
+pub(super) fn transfer_range(
+    source: &CheckedStructuralControlTransferSourcePlan,
+) -> Option<(CheckedStorageRoot, ViewFamily, ExpressionHandle)> {
+    match *source {
+        CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { root, expression } => {
+            Some((root, ViewFamily::Bytes, expression))
         }
-        let (binding, value) = checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(state.state, statement_ordinal, role)
-            .ok_or(LoweringError::Unsupported(
-                "state subslice endpoint has no checked binding",
-            ))?;
-        if binding.expression != endpoint
-            || binding.destination.is_valid()
-            || value.primitive_type() != Some(PrimitiveType::U64)
-        {
-            return unsupported("state subslice endpoint binding changed");
+        CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { root, expression } => {
+            Some((root, ViewFamily::Elements, expression))
         }
-        crate::expression_preparation::source_custody::validate_pure(
-            checked,
-            binding,
-            terminal_scalar_type(PrimitiveType::U64)?,
-        )?;
+        _ => None,
     }
-    Ok(())
 }
 
+/// Emit one edge's subslice transfer into `destination`. A parameter root
+/// narrows the state's own view parameter; a view-local root narrows the view
+/// the state body published for that local.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     checked: &CheckedTrees,
     state: &CheckedComposedUnitControlStatePlan,
     statement_ordinal: u32,
     argument_ordinal: u32,
-    expression: ExpressionHandle,
-    source: &StructuralParameterDeclaration,
+    transfer: &CheckedStructuralControlTransferSourcePlan,
+    state_parameters: &[StructuralParameterDeclaration],
+    view_locals: &[ViewLocalBinding],
     destination: PlaceId,
     bindings: &crate::expression_preparation::bindings::ScalarBindings,
     values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
-        return unsupported("state subslice source disappeared after admission");
+    let Some((root, family, expression)) = transfer_range(transfer) else {
+        return unsupported("Unit graph transfer is not a view subslice");
     };
-    let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
-        return unsupported("state subslice range disappeared after admission");
+    let source = match root {
+        CheckedStorageRoot::Parameter { index } => {
+            let parameter =
+                state_parameters
+                    .get(index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph subslice source descriptor disappeared",
+                    ))?;
+            let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+                checked,
+                state.state,
+            )?;
+            let symbol = checked
+                .state_parameters(authored)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "state subslice source has no authored parameter",
+                ))?
+                .symbol;
+            ViewRangeSource {
+                symbol,
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                family,
+            }
+        }
+        CheckedStorageRoot::ViewLocal { symbol } => {
+            let local = view_locals::resolve(view_locals, symbol)?;
+            if (family == ViewFamily::Bytes) != (local.carrier == view_locals::ViewCarrier::Bytes) {
+                return unsupported("Unit graph subslice source local changed its view family");
+            }
+            ViewRangeSource {
+                symbol,
+                place: local.place,
+                structural_type: local.structural_type,
+                family,
+            }
+        }
     };
-    let count_type = terminal_scalar_type(PrimitiveType::U64)?;
-    let mut endpoint = |expression: ExpressionHandle,
-                        role|
-     -> Result<Option<ValueId>, LoweringError> {
-        if !expression.is_valid() {
-            return Ok(None);
-        }
-        let lowered = bindings.expression_at(checked, state.state, statement_ordinal, role)?;
-        if lowered.scalar_type() != count_type || direct_expression_contains_short_circuit(&lowered)
-        {
-            return unsupported("state subslice endpoint needs a branch-free u64 value");
-        }
-        validate_direct_parameter_types(
-            &lowered,
-            &values
-                .iter()
-                .map(|value| value.scalar_type)
-                .collect::<Vec<_>>(),
-        )?;
-        if let LoweredDirectExpression::ByteSequenceLength { source, .. } = &lowered
-            && let Some(value) = operations
-                .byte_lengths
-                .iter()
-                .rev()
-                .find_map(|(place, value)| (*place == *source).then_some(*value))
-        {
-            return Ok(Some(value));
-        }
-        Ok(Some(emit_direct_expression(
-            &lowered, values, next_value, operations,
-        )))
-    };
-    let start = endpoint(
-        range.start,
-        CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal },
-    )?;
-    let end = endpoint(
-        range.end,
-        CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },
-    )?;
-    let length = operations
-        .byte_lengths
-        .iter()
-        .rev()
-        .find_map(|(place, value)| (*place == source.place).then_some(*value))
-        .unwrap_or_else(|| {
-            crate::emission::operation_emission::emit_byte_length(
-                source.place,
-                next_value,
-                operations,
-            )
-        });
-    let start = start.unwrap_or_else(|| {
-        emit_direct_expression(
-            &LoweredDirectExpression::IntegerLiteral {
-                value: IntegerValue::Unsigned(0),
-                scalar_type: count_type,
-            },
-            values,
-            next_value,
-            operations,
-        )
-    });
-    let producer = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place: destination,
-            structural_type: source.structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
-        kind: OperationKind::ByteSequenceSubslice {
-            source: source.place,
-            start,
-            end: end.unwrap_or(length),
-            length,
-            obligation: obligation_id(producer.get().checked_add(1).ok_or(
-                LoweringError::Unsupported("state subslice obligation identity overflows"),
-            )?),
+    view_ranges::emit(
+        checked,
+        ViewRangeSite {
+            state: state.state,
+            statement: statement_ordinal,
+            site: checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+            expression,
+            retained: None,
         },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: destination,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type: source.structural_type,
-        },
-    })
+        source,
+        source.structural_type,
+        destination,
+        bindings,
+        values,
+        next_value,
+        operations,
+    )
 }
