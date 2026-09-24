@@ -210,12 +210,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         .enumerate()
         .take(statement_end)
     {
-        if let Some(root) = u32::try_from(statement_index).ok().and_then(|ordinal| {
-            facts
-                .values
-                .structural_values
-                .root_at(state.symbol, ordinal)
-        }) {
+        for (_, root) in facts
+            .values
+            .structural_values
+            .roots
+            .iter()
+            .filter(|(_, root)| {
+                root.state == state.symbol && root.statement_ordinal as usize == statement_index
+            })
+        {
             if root.machine != machine {
                 return None;
             }
