@@ -1029,3 +1029,209 @@ fn lowers_joined_negated_equality_guard_into_entry_operations() {
         negation.result.expect_scalar().id
     );
 }
+
+const JOINED_RETAINED_FIELD_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { flag: bool; first: Item; second: Item; }
+
+    machine Main::run(&self) {
+        transition self.flag {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+const JOINED_RETAINED_FIELD_INEQUALITY_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { flag: bool; first: Item; second: Item; }
+
+    machine Main::run(&self) {
+        transition self.flag != true {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+const JOINED_RETAINED_INTEGER_FIELD_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { count: u64; first: Item; second: Item; }
+
+    machine Main::run(&self) {
+        transition self.count == 5 {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_retained_field_guard_into_entry_field_read() {
+    let caller = lower_joined_guard_caller(JOINED_RETAINED_FIELD_GUARD_SOURCE);
+    assert!(caller.parameters.is_empty());
+    let [read] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "retained field guard lowers to one field read: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    let OperationKind::BooleanStructuralField {
+        source, ref path, ..
+    } = read.kind
+    else {
+        panic!("retained field guard lowers to BooleanStructuralField: {read:?}")
+    };
+    assert_eq!(source, caller.structural_places[0].id);
+    assert!(path.is_empty());
+    assert_eq!(
+        joined_entry_condition(&caller),
+        read.result.expect_scalar().id
+    );
+}
+
+#[test]
+fn lowers_joined_retained_field_inequality_into_negated_equality() {
+    let caller = lower_joined_guard_caller(JOINED_RETAINED_FIELD_INEQUALITY_GUARD_SOURCE);
+    assert!(caller.parameters.is_empty());
+    let [read, constant, equality, negation] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "field inequality lowers to read, constant, equality, negation: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        read.kind,
+        OperationKind::BooleanStructuralField { .. }
+    ));
+    assert!(matches!(
+        constant.kind,
+        OperationKind::BooleanConstant { value: true }
+    ));
+    let OperationKind::BooleanEqual { left, right } = equality.kind else {
+        panic!("field equality lowers to BooleanEqual: {equality:?}")
+    };
+    assert_eq!(left, read.result.expect_scalar().id);
+    assert_eq!(right, constant.result.expect_scalar().id);
+    let OperationKind::BooleanNot { operand } = negation.kind else {
+        panic!("negated field equality ends in BooleanNot: {negation:?}")
+    };
+    assert_eq!(operand, equality.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        negation.result.expect_scalar().id
+    );
+}
+
+#[test]
+fn lowers_joined_retained_integer_field_guard_into_entry_comparison() {
+    let caller = lower_joined_guard_caller(JOINED_RETAINED_INTEGER_FIELD_GUARD_SOURCE);
+    assert!(caller.parameters.is_empty());
+    let [read, constant, comparison] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "integer field guard lowers to read, constant, comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    let OperationKind::IntegerStructuralField { ref path, .. } = read.kind else {
+        panic!("integer field guard lowers to IntegerStructuralField: {read:?}")
+    };
+    assert!(path.is_empty());
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let OperationKind::IntegerEqual { left, right } = comparison.kind else {
+        panic!("integer field equality lowers to IntegerEqual: {comparison:?}")
+    };
+    assert_eq!(left, read.result.expect_scalar().id);
+    assert_eq!(right, constant.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}

@@ -9610,10 +9610,10 @@
   "fixture": "fail/range/element_range_runtime_write_rejected",
   "tier": "fail",
   "status": "rejected",
-  "millis": 43,
+  "millis": 15,
   "expected_satisfied": true,
   "diagnostics": [
-   "cannot prove assignment value `100` satisfies bounded target `self.cells[self.i]` in `Main::main.main`; expected 0..=7"
+   "cannot prove requires contract for call use_cell from Main::main: 0 <= 100 && 100 <= 7 (needs fact `0 <= v && v <= 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard)"
   ]
  },
  {

@@ -353,7 +353,14 @@ fn collect_bounded_assignment_obligation(
         .map(|(base_type, constraints)| {
             (
                 base_type,
-                proof_plan.store_constraint_nodes(program, base_type, constraints),
+                // The written place is the one obligation that owns an
+                // exact-interval domain's interval; `check_domain_field_writes`
+                // leaves those domains here.
+                proof_plan.store_constraint_nodes_with_domain_intervals(
+                    program,
+                    base_type,
+                    constraints,
+                ),
             )
         })
         .unwrap_or((target_type, HandleSpan::empty()));
