@@ -48,7 +48,17 @@ fn prove(
     let ordinary_call = match &site {
         crate::semantic::calls::CallSite::Expression { call: source, .. } => {
             source.target_symbol == call.target_symbol
+                // A receiver that is a PLACE is admissible, not only a data
+                // namespace. The goal is substituted through the receiver
+                // before it is compared -- `Store::read`'s `self.limit <= 15`
+                // becomes `self.peer.limit <= 15` at `self.peer.read()` -- so a
+                // runtime receiver names the object the requirement is about
+                // rather than hiding it. Reading a place cannot disturb the
+                // argument facts either; a receiver that is a CALL could, and
+                // is not a canonical place.
                 && (!source.receiver.is_valid()
+                    || crate::flow::canonical_place_from_expression(program, source.receiver)
+                        .is_some()
                     || matches!(
                         program.expression_table.expression(source.receiver),
                         ExpressionNode::Name(path)

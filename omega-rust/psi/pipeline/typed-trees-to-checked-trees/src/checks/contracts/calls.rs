@@ -60,6 +60,43 @@ pub(super) fn check_call_requires(
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
+                    if std::env::var_os("OMEGA_DEBUG_ROUTES").is_some() {
+                        eprintln!(
+                            "ROUTE target={} closed={} proves={} entry_ctx={} in_ctx={} structural={}",
+                            crate::labels::symbol_name(program, call_flow.target_symbol),
+                            closed_boolean_value(program, &facts.operators, expression)
+                                == Some(true),
+                            super::call_bounds::proves(
+                                program, facts, state_flow, call_flow, expression
+                            ),
+                            call_entry_contexts_prove_boolean_contract_expression(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                &entry_contexts,
+                                expression,
+                                call_frames
+                            ),
+                            super::call_bounds::proves_in_context(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                &entry_contexts,
+                                expression,
+                                call_frames
+                            ),
+                            super::entailment::structural_call_requirement(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                expression,
+                                call_frames
+                            ),
+                        );
+                    }
                     closed_boolean_value(program, &facts.operators, expression) == Some(true)
                         || super::call_bounds::proves(
                             program, facts, state_flow, call_flow, expression,
@@ -1354,6 +1391,61 @@ mod transition_arm_guard_probes {
                 machine Main::main(&mut self) {{}}"
             )),
             "the continuation arm holds the guard's negation and cannot discharge it"
+        );
+    }
+
+    /// The FACT route carries numeric implication -- `index < 16` discharges
+    /// `index <= 15` -- where the transition-guard route only compares
+    /// spellings. It reached a free callee but not a receiver-qualified one,
+    /// because a call whose receiver is a runtime place was not an "ordinary
+    /// call". It is: the goal is substituted THROUGH the receiver before it is
+    /// compared, which the control below is what proves.
+    #[test]
+    fn a_receiver_qualified_call_carries_numeric_implication_to_its_own_object() {
+        assert!(
+            accepted(
+                "data Store { arr: [u64; 16]; }
+                machine Store::read(&mut self, index: u64) -> u64
+                requires
+                    index <= 15;
+                { transition { _ -> (self.arr[index]) } }
+                machine Store::scan(&mut self, index: u64) -> u64 {
+                    transition index < 16 { true -> (self.read(index)) false -> (0) }
+                }
+                data Main {}
+                machine Main::main(&mut self) {}"
+            ),
+            "`index < 16` must discharge `requires index <= 15` through a receiver call"
+        );
+
+        // A requirement ABOUT THE RECEIVER is substituted to the object the
+        // call names, so a guard about a DIFFERENT object cannot discharge it
+        // even though both spell `self.limit`.
+        const PEER: &str = "data Store { limit: u64; }
+            machine Store::read(&mut self) -> u64
+            requires
+                self.limit <= 15;
+            { transition { _ -> (self.limit) } }
+            data Main { limit: u64; peer: Store; }";
+        assert!(
+            accepted(&format!(
+                "{PEER}
+                machine Main::go(&mut self) -> u64 {{
+                    transition self.peer.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "a guard naming the receiver's own field must discharge the requirement"
+        );
+        assert!(
+            !accepted(&format!(
+                "{PEER}
+                machine Main::go(&mut self) -> u64 {{
+                    transition self.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the caller's own `self.limit` is not the receiver's, and must not discharge it"
         );
     }
 
