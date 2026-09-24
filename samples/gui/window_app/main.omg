@@ -373,6 +373,11 @@ macos_arm64 machine WindowClockProvider::sleep(&mut self, milliseconds: u32) sat
     self.rc = darwin_poll(0, 0, self.timeout);
 }
 
+// Loop counters: messages pumped per frame, frames shown, and pixels written.
+domain i32::PumpCount requires self >= 0 && self <= 16;
+domain i32::FrameCount requires self >= 0 && self <= 16384;
+domain i32::PixelIndex requires self >= 0 && self <= 4096;
+
 data Main {
     console: Binding<Console>;
     clock: Binding<Clock>;
@@ -381,7 +386,7 @@ data Main {
     cls: [u8; 7];
     title: [u8; 10];
     message: [u64; 6];
-    // FULLY EXACT -- no overflow domain anywhere: the counters carry ranges
+    // FULLY EXACT -- no overflow domain anywhere: the counters carry interval domains
     // and their increments are guard-proven (the dominating-guard keystone);
     // the pixel wash folds through % 256.
     pixels: [i32; 4096];
@@ -397,9 +402,9 @@ data Main {
     escape: u64;
     fw: u64;
     msg_code: u64;
-    pumped: i32 [0..=16];
-    frame: i32 [0..=16384];
-    i: i32 [0..=4096];
+    pumped: i32 in PumpCount;
+    frame: i32 in FrameCount;
+    i: i32 in PixelIndex;
     c: i32;
     px: i32;
 }

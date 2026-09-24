@@ -1,7 +1,7 @@
 // A turn-based combat simulator -- a small but complete app that stresses how the
 // pieces compose: two `Fighter` records (hp + attack), damage ARITHMETIC
 // (`hp = (hp - attacker.attack) % 101`, fully Exact via the modular idiom: the
-// `% 101` lands the result provably back inside hp's [-100..=100] range, and for
+// `% 101` lands the result provably back inside hp's `Health` domain, and for
 // every value these fights can produce, `x % 101 == x`, so the fold is exact and
 // no overflow domain is needed), and a genuine state-machine LOOP where
 // `hero_attacks` and `monster_attacks` transition back and forth until one
@@ -12,9 +12,12 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::Health requires self >= -100 && self <= 100;
+domain i32::Attack requires self >= 0 && self <= 10;
+
 data Fighter {
-    hp: i32 [-100..=100];
-    attack: i32 [0..=10];
+    hp: i32 in Health;
+    attack: i32 in Attack;
 }
 
 data Main {

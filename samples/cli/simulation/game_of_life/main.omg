@@ -30,11 +30,14 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+// A cell is dead (0) or alive (1).
+domain i32::Life requires self >= 0 && self <= 1;
+
 data Grid [copy] {
-    // Cells are dead or alive; these bounds also prove neighbor sums and
-    // the sixteen-cell checksum fit Exact i32 arithmetic.
-    board: [i32 [0..=1]; 16];
-    next: [i32 [0..=1]; 16];
+    // Cells are in `Life`; its bounds also prove neighbor sums and the
+    // sixteen-cell checksum fit Exact i32 arithmetic.
+    board: [i32 in Life; 16];
+    next: [i32 in Life; 16];
     offset: i32 in Wrapping;
 }
 
