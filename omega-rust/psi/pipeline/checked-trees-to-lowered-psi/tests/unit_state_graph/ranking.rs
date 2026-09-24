@@ -72,10 +72,12 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     // fabricating a certificate.
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
-            cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
-            ..
-        })
+        Err(
+            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+                ..
+            }
+        )
     ));
     let executed = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
