@@ -1252,3 +1252,60 @@ fn len_offset_bounds_decompose_through_index_proofs() {
         }
     }
 }
+
+/// Arithmetic expressions used as indexes resolve their RESULT type for the
+/// lower-bound half: `pos - 1` on u64 is a u64, so its non-negativity is
+/// free by carrier once the subtraction's own underflow obligation is met
+/// (`pos > 0`). An add bound (`pos + 1 <= len`) still needs a dominating
+/// operand bound to satisfy the add's overflow obligation — and then
+/// discharges the read of `pos` itself.
+#[test]
+fn arithmetic_indexes_discharge_bounds_through_result_carrier() {
+    for (source, accepted) in [
+        // `pos > 0` covers the subtraction's underflow; the u64 result
+        // covers non-negativity; `pos - 1 < len` covers the upper half.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos > 0 && pos - 1 < self.table.len && self.table[pos - 1] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // A dominating bound on the addend satisfies the add's overflow
+        // obligation — `pos + 1 <= len` then proves `pos < len`.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos < 8 && pos + 1 <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // The same bound from a `requires` clause.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 requires pos < 8 {
+            transition pos + 1 <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // The same bound from the declared range.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64 [0..=8]) -> u8 {
+            transition pos + 1 <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos - 1` read where pos is SIGNED: the i64 result still owes
+        // non-negativity — correctly rejected even with `pos > 0`... the
+        // subtraction result is i64, so the lower half is owed.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: i64) -> u8 {
+            transition pos > 0 && pos - 1 < self.table.len && self.table[pos - 1] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // A bare unbounded `pos + 1` correctly rejects — u64 pos can wrap.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos + 1 <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // `pos + 1` as the INDEX only gets `pos + 1 <= len` — the index
+        // itself could equal len — correctly rejected.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos < 8 && pos + 1 <= self.table.len && self.table[pos + 1] >= 48 { true -> (1) false -> (0) }
+        }", false),
+    ] {
+        match (check_source(source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")
+                        || message.contains("exact arithmetic")),
+                "{source}: {messages:?}"
+            ),
+            (result, _) => panic!("{source}: {result:?}"),
+        }
+    }
+}

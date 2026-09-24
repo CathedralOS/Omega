@@ -557,6 +557,13 @@ pub(in crate::checks::ranges) fn expression_type_reference(
                     )
                 })
         }
+        // An arithmetic node carries the same result type as its operands'
+        // resolved operation — `pos - 1` on u64 IS a u64, which is how its
+        // non-negativity discharges by type alone. The generic reader owns
+        // the operator typing; callers only need the carrier.
+        ExpressionNode::Binary(_) => {
+            validation::expression_result_type_reference(program, machine, state, expression)
+        }
         _ => None,
     }
 }
