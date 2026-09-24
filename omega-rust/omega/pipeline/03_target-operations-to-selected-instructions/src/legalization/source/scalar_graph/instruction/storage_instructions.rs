@@ -45,37 +45,27 @@ pub(super) fn project_structural_leaf_copy(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralLeafCopy {
+        psi_operation,
         result,
         source,
         path,
-        ..
     } = &node.operation
     else {
         unreachable!("dispatched project_structural_leaf_copy")
     };
     let kind = {
-        let (byte_offset, shape, indices) = scalar_graph_input::structural_case::leaf_copy_layout(
+        let (byte_offset, shape, elements) = scalar_graph_input::structural_case::leaf_copy_layout(
             optimized, *source, path, result, plan,
         )?;
-        let indices = indices
-            .into_iter()
-            .map(|(index, stride)| {
-                let parameter = optimized
-                    .parameters
-                    .iter()
-                    .find(|parameter| parameter.value == index)
-                    .ok_or(LegalizationError::custody())?;
-                Ok(legalized_operations::LegalizedRuntimeIndexOperand {
-                    operand: abstract_operations::AbstractResult {
-                        value: parameter.value,
-                        scalar_type: parameter.scalar_type,
-                    },
-                    stride,
-                })
-            })
-            .collect::<Result<Vec<_>, LegalizationError>>()?;
+        let indices = crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            *psi_operation,
+            &elements,
+        )?;
         LegalizedScalarInstructionKind::StructuralLeafCopy {
             result: result.clone(),
             source: *source,
@@ -146,21 +136,64 @@ pub(super) fn project_borrowed_window(
     }
 }
 
+/// One primitive observation. A projection through runtime elements joins
+/// each to its selector and certificate; its root is then a structural
+/// parameter, since a primitive local has no projection.
+pub(super) fn project_primitive_scalar_read(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::PrimitiveScalarRead {
+        psi_operation,
+        result,
+        source,
+        path,
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_primitive_scalar_read")
+    };
+    let indices = if terminal_psi::is_static_structural_path(path) {
+        Vec::new()
+    } else {
+        let root = optimized
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *source)
+            .ok_or(Error::custody())?;
+        let (_, _, elements) =
+            crate::structural_inputs::structural_reference_input::primitive_geometry(
+                root.structural_type,
+                path,
+                result.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(Error::custody())?;
+        crate::legalization::runtime_indices::operands(optimized, unit, *psi_operation, &elements)?
+    };
+    Ok(LegalizedScalarInstructionKind::PrimitiveScalarRead {
+        source: *source,
+        path: path.clone(),
+        indices,
+    })
+}
+
 pub(super) fn project_write_only_primitive_store(
     node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::WriteOnlyPrimitiveStore {
+        psi_operation,
         destination,
         path,
         value,
-        ..
     } = &node.operation
     else {
         unreachable!("dispatched project_write_only_primitive_store")
     };
     let kind = {
-        let (byte_offset, byte_size) =
+        let (byte_offset, byte_size, elements) =
             crate::structural_inputs::structural_reference_input::primitive_store(
                 destination,
                 path,
@@ -174,110 +207,24 @@ pub(super) fn project_write_only_primitive_store(
             value: *value,
             byte_offset,
             byte_size,
+            indices: crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &elements,
+            )?,
         }
     };
     Ok(kind)
-}
-
-pub(super) fn project_write_only_indexed_primitive_store(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-        psi_operation,
-        destination,
-        path,
-        index,
-        value,
-        obligation,
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_write_only_indexed_primitive_store")
-    };
-    let kind = {
-        let accepted_fact = accepted_fact(optimized, unit, *psi_operation, *obligation)?;
-        let (byte_offset, byte_size, extent) =
-            crate::structural_inputs::structural_reference_input::indexed_primitive_store(
-                destination,
-                path,
-                value.scalar_type,
-                &unit.structural_types,
-            )
-            .ok_or(Error::custody())?;
-        LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-            destination: destination.clone(),
-            path: path.clone(),
-            index: *index,
-            value: *value,
-            byte_offset,
-            byte_size,
-            extent,
-            obligation: *obligation,
-            accepted_fact,
-        }
-    };
-    Ok(kind)
-}
-
-pub(super) fn project_indexed_primitive_read(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::IndexedPrimitiveRead {
-        psi_operation,
-        path,
-        index,
-        obligation,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_indexed_primitive_read")
-    };
-    let (source, (byte_offset, byte_size, extent)) =
-        scalar_graph_input::structural_fields::indexed_read(
-            optimized,
-            &node.operation,
-            &unit.structural_types,
-        )
-        .ok_or(Error::custody())?;
-    Ok(LegalizedScalarInstructionKind::IndexedPrimitiveRead {
-        source,
-        path: path.clone(),
-        index: *index,
-        byte_offset,
-        byte_size,
-        extent,
-        obligation: *obligation,
-        accepted_fact: accepted_fact(optimized, unit, *psi_operation, *obligation)?,
-    })
-}
-
-/// The verifier's accepted certificate for one runtime-bounded access: the
-/// exact obligation at the exact operation of this machine.
-fn accepted_fact(
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-    operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
-    unit.accepted_obligation_facts
-        .iter()
-        .find(|fact| {
-            fact.machine == optimized.machine
-                && fact.operation == operation
-                && fact.obligation == obligation
-        })
-        .map(|fact| fact.identity)
-        .ok_or(Error::custody())
 }
 
 pub(super) fn project_structural_scalar_field_store(
     node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralScalarFieldStore {
+        psi_operation,
         destination,
         path,
         field,
@@ -288,14 +235,15 @@ pub(super) fn project_structural_scalar_field_store(
         unreachable!("dispatched project_structural_scalar_field_store")
     };
     let kind = {
-        let (byte_offset, byte_size) = crate::structural_inputs::structural_reference_input::store(
-            destination.structural_type,
-            path,
-            *field,
-            value.scalar_type,
-            &unit.structural_types,
-        )
-        .ok_or(Error::custody())?;
+        let (byte_offset, byte_size, elements) =
+            crate::structural_inputs::structural_reference_input::store(
+                destination.structural_type,
+                path,
+                *field,
+                value.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(Error::custody())?;
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
             destination: destination.clone(),
             path: path.clone(),
@@ -303,6 +251,12 @@ pub(super) fn project_structural_scalar_field_store(
             value: *value,
             byte_offset,
             byte_size,
+            indices: crate::legalization::runtime_indices::operands(
+                optimized,
+                unit,
+                *psi_operation,
+                &elements,
+            )?,
         }
     };
     Ok(kind)

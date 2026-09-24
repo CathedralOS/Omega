@@ -103,7 +103,7 @@ pub(super) fn store_field(
     let full_path =
         field_path(types, destination.structural_type, path, *field).ok_or_else(invalid)?;
     let (field_type, shape, byte_offset, indices) =
-        crate::lowering::structural_layout::leaf_copy_projection(
+        crate::lowering::structural_layout::runtime_projection(
             destination.structural_type,
             &full_path,
             types,

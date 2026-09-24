@@ -648,9 +648,9 @@ fn forwarded_resolution(
         return None;
     }
     // Every site that references the read's result: the tracked scalar-operand
-    // uses plus `WriteOnlyIndexedPrimitiveStore` operands — the substitution
-    // lane rewrites those positions even though the use index does not track
-    // them. A use inside a byte-sequence operation is outside the lane, so
+    // uses, which include each runtime-selected path element's selector. A
+    // use inside a byte-sequence operation, or as a runtime selector whose
+    // accepted certificate names that exact value, is outside the lane, so
     // the row is inadmissible rather than partially substituted.
     let mut uses = BTreeSet::new();
     for use_block in &function.blocks {
@@ -658,24 +658,23 @@ fn forwarded_resolution(
             let referenced = use_node
                 .uses
                 .iter()
-                .any(|use_site| use_site.value == result)
-                || matches!(
-                    &use_node.operation,
-                    O::WriteOnlyIndexedPrimitiveStore { index, value, .. }
-                        if index.value == result || value.value == result
-                );
+                .any(|use_site| use_site.value == result);
             if !referenced {
                 continue;
             }
             if matches!(
                 &use_node.operation,
                 O::ByteSequenceRead { .. }
-                    | O::IndexedPrimitiveRead { .. }
                     | O::ByteSequenceWrite { .. }
                     | O::ByteSequenceSubslice { .. }
                     | O::StructuralByteSequenceFieldStore { .. }
                     | O::StructuralByteSequenceFieldByteStore { .. }
-            ) {
+            ) || use_node
+                .operation
+                .runtime_indices()
+                .iter()
+                .any(|(index, _)| *index == result)
+            {
                 return None;
             }
             let site = optimization_unit::NodeLocation {

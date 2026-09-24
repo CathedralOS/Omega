@@ -89,7 +89,7 @@ pub(super) fn validate(
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty()
                         && claim_free(*source)
-                        && terminal_semantics::primitive_place_type(
+                        && terminal_semantics::primitive_projection_type(
                             types.values().copied(),
                             parameter.structural_type,
                             path,

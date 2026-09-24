@@ -28,6 +28,7 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
         },
         byte_size: 4,
+        indices: Vec::new(),
     };
     plan
 }
@@ -37,7 +38,7 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
     let plan = primitive_store_plan();
     let identity = legalized_operation_plan_identity(&plan);
     assert_eq!(identity, legalized_operation_plan_identity(&plan.clone()));
-    for mutation in 0..13 {
+    for mutation in 0..16 {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination,
@@ -45,6 +46,7 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
             value,
             byte_offset,
             byte_size,
+            indices,
         } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
         else {
             panic!("primitive store fixture")
@@ -69,8 +71,14 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
                 },
             ),
             10 => *byte_size = 8,
-            11 => path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)),
-            _ => *byte_offset = 4,
+            11 => path.push(StructuralPathSegment::FixedIndex(1)),
+            12 => *byte_offset = 4,
+            // A runtime element's selector, stride and certificate each
+            // participate: two stores differing only in the element they
+            // scale into are distinct plans.
+            13 => indices.push(runtime_index(id(700), 4)),
+            14 => indices.push(runtime_index(id(701), 4)),
+            _ => indices.push(runtime_index(id(700), 8)),
         }
         assert_ne!(
             identity,
@@ -111,6 +119,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
         path: Vec::new(),
         field: id(504),
         byte_offset: 0,
+        indices: Vec::new(),
     };
     assert_identity_drift(legalized_operation_plan_identity(&plan), &field);
     let field_identity = legalized_operation_plan_identity(&field);
@@ -126,4 +135,22 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
             domain: id(998),
         });
     assert_identity_drift(field_identity, &field);
+}
+
+fn runtime_index(
+    operand: semantic_vocabulary::ValueId,
+    stride: u32,
+) -> crate::legalized_operations::LegalizedRuntimeIndexOperand {
+    crate::legalized_operations::LegalizedRuntimeIndexOperand {
+        operand: abstract_operations::AbstractResult {
+            value: operand,
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        },
+        stride,
+        extent: 3,
+        obligation: id(702),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+            b"runtime-index",
+        ),
+    }
 }

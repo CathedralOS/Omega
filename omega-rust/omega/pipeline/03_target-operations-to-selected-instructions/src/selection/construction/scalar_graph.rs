@@ -338,9 +338,6 @@ fn select_function(
                     | LegalizedScalarInstructionKind::ElementViewLength { .. } => {
                         structural::element_observation(source, &mut builder, operation)?
                     }
-                    LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. } => {
-                        structural::indexed_read(source, &mut builder, operation)?
-                    }
                     LegalizedScalarInstructionKind::Compare { .. } => {
                         boolean_value::emit_branch_comparison(
                             function,
@@ -1292,7 +1289,6 @@ fn select_function(
                     | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-                    | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                         ..

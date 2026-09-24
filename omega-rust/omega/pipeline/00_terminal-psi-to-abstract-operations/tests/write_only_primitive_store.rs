@@ -316,25 +316,29 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
         panic!("one runtime scalar index")
     };
     assert_eq!(index_parameter.scalar_type, u64_type);
+    // The runtime element stays the path's own segment: one store, whose
+    // selector and verified obligation ride in the path.
     let store = function
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+            AbstractOperation::WriteOnlyPrimitiveStore {
                 destination,
-                index,
+                path,
                 value,
-                obligation,
                 ..
-            } => Some((destination, index, value, obligation)),
+            } => Some((destination, path, value)),
             _ => None,
         })
         .expect("one runtime-indexed primitive store");
     assert_eq!(store.0, &function.structural_parameters[0]);
     assert_eq!(store.0.access, StructuralAccess::MutableBorrow);
     assert_eq!(store.0.multiplicity, StructuralMultiplicity::Unrestricted);
-    assert_eq!(store.1.value, index_parameter.value);
-    assert_eq!(store.1.scalar_type, u64_type);
+    let [terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. }] = store.1.as_slice()
+    else {
+        panic!("the store path is one runtime element: {:?}", store.1)
+    };
+    assert_eq!(*index, index_parameter.value);
     assert_eq!(store.2.scalar_type, u16_type);
     assert!(
         function.operations.iter().any(|operation| {
@@ -414,4 +418,79 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
             | AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::IeeeFloatConstant { .. }
     )));
+}
+
+/// Lower one machine of `source` through checked trees and verified,
+/// serialized Terminal Psi to the target-neutral Omega plan.
+pub(super) fn verified_plan(
+    source: &str,
+    machine: &str,
+) -> abstract_operations::AbstractOperationPlan {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(machine),
+    )
+    .expect("the store lowers to verified Terminal Psi");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
+    lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .map(|admitted| admitted.into_plan())
+    .expect("the verified store reaches target-neutral Omega")
+}
+
+#[test]
+fn verified_double_indexed_store_is_one_store_over_both_runtime_elements() {
+    // `grid[row][column]` has no single trailing element: both selectors ride
+    // as path segments of the one primitive store, each with the obligation
+    // the verifier discharged, where the retired indexed store took one.
+    let plan = verified_plan(
+        r#"
+        machine forward(grid: &mut [[u16; 4]; 3], row: u64 [0..=2], column: u64 [0..=3]) {
+            grid[row][column] = 17;
+        }
+        "#,
+        "forward",
+    );
+    let [function] = plan.functions.as_slice() else {
+        panic!("one store function")
+    };
+    let [row, column] = function.parameters.as_slice() else {
+        panic!("two runtime selectors")
+    };
+    let path = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::WriteOnlyPrimitiveStore { path, .. } => Some(path),
+            _ => None,
+        })
+        .expect("one primitive store");
+    let [
+        terminal_psi::StructuralPathSegment::RuntimeIndex {
+            index: outer,
+            obligation: outer_bound,
+        },
+        terminal_psi::StructuralPathSegment::RuntimeIndex {
+            index: inner,
+            obligation: inner_bound,
+        },
+    ] = path.as_slice()
+    else {
+        panic!("the store path is two runtime elements: {path:?}")
+    };
+    assert_eq!((*outer, *inner), (row.value, column.value));
+    assert_ne!(outer_bound, inner_bound, "each element owns its obligation");
 }

@@ -223,7 +223,7 @@ pub(crate) fn validate_structural_root_operations(
                                 if *position == destination.position
                                     && *is_self == destination.is_self
                         )
-                        && terminal_semantics::primitive_place_type(
+                        && terminal_semantics::primitive_projection_type(
                             structural_types.values().copied(),
                             destination.structural_type,
                             path,
@@ -268,7 +268,7 @@ pub(crate) fn validate_structural_root_operations(
                         )
                         && destination.qualifications.is_empty()
                         && destination.projected_qualifications.is_empty()
-                        && terminal_psi::is_bounded_structural_scalar_store_path(path)
+                        && terminal_psi::is_structural_scalar_store_path(path)
                         && function
                             .entry_claim_declarations
                             .iter()
@@ -360,32 +360,6 @@ pub(crate) fn validate_structural_root_operations(
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidIntegerStructuralField {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
-                        );
-                    }
-                }
-                // The path ends at a fixed array whose element type is the
-                // result's scalar; the root is readable storage.
-                O::IndexedPrimitiveRead {
-                    result,
-                    source,
-                    path,
-                    ..
-                } => {
-                    let valid = readable_field_type(function, *source).is_some_and(|root| {
-                        terminal_semantics::fixed_array_place_shape(
-                            structural_types.values().copied(),
-                            root,
-                            path,
-                        )
-                        .is_some_and(|(element, _extent)| element == result.scalar_type)
-                    });
-                    if !valid {
-                        return Err(
-                            OptimizationUnitValidationError::InvalidIndexedPrimitiveRead {
                                 machine: function.machine,
                                 block: block.id,
                                 node: node_index,

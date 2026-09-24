@@ -233,10 +233,10 @@ pub(in crate::legalization) fn membership_layout(
 /// Resolve the copied leaf's byte offset inside the readable root and its
 /// canonical shape. The path's endpoint type must be the declared result type
 /// and the result must keep the copy's unrestricted empty custody.
-/// `RuntimeIndex` segments additionally yield `(index, stride)` pairs in
-/// path order: each index must be an incoming parameter's value carrying an
-/// integer no wider than the address model, mirroring the indexed-store
-/// operand contract.
+/// `RuntimeIndex` segments additionally yield their runtime elements in path
+/// order: each index must be an incoming parameter's value carrying an
+/// integer no wider than the address model, the operand contract target
+/// lowering applies to leaf copies.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
@@ -247,7 +247,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
     (
         u32,
         calling_conventions::ValueShape,
-        Vec<(semantic_vocabulary::ValueId, u32)>,
+        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
     ),
     LegalizationError,
 > {
@@ -262,7 +262,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
     let (endpoint, byte_offset, indices) = if path.is_empty() {
         (identity, 0, Vec::new())
     } else {
-        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
+        crate::structural_inputs::structural_reference_input::runtime_projection(
             identity,
             path,
             &plan.structural_types,
@@ -274,11 +274,11 @@ pub(in crate::legalization) fn leaf_copy_layout(
     {
         return Err(LegalizationError::custody());
     }
-    for (index, _) in &indices {
+    for element in &indices {
         let parameter = function
             .parameters
             .iter()
-            .find(|parameter| parameter.value == *index)
+            .find(|parameter| parameter.value == element.index)
             .ok_or(LegalizationError::custody())?;
         let semantic_vocabulary::ScalarType::Integer(index_type) = parameter.scalar_type else {
             return Err(LegalizationError::custody());

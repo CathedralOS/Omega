@@ -210,6 +210,7 @@ fn record_read_store_read_materializes_two_snapshots_before_the_consuming_call()
             LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                 destination: parameter,
                 path: Vec::new(),
+                indices: Vec::new(),
                 field,
                 value: abstract_operations::AbstractResult {
                     value: ValueId::new(2).unwrap(),

@@ -188,23 +188,30 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
-    /// One element write at the checked dynamic index scaled by the declared
-    /// element width (the row's byte_count), added to the row's fixed payload
-    /// offset. The subject is a borrowed fixed-array referent; `extent` is the
-    /// declared element count the obligation proves the index inside.
+    /// One runtime-selected element of a write through a verified structural
+    /// projection (`grid[i][j] = v`, `ents[i].hp = v`). The written address is
+    /// the subject's base plus the row's fixed `byte_offset` plus, for each
+    /// runtime element of the path, its `index · stride`, scaled in path
+    /// order by the instructions before the store. The access carries one
+    /// such row per runtime element, in path order; each row's `extent` is
+    /// its array's declared element count and `obligation`/`accepted_fact`
+    /// the verifier's certificate that `index` lies inside it. Every index is
+    /// non-negative, so the write lands at or after `byte_offset`; its exact
+    /// position is a constant only when every row's index is.
     WriteIndexedPrimitive {
         index: semantic_vocabulary::ValueId,
         value: semantic_vocabulary::ValueId,
+        stride: u32,
         extent: u64,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
-    /// One element read at the checked dynamic index scaled by the declared
-    /// element width (the row's byte_count), added to the row's fixed payload
-    /// offset. The subject is a borrowed fixed-array referent; `extent` is the
-    /// declared element count the obligation proves the index inside.
+    /// One runtime-selected element of a read through a verified structural
+    /// projection; the read counterpart of `WriteIndexedPrimitive`, with the
+    /// same one-row-per-runtime-element address model.
     ReadIndexedPrimitive {
         index: semantic_vocabulary::ValueId,
+        stride: u32,
         extent: u64,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,

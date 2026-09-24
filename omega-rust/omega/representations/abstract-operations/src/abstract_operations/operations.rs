@@ -42,13 +42,17 @@ pub enum AbstractOperation {
         value: AbstractResult,
     },
     /// Make a fresh observation of an established primitive local or a primitive
-    /// leaf under a readable borrow. The canonical path retains the exact
-    /// storage subject; an empty path observes the whole primitive root.
+    /// leaf under a readable borrow. `path` is the verified Terminal
+    /// projection: record fields and fixed-array elements, literal or
+    /// runtime-selected, in any order (`grid[i][j]`, `ents[i].hp`). An empty
+    /// path observes the whole primitive root. Each `RuntimeIndex` segment's
+    /// bound is an obligation this operation owns and the verifier already
+    /// discharged; see [`AbstractOperation::runtime_indices`].
     PrimitiveScalarRead {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
     },
     /// Observe the exact active case without consuming the readable sum root.
     StructuralCaseMembership {
@@ -172,9 +176,12 @@ pub enum AbstractOperation {
         stored: AbstractStoredDynamicDescriptor,
     },
     /// One verifier-approved non-observing replacement through an exact
-    /// primitive leaf under a mutable or write-only structural parameter. The
-    /// canonical path selects the leaf without changing root custody; an empty
-    /// path retains whole-primitive replacement. The complete parameter row
+    /// primitive leaf under a mutable or write-only structural parameter.
+    /// `path` is the verified Terminal projection to the leaf — fields and
+    /// literal or runtime-selected elements in any order — and selects it
+    /// without changing root custody; an empty path retains whole-primitive
+    /// replacement. Each `RuntimeIndex` segment's bound is an obligation this
+    /// operation owns. The complete parameter row
     /// keeps access, multiplicity, nominal type, and signature position from
     /// being reconstructed from physical ABI shape; `value` retains the exact
     /// preceding scalar definition and type. Target lowering must not realize
@@ -182,31 +189,16 @@ pub enum AbstractOperation {
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
         value: AbstractResult,
-    },
-    /// One verifier-approved non-observing replacement of one primitive
-    /// element inside a declared fixed array beneath a mutable or write-only
-    /// structural parameter. `path` resolves from the destination root to the
-    /// fixed array itself; `index` is the exact dominating `u64` scalar
-    /// definition selecting the element and `obligation` certifies
-    /// `index < declared extent`. The complete parameter row keeps access,
-    /// multiplicity, nominal type, and signature position from being
-    /// reconstructed from physical ABI shape. The runtime index is an operand,
-    /// never a path segment. Target lowering must not realize this event
-    /// without a separate target address/width/store model.
-    WriteOnlyIndexedPrimitiveStore {
-        psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: AbstractResult,
-        value: AbstractResult,
-        obligation: semantic_vocabulary::ObligationId,
     },
     /// One verifier-approved scalar replacement at an exact field beneath a
     /// structural parameter root. The complete parameter row retains root
     /// authority, `path` and `field` retain the selected structural location,
-    /// and `value` rejoins the exact typed dominating scalar definition.
+    /// and `value` rejoins the exact typed dominating scalar definition. The
+    /// carrier `path` composes record fields and literal or runtime-selected
+    /// elements in any order (`ents[i].pos` for `ents[i].pos.x`); each
+    /// runtime element's bound is an obligation this operation owns.
     StructuralScalarFieldStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
@@ -495,18 +487,6 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
-    },
-    /// One element of a fixed-array leaf beneath a structural place, read at a
-    /// proven runtime position. `path` ends at the array itself; the `u64`
-    /// index and its bounds obligation ride as operands, as for the indexed
-    /// primitive store.
-    IndexedPrimitiveRead {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: AbstractResult,
-        obligation: semantic_vocabulary::ObligationId,
     },
     BooleanNot {
         psi_operation: OperationId,
@@ -834,13 +814,81 @@ pub enum AbstractOperation {
 }
 
 impl AbstractOperation {
+    /// Every runtime-selected element (`RuntimeIndex { index, obligation }`)
+    /// in the name-spelled paths this operation carries, in operand and path
+    /// order: the Omega image of Terminal's `structural_projections`
+    /// inventory. Each `index` is a scalar use of the operation, and each
+    /// `obligation` is owned by it — the verifier reconstructed
+    /// `index < extent` at this operation, so consumers carry that evidence
+    /// rather than re-deriving a bound or trusting a byte offset. Because the
+    /// accepted certificate names the selector's exact value, optimizer
+    /// rewrites leave selectors as spelled; a rewrite that would retire one
+    /// fails validation instead.
+    pub fn runtime_indices(&self) -> Vec<(ValueId, semantic_vocabulary::ObligationId)> {
+        self.structural_paths()
+            .into_iter()
+            .flatten()
+            .filter_map(StructuralPathSegment::runtime_index)
+            .collect()
+    }
+
+    /// The name-spelled paths this operation carries, in operand order.
+    /// Operations without a projection (scalar arithmetic, control, dynamic
+    /// dispatch selections, literal establishment) carry none.
+    fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
+        match self {
+            Self::PrimitiveScalarRead { path, .. }
+            | Self::WriteOnlyPrimitiveStore { path, .. }
+            | Self::StructuralScalarFieldStore { path, .. }
+            | Self::StructuralCaseMembership { path, .. }
+            | Self::StructuralByteSequenceFieldByteStore { path, .. }
+            | Self::StructuralByteSequenceFieldStore { path, .. }
+            | Self::StructuralByteSequenceFieldLength { path, .. }
+            | Self::MoveStructuralField { path, .. }
+            | Self::StructuralLeafCopy { path, .. } => vec![path.as_slice()],
+            Self::StoreStructuralField { path, value, .. } => {
+                vec![path.as_slice(), value.path.as_slice()]
+            }
+            Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
+                vec![source.path.as_slice()]
+            }
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::CallUnitWithDynamicArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalar {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalarWithDynamicArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .iter()
+                .map(|argument| argument.path.as_slice())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// The authored Terminal operation this row realizes, or `None` for a
     /// control transfer (identified by its edge) and a dynamic descriptor
     /// parameter (identified by its place).
     pub fn psi_operation(&self) -> Option<OperationId> {
         match self {
             Self::WriteOnlyPrimitiveStore { psi_operation, .. }
-            | Self::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
             | Self::ByteSequenceWrite { psi_operation, .. }
             | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
             | Self::StructuralByteSequenceFieldStore { psi_operation, .. }
@@ -889,7 +937,6 @@ impl AbstractOperation {
             | Self::ElementViewRead { psi_operation, .. }
             | Self::ElementViewSubslice { psi_operation, .. }
             | Self::IntegerStructuralField { psi_operation, .. }
-            | Self::IndexedPrimitiveRead { psi_operation, .. }
             | Self::BooleanNot { psi_operation, .. }
             | Self::BooleanEqual { psi_operation, .. }
             | Self::IntegerEqual { psi_operation, .. }

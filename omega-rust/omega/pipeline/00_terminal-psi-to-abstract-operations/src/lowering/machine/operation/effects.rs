@@ -74,66 +74,23 @@ pub(super) fn lower(
             if !valid_destination {
                 return Err(invalid());
             }
-            match super::primitive_projection::split(
+            if super::primitive_projection::leaf_type(
                 structural_types,
                 destination.structural_type,
                 &path,
-            ) {
-                Some(super::primitive_projection::PrimitiveProjection::Static(path)) => {
-                    if terminal_semantics::primitive_place_type(
-                        structural_types.iter(),
-                        destination.structural_type,
-                        &path,
-                    ) != Some(scalar_type)
-                    {
-                        return Err(invalid());
-                    }
-                    AbstractOperation::WriteOnlyPrimitiveStore {
-                        psi_operation: operation.id,
-                        destination,
-                        path,
-                        value: AbstractResult { value, scalar_type },
-                    }
-                }
-                // The verified runtime element keeps the same destination
-                // custody as a static store; its selector and obligation ride
-                // as operands of the abstract indexed store.
-                Some(super::primitive_projection::PrimitiveProjection::TrailingRuntimeIndex {
-                    array,
-                    element,
-                    index,
-                    obligation,
-                }) => {
-                    let u64 = ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .expect("u64 is a valid scalar type"),
-                    );
-                    let Some(index_type) = value_types.get(&index).copied() else {
-                        return Err(invalid());
-                    };
-                    if index_type != u64 || element != scalar_type {
-                        return Err(invalid());
-                    }
-                    AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-                        psi_operation: operation.id,
-                        destination,
-                        path: array,
-                        index: AbstractResult {
-                            value: index,
-                            scalar_type: index_type,
-                        },
-                        value: AbstractResult { value, scalar_type },
-                        obligation,
-                    }
-                }
-                None => {
-                    return Err(LoweringError::UnsupportedRuntimeIndexProjection(
-                        operation.id,
-                    ));
-                }
+                |index| value_types.get(&index).copied(),
+            ) != Some(scalar_type)
+            {
+                return Err(invalid());
+            }
+            // A runtime element keeps the same destination custody as a
+            // static store: the selector rides in the path, and its verified
+            // obligation stays attached to the segment.
+            AbstractOperation::WriteOnlyPrimitiveStore {
+                psi_operation: operation.id,
+                destination,
+                path,
+                value: AbstractResult { value, scalar_type },
             }
         }
         _ => unreachable!("effect router is exhaustive"),

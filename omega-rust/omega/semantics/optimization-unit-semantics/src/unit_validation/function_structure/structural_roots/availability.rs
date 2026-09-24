@@ -210,7 +210,7 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
         | O::ReturnStructural { source, .. } => {
             vec![*source]
         }
-        O::IntegerStructuralField { source, .. } | O::IndexedPrimitiveRead { source, .. } => {
+        O::IntegerStructuralField { source, .. } => {
             vec![*source]
         }
         _ => Vec::new(),

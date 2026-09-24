@@ -220,8 +220,11 @@ pub(super) fn extent_intersects(
 
 /// The fixed position a byte-sequence row lands on when its `index` value
 /// resolves: `byte_offset + index`, with the overflow carrying no named
-/// position. `None` for every other role and for an unresolved index — a
-/// row then reaches an unbounded-upward extent instead.
+/// position. A runtime-projected element row lands at `byte_offset` plus
+/// every runtime element's `index · stride` — its instruction carries one
+/// row per element — so it resolves only when all of that access's indices
+/// do. `None` for every other role and for an unresolved index — a row then
+/// reaches an unbounded-upward extent instead.
 pub(super) fn resolved_sequence_position(
     access: &SelectedMemoryAccess,
     function: &SelectedFunction,
@@ -232,12 +235,28 @@ pub(super) fn resolved_sequence_position(
             return constant_index(function, index)
                 .and_then(|landed| u64::from(access.byte_offset).checked_add(landed));
         }
-        SelectedMemoryAccessRole::ReadIndexedPrimitive { index, .. }
-        | SelectedMemoryAccessRole::WriteIndexedPrimitive { index, .. } => {
-            return constant_index(function, index).and_then(|landed| {
-                u64::from(access.byte_offset)
-                    .checked_add(landed.checked_mul(u64::from(access.byte_count))?)
-            });
+        SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {
+            return function
+                .memory_accesses
+                .iter()
+                .filter(|element| {
+                    element.instruction == access.instruction
+                        && element.origin == access.origin
+                        && element.place == access.place
+                })
+                .filter_map(|element| match element.role {
+                    SelectedMemoryAccessRole::ReadIndexedPrimitive { index, stride, .. }
+                    | SelectedMemoryAccessRole::WriteIndexedPrimitive { index, stride, .. } => {
+                        Some((index, stride))
+                    }
+                    _ => None,
+                })
+                .try_fold(u64::from(access.byte_offset), |landed, (index, stride)| {
+                    landed.checked_add(
+                        constant_index(function, index)?.checked_mul(u64::from(stride))?,
+                    )
+                });
         }
         _ => {}
     }

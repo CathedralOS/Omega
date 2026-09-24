@@ -11,7 +11,6 @@ use terminal_psi::{
     BindingRelevance, Block, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    is_bounded_structural_scalar_store_path,
 };
 
 use crate::lowering::LoweringError;
@@ -76,11 +75,19 @@ fn lower_store(
         )
         || !has_empty_structural_custody(machine, destination.place)
         || !terminal_psi::is_structural_scalar_store_path(path)
+        || !path
+            .iter()
+            .filter_map(StructuralPathSegment::runtime_index)
+            .all(|(index, _)| {
+                super::primitive_projection::runtime_selector(dominating_scalar_type(
+                    machine,
+                    block,
+                    operation.id,
+                    index,
+                ))
+            })
     {
         return Err(invalid());
-    }
-    if !is_bounded_structural_scalar_store_path(path) {
-        return Err(LoweringError::UnsupportedScalarFieldCarrier(operation.id));
     }
     let parent_type = resolve_structural_path(structural_types, destination.structural_type, path)
         .ok_or_else(invalid)?;
@@ -147,48 +154,6 @@ fn lower_integer_read(
         source,
         path: path.to_vec(),
         field,
-    })
-}
-
-/// One element of a fixed-array leaf read at a verified runtime position: the
-/// canonical `array` path ends at the array whose primitive `element` the
-/// result carries, and the dominating index is the `u64` position the
-/// Terminal path's runtime element bound.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn lower_indexed_read(
-    operation: &Operation,
-    block: &Block,
-    machine: &TerminalMachine,
-    source: PlaceId,
-    array: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    element: ScalarType,
-    index: semantic_vocabulary::ValueId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<AbstractOperation, LoweringError> {
-    let invalid = || LoweringError::InvalidIndexedPrimitiveRead(operation.id);
-    readable_source_type(machine, source).ok_or_else(invalid)?;
-    let result = operation.result.scalar().ok_or_else(invalid)?;
-    let index_type =
-        dominating_scalar_type(machine, block, operation.id, index).ok_or_else(invalid)?;
-    let unsigned_64 =
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-            .map_err(|_| invalid())?;
-    if result.scalar_type != element || index_type != ScalarType::Integer(unsigned_64) {
-        return Err(invalid());
-    }
-    Ok(AbstractOperation::IndexedPrimitiveRead {
-        psi_operation: operation.id,
-        result: AbstractResult {
-            value: result.id,
-            scalar_type: result.scalar_type,
-        },
-        source,
-        path: array.to_vec(),
-        index: AbstractResult {
-            value: index,
-            scalar_type: index_type,
-        },
-        obligation,
     })
 }
 
@@ -265,7 +230,7 @@ pub(super) fn exact_parameter(
     Some(parameter.clone())
 }
 
-fn dominating_scalar_type(
+pub(super) fn dominating_scalar_type(
     machine: &TerminalMachine,
     block: &Block,
     operation: semantic_vocabulary::OperationId,
@@ -349,6 +314,11 @@ fn resolve_structural_path(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            // The element's bound is the store's own verified obligation.
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
+            ) => *element,
             _ => return None,
         };
     }

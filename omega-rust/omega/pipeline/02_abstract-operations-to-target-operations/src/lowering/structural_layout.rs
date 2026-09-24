@@ -6,74 +6,26 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
-/// Resolve static primitive storage without replacing its root ABI declaration.
-pub(super) fn primitive_projection_type(
-    mut carrier: StructuralTypeId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+/// Resolve a primitive leaf through a projection whose elements may be
+/// selected at run time: its scalar type, the static byte offset, and each
+/// runtime element's `(index, stride)` run in path order
+/// (`runtime_projection`). The root ABI declaration is not replaced.
+#[allow(clippy::type_complexity)]
+pub(super) fn primitive_leaf_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<ScalarType> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
-    for (position, segment) in path.iter().enumerate() {
-        carrier = match (segment, &declarations.get(&carrier)?.shape) {
-            (Segment::Field(identity), StructuralTypeShape::Record { fields }) => {
-                let field = fields.iter().find(|field| field.id == *identity)?;
-                if field.relevance.is_erased() {
-                    return None;
-                }
-                match &field.field_type {
-                    StructuralFieldType::Structural(child) => *child,
-                    leaf if position + 1 == path.len() => return leaf.scalar_type(),
-                    _ => return None,
-                }
-            }
-            (
-                Segment::FixedIndex(position),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if position < length => *element,
-            _ => return None,
-        };
-    }
-    match declarations.get(&carrier)?.shape {
-        StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
-        _ => None,
-    }
-}
-
-/// Resolve a path that lands on a fixed array of primitive scalars, returning
-/// the element scalar type and declared extent. The runtime index stays out
-/// of the path — it is carried by the indexed store itself.
-pub(super) fn indexed_array_projection(
-    mut carrier: StructuralTypeId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<(ScalarType, u64)> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
-    for segment in path {
-        carrier = match (segment, &declarations.get(&carrier)?.shape) {
-            (Segment::Field(identity), StructuralTypeShape::Record { fields }) => {
-                let field = fields.iter().find(|field| field.id == *identity)?;
-                if field.relevance.is_erased() {
-                    return None;
-                }
-                match &field.field_type {
-                    StructuralFieldType::Structural(child) => *child,
-                    _ => return None,
-                }
-            }
-            (
-                Segment::FixedIndex(position),
-                StructuralTypeShape::FixedArray { element, length },
-            ) if position < length => *element,
-            _ => return None,
-        };
-    }
-    match declarations.get(&carrier)?.shape {
-        StructuralTypeShape::FixedArray { element, length } => {
-            match declarations.get(&element)?.shape {
-                StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
-                _ => None,
-            }
-        }
+) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+    let (leaf, _, byte_offset, runs) = runtime_projection(
+        root,
+        path,
+        declarations,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )
+    .ok()?;
+    match declarations.get(&leaf)?.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, byte_offset, runs)),
         _ => None,
     }
 }
@@ -616,14 +568,15 @@ pub(super) fn resolve_structural_projection_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
-/// Resolve a leaf-copy projection that may traverse `RuntimeIndex`
-/// segments. Static segments before, between, and after the dynamic
-/// segments fold into the returned `byte_offset`; each dynamic segment
-/// contributes `(index, stride)` so the copy can scale every runtime operand
-/// into the same address in path order. Each segment's bound is the
-/// obligation the terminal verifier discharged; only array shape is read.
+/// Resolve a projection that may traverse `RuntimeIndex` segments at any
+/// depth — a leaf copy's extent, a primitive leaf, or a field store's
+/// carrier. Static segments before, between, and after the dynamic segments
+/// fold into the returned `byte_offset`; each dynamic segment contributes
+/// `(index, stride)` so the access scales every runtime operand into the
+/// same address in path order. Each segment's bound is the obligation the
+/// terminal verifier discharged; only array shape is read.
 #[allow(clippy::type_complexity)]
-pub(super) fn leaf_copy_projection(
+pub(super) fn runtime_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
