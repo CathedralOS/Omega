@@ -1,29 +1,24 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: executable entrance. Layout-independent selected-form encoding, replay, and optimization custody.
+//! Post-allocation machine plan to layout-independent selected-form encoding.
 //!
-//! Start at `selected_form_encoding.rs`: this stage serializes selected
-//! instructions before any address-dependent layout and retains exact
-//! selected and physical roots. `row_encoding` owns per-row byte production,
-//! `frame_address` resolves symbolic frame addresses against retained frame
-//! geometry, and `validation` admits the produced bytes independently of the
-//! producer.
+//! The stage operation is
+//! `stage_optimized_layout_independent_selected_form_encoding`
+//! (`selected_form_encoding.rs`), and
+//! `validate_optimized_layout_independent_selected_form_encoding` replays it.
+//! The stage serializes selected instructions before any address-dependent
+//! layout and keeps exact selected and physical roots. Beneath it,
+//! `row_encoding` produces each row's bytes, `frame_address` resolves symbolic
+//! frame addresses against the retained frame geometry, and `validation` admits
+//! the produced bytes independently of the producer.
 
 mod frame_address;
 mod row_encoding;
 mod selected_form_encoding;
 mod validation;
 
-pub use selected_form_encoding::*;
-
-// Names the folders reach through the crate root, as they did before the
-// route file existed.
-use machine_code::{
-    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncoding,
-    SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
-    SelectedFormEncodingState, SelectedFormInternalMachineFixup,
-    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
-    SelectedFormMachineDisposition, SelectedFormNormalizedForeignCallFixup,
-    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
+pub use selected_form_encoding::{
+    OptimizedSelectedFormEncodingError, StagedOptimizedSelectedFormEncoding,
+    stage_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding,
 };
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;

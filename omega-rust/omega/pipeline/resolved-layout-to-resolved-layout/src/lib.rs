@@ -1,24 +1,29 @@
 #![forbid(unsafe_code)]
 
-//! Optimizer module role: crate map. Explicit resolved-layout optimization.
+//! Resolved layout to optimized resolved layout.
 //!
-//! Baseline layout construction precedes this phase; even empty selections
-//! cross its checked entrance. Both identity and relaxation expose the same
-//! current layout, while retained rewrite evidence is used only for replay.
+//! The phase operation is `execute_resolved_layout_optimization` (`phase`),
+//! checked by `validate_resolved_layout_optimization`. Baseline layout
+//! construction precedes this phase, and even an empty selection crosses its
+//! checked entrance. The one current rewrite is x86 conditional-branch
+//! relaxation (`x86_branch_relaxation`: `stage_optimized_x86_branch_relaxation`
+//! and its replay `validate_optimized_x86_branch_relaxation`). Identity and
+//! relaxation expose the same current layout; retained rewrite evidence is
+//! used only for replay.
 
 mod phase;
 mod x86_branch_relaxation;
 
-pub use phase::*;
-pub use x86_branch_relaxation::*;
-
-#[cfg(test)]
-use machine_code::ResolvedSelectedBlockLayout;
-use machine_code::{
-    ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
-    ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
+pub use phase::{
+    ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
+    execute_resolved_layout_optimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
-    validate_optimized_resolved_selected_form_layout,
+pub use x86_branch_relaxation::{
+    FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
+    FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
+    OptimizedX86BranchRelaxationError, StagedOptimizedX86BranchRelaxation,
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
+    X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+    X86BranchRelaxationWorkAxis, stage_optimized_x86_branch_relaxation,
+    validate_optimized_x86_branch_relaxation, x86_rel8_selected,
 };

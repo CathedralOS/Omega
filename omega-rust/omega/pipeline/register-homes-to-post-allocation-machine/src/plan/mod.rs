@@ -5,15 +5,15 @@ mod compute;
 mod test_support;
 mod validate;
 
-pub use ::physical_instructions::*;
 use optimization_core::PostAllocationOptimizationManifestIdentity;
+use physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::PostAllocationMachinePlanReceiptFieldForTest;
 pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and

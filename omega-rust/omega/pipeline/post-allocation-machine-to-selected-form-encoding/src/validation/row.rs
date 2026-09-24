@@ -8,10 +8,10 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::{
-    DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
-    SelectedFormDecodedFootprint, SelectedFormEncodingRow, SelectedFormEncodingState,
-    SelectedFormMachineDisposition,
+use super::super::OptimizedSelectedFormEncodingError;
+use machine_code::{
+    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
+    SelectedFormEncodingState, SelectedFormMachineDisposition,
 };
 
 mod normalized_foreign_call;

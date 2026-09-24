@@ -22,18 +22,6 @@ use std::path::{Path, PathBuf};
 /// `src/` tree carrying a glob import).
 const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
     (
-        "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
-        2,
-    ),
-    (
-        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine",
-        3,
-    ),
-    (
-        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout",
-        2,
-    ),
-    (
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
         11,
     ),

@@ -9,7 +9,8 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{MachineAlternativeFamily, MachineAlternativeKey};
 
-use crate::{ResolvedConditionalBranchPredicate, StagedOptimizedResolvedSelectedFormLayout};
+use machine_code::ResolvedConditionalBranchPredicate;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,

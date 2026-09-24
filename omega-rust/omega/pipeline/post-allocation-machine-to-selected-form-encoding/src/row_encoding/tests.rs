@@ -15,7 +15,7 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 
 use super::{SelectedFormEncodingState, encode_row};
-use crate::SelectedFormMachineDisposition;
+use machine_code::SelectedFormMachineDisposition;
 
 pub(super) fn fixture() -> (
     ValidatedPhysicalRegisterModel,

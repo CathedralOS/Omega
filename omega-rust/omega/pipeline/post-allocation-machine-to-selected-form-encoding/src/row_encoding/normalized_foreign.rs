@@ -12,8 +12,9 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
 use super::{validate_operand_footprint, validate_size};
-use crate::{
-    OptimizedSelectedFormEncodingError, SelectedFormDecodedFootprint, SelectedFormEncodingState,
+use crate::OptimizedSelectedFormEncodingError;
+use machine_code::{
+    SelectedFormDecodedFootprint, SelectedFormEncodingState,
     SelectedFormNormalizedForeignCallFixup, SelectedFormNormalizedForeignCallFixupKind,
     SelectedFormNormalizedForeignCallFixupState,
 };

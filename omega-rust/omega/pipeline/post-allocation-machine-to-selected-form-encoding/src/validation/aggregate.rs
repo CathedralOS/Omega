@@ -1,7 +1,5 @@
-use super::super::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
-    SelectedFormEncodingState,
-};
+use super::super::OptimizedSelectedFormEncodingError;
+use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingState};
 
 pub(super) fn validate(
     artifact: &SelectedFormEncoding,
@@ -48,11 +46,9 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
-        validate,
-    };
+    use super::{OptimizedSelectedFormEncodingError, validate};
     use machine_code::SelectedFormEncodingIdentity;
+    use machine_code::{SelectedFormEncoding, SelectedFormEncodingCounts};
     use physical_instructions::PostAllocationMachineIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
 
