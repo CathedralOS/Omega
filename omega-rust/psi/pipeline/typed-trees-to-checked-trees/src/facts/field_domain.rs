@@ -606,6 +606,38 @@ pub(crate) fn domain_constraint_symbols(
         .collect()
 }
 
+/// Whether every declared domain on a field's type means exactly an interval,
+/// so the field's bounded carrier represents membership completely and a
+/// write needs only the carrier's own range obligation.
+pub(crate) fn domains_are_exact_intervals(
+    program: &typed_trees::TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                if program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| {
+                        matches!(constraint, TypeConstraintNode::Domain(domain)
+                            if validation::exact_declared_domain_interval(program, domain).is_none())
+                    })
+                {
+                    return false;
+                }
+                type_reference = *base_type;
+            }
+            _ => return true,
+        }
+    }
+}
+
 /// Declared domain constraints paired with the identity the typer interned on
 /// each constraint. An indexed application (`Resident<P, T>`) is proved only
 /// against an exact instance identity (`checks::contracts::prover`), so a

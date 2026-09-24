@@ -29,6 +29,23 @@ pub(super) fn retain_scalar_field(
                         has_non_exact_domain |=
                             *domain != numerics::arithmetic::ArithmeticDomain::Exact;
                     }
+                    // A declared domain whose membership is exactly an interval
+                    // restricts the field as a bracketed range did: the place
+                    // establishes it at every write and every read may assume
+                    // it. An unstated side is the carrier's own extreme.
+                    if let typed_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                        && let Some((lower, upper)) =
+                            validation::exact_declared_domain_interval(program, domain)
+                    {
+                        let lower = lower.unwrap_or_else(|| BigInt::from_i128(i128::MIN));
+                        let upper = upper.unwrap_or_else(|| BigInt::from_u128(u128::MAX));
+                        declared_bounds = Some(match declared_bounds {
+                            Some((previous_lower, previous_upper)) => {
+                                (previous_lower.max(lower), previous_upper.min(upper))
+                            }
+                            None => (lower, upper),
+                        });
+                    }
                     if let typed_trees::types::TypeConstraintNode::Range {
                         minimum,
                         maximum,
@@ -221,6 +238,84 @@ mod tests {
                 (minimum, maximum),
                 "{spelling}"
             );
+        }
+    }
+
+    /// A domain whose membership is exactly an interval restricts the field as
+    /// the bracketed range it replaces did; an unstated side is the carrier's
+    /// own extreme. A domain with any other predicate, or an establishment
+    /// route, states more than an interval carries and stays a bare scalar.
+    #[test]
+    fn exact_interval_domains_restrict_the_field_and_other_domains_do_not() {
+        let unsigned = |value: u64| IntegerValue::Unsigned(u128::from(value));
+        for (domain, primitive, restriction) in [
+            (
+                "domain u64::Slot requires self <= 4;",
+                PrimitiveType::U64,
+                Some((unsigned(0), unsigned(4))),
+            ),
+            (
+                "domain u64::Slot requires self >= 1 && self < 9;",
+                PrimitiveType::U64,
+                Some((unsigned(1), unsigned(8))),
+            ),
+            (
+                "domain u64::Slot requires self >= 1;",
+                PrimitiveType::U64,
+                Some((unsigned(1), unsigned(u64::MAX))),
+            ),
+            (
+                "domain i32::Slot requires self >= -3;",
+                PrimitiveType::I32,
+                Some((
+                    IntegerValue::Signed(-3),
+                    IntegerValue::Signed(i128::from(i32::MAX)),
+                )),
+            ),
+            (
+                "domain u64::Slot requires self != 3;",
+                PrimitiveType::U64,
+                None,
+            ),
+            (
+                "domain u64::Slot requires self <= 4 && self != 3;",
+                PrimitiveType::U64,
+                None,
+            ),
+            (
+                "domain u64::Slot requires self <= 4 || self >= 9;",
+                PrimitiveType::U64,
+                None,
+            ),
+            (
+                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot; }\n\
+                 pub domain u64::Slot requires self <= 4 established by Granter::grant;",
+                PrimitiveType::U64,
+                None,
+            ),
+        ] {
+            let spelling = match primitive {
+                PrimitiveType::I32 => "i32",
+                _ => "u64",
+            };
+            let (program, reference) = field_type(&format!(
+                "{domain} data Carrier {{ value: {spelling} in Slot; }}"
+            ));
+            let retained = retain_scalar_field(&program, reference, &[], primitive);
+            match (retained, restriction) {
+                (
+                    Some(CheckedUnitStructuralFieldType::BoundedInteger(integer)),
+                    Some((minimum, maximum)),
+                ) => assert_eq!(
+                    (integer.minimum(), integer.maximum()),
+                    (minimum, maximum),
+                    "{domain}"
+                ),
+                (Some(CheckedUnitStructuralFieldType::Scalar(retained)), None) => {
+                    assert_eq!(retained, primitive, "{domain}")
+                }
+                (retained, _) => panic!("{domain}: {retained:?}"),
+            }
         }
     }
 

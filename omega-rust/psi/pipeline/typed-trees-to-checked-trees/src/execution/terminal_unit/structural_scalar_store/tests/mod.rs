@@ -15,6 +15,7 @@ mod case_field_stores;
 mod closed_generic_records;
 mod computations;
 mod computed_store_values;
+mod domain_field_stores;
 mod guard_bounded_stores;
 mod indexed_stores;
 mod local_float_fields;
