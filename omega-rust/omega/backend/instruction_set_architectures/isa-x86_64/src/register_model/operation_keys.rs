@@ -211,6 +211,24 @@ pub const X86_64_SATURATING_DIVIDE_SIGNED: RegisterConstraintKey = RegisterConst
     variant: 60,
 };
 
+/// Saturating multiplication of every carrier but u64: MOV/IMUL into an
+/// early-clobber result, then a MOVABS/CMP/CMOV clamp through the
+/// early-clobber scratch (narrow carriers), or a CMOVO select of the
+/// sign-derived saturated value held in the scratch (i64); clobbers RFLAGS.
+pub const X86_64_SATURATING_MULTIPLY_CLAMPED: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 65,
+};
+
+/// Saturating u64 multiplication: `MUL` of RAX by the right operand pinned to
+/// RCX leaves the high half in RDX and sets CF exactly on overflow; `SBB` and
+/// `OR` then saturate RAX. RDX is an ordinary late scratch definition and
+/// RFLAGS is clobbered.
+pub const X86_64_SATURATING_MULTIPLY_U64: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 66,
+};
+
 /// Exact `result = left * right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `IMUL result, right` when the result
 /// aliases the left input, `IMUL result, left` when it aliases only the right
@@ -293,7 +311,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 75] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 77] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -414,6 +432,8 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 75] = [
     X86_64_DIVIDE_I64,
     X86_64_REMAINDER_U64,
     X86_64_SHIFT_I64,
+    X86_64_SATURATING_MULTIPLY_CLAMPED,
+    X86_64_SATURATING_MULTIPLY_U64,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

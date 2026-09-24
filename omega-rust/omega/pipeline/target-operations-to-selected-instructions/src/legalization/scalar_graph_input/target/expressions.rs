@@ -7,9 +7,7 @@ use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::target::resolve;
 use crate::legalization::scalar_graph_input::value_type;
-use crate::legalization::scalar_graph_input::{
-    saturating_carrier, supports_signed_wrapping_remainder, supports_wrapping_divide_i64,
-};
+use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
 impl Checker<'_> {
     // Operation operands refer to established values; only the definition root
     // carries an operation. Never reconstruct an already-produced expression tree.
@@ -267,6 +265,14 @@ impl Checker<'_> {
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
+            Expression::SaturatingMultiply { psi_operation, left, right } => {
+                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::SaturatingIntegerMultiply { psi_operation: operation, result, scalar_type, left: source_left, right: source_right }
+                    if operation == psi_operation && *result == resolved
+                        && saturating_carrier(*scalar_type).is_some()
+                        && self.integer_source(left, *source_left, aliases)
+                        && self.integer_source(right, *source_right, aliases)))
+            }
             Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} | Expression::ExactMultiply {psi_operation,obligation,left,right} | Expression::ExactDivide {psi_operation,obligation,left,right} | Expression::ExactRemainder {psi_operation,obligation,left,right} => {
                 let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
                     AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} | AbstractOperation::ExactIntegerMultiply {psi_operation:operation,..} | AbstractOperation::ExactIntegerDivide {psi_operation:operation,..} | AbstractOperation::ExactIntegerRemainder {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
@@ -284,7 +290,7 @@ impl Checker<'_> {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::WrappingIntegerDivide { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
                     if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && supports_wrapping_divide_i64(*scalar_type)
+                        && supports_wrapping_division(*scalar_type)
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
@@ -308,7 +314,7 @@ impl Checker<'_> {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                     AbstractOperation::WrappingIntegerRemainder { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
                     if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && supports_signed_wrapping_remainder(*scalar_type)
+                        && supports_wrapping_division(*scalar_type)
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }

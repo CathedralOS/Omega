@@ -299,6 +299,8 @@ fn selected_keys(
         saturating_add_clamped: crate::register_model::X86_64_SATURATING_ADD_CLAMPED,
         saturating_subtract_clamped: crate::register_model::X86_64_SATURATING_SUBTRACT_CLAMPED,
         saturating_divide_signed: crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED,
+        saturating_multiply_clamped: crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
+        saturating_multiply_u64: crate::register_model::X86_64_SATURATING_MULTIPLY_U64,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
@@ -326,7 +328,8 @@ fn declaration(
         | MachineSemanticKind::SaturatingAdd(_)
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_) => {
+        | MachineSemanticKind::SaturatingRemainder(_)
+        | MachineSemanticKind::SaturatingMultiply(_) => {
             vec![alternative(
                 semantic,
                 0,
@@ -556,7 +559,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
         | MachineSemanticKind::SaturatingDivide(carrier)
-        | MachineSemanticKind::SaturatingRemainder(carrier) => {
+        | MachineSemanticKind::SaturatingRemainder(carrier)
+        | MachineSemanticKind::SaturatingMultiply(carrier) => {
             saturating_form(semantic, carrier).operand_reads_and_writes()
         }
         MachineSemanticKind::BitwiseAndI64
@@ -681,6 +685,7 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             | MachineSemanticKind::BitwiseXorI64
             | MachineSemanticKind::SaturatingAdd(_)
             | MachineSemanticKind::SaturatingSubtract(_)
+            | MachineSemanticKind::SaturatingMultiply(_)
             | MachineSemanticKind::ExactMultiplyI64
             | MachineSemanticKind::WrappingMultiplyI64
             | MachineSemanticKind::WrappingShiftLeftI64
@@ -780,6 +785,7 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
         MachineSemanticKind::SaturatingSubtract(_) => SaturatingOperation::Subtract,
         MachineSemanticKind::SaturatingDivide(_) => SaturatingOperation::Divide,
         MachineSemanticKind::SaturatingRemainder(_) => SaturatingOperation::Remainder,
+        MachineSemanticKind::SaturatingMultiply(_) => SaturatingOperation::Multiply,
         _ => unreachable!("saturating semantics carry their operation"),
     };
     SaturatingForm::of(operation, carrier)
@@ -832,7 +838,8 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         MachineSemanticKind::SaturatingAdd(carrier)
         | MachineSemanticKind::SaturatingSubtract(carrier)
         | MachineSemanticKind::SaturatingDivide(carrier)
-        | MachineSemanticKind::SaturatingRemainder(carrier) => {
+        | MachineSemanticKind::SaturatingRemainder(carrier)
+        | MachineSemanticKind::SaturatingMultiply(carrier) => {
             MachineSizeKnowledge::ExactBytes(saturating_form(semantic, carrier).byte_count())
         }
         MachineSemanticKind::BitwiseAndI64

@@ -36,6 +36,32 @@ pub(crate) enum DecodedWord {
         right: u8,
         destination: u8,
     },
+    /// `smulh destination, left, right`: the high 64 bits of the signed
+    /// 128-bit product.
+    SignedMultiplyHigh {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    /// `umulh destination, left, right`: the high 64 bits of the unsigned
+    /// 128-bit product.
+    UnsignedMultiplyHigh {
+        left: u8,
+        right: u8,
+        destination: u8,
+    },
+    /// `cmp high, low, asr #63`: equal exactly when `high` is the sign
+    /// extension of `low`, i.e. the signed product fits 64 bits.
+    CompareWithSignOf {
+        high: u8,
+        low: u8,
+    },
+    /// `csinv destination, source, xzr, eq`: keep the value while the
+    /// preceding compare was equal, otherwise take u64::MAX.
+    SelectMaximumUnlessEqual {
+        source: u8,
+        destination: u8,
+    },
     UnsignedDivide {
         dividend: u8,
         divisor: u8,
@@ -117,6 +143,17 @@ pub(crate) enum DecodedWord {
     },
     /// `csel destination, source, destination, lt`.
     SelectOnLess {
+        source: u8,
+        destination: u8,
+    },
+    /// `csel destination, source, destination, ne`.
+    SelectOnNotEqual {
+        source: u8,
+        destination: u8,
+    },
+    /// `csel destination, source, destination, hi`: the unsigned greater
+    /// select of the unsigned multiply clamp.
+    SelectOnHigher {
         source: u8,
         destination: u8,
     },
@@ -261,6 +298,32 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             destination: (word & 31) as u8,
         });
     }
+    if word & 0xffe0_fc00 == 0x9b40_7c00 {
+        return Ok(DecodedWord::SignedMultiplyHigh {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9bc0_7c00 {
+        return Ok(DecodedWord::UnsignedMultiplyHigh {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc1f == 0xeb80_fc1f {
+        return Ok(DecodedWord::CompareWithSignOf {
+            high: ((word >> 5) & 31) as u8,
+            low: ((word >> 16) & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc00 == 0xda9f_0000 {
+        return Ok(DecodedWord::SelectMaximumUnlessEqual {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
     if word & 0xffe0_fc00 == 0x9ac0_0800 {
         return Ok(DecodedWord::UnsignedDivide {
             dividend: ((word >> 5) & 31) as u8,
@@ -360,6 +423,18 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
     }
     if word & 0xffe0_fc00 == 0x9a80_b000 && (word >> 16) & 31 == word & 31 {
         return Ok(DecodedWord::SelectOnLess {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9a80_1000 && (word >> 16) & 31 == word & 31 {
+        return Ok(DecodedWord::SelectOnNotEqual {
+            source: ((word >> 5) & 31) as u8,
+            destination: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_fc00 == 0x9a80_8000 && (word >> 16) & 31 == word & 31 {
+        return Ok(DecodedWord::SelectOnHigher {
             source: ((word >> 5) & 31) as u8,
             destination: (word & 31) as u8,
         });
@@ -661,7 +736,8 @@ pub(crate) fn validate_decoded(
         }
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
-        | SelectedInstructionKind::SaturatingDivide { .. } => {
+        | SelectedInstructionKind::SaturatingDivide { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. } => {
             let realization = SaturatingRealization::of_kind(kind)
                 .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
             let distinct_outputs = realization.operand_count() == 3
@@ -967,7 +1043,8 @@ pub(crate) fn footprint(
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::SaturatingDivide { .. }
-        | SelectedInstructionKind::SaturatingRemainder { .. } => {
+        | SelectedInstructionKind::SaturatingRemainder { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. } => {
             let realization =
                 SaturatingRealization::of_kind(kind).expect("saturating kinds have a realization");
             (
@@ -1182,6 +1259,11 @@ fn expected_saturating(realization: SaturatingRealization, registers: &[u8]) -> 
                     divisor: right,
                     destination: value,
                 },
+                selected_instructions::SaturatingOperation::Multiply => DecodedWord::Multiply {
+                    left,
+                    right,
+                    destination: value,
+                },
                 selected_instructions::SaturatingOperation::Remainder => {
                     unreachable!("remainder is realized through the divide/MSUB pair")
                 }
@@ -1192,7 +1274,12 @@ fn expected_saturating(realization: SaturatingRealization, registers: &[u8]) -> 
                     value: bound,
                 });
                 expected.push(compare(scratch));
-                expected.push(if index == 0 {
+                expected.push(if index == 0 && realization.upper_condition() == 0x8 {
+                    DecodedWord::SelectOnHigher {
+                        source: scratch,
+                        destination: value,
+                    }
+                } else if index == 0 {
                     DecodedWord::SelectOnGreater {
                         source: scratch,
                         destination: value,
@@ -1253,6 +1340,54 @@ fn expected_saturating(realization: SaturatingRealization, registers: &[u8]) -> 
                 },
                 DecodedWord::SelectOnEqual {
                     source: scratch,
+                    destination: value,
+                },
+            ]
+        }
+        SaturatingRealization::MultiplyI64 => {
+            let scratch = registers[3];
+            vec![
+                DecodedWord::SignedMultiplyHigh {
+                    left,
+                    right,
+                    destination: scratch,
+                },
+                DecodedWord::Multiply {
+                    left,
+                    right,
+                    destination: value,
+                },
+                DecodedWord::CompareWithSignOf {
+                    high: scratch,
+                    low: value,
+                },
+                DecodedWord::ArithmeticShiftRight63 {
+                    source: scratch,
+                    destination: scratch,
+                },
+                DecodedWord::ExclusiveOrI64Maximum { register: scratch },
+                DecodedWord::SelectOnNotEqual {
+                    source: scratch,
+                    destination: value,
+                },
+            ]
+        }
+        SaturatingRealization::MultiplyU64 => {
+            let scratch = registers[3];
+            vec![
+                DecodedWord::UnsignedMultiplyHigh {
+                    left,
+                    right,
+                    destination: scratch,
+                },
+                DecodedWord::Multiply {
+                    left,
+                    right,
+                    destination: value,
+                },
+                DecodedWord::CompareZero { source: scratch },
+                DecodedWord::SelectMaximumUnlessEqual {
+                    source: value,
                     destination: value,
                 },
             ]

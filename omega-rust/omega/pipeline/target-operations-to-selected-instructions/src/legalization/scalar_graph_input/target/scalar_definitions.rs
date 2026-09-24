@@ -5,9 +5,7 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Checker;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::target::location_matches;
-use crate::legalization::scalar_graph_input::{
-    saturating_carrier, supports_signed_wrapping_remainder, supports_wrapping_divide_i64,
-};
+use crate::legalization::scalar_graph_input::{saturating_carrier, supports_wrapping_division};
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
@@ -140,6 +138,7 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::SaturatingIntegerAdd { .. }
             | AbstractOperation::SaturatingIntegerDivide { .. }
             | AbstractOperation::SaturatingIntegerRemainder { .. }
+            | AbstractOperation::SaturatingIntegerMultiply { .. }
             | AbstractOperation::WrappingIntegerAdd { .. }
             | AbstractOperation::WrappingIntegerSubtract { .. }
             | AbstractOperation::WrappingIntegerMultiply { .. }
@@ -212,8 +211,16 @@ pub(super) fn observation(
             left,
             right,
             ..
+        }
+        | AbstractOperation::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
         } => {
-            if !supports_signed_wrapping_remainder(*scalar_type)
+            if !supports_wrapping_division(*scalar_type)
                 || checker.available.is_none_or(|sources| {
                     [left, right].iter().any(|operand| {
                         !sources.iter().any(|(value, source)| {
@@ -246,28 +253,6 @@ pub(super) fn observation(
                 return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*target_type))
-        }
-        AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => {
-            if !supports_wrapping_divide_i64(*scalar_type)
-                || checker.available.is_none_or(|sources| {
-                    [left, right].iter().any(|operand| {
-                        !sources.iter().any(|(value, source)| {
-                            value == *operand
-                                && source.scalar_type() == ScalarType::Integer(*scalar_type)
-                        })
-                    })
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
         AbstractOperation::IntegerBitwiseNot {
             psi_operation,
@@ -334,6 +319,13 @@ pub(super) fn observation(
             right,
         }
         | AbstractOperation::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | AbstractOperation::SaturatingIntegerMultiply {
             psi_operation,
             result,
             scalar_type,

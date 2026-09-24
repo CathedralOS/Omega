@@ -1,7 +1,7 @@
 //! Saturating arithmetic legalizes every fixed 8/16/32/64-bit carrier to a
-//! kind naming that carrier; a non-fixed carrier reports the unsupported
-//! family instead of a custody mismatch, and replay rejects a kind that names
-//! a different carrier than the source operation.
+//! kind naming that carrier; a non-fixed carrier is not a saturating
+//! carrier, and replay rejects a kind that names a different carrier or a
+//! sibling operation than the source operation.
 use abstract_operations::{
     AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
     AbstractResult,
@@ -17,11 +17,11 @@ use target_operations::TargetOperationPlan;
 use crate::{legalize_target_operations, validate_legalized_operations};
 use legalized_operations::SaturatingCarrier;
 
-fn value(ordinal: u64) -> ValueId {
+pub(super) fn value(ordinal: u64) -> ValueId {
     ValueId::new(ordinal).unwrap()
 }
 
-fn hosted_targets() -> [NativeTarget; 4] {
+pub(super) fn hosted_targets() -> [NativeTarget; 4] {
     [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -65,7 +65,7 @@ fn saturating_binary_inputs(
 }
 
 /// One two-parameter integer operation producing `value(3)`, returned directly.
-fn binary_inputs(
+pub(super) fn binary_inputs(
     integer: IntegerType,
     native: NativeTarget,
     operation: AbstractOperation,
@@ -226,14 +226,13 @@ fn non_native_carriers_are_not_saturating_carriers() {
     }
 }
 
-/// Saturating multiplication is lowered to target operations but has no
-/// legalized scalar kind at any carrier, so it is the reachable witness the
-/// `UnsupportedScalarOperation` classification exists for. Node admission must
-/// refuse it by name — returning the rejected operation and its machine for the
-/// compile diagnostic — rather than panicking, silently dropping the row, or
-/// collapsing into the `SourceCustodyMismatch` producer-defect spelling.
+/// Saturating multiplication legalizes every fixed carrier to the multiply
+/// kind naming that carrier, with no obligation: saturation defines every
+/// product. Replay rejects another carrier (it would clamp to the wrong
+/// bounds), a sibling saturating operation, swapped operands, and the
+/// wrapping product.
 #[test]
-fn saturating_multiply_reports_the_unsupported_family_with_its_operation() {
+fn every_fixed_carrier_saturating_multiply_legalizes_to_its_carrier_kind() {
     for native in hosted_targets() {
         for carrier in SaturatingCarrier::ALL {
             let integer = carrier.integer_type();
@@ -248,27 +247,61 @@ fn saturating_multiply_reports_the_unsupported_family_with_its_operation() {
                     right: value(2),
                 },
             );
-            let error = legalize_target_operations(&target, &source, &unit)
-                .expect_err("saturating multiply has no legalized scalar kind");
-            let crate::LegalizationError::UnsupportedScalarOperation { machine, operation } =
-                &error
-            else {
-                panic!("{native:?} {carrier:?} reported {error:?}");
-            };
-            assert_eq!(*machine, source.functions[0].machine);
-            assert!(
-                matches!(
-                    operation,
-                    AbstractOperation::SaturatingIntegerMultiply { .. }
-                ),
-                "{native:?} {carrier:?} retained {operation:?}"
+            let legalized = legalize_target_operations(&target, &source, &unit)
+                .unwrap_or_else(|error| panic!("{native:?} {carrier:?}: {error:?}"));
+            let row = &legalized.plan().scalar_functions[0].blocks[0].instructions[0];
+            let (left, right) = (value(1), value(2));
+            assert_eq!(
+                row.kind,
+                LegalizedScalarInstructionKind::SaturatingMultiply {
+                    carrier,
+                    left,
+                    right,
+                },
+                "{native:?} {carrier:?}"
             );
-            // The retained operation reaches the compile diagnostic through
-            // this rendering; an abort would never produce a message at all.
-            assert!(
-                format!("{error}").contains("no legal scalar instruction"),
-                "{native:?} {carrier:?} rendered {error}"
+            assert_eq!(
+                row.result.as_ref().unwrap().scalar_type,
+                ScalarType::Integer(integer)
             );
+            validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+                .unwrap();
+            let mut substitutes = vec![
+                LegalizedScalarInstructionKind::WrappingMultiply { left, right },
+                LegalizedScalarInstructionKind::SaturatingMultiply {
+                    carrier,
+                    left: right,
+                    right: left,
+                },
+                LegalizedScalarInstructionKind::SaturatingAdd {
+                    carrier,
+                    left,
+                    right,
+                },
+                LegalizedScalarInstructionKind::SaturatingSubtract {
+                    carrier,
+                    left,
+                    right,
+                },
+            ];
+            substitutes.extend(
+                SaturatingCarrier::ALL
+                    .into_iter()
+                    .filter(|other| *other != carrier)
+                    .map(|other| LegalizedScalarInstructionKind::SaturatingMultiply {
+                        carrier: other,
+                        left,
+                        right,
+                    }),
+            );
+            for substitute in substitutes {
+                let mut proposed = legalized.plan().clone();
+                proposed.scalar_functions[0].blocks[0].instructions[0].kind = substitute.clone();
+                assert!(
+                    validate_legalized_operations(&target, &source, &unit, proposed).is_err(),
+                    "{native:?} {carrier:?} accepted {substitute:?}"
+                );
+            }
         }
     }
 }

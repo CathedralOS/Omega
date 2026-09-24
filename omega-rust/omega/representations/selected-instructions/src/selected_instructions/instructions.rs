@@ -121,9 +121,10 @@ pub enum SelectedInstructionKind {
         accepted_fact: AcceptedObligationFactIdentity,
     },
     /// Signed i64 division with a proven nonzero divisor. The wrapping
-    /// overflow case i64::MIN / -1 produces i64::MIN, not a trap; narrow
-    /// signed carriers stay unadmitted because the widened quotient of their
-    /// overflow case is out of range rather than wrapped.
+    /// overflow case i64::MIN / -1 produces i64::MIN, not a trap. Narrow
+    /// normalized carriers share it: their i64 quotient cannot fault, and a
+    /// narrow signed MIN / -1 widens to -MIN, which the subsequent carrier
+    /// normalization truncates back to the wrapped MIN.
     WrappingDivideI64 {
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
@@ -180,6 +181,19 @@ pub enum SelectedInstructionKind {
         carrier: SaturatingCarrier,
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Multiplication clamped to the carrier bounds; no obligation, since
+    /// saturation defines every product. Operands are `[left, right, result,
+    /// scratch]` for every carrier. Narrow carriers multiply their normalized
+    /// operands exactly in 64 bits and clamp through the scratch (an unsigned
+    /// compare for unsigned carriers, whose u32 product may exceed i64::MAX).
+    /// The 64-bit carriers detect overflow from the product's high half: the
+    /// i64 carrier selects MAX or MIN by the product's sign, and the u64
+    /// carrier selects MAX. The x86-64 u64 form is `MUL` on the fixed RAX:RDX
+    /// pair, with the divisor-style RCX pin keeping the right operand out of
+    /// RDX.
+    SaturatingMultiply {
+        carrier: SaturatingCarrier,
     },
     /// Add register payloads modulo 2^64 without an Exact overflow obligation.
     /// Narrow semantic results require a subsequent signed/unsigned normalization.

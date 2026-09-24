@@ -222,6 +222,55 @@ fn wrapping_divide_identity_binds_operands_and_nonzero_fact() {
     }
 }
 
+/// Each carrier and each saturating sibling has its own tag: a multiply row
+/// naming another carrier, another saturating operation, or the wrapping
+/// product must not collide with the accepted row, and operand order binds.
+#[test]
+fn saturating_multiply_identity_binds_carrier_operation_and_operands() {
+    use crate::SaturatingCarrier;
+    let mut plan = operation_plan();
+    let row = &mut plan.scalar_functions[0].blocks[0].instructions[2];
+    row.kind = LegalizedScalarInstructionKind::SaturatingMultiply {
+        carrier: SaturatingCarrier::U8,
+        left: id(200),
+        right: id(201),
+    };
+    let identity = legalized_operation_plan_identity(&plan);
+    let (left, right) = (id(200), id(201));
+    let mut substitutes = vec![
+        LegalizedScalarInstructionKind::SaturatingMultiply {
+            carrier: SaturatingCarrier::U8,
+            left: right,
+            right: left,
+        },
+        LegalizedScalarInstructionKind::WrappingMultiply { left, right },
+    ];
+    for carrier in SaturatingCarrier::ALL {
+        if carrier != SaturatingCarrier::U8 {
+            substitutes.push(LegalizedScalarInstructionKind::SaturatingMultiply {
+                carrier,
+                left,
+                right,
+            });
+        }
+        substitutes.push(LegalizedScalarInstructionKind::SaturatingAdd {
+            carrier,
+            left,
+            right,
+        });
+        substitutes.push(LegalizedScalarInstructionKind::SaturatingSubtract {
+            carrier,
+            left,
+            right,
+        });
+    }
+    for substitute in substitutes {
+        let mut changed = plan.clone();
+        changed.scalar_functions[0].blocks[0].instructions[2].kind = substitute;
+        assert_identity_drift(identity, &changed);
+    }
+}
+
 #[test]
 fn bitwise_and_wrapping_kind_identity_binds_the_named_operation() {
     let plan = operation_plan();

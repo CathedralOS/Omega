@@ -136,6 +136,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::SaturatingSubtract { left, right, .. }
         | Instruction::SaturatingDivide { left, right, .. }
         | Instruction::SaturatingRemainder { left, right, .. }
+        | Instruction::SaturatingMultiply { left, right, .. }
         | Instruction::ExactBinary { left, right, .. }
         | Instruction::WrappingRemainder { left, right, .. }
         | Instruction::WrappingDivide { left, right, .. }

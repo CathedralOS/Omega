@@ -63,6 +63,14 @@ pub struct SelectedConstraintKeys {
     pub saturating_add_clamped: RegisterConstraintKey,
     pub saturating_subtract_clamped: RegisterConstraintKey,
     pub saturating_divide_signed: RegisterConstraintKey,
+    /// Saturating multiplication of every carrier but u64: two inputs, an
+    /// early-clobber result, and an early-clobber scratch (the clamp bound,
+    /// or the i64 product's high half or saturated value).
+    pub saturating_multiply_clamped: RegisterConstraintKey,
+    /// Saturating u64 multiplication: the full product's high half decides
+    /// overflow, so x86-64 pins `MUL` to RAX:RDX (right operand in RCX) while
+    /// AArch64 keeps the clamped four-operand shape for `UMULH`.
+    pub saturating_multiply_u64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,

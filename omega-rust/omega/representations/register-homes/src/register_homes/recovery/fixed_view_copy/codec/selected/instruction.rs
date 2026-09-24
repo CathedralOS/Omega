@@ -126,6 +126,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
             saturating_family_tag(SaturatingOperation::Remainder, carrier)
         }
+        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+            saturating_family_tag(SaturatingOperation::Multiply, carrier)
+        }
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -360,6 +363,18 @@ fn zero_extension_has_a_distinct_round_trip_tag() {
             },
             76,
         ),
+        (
+            SelectedInstructionKind::SaturatingMultiply {
+                carrier: SaturatingCarrier::I8,
+            },
+            114,
+        ),
+        (
+            SelectedInstructionKind::SaturatingMultiply {
+                carrier: SaturatingCarrier::U64,
+            },
+            121,
+        ),
         (SelectedInstructionKind::ZeroExtendU32, 20),
         (SelectedInstructionKind::ZeroExtendU16, 37),
         (SelectedInstructionKind::SignExtendI8, 38),
@@ -498,6 +513,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                         cursor.array()?,
                     ),
                 }
+            }
+            (SaturatingOperation::Multiply, carrier) => {
+                SelectedInstructionKind::SaturatingMultiply { carrier }
             }
         },
         56 => SelectedInstructionKind::ExactDivideU64 {
@@ -903,6 +921,7 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
         SaturatingOperation::Subtract,
         SaturatingOperation::Divide,
         SaturatingOperation::Remainder,
+        SaturatingOperation::Multiply,
     ]
     .into_iter()
     .flat_map(|operation| {

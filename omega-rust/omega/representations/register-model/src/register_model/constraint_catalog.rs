@@ -103,6 +103,8 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub saturating_add_clamped: RegisterConstraintKey,
     pub saturating_subtract_clamped: RegisterConstraintKey,
     pub saturating_divide_signed: RegisterConstraintKey,
+    pub saturating_multiply_clamped: RegisterConstraintKey,
+    pub saturating_multiply_u64: RegisterConstraintKey,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub compare_i64: RegisterConstraintKey,

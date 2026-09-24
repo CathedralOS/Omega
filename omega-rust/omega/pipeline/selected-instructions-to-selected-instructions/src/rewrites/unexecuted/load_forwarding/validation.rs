@@ -444,6 +444,7 @@ fn unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoadForwar
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
         | SaturatingRemainder { .. }
+        | SaturatingMultiply { .. }
         | BitwiseAndI64
         | BitwiseOrI64
         | BitwiseNotI64

@@ -26,6 +26,8 @@ pub use register_model::X86_64_REMAINDER_U64;
 pub use register_model::X86_64_SATURATING_ADD_CLAMPED;
 pub use register_model::X86_64_SATURATING_ADD_U64;
 pub use register_model::X86_64_SATURATING_DIVIDE_SIGNED;
+pub use register_model::X86_64_SATURATING_MULTIPLY_CLAMPED;
+pub use register_model::X86_64_SATURATING_MULTIPLY_U64;
 pub use register_model::X86_64_SATURATING_SUBTRACT_CLAMPED;
 pub use register_model::X86_64_SATURATING_SUBTRACT_UNSIGNED;
 pub use register_model::X86_64_SHIFT_I64;

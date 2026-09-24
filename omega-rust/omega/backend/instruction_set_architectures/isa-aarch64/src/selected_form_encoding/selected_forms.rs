@@ -155,6 +155,12 @@ fn family_and_operand_count(
                 .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
                 .operand_count(),
         ),
+        SelectedInstructionKind::SaturatingMultiply { carrier } => (
+            MachineAlternativeFamily::SaturatingMultiply(carrier),
+            SaturatingRealization::of_kind(kind)
+                .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?
+                .operand_count(),
+        ),
         SelectedInstructionKind::ExactDivideU64 { .. } => {
             (MachineAlternativeFamily::ExactDivideU64, 3)
         }
@@ -429,7 +435,8 @@ fn encode_unchecked(
         SelectedInstructionKind::SaturatingAdd { .. }
         | SelectedInstructionKind::SaturatingSubtract { .. }
         | SelectedInstructionKind::SaturatingDivide { .. }
-        | SelectedInstructionKind::SaturatingRemainder { .. } => {
+        | SelectedInstructionKind::SaturatingRemainder { .. }
+        | SelectedInstructionKind::SaturatingMultiply { .. } => {
             append_saturating(&mut words, kind, registers)?;
         }
         SelectedInstructionKind::ExactDivideU64 { .. } => {
@@ -642,6 +649,12 @@ fn select(value: u8, scratch: u8, condition: u32) -> u32 {
         | u32::from(value)
 }
 
+/// `mul`, which is MADD with the addend fixed to XZR, and the two
+/// high-half multiplies, all in the three-address register layout.
+const MULTIPLY: u32 = 0x9b00_7c00;
+const SIGNED_MULTIPLY_HIGH: u32 = 0x9b40_7c00;
+const UNSIGNED_MULTIPLY_HIGH: u32 = 0x9bc0_7c00;
+
 fn three_address(opcode: u32, left: u8, right: u8, destination: u8) -> u32 {
     opcode | (u32::from(right) << 16) | (u32::from(left) << 5) | u32::from(destination)
 }
@@ -706,6 +719,7 @@ fn append_saturating(
                     selected_instructions::SaturatingOperation::Add => 0x8b00_0000,
                     selected_instructions::SaturatingOperation::Subtract => 0xcb00_0000,
                     selected_instructions::SaturatingOperation::Divide => 0x9ac0_0c00,
+                    selected_instructions::SaturatingOperation::Multiply => MULTIPLY,
                     selected_instructions::SaturatingOperation::Remainder => {
                         unreachable!("remainder is realized through the divide/MSUB pair")
                     }
@@ -714,13 +728,42 @@ fn append_saturating(
                 right,
                 value,
             ));
-            // The maximum is compared first (select on GT), then the minimum
-            // (select on LT) for the signed add and subtract.
+            // The maximum is compared first (select on GT, or HI for the
+            // unsigned multiply), then the minimum (select on LT) for the
+            // signed add, subtract, and multiply.
             for (index, bound) in realization.clamp_bounds().into_iter().enumerate() {
                 words.push(bound_word(bound, scratch)?);
                 words.push(0xeb00_001f | (u32::from(scratch) << 16) | (u32::from(value) << 5));
-                words.push(select(value, scratch, if index == 0 { 0xc } else { 0xb }));
+                words.push(select(
+                    value,
+                    scratch,
+                    if index == 0 {
+                        realization.upper_condition()
+                    } else {
+                        0xb
+                    },
+                ));
             }
+        }
+        SaturatingRealization::MultiplyI64 => {
+            let scratch = registers[3];
+            words.push(three_address(SIGNED_MULTIPLY_HIGH, left, right, scratch));
+            words.push(three_address(MULTIPLY, left, right, value));
+            // `cmp scratch, value, asr #63`: the product fits exactly when the
+            // high half equals the low half's sign extension.
+            words.push(0xeb80_fc1f | (u32::from(value) << 16) | (u32::from(scratch) << 5));
+            words.push(0x937f_fc00 | (u32::from(scratch) << 5) | u32::from(scratch));
+            words.push(0xd240_f800 | (u32::from(scratch) << 5) | u32::from(scratch));
+            words.push(select(value, scratch, 0x1));
+        }
+        SaturatingRealization::MultiplyU64 => {
+            let scratch = registers[3];
+            words.push(three_address(UNSIGNED_MULTIPLY_HIGH, left, right, scratch));
+            words.push(three_address(MULTIPLY, left, right, value));
+            words.push(0xf100_001f | (u32::from(scratch) << 5));
+            // `csinv value, value, xzr, eq`: keep the product while the high
+            // half is zero, otherwise take !xzr = u64::MAX.
+            words.push(0xda9f_0000 | (u32::from(value) << 5) | u32::from(value));
         }
         SaturatingRealization::OverflowI64 { subtract } => {
             let scratch = registers[3];

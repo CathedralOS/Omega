@@ -171,10 +171,11 @@ pub enum MachineSemanticKind {
     ExactShiftRightU64,
     ExactDivideI64,
     ExactRemainderI64,
+    SaturatingMultiply(SaturatingCarrier),
 }
 
 impl MachineSemanticKind {
-    pub const ALL: [Self; 109] = [
+    pub const ALL: [Self; 117] = [
         Self::Crash,
         Self::CopyBytes,
         Self::BitwiseAndI64,
@@ -284,6 +285,14 @@ impl MachineSemanticKind {
         Self::ExactShiftRightU64,
         Self::ExactDivideI64,
         Self::ExactRemainderI64,
+        Self::SaturatingMultiply(SaturatingCarrier::I8),
+        Self::SaturatingMultiply(SaturatingCarrier::I16),
+        Self::SaturatingMultiply(SaturatingCarrier::I32),
+        Self::SaturatingMultiply(SaturatingCarrier::I64),
+        Self::SaturatingMultiply(SaturatingCarrier::U8),
+        Self::SaturatingMultiply(SaturatingCarrier::U16),
+        Self::SaturatingMultiply(SaturatingCarrier::U32),
+        Self::SaturatingMultiply(SaturatingCarrier::U64),
     ];
 }
 
@@ -370,6 +379,7 @@ pub enum MachineAlternativeFamily {
     ExactShiftRightU64,
     ExactDivideI64,
     ExactRemainderI64,
+    SaturatingMultiply(SaturatingCarrier),
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -465,6 +475,7 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::ExactShiftRightU64 => Self::ExactShiftRightU64,
             MachineSemanticKind::ExactDivideI64 => Self::ExactDivideI64,
             MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
+            MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
         }
     }
 }

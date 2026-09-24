@@ -1403,6 +1403,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoa
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
         | SaturatingRemainder { .. }
+        | SaturatingMultiply { .. }
         | BitwiseAndI64
         | BitwiseOrI64
         | BitwiseNotI64

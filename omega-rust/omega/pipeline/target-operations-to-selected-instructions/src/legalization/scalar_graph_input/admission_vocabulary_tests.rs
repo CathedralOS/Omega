@@ -192,6 +192,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::ReleaseReference { .. }
         | AbstractOperation::SaturatingIntegerAdd { .. }
         | AbstractOperation::SaturatingIntegerDivide { .. }
+        | AbstractOperation::SaturatingIntegerMultiply { .. }
         | AbstractOperation::SaturatingIntegerRemainder { .. }
         | AbstractOperation::SaturatingIntegerSubtract { .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
@@ -226,7 +227,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::PortWrite { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. }
         | AbstractOperation::StoreStructuralField { .. } => AdmissionRoute::NamedRejection,
     }

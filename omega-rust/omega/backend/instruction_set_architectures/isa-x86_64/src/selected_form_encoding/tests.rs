@@ -353,6 +353,140 @@ fn wrapping_remainder_guard_skips_overflowing_quotient_and_keeps_dividend_sign()
     }
 }
 
+/// Narrow signed wrapping division shares the guarded i64 divide: normalized
+/// narrow operands never reach the faulting i64::MIN / -1 pair, a narrow
+/// MIN / -1 widens to -MIN, and the sign extension selection appends
+/// truncates that quotient back to the wrapped carrier MIN.
+#[test]
+fn wrapping_divide_then_sign_extension_wraps_narrow_min_by_minus_one() {
+    let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+    let view = |name: &str| physical.model().view_named(name).unwrap().id;
+    let divide = encode_x86_64_selected_form(
+        &physical,
+        SelectedInstructionKind::WrappingDivideI64 {
+            obligation: ObligationId::new(1).unwrap(),
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+        },
+        alternative(MachineAlternativeFamily::WrappingDivideI64, 0),
+        &["rax", "r9", "rax", "rdx"].map(view),
+    )
+    .unwrap();
+    for (extension, family, minimum, maximum) in [
+        (
+            Some(SelectedInstructionKind::SignExtendI8),
+            MachineAlternativeFamily::SignExtendI8,
+            i64::from(i8::MIN),
+            i64::from(i8::MAX),
+        ),
+        (
+            Some(SelectedInstructionKind::SignExtendI16),
+            MachineAlternativeFamily::SignExtendI16,
+            i64::from(i16::MIN),
+            i64::from(i16::MAX),
+        ),
+        (
+            Some(SelectedInstructionKind::SignExtendI32),
+            MachineAlternativeFamily::SignExtendI32,
+            i64::from(i32::MIN),
+            i64::from(i32::MAX),
+        ),
+        (
+            None,
+            MachineAlternativeFamily::SignExtendI32,
+            i64::MIN,
+            i64::MAX,
+        ),
+    ] {
+        let mut bytes = divide.bytes().to_vec();
+        if let Some(extension) = extension {
+            bytes.extend(
+                encode_x86_64_selected_form(
+                    &physical,
+                    extension,
+                    alternative(family, 0),
+                    &["rax", "rax"].map(view),
+                )
+                .unwrap()
+                .bytes(),
+            );
+        }
+        for (dividend, divisor, quotient) in [
+            (minimum, -1, minimum),
+            (minimum, 1, minimum),
+            (maximum, -1, -maximum),
+            (minimum, 2, minimum / 2),
+            (-7, 2, -3),
+            (7, -2, -3),
+            (0, -1, 0),
+        ] {
+            let mut registers = [0_i64; 16];
+            registers[0] = dividend;
+            registers[9] = divisor;
+            let mut equal = false;
+            let mut byte_position = 0;
+            while byte_position < bytes.len() {
+                let (instruction, length) = decode_one(&bytes[byte_position..]).unwrap();
+                byte_position += length;
+                match instruction {
+                    DecodedInstruction::CompareSignedImmediate8 {
+                        register,
+                        immediate,
+                    } => equal = registers[register as usize] == i64::from(immediate),
+                    DecodedInstruction::JumpNotEqualShort { displacement } => {
+                        if !equal {
+                            byte_position = byte_position
+                                .checked_add_signed(displacement as isize)
+                                .unwrap();
+                        }
+                    }
+                    DecodedInstruction::JumpShort { displacement } => {
+                        byte_position = byte_position
+                            .checked_add_signed(displacement as isize)
+                            .unwrap();
+                    }
+                    DecodedInstruction::Negate { destination } => {
+                        registers[destination as usize] =
+                            registers[destination as usize].wrapping_neg();
+                    }
+                    DecodedInstruction::SignExtendDividend => registers[2] = registers[0] >> 63,
+                    DecodedInstruction::SignedDivide { divisor } => {
+                        let dividend =
+                            (i128::from(registers[2]) << 64) | i128::from(registers[0] as u64);
+                        let divisor = i128::from(registers[divisor as usize]);
+                        registers[0] = i64::try_from(dividend / divisor)
+                            .expect("a guarded IDIV never sees the faulting pair");
+                        registers[2] = (dividend % divisor) as i64;
+                    }
+                    DecodedInstruction::SignExtendI8 {
+                        source,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            i64::from(registers[source as usize] as i8)
+                    }
+                    DecodedInstruction::SignExtendI16 {
+                        source,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            i64::from(registers[source as usize] as i16)
+                    }
+                    DecodedInstruction::SignExtendI32 {
+                        source,
+                        destination,
+                    } => {
+                        registers[destination as usize] =
+                            i64::from(registers[source as usize] as i32)
+                    }
+                    other => panic!("unexpected wrapping divide instruction {other:?}"),
+                }
+            }
+            assert_eq!(registers[0], quotient, "{dividend} / {divisor}");
+            assert_eq!(registers[9], divisor);
+        }
+    }
+}
+
 #[test]
 fn exact_divide_binds_unsigned_opcode_and_registers() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -386,11 +520,12 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     }
 }
 
-const SATURATING_OPERATIONS: [SaturatingOperation; 4] = [
+const SATURATING_OPERATIONS: [SaturatingOperation; 5] = [
     SaturatingOperation::Add,
     SaturatingOperation::Subtract,
     SaturatingOperation::Divide,
     SaturatingOperation::Remainder,
+    SaturatingOperation::Multiply,
 ];
 
 fn saturating_kind(
@@ -410,6 +545,7 @@ fn saturating_kind(
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         },
+        SaturatingOperation::Multiply => SelectedInstructionKind::SaturatingMultiply { carrier },
     }
 }
 
@@ -425,6 +561,7 @@ fn saturating_key(
             SaturatingOperation::Remainder => {
                 MachineAlternativeFamily::SaturatingRemainder(carrier)
             }
+            SaturatingOperation::Multiply => MachineAlternativeFamily::SaturatingMultiply(carrier),
         },
         0,
     )
@@ -432,14 +569,15 @@ fn saturating_key(
 
 /// One register assignment per operand layout: the low assignment matches
 /// the clang-assembled bytes below, the high assignment exercises REX.B/REX.R
-/// on r8-r15. Division is pinned to `[rax, divisor, rax, rdx]`.
+/// on r8-r15. Division and the u64 multiply are pinned to `[rax, right, rax,
+/// rdx]`.
 fn saturating_operand_names(
     operation: SaturatingOperation,
     carrier: SaturatingCarrier,
     high: bool,
 ) -> Vec<&'static str> {
     let form = SaturatingForm::of(operation, carrier);
-    if form.is_division() {
+    if form.is_fixed_rax_rdx() {
         vec!["rax", if high { "r9" } else { "rsi" }, "rax", "rdx"]
     } else if form.operand_count() == 4 {
         if high {
@@ -532,9 +670,107 @@ fn independently_assembled_saturating_forms() -> Vec<(
     let unsigned_subtract_high = vec![
         0x4d, 0x39, 0xc8, 0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0x42, 0xd1, 0x4d, 0x29, 0xca,
     ];
+    // clang: mov rax, rdi; imul rax, rsi; then the signed narrow clamps.
+    let signed_narrow_multiply_low = |maximum: [u8; 8], minimum: [u8; 8]| {
+        let mut bytes = vec![0x48, 0x89, 0xf8, 0x48, 0x0f, 0xaf, 0xc6, 0x48, 0xb9];
+        bytes.extend(maximum);
+        bytes.extend([0x48, 0x39, 0xc8, 0x48, 0x0f, 0x4f, 0xc1, 0x48, 0xb9]);
+        bytes.extend(minimum);
+        bytes.extend([0x48, 0x39, 0xc8, 0x48, 0x0f, 0x4c, 0xc1]);
+        bytes
+    };
+    // clang: mov rax, rdi; imul rax, rsi; movabs rcx, MAX; cmp rax, rcx;
+    // cmova rax, rcx.
+    let unsigned_narrow_multiply_low = |maximum: [u8; 8]| {
+        let mut bytes = vec![0x48, 0x89, 0xf8, 0x48, 0x0f, 0xaf, 0xc6, 0x48, 0xb9];
+        bytes.extend(maximum);
+        bytes.extend([0x48, 0x39, 0xc8, 0x48, 0x0f, 0x47, 0xc1]);
+        bytes
+    };
     use SaturatingCarrier::*;
     use SaturatingOperation::*;
     vec![
+        (
+            Multiply,
+            I8,
+            low4.clone(),
+            signed_narrow_multiply_low(i8_maximum, i8_minimum),
+        ),
+        // The i8 clang bytes with the i16 bound immediates substituted.
+        (
+            Multiply,
+            I16,
+            low4.clone(),
+            signed_narrow_multiply_low(i16_maximum, i16_minimum),
+        ),
+        // clang: mov r10, r8; imul r10, r11; movabs r9, 0x7fffffff; cmp r10,
+        // r9; cmovg r10, r9; movabs r9, -0x80000000; cmp r10, r9; cmovl r10, r9.
+        (Multiply, I32, high4.clone(), {
+            let mut bytes = vec![0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0xaf, 0xd3, 0x49, 0xb9];
+            bytes.extend(i32_maximum);
+            bytes.extend([0x4d, 0x39, 0xca, 0x4d, 0x0f, 0x4f, 0xd1, 0x49, 0xb9]);
+            bytes.extend(i32_minimum);
+            bytes.extend([0x4d, 0x39, 0xca, 0x4d, 0x0f, 0x4c, 0xd1]);
+            bytes
+        }),
+        (
+            Multiply,
+            U32,
+            low4.clone(),
+            unsigned_narrow_multiply_low([0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0]),
+        ),
+        // The u32 clang bytes with the u16 bound substituted.
+        (
+            Multiply,
+            U16,
+            low4.clone(),
+            unsigned_narrow_multiply_low([0xff, 0xff, 0, 0, 0, 0, 0, 0]),
+        ),
+        // clang: mov r10, r8; imul r10, r11; movabs r9, 0xff; cmp r10, r9;
+        // cmova r10, r9.
+        (Multiply, U8, high4.clone(), {
+            let mut bytes = vec![0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0xaf, 0xd3, 0x49, 0xb9];
+            bytes.extend([0xff, 0, 0, 0, 0, 0, 0, 0]);
+            bytes.extend([0x4d, 0x39, 0xca, 0x4d, 0x0f, 0x47, 0xd1]);
+            bytes
+        }),
+        // clang: mov rcx, rdi; xor rcx, rsi; not rcx; sar rcx, 63; btc rcx,
+        // 63; mov rax, rdi; imul rax, rsi; cmovo rax, rcx.
+        (
+            Multiply,
+            I64,
+            low4.clone(),
+            vec![
+                0x48, 0x89, 0xf9, 0x48, 0x31, 0xf1, 0x48, 0xf7, 0xd1, 0x48, 0xc1, 0xf9, 0x3f, 0x48,
+                0x0f, 0xba, 0xf9, 0x3f, 0x48, 0x89, 0xf8, 0x48, 0x0f, 0xaf, 0xc6, 0x48, 0x0f, 0x40,
+                0xc1,
+            ],
+        ),
+        // clang: the same sequence on r8, r11, r10, r9.
+        (
+            Multiply,
+            I64,
+            high4.clone(),
+            vec![
+                0x4d, 0x89, 0xc1, 0x4d, 0x31, 0xd9, 0x49, 0xf7, 0xd1, 0x49, 0xc1, 0xf9, 0x3f, 0x49,
+                0x0f, 0xba, 0xf9, 0x3f, 0x4d, 0x89, 0xc2, 0x4d, 0x0f, 0xaf, 0xd3, 0x4d, 0x0f, 0x40,
+                0xd1,
+            ],
+        ),
+        // clang: mul rsi; sbb rdx, rdx; or rax, rdx.
+        (
+            Multiply,
+            U64,
+            low_divide.clone(),
+            vec![0x48, 0xf7, 0xe6, 0x48, 0x19, 0xd2, 0x48, 0x09, 0xd0],
+        ),
+        // clang: mul r9; sbb rdx, rdx; or rax, rdx.
+        (
+            Multiply,
+            U64,
+            high_divide.clone(),
+            vec![0x49, 0xf7, 0xe1, 0x48, 0x19, 0xd2, 0x48, 0x09, 0xd0],
+        ),
         // clang: mov rax, rdi; add rax, rsi; movabs rcx, 0x7f; cmp rax, rcx;
         // cmovg rax, rcx; movabs rcx, -0x80; cmp rax, rcx; cmovl rax, rcx.
         (
@@ -830,6 +1066,10 @@ fn saturating_forms_match_independent_assembler_for_every_carrier() {
         SaturatingForm::DivideI64,
         SaturatingForm::RemainderUnsigned,
         SaturatingForm::RemainderSigned,
+        SaturatingForm::MultiplySignedNarrow,
+        SaturatingForm::MultiplyUnsignedNarrow,
+        SaturatingForm::MultiplyI64,
+        SaturatingForm::MultiplyU64,
     ] {
         for high in [false, true] {
             assert!(
@@ -978,7 +1218,7 @@ fn saturating_forms_pin_outputs_away_from_inputs_and_division_to_rax_rdx() {
             let kind = saturating_kind(operation, carrier);
             let key = saturating_key(operation, carrier);
             let form = SaturatingForm::of(operation, carrier);
-            let invalid: Vec<Vec<&str>> = if form.is_division() {
+            let invalid: Vec<Vec<&str>> = if form.is_fixed_rax_rdx() {
                 vec![
                     vec!["rax", "rdx", "rax", "rdx"],
                     vec!["rcx", "r9", "rax", "rdx"],
@@ -1194,6 +1434,51 @@ fn execute_saturating(bytes: &[u8], mut registers: [u64; 16]) -> [u64; 16] {
                     registers[usize::from(destination)] = registers[usize::from(source)];
                 }
             }
+            DecodedInstruction::MoveOnAbove {
+                source,
+                destination,
+            } => {
+                // CMOVA reads CF = 0 and ZF = 0; ZF is set exactly when the
+                // compared difference is neither positive nor negative.
+                let carry = flags.carry.expect("CMOVA reads a defined CF");
+                let nonzero = flags.greater.expect("CMOVA reads a defined ZF")
+                    || flags.less.expect("CMOVA reads a defined ZF");
+                if !carry && nonzero {
+                    registers[usize::from(destination)] = registers[usize::from(source)];
+                }
+            }
+            DecodedInstruction::Multiply {
+                source,
+                destination,
+            } => {
+                // IMUL sets OF and CF when the signed product is truncated
+                // and leaves SF and ZF undefined.
+                let (left, right) = (
+                    registers[usize::from(destination)],
+                    registers[usize::from(source)],
+                );
+                let exact = signed(left) * signed(right);
+                registers[usize::from(destination)] = left.wrapping_mul(right);
+                let truncated = i64::try_from(exact).is_err();
+                flags = SaturatingFlags {
+                    overflow: Some(truncated),
+                    carry: Some(truncated),
+                    ..SaturatingFlags::undefined()
+                };
+            }
+            DecodedInstruction::UnsignedMultiply { multiplier } => {
+                // MUL sets OF and CF when the RDX high half is nonzero.
+                let product =
+                    u128::from(registers[0]) * u128::from(registers[usize::from(multiplier)]);
+                registers[0] = product as u64;
+                registers[2] = (product >> 64) as u64;
+                let high = registers[2] != 0;
+                flags = SaturatingFlags {
+                    overflow: Some(high),
+                    carry: Some(high),
+                    ..SaturatingFlags::undefined()
+                };
+            }
             DecodedInstruction::SignExtendDividend => {
                 registers[2] = ((registers[0] as i64) >> 63) as u64;
             }
@@ -1263,6 +1548,7 @@ fn saturating_reference(
                 // A mathematical remainder already lies inside its carrier,
                 // so saturating remainder is the wrapping remainder.
                 SaturatingOperation::Remainder => left.wrapping_rem(right),
+                SaturatingOperation::Multiply => left.saturating_mul(right),
             };
             // Truncating the lossless i128 widening to 64 bits yields the
             // sign- or zero-normalized register pattern for every carrier.

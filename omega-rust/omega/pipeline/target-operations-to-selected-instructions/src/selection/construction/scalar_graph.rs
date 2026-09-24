@@ -529,6 +529,52 @@ fn select_function(
                         )?;
                         output
                     }
+                    LegalizedScalarInstructionKind::SaturatingMultiply {
+                        carrier,
+                        left,
+                        right,
+                    } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        if left_type != scalar_type
+                            || right_type != scalar_type
+                            || !carries(scalar_type, *carrier)
+                        {
+                            return Err(invalid());
+                        }
+                        // Every carrier's realization clamps or saturates in
+                        // place, so the result is already normalized for later
+                        // source uses and needs no carrier normalization.
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let (constraint, fixed_pair) = saturating_multiply_selection(
+                            *carrier,
+                            &constraints.keys,
+                            environment.target().architecture,
+                        );
+                        if fixed_pair && right_register == left_register {
+                            // x86-64 `MUL` pins the left operand to RAX and the
+                            // right one to RCX; one register cannot carry both
+                            // fixed views, so a squared operand gets its own copy.
+                            right_register =
+                                builder.copy(right_register, *right, right_site, scalar_type)?;
+                        }
+                        let scratch = saturation_scratch(&mut builder)?;
+                        builder.emit(
+                            SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
+                            constraint,
+                            &[left_register, right_register, output, scratch],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
                     LegalizedScalarInstructionKind::SaturatingDivide {
                         carrier,
                         left,
@@ -653,61 +699,8 @@ fn select_function(
                         right,
                         obligation,
                         accepted_fact,
-                    } => {
-                        let (_, left_register, _, left_type) =
-                            builder.resolve(*left).ok_or_else(invalid)?;
-                        let (_, mut right_register, right_site, right_type) =
-                            builder.resolve(*right).ok_or_else(invalid)?;
-                        if left_type != scalar_type
-                            || right_type != scalar_type
-                            || !matches!(scalar_type, ScalarType::Integer(integer)
-                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                    && integer.sign() == IntegerSign::Signed
-                                    && matches!(integer.bits(), 8 | 16 | 32 | 64))
-                        {
-                            return Err(invalid());
-                        }
-                        // Scalar transport sign-normalizes narrow carriers. Remainder
-                        // preserves that range, including zero for MIN % -1, so the
-                        // signed-i64 realization needs no destination truncation.
-                        let output =
-                            builder.register(result.value, result.definition_site, scalar_type)?;
-                        let mut operands = vec![left_register, right_register, output];
-                        if environment.target().architecture == target::Architecture::X86_64 {
-                            // The realized form pins the divisor to RCX so its
-                            // RDX zeroing cannot read a live divisor. A shared
-                            // dividend/divisor register cannot carry RAX and
-                            // RCX fixed views at once, so give the divisor its
-                            // own copy first.
-                            if right_register == left_register {
-                                right_register = builder.copy(
-                                    right_register,
-                                    *right,
-                                    right_site,
-                                    scalar_type,
-                                )?;
-                                operands[1] = right_register;
-                            }
-                            operands.push(remainder_scratch(&mut builder)?);
-                        }
-                        builder.emit(
-                            SelectedInstructionKind::WrappingRemainderI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
-                            },
-                            constraints.keys.remainder_i64,
-                            &operands,
-                            SelectedInstructionProvenance {
-                                operations: vec![operation.operation],
-                                values: vec![*left, *right, result.value],
-                                obligations: vec![*obligation],
-                                fuel: operation.fuel.clone(),
-                                ..Default::default()
-                            },
-                        )?;
-                        output
                     }
-                    LegalizedScalarInstructionKind::WrappingDivide {
+                    | LegalizedScalarInstructionKind::WrappingDivide {
                         left,
                         right,
                         obligation,
@@ -717,44 +710,51 @@ fn select_function(
                             builder.resolve(*left).ok_or_else(invalid)?;
                         let (_, mut right_register, right_site, right_type) =
                             builder.resolve(*right).ok_or_else(invalid)?;
-                        // Only the signed i64 carrier is admitted: its MIN / -1
-                        // quotient wraps back to MIN, while a narrower signed
-                        // carrier's widened quotient is out of range.
+                        let ScalarType::Integer(integer) = scalar_type else {
+                            return Err(invalid());
+                        };
                         if left_type != scalar_type
                             || right_type != scalar_type
-                            || !matches!(scalar_type, ScalarType::Integer(integer)
-                                if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                    && integer.sign() == IntegerSign::Signed
-                                    && integer.bits() == 64)
+                            || integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                            || !matches!(integer.bits(), 8 | 16 | 32 | 64)
                         {
                             return Err(invalid());
                         }
-                        let output =
+                        let divides = matches!(
+                            operation.kind,
+                            LegalizedScalarInstructionKind::WrappingDivide { .. }
+                        );
+                        let selection = WrappingDivision::of(divides, integer);
+                        let (kind, key) =
+                            selection.kind_and_key(*obligation, *accepted_fact, &constraints.keys);
+                        let raw =
                             builder.register(result.value, result.definition_site, scalar_type)?;
-                        let mut operands = vec![left_register, right_register, output];
+                        let mut operands = vec![left_register, right_register, raw];
                         if environment.target().architecture == target::Architecture::X86_64 {
-                            // The realized form pins the divisor to RCX so the
-                            // CQO sign extension cannot read a live divisor. A
-                            // shared dividend/divisor register cannot carry RAX
-                            // and RCX fixed views at once, so give the divisor
-                            // its own copy first.
-                            if right_register == left_register {
-                                right_register = builder.copy(
-                                    right_register,
-                                    *right,
-                                    right_site,
-                                    scalar_type,
-                                )?;
-                                operands[1] = right_register;
+                            if selection == WrappingDivision::DivideU64 {
+                                operands.push(division_scratch(&mut builder)?);
+                            } else {
+                                // The realized form pins the divisor to RCX so
+                                // its RDX extension or zeroing cannot read a
+                                // live divisor. A shared dividend/divisor
+                                // register cannot carry RAX and RCX fixed
+                                // views at once, so give the divisor its own
+                                // copy first.
+                                if right_register == left_register {
+                                    right_register = builder.copy(
+                                        right_register,
+                                        *right,
+                                        right_site,
+                                        scalar_type,
+                                    )?;
+                                    operands[1] = right_register;
+                                }
+                                operands.push(remainder_scratch(&mut builder)?);
                             }
-                            operands.push(remainder_scratch(&mut builder)?);
                         }
                         builder.emit(
-                            SelectedInstructionKind::WrappingDivideI64 {
-                                obligation: *obligation,
-                                accepted_fact: *accepted_fact,
-                            },
-                            constraints.keys.divide_i64,
+                            kind,
+                            key,
                             &operands,
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
@@ -764,7 +764,32 @@ fn select_function(
                                 ..Default::default()
                             },
                         )?;
-                        output
+                        if selection != WrappingDivision::DivideSignedNarrow {
+                            raw
+                        } else {
+                            // The only quotient outside a narrow signed
+                            // carrier is MIN / -1, whose widened i64 value is
+                            // -MIN; truncating it back to the carrier is the
+                            // wrapped MIN. This private normalization adds no
+                            // source operation or fuel.
+                            let output = builder.register(
+                                result.value,
+                                result.definition_site,
+                                scalar_type,
+                            )?;
+                            builder.emit(
+                                crate::selection::scalar_call_abi::integer_carrier_normalization(
+                                    scalar_type,
+                                ),
+                                constraints.keys.copy_i64,
+                                &[raw, output],
+                                SelectedInstructionProvenance {
+                                    values: vec![result.value],
+                                    ..Default::default()
+                                },
+                            )?;
+                            output
+                        }
                     }
                     LegalizedScalarInstructionKind::WrappingAdd { left, right }
                     | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
@@ -1446,6 +1471,100 @@ fn saturating_divide_selection(
         (false, false) => SaturatingScratch::None,
     };
     (key, scratch)
+}
+
+/// Every saturating multiplication owns an operand-3 scratch: the clamp
+/// bound for narrow carriers, the saturated value (x86-64) or product high
+/// half (AArch64) for i64, and the product high half for u64. Only x86-64
+/// u64 needs fixed registers, because `MUL` is the one baseline instruction
+/// that produces the unsigned high half; it pins RAX, RCX, and RDX, and the
+/// returned flag asks for a distinct right-operand register.
+fn saturating_multiply_selection(
+    carrier: SaturatingCarrier,
+    keys: &SelectedConstraintKeys,
+    architecture: target::Architecture,
+) -> (RegisterConstraintKey, bool) {
+    if carrier == SaturatingCarrier::U64 {
+        (
+            keys.saturating_multiply_u64,
+            architecture == target::Architecture::X86_64,
+        )
+    } else {
+        (keys.saturating_multiply_clamped, false)
+    }
+}
+
+/// How one wrapping divide or remainder is realized at its fixed native
+/// carrier. Scalar transport keeps narrow operands sign- or zero-normalized
+/// in 64-bit registers, so every carrier but u64 shares the signed i64
+/// division rows: a zero-extended narrow operand is a non-negative i64, the
+/// i64 guard owns the one faulting i64::MIN / -1 pair, and no remainder or
+/// unsigned quotient leaves its carrier. The only widened result outside a
+/// carrier is a narrow signed MIN / -1 quotient, which the carrier
+/// normalization after the divide truncates back to the wrapped MIN. u64
+/// operands escape i64, so they take the unsigned rows: unsigned division
+/// never overflows, which makes it the same machine operation the exact u64
+/// forms realize under the same nonzero-divisor proof.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WrappingDivision {
+    DivideSignedNarrow,
+    DivideI64,
+    DivideU64,
+    RemainderI64,
+    RemainderU64,
+}
+
+impl WrappingDivision {
+    fn of(divides: bool, integer: semantic_vocabulary::IntegerType) -> Self {
+        let u64_carrier = integer.sign() == IntegerSign::Unsigned && integer.bits() == 64;
+        match (divides, u64_carrier) {
+            (true, true) => Self::DivideU64,
+            (false, true) => Self::RemainderU64,
+            (false, false) => Self::RemainderI64,
+            (true, false) if integer.sign() == IntegerSign::Signed && integer.bits() < 64 => {
+                Self::DivideSignedNarrow
+            }
+            (true, false) => Self::DivideI64,
+        }
+    }
+
+    fn kind_and_key(
+        self,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+        keys: &SelectedConstraintKeys,
+    ) -> (SelectedInstructionKind, RegisterConstraintKey) {
+        match self {
+            Self::DivideSignedNarrow | Self::DivideI64 => (
+                SelectedInstructionKind::WrappingDivideI64 {
+                    obligation,
+                    accepted_fact,
+                },
+                keys.divide_i64,
+            ),
+            Self::DivideU64 => (
+                SelectedInstructionKind::ExactDivideU64 {
+                    obligation,
+                    accepted_fact,
+                },
+                keys.divide_u64,
+            ),
+            Self::RemainderI64 => (
+                SelectedInstructionKind::WrappingRemainderI64 {
+                    obligation,
+                    accepted_fact,
+                },
+                keys.remainder_i64,
+            ),
+            Self::RemainderU64 => (
+                SelectedInstructionKind::ExactRemainderU64 {
+                    obligation,
+                    accepted_fact,
+                },
+                keys.remainder_u64,
+            ),
+        }
+    }
 }
 
 // The saturating i32 forms clamp through a bound held in operand 3, an

@@ -504,6 +504,9 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::ExactShiftRightU64 => 110,
         MachineSemanticKind::ExactDivideI64 => 112,
         MachineSemanticKind::ExactRemainderI64 => 113,
+        MachineSemanticKind::SaturatingMultiply(carrier) => {
+            saturating_family_tag(SaturatingOperation::Multiply, carrier)
+        }
     }
 }
 
@@ -611,6 +614,9 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         MachineAlternativeFamily::ExactShiftRightU64 => 110,
         MachineAlternativeFamily::ExactDivideI64 => 112,
         MachineAlternativeFamily::ExactRemainderI64 => 113,
+        MachineAlternativeFamily::SaturatingMultiply(carrier) => {
+            saturating_family_tag(SaturatingOperation::Multiply, carrier)
+        }
     }
 }
 
@@ -630,7 +636,8 @@ mod tests;
 /// family enums. The forms that existed before the family was widened keep
 /// their tags (u64 subtract 54, u64 add 55, i32 add/subtract/divide 60, 61,
 /// 62); every other carrier takes its ordinal above a per-operation base
-/// (add 63, subtract 71, divide 79). Tags are appended, never reused.
+/// (add 63, subtract 71, divide 79, remainder 95, multiply 114). Tags are
+/// appended, never reused.
 /// The canonical identity encoding of a [`crate::MachineAlternativeKey`]: the
 /// family tag from [`alternative_family_tag`] followed by the little-endian
 /// variant number. Machine-code fragment, layout, text-section, relaxation and
@@ -657,5 +664,6 @@ pub const fn saturating_family_tag(
         (SaturatingOperation::Subtract, carrier) => 71 + carrier.ordinal(),
         (SaturatingOperation::Divide, carrier) => 79 + carrier.ordinal(),
         (SaturatingOperation::Remainder, carrier) => 95 + carrier.ordinal(),
+        (SaturatingOperation::Multiply, carrier) => 114 + carrier.ordinal(),
     }
 }

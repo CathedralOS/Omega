@@ -90,11 +90,11 @@ pub enum LegalizationError {
         site: &'static std::panic::Location<'static>,
     },
     /// The node is well formed, but this stage has no legal scalar instruction
-    /// for its operation family at its scalar type (for example signed
-    /// saturating arithmetic, whose only legalized kinds are u64). This is an
-    /// implementation limit rather than a custody disagreement, so the rejected
-    /// operation is retained for the diagnostic instead of collapsing into
-    /// `SourceCustodyMismatch`.
+    /// for its operation family at its scalar type (for example a port write
+    /// or an abstract fused multiply-add, or integer arithmetic at a
+    /// non-native width). This is an implementation limit rather than a
+    /// custody disagreement, so the rejected operation is retained for the
+    /// diagnostic instead of collapsing into `SourceCustodyMismatch`.
     UnsupportedScalarOperation {
         machine: semantic_vocabulary::MachineId,
         operation: abstract_operations::AbstractOperation,

@@ -294,8 +294,9 @@ pub(super) fn project(
             call_instructions::project_call(node, native, plan, unit)?
         }
         AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. } => {
-            scalar_instructions::project_saturating_integer_add_or_subtract(node, optimized)?
+        | AbstractOperation::SaturatingIntegerAdd { .. }
+        | AbstractOperation::SaturatingIntegerMultiply { .. } => {
+            scalar_instructions::project_saturating_integer_arithmetic(node, optimized)?
         }
         AbstractOperation::SaturatingIntegerDivide { .. } => {
             scalar_instructions::project_saturating_integer_divide(node, optimized, unit)?

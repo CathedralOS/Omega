@@ -144,6 +144,11 @@ fn family_and_operand_count(
             SaturatingForm::of(SaturatingOperation::Remainder, carrier).operand_count(),
             0..=0,
         ),
+        SelectedInstructionKind::SaturatingMultiply { carrier } => (
+            MachineAlternativeFamily::SaturatingMultiply(carrier),
+            SaturatingForm::of(SaturatingOperation::Multiply, carrier).operand_count(),
+            0..=0,
+        ),
         SelectedInstructionKind::BitwiseXorI64 => {
             (MachineAlternativeFamily::BitwiseXorI64, 3, 0..=0)
         }

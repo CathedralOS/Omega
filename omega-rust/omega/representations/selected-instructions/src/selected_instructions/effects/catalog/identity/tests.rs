@@ -105,6 +105,8 @@ fn keys() -> SelectedConstraintKeys {
         saturating_add_clamped: instruction(40),
         saturating_subtract_clamped: instruction(41),
         saturating_divide_signed: instruction(42),
+        saturating_multiply_clamped: instruction(48),
+        saturating_multiply_u64: instruction(49),
         add_i64_immediate: instruction(3),
         subtract_i64_immediate: instruction(8),
         compare_i64_zero: instruction(5),
@@ -479,6 +481,11 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
                 MachineAlternativeFamily::SaturatingRemainder(carrier),
                 SaturatingOperation::Remainder,
             ),
+            (
+                MachineSemanticKind::SaturatingMultiply(carrier),
+                MachineAlternativeFamily::SaturatingMultiply(carrier),
+                SaturatingOperation::Multiply,
+            ),
         ] {
             let tag = saturating_family_tag(operation, carrier);
             assert_eq!(semantic_kind_tag(semantic), tag);
@@ -495,15 +502,17 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
     assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
     tags.sort_unstable();
     tags.dedup();
-    assert_eq!(tags.len(), 32);
+    assert_eq!(tags.len(), 40);
     let source = catalog();
     let baseline = machine_effect_catalog_identity(&source);
-    for mutation in 0..7 {
+    for mutation in 0..9 {
         let mut changed = source.clone();
         match mutation {
             0 => changed.selected_keys.saturating_add_clamped = instruction(43),
             1 => changed.selected_keys.saturating_subtract_clamped = instruction(43),
             2 => changed.selected_keys.saturating_divide_signed = instruction(43),
+            7 => changed.selected_keys.saturating_multiply_clamped = instruction(43),
+            8 => changed.selected_keys.saturating_multiply_u64 = instruction(43),
             _ => {
                 let (from, to) = match mutation {
                     3 => (
@@ -658,7 +667,7 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
 /// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
 /// alternative in every catalog, program, physical-instruction and
 /// machine-code artifact, so this table changing is always a defect.
-const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 109] = [
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 117] = [
     (MachineAlternativeFamily::Crash, 111),
     (MachineAlternativeFamily::CopyBytes, 59),
     (MachineAlternativeFamily::BitwiseAndI64, 51),
@@ -870,6 +879,38 @@ const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 109] = [
     (MachineAlternativeFamily::ExactShiftRightU64, 110),
     (MachineAlternativeFamily::ExactDivideI64, 112),
     (MachineAlternativeFamily::ExactRemainderI64, 113),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I8),
+        114,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I16),
+        115,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I32),
+        116,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::I64),
+        117,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U8),
+        118,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U16),
+        119,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U32),
+        120,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingMultiply(SaturatingCarrier::U64),
+        121,
+    ),
 ];
 
 #[test]

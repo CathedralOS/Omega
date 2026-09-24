@@ -29,12 +29,14 @@ mod process_exit;
 mod projected_borrows;
 mod records;
 mod remainder;
+mod saturating_multiply;
 mod scalar_arrays;
 mod scalar_stores;
 mod stack_borrows;
 mod structural_case;
 mod subslices;
 mod unobserved_owned;
+mod wrapping_division;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarBlock, LegalizedScalarCall, LegalizedScalarInstruction,

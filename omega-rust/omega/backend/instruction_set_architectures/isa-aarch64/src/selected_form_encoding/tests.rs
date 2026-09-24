@@ -479,13 +479,19 @@ fn saturating_kinds() -> Vec<(
             },
             MachineAlternativeFamily::SaturatingRemainder(carrier),
         ));
+        kinds.push((
+            SaturatingOperation::Multiply,
+            carrier,
+            SelectedInstructionKind::SaturatingMultiply { carrier },
+            MachineAlternativeFamily::SaturatingMultiply(carrier),
+        ));
     }
     kinds
 }
 
 /// Every saturating form over `x1, x2 -> x3` with bound scratch `x4`,
 /// independently assembled with Apple clang 17; not derived from this encoder.
-const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 32] = [
+const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]); 40] = [
     (
         SaturatingOperation::Add,
         SaturatingCarrier::I8,
@@ -703,6 +709,82 @@ const CLANG_SATURATING_WORDS: [(SaturatingOperation, SaturatingCarrier, &[u32]);
         SaturatingCarrier::U64,
         &[0x9ac2_0823, 0x9b02_8463],
     ),
+    // mul x3, x1, x2 then the narrow clamps; the unsigned carriers select
+    // their maximum on HI because a u32 product may pass i64::MAX.
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::I8,
+        &[
+            0x9b02_7c23,
+            0xb240_1be4,
+            0xeb04_007f,
+            0x9a83_c083,
+            0xb279_e3e4,
+            0xeb04_007f,
+            0x9a83_b083,
+        ],
+    ),
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::I16,
+        &[
+            0x9b02_7c23,
+            0xb240_3be4,
+            0xeb04_007f,
+            0x9a83_c083,
+            0xb271_c3e4,
+            0xeb04_007f,
+            0x9a83_b083,
+        ],
+    ),
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::I32,
+        &[
+            0x9b02_7c23,
+            0xb240_7be4,
+            0xeb04_007f,
+            0x9a83_c083,
+            0xb261_83e4,
+            0xeb04_007f,
+            0x9a83_b083,
+        ],
+    ),
+    // smulh x4, x1, x2; mul x3, x1, x2; cmp x4, x3, asr #63; asr x4, x4,
+    // #63; eor x4, x4, #0x7fffffffffffffff; csel x3, x4, x3, ne.
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::I64,
+        &[
+            0x9b42_7c24,
+            0x9b02_7c23,
+            0xeb83_fc9f,
+            0x937f_fc84,
+            0xd240_f884,
+            0x9a83_1083,
+        ],
+    ),
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::U8,
+        &[0x9b02_7c23, 0xb240_1fe4, 0xeb04_007f, 0x9a83_8083],
+    ),
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::U16,
+        &[0x9b02_7c23, 0xb240_3fe4, 0xeb04_007f, 0x9a83_8083],
+    ),
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::U32,
+        &[0x9b02_7c23, 0xb240_7fe4, 0xeb04_007f, 0x9a83_8083],
+    ),
+    // umulh x4, x1, x2; mul x3, x1, x2; cmp x4, #0; csinv x3, x3, xzr, eq.
+    (
+        SaturatingOperation::Multiply,
+        SaturatingCarrier::U64,
+        &[0x9bc2_7c24, 0x9b02_7c23, 0xf100_009f, 0xda9f_0063],
+    ),
 ];
 
 fn clang_words(operation: SaturatingOperation, carrier: SaturatingCarrier) -> Vec<u8> {
@@ -852,6 +934,8 @@ fn reference(
         SaturatingOperation::Subtract => left - right,
         SaturatingOperation::Divide => left / right,
         SaturatingOperation::Remainder => left % right,
+        // Two u64 maxima overflow i128; any such product exceeds u64::MAX.
+        SaturatingOperation::Multiply => left.checked_mul(right).unwrap_or(i128::MAX),
     };
     let (minimum, maximum) = carrier_bounds(carrier);
     exact.clamp(minimum, maximum)
@@ -1052,6 +1136,82 @@ fn interpret(decoded: &[DecodedWord], left: i128, right: i128) -> i128 {
             }
             DecodedWord::ExclusiveOrI64Maximum { register } => {
                 registers[register as usize] ^= i64::MAX as u64;
+            }
+            DecodedWord::Multiply {
+                left,
+                right,
+                destination,
+            } => {
+                registers[destination as usize] =
+                    read(&registers, left).wrapping_mul(read(&registers, right));
+            }
+            DecodedWord::SignedMultiplyHigh {
+                left,
+                right,
+                destination,
+            } => {
+                let product = i128::from(read(&registers, left) as i64)
+                    * i128::from(read(&registers, right) as i64);
+                registers[destination as usize] = (product >> 64) as u64;
+            }
+            DecodedWord::UnsignedMultiplyHigh {
+                left,
+                right,
+                destination,
+            } => {
+                let product =
+                    u128::from(read(&registers, left)) * u128::from(read(&registers, right));
+                registers[destination as usize] = (product >> 64) as u64;
+            }
+            DecodedWord::CompareWithSignOf { high, low } => {
+                let sign = ((read(&registers, low) as i64) >> 63) as u64;
+                set_flags(
+                    &mut n,
+                    &mut z,
+                    &mut c,
+                    &mut v,
+                    read(&registers, high),
+                    sign,
+                    true,
+                );
+            }
+            DecodedWord::CompareZero { source } => {
+                set_flags(
+                    &mut n,
+                    &mut z,
+                    &mut c,
+                    &mut v,
+                    read(&registers, source),
+                    0,
+                    true,
+                );
+            }
+            DecodedWord::SelectOnNotEqual {
+                source,
+                destination,
+            } => {
+                if !z {
+                    registers[destination as usize] = read(&registers, source);
+                }
+            }
+            DecodedWord::SelectOnHigher {
+                source,
+                destination,
+            } => {
+                if c && !z {
+                    registers[destination as usize] = read(&registers, source);
+                }
+            }
+            DecodedWord::SelectMaximumUnlessEqual {
+                source,
+                destination,
+            } => {
+                // csinv destination, source, xzr, eq
+                registers[destination as usize] = if z {
+                    read(&registers, source)
+                } else {
+                    u64::MAX
+                };
             }
             DecodedWord::ConditionalCompareMinusOne { register } => {
                 if z {

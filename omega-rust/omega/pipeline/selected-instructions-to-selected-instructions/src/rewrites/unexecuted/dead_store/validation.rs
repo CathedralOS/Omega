@@ -865,6 +865,7 @@ fn unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStoreElimina
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
         | SaturatingRemainder { .. }
+        | SaturatingMultiply { .. }
         | BitwiseAndI64
         | BitwiseOrI64
         | BitwiseNotI64

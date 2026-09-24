@@ -2,11 +2,13 @@
 //!
 //! The scalar transport keeps narrow (8/16/32-bit) carriers sign- or
 //! zero-normalized in 64-bit registers, so their exact 64-bit sum,
-//! difference, or quotient fits and only the final clamp depends on the
-//! carrier. The 64-bit carriers cannot rely on that headroom: u64 add and
-//! subtract select on the carry flag, i64 add and subtract select on the
-//! overflow flag, and i64 divide must recognize the one quotient (MIN / -1)
-//! that `sdiv` wraps instead of clamping. Unsigned division never overflows.
+//! difference, product, or quotient fits and only the final clamp depends
+//! on the carrier. The 64-bit carriers cannot rely on that headroom: u64 add
+//! and subtract select on the carry flag, i64 add and subtract select on the
+//! overflow flag, both multiplications compare the `SMULH`/`UMULH` high half
+//! of the full product, and i64 divide must recognize the one quotient
+//! (MIN / -1) that `sdiv` wraps instead of clamping. Unsigned division never
+//! overflows.
 //! Every realization here is one fixed word sequence, so the machine-effect
 //! catalog, the encoder, the decoder check, and the footprint all consult the
 //! same table rather than repeating the carrier classification.
@@ -27,9 +29,11 @@ pub(crate) enum SaturatingRealization {
     DivideUnsigned,
     /// Exact 64-bit arithmetic on normalized narrow operands, then a
     /// `mov/cmp/csel` clamp against each carrier bound held in the scratch:
-    /// both bounds for signed add and subtract, the maximum alone for
-    /// unsigned add (the sum cannot go below zero) and for signed divide
-    /// (whose only out-of-range quotient is MIN / -1, which exceeds MAX).
+    /// both bounds for signed add, subtract, and multiply, the maximum alone
+    /// for unsigned add and multiply (neither can go below zero) and for
+    /// signed divide (whose only out-of-range quotient is MIN / -1, which
+    /// exceeds MAX). The unsigned product of two u32 operands may pass
+    /// i64::MAX, so the unsigned multiply compares on HI rather than GT.
     ClampNarrow {
         operation: SaturatingOperation,
         carrier: SaturatingCarrier,
@@ -48,6 +52,17 @@ pub(crate) enum SaturatingRealization {
     /// inside every carrier, so no clamp applies; the wrapped MIN / -1
     /// quotient still leaves the correct zero remainder through `msub`.
     Remainder { signed: bool },
+    /// `smulh scratch, left, right; mul result, left, right` leaves the full
+    /// 128-bit product split across both registers. It fits i64 exactly when
+    /// the high half is the low half's sign extension, which `cmp scratch,
+    /// result, asr #63` tests; the high half's sign is the true product's
+    /// sign, so `asr #63; eor #i64::MAX` turns it into the saturated value
+    /// and `csel ne` substitutes it (24 bytes).
+    MultiplyI64,
+    /// `umulh scratch, left, right; mul result, left, right; cmp scratch,
+    /// #0; csinv result, result, xzr, eq`: a nonzero high half saturates the
+    /// product to u64::MAX (16 bytes).
+    MultiplyU64,
 }
 
 impl SaturatingRealization {
@@ -65,6 +80,8 @@ impl SaturatingRealization {
                 Self::OverflowI64 { subtract: true }
             }
             (SaturatingOperation::Divide, SaturatingCarrier::I64) => Self::DivideI64,
+            (SaturatingOperation::Multiply, SaturatingCarrier::I64) => Self::MultiplyI64,
+            (SaturatingOperation::Multiply, SaturatingCarrier::U64) => Self::MultiplyU64,
             (SaturatingOperation::Remainder, carrier) => Self::Remainder {
                 signed: carrier.is_signed(),
             },
@@ -86,6 +103,9 @@ impl SaturatingRealization {
             SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
                 Self::of(SaturatingOperation::Remainder, carrier)
             }
+            SelectedInstructionKind::SaturatingMultiply { carrier } => {
+                Self::of(SaturatingOperation::Multiply, carrier)
+            }
             _ => return None,
         })
     }
@@ -104,6 +124,9 @@ impl SaturatingRealization {
             MachineSemanticKind::SaturatingRemainder(carrier) => {
                 Self::of(SaturatingOperation::Remainder, carrier)
             }
+            MachineSemanticKind::SaturatingMultiply(carrier) => {
+                Self::of(SaturatingOperation::Multiply, carrier)
+            }
             _ => return None,
         })
     }
@@ -117,7 +140,11 @@ impl SaturatingRealization {
             | Self::SubtractUnsigned
             | Self::DivideUnsigned
             | Self::Remainder { .. } => 3,
-            Self::ClampNarrow { .. } | Self::OverflowI64 { .. } | Self::DivideI64 => 4,
+            Self::ClampNarrow { .. }
+            | Self::OverflowI64 { .. }
+            | Self::DivideI64
+            | Self::MultiplyI64
+            | Self::MultiplyU64 => 4,
         }
     }
 
@@ -125,6 +152,19 @@ impl SaturatingRealization {
     /// alone.
     pub(crate) const fn defines_nzcv(self) -> bool {
         !matches!(self, Self::DivideUnsigned | Self::Remainder { .. })
+    }
+
+    /// The `csel` condition selecting the carrier maximum after `cmp result,
+    /// bound`: HI for the unsigned multiply, whose u32 product may pass
+    /// i64::MAX, and GT for every other narrow clamp.
+    pub(crate) fn upper_condition(self) -> u32 {
+        match self {
+            Self::ClampNarrow {
+                operation: SaturatingOperation::Multiply,
+                carrier,
+            } if !carrier.is_signed() => 0x8,
+            _ => 0xc,
+        }
     }
 
     /// The carrier bounds the narrow clamp materializes, in the order they
@@ -150,6 +190,8 @@ impl SaturatingRealization {
             Self::ClampNarrow { .. } => 4 + 12 * self.clamp_bounds().len() as u16,
             Self::OverflowI64 { .. } => 16,
             Self::DivideI64 => 24,
+            Self::MultiplyI64 => 24,
+            Self::MultiplyU64 => 16,
         }
     }
 }

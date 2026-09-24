@@ -1257,6 +1257,7 @@ fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), DeadStore
         | SaturatingSubtract { .. }
         | SaturatingDivide { .. }
         | SaturatingRemainder { .. }
+        | SaturatingMultiply { .. }
         | BitwiseAndI64
         | BitwiseOrI64
         | BitwiseNotI64

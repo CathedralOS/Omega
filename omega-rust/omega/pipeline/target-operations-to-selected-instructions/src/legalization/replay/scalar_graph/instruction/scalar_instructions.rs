@@ -54,30 +54,61 @@ pub(super) fn validate_integer_exact_cast(
     Ok(())
 }
 
-pub(super) fn validate_wrapping_remainder(
+/// Wrapping divide and remainder replay every fixed native carrier the
+/// source operation declares, with the exact accepted nonzero-divisor fact:
+/// wrapping defines MIN / -1 and MIN % -1, but not division by zero.
+pub(super) fn validate_wrapping_division(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let (
-        LegalizedScalarInstructionKind::WrappingRemainder {
-            left,
-            right,
-            obligation,
-            accepted_fact,
-        },
-        AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            obligation: source_obligation,
-            scalar_type,
-            left: source_left,
-            right: source_right,
-            ..
-        },
-    ) = (&actual.kind, &node.operation)
-    else {
-        unreachable!("dispatched validate_wrapping_remainder")
+        (left, right, obligation, accepted_fact),
+        (psi_operation, source_obligation, scalar_type, source_left, source_right),
+    ) = match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::WrappingRemainder {
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::WrappingIntegerRemainder {
+                psi_operation,
+                obligation: source_obligation,
+                scalar_type,
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        )
+        | (
+            LegalizedScalarInstructionKind::WrappingDivide {
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            },
+            AbstractOperation::WrappingIntegerDivide {
+                psi_operation,
+                obligation: source_obligation,
+                scalar_type,
+                left: source_left,
+                right: source_right,
+                ..
+            },
+        ) => (
+            (left, right, obligation, accepted_fact),
+            (
+                psi_operation,
+                source_obligation,
+                scalar_type,
+                source_left,
+                source_right,
+            ),
+        ),
+        _ => unreachable!("dispatched validate_wrapping_division"),
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
     let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
@@ -87,61 +118,7 @@ pub(super) fn validate_wrapping_remainder(
     });
     let fact = facts.next().ok_or(invalid.clone())?;
     if facts.next().is_some()
-        || !scalar_graph_input::supports_signed_wrapping_remainder(*scalar_type)
-        || [source_left, source_right].iter().any(|value| {
-            scalar_graph_input::value_type(optimized, **value)
-                != Some(ScalarType::Integer(*scalar_type))
-        })
-        || left != source_left
-        || right != source_right
-        || obligation != source_obligation
-        || *accepted_fact != fact.identity
-        || !optimized.facts.iter().any(|fact| matches!(fact,
-            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-            if referenced == source_obligation && support == psi_operation))
-    {
-        return Err(invalid);
-    }
-    Ok(())
-}
-
-/// Signed i64 is the only admitted wrapping-division carrier: its MIN / -1
-/// quotient wraps back to MIN, while a narrower signed carrier's widened
-/// quotient is the true out-of-range value.
-pub(super) fn validate_wrapping_divide(
-    actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<(), LegalizationError> {
-    let (
-        LegalizedScalarInstructionKind::WrappingDivide {
-            left,
-            right,
-            obligation,
-            accepted_fact,
-        },
-        AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            obligation: source_obligation,
-            scalar_type,
-            left: source_left,
-            right: source_right,
-            ..
-        },
-    ) = (&actual.kind, &node.operation)
-    else {
-        unreachable!("dispatched validate_wrapping_divide")
-    };
-    let invalid = Error::NonCanonicalLegalizedPlan;
-    let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
-        fact.machine == optimized.machine
-            && fact.operation == *psi_operation
-            && fact.obligation == *source_obligation
-    });
-    let fact = facts.next().ok_or(invalid.clone())?;
-    if facts.next().is_some()
-        || !scalar_graph_input::supports_wrapping_divide_i64(*scalar_type)
+        || !scalar_graph_input::supports_wrapping_division(*scalar_type)
         || [source_left, source_right].iter().any(|value| {
             scalar_graph_input::value_type(optimized, **value)
                 != Some(ScalarType::Integer(*scalar_type))

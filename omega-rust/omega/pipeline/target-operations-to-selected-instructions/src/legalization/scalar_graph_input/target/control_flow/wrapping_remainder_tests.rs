@@ -7,7 +7,7 @@ use super::{
     PsiOptimizationUnit, ScalarType, TargetOperationPlan, TargetScalarExpression,
     TargetUnitOperation,
 };
-use crate::legalization::scalar_graph_input::supports_signed_wrapping_remainder;
+use crate::legalization::scalar_graph_input::supports_wrapping_division;
 use crate::legalization::scalar_graph_input::target::Expression;
 use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult};
 use semantic_vocabulary::{
@@ -225,18 +225,20 @@ fn wrapping_remainder_replay_rejects_policy_evidence_and_snapshot_drift() {
 }
 
 #[test]
-fn wrapping_remainder_admission_rejects_unsigned_and_unsupported_widths() {
-    for bits in [8, 16, 32, 64] {
-        assert!(supports_signed_wrapping_remainder(
-            IntegerType::new(IntegerSign::Signed, bits).unwrap()
-        ));
-        assert!(!supports_signed_wrapping_remainder(
-            IntegerType::new(IntegerSign::Unsigned, bits).unwrap()
-        ));
+fn wrapping_division_admits_every_native_width_and_rejects_the_rest() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        for bits in [8, 16, 32, 64] {
+            assert!(supports_wrapping_division(
+                IntegerType::new(sign, bits).unwrap()
+            ));
+        }
+        for bits in [1, 7, 24, 128] {
+            assert!(!supports_wrapping_division(
+                IntegerType::new(sign, bits).unwrap()
+            ));
+        }
     }
-    for bits in [1, 7, 24, 128] {
-        assert!(!supports_signed_wrapping_remainder(
-            IntegerType::new(IntegerSign::Signed, bits).unwrap()
-        ));
-    }
+    assert!(!supports_wrapping_division(
+        IntegerType::address(64).unwrap()
+    ));
 }
