@@ -132,7 +132,9 @@ the complete product bar; focused successes below do not establish that baseline
   `(read_free(index))` versus `(self.read(index))`, each with
   `requires index <= 15` and each guard form.
 
-  A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP, which is why the 212
+  A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP -- tracked as
+  **PREDICATE-ONLY-DOMAIN-MEMBERSHIP**, which this item depends on -- and that
+  is why the 212
   parameter sites are the hard half. `structs/runtime_copy_sum_array_receiver_
   exit` threads `index: u64 [0..=15]` through six state parameters to index a
   16-element array; as `u64 in Slot16` the guarded caller rejects with "cannot
@@ -180,6 +182,51 @@ the complete product bar; focused successes below do not establish that baseline
   inference to explicit domains/type arguments without extracting capacities
   from flow facts or inventing implicit variance; retain useful negative
   arithmetic/ownership controls from obsolete syntax tests.
+
+- **PREDICATE-ONLY-DOMAIN-MEMBERSHIP.** (new-scope) Establish membership in a
+  PREDICATE-ONLY domain from a proof of its predicate.
+  [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
+  this -- "Predicates alone establish predicate-only membership", and a routed
+  domain is the case that "additionally needs exact authorized provenance" --
+  but no route implements it for an ordinary arithmetic predicate. Only the
+  comptime BYTE predicates (`valid_utf8`/`no_nul`/`ascii_only`) have a grant.
+
+  Three repros, each a whole program, each currently rejected:
+
+  - `domain u64::Limit requires self <= 8;` with a field `limit: u64 in Limit`
+    rejects `self.output.limit = 3` -- "pass a value already proven in the
+    domain, or a literal its byte-predicate fact accepts". The literal 3
+    satisfies the predicate and there is no byte predicate to accept it.
+  - `domain u64::Slot16 requires self <= 15;` with
+    `machine Store::read(&mut self, index: u64 in Slot16)` rejects
+    `transition index <= 15 { true -> (self.read(index)) }` -- the guard proves
+    exactly the domain's predicate for exactly that value.
+  - The same with the guard spelled `index < 16`.
+
+  Owner: `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`, beside
+  `parameter_domain_grants` and `reference_domains::proves` in the
+  `ContractDomainMembership` satisfaction chain. Those routes match a domain
+  against another DOMAIN the subject already carries; the missing one matches
+  it against the subject's proven FACTS. The boolean routes it would reuse are
+  already there (`call_bounds::proves`, `proves_in_context`,
+  `incoming_guard_proves_requires`) -- the work is selecting predicate-only
+  domains, substituting `self` with the subject, and discharging every
+  predicate fact, not new proof machinery.
+
+  Gate it on the domain being predicate-only: no `established by` routes and
+  no routed provenance. A routed domain must keep rejecting even when every
+  predicate is proved, and a predicate-free domain keeps its current
+  behavior. Carrier obligations stay where they are.
+
+  This blocks **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: `in D` is the migration's
+  destination for fields and for caller-facing parameter bounds, and until a
+  proof of D's predicate establishes D, every such site either rejects or
+  loses the facts its readers need. That item records which positions migrate
+  today and which do not.
+
+  Acceptance: each repro above checks, a routed domain with the same predicate
+  still rejects with its provenance diagnostic, and a fixture pins both
+  directions. Do not weaken the routed case or add a runtime domain tag.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
