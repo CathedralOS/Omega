@@ -34,6 +34,10 @@ pub use register_model::{
     AARCH64_HOSTED_READ_BYTE,
 };
 pub use register_model::{
+    AARCH64_TRAPPING_BINARY, AARCH64_TRAPPING_CONVERT, AARCH64_TRAPPING_FIXED_PAIR,
+    AARCH64_TRAPPING_SHIFT,
+};
+pub use register_model::{
     aarch64_aapcs64_mixed_unit_call_keys, aarch64_darwin_mixed_unit_call_keys,
 };
 mod selected_form_encoding;

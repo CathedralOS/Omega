@@ -14,6 +14,8 @@ pub(super) fn validate_declaration(
     declaration: &MachineEffectDeclaration,
 ) -> Result<(), MachineEffectCatalogValidationError> {
     let semantic = declaration.semantic;
+    // A Trapping form may stop the process in place, which is as observable
+    // as a hosted effect: it must not move across one, and it is never dead.
     let expected_barrier = if matches!(
         semantic,
         MachineSemanticKind::HostedReadByte
@@ -21,6 +23,7 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::RestoreFloatingControl
             | MachineSemanticKind::HostedWriteByteI32
             | MachineSemanticKind::HostedExitProcessI32
+            | MachineSemanticKind::TrappingInteger(_)
     ) {
         MachineBarrier::ExternalEffect
     } else if matches!(
@@ -57,9 +60,10 @@ pub(super) fn validate_declaration(
     // performs it; every other declaration — including returns and calls,
     // whose activation-stack lifecycle is described by the encoded stack
     // and call surfaces instead — declares no memory access. A hosted trap
-    // result names its owning hosted operation, only a semantic whose
-    // encoded work dereferences memory declares the bare architectural
-    // fault, and every other rule declares that it never faults.
+    // result names its owning hosted operation, a Trapping form names its
+    // policy trap, only a semantic whose encoded work dereferences memory
+    // declares the bare architectural fault, and every other rule declares
+    // that it never faults.
     // Understating a surface the rule needs, or overstating one it cannot
     // have, fails admission instead of reaching canonical replay.
     let expected_memory = match semantic {
@@ -93,6 +97,7 @@ pub(super) fn validate_declaration(
     }
     let expected_trap = match semantic {
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
+        MachineSemanticKind::TrappingInteger(_) => crate::MachineTrapBehavior::TrappingIntegerV1,
         MachineSemanticKind::HostedExitProcessI32 => {
             crate::MachineTrapBehavior::HostedExitReturnedV1
         }
@@ -566,8 +571,22 @@ fn validate_encoded_effects(
             return Err(());
         }
     }
+    // The fall-through-or-trap surface belongs to the Trapping forms alone,
+    // with exactly their trap surface and no memory or stack effect.
+    if matches!(
+        declaration.semantic,
+        MachineSemanticKind::TrappingInteger(_)
+    ) != (encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1)
+        || matches!(
+            declaration.semantic,
+            MachineSemanticKind::TrappingInteger(_)
+        ) != (encoded.trap == MachineEncodedTrapBehavior::TrappingIntegerV1)
+    {
+        return Err(());
+    }
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::CrashV1 => return Err(()),
+        MachineEncodedControlEffect::FallThroughOrTrapV1 => MachineBarrier::ExternalEffect,
         MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         | MachineEncodedControlEffect::HostedExitOrTrapV1
         | MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => MachineBarrier::ExternalEffect,
@@ -814,6 +833,16 @@ fn validate_encoded_effects(
             } else {
                 encoded.external_operand_writes.is_empty()
             }) => {}
+        (
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::TrappingIntegerV1,
+        ) if matches!(
+            declaration.semantic,
+            MachineSemanticKind::TrappingInteger(_)
+        ) && declaration.memory == crate::MachineMemoryEffect::NoneV1
+            && declaration.trap == crate::MachineTrapBehavior::TrappingIntegerV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1 => {}
         // The fallthrough surface admits no hosted trap shape; hosted rules
         // must pass their own rows above instead of borrowing this one.
         (

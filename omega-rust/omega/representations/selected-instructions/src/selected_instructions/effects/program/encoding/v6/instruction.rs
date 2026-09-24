@@ -9,7 +9,10 @@ use super::{
     SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_constraint_key,
     decode_ids, decode_obligation, decode_units,
 };
-use crate::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
+use crate::{
+    SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,
+    trapping_family_tag,
+};
 pub(super) fn decode_instruction(
     cursor: &mut Cursor<'_>,
     allow_i64_less_than: bool,
@@ -35,6 +38,7 @@ pub(super) fn decode_instruction(
     };
     let trap = match cursor.byte()? {
         5 => MachineTrapBehavior::ExplicitCrashV1,
+        6 => MachineTrapBehavior::TrappingIntegerV1,
         3 => MachineTrapBehavior::HostedExitReturnedV1,
         4 => MachineTrapBehavior::HostedReadFailureV1,
         2 => MachineTrapBehavior::HostedWriteFailureV1,
@@ -249,6 +253,9 @@ fn decode_kind(
         110 => SelectedInstructionKind::ExactShiftRightU64 {
             obligation: decode_obligation(cursor)?,
             accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
+        tag if trapping_form(tag).is_some() => SelectedInstructionKind::TrappingInteger {
+            form: trapping_form(tag).unwrap(),
         },
         tag if saturating_kind(tag).is_some() => {
             let (operation, carrier) = saturating_kind(tag).unwrap();
@@ -511,6 +518,9 @@ fn decode_alternative_for_version(
         108 => MachineAlternativeFamily::ExactShiftLeftI64,
         109 => MachineAlternativeFamily::ExactShiftRightI64,
         110 => MachineAlternativeFamily::ExactShiftRightU64,
+        tag if trapping_form(tag).is_some() => {
+            MachineAlternativeFamily::TrappingInteger(trapping_form(tag).unwrap())
+        }
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => MachineAlternativeFamily::SaturatingAdd(carrier),
             (SaturatingOperation::Subtract, carrier) => {
@@ -672,6 +682,7 @@ fn decode_encoded_effects(
     };
     let trap = match cursor.byte()? {
         5 => MachineEncodedTrapBehavior::ExplicitCrashV1,
+        6 => MachineEncodedTrapBehavior::TrappingIntegerV1,
         3 => MachineEncodedTrapBehavior::HostedExitReturnedV1,
         4 => MachineEncodedTrapBehavior::HostedReadFailureV1,
         2 => MachineEncodedTrapBehavior::HostedWriteFailureV1,
@@ -681,6 +692,7 @@ fn decode_encoded_effects(
     };
     let control = match cursor.byte()? {
         9 => MachineEncodedControlEffect::CrashV1,
+        10 => MachineEncodedControlEffect::FallThroughOrTrapV1,
         7 => MachineEncodedControlEffect::HostedExitOrTrapV1,
         8 => MachineEncodedControlEffect::HostedReadReturnOrTrapV1,
         6 => MachineEncodedControlEffect::HostedWriteReturnOrTrapV1,
@@ -848,6 +860,13 @@ mod packed_tests {
             }
         }
     }
+}
+
+/// The Trapping form a tag encodes, inverting [`trapping_family_tag`].
+fn trapping_form(tag: u8) -> Option<TrappingForm> {
+    TrappingForm::ALL
+        .into_iter()
+        .find(|form| trapping_family_tag(*form) == tag)
 }
 
 /// The saturating operation and carrier a tag encodes, inverting

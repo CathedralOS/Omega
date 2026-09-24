@@ -86,6 +86,10 @@ pub(crate) fn rewrite_block_parameter_operation(
             replace(left);
             replace(right);
         }
+        O::TrappingInteger { operation, .. } => operation.map_operands(&mut |mut value| {
+            replace(&mut value);
+            value
+        }),
         O::IeeeFloatCompare { left, right, .. } => {
             replace(left);
             replace(right);

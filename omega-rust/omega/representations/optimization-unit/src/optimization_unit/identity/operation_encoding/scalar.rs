@@ -5,8 +5,8 @@ use crate::optimization_unit::identity::carrier_encoding::{
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::operation_encoding::scalar_shapes::{
-    encode_cast, encode_shift, encode_typed_binary, encode_typed_unary, encode_untyped_binary,
-    encode_untyped_unary,
+    encode_cast, encode_shift, encode_trapping, encode_typed_binary, encode_typed_unary,
+    encode_untyped_binary, encode_untyped_unary,
 };
 use crate::optimization_unit::identity::proposition_encoding::encode_canonical_path;
 
@@ -639,6 +639,21 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             *scalar_type,
             *left,
             *right,
+        ),
+        O::TrappingInteger {
+            psi_operation,
+            result,
+            scalar_type,
+            operand_type,
+            operation,
+        } => encode_trapping(
+            bytes,
+            90,
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *operand_type,
+            *operation,
         ),
         _ => unreachable!("operation family routing admitted a non-scalar operation"),
     }

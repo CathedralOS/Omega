@@ -304,6 +304,9 @@ pub(super) fn project(
         AbstractOperation::SaturatingIntegerDivide { .. } => {
             scalar_instructions::project_saturating_integer_divide(node, optimized, unit)?
         }
+        AbstractOperation::TrappingInteger { .. } => {
+            scalar_instructions::project_trapping_integer(node, optimized)?
+        }
         AbstractOperation::SaturatingIntegerRemainder { .. } => {
             scalar_instructions::project_saturating_integer_remainder(node, optimized, unit)?
         }

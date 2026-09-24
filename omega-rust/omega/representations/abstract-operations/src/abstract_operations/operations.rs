@@ -736,6 +736,23 @@ pub enum AbstractOperation {
         left: ValueId,
         right: ValueId,
     },
+    /// One Terminal `Trapping` primitive: the exact result, or a `Trap` crash
+    /// at this operation when a settled `numerics::integer_policy` Trapping
+    /// predicate holds. The operation is its own crash site, so it is never
+    /// dead, never folded to a value its predicate would reject, and never
+    /// realized through a sibling policy: native realization checks the
+    /// predicate and traps in place.
+    TrappingInteger {
+        psi_operation: OperationId,
+        result: ValueId,
+        /// The result carrier. Binary arithmetic operands and a shifted value
+        /// share it.
+        scalar_type: IntegerType,
+        /// The independently typed second axis: a shift's count type or a
+        /// conversion's source type, and `scalar_type` for binary arithmetic.
+        operand_type: IntegerType,
+        operation: terminal_psi::TrappingIntegerOperation,
+    },
     Jump {
         psi_edge: EdgeId,
         target: BlockId,
@@ -902,7 +919,8 @@ impl AbstractOperation {
             | Self::WrappingIntegerRemainder { psi_operation, .. }
             | Self::SaturatingIntegerDivide { psi_operation, .. }
             | Self::SaturatingIntegerRemainder { psi_operation, .. }
-            | Self::SaturatingIntegerMultiply { psi_operation, .. } => Some(*psi_operation),
+            | Self::SaturatingIntegerMultiply { psi_operation, .. }
+            | Self::TrappingInteger { psi_operation, .. } => Some(*psi_operation),
             Self::DynamicDescriptorParameter { .. }
             | Self::Jump { .. }
             | Self::Conditional { .. }

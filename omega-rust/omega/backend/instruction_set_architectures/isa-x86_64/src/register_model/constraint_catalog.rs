@@ -19,13 +19,14 @@ use crate::register_model::{
     X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64,
     X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
     X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
-    X86_64_SYSTEM_V_RETURN_UNIT, canonical_x86_64_physical_register_model_identity,
-    validated_x86_64_physical_register_model, x86_64_microsoft_aggregate_call_keys,
-    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
-    x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
-    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
-    x86_64_system_v_normalized_foreign_call_keys, x86_64_system_v_register_call_keys,
-    x86_64_system_v_register_unit_call_keys,
+    X86_64_SYSTEM_V_RETURN_UNIT, X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT,
+    X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT,
+    canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
+    x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
+    x86_64_microsoft_normalized_foreign_call_keys, x86_64_microsoft_register_call_keys,
+    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_aggregate_call_keys,
+    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
+    x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
@@ -497,11 +498,14 @@ pub fn x86_64_register_constraint_catalog(
     // The clamped saturating add and multiply (every carrier but u64) and
     // signed subtract accumulate in an early-clobber result and clamp through
     // an early-clobber bound scratch (operand 3); the carrier only changes the
-    // emitted bounds.
+    // emitted bounds. The trapping add, subtract, and multiply share the row:
+    // the result accumulates while both inputs are live, and the narrow range
+    // check writes the scratch before the inputs are dead.
     for key in [
         X86_64_SATURATING_ADD_CLAMPED,
         X86_64_SATURATING_SUBTRACT_CLAMPED,
         X86_64_SATURATING_MULTIPLY_CLAMPED,
+        X86_64_TRAPPING_BINARY,
     ] {
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
@@ -536,6 +540,68 @@ pub fn x86_64_register_constraint_catalog(
             fixed(1, RegisterOperandAccess::Use, "rcx"),
             fixed(2, RegisterOperandAccess::Def, "rax"),
             fixed(3, RegisterOperandAccess::Def, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // Trapping division, remainder, and u64 multiplication share the same
+    // fixed row: the guards read the RCX-pinned divisor before RDX is
+    // defined by the XOR, CQO, or MUL high half, and the result is RAX.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_TRAPPING_FIXED_PAIR,
+        operands: vec![
+            fixed(0, RegisterOperandAccess::Use, "rax"),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
+            fixed(2, RegisterOperandAccess::Def, "rax"),
+            fixed(3, RegisterOperandAccess::Def, "rdx"),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // Trapping shifts read the count through CL like the wrapping shifts, and
+    // add an early-clobber scratch for the left shift's round-trip or range
+    // check, which runs while the value and count are still live.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_TRAPPING_SHIFT,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            fixed(1, RegisterOperandAccess::Use, "rcx"),
+            {
+                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+            {
+                let mut scratch = allocatable(3, RegisterOperandAccess::Def, GPR64);
+                scratch.early_clobber = true;
+                scratch
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // A trapping conversion checks its input through the scratch before the
+    // result copy, so both outputs are early-clobber against the input.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_TRAPPING_CONVERT,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            {
+                let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+            {
+                let mut scratch = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                scratch.early_clobber = true;
+                scratch
+            },
         ],
         implicit_uses: Vec::new(),
         implicit_defs: Vec::new(),

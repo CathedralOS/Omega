@@ -161,6 +161,10 @@ fn terminal_selected_keys(
         saturating_divide_signed: keys.saturating_divide_signed,
         saturating_multiply_clamped: keys.saturating_multiply_clamped,
         saturating_multiply_u64: keys.saturating_multiply_u64,
+        trapping_binary: keys.trapping_binary,
+        trapping_fixed_pair: keys.trapping_fixed_pair,
+        trapping_shift: keys.trapping_shift,
+        trapping_convert: keys.trapping_convert,
         shift_i64: keys.shift_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,
@@ -350,6 +354,9 @@ pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSem
         }
         SelectedInstructionKind::SaturatingMultiply { carrier } => {
             MachineSemanticKind::SaturatingMultiply(carrier)
+        }
+        SelectedInstructionKind::TrappingInteger { form } => {
+            MachineSemanticKind::TrappingInteger(form)
         }
         SelectedInstructionKind::ExactAddI64Immediate { .. } => {
             MachineSemanticKind::ExactAddI64Immediate

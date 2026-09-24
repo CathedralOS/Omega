@@ -369,9 +369,10 @@ boolean-to-integer conversion, unsigned saturating narrowing casts, wrapping
 casts for every fixed-integer pair, and Trapping arithmetic, shifts, and
 conversions in planned scalar values, which lower to `TrappingInteger`
 operations that are independently verified and interpreted with their
-operation-level `Trap` sites. Native realization of `TrappingInteger` still
-refuses (`UnsupportedTrappingInteger`) rather than substituting a sibling
-policy. Signed or mixed-sign saturating conversions still refuse at the check
-stage. The leg is tracked under `ARITHMETIC-POLICY-REALIZATION` on
+operation-level `Trap` sites. Native realization checks each such operation's
+predicate in place and stops through the same architectural trap as a `Crash`
+terminator, on x86-64 and AArch64 at every fixed 8/16/32/64-bit carrier.
+Signed or mixed-sign saturating conversions still refuse at the check stage.
+The leg is tracked under `ARITHMETIC-POLICY-REALIZATION` on
 [TASKS.md](../../../TASKS.md); `integer_policy_realization.rs` and
 `trapping_operation_sites.rs` pin the realized split.

@@ -19,6 +19,37 @@ use selected_instructions::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DecodedWord {
     Crash,
+    /// `b.<condition> #8`: skip exactly the next word, the inline trap of a
+    /// Trapping form, when the condition holds.
+    BranchOverTrap {
+        condition: u8,
+    },
+    /// `cbnz register, #8`: skip the inline trap for a nonzero divisor.
+    BranchNonZeroOverTrap {
+        register: u8,
+    },
+    /// `cmp left, w<right>, <extension>`: equal exactly when the 64-bit value
+    /// is the sign- or zero-extension of its own low carrier bits.
+    CompareExtended {
+        left: u8,
+        right: u8,
+        extension: u8,
+    },
+    /// `cmn source, #1`: Z set exactly when `source` is -1.
+    CompareNegativeOne {
+        source: u8,
+    },
+    /// `ccmp register, #1, #0, eq`: after an equal compare, V is set exactly
+    /// when `register` is i64::MIN; otherwise every flag is cleared.
+    ConditionalCompareOneOnEqual {
+        register: u8,
+    },
+    /// `tst source, #mask` where the mask sets bits `from_bit..64`: Z set
+    /// exactly when none of those bits is set.
+    TestHighBits {
+        source: u8,
+        from_bit: u8,
+    },
     SignedDivide {
         dividend: u8,
         divisor: u8,
@@ -275,6 +306,46 @@ pub(crate) fn decode_words(
 fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingError> {
     if word == 0xd420_0000 {
         return Ok(DecodedWord::Crash);
+    }
+    // Only the forward skip over one trap word is admitted.
+    if word & 0xffff_fff0 == 0x5400_0040 {
+        return Ok(DecodedWord::BranchOverTrap {
+            condition: (word & 15) as u8,
+        });
+    }
+    if word & 0xffff_ffe0 == 0xb500_0040 {
+        return Ok(DecodedWord::BranchNonZeroOverTrap {
+            register: (word & 31) as u8,
+        });
+    }
+    if word & 0xffe0_1c1f == 0xeb20_001f && matches!((word >> 13) & 7, 0 | 1 | 2 | 4 | 5 | 6) {
+        return Ok(DecodedWord::CompareExtended {
+            left: ((word >> 5) & 31) as u8,
+            right: ((word >> 16) & 31) as u8,
+            extension: ((word >> 13) & 7) as u8,
+        });
+    }
+    if word & 0xffff_fc1f == 0xb100_041f {
+        return Ok(DecodedWord::CompareNegativeOne {
+            source: ((word >> 5) & 31) as u8,
+        });
+    }
+    if word & 0xffff_fc1f == 0xfa41_0800 {
+        return Ok(DecodedWord::ConditionalCompareOneOnEqual {
+            register: ((word >> 5) & 31) as u8,
+        });
+    }
+    // `tst x, #bits from_bit..64`: N = 1, a run of `64 - from_bit` ones
+    // rotated right by `64 - from_bit`.
+    if word & 0xffc0_001f == 0xf240_001f {
+        let rotation = (word >> 16) & 63;
+        let ones = ((word >> 10) & 63) + 1;
+        if rotation != 0 && rotation == ones {
+            return Ok(DecodedWord::TestHighBits {
+                source: ((word >> 5) & 31) as u8,
+                from_bit: (64 - ones) as u8,
+            });
+        }
     }
     if word & 0xffe0_fc00 == 0x9ac0_0c00 {
         return Ok(DecodedWord::SignedDivide {
@@ -600,6 +671,9 @@ pub(crate) fn validate_decoded(
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
+        SelectedInstructionKind::TrappingInteger { form } => {
+            decoded == super::trapping_forms::realization(form, registers)
+        }
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -1018,6 +1092,14 @@ pub(crate) fn footprint(
     // must describe the same slots, including when two slots share a register.
     let (read_indices, write_indices, writes_nzcv) = match kind {
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
+        // Every Trapping realization leaves NZCV unspecified; the encoded
+        // effects below declare it clobbered rather than defined.
+        SelectedInstructionKind::TrappingInteger { form } => (
+            (0..form.source_count() as u16).collect(),
+            (form.source_count() as u16..super::trapping_forms::operand_count(form) as u16)
+                .collect(),
+            true,
+        ),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
         | SelectedInstructionKind::MaterializeBooleanI64LessThan
@@ -1119,6 +1201,8 @@ pub(crate) fn footprint(
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
         super::crash::effects(&units("pc"))
+    } else if let SelectedInstructionKind::TrappingInteger { .. } = kind {
+        super::trapping_forms::effects(read_indices, write_indices)
     } else if matches!(
         kind,
         SelectedInstructionKind::ReturnScalar

@@ -168,6 +168,7 @@ pub(super) fn lower(
             | AbstractOperation::WrappingIntegerMultiply { result, .. }
             | AbstractOperation::ExactIntegerMultiply { result, .. }
             | AbstractOperation::SaturatingIntegerMultiply { result, .. }
+            | AbstractOperation::TrappingInteger { result, .. }
             | AbstractOperation::ExactIntegerDivide { result, .. }
             | AbstractOperation::ExactIntegerRemainder { result, .. }
             | AbstractOperation::WrappingIntegerDivide { result, .. }

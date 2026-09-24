@@ -5,6 +5,8 @@
 
 mod saturating;
 pub use saturating::{SaturatingCarrier, SaturatingOperation};
+mod trapping;
+pub use trapping::{TrappingForm, TrappingOperation};
 mod scalar_graph;
 pub use scalar_graph::{
     LegalizedDynamicParameterCall, LegalizedNormalizedForeignCall, LegalizedRuntimeIndexOperand,

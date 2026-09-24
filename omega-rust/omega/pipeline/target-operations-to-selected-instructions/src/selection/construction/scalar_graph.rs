@@ -5,16 +5,18 @@ use crate::selection::constraints::{fixed_input_constraint, instruction, row};
 use crate::selection::model::SelectedInstructionError;
 use calling_conventions::ValueLocation;
 use legalized_operations::{
-    LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm,
+    TrappingOperation,
 };
 use optimization_unit::ValueDefinitionSite;
 #[cfg(test)]
 use register_model::ValidatedPhysicalRegisterModel;
 use register_model::{RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{
-    SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    MachineSemanticKind, SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
@@ -581,6 +583,77 @@ fn select_function(
                             SelectedInstructionProvenance {
                                 operations: vec![operation.operation],
                                 values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::TrappingBinary { form, left, right } => {
+                        let (_, left_register, _, left_type) =
+                            builder.resolve(*left).ok_or_else(invalid)?;
+                        let (_, mut right_register, right_site, right_type) =
+                            builder.resolve(*right).ok_or_else(invalid)?;
+                        // The carrier is re-derived from the declared result
+                        // type; a shift's count may be any fixed native type.
+                        if left_type != scalar_type
+                            || !carries(scalar_type, form.carrier)
+                            || !trapping_right_type(*form, scalar_type, right_type)
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        if right_register == left_register {
+                            // Every Trapping row has two early-clobber
+                            // outputs, and liveness admits independent early
+                            // outputs only over distinct participants, so a
+                            // shared operand (`x + x`, `x << x`) gets its own
+                            // copy on every target. On x86-64 the copy also
+                            // lets RCX hold the divisor or shift count alone.
+                            right_register =
+                                builder.copy(right_register, *right, right_site, right_type)?;
+                        }
+                        let scratch = trapping_scratch(&mut builder, 3)?;
+                        builder.emit(
+                            SelectedInstructionKind::TrappingInteger { form: *form },
+                            trapping_constraint(*form, &constraints.keys)?,
+                            &[left_register, right_register, output, scratch],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*left, *right, result.value],
+                                fuel: operation.fuel.clone(),
+                                ..Default::default()
+                            },
+                        )?;
+                        output
+                    }
+                    LegalizedScalarInstructionKind::TrappingConvert {
+                        form,
+                        source,
+                        operand,
+                    } => {
+                        let (_, input, _, operand_type) =
+                            builder.resolve(*operand).ok_or_else(invalid)?;
+                        if !carries(scalar_type, form.carrier)
+                            || !carries(operand_type, *source)
+                            || form.operation
+                                != (TrappingOperation::Convert {
+                                    source: source.sign(),
+                                })
+                        {
+                            return Err(invalid());
+                        }
+                        let output =
+                            builder.register(result.value, result.definition_site, scalar_type)?;
+                        let scratch = trapping_scratch(&mut builder, 2)?;
+                        builder.emit(
+                            SelectedInstructionKind::TrappingInteger { form: *form },
+                            trapping_constraint(*form, &constraints.keys)?,
+                            &[input, output, scratch],
+                            SelectedInstructionProvenance {
+                                operations: vec![operation.operation],
+                                values: vec![*operand, result.value],
                                 fuel: operation.fuel.clone(),
                                 ..Default::default()
                             },
@@ -1577,6 +1650,62 @@ impl WrappingDivision {
             ),
         }
     }
+}
+
+/// A Trapping binary form's second operand: the result carrier for
+/// arithmetic, any fixed native integer for a shift count.
+fn trapping_right_type(
+    form: TrappingForm,
+    scalar_type: ScalarType,
+    right_type: ScalarType,
+) -> bool {
+    match form.operation {
+        TrappingOperation::ShiftLeft | TrappingOperation::ShiftRight => {
+            matches!(right_type, ScalarType::Integer(count)
+                if SaturatingCarrier::from_integer(count).is_some())
+        }
+        _ => right_type == scalar_type,
+    }
+}
+
+fn trapping_constraint(
+    form: TrappingForm,
+    keys: &SelectedConstraintKeys,
+) -> Result<RegisterConstraintKey, SelectedInstructionError> {
+    keys.for_semantic(MachineSemanticKind::TrappingInteger(form))
+        .ok_or_else(SelectedInstructionError::custody)
+}
+
+// A Trapping form's early-clobber scratch: operand 3 of a binary form or
+// operand 2 of a conversion, defined by the encoding itself on every target.
+fn trapping_scratch(
+    builder: &mut Builder<'_>,
+    operand: u16,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::custody();
+    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let instruction = SelectedInstructionId(
+        builder
+            .instructions
+            .len()
+            .try_into()
+            .map_err(|_| invalid())?,
+    );
+    builder.registers.push(VirtualRegister {
+        id,
+        scalar_type: ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
+                .map_err(|_| invalid())?,
+        ),
+        class: builder.class,
+        origin: VirtualRegisterOrigin::InstructionScratch {
+            instruction,
+            operand,
+        },
+        definition_site: None,
+        entry_fixed_view: None,
+    });
+    Ok(id)
 }
 
 // The saturating i32 forms clamp through a bound held in operand 3, an

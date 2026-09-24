@@ -109,9 +109,8 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::WrappingIntegerRemainder { psi_operation, .. }
         | O::SaturatingIntegerDivide { psi_operation, .. }
         | O::SaturatingIntegerRemainder { psi_operation, .. }
-        | O::SaturatingIntegerMultiply { psi_operation, .. } => {
-            PsiProvenance::Operation(*psi_operation)
-        }
+        | O::SaturatingIntegerMultiply { psi_operation, .. }
+        | O::TrappingInteger { psi_operation, .. } => PsiProvenance::Operation(*psi_operation),
     };
     vec![site]
 }

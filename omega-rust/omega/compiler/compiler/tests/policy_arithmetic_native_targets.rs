@@ -1,10 +1,14 @@
-//! End-to-end pin that saturating multiplication and wrapping division reach
-//! native artifacts at every fixed integer width on every bound target, not
-//! only on the host the run canaries execute on. Selection legalizes each
+//! End-to-end pin that saturating multiplication, wrapping division, and
+//! every Trapping primitive reach native artifacts at every fixed integer
+//! width on every bound target, not only on the host the run canaries
+//! execute on. Selection legalizes each
 //! family per carrier (x86-64 u64 multiplication sits on the fixed `MUL`
 //! row, narrow signed quotients re-normalize after the i64 divide), and a
 //! target whose encoder or constraint row disagreed would refuse here rather
-//! than in a host-only execution test.
+//! than in a host-only execution test. Each Trapping primitive is one
+//! selected instruction ending in an inline trap per target (x86-64 pins the
+//! divisor, the u64 multiplier and the shift count to RCX), so the macOS run
+//! canaries alone would not notice an x86-64 row or encoder that refused.
 //!
 //! Every integer arithmetic family now has a legalized kind at every native
 //! width, so this replaces the earlier end-to-end pin of the
@@ -81,6 +85,55 @@ machine Main::main(&mut self) {{
     )
 }
 
+/// One machine applying every Trapping primitive at every width, then every
+/// Trapping conversion between two distinct widths. The operands are small
+/// enough that no operation always traps, and field operands keep each
+/// operation a runtime Trapping site rather than a folded constant.
+fn trapping_source() -> String {
+    let mut fields = String::new();
+    let mut inputs = String::new();
+    let mut arithmetic = String::new();
+    let mut conversions = String::new();
+    for width in WIDTHS {
+        for name in ["ta", "tb", "tr", "tc"] {
+            writeln!(fields, "    {name}_{width}: {width} in Trapping;").unwrap();
+        }
+        writeln!(inputs, "        self.ta_{width} = 7;").unwrap();
+        writeln!(inputs, "        self.tb_{width} = 3;").unwrap();
+        for operator in ["+", "-", "*", "/", "%", "<<", ">>"] {
+            writeln!(
+                arithmetic,
+                "        self.tr_{width} = self.ta_{width} {operator} self.tb_{width};"
+            )
+            .unwrap();
+        }
+        for source in WIDTHS.into_iter().filter(|source| *source != width) {
+            writeln!(
+                conversions,
+                "        self.tc_{width} = self.ta_{source} as {width} in Trapping;"
+            )
+            .unwrap();
+        }
+    }
+    format!(
+        r#"data Main {{
+{fields}}}
+
+machine Main::main(&mut self) {{
+    transition {{ _ -> arithmetic() }}
+    state arithmetic(&mut self) {{
+{inputs}{arithmetic}        transition {{ _ -> convert() }}
+    }}
+    state convert(&mut self) {{
+{inputs}{conversions}        transition self.tc_i8 == 7 {{ true -> yes() false -> no() }}
+    }}
+    state yes(&mut self) {{}}
+    state no(&mut self) {{}}
+}}
+"#
+    )
+}
+
 /// Every hosted target binds an entry, so each compiles its own artifact
 /// regardless of which host runs the test.
 const BUILD: &str = r#"machine build(builder: &mut Build) {
@@ -114,10 +167,10 @@ fn scratch_dir(label: &str) -> PathBuf {
 struct Project(PathBuf);
 
 impl Project {
-    fn write() -> Self {
+    fn write(source: String) -> Self {
         let dir = scratch_dir("project");
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("main.omg"), main_source()).unwrap();
+        std::fs::write(dir.join("main.omg"), source).unwrap();
         std::fs::write(dir.join("build.omg"), BUILD).unwrap();
         Self(dir)
     }
@@ -159,7 +212,16 @@ fn compile_all_bound_targets(
 
 #[test]
 fn saturating_multiply_and_wrapping_division_compile_on_every_bound_target() {
-    let project = Project::write();
+    assert_every_bound_target_compiles(main_source());
+}
+
+#[test]
+fn trapping_arithmetic_and_conversions_compile_on_every_bound_target() {
+    assert_every_bound_target_compiles(trapping_source());
+}
+
+fn assert_every_bound_target_compiles(source: String) {
+    let project = Project::write(source);
     let outcomes = compile_all_bound_targets(&project.0)
         .unwrap_or_else(|diagnostics| panic!("request refused: {diagnostics:?}"));
     let mut covered = outcomes

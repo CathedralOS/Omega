@@ -3,7 +3,9 @@ use crate::{
     MachineTrapBehavior, SelectedInstructionKind,
 };
 
-use crate::{InstructionMachineEffects, SaturatingOperation, saturating_family_tag};
+use crate::{
+    InstructionMachineEffects, SaturatingOperation, saturating_family_tag, trapping_family_tag,
+};
 
 use super::provenance::encode_provenance;
 use super::values::{encode_constraint_key, encode_len, encode_units};
@@ -37,6 +39,7 @@ pub(super) fn encode_ordinary_instruction(
 fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffects) {
     bytes.push(match instruction.trap {
         MachineTrapBehavior::ExplicitCrashV1 => 5,
+        MachineTrapBehavior::TrappingIntegerV1 => 6,
         MachineTrapBehavior::NeverV1 => 0,
         MachineTrapBehavior::HostedExitReturnedV1 => 3,
         MachineTrapBehavior::HostedReadFailureV1 => 4,
@@ -122,6 +125,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingMultiply { carrier } => {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
+        SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -319,6 +323,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         }
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
+        | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

@@ -441,6 +441,10 @@ fn operation_effect(
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),
         O::Crash { .. } => (EffectClass::Control, Yes, No, Yes, No),
+        // A Trapping primitive defines a scalar but may leave through its own
+        // `Trap` crash: that exit is observable, so it is not pure scalar
+        // work, and it happens only when its operands meet the predicate.
+        O::TrappingInteger { .. } => (EffectClass::Control, May, No, May, No),
         O::StructuralCase { .. } => (EffectClass::Control, No, Yes, No, No),
         O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {
             (EffectClass::Control, No, May, No, No)

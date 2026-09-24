@@ -152,6 +152,11 @@ pub(in crate::exit_contract) fn validate_non_return(
         SelectedInstructionKind::HostedWriteByteI32 { .. } => {
             MachineEncodedControlEffect::HostedWriteReturnOrTrapV1
         }
+        // A Trapping form continues in its block or stops at the inline
+        // trap its own encoding owns; it has no successor edge to relocate.
+        SelectedInstructionKind::TrappingInteger { .. } => {
+            MachineEncodedControlEffect::FallThroughOrTrapV1
+        }
         SelectedInstructionKind::Jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan

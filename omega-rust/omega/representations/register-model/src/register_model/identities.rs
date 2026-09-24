@@ -230,6 +230,10 @@ pub fn target_register_environment_identity(
         selected_keys.multiply_i64,
         selected_keys.saturating_multiply_clamped,
         selected_keys.saturating_multiply_u64,
+        selected_keys.trapping_binary,
+        selected_keys.trapping_fixed_pair,
+        selected_keys.trapping_shift,
+        selected_keys.trapping_convert,
     ] {
         constraint_key(&mut bytes, key.family, key.variant);
     }

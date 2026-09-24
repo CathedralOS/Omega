@@ -17,6 +17,7 @@ pub use legalized_operations::{
     LegalizedScalarReturnValue, LegalizedScalarSuccessor, LegalizedScalarTerminator,
     LegalizedStructuralCasePayload, LegalizedStructuralCaseSource,
     LegalizedStructuralCaseSuccessor, LegalizedStructuralContract, LegalizedValueDefinition,
-    NativeCallOrigin, SaturatingCarrier, SaturatingOperation, calls, control_flow,
-    encode_hosted_read_byte_identity, identity, legality, legalized_operation_plan_identity,
+    NativeCallOrigin, SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
+    calls, control_flow, encode_hosted_read_byte_identity, identity, legality,
+    legalized_operation_plan_identity,
 };

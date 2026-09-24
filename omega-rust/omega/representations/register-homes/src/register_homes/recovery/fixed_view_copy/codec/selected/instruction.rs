@@ -1,5 +1,8 @@
 use register_model::{RegisterClassId, RegisterUnitId, RegisterViewId};
-use selected_instructions::{SaturatingCarrier, SaturatingOperation, saturating_family_tag};
+use selected_instructions::{
+    SaturatingCarrier, SaturatingOperation, TrappingForm, saturating_family_tag,
+    trapping_family_tag,
+};
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedOperand,
     VirtualRegisterId,
@@ -129,6 +132,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::SaturatingMultiply { carrier } => {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
+        // Trapping forms take the shared family tags, 122 plus the form's
+        // dense ordinal, and carry no payload.
+        SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -491,6 +497,9 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         51 => SelectedInstructionKind::BitwiseAndI64,
         52 => SelectedInstructionKind::BitwiseXorI64,
         58 => SelectedInstructionKind::WrappingAddI64,
+        tag if trapping_form(tag).is_some() => SelectedInstructionKind::TrappingInteger {
+            form: trapping_form(tag).unwrap(),
+        },
         tag if saturating_kind(tag).is_some() => match saturating_kind(tag).unwrap() {
             (SaturatingOperation::Add, carrier) => {
                 SelectedInstructionKind::SaturatingAdd { carrier }
@@ -911,6 +920,13 @@ fn wrapping_remainder_round_trips_with_distinct_tag_and_complete_proof() {
         assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
         assert_eq!(cursor.remaining(), 0);
     }
+}
+
+/// The Trapping form a tag names, inverting the shared family tag table.
+fn trapping_form(tag: u8) -> Option<TrappingForm> {
+    TrappingForm::ALL
+        .into_iter()
+        .find(|form| trapping_family_tag(*form) == tag)
 }
 
 /// The saturating operation and carrier a tag names, inverting the shared

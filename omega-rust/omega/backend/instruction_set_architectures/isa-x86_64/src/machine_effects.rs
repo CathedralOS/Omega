@@ -16,6 +16,7 @@ mod scalar_call;
 use scalar_call::declaration as scalar_call_declaration;
 
 use crate::selected_form_encoding::saturating_forms::SaturatingForm;
+use crate::selected_form_encoding::trapping_forms::TrappingShape;
 use crate::{
     X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
     X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
@@ -301,6 +302,10 @@ fn selected_keys(
         saturating_divide_signed: crate::register_model::X86_64_SATURATING_DIVIDE_SIGNED,
         saturating_multiply_clamped: crate::register_model::X86_64_SATURATING_MULTIPLY_CLAMPED,
         saturating_multiply_u64: crate::register_model::X86_64_SATURATING_MULTIPLY_U64,
+        trapping_binary: crate::X86_64_TRAPPING_BINARY,
+        trapping_fixed_pair: crate::X86_64_TRAPPING_FIXED_PAIR,
+        trapping_shift: crate::X86_64_TRAPPING_SHIFT,
+        trapping_convert: crate::X86_64_TRAPPING_CONVERT,
         add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
         subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: X86_64_COMPARE_I64_ZERO,
@@ -329,7 +334,8 @@ fn declaration(
         | MachineSemanticKind::SaturatingSubtract(_)
         | MachineSemanticKind::SaturatingDivide(_)
         | MachineSemanticKind::SaturatingRemainder(_)
-        | MachineSemanticKind::SaturatingMultiply(_) => {
+        | MachineSemanticKind::SaturatingMultiply(_)
+        | MachineSemanticKind::TrappingInteger(_) => {
             vec![alternative(
                 semantic,
                 0,
@@ -471,7 +477,14 @@ fn declaration(
             .for_semantic(semantic)
             .expect("required x86-64 machine semantic has a constraint"),
         memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
+        // A Trapping form may stop the process at its inline UD2, which is
+        // as observable as a hosted effect: it is ordered like one and is
+        // never dead.
+        trap: if matches!(semantic, MachineSemanticKind::TrappingInteger(_)) {
+            MachineTrapBehavior::TrappingIntegerV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
         barrier: if matches!(
             semantic,
             MachineSemanticKind::ConditionalBranchNonZero
@@ -483,6 +496,8 @@ fn declaration(
                 | MachineSemanticKind::ReturnUnit
         ) {
             MachineBarrier::ControlFlow
+        } else if matches!(semantic, MachineSemanticKind::TrappingInteger(_)) {
+            MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
         },
@@ -521,6 +536,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     };
     if semantic == MachineSemanticKind::Crash {
         return crate::selected_form_encoding::crash::effects(&units("rip"));
+    }
+    if let MachineSemanticKind::TrappingInteger(form) = semantic {
+        return TrappingShape::of(form).encoded_effects();
     }
     let view = |name: &str| {
         physical
@@ -623,6 +641,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
         | MachineSemanticKind::HostedWriteByteI32
         | MachineSemanticKind::CallUnit => {
             unreachable!("scalar calls use their dedicated declaration")
+        }
+        MachineSemanticKind::TrappingInteger(_) => {
+            unreachable!("trapping forms return their shared encoded effects above")
         }
     };
     let (implicit_uses, implicit_defs, implicit_clobbers, memory, stack, trap, control) =
@@ -841,6 +862,11 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         | MachineSemanticKind::SaturatingRemainder(carrier)
         | MachineSemanticKind::SaturatingMultiply(carrier) => {
             MachineSizeKnowledge::ExactBytes(saturating_form(semantic, carrier).byte_count())
+        }
+        // Every instruction of a Trapping realization has a register-free
+        // length, so each form has one exact size.
+        MachineSemanticKind::TrappingInteger(form) => {
+            MachineSizeKnowledge::ExactBytes(TrappingShape::of(form).byte_count())
         }
         MachineSemanticKind::BitwiseAndI64
         | MachineSemanticKind::BitwiseOrI64

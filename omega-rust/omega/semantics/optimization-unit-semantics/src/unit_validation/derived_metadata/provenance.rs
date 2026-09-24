@@ -110,7 +110,8 @@ pub(crate) fn expected_provenance(
         | O::WrappingIntegerRemainder { psi_operation, .. }
         | O::SaturatingIntegerDivide { psi_operation, .. }
         | O::SaturatingIntegerRemainder { psi_operation, .. }
-        | O::SaturatingIntegerMultiply { psi_operation, .. } => {
+        | O::SaturatingIntegerMultiply { psi_operation, .. }
+        | O::TrappingInteger { psi_operation, .. } => {
             vec![PsiProvenance::Operation(*psi_operation)]
         }
     }

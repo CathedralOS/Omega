@@ -5,8 +5,9 @@
 //! forms, `request_validation.rs` validates requests and resolves
 //! registers, `instruction_bytes.rs` assembles instruction bytes,
 //! `decoding.rs` decodes and validates the emitted bytes, and
-//! `saturating_forms.rs` names the realization shape of each saturating
-//! operation and carrier that those three and the machine-effect catalog share.
+//! `saturating_forms.rs` and `trapping_forms.rs` name the realization shape
+//! of each saturating operation and carrier and of each Trapping form that
+//! those three and the machine-effect catalog share.
 
 #[cfg(test)]
 mod boolean_materialization_tests;
@@ -36,6 +37,7 @@ pub(crate) mod saturating_forms;
 mod scalar_call;
 #[cfg(test)]
 mod tests;
+pub(crate) mod trapping_forms;
 
 pub use branch_forms::{
     encode_x86_64_selected_i64_less_than_branch_form, encode_x86_64_selected_nonzero_branch_form,
