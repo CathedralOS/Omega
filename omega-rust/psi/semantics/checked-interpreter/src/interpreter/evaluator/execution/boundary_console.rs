@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, FilesystemHostOperation, Frame, Halt, SymbolHandle,
     TableCall, Value,
 };
@@ -7,7 +7,7 @@ impl<'program> Evaluator<'program> {
     /// boundary before any provider authority is touched. Package-aware
     /// execution consumes Omega's accepted declaration symbol. Standalone
     /// execution retains the exact bundled-std source fallback.
-    pub(super) fn exact_filesystem_host_operation(
+    pub(in crate::interpreter::evaluator) fn exact_filesystem_host_operation(
         &self,
         target_symbol: SymbolHandle,
     ) -> EvalResult<Option<FilesystemHostOperation>> {
@@ -93,7 +93,10 @@ impl<'program> Evaluator<'program> {
 
     /// Validate the exact requirement's byte result before advancing input.
     /// A same-spelled declaration or invalid result symbol supplies no identity.
-    pub(super) fn read_stdin_byte_value(&mut self, target: SymbolHandle) -> EvalResult<Value> {
+    pub(in crate::interpreter::evaluator) fn read_stdin_byte_value(
+        &mut self,
+        target: SymbolHandle,
+    ) -> EvalResult<Value> {
         let requirement =
             validation::exact_compiler_intrinsic_boundary_requirement(self.program, target)
                 .map_or(target, |(requirement, _)| requirement);
@@ -137,7 +140,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn read_stdin_line(&mut self) -> String {
+    pub(in crate::interpreter::evaluator) fn read_stdin_line(&mut self) -> String {
         let mut line = String::new();
         while self.stdin_cursor < self.stdin.len() {
             let byte = self.stdin[self.stdin_cursor];
@@ -161,7 +164,7 @@ impl<'program> Evaluator<'program> {
     /// call target: the requirement signature directly, an exact provider
     /// realization through its satisfied requirement, or the receiver field's
     /// declared boundary-trait type by method name.
-    pub(super) fn exit_process_call_requirement(
+    pub(in crate::interpreter::evaluator) fn exit_process_call_requirement(
         &self,
         call: &TableCall,
         frame: &Frame,
@@ -235,7 +238,7 @@ impl<'program> Evaluator<'program> {
     /// public boundary trait with one `i32 -> Unit` signature. A same-named
     /// declaration elsewhere is an ordinary lookalike, not the terminal-event
     /// identity.
-    pub(super) fn is_canonical_process_exit_requirement(
+    pub(in crate::interpreter::evaluator) fn is_canonical_process_exit_requirement(
         &self,
         trait_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
@@ -289,7 +292,11 @@ impl<'program> Evaluator<'program> {
     /// A call is a host-boundary call when its target state is declared on a
     /// `boundary trait` (matched by `target_symbol`, or by the receiver leaf naming a
     /// field whose type is a boundary trait).
-    pub(super) fn is_boundary_call(&self, call: &TableCall, frame: &Frame) -> bool {
+    pub(in crate::interpreter::evaluator) fn is_boundary_call(
+        &self,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> bool {
         // By target symbol: any boundary trait machine signature with this symbol.
         if call.target_symbol.is_valid() {
             for trait_definition in self.program.traits() {

@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
     Value, trap, unsupported,
 };
@@ -12,7 +12,10 @@ impl<'program> Evaluator<'program> {
     /// 1000); wall clock = 2026-01-01T00:00:00Z + elapsed, already in Unix
     /// units (epoch offset 0). Native rebinds these to real clocks (rung 5)
     /// and its canaries assert inequalities instead.
-    pub(super) fn virtual_time_host_value(&self, target: &str) -> Option<Value> {
+    pub(in crate::interpreter::evaluator) fn virtual_time_host_value(
+        &self,
+        target: &str,
+    ) -> Option<Value> {
         match target {
             "monotonic_ticks" => Some(Value::Int(self.virtual_ticks)),
             "monotonic_ticks_per_second" => Some(Value::Int(1000)),
@@ -23,7 +26,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn try_host_call(
+    pub(in crate::interpreter::evaluator) fn try_host_call(
         &mut self,
         call: &TableCall,
         frame: &mut Frame,
@@ -477,7 +480,7 @@ impl<'program> Evaluator<'program> {
     /// Rejoin a concrete hosted leaf to its satisfied requirement before
     /// selecting host behavior. Other external realizations retain their own
     /// execution path, even when their method spelling matches a host method.
-    pub(super) fn exact_console_intrinsic_host_method(
+    pub(in crate::interpreter::evaluator) fn exact_console_intrinsic_host_method(
         &self,
         target_symbol: SymbolHandle,
     ) -> Option<&'static str> {
@@ -537,8 +540,8 @@ mod byte_input_rejection_tests;
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CheckedTrees, Frame};
-    use super::{Evaluator, Halt, Value};
+    use crate::interpreter::evaluator::{CheckedTrees, Frame};
+    use crate::interpreter::evaluator::{Evaluator, Halt, Value};
     use crate::value::Cell;
     use std::collections::BTreeMap;
     use typed_trees::statement::{StatementNode, TableCall};

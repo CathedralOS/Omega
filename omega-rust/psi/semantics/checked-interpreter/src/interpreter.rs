@@ -13,7 +13,7 @@ use crate::{
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
 use checked_trees::CheckedTrees;
-pub use evaluator::wire_verification::WireCodecVerification;
+pub use evaluator::execution::wire_verification::WireCodecVerification;
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

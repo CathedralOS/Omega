@@ -1,9 +1,9 @@
-use super::{
+use crate::interpreter::evaluator::{
     EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle,
     TableCall, Value, trap,
 };
 impl<'program> Evaluator<'program> {
-    pub(super) fn selected_boundary_adapter(
+    pub(in crate::interpreter::evaluator) fn selected_boundary_adapter(
         &self,
         receiver: SymbolHandle,
         requirement: SymbolHandle,
@@ -27,7 +27,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Receiver forwarding is an argument operation, not a synthetic source edit.
-    pub(super) fn eval_boundary_receiver_path(
+    pub(in crate::interpreter::evaluator) fn eval_boundary_receiver_path(
         &mut self,
         call: &TableCall,
         frame: &Frame,
@@ -53,7 +53,7 @@ impl<'program> Evaluator<'program> {
         Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
     }
 
-    pub(super) fn run_boundary_adapter(
+    pub(in crate::interpreter::evaluator) fn run_boundary_adapter(
         &mut self,
         dispatch: checked_trees::CheckedBoundaryAdapterDispatch,
         receiver: Option<EvaluatedArgument>,

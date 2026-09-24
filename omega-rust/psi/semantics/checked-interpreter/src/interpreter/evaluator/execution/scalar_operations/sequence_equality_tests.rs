@@ -1,5 +1,5 @@
-use super::super::TypedTrees;
-use super::{BinaryOperator, Evaluator, Halt, SymbolHandle, Value};
+use crate::interpreter::evaluator::TypedTrees;
+use crate::interpreter::evaluator::{BinaryOperator, Evaluator, Halt, SymbolHandle, Value};
 fn array(bytes: &[u8]) -> Value {
     Value::Array(
         bytes

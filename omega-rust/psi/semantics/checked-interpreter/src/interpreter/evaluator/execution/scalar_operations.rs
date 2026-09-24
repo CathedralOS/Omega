@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, Cell, DataDefinition, DataMember, EvalResult, Evaluator,
     ExpressionHandle, FloatMeaning, FloatPolicyTrap, FloatSemantics, Frame, Halt, PrimitiveType,
     SemanticFloatFormat, SymbolHandle, UnaryOperator, Value, integer_bounds, primitive_bit_width,
@@ -19,7 +19,11 @@ fn byte_sequence_element(element: &Cell) -> EvalResult<u8> {
 }
 
 impl<'program> Evaluator<'program> {
-    pub(super) fn eval_unary(&self, operator: UnaryOperator, operand: Value) -> EvalResult<Value> {
+    pub(in crate::interpreter::evaluator) fn eval_unary(
+        &self,
+        operator: UnaryOperator,
+        operand: Value,
+    ) -> EvalResult<Value> {
         match operator {
             UnaryOperator::BitwiseNot => match operand {
                 Value::Int(value) => Ok(Value::Int(!value)),
@@ -36,7 +40,10 @@ impl<'program> Evaluator<'program> {
     /// intrinsic rewrite. Provider dispatch rewrites the expression node in
     /// place, so the checked use fact remains the stable bridge back to the
     /// selected `F32::...` or `F64::...` operation.
-    pub(super) fn named_float_operation_name(&self, expression: ExpressionHandle) -> Option<&str> {
+    pub(in crate::interpreter::evaluator) fn named_float_operation_name(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<&str> {
         let operator_use = self
             .operator_facts?
             .named_uses()
@@ -57,7 +64,7 @@ impl<'program> Evaluator<'program> {
     /// operation. The named contract chooses fused versus separately rounded
     /// semantics and any explicit direction, then adapts only the final result
     /// using all original operands.
-    pub(super) fn eval_rewritten_ternary_float(
+    pub(in crate::interpreter::evaluator) fn eval_rewritten_ternary_float(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
@@ -144,7 +151,7 @@ impl<'program> Evaluator<'program> {
     /// Execute an unnameable one-step directed binary operation selected by an exact
     /// provider plan. The shared semantic engine supplies the result; policy
     /// adapts only that result exactly like the native lowering.
-    pub(super) fn eval_rewritten_directed_binary(
+    pub(in crate::interpreter::evaluator) fn eval_rewritten_directed_binary(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
@@ -241,7 +248,7 @@ impl<'program> Evaluator<'program> {
 
     /// Execute an unnameable one-step directed square root selected by an exact
     /// provider plan. Its single authored argument is evaluated once.
-    pub(super) fn eval_rewritten_directed_square_root(
+    pub(in crate::interpreter::evaluator) fn eval_rewritten_directed_square_root(
         &mut self,
         arguments: &[ExpressionHandle],
         format: SemanticFloatFormat,
@@ -281,7 +288,7 @@ impl<'program> Evaluator<'program> {
         Ok(Value::Float(meaning.to_interpreter_value(format)))
     }
 
-    pub(super) fn eval_binary(
+    pub(in crate::interpreter::evaluator) fn eval_binary(
         &self,
         operator: BinaryOperator,
         left: Value,
@@ -588,7 +595,7 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    pub(super) fn eval_float_binary(
+    pub(in crate::interpreter::evaluator) fn eval_float_binary(
         &self,
         operator: BinaryOperator,
         l: f64,
@@ -684,7 +691,7 @@ impl<'program> Evaluator<'program> {
     /// Two-operand pick for the `max`/`min` builtins. The caller's dispatch
     /// pattern admits only `Max` and `Min`; `Max` picks the greater operand
     /// and everything else the lesser.
-    pub(super) fn eval_min_max(
+    pub(in crate::interpreter::evaluator) fn eval_min_max(
         &self,
         builtin: BuiltinFunction,
         left: Value,

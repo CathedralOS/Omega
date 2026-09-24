@@ -1,7 +1,9 @@
-use super::super::TypedTrees;
-use super::{BinaryOperator, Evaluator, ExpressionHandle, ExpressionNode, Halt};
 use crate::BuildMachineEntry;
 use crate::InterpretOptions;
+use crate::interpreter::evaluator::TypedTrees;
+use crate::interpreter::evaluator::{
+    BinaryOperator, Evaluator, ExpressionHandle, ExpressionNode, Halt,
+};
 fn program(source: &str) -> TypedTrees {
     let mut program = crate::front_end::typed_program(source);
     // Isolate execution from synthesis: preserve resolved membership operands,

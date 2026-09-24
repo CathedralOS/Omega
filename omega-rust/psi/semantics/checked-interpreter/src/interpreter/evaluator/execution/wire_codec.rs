@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame, Halt, SymbolHandle,
     TableCall, TypeReferenceHandle, TypedTrees, Value,
 };
@@ -10,7 +10,7 @@ impl<'program> Evaluator<'program> {
     /// then fields in field-number order. Nested messages omit their own era
     /// discriminator, and bounded output drops bytes beyond the destination
     /// capacity exactly like the native encoder.
-    pub(super) fn try_wire_encode_call(
+    pub(in crate::interpreter::evaluator) fn try_wire_encode_call(
         &mut self,
         call: &TableCall,
         frame: &mut Frame,
@@ -57,7 +57,7 @@ impl<'program> Evaluator<'program> {
     /// fields, sorted by field number, and whether any field is runtime-sized
     /// (text, borrowed byte slice, or borrowed scalar slice -- the
     /// bounded-output drop rule keys off it).
-    pub(super) fn wire_encode_fields(
+    pub(in crate::interpreter::evaluator) fn wire_encode_fields(
         &self,
         schema: &typed_trees::wire::WireSchema,
     ) -> EvalResult<(Vec<(String, u64, WireInterpField)>, bool)> {
@@ -145,7 +145,7 @@ impl<'program> Evaluator<'program> {
     /// The compact_binary bytes the synthesized encoder emits for `value`:
     /// the CURRENT era discriminator varint, then tag varint + payload per
     /// field in field-number order.
-    pub(super) fn wire_encode_body(
+    pub(in crate::interpreter::evaluator) fn wire_encode_body(
         &self,
         schema_name: &str,
         era: u64,
@@ -369,7 +369,7 @@ impl<'program> Evaluator<'program> {
     /// the bounded-output contract: an oversized emission without a
     /// runtime-sized field is a compiler bug (trap), while a text-bearing
     /// schema drops overflowing content and `written` clamps to capacity.
-    pub(super) fn wire_encode_commit(
+    pub(in crate::interpreter::evaluator) fn wire_encode_commit(
         &self,
         schema_name: &str,
         bytes: &[u8],
@@ -420,7 +420,7 @@ impl<'program> Evaluator<'program> {
     /// truncated input, overlong varint) clears `ok`, but the remaining
     /// operations still run so cursor and field side effects match the native
     /// sequences byte for byte even on the failure path.
-    pub(super) fn try_wire_decode_call(
+    pub(in crate::interpreter::evaluator) fn try_wire_decode_call(
         &mut self,
         call: &TableCall,
         frame: &mut Frame,
@@ -515,7 +515,7 @@ impl<'program> Evaluator<'program> {
     /// declaration's type for a field name -- the call path resolves it from
     /// the value argument's declared type, the conformance verifier from the
     /// schema's own data declaration.
-    pub(super) fn wire_decode_fields(
+    pub(in crate::interpreter::evaluator) fn wire_decode_fields(
         &self,
         schema_name: &str,
         schema: &typed_trees::wire::WireSchema,
@@ -627,7 +627,7 @@ impl<'program> Evaluator<'program> {
     /// consumed cursor and the soundness flag; per the sticky-failure
     /// contract every step still runs after the first violation so cursor
     /// and field side effects match the native sequences byte for byte.
-    pub(super) fn wire_decode_body(
+    pub(in crate::interpreter::evaluator) fn wire_decode_body(
         &mut self,
         schema_name: &str,
         era: u64,
@@ -898,7 +898,7 @@ impl<'program> Evaluator<'program> {
     }
 }
 
-pub(super) enum WireInterpField {
+pub(in crate::interpreter::evaluator) enum WireInterpField {
     Direct(typed_trees::wire::WireFieldEncoding),
     Nested(Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>),
     Repeated(typed_trees::wire::WireRepeatedEncoding),
@@ -911,7 +911,7 @@ pub(super) enum WireInterpField {
 /// One CURRENT-era field of a wire schema, as the interpreter's decoder sees
 /// it. An owned `String` is encode-only, but a borrowed `&[u8]` byte slice
 /// decodes ZERO-COPY as a length-prefixed view of the buffer (`ByteSlice`).
-pub(super) enum WireInterpScalarField {
+pub(in crate::interpreter::evaluator) enum WireInterpScalarField {
     Scalar {
         encoding: typed_trees::wire::WireScalarEncoding,
         range: Option<language_semantics::wire::WireScalarRange>,
@@ -941,7 +941,7 @@ pub(super) enum WireInterpScalarField {
 /// The CURRENT-era (name, number, scalar encoding) list of a nested wire
 /// schema, sorted by field number -- validation has already guaranteed the
 /// scalar-only child body.
-pub(super) fn wire_nested_scalar_fields(
+pub(in crate::interpreter::evaluator) fn wire_nested_scalar_fields(
     program: &TypedTrees,
     child: &typed_trees::wire::WireSchema,
 ) -> Result<Vec<(String, u64, typed_trees::wire::WireScalarEncoding)>, Halt> {
@@ -1070,7 +1070,7 @@ fn wire_scalar_in_range(
 /// The unsigned LEB128 payload a scalar value encodes as -- the same
 /// widths/signedness the native encoders apply: load at the source width
 /// (zero- or sign-extending), zigzag signed sources at 64 bits.
-pub(super) fn wire_scalar_varint_value(
+pub(in crate::interpreter::evaluator) fn wire_scalar_varint_value(
     raw: i64,
     scalar: typed_trees::wire::WireScalarEncoding,
 ) -> Result<u64, Halt> {
@@ -1107,7 +1107,7 @@ fn wire_decoded_scalar_value(
     }
 }
 
-pub(super) fn zigzag64(value: i64) -> u64 {
+pub(in crate::interpreter::evaluator) fn zigzag64(value: i64) -> u64 {
     ((value << 1) ^ (value >> 63)) as u64
 }
 

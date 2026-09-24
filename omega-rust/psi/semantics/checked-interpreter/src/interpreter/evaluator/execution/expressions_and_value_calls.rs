@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, BTreeMap, BinaryOperator, Cell, DataMember, EvalResult, EvaluatedArgument,
     Evaluator, ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap, FloatSemantics,
     Frame, Halt, HashSet, Machine, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, State,
@@ -12,7 +12,7 @@ mod match_dispatch;
 mod case_membership_tests;
 
 impl<'program> Evaluator<'program> {
-    pub(super) fn eval_expression(
+    pub(in crate::interpreter::evaluator) fn eval_expression(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -545,7 +545,7 @@ impl<'program> Evaluator<'program> {
             return Ok(plan);
         }
         // CH10 root grant marker (see the statement-call twin): a no-op.
-        if super::statements_and_calls::is_statically_harvested_build_declaration(target) {
+        if crate::interpreter::evaluator::execution::statements_and_calls::is_statically_harvested_build_declaration(target) {
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {

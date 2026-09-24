@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, BigInt, EvalResult, Evaluator, ExpressionNode, FloatMeaning, FloatSemantics,
     Frame, Halt, PrimitiveType, SemanticFloatFormat, Value, big_integer_runtime_value,
     float_to_integer_trap_message, is_unsigned_integer_primitive, semantic_integer_format, trap,
@@ -6,7 +6,7 @@ use super::{
 };
 impl<'program> Evaluator<'program> {
     /// The target `PrimitiveType` of a cast's full type reference.
-    pub(super) fn cast_target_primitive(
+    pub(in crate::interpreter::evaluator) fn cast_target_primitive(
         &self,
         target_type: typed_trees::types::TypeReferenceHandle,
     ) -> Option<PrimitiveType> {
@@ -16,7 +16,7 @@ impl<'program> Evaluator<'program> {
     /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
     /// integer narrowing/widening (wrapping to the target width, sign- or zero-extending on
     /// read per the SOURCE signedness, which the value carries as its width tag).
-    pub(super) fn eval_cast(
+    pub(in crate::interpreter::evaluator) fn eval_cast(
         &self,
         value: Value,
         source: Option<PrimitiveType>,
@@ -107,7 +107,7 @@ impl<'program> Evaluator<'program> {
     /// byte array assembles `size_of(target)` bytes little-endian (floats
     /// from the assembled bits). `Ok(None)` when the shape is not the
     /// interior class (the scalar-pun path then evaluates normally).
-    pub(super) fn eval_interior_recast(
+    pub(in crate::interpreter::evaluator) fn eval_interior_recast(
         &mut self,
         cast: &typed_trees::expression::TableCastExpression,
         target: Option<PrimitiveType>,
