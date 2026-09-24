@@ -102,9 +102,28 @@ not done until the worker's status is `running` again** — a merged lane
 with no next-leg message leaves the worker idling in waiting_for_user,
 which both wastes the slot and stops waking you. If the merge resolution
 is heavy, send the next-leg dispatch FIRST (the worker doesn't need the
-merge to push its next lane) and merge after. When idle, sweep all worker
-statuses with `devin_session_interact get` — a `waiting_for_user` or
-`suspended` worker you didn't park is a bug in your own loop.
+merge to push its next lane) and merge after. Sweep all worker statuses
+with `devin_session_interact get` — a `waiting_for_user` or `suspended`
+worker you didn't park is a bug in your own loop.
+
+**Sweep on a clock, not just when idle.** "When idle" never happens while
+you work a leaf — sweeps deferred behind gates/merges/measurement runs are
+exactly how workers sit dark for hours. Poll every worker's status (a)
+every ~45min of coordinator work, (b) after ANY long background wait you
+just joined (gate, repro run, release build — the natural sync points),
+and (c) whenever you message any worker for another reason (you already
+paid the interact call — sweep the other five while you're there).
+
+**Settle notifications and `status_detail` can be stale.** A notification
+saying "waiting for a response" does not mean the worker is idle — it may
+have resumed, acknowledged the next leg, and gone back to work between the
+event and your sweep. Likewise `waiting_for_user` shows up mid-leg on
+workers actively burning CPU. Before nudging or re-dispatching, read the
+event tail (`devin_session_events`/`get_messages`): if its last turn
+acknowledged a leg and ended mid-work, that IS the inactivity-suspend
+pattern — nudge it. If it already posted a verdict, drain it. Only a
+worker whose last event is a verdict/blocked you never handled, or a
+genuine question to you, is actually waiting on you.
 
 **Inactivity-suspend mid-leg is a silent settle.** Workers sometimes end
 their turn mid-leg with no verdict and no pushed lane; the session then
