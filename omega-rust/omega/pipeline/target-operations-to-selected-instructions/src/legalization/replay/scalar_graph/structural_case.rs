@@ -46,8 +46,10 @@ pub(super) fn validate(
         .iter()
         .find(|declaration| declaration.id == produced.structural_type())
         .ok_or(invalid.clone())?;
-    let terminal_psi::StructuralTypeShape::Sum { cases: declared } = &declaration.shape else {
-        return Err(invalid);
+    let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Sum { cases }
+        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => return Err(invalid),
     };
     if cases.len() != declared.len() || cases.len() != layout.cases.len() {
         return Err(invalid);

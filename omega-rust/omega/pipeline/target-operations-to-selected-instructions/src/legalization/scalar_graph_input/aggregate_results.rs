@@ -462,7 +462,9 @@ pub(in crate::legalization) fn block_home_layout(
             declaration.id == parameter.structural_type
                 && matches!(
                     declaration.shape,
-                    StructuralTypeShape::Sum { .. } | StructuralTypeShape::Record { .. }
+                    StructuralTypeShape::Sum { .. }
+                        | StructuralTypeShape::Mixed { .. }
+                        | StructuralTypeShape::Record { .. }
                 )
         }))
     {
