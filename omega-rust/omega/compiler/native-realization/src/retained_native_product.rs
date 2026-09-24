@@ -190,6 +190,28 @@ pub fn realize_retained_native_artifact(
         let demanded =
             provider_planning::compiler_intrinsics::demanded_boundary_identities(&module)?;
         let exact_import_plans = exact_demanded_import_plans(&proposal, &demanded)?;
+        // A compile that installed no provider supplies no import evidence;
+        // a demanded source-evaluated import then settles from the selected
+        // plan itself, exactly as the direct route mints it.
+        let minted_imports = if imports.is_empty() && !exact_import_plans.is_empty() {
+            crate::native_realization::source_evaluated_imports::mint_source_evaluated_imports(
+                proposal.selected_provider_plans().plans(),
+                &demanded,
+            )?
+        } else {
+            Vec::new()
+        };
+        let minted_settlements = minted_imports
+            .iter()
+            .map(|minted| {
+                SourceEvaluatedImportSettlement::new(&minted.execution, &minted.same_stack)
+            })
+            .collect::<Vec<_>>();
+        let imports = if imports.is_empty() {
+            minted_settlements.as_slice()
+        } else {
+            imports
+        };
         let native_settlements = rejoin_external_import_settlements(&exact_import_plans, imports)?;
 
         let selected_plans = proposal.selected_provider_plans().plans();
