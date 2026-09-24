@@ -302,7 +302,8 @@ pub(crate) fn lower_scalar_graph_successor(
         .ok_or(LoweringError::Unsupported(
             "scalar successor lost its source state",
         ))?;
-    let (_, source_state_typed) = source_custody::authored_state(checked, source_state)?;
+    let (source_machine, source_state_typed) =
+        source_custody::authored_state(checked, source_state)?;
     let mut structural_effects = Vec::new();
     let mut structural_arguments = Vec::new();
     for transfer in plans
@@ -330,20 +331,30 @@ pub(crate) fn lower_scalar_graph_successor(
                                 .is_none()
                     })
                     .count();
-                structural_arguments.push(scalar_bindings.owned_argument(
-                    &checked_trees::CheckedUnitStructuralArgumentPlan {
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: u32::try_from(parameter_index).ok().ok_or(
-                                LoweringError::Unsupported(
-                                    "scalar successor transfer parameter index exceeds the host type",
-                                ),
-                            )?,
-                        },
-                        path: Vec::new(),
-                        type_identity: parameter.type_identity.clone(),
-                        access: parameter.access,
+                let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: u32::try_from(parameter_index).ok().ok_or(
+                            LoweringError::Unsupported(
+                                "scalar successor transfer parameter index exceeds the host type",
+                            ),
+                        )?,
                     },
-                )?);
+                    path: Vec::new(),
+                    type_identity: parameter.type_identity.clone(),
+                    access: parameter.access,
+                };
+                structural_arguments.push(match parameter.access {
+                    // A borrowed view forwards its descriptor along the edge:
+                    // the callee re-borrows the same place rather than taking
+                    // ownership the source never had.
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => scalar_bindings
+                        .shared_structural_argument(
+                            &argument,
+                            source_machine,
+                            checked.typed.state_parameters(source_state_typed),
+                        )?,
+                    _ => scalar_bindings.owned_argument(&argument)?,
+                });
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
                 parameter_index,
