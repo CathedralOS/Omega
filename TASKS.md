@@ -4016,15 +4016,25 @@ but report the missing runtime leg explicitly; it does not close that host row.
   macOS host boundary fails the same way by construction, which is why 89
   canaries fail uniformly.
 
-  Adding darwin rows is not filling in a table, and this is the part worth
-  knowing before someone starts: both leaf types are
-  `{ method: &str, number: i64 }` -- a SYSCALL NUMBER. Darwin's realizations
-  are dylib symbol imports, several needing an injected constant argument
-  (`_clock_gettime_nsec_np` with a clockid, `objc_msgSend` with a selector),
-  and `canonical_time_host.rs`'s own header already says the per-target
-  constants "stay uncovered until a constant binding kind exists". So the
-  blocking work is a leaf representation that can name a dylib symbol import
-  and a constant, not a data entry.
+  Adding darwin rows is not filling in a table, and the reason is sharper than
+  "no representation exists". Both leaf types are `{ method: &str, number: i64 }`
+  -- a SYSCALL NUMBER -- and darwin's realizations are dylib symbol imports,
+  several needing an injected constant argument (`_clock_gettime_nsec_np` with
+  a clockid, `objc_msgSend` with a selector).
+  `ProviderBinding::Import` DOES already exist, so do not go looking for a
+  missing variant. It carries an `EvaluatedForeignImport`, and that type will
+  only construct `from_retained_evidence` when an `EvaluatedBindingReceipt`
+  COMMITS to the locator it names -- evidence produced by evaluating an
+  authored binding machine, exactly as `providers/external_leaf_dllimport_compile`
+  does with its `leaf_binding()`. A toolchain settlement table has no authored
+  machine and therefore no receipt, which is the same honesty rule these
+  modules state for themselves: they mint only what they can name honestly and
+  leave the rest uncovered. So the question is not which enum to add but where
+  a toolchain-settled import's receipt comes from -- an owner decision about
+  what authorizes a compiler-minted foreign binding. The three per-target time
+  constants are a separate hole: they carry no kernel mechanism at all, and
+  `canonical_time_host.rs` says they "stay uncovered until a constant binding
+  kind exists".
 
   That single missing representation is the root of: these 89
   `native_filesystem_canaries`, the 9 `Binding field` corpus members,
