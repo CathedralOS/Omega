@@ -140,6 +140,28 @@ pub(super) fn decode_structural_leaf_copy(
     })
 }
 
+pub(super) fn encode_structural_case_leaf_copy(
+    writer: &mut Writer,
+    source: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::STRUCTURAL_CASE_LEAF_COPY);
+    super::super::structural_field_wire::encode_canonical_structural_field(
+        writer,
+        source,
+        path,
+        "case leaf copy path",
+    )
+}
+
+pub(super) fn decode_structural_case_leaf_copy(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let (source, path) =
+        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    Ok(OperationKind::StructuralCaseLeafCopy { source, path })
+}
+
 pub(super) fn encode_byte_sequence_subslice(
     writer: &mut Writer,
     source: PlaceId,

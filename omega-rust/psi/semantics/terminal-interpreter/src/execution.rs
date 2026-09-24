@@ -676,6 +676,11 @@ impl TerminalExecution {
                         self.execute_structural_leaf_copy(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::StructuralCaseLeafCopy { .. } => {
+                        // The runtime place model has no case-qualified path;
+                        // fail closed on the documented projection boundary.
+                        return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+                    }
                     OperationKind::BooleanStructuralField { .. } => {
                         self.execute_boolean_structural_field(operation)?
                     }

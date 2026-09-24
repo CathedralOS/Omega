@@ -308,6 +308,20 @@ pub enum OperationKind {
         /// Ordered structural projection from the live whole root to the leaf.
         path: Vec<StructuralPathSegment>,
     },
+    /// Establish one owned copy of an `Unrestricted` leaf projected out of a
+    /// live root through one case the dominating control flow proved active.
+    /// The canonical path walks record fields and fixed indices like an
+    /// ordinary projection, and each `Case` step enters the payload namespace
+    /// of the exact declared case its authorizing edge selected; the copied
+    /// leaf may be a case payload or any subtree beneath it. The source stays
+    /// fully intact on the same terms as `StructuralLeafCopy`: copying is an
+    /// observation shared loans admit where a move would vacate borrowed
+    /// storage.
+    StructuralCaseLeafCopy {
+        source: PlaceId,
+        /// Ordered canonical projection from the live whole root to the leaf.
+        path: Vec<CanonicalStructuralPathSegment>,
+    },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
     /// `qualifications` replay the domain memberships checking admitted on
@@ -868,6 +882,7 @@ impl OperationKind {
             | Self::StoreStructuralField { .. }
             | Self::StructuralCaseMembership { .. }
             | Self::StructuralLeafCopy { .. }
+            | Self::StructuralCaseLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
             | Self::EstablishElementView { .. }

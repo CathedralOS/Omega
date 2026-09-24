@@ -360,6 +360,9 @@ pub(super) fn lower(
         OperationKind::StructuralLeafCopy { source, path } => {
             structural_leaf_copy::lower(operation, machine, structural_types, *source, path)
         }
+        OperationKind::StructuralCaseLeafCopy { .. } => {
+            Err(LoweringError::UnsupportedStructuralCase(operation.id))
+        }
         OperationKind::Call { .. } => calls::lower(
             operation,
             machine,

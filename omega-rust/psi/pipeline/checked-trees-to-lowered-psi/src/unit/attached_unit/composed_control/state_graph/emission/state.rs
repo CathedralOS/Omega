@@ -14,8 +14,8 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::super::{
-    CheckedStructuralControlSuccessorPlan, case_emission, edges, ranking, result_custody, returns,
-    scalars, subslices,
+    CheckedStructuralControlSuccessorPlan, case_emission, case_leaf_copy, edges, ranking,
+    result_custody, returns, scalars, subslices,
 };
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
@@ -518,6 +518,8 @@ impl StateGraphEmission<'_, '_> {
             // so the edge's arguments must be evaluated after selection.
             let stage = case_edge || !established.is_empty() || edge.scalar_arguments.iter().any(|argument| matches!(
                 argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+            )) || edge.transfers.iter().any(|transfer| matches!(
+                transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
             )) || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                         transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
@@ -625,10 +627,38 @@ impl StateGraphEmission<'_, '_> {
                                     "element view subslice transfer has no Terminal descriptor",
                                 );
                             }
-                            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
-                                return unsupported(
-                                    "Unit graph case-payload transfer has no Terminal channel",
-                                );
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                                ref subject, ref case_identity, ref field_identity, ref path,
+                            } => {
+                                let (source, root_type) = match subject.source {
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                                        let parameter = state_parameters.get(parameter_index as usize).ok_or(
+                                            LoweringError::Unsupported("Unit graph case-payload subject descriptor disappeared"),
+                                        )?;
+                                        (edge_evaluation.current_structural_place(parameter.place), parameter.structural_type)
+                                    }
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                                        let produced = case_emission::result(state, binding_ordinal, &operations)?;
+                                        (edge_evaluation.current_structural_place(produced.place), produced.structural_type)
+                                    }
+                                    _ => {
+                                        return unsupported(
+                                            "Unit graph case-payload subject source unsupported",
+                                        );
+                                    }
+                                };
+                                if matches!(subject.access, checked_trees::CheckedStructuralAccess::WriteOnlyBorrow) {
+                                    return unsupported(
+                                        "Unit graph case-payload subject is write-only",
+                                    );
+                                }
+                                let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                                self.structural_places.push(case_leaf_copy::emit(
+                                    &self.catalogs.structural_types, source, root_type, &subject.path,
+                                    &subject.type_identity, case_identity, field_identity, path,
+                                    target_parameter, destination, &mut operations,
+                                )?);
+                                destination
                             }
                         };
                     structural_arguments.push(StructuralArgument {

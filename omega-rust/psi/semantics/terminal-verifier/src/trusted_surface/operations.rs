@@ -243,6 +243,13 @@ static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     EFFECT_DEPS,
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
 );
+static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
+    "operation:structural-case-leaf-copy",
+    "a readable live whole root and a canonical path entering at least one proved case to an Unrestricted leaf",
+    "the fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
+    EFFECT_DEPS,
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+);
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
     "a writable live root, canonical relevant-field/fixed-index primitive path, and exactly typed dominating scalar value",
@@ -1042,6 +1049,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_PRIMITIVE_SCALAR_READ,
     OP_STRUCTURAL_CASE_MEMBERSHIP,
     OP_STRUCTURAL_LEAF_COPY,
+    OP_STRUCTURAL_CASE_LEAF_COPY,
     OP_WRITE_ONLY_PRIMITIVE_STORE,
     OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
@@ -1124,6 +1132,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::PrimitiveScalarRead => &OP_PRIMITIVE_SCALAR_READ,
         OperationSemanticTag::StructuralCaseMembership => &OP_STRUCTURAL_CASE_MEMBERSHIP,
         OperationSemanticTag::StructuralLeafCopy => &OP_STRUCTURAL_LEAF_COPY,
+        OperationSemanticTag::StructuralCaseLeafCopy => &OP_STRUCTURAL_CASE_LEAF_COPY,
         OperationSemanticTag::WriteOnlyPrimitiveStore => &OP_WRITE_ONLY_PRIMITIVE_STORE,
         OperationSemanticTag::WriteOnlyIndexedPrimitiveStore => {
             &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE

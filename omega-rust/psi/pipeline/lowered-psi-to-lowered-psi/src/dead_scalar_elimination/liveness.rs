@@ -221,6 +221,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
         | O::StructuralLeafCopy { .. }
+        | O::StructuralCaseLeafCopy { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }

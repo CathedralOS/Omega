@@ -293,6 +293,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }
+        | OperationKind::StructuralCaseLeafCopy { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::StoreStructuralField { .. }
