@@ -685,9 +685,9 @@ pub(crate) fn lower_unit_closure(
         .iter()
         .map(|machine| (machine.source_machine(), machine.requirement_count()))
         .chain(machine_signatures.iter().filter_map(|signature| {
-            plans
-                .for_machine(signature.source)
-                .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+            UnitBody::find(plans, signature.source)
+                .ok()
+                .filter(|body| body.scalar_result_type().is_some())
                 .map(|_| (signature.source, signature.requires.len()))
         }))
         .collect::<Vec<_>>();

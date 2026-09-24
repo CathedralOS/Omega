@@ -2440,7 +2440,15 @@ syntax and other terminal services are not prerequisites.
      the scalar call closure, chosen by `requires_shared_catalog`. The pure
      closure assembler drops each member module's structural types and
      refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it.
+     catalog rather than widen it. A multi-state scalar machine now has two
+     possible owners: the scalar graph and the Unit state graph
+     (`CheckedControlResultPlan::Scalar`). The state graph yields to an
+     existing scalar graph (`state graph: result signature: scalar owner
+     precedence`), but `scalar_targets::registered_structural_graph_target`
+     accepts only single-state graphs as Unit-call targets. So no Unit
+     closure can call a multi-state scalar graph that has a receiver. Let the
+     state graph own that machine, then drop the scalar graph's receiver
+     path.
   3. Forwarded dynamic Unit helpers retain no body plan, so the checked
      `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
      a helper whose body is its one call, while scalar helpers retain
@@ -2514,11 +2522,53 @@ syntax and other terminal services are not prerequisites.
   8. There are nine structural-type namespaces, one `ShapeCollector` per
      plan roster, rejoined by hand (`finalize_execution.rs`,
      `attached_unit/bodies.rs::UnitPlans::with_staged`).
+  9. A composed `GuardedJumps` chain refuses a short-circuit (`&&`/`||`)
+     guard ("guarded jump chain has a short-circuit guard" in
+     `composed_control/state_graph/emission/state.rs`). A two-arm
+     `Conditional` already stages that guard through
+     `evaluation.branch_guard` and `case_payload_dispatch::plan`. Stage every
+     chain guard through that path and delete the refusal.
+     `arithmetic_and_data::enum_and_comparison_canaries::const_fold_{saturating,wrapping}_narrow_canary_runs`
+     stop there.
   The Terminal module literals already start from
   `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
   the replaced family and its recognizer are deleted; programs it lowered
   still lower and verify; the pass-canary and run-test groups show no new
   failures.
+
+- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
+  now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
+  `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
+  composed callers reach it through the scalar call lane. The 27 run canaries
+  that stopped at `state graph: result signature`, plus
+  `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
+  next missing capability. Repair the capability, not the fixture:
+  - `state graph: natural ranks` (12 run canaries, and
+    `termination/rank_range_state_call`): the ranking witness is
+    `(j, i) -> Nat::BoundedDistance`, a signed `n -> Nat::Descending`, or a
+    `remaining in 0..=9` rank range.
+    `checks/termination/ranking::proven_state_natural_ranks_with_call_frames`
+    derives only unsigned countdowns and slice lengths. The composed ranking
+    emitter has no computed (distance) rank value.
+  - `state graph: terminator: unsupported tail: single guarded transition`
+    (8, `Holder::run`, `Tally::get`): `transition true { true -> done(v) }` in a
+    returning state. No route has a checked fact that its false path is
+    unreachable.
+  - `state graph: prefix initializers: short-circuit boolean` (2,
+    `Store::check`), `guarded jump successors: receiver transfer` (1,
+    `runtime_tuple_transition_exit`), and `conditional successors` (2).
+  - A composed caller's scalar call to a projected receiver
+    (`self.store.pick(..)`) fails `composed_control/admission.rs` with "composed
+    scalar call structural actual lost its authored position" (1 run canary,
+    and the re-pinned fail canary `calls/value_call_param_effect_arm_rejected`).
+  - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
+    (`call operation: structural arguments: parameter access`).
+    `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
+    native target lowering (`UnsupportedControlFlow`, `borrowed_calls.rs`).
+  `termination/rank_range_state_call` also needs its entry's tail-call
+  transition (`_ -> self.count(5)`: statement sequence, unsupported statement
+  kind), and the Unit closure rejects its `count`/`step` recursion.
+  Acceptance: the run canaries named in the omission roster execute.
 
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
   is removed by `consume_terminal_self_receiver` before cleanup validation,

@@ -75,9 +75,9 @@ pub(super) struct OperationFrame<'f, 'c> {
     /// Established primitive referents; a composed state establishes none.
     pub(super) primitive_locals: &'f [PrimitiveLocal],
     pub(super) results: StructuralResults<'f>,
-    /// The body's byte-sequence literal places; a literal a store writes
-    /// takes the next declaration ordinal, so this list is the one the
-    /// body's literal ordinals are dense over.
+    /// The roster a store's byte-sequence literal place joins: the ordinary
+    /// machine's literal places, or a composed body's private temporaries.
+    /// Its ordinal counts only the literals already in the roster.
     pub(super) literal_places: &'f mut Vec<StructuralPlaceDeclaration>,
     /// Open borrowed-storage windows on the current straight-line sequence.
     pub(super) windows: &'f mut BorrowedWindowLedger,

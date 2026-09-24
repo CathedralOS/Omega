@@ -266,6 +266,57 @@ impl StateGraphEmission<'_, '_> {
             &mut operations,
         )?;
         let is_guarded_return = guarded_return.is_some();
+        // A scalar-result state evaluates the value its selected exit returns
+        // through the same exit evaluator an ordinary scalar body uses; its
+        // private arm and join blocks stay inside this state.
+        let scalar_return = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
+            } => {
+                let mut calls = self.catalogs.scalar_calls.emission_context();
+                let value = evaluation.scalar_control_result(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    exits,
+                    &mut values,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                    &mut calls,
+                )?;
+                self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+                Some(value)
+            }
+            // The operation sequence above already bound the returned value;
+            // read it from the state's scalar namespace at its ordinal.
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+            } => {
+                let slot = usize::try_from(binding.binding_ordinal)
+                    .ok()
+                    .and_then(|ordinal| ordinal.checked_add(state.scalar_parameters.len()))
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar return binding ordinal overflows",
+                    ))?;
+                let position = match &evaluation.scalar_bindings {
+                    Some(bindings) => bindings.immutable_position(slot)?,
+                    None => slot,
+                };
+                let value = values
+                    .get(position)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph scalar return binding is absent",
+                    ))?;
+                if value.scalar_type != terminal_scalar_type(binding.primitive_type)? {
+                    return unsupported("Unit graph scalar return binding changed its carrier");
+                }
+                Some(value)
+            }
+            _ => None,
+        };
         let inherited_lengths = operations.byte_lengths.clone();
         let inherited_field_lengths = operations.field_byte_lengths.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
@@ -1012,7 +1063,8 @@ impl StateGraphEmission<'_, '_> {
                     trivial_affine_discards: Vec::new(),
                 }
             }
-            CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let source = checked
                     .machines()
                     .iter()
@@ -1040,9 +1092,28 @@ impl StateGraphEmission<'_, '_> {
                         .into_iter()
                         .map(|index| state_parameters[index].place),
                 );
-                Terminator::ReturnUnit {
-                    edge: edge_id(allocate_dense(&mut next_edge)?),
-                    trivial_affine_discards: local_discards,
+                let edge = edge_id(allocate_dense(&mut next_edge)?);
+                // A scalar return disposes the same whole roots a Unit return
+                // does, after the returned value is established.
+                match (&state.terminator, scalar_return) {
+                    (
+                        CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. },
+                        Some(value),
+                    ) => Terminator::Return {
+                        edge,
+                        value: value.id,
+                        cleanup_actions: local_discards
+                            .into_iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                            .collect(),
+                    },
+                    (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, None) => {
+                        Terminator::ReturnUnit {
+                            edge,
+                            trivial_affine_discards: local_discards,
+                        }
+                    }
+                    _ => return unsupported("Unit graph return lost its scalar value"),
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {

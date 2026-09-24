@@ -308,7 +308,13 @@ pub(super) fn emit_call_operations(
                 checked,
                 machine,
                 state: state.state,
-                scalar_result: None,
+                // A returned final expression evaluates in the `Return` role.
+                scalar_result: match &state.terminator {
+                    checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                        completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+                    } => Some(binding),
+                    _ => None,
+                },
                 scalar_parameter_count: state.scalar_parameters.len(),
                 source_value_count: values.len(),
                 parameters,
@@ -324,9 +330,8 @@ pub(super) fn emit_call_operations(
                     places: &mut catalogs.result_places,
                 },
                 // A composed body keeps literals in its private temporary
-                // roster, as `literal_arguments` does; their ordinals stay
-                // dense only while no constructor or join temporary precedes
-                // them.
+                // roster, as `literal_arguments` does; ordinals count only the
+                // literals in it.
                 literal_places: &mut catalogs.temporary_places,
                 windows: &mut windows,
                 evaluation,

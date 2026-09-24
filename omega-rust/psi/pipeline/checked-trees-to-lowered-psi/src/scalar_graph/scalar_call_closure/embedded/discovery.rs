@@ -125,10 +125,10 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
                 checked, machine,
             )?;
         if let crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::Operations(
-            plan,
+            body,
         ) = callee
         {
-            for operation in &plan.operations {
+            for operation in body.operations() {
                 if let CheckedUnitEffectOperationPlan::ScalarCall {
                     target_machine,
                     structural_arguments,

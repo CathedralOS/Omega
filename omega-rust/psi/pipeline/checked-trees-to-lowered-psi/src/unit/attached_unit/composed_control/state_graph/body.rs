@@ -22,6 +22,7 @@ pub(super) fn validate(
                 state.terminator,
                 CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
                     | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
+                    | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
             ) {
                 statements.len().saturating_sub(1)
             } else {
@@ -30,8 +31,16 @@ pub(super) fn validate(
         });
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
+    let returned_scalar = returned_scalar_binding(state);
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
+        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))))
+        // A scalar final expression's own producer occupies the tail statement.
+        + usize::from(returned_scalar.is_some_and(|binding| {
+            binding.statement_index as usize + 1 == statements.len()
+                && state.operations.last().is_some_and(|operation| matches!(operation,
+                    CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                    | CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == binding))
+        }));
     // Some operations continue the authored statement an earlier operation
     // began instead of consuming a new one; see `statement_continuations`.
     let continuations = statement_continuations(&state.operations)?;
@@ -247,6 +256,36 @@ pub(super) fn validate(
                         )?;
                     }
                 }
+            }
+            // A scalar-result state's final expression: the Return-role value
+            // the ordinary completion evaluates at the tail statement.
+            (
+                CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+                StatementNode::Expression(expression),
+            ) if returned_scalar == Some(result)
+                && result.statement_index as usize == ordinal
+                && ordinal + 1 == statements.len() =>
+            {
+                validate_returned_value(checked, machine, state, result, value, *expression)?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate, result, ..
+                },
+                StatementNode::Expression(_),
+            ) if returned_scalar == Some(result)
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index
+                && ordinal + 1 == statements.len() =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
             }
             (
                 CheckedUnitEffectOperationPlan::StructuralCall {
@@ -596,6 +635,80 @@ pub(super) fn validate(
         }
     }
     Ok(end)
+}
+
+/// The binding a scalar-result state's final expression returns, if any.
+fn returned_scalar_binding(
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Option<&checked_trees::CheckedUnitScalarResultBindingPlan> {
+    match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+        } => Some(binding),
+        _ => None,
+    }
+}
+
+/// Rejoin a returned final expression with the value checking recorded for
+/// it under the `Return` role: the pure expression bound to exactly this
+/// statement, or the unique computation root this machine owns there.
+fn validate_returned_value(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &CheckedComposedUnitControlStatePlan,
+    result: &checked_trees::CheckedUnitScalarResultBindingPlan,
+    value: &checked_trees::CheckedCallScalarArgument,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Result<(), LoweringError> {
+    let role = CheckedScalarExpressionRole::Return;
+    match value {
+        checked_trees::CheckedCallScalarArgument::Pure(value) => {
+            let (binding, retained) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(state.state, result.statement_index, role)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph scalar return has no source binding",
+                ))?;
+            if retained != value || binding.expression != expression {
+                return unsupported("Unit graph scalar return value changed");
+            }
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                terminal_scalar_type(result.primitive_type)?,
+            )
+        }
+        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+            let mut roots = checked
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == state.state
+                        && root.statement_ordinal == result.statement_index
+                        && root.role == role
+                });
+            let root = roots.next().ok_or(LoweringError::Unsupported(
+                "Unit graph scalar return has no computation root",
+            ))?;
+            if roots.next().is_some() || root.machine != machine || root.root != *handle {
+                return unsupported("Unit graph scalar return computation changed");
+            }
+            crate::expression_preparation::source_custody::validate_computation_calls(
+                checked,
+                machine,
+                state.state,
+                result.statement_index,
+                *handle,
+                expression,
+            )
+        }
+    }
 }
 
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {
