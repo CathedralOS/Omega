@@ -7,16 +7,19 @@ requires
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::Slot2 requires self <= 1;
 data Room {
     label: [u8; 8] in Utf8;
 }
 
-data Main {
+data Main
+where
+    outer <= 1,
+    inner <= 1,
+{
     console: Binding<Console>;
     rooms: [[Room; 2]; 2];
-    outer: u64 in Slot2;
-    inner: u64 in Slot2;
+    outer: u64;
+    inner: u64;
 }
 
 machine Main::main(&mut self) reaches Console {
