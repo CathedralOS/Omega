@@ -15,20 +15,22 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::dynamic_composed_unit::applications::{
-    lower_exact_application, lower_initial_rebound_application, terminal_callable_result,
+    lower_changed_initial_application, lower_exact_application,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicCallerShape, DynamicLoweringLane, retain_dynamic_source_owners,
+    DynamicCall, DynamicLoweringLane, retain_dynamic_source_owners,
 };
 use crate::unit::dynamic_composed_unit::forwarded_helpers::{
-    dynamic_source_call_occurrences_for_chain, extend_parameter_forwarding_catalog,
+    dynamic_source_call_occurrences, extend_parameter_forwarding_catalog,
     forwarded_helper_chain_ids, materialize_forwarded_helper_chain,
 };
+use crate::unit::dynamic_composed_unit::plan_validation::validate_exact_plan;
 use crate::unit::dynamic_composed_unit::realizations::{
     collect_dynamic_realizations, materialize_dynamic_realizations, retain_realizations_for_lane,
+    selected_realization,
 };
 use crate::unit::dynamic_composed_unit::source_lowering::{
-    lower_dynamic_call_custody, validate_and_lower_source,
+    lower_dynamic_call_custody, validate_and_lower_dynamic_source,
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
 use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
@@ -37,9 +39,10 @@ pub(super) fn lower(
     checked: &CheckedTrees,
     plan: &CheckedDynamicScalarCallPlan,
     continuation: &checked_trees::CheckedDynamicUnitContinuationPlan,
-    caller: DynamicCallerShape,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
+    validate_exact_plan(checked, plan, lane)?;
+    let view = plan.view();
     if plan.caller_structural_scalar_field_store.is_some() {
         return unsupported(
             "direct dynamic result control cannot also retain a caller field store",
@@ -56,7 +59,8 @@ pub(super) fn lower(
         stored,
     )?;
     let mut next_place = catalogs.next_place;
-    let caller_attachment = lookup_type_id(&catalogs.type_ids, &caller.attachment_type_identity)?;
+    let caller_attachment =
+        lookup_type_id(&catalogs.type_ids, &plan.caller_attachment_type_identity)?;
     let caller_self = StructuralParameterDeclaration {
         place: place_id(allocate_dense(&mut next_place)?),
         position: 0,
@@ -71,9 +75,11 @@ pub(super) fn lower(
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    let source = validate_and_lower_source(
+    let source = validate_and_lower_dynamic_source(
         &caller_self,
-        plan,
+        &view,
+        view.source_path,
+        view.source_type_identity,
         &catalogs.structural_types,
         &catalogs.type_ids,
     )?;
@@ -114,11 +120,8 @@ pub(super) fn lower(
         .ok_or(LoweringError::Unsupported(
             "dynamic realization prefix overflowed",
         ))?;
-    let callable_table = plan.into();
-    let all_realizations =
-        collect_dynamic_realizations(checked, &callable_table, first_realization)?;
-    let lowered_realizations =
-        retain_realizations_for_lane(&all_realizations, &callable_table, lane)?;
+    let all_realizations = collect_dynamic_realizations(checked, &view, first_realization)?;
+    let lowered_realizations = retain_realizations_for_lane(&all_realizations, &view, lane)?;
     let realization_prefix = lowered_realizations
         .iter()
         .map(|realization| realization.machine.get())
@@ -148,43 +151,13 @@ pub(super) fn lower(
             .scalar_calls
             .reserve_machine_prefix(scalar_prefix)?;
     }
-    let selected_realizations = lowered_realizations
-        .iter()
-        .filter(|candidate| {
-            candidate.source_machine == plan.realization_machine
-                && candidate.source_state == plan.realization_state
-        })
-        .collect::<Vec<_>>();
-    let [selected_realization] = selected_realizations.as_slice() else {
-        return unsupported("direct dynamic selected realization is absent or ambiguous");
-    };
-    let realization_machine = selected_realization.machine;
-    let callable_identity = selected_realization.callable_identity.clone();
-    if selected_realization.result != terminal_callable_result(plan.result.primitive_type)?
-        || selected_realization.checked_identity != plan.realization_identity
-    {
-        return unsupported("direct dynamic selected realization callable drifted");
-    }
-    let (application, selected_row) = lower_exact_application(
-        checked,
-        &callable_table,
-        caller_machine,
-        &lowered_realizations,
-    )?;
-    let initial_application = match lane {
-        DynamicLoweringLane::Rebound(initial)
-            if initial.fact.conformance != plan.selection.conformance
-                || initial.fact.rows != plan.selection.rows =>
-        {
-            Some(lower_initial_rebound_application(
-                checked,
-                plan.target_trait,
-                initial,
-                caller_machine,
-            )?)
-        }
-        _ => None,
-    };
+    let selected = selected_realization(plan, &lowered_realizations)?;
+    let (realization_machine, callable_identity) =
+        (selected.machine, selected.callable_identity.clone());
+    let (application, selected_row) =
+        lower_exact_application(checked, &view, caller_machine, &lowered_realizations)?;
+    let initial_application =
+        lower_changed_initial_application(checked, &view, lane, caller_machine)?;
     let guard = lower_checked_scalar_expression(&continuation.guard)?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
     let mut guard_operations = OperationBuffer::new(call_operation.get());
@@ -281,7 +254,8 @@ pub(super) fn lower(
     let (mut dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
         lane,
         &caller_self,
-        plan,
+        &view,
+        true,
         &catalogs.structural_types,
         &catalogs.type_ids,
         caller_machine,
@@ -333,11 +307,11 @@ pub(super) fn lower(
     }];
     caller_blocks.extend(emitted_leaf_blocks);
     let mut source_call_occurrences =
-        dynamic_source_call_occurrences_for_chain(plan, call_operation, &forwarded_helpers)?;
+        dynamic_source_call_occurrences(&[(&view, call_operation)], &forwarded_helpers)?;
     source_call_occurrences.append(&mut leaf_source_call_occurrences);
     let realization_machines = materialize_dynamic_realizations(
         checked,
-        &callable_table,
+        &view,
         &lowered_realizations,
         source_type,
         &catalogs.structural_types,
@@ -445,7 +419,7 @@ pub(super) fn lower(
     finalize_operation_proofs(&mut lowered)?;
     retain_dynamic_source_owners(
         lowered,
-        plan,
+        &view,
         &lowered_realizations,
         &forwarded_helpers,
         source_machine_ids,

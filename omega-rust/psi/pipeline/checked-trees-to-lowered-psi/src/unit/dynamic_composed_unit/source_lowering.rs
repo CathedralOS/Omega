@@ -1,12 +1,11 @@
 //! Lowering dynamic sources, selection sources and dynamic call custody.
 
-use crate::unit::dynamic_composed_unit::dynamic_lanes::{DynamicLoweringLane, ForwardedHelperIds};
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    DynamicCallView, DynamicLoweringLane, ForwardedHelperIds,
+};
 use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
 use crate::unit::{LoweringError, lookup_type_id, lower_structural_path, unsupported};
-use checked_trees::{
-    CheckedDynamicScalarCallPlan, CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
-};
-use language_semantics::Multiplicity;
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use terminal_psi::{
     ClosedConformanceApplication, ClosedConformanceRow, OperationKind, StructuralAccess,
     StructuralArgument, StructuralParameterDeclaration, TerminalDirectDynamicDispatch,
@@ -17,66 +16,26 @@ use terminal_psi::{
     TerminalStoredDynamicDescriptor, TerminalStoredDynamicDispatch,
 };
 
-pub(crate) fn validate_and_lower_source(
-    caller_self: &StructuralParameterDeclaration,
-    plan: &CheckedDynamicScalarCallPlan,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
-) -> Result<StructuralArgument, LoweringError> {
-    validate_and_lower_selection_source(
-        caller_self,
-        plan,
-        &plan.source_path,
-        &plan.source_type_identity,
-        structural_types,
-        type_ids,
-    )
-}
-
-fn validate_and_lower_selection_source(
-    caller_self: &StructuralParameterDeclaration,
-    plan: &CheckedDynamicScalarCallPlan,
-    source_path: &[CheckedUnitStructuralPathSegment],
-    source_type_identity: &str,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
-) -> Result<StructuralArgument, LoweringError> {
-    validate_and_lower_dynamic_source(
-        caller_self,
-        plan.source_parameter_position,
-        plan.caller_parameter_access,
-        plan.caller_multiplicity,
-        plan.source_access,
-        &plan.caller_attachment_type_identity,
-        source_path,
-        source_type_identity,
-        structural_types,
-        type_ids,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
+/// Validate that the caller's borrowed `self` licenses the call's field
+/// subloan at `source_path`, then lower that subloan.
 pub(crate) fn validate_and_lower_dynamic_source(
     caller_self: &StructuralParameterDeclaration,
-    source_parameter_position: u32,
-    caller_parameter_access: CheckedStructuralAccess,
-    caller_multiplicity: Multiplicity,
-    source_access: CheckedStructuralAccess,
-    caller_attachment_type_identity: &str,
+    plan: &DynamicCallView<'_>,
     source_path: &[CheckedUnitStructuralPathSegment],
     source_type_identity: &str,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
 ) -> Result<StructuralArgument, LoweringError> {
-    if source_parameter_position != caller_self.position
-        || caller_parameter_access
+    let source_access = plan.source_access;
+    if plan.source_parameter_position != caller_self.position
+        || plan.caller_parameter_access
             != match caller_self.access {
                 StructuralAccess::SharedBorrow => CheckedStructuralAccess::SharedBorrow,
                 StructuralAccess::MutableBorrow => CheckedStructuralAccess::MutableBorrow,
                 _ => return unsupported("direct dynamic caller self access is unsupported"),
             }
         || !caller_self.is_self
-        || caller_self.multiplicity != terminal_structural_multiplicity(caller_multiplicity)
+        || caller_self.multiplicity != terminal_structural_multiplicity(plan.caller_multiplicity)
         || !matches!(
             source_access,
             CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
@@ -86,7 +45,7 @@ pub(crate) fn validate_and_lower_dynamic_source(
     {
         return unsupported("direct dynamic caller self does not license the field subloan");
     }
-    let attachment_id = lookup_type_id(type_ids, caller_attachment_type_identity)?;
+    let attachment_id = lookup_type_id(type_ids, plan.caller_attachment_type_identity)?;
     let source_type = lookup_type_id(type_ids, source_type_identity)?;
     let attachment = structural_types
         .iter()
@@ -121,11 +80,65 @@ pub(crate) fn validate_and_lower_dynamic_source(
     })
 }
 
+/// An ordinary call into `callee`, binding the lane's scalar result or none.
+pub(crate) fn machine_call(
+    callee: semantic_vocabulary::MachineId,
+    structural_arguments: Vec<StructuralArgument>,
+    returns_scalar: bool,
+) -> OperationKind {
+    if returns_scalar {
+        OperationKind::CallStructuralScalar {
+            callee,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    } else {
+        OperationKind::CallUnit {
+            callee,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    }
+}
+
+/// A call through the caller's one descriptor, for the lane's result.
+fn descriptor_call(returns_scalar: bool) -> OperationKind {
+    if returns_scalar {
+        OperationKind::CallDynamicScalar {
+            descriptor_ordinal: 0,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    } else {
+        OperationKind::CallDynamicUnit {
+            descriptor_ordinal: 0,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        }
+    }
+}
+
+/// The caller's descriptor catalog and call. The lane decides the descriptor:
+/// the latest selection, a rebound descriptor over the initial and latest
+/// selections, or a descriptor stored into an aggregate field. The call then
+/// passes that descriptor to the first forwarded helper, calls the selected
+/// realization directly, or dispatches through the descriptor.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_dynamic_call_custody(
     lane: DynamicLoweringLane<'_>,
     caller_self: &StructuralParameterDeclaration,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallView<'_>,
+    returns_scalar: bool,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
     caller_machine: semantic_vocabulary::MachineId,
@@ -146,113 +159,17 @@ pub(crate) fn lower_dynamic_call_custody(
         conformance_application_report_fingerprint: application.report_fingerprint,
         conformance_application_commitment: application.commitment,
     };
-    let row_dispatch = |descriptor_ordinal| TerminalIndirectDynamicDispatch {
-        owner: caller_machine,
-        operation: call_operation,
-        descriptor_ordinal,
-        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-        public_requirement_identity: selected_row.public_requirement_identity.clone(),
-        family_tuple: selected_row.family_tuple.clone(),
-        requirement_identity: selected_row.requirement_identity.clone(),
-        realization_identity: selected_row.realization_identity.clone(),
-        realization_callable_identity: callable_identity.clone(),
-        realization: realization_machine,
-    };
-    let stored_row_dispatch = |descriptor_ordinal| TerminalStoredDynamicDispatch {
-        owner: caller_machine,
-        operation: call_operation,
-        descriptor_ordinal,
-        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-        public_requirement_identity: selected_row.public_requirement_identity.clone(),
-        family_tuple: selected_row.family_tuple.clone(),
-        requirement_identity: selected_row.requirement_identity.clone(),
-        realization_identity: selected_row.realization_identity.clone(),
-        realization_callable_identity: callable_identity.clone(),
-        realization: realization_machine,
-    };
-    Ok(match lane {
+    let mut catalog = TerminalDynamicDispatchCatalog::default();
+    let argument_source = match lane {
         DynamicLoweringLane::Direct => {
             if initial_application.is_some() {
                 return unsupported("direct dynamic dispatch retained a rebound application");
             }
-            let mut catalog = TerminalDynamicDispatchCatalog {
-                parameters: Vec::new(),
-                arguments: Vec::new(),
-                selections: vec![latest_selection],
-                rebound_descriptors: Vec::new(),
-                stored_descriptors: Vec::new(),
-                direct_dispatches: Vec::new(),
-                indirect_dispatches: Vec::new(),
-                stored_dispatches: Vec::new(),
-                parameter_dispatches: Vec::new(),
-            };
-            let call_kind = if let Some(helper) = forwarded_helper {
-                let (requirements, requirement_slot) =
-                    dynamic_parameter_interface(application, selected_row)?;
-                catalog.parameters.push(TerminalDynamicDescriptorParameter {
-                    owner: helper.machine,
-                    ordinal: 0,
-                    source_position: 0,
-                    trait_identity: application.trait_identity.clone(),
-                    access: latest_source.access,
-                    requirements,
-                });
-                catalog.arguments.push(TerminalDynamicDescriptorArgument {
-                    owner: caller_machine,
-                    operation: call_operation,
-                    parameter_ordinal: 0,
-                    source: TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
-                });
-                catalog
-                    .parameter_dispatches
-                    .push(TerminalParameterDynamicDispatch {
-                        owner: helper.machine,
-                        operation: helper.operation,
-                        parameter_ordinal: 0,
-                        requirement_slot,
-                    });
-                OperationKind::CallStructuralScalar {
-                    callee: helper.machine,
-                    arguments: Vec::new(),
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                }
-            } else {
-                catalog
-                    .direct_dispatches
-                    .push(TerminalDirectDynamicDispatch {
-                        owner: caller_machine,
-                        operation: call_operation,
-                        selection_ordinal: 0,
-                        declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
-                        public_requirement_identity: selected_row
-                            .public_requirement_identity
-                            .clone(),
-                        family_tuple: selected_row.family_tuple.clone(),
-                        requirement_identity: selected_row.requirement_identity.clone(),
-                        realization_identity: selected_row.realization_identity.clone(),
-                        realization_callable_identity: callable_identity,
-                        realization: realization_machine,
-                    });
-                OperationKind::CallStructuralScalar {
-                    callee: realization_machine,
-                    arguments: Vec::new(),
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: vec![latest_source],
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                }
-            };
-            (catalog, call_kind)
+            catalog.selections.push(latest_selection);
+            TerminalDynamicDescriptorSource::Selection { ordinal: 0 }
         }
         DynamicLoweringLane::Rebound(initial) => {
-            let initial_source = validate_and_lower_selection_source(
+            let initial_source = validate_and_lower_dynamic_source(
                 caller_self,
                 plan,
                 &initial.path,
@@ -260,79 +177,27 @@ pub(crate) fn lower_dynamic_call_custody(
                 structural_types,
                 type_ids,
             )?;
-            let mut catalog = TerminalDynamicDispatchCatalog {
-                parameters: Vec::new(),
-                arguments: Vec::new(),
-                selections: vec![
-                    TerminalDynamicConformanceSelection {
-                        owner: caller_machine,
-                        ordinal: 0,
-                        source: initial_source,
-                        conformance_application_report_fingerprint: initial_application
-                            .unwrap_or(application)
-                            .report_fingerprint,
-                        conformance_application_commitment: initial_application
-                            .unwrap_or(application)
-                            .commitment,
-                    },
-                    latest_selection,
-                ],
-                rebound_descriptors: vec![TerminalReboundDynamicDescriptor {
+            let initial_application = initial_application.unwrap_or(application);
+            catalog.selections = vec![
+                TerminalDynamicConformanceSelection {
+                    owner: caller_machine,
+                    ordinal: 0,
+                    source: initial_source,
+                    conformance_application_report_fingerprint: initial_application
+                        .report_fingerprint,
+                    conformance_application_commitment: initial_application.commitment,
+                },
+                latest_selection,
+            ];
+            catalog
+                .rebound_descriptors
+                .push(TerminalReboundDynamicDescriptor {
                     owner: caller_machine,
                     ordinal: 0,
                     initial_selection_ordinal: 0,
                     rebound_selection_ordinal: 1,
-                }],
-                stored_descriptors: Vec::new(),
-                direct_dispatches: Vec::new(),
-                indirect_dispatches: Vec::new(),
-                stored_dispatches: Vec::new(),
-                parameter_dispatches: Vec::new(),
-            };
-            let call_kind = if let Some(helper) = forwarded_helper {
-                let (requirements, requirement_slot) =
-                    dynamic_parameter_interface(application, selected_row)?;
-                catalog.parameters.push(TerminalDynamicDescriptorParameter {
-                    owner: helper.machine,
-                    ordinal: 0,
-                    source_position: 0,
-                    trait_identity: application.trait_identity.clone(),
-                    access: latest_source.access,
-                    requirements,
                 });
-                catalog.arguments.push(TerminalDynamicDescriptorArgument {
-                    owner: caller_machine,
-                    operation: call_operation,
-                    parameter_ordinal: 0,
-                    source: TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 },
-                });
-                catalog
-                    .parameter_dispatches
-                    .push(TerminalParameterDynamicDispatch {
-                        owner: helper.machine,
-                        operation: helper.operation,
-                        parameter_ordinal: 0,
-                        requirement_slot,
-                    });
-                OperationKind::CallStructuralScalar {
-                    callee: helper.machine,
-                    arguments: Vec::new(),
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                }
-            } else {
-                catalog.indirect_dispatches.push(row_dispatch(0));
-                OperationKind::CallDynamicScalar {
-                    descriptor_ordinal: 0,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                }
-            };
-            (catalog, call_kind)
+            TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 0 }
         }
         DynamicLoweringLane::Stored(stored) => {
             if initial_application.is_some() || forwarded_helper.is_some() {
@@ -340,12 +205,10 @@ pub(crate) fn lower_dynamic_call_custody(
                     "stored dynamic dispatch acquired unrelated descriptor custody",
                 );
             }
-            let catalog = TerminalDynamicDispatchCatalog {
-                parameters: Vec::new(),
-                arguments: Vec::new(),
-                selections: vec![latest_selection],
-                rebound_descriptors: Vec::new(),
-                stored_descriptors: vec![TerminalStoredDynamicDescriptor {
+            catalog.selections.push(latest_selection);
+            catalog
+                .stored_descriptors
+                .push(TerminalStoredDynamicDescriptor {
                     owner: caller_machine,
                     ordinal: 0,
                     establishment_operation: descriptor_store_operation.ok_or(
@@ -356,21 +219,91 @@ pub(crate) fn lower_dynamic_call_custody(
                     selection_ordinal: 0,
                     aggregate_type_identity: stored.destination_type_identity.clone(),
                     field_identity: stored.destination_field_identity.clone(),
-                }],
-                direct_dispatches: Vec::new(),
-                indirect_dispatches: Vec::new(),
-                stored_dispatches: vec![stored_row_dispatch(0)],
-                parameter_dispatches: Vec::new(),
-            };
-            (
-                catalog,
-                OperationKind::CallDynamicScalar {
+                });
+            catalog
+                .stored_dispatches
+                .push(TerminalStoredDynamicDispatch {
+                    owner: caller_machine,
+                    operation: call_operation,
                     descriptor_ordinal: 0,
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                },
-            )
+                    declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                    public_requirement_identity: selected_row.public_requirement_identity.clone(),
+                    family_tuple: selected_row.family_tuple.clone(),
+                    requirement_identity: selected_row.requirement_identity.clone(),
+                    realization_identity: selected_row.realization_identity.clone(),
+                    realization_callable_identity: callable_identity,
+                    realization: realization_machine,
+                });
+            return Ok((catalog, descriptor_call(returns_scalar)));
         }
+    };
+    if let Some(helper) = forwarded_helper {
+        let (requirements, requirement_slot) =
+            dynamic_parameter_interface(application, selected_row)?;
+        catalog.parameters.push(TerminalDynamicDescriptorParameter {
+            owner: helper.machine,
+            ordinal: 0,
+            source_position: 0,
+            trait_identity: application.trait_identity.clone(),
+            access: latest_source.access,
+            requirements,
+        });
+        catalog.arguments.push(TerminalDynamicDescriptorArgument {
+            owner: caller_machine,
+            operation: call_operation,
+            parameter_ordinal: 0,
+            source: argument_source,
+        });
+        catalog
+            .parameter_dispatches
+            .push(TerminalParameterDynamicDispatch {
+                owner: helper.machine,
+                operation: helper.operation,
+                parameter_ordinal: 0,
+                requirement_slot,
+            });
+        return Ok((
+            catalog,
+            machine_call(helper.machine, Vec::new(), returns_scalar),
+        ));
+    }
+    // Without a helper, a direct selection calls its realization outright and
+    // a rebound descriptor dispatches through the descriptor.
+    Ok(if let DynamicLoweringLane::Direct = lane {
+        catalog
+            .direct_dispatches
+            .push(TerminalDirectDynamicDispatch {
+                owner: caller_machine,
+                operation: call_operation,
+                selection_ordinal: 0,
+                declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                public_requirement_identity: selected_row.public_requirement_identity.clone(),
+                family_tuple: selected_row.family_tuple.clone(),
+                requirement_identity: selected_row.requirement_identity.clone(),
+                realization_identity: selected_row.realization_identity.clone(),
+                realization_callable_identity: callable_identity,
+                realization: realization_machine,
+            });
+        (
+            catalog,
+            machine_call(realization_machine, vec![latest_source], returns_scalar),
+        )
+    } else {
+        catalog
+            .indirect_dispatches
+            .push(TerminalIndirectDynamicDispatch {
+                owner: caller_machine,
+                operation: call_operation,
+                descriptor_ordinal: 0,
+                declaring_trait_identity: selected_row.declaring_trait_identity.clone(),
+                public_requirement_identity: selected_row.public_requirement_identity.clone(),
+                family_tuple: selected_row.family_tuple.clone(),
+                requirement_identity: selected_row.requirement_identity.clone(),
+                realization_identity: selected_row.realization_identity.clone(),
+                realization_callable_identity: callable_identity,
+                realization: realization_machine,
+            });
+        (catalog, descriptor_call(returns_scalar))
     })
 }
 

@@ -5,26 +5,32 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters;
+use crate::unit::dynamic_composed_unit::dynamic_lanes::DynamicCallView;
 use crate::unit::{
     LoweringError, PrimitiveType, allocate_dense, contract_id, emit_direct_expression,
     integer_landing_scalar_type, integer_value, lookup_type_id, lower_structural_path,
     operation_id, terminal_scalar_type, unsupported, value_id,
 };
 use checked_trees::{
-    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
+    CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan,
 };
 use terminal_psi::{
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
     StructuralParameterDeclaration, ValueDeclaration,
 };
 
+/// The caller's retained field store before its selection: the constant, then
+/// the store into the selected source's scalar field.
 pub(crate) fn lower_caller_store_operations(
-    plan: &CheckedDynamicScalarCallPlan,
+    store: Option<&CheckedStructuralScalarFieldStorePlan>,
+    plan: &DynamicCallView<'_>,
     caller_self: &StructuralParameterDeclaration,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
+    next_operation: &mut u64,
+    next_value: &mut u64,
 ) -> Result<Vec<Operation>, LoweringError> {
-    let Some(store) = &plan.caller_structural_scalar_field_store else {
+    let Some(store) = store else {
         return Ok(Vec::new());
     };
     if caller_self.access != StructuralAccess::MutableBorrow
@@ -33,7 +39,7 @@ pub(crate) fn lower_caller_store_operations(
     {
         return unsupported("direct dynamic caller store lost mutable carrier custody");
     }
-    let source_type = lookup_type_id(type_ids, &plan.source_type_identity)?;
+    let source_type = lookup_type_id(type_ids, plan.source_type_identity)?;
     let declaration = structural_types
         .iter()
         .find(|declaration| declaration.id == source_type)
@@ -79,14 +85,17 @@ pub(crate) fn lower_caller_store_operations(
         }
         _ => return unsupported("direct dynamic store value is unsupported"),
     };
+    let constant_operation = operation_id(allocate_dense(next_operation)?);
+    let value = value_id(allocate_dense(next_value)?);
+    let store_operation = operation_id(allocate_dense(next_operation)?);
     Ok(vec![
         Operation {
             static_reach_binding: None,
             suspension_crossing: None,
-            id: operation_id(1),
+            id: constant_operation,
             result: OperationResult::Scalar(ValueDeclaration {
                 qualifications: Default::default(),
-                id: value_id(1),
+                id: value,
                 scalar_type,
             }),
             kind: constant,
@@ -94,13 +103,13 @@ pub(crate) fn lower_caller_store_operations(
         Operation {
             static_reach_binding: None,
             suspension_crossing: None,
-            id: operation_id(2),
+            id: store_operation,
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
                 destination: caller_self.place,
                 path: lower_structural_path(&store.carrier_path),
                 field: field.id,
-                value: value_id(1),
+                value,
                 range_obligation: None,
             },
         },
