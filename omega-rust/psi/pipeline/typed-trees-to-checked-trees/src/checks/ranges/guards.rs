@@ -138,7 +138,7 @@ fn seed_binary_guard_facts(
     match operator {
         BinaryOperator::Less => {
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);
-            seed_less_than_len_fact(program, facts, binary.left, binary.right);
+            seed_less_than_len_fact(program, machine, state, facts, binary.left, binary.right);
             seed_index_less_than_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
             // `K < right` (left a constant) floors `right` at `K + 1`.
@@ -151,7 +151,14 @@ fn seed_binary_guard_facts(
         }
         BinaryOperator::LessOrEqual => {
             seed_length_at_least_fact(program, facts, binary.right, binary.left);
-            seed_successor_at_most_len_fact(program, facts, binary.left, binary.right);
+            seed_successor_at_most_len_fact(
+                program,
+                machine,
+                state,
+                facts,
+                binary.left,
+                binary.right,
+            );
             seed_at_most_len_range_bound_fact(program, facts, binary.left, binary.right);
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
             seed_at_most_fact(program, facts, binary.left, binary.right);
@@ -160,7 +167,14 @@ fn seed_binary_guard_facts(
         }
         BinaryOperator::GreaterOrEqual => {
             seed_length_at_least_fact(program, facts, binary.left, binary.right);
-            seed_successor_at_most_len_fact(program, facts, binary.right, binary.left);
+            seed_successor_at_most_len_fact(
+                program,
+                machine,
+                state,
+                facts,
+                binary.right,
+                binary.left,
+            );
             seed_at_most_len_range_bound_fact(program, facts, binary.right, binary.left);
             // `left >= K` (right a constant) floors `left` at `K`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, true);
