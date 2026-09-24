@@ -31,7 +31,7 @@ mod tests;
 pub use attachment::{
     AcceptedObligationFactIndexError, OwnershipFrontierFactIndexError, ProofQuestionIndexError,
     attach_accepted_obligation_facts, attach_ownership_frontier_facts, attach_proof_questions,
-    canonical_ownership_frontier_snapshot,
+    attach_verified_module_context, canonical_ownership_frontier_snapshot,
 };
 pub use construction::{
     OptimizationUnitBuildError, reconstruct_psi_optimization_unit_seed,

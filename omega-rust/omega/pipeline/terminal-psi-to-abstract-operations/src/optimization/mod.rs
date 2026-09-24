@@ -24,32 +24,8 @@ pub fn build_verified_psi_optimization_unit(
     let mut seed =
         optimization_unit::reconstruct_psi_optimization_unit_seed(input.plan(), fuel_schedule)?;
     let context = input.context();
-    seed.structural_domains = context.module().structural_domains.clone().into();
-    seed.services = context.module().services.clone().into();
-    seed.root_service_reach = context.module().root_service_reach.clone();
-    for function in &mut seed.functions {
-        let source = context
-            .module()
-            .machines
-            .iter()
-            .find(|machine| machine.id == function.machine)
-            .ok_or(
-                VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine(
-                    function.machine,
-                ),
-            )?;
-        function.structural_places = source.structural_places.clone();
-        function.content_entry_claims = source.content_entry_claims.clone();
-        function.verified_contract = Some(source.contract.clone());
-        function.evidence_contract_lanes = context
-            .module()
-            .evidence_contract_lanes
-            .iter()
-            .filter(|lane| lane.machine == function.machine)
-            .cloned()
-            .collect();
-    }
-    seed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&seed);
+    optimization_unit::attach_verified_module_context(&mut seed, context.module())
+        .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
     let facts = project_accepted_obligation_facts(&seed, context)?;
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     let proof_questions = project_proof_questions(&input)?;
