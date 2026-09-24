@@ -7,9 +7,11 @@ use super::arguments::{
     lower_statement_argument_span, lower_statement_expression, lower_statement_path_members,
 };
 
+/// `closes_run` says no transition follows this one in its dispatch run.
 pub(super) fn lower_transition_statement(
     lowerer: &mut Lowerer,
     transition: &resolved::statement::TableTransition,
+    closes_run: bool,
 ) -> Result<typed::statement::TableTransition, Diagnostic> {
     Ok(typed::statement::TableTransition {
         target: lower_transition_target(lowerer, transition.target)?,
@@ -19,7 +21,11 @@ pub(super) fn lower_transition_statement(
             .then(|| lower_transition_target(lowerer, transition.continuation))
             .transpose()?
             .unwrap_or_else(typed::statement::TransitionTargetHandle::invalid),
-        guard: lower_transition_guard(lowerer, &transition.guard)?,
+        guard: lower_transition_guard(
+            lowerer,
+            &transition.guard,
+            closes_run && !transition.continuation.is_valid(),
+        )?,
         proof_selectors: lowerer
             .typed_trees
             .statement_table
@@ -51,12 +57,26 @@ pub(super) fn lower_transition_statement(
     })
 }
 
+/// The last arm of a dispatch run whose guard is closed and true is the
+/// run's `_`: coverage already counts it so, and it evaluates nothing. Every
+/// later stage then sees the one spelling of an unconditional arm. An earlier
+/// closed-true arm keeps its guard, since dead arms follow it.
 fn lower_transition_guard(
     lowerer: &mut Lowerer,
     guard: &resolved::statement::TransitionGuardNode,
+    closes_run: bool,
 ) -> Result<typed::statement::TransitionGuardNode, Diagnostic> {
     match guard {
         resolved::statement::TransitionGuardNode::Always => {
+            Ok(typed::statement::TransitionGuardNode::Always)
+        }
+        resolved::statement::TransitionGuardNode::When(expression)
+            if closes_run
+                && crate::expressions::exhaustiveness::closed_boolean_guard(
+                    lowerer.source_trees,
+                    *expression,
+                ) == Some(true) =>
+        {
             Ok(typed::statement::TransitionGuardNode::Always)
         }
         resolved::statement::TransitionGuardNode::When(expression) => {
