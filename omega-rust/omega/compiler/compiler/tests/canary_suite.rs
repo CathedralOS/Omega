@@ -73,14 +73,40 @@ fn production_compile(
             .or_else(|| Some(native_hosted_target().to_string())),
         _ => options.target_name.clone(),
     };
+    // `OMEGA_TEST_TIMINGS=1` prints where a harness compile spends its time:
+    // the fixture's package review, then the compiler's own stage rows.
+    let timings = std::env::var_os("OMEGA_TEST_TIMINGS").is_some();
+    let review_started = std::time::Instant::now();
     let package_inputs =
         reviewed_repository_fixture_package_inputs(&options.root_path, review_target.as_deref())?;
-    let mut request = CompileRequest::new(options).with_requested_product(requested_product);
+    if timings {
+        eprintln!(
+            "{:>10.3} ms  harness: fixture package review",
+            review_started.elapsed().as_secs_f64() * 1_000.0
+        );
+    }
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(requested_product)
+        .with_timings(timings);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
+    let compile_started = std::time::Instant::now();
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    if timings {
+        for timing in report.timings() {
+            eprintln!(
+                "{:>10.3} ms  {}",
+                timing.microseconds as f64 / 1_000.0,
+                timing.phase
+            );
+        }
+        eprintln!(
+            "{:>10.3} ms  harness: compiler::compile",
+            compile_started.elapsed().as_secs_f64() * 1_000.0
+        );
+    }
     match product {
         CanaryCompileProduct::Check
         | CanaryCompileProduct::TerminalArtifact
