@@ -751,3 +751,81 @@ fn two_branch_dynamic_unit_calls_share_one_checked_join() {
         when_false.call.forwarding_transfers,
     );
 }
+
+#[test]
+fn two_branch_dynamic_calls_under_a_latebound_equality_guard_share_one_join() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Shape {
+            machine code(&self) -> i32;
+        }
+
+        data Item { value: i32; }
+
+        Primary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        Secondary: Item satisfies Shape {
+            machine code(&self) -> i32 { transition { _ -> self.value } }
+        }
+
+        data Main { first: Item; second: Item; }
+
+        machine Main::run(&self, choose_first: bool) {
+            transition choose_first == true {
+                true -> take_first()
+                _ -> take_second()
+            }
+
+            state take_first(&self) {
+                let selected: &dyn Shape = &self.first as &dyn Item::Primary;
+                let result: i32 = finish(selected);
+            }
+
+            state take_second(&self) {
+                let selected: &dyn Shape = &self.second as &dyn Item::Secondary;
+                let result: i32 = finish(selected);
+            }
+        }
+
+        machine finish(erased: &dyn Shape) -> i32 {
+            let result: i32 = erased.code();
+            transition { _ -> result }
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    let [
+        Scalar(Joined {
+            control,
+            when_true,
+            when_false,
+        }),
+    ] = dynamic.calls.as_slice()
+    else {
+        panic!("one atomic joined call expected: {dynamic:#?}")
+    };
+    assert_eq!(control.scalar_parameters.len(), 1);
+    let checked_trees::CheckedScalarExpression::Boolean(boolean) = &control.guard else {
+        panic!(
+            "the equality guard is a Boolean scalar: {:?}",
+            control.guard
+        )
+    };
+    assert!(matches!(
+        boolean.as_ref(),
+        checked_trees::CheckedBooleanExpression::Equal { left, right }
+            if matches!(
+                left.as_ref(),
+                checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+            ) && matches!(
+                right.as_ref(),
+                checked_trees::CheckedBooleanExpression::Constant(true)
+            )
+    ));
+    assert_ne!(
+        when_true.call.selection.conformance,
+        when_false.call.selection.conformance,
+    );
+}
