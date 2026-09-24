@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
-    fixed_byte_array_view_is_admitted, is_registered_boundary_scalar_target,
+    fixed_byte_array_view_is_admitted,
 };
 use crate::execution::terminal_unit::calls::byte_subslice;
 use crate::execution::terminal_unit::calls::computation_arguments;
@@ -28,7 +28,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, PrimitiveType, StatementNode, SymbolHandle, TypedTrees, is_reference,
-    scalar_targets, strips_erased_parameter,
+    strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -281,33 +281,13 @@ pub(crate) fn structural_call_arguments(
                             &[],
                         )
                         .is_none()
+                        // A scalar-returning checked body is resolved by the
+                        // candidate closure, which selects a registered
+                        // producer or the callee's ordinary body; without a
+                        // catalog this pass keeps the registered rows only.
                         && !program
                             .primitive_type_reference(target_state.return_type)
-                            .is_some_and(|result| {
-                                is_registered_boundary_scalar_target(
-                                    scalar_callees,
-                                    target_machine.symbol,
-                                    target_state.symbol,
-                                    result,
-                                ) || scalar_targets::registered_primitive_store_target(
-                                    program,
-                                    facts,
-                                    scalar_callees,
-                                    target_machine.symbol,
-                                    target_state.symbol,
-                                    result,
-                                )
-                                .is_some()
-                                    || scalar_targets::registered_structural_graph_target(
-                                        program,
-                                        facts,
-                                        scalar_callees,
-                                        target_machine.symbol,
-                                        target_state.symbol,
-                                        result,
-                                    )
-                                    .is_some()
-                            })))
+                            .is_some_and(|_| scalar_callees.is_some())))
             {
                 return None;
             }
