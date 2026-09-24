@@ -16,7 +16,9 @@ pub(super) fn exact_guard(
     match (bindings, boolean.as_ref()) {
         // The joined guard evaluates at the caller: the scalar parameters,
         // a retained `self` field, and literal constants are its admitted
-        // operand roots.
+        // operand roots. Ordering comparisons are included — the c2l
+        // emission path already selects IntegerLessThan/LessOrEqual from
+        // the checked kind.
         ([], shape) if admitted_guard_shape(shape, scalar_parameters) => Some(expression.clone()),
         ([], shape) if scalar_parameters.is_empty() && closed_boolean(shape) => {
             Some(expression.clone())
@@ -39,9 +41,9 @@ pub(super) fn exact_guard(
 }
 
 /// Guard shapes the joined caller can evaluate itself: a Boolean parameter
-/// operand, a retained `self` field, equality or integer-equality over the
-/// admitted operand roots, and negations of those. Everything else —
-/// locals, calls, and ordering comparisons — still declines.
+/// operand, a retained `self` field, equality or integer comparisons over
+/// the admitted operand roots, and negations of those. Everything else —
+/// locals and calls — still declines.
 fn admitted_guard_shape(
     expression: &checked_trees::CheckedBooleanExpression,
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
@@ -62,11 +64,7 @@ fn admitted_guard_shape(
         checked_trees::CheckedBooleanExpression::Not(inner) => {
             admitted_guard_shape(inner, scalar_parameters)
         }
-        checked_trees::CheckedBooleanExpression::IntegerComparison {
-            kind: checked_trees::CheckedIntegerComparisonKind::Equal,
-            left,
-            right,
-        } => {
+        checked_trees::CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             (integer_subject(left) || integer_subject(right))
                 && integer_operand(left, scalar_parameters)
                 && integer_operand(right, scalar_parameters)
@@ -112,8 +110,8 @@ fn boolean_operand(
     }
 }
 
-/// One integer operand of a joined equality: a scalar parameter (typed to
-/// match it), a retained `self` field, or an integer literal.
+/// One integer operand of a joined comparison: a scalar parameter (typed
+/// to match it), a retained `self` field, or an integer literal.
 fn integer_operand(
     expression: &CheckedScalarExpression,
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
@@ -135,7 +133,7 @@ fn integer_operand(
     }
 }
 
-/// Whether an equality operand names a runtime subject — a joined
+/// Whether a comparison operand names a runtime subject — a joined
 /// parameter or a retained field — rather than a pair of literals.
 fn boolean_subject(expression: &checked_trees::CheckedBooleanExpression) -> bool {
     matches!(
