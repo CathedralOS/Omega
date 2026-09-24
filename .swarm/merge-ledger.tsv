@@ -146,3 +146,4 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T12:35Z	b31f291394	leaf/case-field-member-store	coordinator: member-read case field stores below borrowed params (clone chain unblocks at t2c; lowering arm queued)	5326/5326 t2c lib
 2026-09-24T12:45Z	c3aecd44a2 (via 437d748a38)	leaf/element-view-native-lowering	z5: ElementView ops lower natively end-to-end (Establish/Length/Read/Subslice→machine code; omega run recursive_sum=70 fletcher=56)	test_affected 16916/16921 attributed
 2026-09-24T15:05Z	SUPERSEDED	leaf/transition-arm-runtime-index-reads	z4 @15ba895312a gated green but dropped — arch-self-runtime-index landed RuntimeIndex path-segment route first (tags 89/90; self.collections[i] already composes on ab67cd12ed)	predicted collision; main wins
+z4	leaf/nested-borrowed-operands	MERGED	8053126902	borrowed-view nested-call results 5-gate ladder	2026-09-24T16:1xZ
