@@ -919,11 +919,25 @@ fn transition_guard_proves_requires(
         // without the guard being rewritten to match the predicate.
         || predicate_only_domain_interval(program, facts, fact).is_some_and(
             |(subject_label, required_low, required_high)| {
-                guard_interval_for_label(program, guard, &subject_label).is_some_and(
-                    |(guarded_low, guarded_high)| {
-                        guarded_low >= required_low && guarded_high <= required_high
-                    },
-                )
+                let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
+                    low >= required_low && high <= required_high
+                };
+                guard_interval_for_label(program, guard, &subject_label).is_some_and(contains)
+                    // The subject may be an EXPRESSION rather than a name:
+                    // `walk(remaining - 1)` states its bound about the
+                    // subtraction, which no guard spells. Read the argument
+                    // the requirement is about and shift its interval.
+                    || requirement_subject_expression(facts, fact)
+                        .and_then(|argument| {
+                            caller_expression_interval(
+                                program,
+                                machine,
+                                caller_state,
+                                guard,
+                                argument,
+                            )
+                        })
+                        .is_some_and(contains)
             },
         );
     if !guard_establishes {
@@ -1492,6 +1506,39 @@ mod transition_arm_guard_probes {
         );
     }
 
+    /// A membership requirement whose subject is an EXPRESSION is discharged
+    /// by reading that expression's interval: `walk(remaining - 1)` states its
+    /// obligation about the subtraction, which no guard spells. The control is
+    /// direction — the same shift the other way leaves the interval outside
+    /// the domain and must reject.
+    #[test]
+    fn an_expression_argument_carries_its_shifted_interval_into_the_domain() {
+        let program = |argument: &str| {
+            format!(
+                "domain u64::Fuel requires self <= 5;
+                data Main {{}}
+                machine Main::take(&mut self, value: u64 in Fuel) -> u64 {{
+                    transition {{ _ -> (0) }}
+                }}
+                machine Main::walk(&mut self, remaining: u64 in Fuel) -> u64 {{
+                    transition remaining > 0 {{
+                        true -> (self.take({argument}))
+                        false -> (0)
+                    }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("remaining - 1")),
+            "`remaining` is in 0..=5 and guarded above 0, so `remaining - 1` is in 0..=4"
+        );
+        assert!(
+            !accepted(&program("remaining + 1")),
+            "`remaining + 1` reaches 6 and leaves the domain"
+        );
+    }
+
     /// The FACT route carries numeric implication -- `index < 16` discharges
     /// `index <= 15` -- where the transition-guard route only compares
     /// spellings. It reached a free callee but not a receiver-qualified one,
@@ -1735,5 +1782,88 @@ fn guard_interval_for_label(
                 high.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
             ))
         }
+    }
+}
+
+/// The interval the caller can prove for `expression`, or `None` when it
+/// cannot be read as a closed one.
+///
+/// A name contributes its DECLARED interval -- a bracketed range or, since
+/// domains carry their bound, a declared domain -- intersected with whatever
+/// the dominating guard says about that same spelling. A literal is exact, and
+/// `+`/`-` against a literal shifts the interval. Anything else declines, so
+/// the result is only ever narrower than the truth.
+fn caller_expression_interval(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    guard: typed_trees::expression::ExpressionHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    use numerics::bignum::BigInt;
+    use typed_trees::expression::BinaryOperator;
+    if let Some(value) = validation::closed_integer_range_bound(program, expression) {
+        return Some((value.clone(), value));
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {
+            let label = program.expression_table.display_name(expression);
+            let declared = crate::checks::ranges::types::expression_enforced_declared_range(
+                program, machine, state, expression,
+            )
+            .map(|(low, high)| (BigInt::from_i64(low), BigInt::from_i64(high)));
+            let guarded = guard_interval_for_label(program, guard, &label);
+            match (declared, guarded) {
+                (Some((declared_low, declared_high)), Some((guarded_low, guarded_high))) => Some((
+                    declared_low.max(guarded_low),
+                    declared_high.min(guarded_high),
+                )),
+                (Some(interval), None) | (None, Some(interval)) => Some(interval),
+                (None, None) => None,
+            }
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Subtract
+            ) =>
+        {
+            let (low, high) =
+                caller_expression_interval(program, machine, state, guard, binary.left)?;
+            let shift = validation::closed_integer_range_bound(program, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some((low.add(&shift), high.add(&shift))),
+                _ => Some((low.sub(&shift), high.sub(&shift))),
+            }
+        }
+        _ => None,
+    }
+}
+
+/// The caller expression a membership requirement is about.
+///
+/// A call-entry membership fact is already substituted at the caller, so its
+/// place is rooted at the ACTUAL: `walk(remaining - 1)` states its obligation
+/// about the subtraction itself. A projected place (`self.field`) is a
+/// different subject and is not read here.
+fn requirement_subject_expression(
+    facts: &CheckFacts,
+    fact: &facts::Fact,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let FactPlace::Place(place_handle) = fact.place else {
+        return None;
+    };
+    let place = facts.semantic.places.get(place_handle);
+    if !facts
+        .semantic
+        .place_segments
+        .span_or_empty(place.segments)
+        .is_empty()
+    {
+        return None;
+    }
+    match place.root {
+        PlaceRoot::Expression(expression) => Some(expression),
+        _ => None,
     }
 }
