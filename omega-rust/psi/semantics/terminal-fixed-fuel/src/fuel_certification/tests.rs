@@ -1753,6 +1753,302 @@ mod machine_bounds {
         assert!(used_contract_premises(missing.machines.first().expect("one machine")).is_empty());
     }
 
+    /// A relational `requires` row derives a conditional ceiling no literal
+    /// names: `p <= q` transfers `q`'s own contract ceiling to `p`, `p < q`
+    /// transfers it less one, and `p == q` transfers it both ways. The
+    /// certificate binds every contract row the achieving chain traverses —
+    /// each is an independently discharged premise, so the tightened bound
+    /// rests on checked clauses rather than a guessed ceiling.
+    #[test]
+    fn contract_requires_relational_chain_derives_a_conditional_ceiling() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        for (relation, expected) in [
+            (
+                Proposition::LessOrEqual(
+                    parameter_term(100, rank_type),
+                    parameter_term(101, rank_type),
+                ),
+                1 + 4 * 6 + 1,
+            ),
+            (
+                Proposition::LessThan(
+                    parameter_term(100, rank_type),
+                    parameter_term(101, rank_type),
+                ),
+                1 + 4 * 5 + 1,
+            ),
+            (
+                Proposition::Equal(
+                    parameter_term(100, rank_type),
+                    parameter_term(101, rank_type),
+                ),
+                1 + 4 * 6 + 1,
+            ),
+            (
+                Proposition::Equal(
+                    parameter_term(101, rank_type),
+                    parameter_term(100, rank_type),
+                ),
+                1 + 4 * 6 + 1,
+            ),
+        ] {
+            let ceiling = Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 5),
+            );
+            let mut walk = ranked_countdown_machine(8);
+            walk.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(101),
+                scalar_type: ScalarType::Integer(rank_type),
+            });
+            walk.contract.requires = vec![relation.clone(), ceiling.clone()];
+            let module = module(1, vec![walk]);
+            assert_eq!(
+                derive_maximum_entry_bound(&module, id(1)),
+                Ok(expected),
+                "{relation:?}"
+            );
+            assert_eq!(
+                used_contract_premises(module.machines.first().expect("one machine")),
+                vec![relation, ceiling],
+                "the bound binds every row its chain rests on"
+            );
+        }
+    }
+
+    /// A chain runs through more than one relational row and strictness
+    /// accumulates along it: `p < q`, `q < r`, `r <= 6` caps `p` at 4.
+    /// A conjunction row carrying the whole chain binds that row verbatim.
+    #[test]
+    fn contract_requires_chain_composes_relational_rows() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let hops = vec![
+            Proposition::LessThan(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessThan(
+                parameter_term(101, rank_type),
+                parameter_term(102, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(102, rank_type),
+                integer_literal(rank_type, 6),
+            ),
+        ];
+        let mut walk = ranked_countdown_machine(8);
+        for raw in [101, 102] {
+            walk.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(raw),
+                scalar_type: ScalarType::Integer(rank_type),
+            });
+        }
+        walk.contract.requires = hops.clone();
+        let chained = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&chained, id(1)),
+            Ok(1 + 4 * 5 + 1),
+            "two strict links deduct twice from the literal anchor"
+        );
+        assert_eq!(
+            used_contract_premises(chained.machines.first().expect("one machine")),
+            hops
+        );
+
+        // The same derivation under one `Conjunction` row binds the whole
+        // contract row rather than its flattened conjuncts.
+        let conjunction = Proposition::Conjunction(vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 5),
+            ),
+        ]);
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![Proposition::Truth, conjunction.clone()];
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(module.machines.first().expect("one machine")),
+            vec![conjunction]
+        );
+    }
+
+    /// A chain with no literal anchor binds nothing, a relational cycle
+    /// adds no premise a direct clause does not already cover, and a
+    /// direct clause that achieves the bound keeps the chain rows out of
+    /// the premise set.
+    #[test]
+    fn contract_requires_chain_needs_a_literal_anchor() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let second = |walk: &mut TerminalMachine| {
+            walk.parameters.push(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(101),
+                scalar_type: ScalarType::Integer(rank_type),
+            });
+        };
+
+        // `p <= q` alone caps nothing: `q` carries no ceiling to transfer.
+        let mut walk = ranked_countdown_machine(8);
+        second(&mut walk);
+        walk.contract.requires = vec![Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            parameter_term(101, rank_type),
+        )];
+        let orphan = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&orphan, id(1)),
+            Ok(1 + 4 * 256 + 1)
+        );
+        assert!(used_contract_premises(orphan.machines.first().expect("one machine")).is_empty());
+
+        // `p <= q`, `q <= p`, `p <= 9`: the direct clause achieves the
+        // bound alone, so the cyclic rows stay out of the premise set.
+        let direct = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 9),
+        );
+        let mut walk = ranked_countdown_machine(8);
+        second(&mut walk);
+        walk.contract.requires = vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                parameter_term(100, rank_type),
+            ),
+            direct.clone(),
+        ];
+        let cyclic = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&cyclic, id(1)),
+            Ok(1 + 4 * 10 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(cyclic.machines.first().expect("one machine")),
+            vec![direct],
+            "a relational cycle is no premise the bound needs"
+        );
+
+        // `p <= q`, `q <= 5`, `p <= 5`: the chain and the direct clause
+        // both achieve the bound; the premise is the single covering row.
+        let covering = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        let mut walk = ranked_countdown_machine(8);
+        second(&mut walk);
+        walk.contract.requires = vec![
+            Proposition::LessOrEqual(
+                parameter_term(100, rank_type),
+                parameter_term(101, rank_type),
+            ),
+            Proposition::LessOrEqual(
+                parameter_term(101, rank_type),
+                integer_literal(rank_type, 5),
+            ),
+            covering.clone(),
+        ];
+        let covered = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&covered, id(1)),
+            Ok(1 + 4 * 6 + 1)
+        );
+        assert_eq!(
+            used_contract_premises(covered.machines.first().expect("one machine")),
+            vec![covering],
+            "the leanest achieving derivation supplies the premise"
+        );
+    }
+
+    /// A relational chain rescues a carrier whose type maximum cannot fit
+    /// the `u64` ceiling at all, exactly as a literal cap does.
+    #[test]
+    fn contract_requires_chain_rescues_a_wide_carrier() {
+        let wide = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let mut walk = ranked_countdown_machine(64);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(wide),
+        });
+        walk.contract.requires = vec![
+            Proposition::LessOrEqual(parameter_term(100, wide), parameter_term(101, wide)),
+            Proposition::LessOrEqual(parameter_term(101, wide), integer_literal(wide, 5)),
+        ];
+        let rescued = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&rescued, id(1)),
+            Ok(1 + 4 * 6 + 1),
+            "the chained ceiling bounds what the carrier's own \
+             maximum could not"
+        );
+    }
+
+    /// A segment crossing a surviving interior cycle binds every chain row
+    /// its tightened rank bound rested on, while rows outside the
+    /// achieving derivation stay unbound.
+    #[test]
+    fn segment_certificate_binds_the_chain_its_interior_consulted() {
+        let rank_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let relation = Proposition::LessOrEqual(
+            parameter_term(100, rank_type),
+            parameter_term(101, rank_type),
+        );
+        let ceiling = Proposition::LessOrEqual(
+            parameter_term(101, rank_type),
+            integer_literal(rank_type, 5),
+        );
+        let mut walk = ranked_countdown_machine(8);
+        walk.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(101),
+            scalar_type: ScalarType::Integer(rank_type),
+        });
+        walk.contract.requires = vec![relation.clone(), ceiling.clone()];
+        let module = module(1, vec![walk]);
+        let subject = PreparedFuelModule::new(&module);
+        let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+
+        let per_traversal = prepared
+            .segment_certificate(id(1), id(1), &mut BTreeMap::new())
+            .expect("entry-edge row derives");
+        assert!(per_traversal.relevant_preconditions.is_empty());
+
+        let cyclic = prepared
+            .segment_certificate(id(1), id(3), &mut BTreeMap::new())
+            .expect("entry-to-exit row derives");
+        assert_eq!(cyclic.ceiling_units, 1 + 4 * 6);
+        assert_eq!(
+            cyclic.relevant_preconditions,
+            vec![relation.clone(), ceiling.clone()],
+            "the cyclic interior binds the whole chain it rests on"
+        );
+        let mid_component = prepared
+            .segment_certificate(id(3), id(3), &mut BTreeMap::new())
+            .expect("mid-component cyclic row derives");
+        assert_eq!(
+            mid_component.relevant_preconditions,
+            vec![relation, ceiling]
+        );
+    }
+
     /// When the machine entry is itself a member, the arriving rank is the
     /// machine-parameter observation the rank row names — a contract
     /// ceiling on that parameter tightens the visit bound exactly as an

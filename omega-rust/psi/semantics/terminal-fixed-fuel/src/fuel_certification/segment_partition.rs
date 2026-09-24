@@ -1084,8 +1084,8 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
     /// can still be re-entered through the surviving internal edges may be
     /// visited up to the component's entry-rank bound plus one times before
     /// the walk leaves the component — the carrier's type maximum, or the
-    /// lower literal ceiling a `requires` clause places on every rank
-    /// arriving at first entry, the same per-member visit ceiling the
+    /// lower ceiling the `requires` clauses' conjunction places on every
+    /// rank arriving at first entry, the same per-member visit ceiling the
     /// whole-component charge uses — while a member left off every surviving
     /// cycle is crossed at most once, since the walk cannot return to it.
     /// The bound is therefore the rank-multiplied sum over the re-enterable

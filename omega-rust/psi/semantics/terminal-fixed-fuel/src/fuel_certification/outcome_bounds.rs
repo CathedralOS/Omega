@@ -413,8 +413,8 @@ pub(super) fn natural_component_geometry(
         let IntegerValue::Unsigned(rank_maximum) = component.rank_type.maximum_value() else {
             return Err(FixedFuelError::InvalidRankedScc(machine.id));
         };
-        // A `requires` clause that caps every rank arriving at the
-        // component's first entry tightens the visit bound below the
+        // `requires` clauses whose conjunction caps every rank arriving at
+        // the component's first entry tighten the visit bound below the
         // carrier maximum; the consulted clauses enter the certificate's
         // `relevant_preconditions` through `used_contract_premises`.
         let rank_bound = component_entry_rank_bound(machine, component, &blocks, rank_maximum)
@@ -474,8 +474,8 @@ struct ComponentInterior {
 /// visited by a walk of the outcome at all. The bound multiplies the
 /// members a surviving completing cycle can still re-enter by the
 /// component's entry-rank bound plus one — the carrier's type maximum, or
-/// the lower literal ceiling a `requires` clause places on every rank
-/// arriving at first entry — while a member left off every
+/// the lower ceiling the `requires` clauses' conjunction places on every
+/// rank arriving at first entry — while a member left off every
 /// surviving cycle is crossed at most once, rather than billing every live
 /// member at the rank ceiling.
 fn component_interior(
@@ -655,20 +655,22 @@ pub(super) struct EntryRankBound {
 /// The contract ceiling on one component's initial rank, or `None` when the
 /// carrier's type maximum must stand. The verifier discharges the machine's
 /// `requires` propositions as assumptions, so every admitted invocation
-/// satisfies them; a clause that caps the value arriving as a member's rank
-/// observation therefore bounds the component's initial rank directly.
-/// Every way control first enters the component must be covered: the
-/// machine entry itself when it is a member — the entry block declares no
-/// parameters, so only a machine-parameter observation can be bounded —
+/// satisfies them; clauses whose conjunction caps the value arriving as a
+/// member's rank observation therefore bound the component's initial rank
+/// directly. Every way control first enters the component must be covered:
+/// the machine entry itself when it is a member — the entry block declares
+/// no parameters, so only a machine-parameter observation can be bounded —
 /// and each edge arriving from outside the component, whose arriving rank
 /// is the argument at the target's rank-parameter position. An arrival
-/// reduces to a boundable value only when it is a machine parameter some
-/// `requires` clause caps by a literal; an argument threaded through
-/// another block's parameters, a computed value, an observed view, or a
-/// structural-case payload has no contract ceiling, so one unbounded
-/// arrival leaves the carrier maximum in place rather than guessing. The
-/// result is `Some` only when the derived ceiling genuinely tightens the
-/// type maximum — a clause that merely restates it binds nothing new.
+/// reduces to a boundable value only when it is a machine parameter the
+/// contract caps — directly by a literal clause, or through a relational
+/// chain the clauses themselves state, as `parameter_requires_bound`
+/// derives; an argument threaded through another block's parameters, a
+/// computed value, an observed view, or a structural-case payload has no
+/// contract ceiling, so one unbounded arrival leaves the carrier maximum
+/// in place rather than guessing. The result is `Some` only when the
+/// derived ceiling genuinely tightens the type maximum — a clause that
+/// merely restates it binds nothing new.
 pub(super) fn component_entry_rank_bound(
     machine: &TerminalMachine,
     component: &TerminalNaturalCycle,
@@ -722,9 +724,9 @@ pub(super) fn component_entry_rank_bound(
         }) {
             return None;
         }
-        let (candidate, clause) = parameter_requires_bound(machine, arrival, component.rank_type)?;
+        let (candidate, support) = parameter_requires_bound(machine, arrival, component.rank_type)?;
         bound = bound.max(candidate);
-        clauses.insert(clause);
+        clauses.extend(support);
     }
     (bound < rank_maximum).then_some(EntryRankBound { bound, clauses })
 }
@@ -757,68 +759,196 @@ fn successor_arguments(terminator: &Terminator) -> Vec<(BlockId, Option<&[ValueI
     }
 }
 
-/// The tightest literal ceiling the machine contract's `requires` clauses
-/// place on `parameter`, paired with the clause index that supplied it.
+/// The tightest ceiling the machine contract's `requires` clauses place on
+/// `parameter`, paired with the row positions whose conjunction derives it.
 /// Clauses flatten through `Conjunction` only: a disjunctive or implied
-/// bound is not an unconditional ceiling on the parameter's value.
+/// bound is not an unconditional ceiling on the parameter's value. A direct
+/// literal cap — `p <= k`, `p < k`, or `p == k` over an unsigned literal of
+/// the rank carrier's type — is the base case; the bound also follows a
+/// relational premise: `p <= q` transfers `q`'s own derived ceiling to `p`,
+/// `p < q` transfers it less one, and `p == q` transfers it both ways, so a
+/// chain of contract rows caps a parameter no literal mentions. Every row
+/// the achieving chain traverses is a premise the certificate binds.
 fn parameter_requires_bound(
     machine: &TerminalMachine,
     parameter: ValueId,
     rank_type: IntegerType,
-) -> Option<(u128, usize)> {
-    let mut best: Option<(u128, usize)> = None;
-    for (index, clause) in machine.contract.requires.iter().enumerate() {
+) -> Option<(u128, BTreeSet<usize>)> {
+    let scalar_type = ScalarType::Integer(rank_type);
+    let value = |term: &ScalarTerm| match term {
+        ScalarTerm::Value {
+            id,
+            scalar_type: actual,
+        } if *actual == scalar_type => Some(*id),
+        _ => None,
+    };
+    let literal = |term: &ScalarTerm| match term {
+        ScalarTerm::Integer {
+            scalar_type: actual,
+            value: IntegerValue::Unsigned(value),
+        } if *actual == rank_type => Some(*value),
+        _ => None,
+    };
+    // Each leaf proposition is a ceiling terminal or a relational edge
+    // tagged with the contract row it arrived under. A literal on the left
+    // of `<=` bounds its parameter from below, a wrong-typed or signed
+    // literal caps nothing, and a term that is neither a value nor a
+    // literal — a field observation or an arithmetic composite — places no
+    // ceiling the derivation can trust.
+    let mut terminals = Vec::new();
+    let mut edges = Vec::new();
+    for (row, clause) in machine.contract.requires.iter().enumerate() {
         let mut pending = vec![clause];
         while let Some(proposition) = pending.pop() {
             match proposition {
                 Proposition::Conjunction(children) => pending.extend(children),
-                _ => {
-                    if let Some(candidate) =
-                        literal_parameter_ceiling(proposition, parameter, rank_type)
-                        && best.is_none_or(|(current, _)| candidate < current)
-                    {
-                        best = Some((candidate, index));
+                Proposition::LessOrEqual(left, right) => {
+                    match (value(left), value(right), literal(right)) {
+                        (Some(x), _, Some(k)) => terminals.push((x, k, row)),
+                        (Some(x), Some(y), None) => edges.push((x, y, 0, row)),
+                        _ => {}
                     }
                 }
+                Proposition::LessThan(left, right) => {
+                    match (value(left), value(right), literal(right)) {
+                        (Some(x), _, Some(k)) => {
+                            if let Some(k) = k.checked_sub(1) {
+                                terminals.push((x, k, row));
+                            }
+                        }
+                        (Some(x), Some(y), None) => edges.push((x, y, 1, row)),
+                        _ => {}
+                    }
+                }
+                Proposition::Equal(left, right) => {
+                    match (value(left), value(right), literal(left), literal(right)) {
+                        (Some(x), _, _, Some(k)) => terminals.push((x, k, row)),
+                        (_, Some(y), Some(k), _) => terminals.push((y, k, row)),
+                        (Some(x), Some(y), None, None) => {
+                            edges.push((x, y, 0, row));
+                            edges.push((y, x, 0, row));
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
             }
         }
     }
-    best
+    // Tightest derived ceiling per value: terminals seed it, then
+    // relational edges propagate — `x < y` hands `x` the bound `y`'s
+    // ceiling less one since `x <= y - 1`, and a step that would fall below
+    // zero rides an unsatisfiable path rather than a usable bound. Every
+    // edge cost is nonnegative, so a tightest chain never needs to revisit
+    // a value: after as many rounds as the relation graph has nodes, the
+    // best simple derivation has settled.
+    let mut ceilings: BTreeMap<ValueId, u128> = BTreeMap::new();
+    for &(node, bound, _) in &terminals {
+        ceilings
+            .entry(node)
+            .and_modify(|best| *best = (*best).min(bound))
+            .or_insert(bound);
+    }
+    let nodes: BTreeSet<ValueId> = edges
+        .iter()
+        .flat_map(|&(x, y, _, _)| [x, y])
+        .chain(ceilings.keys().copied())
+        .collect();
+    for _ in 0..nodes.len() {
+        let mut improved = false;
+        for &(x, y, cost, _) in &edges {
+            let Some(&bound) = ceilings.get(&y) else {
+                continue;
+            };
+            let Some(candidate) = bound.checked_sub(cost) else {
+                continue;
+            };
+            if ceilings.get(&x).is_none_or(|&best| candidate < best) {
+                ceilings.insert(x, candidate);
+                improved = true;
+            }
+        }
+        if !improved {
+            break;
+        }
+    }
+    let bound = *ceilings.get(&parameter)?;
+    // The certificate binds exactly the rows the derived ceiling rests on:
+    // recover one achieving simple path — a chain that revisits a value
+    // only detours through a cycle deriving nothing. Failure to justify a
+    // bound the relaxation computed cannot occur when every ceiling traces
+    // to a terminal, but the derivation stays fail-closed rather than
+    // publishing a premise set that does not entail the bound.
+    let mut support = BTreeSet::new();
+    let mut visited = BTreeSet::from([parameter]);
+    if !justify_requires_ceiling(
+        parameter,
+        bound,
+        &ceilings,
+        &terminals,
+        &edges,
+        &mut visited,
+        &mut support,
+    ) {
+        return None;
+    }
+    Some((bound, support))
 }
 
-/// The literal ceiling one proposition places on `parameter` — a direct
-/// `p <= k`, `p < k`, or `p == k` over an unsigned literal of the rank
-/// carrier's type. Anything else — another parameter or erased formal, a
-/// math term, a field observation, or a signed literal — places no ceiling
-/// the derivation can trust.
-fn literal_parameter_ceiling(
-    proposition: &Proposition,
-    parameter: ValueId,
-    rank_type: IntegerType,
-) -> Option<u128> {
-    let is_parameter = |term: &ScalarTerm| {
-        matches!(
-            term,
-            ScalarTerm::Value { id, scalar_type }
-                if *id == parameter && *scalar_type == ScalarType::Integer(rank_type)
-        )
-    };
-    let literal = |term: &ScalarTerm| match term {
-        ScalarTerm::Integer {
-            scalar_type,
-            value: IntegerValue::Unsigned(value),
-        } if *scalar_type == rank_type => Some(*value),
-        _ => None,
-    };
-    match proposition {
-        Proposition::LessOrEqual(left, right) if is_parameter(left) => literal(right),
-        Proposition::LessThan(left, right) if is_parameter(left) => {
-            literal(right).and_then(|bound| bound.checked_sub(1))
-        }
-        Proposition::Equal(left, right) if is_parameter(left) => literal(right),
-        Proposition::Equal(left, right) if is_parameter(right) => literal(left),
-        _ => None,
+/// Recover the contract rows one achieved ceiling rests on: at each value
+/// the earliest literal row stating its bound, else the earliest relational
+/// row whose target's own bound transfers it. `visited` keeps the chain
+/// simple — a revisit means this branch detoured through a cycle that
+/// derives nothing the shorter chain did not.
+fn justify_requires_ceiling(
+    node: ValueId,
+    residual: u128,
+    ceilings: &BTreeMap<ValueId, u128>,
+    terminals: &[(ValueId, u128, usize)],
+    edges: &[(ValueId, ValueId, u128, usize)],
+    visited: &mut BTreeSet<ValueId>,
+    support: &mut BTreeSet<usize>,
+) -> bool {
+    if let Some(&(_, _, row)) = terminals
+        .iter()
+        .filter(|(value, bound, _)| *value == node && *bound == residual)
+        .min_by_key(|(_, _, row)| *row)
+    {
+        support.insert(row);
+        return true;
     }
+    let mut candidates: Vec<(usize, ValueId)> = edges
+        .iter()
+        .filter(|(x, y, cost, _)| {
+            *x == node
+                && ceilings
+                    .get(y)
+                    .and_then(|bound| bound.checked_sub(*cost))
+                    .is_some_and(|candidate| candidate == residual)
+        })
+        .map(|(_, y, _, row)| (*row, *y))
+        .collect();
+    candidates.sort_unstable();
+    for (row, y) in candidates {
+        if !visited.insert(y) {
+            continue;
+        }
+        support.insert(row);
+        if justify_requires_ceiling(
+            y,
+            ceilings[&y],
+            ceilings,
+            terminals,
+            edges,
+            visited,
+            support,
+        ) {
+            return true;
+        }
+        support.remove(&row);
+        visited.remove(&y);
+    }
+    false
 }
 
 /// The machine-contract premises a whole-entry certificate's bound
