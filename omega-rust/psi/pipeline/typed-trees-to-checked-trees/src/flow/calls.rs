@@ -44,43 +44,37 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     );
-    let entry = {
-        build_call_entry_contexts(
-            borrow,
-            build,
-            *active_contexts,
-            *active_constraints,
-            machine.symbol,
-            state.symbol,
-            borrow_call,
-        )
-    };
-    let requires = { build_call_requires_contexts(semantic, build, machine, state, borrow_call) };
-    let invalidation = {
-        apply_call_invalidations(
-            program,
-            borrow,
-            semantic,
-            domains,
-            build,
-            machine,
-            state,
-            *active_contexts,
-            *active_constraints,
-            borrow_call,
-        )
-    };
-    let mut exit = {
-        build_call_exit_contexts(
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            invalidation.post_contexts,
-            invalidation.post_constraints,
-        )
-    };
+    let entry = build_call_entry_contexts(
+        borrow,
+        build,
+        *active_contexts,
+        *active_constraints,
+        machine.symbol,
+        state.symbol,
+        borrow_call,
+    );
+    let requires = build_call_requires_contexts(semantic, build, machine, state, borrow_call);
+    let invalidation = apply_call_invalidations(
+        program,
+        borrow,
+        semantic,
+        domains,
+        build,
+        machine,
+        state,
+        *active_contexts,
+        *active_constraints,
+        borrow_call,
+    );
+    let mut exit = build_call_exit_contexts(
+        semantic,
+        build,
+        machine,
+        state,
+        borrow_call,
+        invalidation.post_contexts,
+        invalidation.post_constraints,
+    );
     append_one_to_one_call_carry_facts(
         program,
         semantic,
@@ -121,7 +115,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         entry.contexts,
         &mut exit,
     );
-    let boundary_edges = { append_call_boundary_edges(program, build, borrow_call) };
+    let boundary_edges = append_call_boundary_edges(program, build, borrow_call);
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
@@ -174,7 +168,7 @@ fn memoized_call_target_return_type<'plans>(
         .or_insert_with(|| call_target_return_type(program, target))
 }
 
-fn memoized_call_target_parameters<'plans>(
+pub(super) fn memoized_call_target_parameters<'plans>(
     program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
@@ -382,15 +376,23 @@ fn append_call_result_field_domain_facts<'plans>(
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
     // must establish every qualification before CheckedTrees can be accepted.
+    if !build
+        .call_result_identities
+        .contains_key(&borrow_call.target_symbol)
+    {
+        let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
+            program,
+            build,
+            borrow_call.target_symbol,
+        ));
+        build
+            .call_result_identities
+            .insert(borrow_call.target_symbol, computed);
+    }
     let paths = build
         .call_result_identities
-        .entry(borrow_call.target_symbol)
-        .or_insert_with(|| {
-            std::rc::Rc::new(call_result_qualification_identities(
-                program,
-                borrow_call.target_symbol,
-            ))
-        })
+        .get(&borrow_call.target_symbol)
+        .expect("call-result identities are inserted on miss")
         .clone();
     if paths.is_empty() {
         return;
@@ -467,7 +469,24 @@ fn append_call_parameter_domain_facts<'plans>(
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
-    let claims = call_parameter_qualification_identities(program, borrow_call.target_symbol);
+    if !build
+        .call_parameter_identities
+        .contains_key(&borrow_call.target_symbol)
+    {
+        let computed = std::rc::Rc::new(call_parameter_qualification_identities_indexed(
+            program,
+            build,
+            borrow_call.target_symbol,
+        ));
+        build
+            .call_parameter_identities
+            .insert(borrow_call.target_symbol, computed);
+    }
+    let claims = build
+        .call_parameter_identities
+        .get(&borrow_call.target_symbol)
+        .expect("call-parameter identities are inserted on miss")
+        .clone();
     if claims.is_empty() {
         return;
     }
@@ -607,40 +626,15 @@ fn asm_intrinsic_result_type(
         .find_named_type_reference(symbol)
 }
 
-/// One result obligation vocabulary for the provisional publisher and its
-/// independent custody consumer. A conservation primitive may state `result
-/// in D` in ensures rather than on the carrier type; that is still an exact
-/// result promise, not issuer authorization or an argument qualification.
-pub(crate) fn call_result_qualification_identities(
-    program: &typed_trees::TypedTrees,
+/// The signature contracts a callable's ensures/requires clauses live on: its
+/// state contracts, the entry machine's contracts when the callable is an
+/// entry state, and the trait signature's contracts when the callable is a
+/// bodyless requirement. State and signature symbols are globally unique, so
+/// each source contributes at most once.
+fn collect_callable_contracts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     target: SymbolHandle,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
-    let Some(return_type) = call_target_return_type(program, target) else {
-        return Vec::new();
-    };
-    let mut carrier = return_type;
-    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier)
-    {
-        carrier = *base_type;
-    }
-    if matches!(
-        program.type_reference_table.type_reference(carrier),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    ) {
-        return Vec::new();
-    }
-    let mut domains =
-        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
-    domains.extend(
-        crate::facts::field_domain::domain_constraint_identities(program, return_type)
-            .into_iter()
-            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
-    );
+) -> Vec<&'plans typed_trees::signature::SignatureContract> {
     let mut contracts = Vec::new();
     for machine in program.machines() {
         for (position, state) in program.machine_states(machine).iter().enumerate() {
@@ -660,8 +654,106 @@ pub(crate) fn call_result_qualification_identities(
             }
         }
     }
+    contracts
+}
+
+/// `collect_callable_contracts` through the context's symbol indexes: one
+/// map lookup each for the state and signature locations rather than the
+/// whole machines x states x trait-signatures walk.
+fn collect_callable_contracts_indexed<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    build: &mut FlowBuildContext<'plans>,
+    target: SymbolHandle,
+) -> Vec<&'plans typed_trees::signature::SignatureContract> {
+    let mut contracts = Vec::new();
+    if let Some((machine_index, state_index)) = build.state_location(program, target) {
+        let machine = &program.machines()[machine_index];
+        let state = &program.machine_states(machine)[state_index];
+        contracts.extend(program.state_contracts(state));
+        if state_index == 0 {
+            contracts.extend(program.machine_contracts(machine));
+        }
+    }
+    if let Some((owner_index, signature_index)) = build.signature_location(program, target) {
+        let owner = &program.traits()[owner_index];
+        let signature = &program.trait_machine_signatures(owner)[signature_index];
+        contracts.extend(program.state_signature_contracts(signature));
+    }
+    contracts
+}
+
+/// One result obligation vocabulary for the provisional publisher and its
+/// independent custody consumer. A conservation primitive may state `result
+/// in D` in ensures rather than on the carrier type; that is still an exact
+/// result promise, not issuer authorization or an argument qualification.
+pub(crate) fn call_result_qualification_identities(
+    program: &typed_trees::TypedTrees,
+    target: SymbolHandle,
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    let Some(return_type) = call_target_return_type(program, target) else {
+        return Vec::new();
+    };
+    let parameters = crate::semantic::calls::call_target_parameters(program, target);
+    let contracts = collect_callable_contracts(program, target);
+    result_identity_rows(program, return_type, parameters, &contracts)
+}
+
+/// `call_result_qualification_identities` on the context's memoized lookups
+/// and symbol indexes -- identical rows, computed without the whole-program
+/// scans. Used inside `call_result_identities`, so each target pays the
+/// indexed lookup at most once per build.
+fn call_result_qualification_identities_indexed<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    build: &mut FlowBuildContext<'plans>,
+    target: SymbolHandle,
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    let Some(return_type) = memoized_call_target_return_type(program, build, target) else {
+        return Vec::new();
+    };
+    let parameters = memoized_call_target_parameters(program, build, target);
+    let contracts = collect_callable_contracts_indexed(program, build, target);
+    result_identity_rows(program, return_type, parameters, &contracts)
+}
+
+fn result_identity_rows(
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    let mut carrier = return_type;
+    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier)
+    {
+        carrier = *base_type;
+    }
+    if matches!(
+        program.type_reference_table.type_reference(carrier),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    ) {
+        return Vec::new();
+    }
+    let mut domains =
+        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
+    domains.extend(
+        crate::facts::field_domain::domain_constraint_identities(program, return_type)
+            .into_iter()
+            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
+    );
     for contract in contracts
-        .into_iter()
+        .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
@@ -679,13 +771,11 @@ pub(crate) fn call_result_qualification_identities(
             if result.symbol.is_valid()
                 || result.head_symbol.is_valid()
                 || !matches!(program.expression_table.name_path_members(result.members), [name] if name.as_str() == "result")
-                || crate::semantic::calls::call_target_parameters(program, target).is_some_and(
-                    |parameters| {
-                        parameters
-                            .iter()
-                            .any(|parameter| parameter.name.as_str() == "result")
-                    },
-                )
+                || parameters.is_some_and(|parameters| {
+                    parameters
+                        .iter()
+                        .any(|parameter| parameter.name.as_str() == "result")
+                })
             {
                 continue;
             }
@@ -714,28 +804,33 @@ pub(crate) fn call_parameter_qualification_identities(
     let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
         return Vec::new();
     };
-    let mut contracts = Vec::new();
-    for machine in program.machines() {
-        for (position, state) in program.machine_states(machine).iter().enumerate() {
-            if state.symbol != target {
-                continue;
-            }
-            contracts.extend(program.state_contracts(state));
-            if position == 0 {
-                contracts.extend(program.machine_contracts(machine));
-            }
-        }
-    }
-    for owner in program.traits() {
-        for signature in program.trait_machine_signatures(owner) {
-            if signature.symbol == target {
-                contracts.extend(program.state_signature_contracts(signature));
-            }
-        }
-    }
+    let contracts = collect_callable_contracts(program, target);
+    parameter_identity_rows(program, parameters, &contracts)
+}
+
+/// `call_parameter_qualification_identities` on the context's memoized
+/// lookups and symbol indexes, memoized per target inside
+/// `call_parameter_identities`.
+fn call_parameter_qualification_identities_indexed<'plans>(
+    program: &'plans typed_trees::TypedTrees,
+    build: &mut FlowBuildContext<'plans>,
+    target: SymbolHandle,
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
+    let Some(parameters) = memoized_call_target_parameters(program, build, target) else {
+        return Vec::new();
+    };
+    let contracts = collect_callable_contracts_indexed(program, build, target);
+    parameter_identity_rows(program, parameters, &contracts)
+}
+
+fn parameter_identity_rows(
+    program: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    contracts: &[&typed_trees::signature::SignatureContract],
+) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
     let mut rows = Vec::new();
     for contract in contracts
-        .into_iter()
+        .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
     {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
