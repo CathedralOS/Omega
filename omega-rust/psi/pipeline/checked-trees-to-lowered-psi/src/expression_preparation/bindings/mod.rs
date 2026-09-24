@@ -709,11 +709,9 @@ impl ScalarBindings {
             .values
             .scalar_expressions
             .bound_expression_at(state, statement, role)
-            .ok_or_else(|| {
-                LoweringError::Unsupported(
-                    "scalar computation needs one checked expression and one source binding",
-                )
-            })?;
+            .ok_or(LoweringError::Unsupported(
+                "scalar computation needs one checked expression and one source binding",
+            ))?;
         let expression = self.expression(expression)?;
         source_custody::validate_pure(checked, binding, expression.scalar_type())?;
         Ok(expression)

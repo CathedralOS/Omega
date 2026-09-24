@@ -142,7 +142,7 @@ pub fn fixed_element_array_extent<'types>(
     {
         return None;
     }
-    let Some(expected_element) = types.clone().find_map(|declaration| {
+    let expected_element = types.clone().find_map(|declaration| {
         match (
             declaration.id == expected.structural_type,
             &declaration.shape,
@@ -150,9 +150,7 @@ pub fn fixed_element_array_extent<'types>(
             (true, StructuralTypeShape::ElementView { element }) => Some(*element),
             _ => None,
         }
-    }) else {
-        return None;
-    };
+    })?;
     let declaration =
         runtime_structural_path_tip(types.clone(), actual.structural_type, &argument.path)?;
     let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {

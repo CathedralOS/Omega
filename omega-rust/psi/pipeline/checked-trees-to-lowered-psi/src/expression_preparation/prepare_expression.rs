@@ -81,11 +81,11 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     Ok(expression)
 }
 
-fn view_observation_parameter<'a>(
+fn view_observation_parameter(
     position: u32,
-    parameters: &'a [(u32, StructuralParameterDeclaration)],
+    parameters: &[(u32, StructuralParameterDeclaration)],
     length_only: bool,
-) -> Result<&'a StructuralParameterDeclaration, LoweringError> {
+) -> Result<&StructuralParameterDeclaration, LoweringError> {
     let parameter = parameters
         .iter()
         .find_map(|(source_position, parameter)| {

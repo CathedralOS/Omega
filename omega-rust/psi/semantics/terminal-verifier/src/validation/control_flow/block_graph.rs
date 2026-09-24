@@ -1,7 +1,7 @@
 //! The successor graph of one machine's blocks and the order the checks
 //! walk them in.
 
-use super::super::{
+use crate::validation::{
     BTreeMap, BTreeSet, BlockId, ModuleError, TerminalMachine, TerminalModule, Terminator,
 };
 

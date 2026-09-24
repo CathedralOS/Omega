@@ -1,6 +1,6 @@
 //! The definition sites of one machine's values and places.
 
-use super::super::{
+use crate::validation::{
     BTreeMap, BTreeSet, BlockId, OperationKind, ScalarType, TerminalMachine, TerminalModule,
     ValueId,
 };
@@ -43,10 +43,10 @@ pub(super) fn definition_sites(
     // consume bare carriers. Reuse their complete operand checks with a bare
     // namespace; direct calls instead transport their full checked signature.
     // Build this projection once per machine, not once per operation.
-    let bare_value_types = super::super::scalar::qualifications::declarations(machine)
+    let bare_value_types = crate::validation::scalar::qualifications::declarations(machine)
         .any(|value| !value.qualifications.is_empty())
         .then(|| {
-            super::super::scalar::qualifications::declarations(machine)
+            crate::validation::scalar::qualifications::declarations(machine)
                 .filter(|value| value.qualifications.is_empty())
                 .map(|value| (value.id, value.scalar_type))
                 .collect::<BTreeMap<_, _>>()
@@ -75,12 +75,17 @@ pub(super) fn definition_sites(
                 structural_definitions.insert(result.place, block.id);
             }
             if let Some(result) = operation.result.structural()
-                && super::super::scalar::array::plain_return_source(module, machine, result.place)
+                && crate::validation::scalar::array::plain_return_source(
+                    module,
+                    machine,
+                    result.place,
+                )
             {
                 scalar_array_definitions.insert(result.place, block.id);
             }
             if let Some(result) = operation.result.structural()
-                && super::super::primitive_storage::local_result(machine, result.place).is_some()
+                && crate::validation::primitive_storage::local_result(machine, result.place)
+                    .is_some()
             {
                 primitive_local_definitions.insert(result.place, block.id);
             }

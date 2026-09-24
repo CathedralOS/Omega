@@ -328,7 +328,7 @@ fn mixed_parameter_target(
     };
     let discard = terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place);
     target_operations::TargetOperationPlan {
-        psi: plan.psi.clone(),
+        psi: plan.psi,
         target: native,
         entry: semantic_vocabulary::MachineId::new(1).unwrap(),
         functions: vec![target_operations::TargetFunction {

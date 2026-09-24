@@ -3,17 +3,15 @@
 //! trivial affine local establishments, and entry claims pinned on owned
 //! machine parameters for the machine's whole cyclic lifetime.
 
-use super::super::{
-    BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
-};
-use super::super::{block_views, primitive_storage};
 use super::{
     ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator,
 };
-use crate::validation::byte_sequence::subslice;
-use crate::validation::scalar::array;
+use crate::validation::{
+    BTreeSet, ClaimId, OperationResult, PlaceId, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceKind, TerminalAffineCleanupAction,
+};
+use crate::validation::{block_views, primitive_storage};
 
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, and frontier checks after this fence.
@@ -35,14 +33,14 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
         ) && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
-            && super::super::scalar::case::plain_type(module, result.structural_type)
+            && crate::validation::scalar::case::plain_type(module, result.structural_type)
     });
     if (machine.result.structural().is_some() && !scalar_case_result)
         || !claims_pinned_at_entry(machine, &claim_roots)
         || !machine.content_identity_reshuffles.is_empty()
         || !machine.content_partition_compositions.is_empty()
         || machine.contract.requires.iter().any(|requirement| {
-            super::super::proposition_observes_places(
+            crate::validation::proposition_observes_places(
                 requirement,
                 &machine
                     .structural_parameters
@@ -103,7 +101,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                 || scalar_case_result && matches!(&block.terminator,
                     Terminator::ReturnStructural { source, returned_claims, .. }
                     if returned_claims.is_empty()
-                        && super::super::scalar::case::plain_return_source(module, machine, *source));
+                        && crate::validation::scalar::case::plain_return_source(module, machine, *source));
         let operations_eligible = block
             .operations
             .iter()
@@ -348,7 +346,7 @@ fn cycle_operation_eligible(
 ) -> bool {
     match &operation.kind {
         OperationKind::EstablishScalarCase { .. } => {
-            super::super::scalar::case::fields(module, machine, operation).is_ok()
+            crate::validation::scalar::case::fields(module, machine, operation).is_ok()
                 && operation.result.structural().is_some_and(|result| {
                     matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
@@ -371,11 +369,11 @@ fn cycle_operation_eligible(
                     || matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
                     || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                        && (super::super::scalar::case::plain_return_source(
+                        && (crate::validation::scalar::case::plain_return_source(
                             module,
                             machine,
                             result.place,
-                        ) || super::super::record::plain_return_source(
+                        ) || crate::validation::record::plain_return_source(
                             module,
                             machine,
                             result.place,
@@ -417,7 +415,7 @@ fn cycle_operation_eligible(
             operation.result.structural().is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
                     || (result.multiplicity == StructuralMultiplicity::Affine && fields.is_empty())
-            }) && super::super::record::fields(module, machine, operation).is_ok()
+            }) && crate::validation::record::fields(module, machine, operation).is_ok()
         }
         // An unrestricted case establishment re-arms like its record sibling:
         // re-entering hands the place a fresh payload each traversal. Its
@@ -428,7 +426,7 @@ fn cycle_operation_eligible(
                 .result
                 .structural()
                 .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
-                && super::super::structural::case::fields(module, machine, operation).is_ok()
+                && crate::validation::structural::case::fields(module, machine, operation).is_ok()
         }
         // A complete unrestricted scalar-array establishment is the record
         // arm's primitive-leaf sibling: `crate::validation::scalar::array::shape` proves the fresh
@@ -440,7 +438,7 @@ fn cycle_operation_eligible(
         // The ordinary operand, availability, and frontier checks still run
         // after this fence.
         OperationKind::EstablishScalarArray { .. } => {
-            super::super::scalar::array::shape(module, machine, operation).is_ok()
+            crate::validation::scalar::array::shape(module, machine, operation).is_ok()
         }
         // A trivial affine local establishment is the direct spelling of
         // the empty-record arm's declaration: the destination is a
@@ -455,13 +453,12 @@ fn cycle_operation_eligible(
         // entry-block establishment can stay live for the whole cyclic
         // lifetime. The ordinary operand, liveness, and frontier checks
         // still run after eligibility.
-        OperationKind::EstablishTrivialAffineLocal { .. } => {
-            operation.result == OperationResult::Unit
-                && super::super::structural::operations::validate_establish_trivial_affine_local(
-                    module, machine, operation,
-                )
-                .is_ok()
-        }
+        OperationKind::EstablishTrivialAffineLocal { .. } => operation.result
+            == OperationResult::Unit
+            && crate::validation::structural::operations::validate_establish_trivial_affine_local(
+                module, machine, operation,
+            )
+            .is_ok(),
         OperationKind::PrimitiveScalarRead { source, path } => {
             operation.result.scalar().is_some_and(|result| {
                 primitive_storage::read_type(module, machine, operation.id, *source, path)
@@ -509,7 +506,7 @@ fn cycle_operation_eligible(
                         && ((argument.access != StructuralAccess::Owned
                             && primitive_storage::local_result(machine, argument.place).is_some())
                             || (argument.access == StructuralAccess::SharedBorrow
-                                && super::super::element_view::subslice::borrowed_result(
+                                && crate::validation::element_view::subslice::borrowed_result(
                                     machine,
                                     argument.place,
                                 )
@@ -565,7 +562,7 @@ fn cycle_operation_eligible(
                                     argument.place,
                                 )
                                 .is_some()
-                                || super::super::element_view::subslice::borrowed_result(
+                                || crate::validation::element_view::subslice::borrowed_result(
                                     machine,
                                     argument.place,
                                 )
@@ -591,7 +588,7 @@ fn cycle_operation_eligible(
                                 && primitive_storage::local_result(machine, argument.place)
                                     .is_some())
                             || (argument.access == StructuralAccess::SharedBorrow
-                                && (super::super::byte_sequence::length::validate_source(
+                                && (crate::validation::byte_sequence::length::validate_source(
                                     module,
                                     machine,
                                     operation,
@@ -602,7 +599,7 @@ fn cycle_operation_eligible(
                                     },
                                 )
                                 .is_ok()
-                                    || super::super::element_view::length::validate_source(
+                                    || crate::validation::element_view::length::validate_source(
                                         module,
                                         machine,
                                         operation,
@@ -625,7 +622,7 @@ fn cycle_operation_eligible(
         }
         OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
-                super::super::element_view::subslice::borrowed_result(machine, result.place)
+                crate::validation::element_view::subslice::borrowed_result(machine, result.place)
                     == Some(result)
             })
         }
@@ -771,7 +768,7 @@ fn byte_field_boundary_loan(
     else {
         return false;
     };
-    if super::super::structural::operations::is_unrestricted_shared_subloan(
+    if crate::validation::structural::operations::is_unrestricted_shared_subloan(
         module, machine, expected, argument,
     ) {
         return terminal_semantics::shared_boundary_buffer_capacity(
@@ -789,9 +786,10 @@ fn byte_field_boundary_loan(
             )
             .is_some();
     }
-    let mutable_subloan = super::super::structural::operations::is_unrestricted_mutable_subloan(
-        module, machine, expected, argument,
-    );
+    let mutable_subloan =
+        crate::validation::structural::operations::is_unrestricted_mutable_subloan(
+            module, machine, expected, argument,
+        );
     if mutable_subloan {
         return terminal_semantics::boundary_buffer_capacity(
             module.structural_types.iter(),

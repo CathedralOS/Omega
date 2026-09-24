@@ -1161,12 +1161,11 @@ pub(crate) fn operand_source(
             return source
                 .fields
                 .get(field_ordinal as usize)
-                .map(|(_, expression, declared)| {
+                .and_then(|(_, expression, declared)| {
                     checked
                         .primitive_type_reference(*declared)
                         .map(|primitive| (*expression, primitive))
                 })
-                .flatten()
                 .ok_or(LoweringError::Unsupported(
                     "structural field ordinal escaped its constructor",
                 ));
