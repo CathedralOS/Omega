@@ -209,12 +209,20 @@ pub(super) fn retain_available(
                         facts,
                         scalar_callees,
                         candidates,
+                        composed_machines,
                         &scalar_targets::ScalarCallSite::of_plan(plan),
                         operation,
                     ) {
                         Some(scalar_targets::AvailableScalarTarget::Registered) => {}
                         Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {
                             closure.dependents.push((target_index, caller_index));
+                        }
+                        Some(scalar_targets::AvailableScalarTarget::ComposedBody(
+                            composed_index,
+                        )) => {
+                            closure
+                                .dependents
+                                .push((candidates.len() + composed_index, caller_index));
                         }
                         None => closure.drop_candidate(
                             caller_index,
@@ -321,6 +329,7 @@ pub(super) fn retain_available(
                             facts,
                             scalar_callees,
                             candidates,
+                            composed_machines,
                             &site,
                             operation,
                         ) {
@@ -329,6 +338,13 @@ pub(super) fn retain_available(
                                 target_index,
                             )) => {
                                 closure.dependents.push((target_index, caller_index));
+                            }
+                            Some(scalar_targets::AvailableScalarTarget::ComposedBody(
+                                composed_index,
+                            )) => {
+                                closure
+                                    .dependents
+                                    .push((candidates.len() + composed_index, caller_index));
                             }
                             None => closure.drop_candidate(
                                 caller_index,

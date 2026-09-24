@@ -603,7 +603,9 @@ impl ScalarBindings {
             ))
     }
 
-    fn immutable_position(&self, position: usize) -> Result<usize, LoweringError> {
+    /// The dense value position of one checked immutable slot: the scalar
+    /// formals, then each immutable local in binding order.
+    pub(crate) fn immutable_position(&self, position: usize) -> Result<usize, LoweringError> {
         self.immutable
             .get(position)
             .copied()

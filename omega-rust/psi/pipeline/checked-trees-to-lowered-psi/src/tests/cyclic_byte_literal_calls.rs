@@ -1062,3 +1062,40 @@ machine Main::main(&mut self) reaches Trace {
         "a reachable zero divisor remains rejected"
     );
 }
+
+/// A composed body keeps its byte-sequence literals in the same private
+/// roster as its constructor temporaries. A nested construction's temporary
+/// declared before a literal must not shift that literal's dense ordinal.
+#[test]
+fn literal_ordinals_stay_dense_after_a_construction_temporary() {
+    let checked = crate::front_end::checked_program(
+        r#"
+boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
+data Inner [copy] { a: u8; }
+data Outer [copy] { inner: Inner; }
+data Main { counter: u64 in Wrapping; }
+machine Main::main(&mut self) reaches Trace {
+    let o: Outer = Outer { inner: Inner { a: 1 } };
+    transition { _ -> emit() }
+    state emit(&mut self) { Trace::write("tick"); }
+}
+"#,
+    );
+    assert!(
+        !checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .is_empty(),
+        "the two-state body is a state graph"
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the composed body lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("literal ordinals are dense after the nested construction");
+}

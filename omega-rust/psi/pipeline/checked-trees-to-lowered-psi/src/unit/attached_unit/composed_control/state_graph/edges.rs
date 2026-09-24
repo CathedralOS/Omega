@@ -19,6 +19,7 @@ pub(in crate::unit::attached_unit::composed_control) fn successors(
 ) -> Vec<&CheckedStructuralControlSuccessorPlan> {
     match &state.terminator {
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+        | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
         | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
         | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
         | CheckedComposedUnitControlTerminatorPlan::Crash { .. } => Vec::new(),

@@ -507,12 +507,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             plan.attachment_type_identity
                 .as_deref()
                 .into_iter()
-                .chain(match &plan.result {
-                    checked_trees::CheckedControlResultPlan::Unit => None,
-                    checked_trees::CheckedControlResultPlan::Structural(result) => {
-                        Some(result.type_identity.as_str())
-                    }
-                })
+                .chain(plan.result.structural_identity())
                 .chain(
                     plan.states
                         .iter()
@@ -1017,7 +1012,12 @@ pub(super) fn scalar_case_value_shapes(
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
     let mut shapes = ShapeCollector::new(program);
-    state_graph::returns::signature(program, &mut shapes, reference)?;
+    // A primitive result owns no structural value shape.
+    if let checked_trees::CheckedControlResultPlan::Scalar { .. } =
+        state_graph::returns::signature(program, &mut shapes, reference)?
+    {
+        return None;
+    }
     Some(shapes.types.into_values().collect())
 }
 

@@ -143,8 +143,7 @@ pub(crate) fn emit(
     operations.invalidate_field_lengths_under(parameter.place, &path);
     let structural_type = existing_literal_view_type(structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
-    let declaration_ordinal = u32::try_from(literal_places.len())
-        .map_err(|_| LoweringError::Unsupported("literal declaration ordinal exceeds u32"))?;
+    let declaration_ordinal = super::next_byte_sequence_literal_ordinal(literal_places)?;
     literal_places.push(StructuralPlaceDeclaration {
         id: source,
         kind: StructuralPlaceKind::ByteSequenceLiteral {

@@ -3,10 +3,11 @@
 // arm -> tally.count should be 1. Exit = the raw count. The callee lives on
 // its own data family so the call's shared receiver cannot overlap the
 // &mut Tally argument (that distinct aliasing fence would fire first).
-// REJECTED the same way: the side-effecting arm states make the callee's
-// Unit plan unavailable; callers and the selected entry lose theirs, so the
-// closure check reports `missing a checked transitive machine plan` rather
-// than the retired `SIDE-EFFECTING arm state` emission fence.
+// REJECTED at the composed caller: the callee's side-effecting arm states
+// now lower as a scalar-result state graph, but `Main::main` is itself a
+// state graph, and its scalar call cannot yet rejoin the authored position
+// of the projected receiver actual (`self.picker`). Lowering reports that
+// the structural actual lost its authored position.
 
 data Tally { count: i32 in Wrapping; }
 data Picker {}

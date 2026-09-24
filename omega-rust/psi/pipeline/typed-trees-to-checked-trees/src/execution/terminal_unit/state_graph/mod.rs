@@ -90,6 +90,52 @@ pub(super) fn build_traced(
     {
         return None;
     }
+    if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
+        // A single-state body completes its scalar through the ordinary
+        // sequence, and a machine another scalar producer already owns keeps
+        // that owner: this route takes only the multi-state bodies no other
+        // producer describes, so no callee gains two competing bodies.
+        trace.phase("state graph: result signature: scalar owner precedence");
+        if states.len() < 2
+            || facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine.symbol)
+                .is_some()
+            || scalar_callees
+                .structural_returns
+                .for_machine(machine.symbol)
+                .is_some()
+            || scalar_callees
+                .boundary_returns
+                .machines
+                .iter()
+                .any(|plan| plan.machine == machine.symbol)
+        {
+            return None;
+        }
+        // Emission publishes no result guarantee, so a body whose contract
+        // promises one about its result stays unadmitted rather than losing it.
+        trace.phase("state graph: result signature: scalar result guarantee");
+        if program
+            .machine_contracts(machine)
+            .iter()
+            .chain(
+                states
+                    .iter()
+                    .flat_map(|state| program.state_contracts(state)),
+            )
+            .any(|contract| {
+                !matches!(
+                    contract.kind,
+                    super::SignatureContractKind::Requires
+                        | super::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            return None;
+        }
+    }
     trace.phase("state graph: natural ranks");
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
@@ -668,6 +714,29 @@ pub(super) fn build_traced(
             trace,
         ) {
             terminator
+        } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
+            && let Some(completion) = returns::scalar_completion(
+                program,
+                facts,
+                machine,
+                state,
+                terminator_index,
+                primitive_type,
+                sequence.scalar_result.as_ref(),
+                trace,
+            )
+        {
+            trace.phase("state graph: terminator: scalar return cleanup");
+            return_cleanup_is_whole(
+                program,
+                facts,
+                machine,
+                state,
+                structural,
+                &operations,
+                shapes,
+            )?;
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
         } else if let Some(terminator) = returns::guarded(
             program,
             facts,
@@ -686,28 +755,15 @@ pub(super) fn build_traced(
             match &statements[terminator_index..] {
                 [] if result == checked_trees::CheckedControlResultPlan::Unit => {
                     trace.phase("state graph: terminator: unit tail cleanup");
-                    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                        event.machine_symbol == machine.symbol
-                            && event.state_symbol == state.symbol
-                            && event.kind == PermissionEventKind::AffineDrop
-                            && !event.segments.is_empty()
-                    }) {
-                        return None;
-                    }
-                    let (_, residual_affine_discards, _) = return_unit_affine_discards(
+                    return_cleanup_is_whole(
                         program,
                         facts,
-                        machine.symbol,
-                        state.symbol,
+                        machine,
+                        state,
                         structural,
-                        program.state_parameters(state),
                         &operations,
-                        &[],
-                        &shapes.types,
+                        shapes,
                     )?;
-                    if !residual_affine_discards.is_empty() {
-                        return None;
-                    }
                     CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 }
                 [StatementNode::Expression(expression)]
@@ -997,6 +1053,7 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
         ) {
             crate::execution::terminal_cleanup::state_exit_result_locals(
                 program, facts, machine, state,
@@ -1061,7 +1118,8 @@ pub(super) fn build_traced(
                 CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
                     result.multiplicity == Multiplicity::Unrestricted
                 }
-                CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                     local_results::permits_disposal(program, state, result, &[], &disposable_locals)
                 }
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {
@@ -1275,6 +1333,40 @@ pub(super) fn build_traced(
     plan.natural_ranks = natural_ranks;
     plan.result = result;
     Some(plan)
+}
+
+/// A returning exit disposes whole roots only: a partial affine drop or a
+/// residual discard at the return has no Terminal return-cleanup row here.
+#[allow(clippy::too_many_arguments)]
+fn return_cleanup_is_whole(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural: &[CheckedUnitStructuralParameterPlan],
+    operations: &[CheckedUnitEffectOperationPlan],
+    shapes: &ShapeCollector<'_>,
+) -> Option<()> {
+    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
+        event.machine_symbol == machine.symbol
+            && event.state_symbol == state.symbol
+            && event.kind == PermissionEventKind::AffineDrop
+            && !event.segments.is_empty()
+    }) {
+        return None;
+    }
+    let (_, residual_affine_discards, _) = return_unit_affine_discards(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        structural,
+        program.state_parameters(state),
+        operations,
+        &[],
+        &shapes.types,
+    )?;
+    residual_affine_discards.is_empty().then_some(())
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`

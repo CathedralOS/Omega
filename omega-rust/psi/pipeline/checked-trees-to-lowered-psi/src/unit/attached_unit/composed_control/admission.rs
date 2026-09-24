@@ -688,17 +688,18 @@ fn retain_scalar_call(
         CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
             target_reaches.as_slice() == [*service_reach]
         }
-        CheckedScalarCallee::Operations(plan) => {
+        CheckedScalarCallee::Operations(body) => {
+            let contract_service_reach = body.entry()?.contract_service_reach;
             // The body owns its direct effects; an ordinary call contributes
             // the published callee ceiling transitively.
             source_call.service_reach == *service_reach
-                && target_reaches.as_slice() == [plan.service_reach]
+                && body.retains_checked_reach(checked, &target_reaches)
                 && checked
                     .facts
                     .service_reaches
                     .plan_for_machine(*target_machine)
-                    == Some(plan.contract_service_reach)
-                && checked_unit_target_reach_matches(*service_reach, plan.contract_service_reach)
+                    == Some(contract_service_reach)
+                && checked_unit_target_reach_matches(*service_reach, contract_service_reach)
         }
         CheckedScalarCallee::Boundary(plan) => {
             target_reaches.as_slice() == [plan.service_reach]

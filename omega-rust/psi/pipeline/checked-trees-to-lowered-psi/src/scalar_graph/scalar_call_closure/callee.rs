@@ -11,7 +11,10 @@ pub(crate) enum CheckedScalarCallee<'checked> {
     Graph(&'checked checked_trees::CheckedScalarMachineGraph),
     Boundary(&'checked CheckedBoundaryScalarReturnMachinePlan),
     Structural(&'checked CheckedStructuralScalarReturnMachinePlan),
-    Operations(&'checked checked_trees::CheckedUnitEffectMachinePlan),
+    /// A Unit-closure body that owns a scalar completion: an ordinary
+    /// single-state body's scalar result or control, or a state graph's
+    /// scalar result. The shared Unit assembler emits it with the closure.
+    Operations(crate::unit::attached_unit::bodies::UnitBody<'checked>),
 }
 
 impl<'checked> CheckedScalarCallee<'checked> {
@@ -67,10 +70,20 @@ impl<'checked> CheckedScalarCallee<'checked> {
             .iter()
             .filter(|plan| plan.machine == source);
         let operation_body = operation_bodies.next();
+        let mut graph_bodies = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .filter(|plan| plan.machine == source);
+        let graph_body = graph_bodies.next();
         if graphs.next().is_some()
             || boundaries.next().is_some()
             || structural.next().is_some()
             || operation_bodies.next().is_some()
+            || graph_bodies.next().is_some()
+            || (operation_body.is_some() && graph_body.is_some())
         {
             return unsupported("scalar callee has duplicate checked body ownership");
         }
@@ -88,9 +101,19 @@ impl<'checked> CheckedScalarCallee<'checked> {
             }
             (None, None, None) => {
                 // Existing scalar owners retain precedence, including their
-                // contract lowering. An ordered body is borrowed only when it
+                // contract lowering. A Unit body is borrowed only when it
                 // owns a real scalar completion; the shared Unit assembler
                 // validates its authored result, contracts and refinements.
+                if let Some(plan) = graph_body.filter(|plan| {
+                    matches!(
+                        plan.result,
+                        checked_trees::CheckedControlResultPlan::Scalar { .. }
+                    )
+                }) {
+                    return Ok(Self::Operations(
+                        crate::unit::attached_unit::bodies::UnitBody::Composed(plan),
+                    ));
+                }
                 let Some(plan) = operation_body
                     .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
                 else {
@@ -103,7 +126,9 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 if plan.structural_result.is_some() {
                     return unsupported("scalar callee has conflicting checked result ownership");
                 }
-                Ok(Self::Operations(plan))
+                Ok(Self::Operations(
+                    crate::unit::attached_unit::bodies::UnitBody::Ordinary(plan),
+                ))
             }
             _ => unsupported("scalar callee has ambiguous checked body ownership"),
         }
@@ -117,7 +142,9 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .map_or(&[], |state| &state.structural_parameters),
             Self::Boundary(plan) => &plan.structural_parameters,
             Self::Structural(plan) => &plan.structural_parameters,
-            Self::Operations(plan) => &plan.structural_parameters,
+            Self::Operations(body) => body
+                .entry()
+                .map_or(&[][..], |entry| entry.structural_parameters),
         }
     }
 
@@ -126,7 +153,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
             Self::Graph(plan) => plan.machine,
             Self::Boundary(plan) => plan.machine,
             Self::Structural(plan) => plan.machine,
-            Self::Operations(plan) => plan.machine,
+            Self::Operations(body) => body.machine(),
         }
     }
 
@@ -139,7 +166,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
     pub(crate) fn entry_claims(&self) -> &[checked_trees::CheckedUnitEntryClaimPlan] {
         match self {
             Self::Boundary(plan) => &plan.entry_claims,
-            Self::Operations(plan) => &plan.entry_claims,
+            Self::Operations(body) => body.entry().map_or(&[][..], |entry| entry.entry_claims),
             Self::Graph(_) | Self::Structural(_) => &[],
         }
     }
@@ -157,7 +184,7 @@ impl<'checked> CheckedScalarCallee<'checked> {
             }
             Self::Boundary(boundary) => Ok(boundary.state),
             Self::Structural(plan) => Ok(plan.state),
-            Self::Operations(plan) => Ok(plan.state),
+            Self::Operations(body) => Ok(body.entry()?.state),
         }
     }
 
@@ -180,7 +207,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .iter()
                 .map(|parameter| parameter.primitive_type)
                 .collect()),
-            Self::Operations(plan) => Ok(plan
+            Self::Operations(body) => Ok(body
+                .entry()?
                 .scalar_parameters
                 .iter()
                 .map(|parameter| parameter.primitive_type)
@@ -207,7 +235,10 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .unwrap_or_default(),
             Self::Boundary(plan) => erased(&plan.erased_scalar_parameters),
             Self::Structural(plan) => erased(&plan.erased_scalar_parameters),
-            Self::Operations(plan) => erased(&plan.erased_scalar_parameters),
+            Self::Operations(body) => body
+                .entry()
+                .map(|entry| erased(entry.erased_scalar_parameters))
+                .unwrap_or_default(),
         }
     }
 
@@ -224,7 +255,10 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .unwrap_or_default(),
             Self::Boundary(plan) => plan.erased_proof_parameters.iter().collect(),
             Self::Structural(plan) => plan.erased_proof_parameters.iter().collect(),
-            Self::Operations(plan) => plan.erased_proof_parameters.iter().collect(),
+            Self::Operations(body) => body
+                .entry()
+                .map(|entry| entry.erased_proof_parameters.iter().collect())
+                .unwrap_or_default(),
         }
     }
 
@@ -239,15 +273,8 @@ impl<'checked> CheckedScalarCallee<'checked> {
                 .and_then(|state| terminal_scalar_type(state.result_type)),
             Self::Boundary(boundary) => terminal_scalar_type(boundary.result_type),
             Self::Structural(plan) => terminal_scalar_type(plan.result_type),
-            Self::Operations(plan) => plan
-                .scalar_result
-                .as_ref()
-                .map(|result| result.primitive_type)
-                .or_else(|| {
-                    plan.scalar_control
-                        .as_ref()
-                        .map(|control| control.primitive_type)
-                })
+            Self::Operations(body) => body
+                .scalar_result_type()
                 .ok_or(LoweringError::Unsupported(
                     "scalar operation body has no checked scalar result",
                 ))
