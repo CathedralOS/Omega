@@ -186,7 +186,17 @@ pub(crate) fn validate(
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
-            || view_carrier.is_some())
+            || view_carrier.is_some()
+            // A `&[T]` view's carrier is the borrowed slice itself: a member
+            // projection copies the stored view whole while the elements'
+            // custody stays with the view's owner — there are no owned
+            // contents for this clause to name.
+            || matches!(
+                checked
+                    .type_reference_table
+                    .type_reference(carrier),
+                checked_trees::types::TypeReferenceNode::Slice { .. }
+            ))
     {
         return unsupported("structural construction substituted its owner or result type");
     }

@@ -158,15 +158,24 @@ pub(super) fn validate_copied_place(
             .ok_or(LoweringError::Unsupported(
                 "copied place lost its leaf type",
             ))?;
+    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+        return unsupported("copied place lost its leaf type");
+    };
+    // A `&[T]` leaf's registry entry names its borrowed view carrier — the
+    // unwrapped referee's identity — while owned leaves keep their own.
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
+        && checked.normalized_type_identity(unwrapped).as_str() != argument.type_identity
         || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)
     {
         return unsupported("copied place does not project the result type");
     }
-    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
-        return unsupported("copied place lost its leaf type");
-    };
+    // A `&[T]` view leaf carries its `Unrestricted` multiplicity on the
+    // reference shell — the borrowed view copies whole while the bare
+    // `Slice` rung it unwraps to stays affine. Every other leaf's
+    // multiplicity already lives on its unwrapped rung.
     if checked.typed.type_multiplicity(unwrapped) != language_semantics::Multiplicity::Unrestricted
+        && checked.typed.type_multiplicity(reference)
+            != language_semantics::Multiplicity::Unrestricted
     {
         return unsupported("copied place leaf is not unrestricted");
     }
