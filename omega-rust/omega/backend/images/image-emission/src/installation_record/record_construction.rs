@@ -2,7 +2,7 @@
 //! selected provider plans, and deriving the installed stack demand.
 
 use crate::ExecutableImage;
-use crate::installation_record::codec::fingerprint_codec::fingerprint_image;
+use crate::installation_record::codec::fingerprint::fingerprint_image;
 use crate::installation_record::record_shape::validate_record_shape;
 use crate::installation_record::record_validation::{
     installed_compiler_private_function, installed_dynamic_calls,

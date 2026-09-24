@@ -23,7 +23,7 @@ mod resource_tests;
 mod semantic_code_attribution;
 mod unit_dynamic_descriptor_join;
 
-pub use codec::envelope_codec::{decode_installation_record, encode_installation_record};
+pub use codec::envelope::{decode_installation_record, encode_installation_record};
 pub use installation_errors::InstallationError;
 pub use record_construction::{
     InstallationStackError, build_installation_record, build_installation_record_with_evidence,
@@ -63,7 +63,7 @@ use target::{Architecture, ObjectFormat};
 use target_operations::{BoundaryRealization, CallSiteOwner};
 use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape};
 
-use codec::fingerprint_codec::fingerprint_initialized_data;
+use codec::fingerprint::fingerprint_initialized_data;
 
 use installed_unit_scalar_transport::{
     installed_forwarded_dynamic_scalar_result_is_canonical,
@@ -72,14 +72,14 @@ use installed_unit_scalar_transport::{
     validate_installed_unit_write_only_primitive_stores,
 };
 
-use codec::structural_case_codec::{decode_structural_cases, encode_structural_cases};
-use codec::structural_record_codec::{decode_structural_fields, encode_structural_fields};
+use codec::structural_case::{decode_structural_cases, encode_structural_cases};
+use codec::structural_record::{decode_structural_fields, encode_structural_fields};
 
-use codec::structural_scalar_codec::{
+use codec::structural_scalar::{
     decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
 };
-use codec::structural_type_codec::{decode_structural_types, encode_structural_types};
-use codec::wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
+use codec::structural_type::{decode_structural_types, encode_structural_types};
+use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 
 /// The current vocabulary includes owned incoming stack pointers and AArch64's

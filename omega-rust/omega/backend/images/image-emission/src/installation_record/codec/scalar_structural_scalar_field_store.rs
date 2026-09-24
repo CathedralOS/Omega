@@ -5,17 +5,17 @@ use semantic_vocabulary::{OperationId, StructuralFieldId};
 use target_operations::TargetScalarImmediate;
 
 use super::{
-    boundary_result_scalar_codec::{
+    boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    internal_unit_scalar_call_codec::{decode_offset, encode_offset},
-    unit_scalar_codec::{
+    internal_unit_scalar_call::{decode_offset, encode_offset},
+    unit_scalar::{
         decode_integer_type, decode_integer_value, encode_integer_type, encode_integer_value,
     },
-    unit_structural_scalar_field_store_codec::{
+    unit_structural_scalar_field_store::{
         decode_destination, decode_path, encode_destination, encode_path,
     },
-    value_placement_codec::{decode_direct_placement, encode_direct_placement},
+    value_placement::{decode_direct_placement, encode_direct_placement},
 };
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u32, push_u64};
 

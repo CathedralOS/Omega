@@ -8,8 +8,8 @@ use semantic_vocabulary::{EdgeId, MachineId, OperationId, PlaceId, StructuralTyp
 use terminal_psi::{StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction};
 
 use super::{
-    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
-    trivial_affine_local_codec::{
+    structural_argument::{decode_structural_argument, encode_structural_argument},
+    trivial_affine_local::{
         decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
         encode_trivial_affine_local_type,
     },

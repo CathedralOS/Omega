@@ -3,7 +3,7 @@
 //! stacks and scalar sources.
 
 use crate::ExecutableImage;
-use crate::installation_record::codec::fingerprint_codec::{
+use crate::installation_record::codec::fingerprint::{
     fingerprint_image, fingerprint_initialized_data, fingerprint_record,
 };
 use crate::installation_record::record_shape::validate_record_shape;

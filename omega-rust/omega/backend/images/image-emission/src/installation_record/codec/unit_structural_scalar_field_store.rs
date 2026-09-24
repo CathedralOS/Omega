@@ -9,14 +9,14 @@ use terminal_psi::{
 };
 
 use super::{
-    internal_unit_scalar_call_codec::{
+    internal_unit_scalar_call::{
         decode_argument_source, decode_offset, encode_argument_source, encode_offset,
     },
-    structural_scalar_codec::{
+    structural_scalar::{
         access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
         multiplicity_tag,
     },
-    value_placement_codec::{decode_direct_placement, encode_direct_placement},
+    value_placement::{decode_direct_placement, encode_direct_placement},
 };
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u32, push_u64};
 

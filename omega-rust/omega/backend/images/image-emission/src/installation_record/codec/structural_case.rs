@@ -4,8 +4,8 @@ use semantic_vocabulary::StructuralCaseId;
 use terminal_psi::StructuralCaseDeclaration;
 
 use super::{
-    structural_field_codec::{decode_structural_field, encode_structural_field},
-    structural_scalar_codec::{decode_identity, encode_identity},
+    structural_field::{decode_structural_field, encode_structural_field},
+    structural_scalar::{decode_identity, encode_identity},
 };
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 

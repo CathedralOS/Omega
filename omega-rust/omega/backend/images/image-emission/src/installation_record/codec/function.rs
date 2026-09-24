@@ -6,35 +6,35 @@
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 
 use super::{
-    boundary_result_scalar_codec::{
+    boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    function_affine_cleanup_codec::{
+    function_affine_cleanup::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
     },
-    function_parameter_codec::{
+    function_parameter::{
         decode_scalar_parameter_homes, decode_scalar_parameter_records,
         decode_unit_parameter_homes, decode_unit_parameter_records, encode_parameter_homes,
         encode_parameter_records,
     },
-    function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
-    mixed_structural_scalar_abi_codec::{
+    function_stack::{decode_function_stack_facts, encode_function_stack_facts},
+    mixed_structural_scalar_abi::{
         decode_mixed_structural_scalar_abi, encode_mixed_structural_scalar_abi,
     },
-    parameter_abi_codec::{decode_parameter_abi, encode_parameter_abi},
-    scalar_abi_codec::{decode_scalar_abi, encode_scalar_abi},
-    scalar_structural_scalar_field_store_codec::{
+    parameter_abi::{decode_parameter_abi, encode_parameter_abi},
+    scalar_abi::{decode_scalar_abi, encode_scalar_abi},
+    scalar_structural_scalar_field_store::{
         decode_scalar_structural_scalar_field_stores, encode_scalar_structural_scalar_field_stores,
     },
-    unit_scalar_codec::{
+    unit_scalar::{
         decode_unit_affine_scalar_records, decode_unit_integer_constants, decode_unit_scalar_homes,
         encode_unit_affine_scalar_records, encode_unit_integer_constants, encode_unit_scalar_homes,
     },
-    unit_structural_scalar_field_store_codec::{
+    unit_structural_scalar_field_store::{
         decode_unit_structural_scalar_field_stores, encode_unit_structural_scalar_field_stores,
     },
-    unit_write_only_primitive_store_codec::{
+    unit_write_only_primitive_store::{
         decode_unit_write_only_primitive_stores, encode_unit_write_only_primitive_stores,
     },
 };
@@ -99,10 +99,7 @@ pub(crate) fn encode_functions(
             bytes,
             &function.scalar_structural_scalar_field_stores,
         )?;
-        super::unit_continuation_codec::encode_unit_continuations(
-            bytes,
-            &function.unit_continuations,
-        )?;
+        super::unit_continuation::encode_unit_continuations(bytes, &function.unit_continuations)?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -236,7 +233,7 @@ pub(crate) fn decode_functions(
             unit_structural_scalar_field_stores,
             unit_write_only_primitive_stores,
             scalar_structural_scalar_field_stores,
-            unit_continuations: super::unit_continuation_codec::decode_unit_continuations(reader)?,
+            unit_continuations: super::unit_continuation::decode_unit_continuations(reader)?,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {

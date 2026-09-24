@@ -11,7 +11,7 @@ use semantic_vocabulary::ProfileDecisionId;
 use target::{Architecture, NativeTarget, ObjectFormat};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::installation_record::codec::envelope_codec::MAGIC;
+use crate::installation_record::codec::envelope::MAGIC;
 use crate::installation_record::{
     INSTALLATION_FORMAT_MARKER, ImageFingerprint, InstallationError, InstallationRecord, Reader,
     decode_boolean, push_u16, push_u64,

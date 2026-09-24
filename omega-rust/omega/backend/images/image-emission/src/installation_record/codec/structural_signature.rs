@@ -3,10 +3,10 @@
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralParameterDeclaration, StructuralResultDeclaration};
 
-use super::structural_argument_codec::{
+use super::structural_argument::{
     decode_path, decode_structural_argument, encode_path, encode_structural_argument,
 };
-use super::structural_scalar_codec::{
+use super::structural_scalar::{
     access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
     multiplicity_tag,
 };

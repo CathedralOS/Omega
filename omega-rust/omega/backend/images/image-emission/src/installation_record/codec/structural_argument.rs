@@ -6,7 +6,7 @@
 use semantic_vocabulary::{IntegerValue, PlaceId};
 use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
-use super::structural_scalar_codec::{access_tag, decode_access};
+use super::structural_scalar::{access_tag, decode_access};
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 
 pub(crate) fn encode_structural_argument(

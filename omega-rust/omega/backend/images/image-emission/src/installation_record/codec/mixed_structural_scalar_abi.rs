@@ -6,14 +6,14 @@ use target_operations::{
 };
 
 use super::{
-    scalar_abi_codec::{decode_abi_value, encode_abi_value},
-    scalar_call_plan_codec::{decode_scalar_call_plan, encode_scalar_call_plan},
-    structural_scalar_codec::{access_tag, decode_access, decode_multiplicity, multiplicity_tag},
-    unit_scalar_codec::{decode_scalar_type, encode_scalar_type},
-    unit_structural_scalar_field_store_codec::{
+    scalar_abi::{decode_abi_value, encode_abi_value},
+    scalar_call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
+    structural_scalar::{access_tag, decode_access, decode_multiplicity, multiplicity_tag},
+    unit_scalar::{decode_scalar_type, encode_scalar_type},
+    unit_structural_scalar_field_store::{
         decode_projected_qualifications, encode_projected_qualifications,
     },
-    value_placement_codec::{
+    value_placement::{
         decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
     },
 };

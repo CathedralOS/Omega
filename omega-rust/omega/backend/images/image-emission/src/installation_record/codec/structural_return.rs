@@ -7,16 +7,16 @@ use machine_code::StructuralReturnRecord;
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId};
 
 use super::{
-    scalar_abi_codec::{decode_abi_value, encode_abi_value},
-    structural_signature_codec::{
+    scalar_abi::{decode_abi_value, encode_abi_value},
+    structural_signature::{
         decode_structural_parameter, decode_structural_result, encode_structural_parameter,
         encode_structural_result,
     },
-    trivial_affine_local_codec::{
+    trivial_affine_local::{
         decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
         encode_trivial_affine_local_type,
     },
-    value_placement_codec::{
+    value_placement::{
         decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
     },
 };

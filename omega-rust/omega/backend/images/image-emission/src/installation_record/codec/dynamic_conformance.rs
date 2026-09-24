@@ -5,12 +5,12 @@ use semantic_vocabulary::{MachineId, OperationId, PlaceId, ValueId};
 use terminal_psi::ClosedConformanceApplicationCommitment;
 
 use super::{
-    internal_unit_scalar_call_codec::{decode_offset, encode_offset},
-    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
-    unit_scalar_codec::{
+    internal_unit_scalar_call::{decode_offset, encode_offset},
+    structural_argument::{decode_structural_argument, encode_structural_argument},
+    unit_scalar::{
         decode_scalar_type, decode_unit_scalar_home, encode_scalar_type, encode_unit_scalar_home,
     },
-    value_placement_codec::{decode_direct_placement, encode_direct_placement},
+    value_placement::{decode_direct_placement, encode_direct_placement},
 };
 use crate::installation_record::{
     InstallationError, InstalledDynamicCall, InstalledDynamicConformanceSlot,

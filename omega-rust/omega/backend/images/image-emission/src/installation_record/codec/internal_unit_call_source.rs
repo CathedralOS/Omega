@@ -1,7 +1,5 @@
 //! Retained semantic origin for installed internal Unit calls.
-use super::completion_custody_codec::{
-    decode_completion_claim_source, encode_completion_claim_source,
-};
+use super::completion_custody::{decode_completion_claim_source, encode_completion_claim_source};
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 use machine_code::InternalUnitCallSource;
 use semantic_vocabulary::{BoundaryMachineId, ClaimId};
