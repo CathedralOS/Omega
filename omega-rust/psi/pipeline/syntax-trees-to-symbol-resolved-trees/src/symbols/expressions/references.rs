@@ -35,12 +35,32 @@ pub(crate) fn reject_unqualified_case_values(
             symbol_resolved_trees::data::DataMember::Field(_) => None,
         })
         .collect::<std::collections::BTreeSet<_>>();
+    // A name used as a call or member receiver is a qualified-path head, not a
+    // value: `Float::meaning32(...)` reads `Float` as a namespace segment that
+    // never carries a symbol, so it must not be judged a bare case spelling.
+    let path_heads = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            symbol_resolved_trees::expression::ExpressionNode::Call(call) => Some(call.receiver),
+            symbol_resolved_trees::expression::ExpressionNode::Member(member) => {
+                Some(member.receiver)
+            }
+            _ => None,
+        })
+        .filter(|handle| handle.is_valid())
+        .collect::<std::collections::HashSet<_>>();
     let diagnostics = program
         .tables
         .bodies
         .expressions
         .iter_expressions()
         .filter_map(|(expression_handle, expression)| {
+            if path_heads.contains(&expression_handle) {
+                return None;
+            }
             let symbol_resolved_trees::expression::ExpressionNode::Name(path) = expression else {
                 return None;
             };
