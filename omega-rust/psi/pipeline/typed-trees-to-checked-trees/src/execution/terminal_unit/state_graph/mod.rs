@@ -1200,19 +1200,19 @@ pub(super) fn build_traced(
             // A hole-restore stores a whole owned result into borrowed
             // storage; custody moved into the field, which owns it after
             // this state. Count it with the terminator exits: a disposable
-            // affine local stored into a hole is not a second consumption.
-            let stored = result.multiplicity != Multiplicity::Unrestricted
-                && operations[producer_index + 1..].iter().any(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::StoreStructuralField {
-                            value, ..
-                        } if value.source_structural_result_binding_ordinal()
-                            == Some(result.binding_ordinal)
-                            && value.access == CheckedStructuralAccess::Owned
-                            && value.path.is_empty()
-                    )
-                });
+            // local stored into a hole is not a second consumption. A copy
+            // of an `Unrestricted` value moves into its field the same way.
+            let stored = operations[producer_index + 1..].iter().any(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StoreStructuralField {
+                        value, ..
+                    } if value.source_structural_result_binding_ordinal()
+                        == Some(result.binding_ordinal)
+                        && value.access == CheckedStructuralAccess::Owned
+                        && value.path.is_empty()
+                )
+            });
             if usize::from(consumed || stored) + call_transfers + cleanup_discards != 1 {
                 return None;
             }

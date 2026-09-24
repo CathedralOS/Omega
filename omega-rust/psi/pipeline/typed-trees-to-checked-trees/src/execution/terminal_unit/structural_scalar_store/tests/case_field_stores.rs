@@ -103,11 +103,12 @@ fn member_read_value_still_declines() {
     assert!(stores(source, 0).is_none());
 }
 
-/// A record-typed field is not a payload-free sum: storing a whole record
-/// parameter moves the record's own member custody, which this op does not
-/// claim, so the store keeps declining.
+/// A record-typed field is not a payload-free sum, so no case store claims it.
+/// A whole `[copy]` record parameter is instead a copied place the sequence
+/// establishes whole and puts into the field through the window pair, like a
+/// construction; the store sequence contributes no row for it.
 #[test]
-fn record_field_store_still_declines() {
+fn record_field_store_replaces_through_the_window_pair() {
     let source = r#"
         data Rec [copy] { x: u64; }
         data T { rec: Rec; }
@@ -115,14 +116,14 @@ fn record_field_store_still_declines() {
             self.rec = rec;
         }
     "#;
-    assert!(stores(source, 0).is_none());
+    assert_eq!(stores(source, 0), Some(Vec::new()));
 }
 
 /// A data mixing record fields with cases is not a payload-free sum either —
-/// the mixed shape owns scalar members with their own write custody — so the
-/// store keeps declining.
+/// the mixed shape owns scalar members with their own write custody — so it
+/// too is copied whole and replaces its field through the window pair.
 #[test]
-fn mixed_field_store_still_declines() {
+fn mixed_field_store_replaces_through_the_window_pair() {
     let source = r#"
         data Mixed [copy] { n: u64; case Flag; }
         data T { m: Mixed; }
@@ -130,5 +131,5 @@ fn mixed_field_store_still_declines() {
             self.m = m;
         }
     "#;
-    assert!(stores(source, 0).is_none());
+    assert_eq!(stores(source, 0), Some(Vec::new()));
 }
