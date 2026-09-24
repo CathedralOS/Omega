@@ -109,8 +109,8 @@
       "item": "STRUCTURAL-BORROW-IDENTITY",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/validation",
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/tests"
+        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation",
+        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/tests"
       ],
       "suggested_first_slice": "Extend target signature validation and its focused tests for one projected borrowed argument/home identity while preserving BorrowedReference and rejecting substituted access shape."
     },

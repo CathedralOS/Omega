@@ -17,7 +17,7 @@ and descriptor argument classes with their mirrored witnesses.
 
 The a2t admission contract is complete and witnessed. A normalized foreign
 call's structural formal is classified at
-`abstract-operations-to-target-operations/src/validation/structural_call_arguments.rs::normalized_foreign_call`
+`05_abstract-operations-to-target-operations/src/validation/structural_call_arguments.rs::normalized_foreign_call`
 (~:1101) against the calling policy using
 `validation/structural_shapes.rs::boundary_formal_shape` (:372):
 
@@ -39,7 +39,7 @@ call's structural formal is classified at
   already carry).
 
 a2t witnesses, all in
-`abstract-operations-to-target-operations/src/tests/normalized_foreign_calls.rs`:
+`05_abstract-operations-to-target-operations/src/tests/normalized_foreign_calls.rs`:
 `normalized_foreign_owned_aggregate_arguments_replay_across_native_targets`
 (:1885), `normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field`
 (:1931), `normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows`

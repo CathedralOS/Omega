@@ -24,7 +24,7 @@ representation-planning = { path = "../../build/representation-planning" }
 trust-model = { path = "../../build/trust-model" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 optimization-core = { path = "../../representations/optimization-core" }
-abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }

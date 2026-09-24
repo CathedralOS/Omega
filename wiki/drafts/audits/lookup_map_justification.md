@@ -75,7 +75,7 @@ to remove.
 
 `04_typed-trees-to-checked-trees/src/product_pruning/dependencies.rs`
 (`HashMap<SymbolHandle, Vec<SymbolHandle>>` edges),
-`abstract-operations-to-target-operations/.../dynamic.rs`
+`05_abstract-operations-to-target-operations/.../dynamic.rs`
 (`BTreeMap<MachineId|PlaceId|StructuralTypeId, _>`),
 `selected-instructions-to-selected-instructions/.../liveness/validate/replay.rs`,
 `abstract-operations/src/abstract_operations/atomic.rs`,

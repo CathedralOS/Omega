@@ -98,7 +98,7 @@
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
-        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering"
+        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering"
       ],
       "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",
       "host_gates": [

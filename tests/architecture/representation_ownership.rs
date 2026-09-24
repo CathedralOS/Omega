@@ -2336,7 +2336,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/07_lowered-psi-to-terminal-psi",
         "omega/pipeline/03_terminal-psi-to-abstract-operations",
         "omega/pipeline/04_abstract-operations-to-abstract-operations",
-        "omega/pipeline/abstract-operations-to-target-operations",
+        "omega/pipeline/05_abstract-operations-to-target-operations",
         "omega/pipeline/target-operations-to-selected-instructions",
         "omega/pipeline/selected-instructions-to-selected-instructions",
         "omega/pipeline/selected-instructions-to-register-homes",
