@@ -464,8 +464,8 @@ fn computed_bounds_retain_carrier_identity_without_input_refinements() {
     else {
         panic!("computed expression");
     };
-    let value = bounds(&program, machine.symbol, Some(state), expression, false)
-        .expect("builtin remainder");
+    let value =
+        bounds(&program, machine, Some(state), expression, false).expect("builtin remainder");
     let reference = value.type_reference.expect("the result remains typed");
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
@@ -482,6 +482,70 @@ fn computed_bounds_retain_carrier_identity_without_input_refinements() {
             low: Some(0),
             high: Some(4)
         }
+    );
+}
+
+#[test]
+fn an_immutable_parameter_carries_its_own_requires_comparisons() {
+    // The interval of the last state's leading expression statement.
+    let interval = |source: &str, declared_mutable_leaves: bool| {
+        let program = crate::front_end::typed_program(source);
+        let machine = &program.machines()[0];
+        let state = program.machine_states(machine).last().expect("a state");
+        let StatementNode::Expression(expression) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("expression statement");
+        };
+        bounds(
+            &program,
+            machine,
+            Some(state),
+            expression,
+            declared_mutable_leaves,
+        )
+        .map(|value| value.interval)
+    };
+    let closed = |low, high| Interval {
+        low: Some(low),
+        high: Some(high),
+    };
+    assert_eq!(
+        interval(
+            "machine value(input: u64) -> u64 requires 20 <= input && input < 31 { input }",
+            false
+        ),
+        Some(closed(20, 30))
+    );
+    assert_eq!(
+        interval(
+            "machine value(input: i32) -> i32 requires input == -7 { input }",
+            false
+        ),
+        Some(closed(-7, -7))
+    );
+    // A written parameter keeps only its store-enforced carrier.
+    assert_eq!(
+        interval(
+            "machine value(mut input: u64) -> u64 requires input <= 30 { input }",
+            true
+        ),
+        Some(Interval {
+            low: Some(0),
+            high: None
+        })
+    );
+    // A state's parameter reads its own arrival clause, not the machine's
+    // clause about a same-spelled entry parameter.
+    assert_eq!(
+        interval(
+            "machine value(input: u64) -> u64 requires input <= 9 {
+                transition { _ -> later(input + 20) }
+                state later(input: u64) -> u64 requires input <= 30 { input }
+            }",
+            false
+        ),
+        Some(closed(0, 30))
     );
 }
 

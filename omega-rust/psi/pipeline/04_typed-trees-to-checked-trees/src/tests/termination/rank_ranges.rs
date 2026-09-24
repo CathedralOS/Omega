@@ -24,6 +24,20 @@ mod state_edges;
 mod static_fallback;
 mod struct_fields;
 
+/// A parameter's `requires` supplies entry membership exactly as a declared
+/// refinement does, because every arrival proves it; the rejection then
+/// belongs to the back-edge's descent inside the range.
+fn reject_descent(source: &str) {
+    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
+        .expect_err(source);
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot prove the `terminates by` ranking")),
+        "{source}\n{diagnostics:#?}"
+    );
+}
+
 fn countdown(range: &str) -> String {
     format!(
         r#"
@@ -57,6 +71,35 @@ fn descending_rank_rejects_unproved_floor_and_ceiling() {
             "{range}: {diagnostics:#?}"
         );
     }
+}
+
+#[test]
+fn a_requires_bound_supplies_membership_under_a_field_computed_ceiling() {
+    // The relational tier cannot read the field remainder ceiling or the
+    // effectful sibling actual; the parameter's `requires` bounds the rank.
+    let source = r#"
+        machine reset(value: &mut u64) -> u64 { value = 0; 0 }
+        data Limits { limit: u64; divisor: u64 [3..=5]; }
+        machine walk(remaining: u64, limits: Limits, marker: u64) -> u64
+        requires remaining <= 5
+        terminates by remaining -> Nat::Descending in 0..(limits.limit % limits.divisor + 6);
+        {
+            let mut scratch: u64 = 0;
+            transition remaining > 0 {
+                true -> walk(remaining - 1, limits, reset(&mut scratch))
+                false -> remaining
+            }
+        }
+    "#;
+    checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let diagnostics = checked_program_result(&source.replace("remaining <= 5", "remaining <= 6"))
+        .expect_err("a zero remainder leaves six outside the range");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove rank range")),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]
