@@ -57,15 +57,16 @@ pub(super) fn validate(
         state.terminator,
         CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
     );
-    let is_marker = |statement: &StatementNode| {
-        is_record_pattern_marker(statement) || (!closed_sum && is_arm_pattern_marker(statement))
+    // An atomic writing carrier's result placeholder (`let prior: T = 0;`
+    // ahead of `place = Atomic { .. }`) is the same kind of carrier: it
+    // declares the prior's binding, which the carrier's one atomic event
+    // defines at the next statement.
+    let is_marker_at = |index: usize| {
+        statements.get(index).is_some_and(|statement| {
+            is_record_pattern_marker(statement) || (!closed_sum && is_arm_pattern_marker(statement))
+        }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
     };
-    let record_pattern_markers = statements
-        .get(prefix..end)
-        .unwrap_or_default()
-        .iter()
-        .filter(|statement| is_marker(statement))
-        .count();
+    let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
     if prefix > end
         || state.operations.len() + marker_count + record_pattern_markers
             != end - prefix + tail_value + continued
@@ -128,7 +129,11 @@ pub(super) fn validate(
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
                 check_structural_binding(result)?;
             }
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+            CheckedUnitEffectOperationPlan::AtomicAccess(checked_trees::CheckedAtomicAccessPlan {
+                result: Some(result),
+                ..
+            })
+            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
                 if result.binding_ordinal != next_scalar_binding {
                     return unsupported("Unit graph scalar binding namespace drifted");
                 }
@@ -171,7 +176,7 @@ pub(super) fn validate(
                 _ => return unsupported("Unit graph continuation left its authored statement"),
             }
         } else {
-            while statements.get(cursor).is_some_and(is_marker) {
+            while cursor < statements.len() && is_marker_at(cursor) {
                 cursor += 1;
             }
             let ordinal = cursor;
@@ -443,6 +448,14 @@ pub(super) fn validate(
                     store,
                 )?;
             }
+            // One atomic event occupies its carrier statement: the assignment
+            // for a writing event, the local for a load. Emission rejoins the
+            // event, place, orderings, operands and prior binding to that
+            // carrier (`emission::atomic_sources`) before it emits.
+            (
+                CheckedUnitEffectOperationPlan::AtomicAccess(access),
+                StatementNode::Assignment(_) | StatementNode::LocalData(_),
+            ) if access.statement_index as usize == ordinal => {}
             (
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index,
@@ -722,6 +735,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index, ..
         } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
         _ => continued_statement(operation),
     }
 }

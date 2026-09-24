@@ -11,12 +11,14 @@
 //! host-supplied entry inputs and their binding), `custody` (claims, the
 //! affine frontier and argument binding), `reference`, `primitive_storage`,
 //! `record`, `scalar_array` and `byte_sequences` (the storage the loop
-//! mutates), `scalar_operations`, `structural_operations`, `calls` and
-//! `terminators` (what the loop dispatches), `effects` (what it hands to the
-//! host and how host results bind), `values`, `results` and `errors` (what
-//! crosses the boundary) and `semantic_value_comparison` (trace-value
-//! comparison for differential checks).
+//! mutates), `scalar_operations`, `structural_operations`,
+//! `atomic_operations`, `calls` and `terminators` (what the loop dispatches),
+//! `effects` (what it hands to the host and how host results bind), `values`,
+//! `results` and `errors` (what crosses the boundary) and
+//! `semantic_value_comparison` (trace-value comparison for differential
+//! checks).
 
+mod atomic_operations;
 mod byte_sequences;
 mod calls;
 mod custody;

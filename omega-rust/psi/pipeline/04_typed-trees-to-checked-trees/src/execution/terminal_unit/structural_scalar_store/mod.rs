@@ -31,8 +31,9 @@ use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_rec
 use value::AssignmentSource;
 
 pub(in crate::execution::terminal_unit) use primitive::{
-    primitive_local_before, scalar_custody_is_exact,
+    checked_unit_path, primitive_local_before, scalar_custody_is_exact,
 };
+pub(in crate::execution::terminal_unit) use selectors::TargetSelectors;
 
 mod byte_stores;
 mod destination;
@@ -114,6 +115,11 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
+        // An atomic carrier is one atomic event, planned by the sequence
+        // (`atomic_operations.rs`), never a store of its arithmetic model.
+        if validation::atomic_assignment_carrier(program, assignment).is_some() {
+            continue;
+        }
         let statement_index = u32::try_from(statement_index).ok()?;
         trace.phase("scalar field store sequence: assignment store");
         trace.statement(Some(statement_index));

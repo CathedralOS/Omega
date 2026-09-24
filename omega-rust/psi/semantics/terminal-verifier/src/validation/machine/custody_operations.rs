@@ -334,6 +334,10 @@ pub(super) fn register_custody_operation(
         )?;
         return Ok(true);
     }
+    if matches!(operation.kind, OperationKind::AtomicAccess { .. }) {
+        super::super::atomic_access::register(module, machine, operation, registry, value_types)?;
+        return Ok(true);
+    }
     if let OperationKind::StructuralLeafCopy { source, path, .. } = &operation.kind {
         super::super::structural::leaf_copy::validate(module, machine, operation, *source, path)?;
         return Ok(true);

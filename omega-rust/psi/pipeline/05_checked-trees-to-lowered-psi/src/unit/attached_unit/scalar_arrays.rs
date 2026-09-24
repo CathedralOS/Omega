@@ -247,6 +247,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
         }
+        CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
         CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
             Some(store.statement_index)
         }

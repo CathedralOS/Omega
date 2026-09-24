@@ -98,6 +98,9 @@ fn changes_length(
                     .is_none_or(|written| overlaps(path, &written))
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. } => *destination == root,
+        OperationKind::AtomicAccess { place, event, .. } => {
+            event.modifies_resident() && *place == root
+        }
         OperationKind::CallUnit {
             structural_arguments,
             ..

@@ -305,6 +305,30 @@ pub(super) fn validate_unit_operation_sequence(
                 }
                 *coordinate
             }
+            // An observing atomic event binds its prior as the next dense
+            // scalar local, exactly like an established scalar local; the
+            // event's own coordinate is its carrier statement.
+            CheckedUnitEffectOperationPlan::AtomicAccess(access) => {
+                if let Some(result) = &access.result {
+                    if result.binding_ordinal != next_scalar_binding
+                        || result.statement_index > access.statement_index
+                    {
+                        return unsupported(
+                            "atomic event result is not the next dense source binding",
+                        );
+                    }
+                    next_scalar_binding =
+                        next_scalar_binding
+                            .checked_add(1)
+                            .ok_or(LoweringError::Unsupported(
+                                "Unit scalar result binding ordinal space is exhausted",
+                            ))?;
+                }
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: access.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
                 if result.binding_ordinal != next_scalar_binding {
                     return unsupported(

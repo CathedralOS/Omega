@@ -178,3 +178,7 @@ pub(super) const TRAPPING_INTEGER: u8 = 91;
 
 /// `OperationKind::ElementViewRead` over a nonempty element path.
 pub(super) const PROJECTED_ELEMENT_VIEW_READ: u8 = 92;
+
+/// `OperationKind::AtomicAccess`, followed by the place, its path and one
+/// event sub-tag.
+pub(super) const ATOMIC_ACCESS: u8 = 93;

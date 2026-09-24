@@ -263,6 +263,12 @@ pub enum CheckedScalarExpressionRole {
     /// Initial value written into mutable local storage. This does not append
     /// an immutable runtime binding or change the scalar operand namespace.
     StorageInitializer,
+    /// One authored operand of the atomic carrier at this statement, by its
+    /// event-order ordinal: the stored or swapped value, the fetch operand,
+    /// or the compare-exchange expected (0) and replacement (1).
+    AtomicOperand {
+        operand_ordinal: u32,
+    },
     LocalInitializer {
         binding_ordinal: u32,
     },
