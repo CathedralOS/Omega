@@ -133,7 +133,9 @@ impl WindowBound {
 }
 
 fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> WindowBound {
-    let Some(expression) = crate::normalize_immutable_integer_bound_expression(program, expression)
+    let bound_lookup =
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
+    let Some(expression) = crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
     else {
         return WindowBound::Unknown;
     };
@@ -143,7 +145,7 @@ fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> Wi
     ) {
         return WindowBound::Unknown;
     }
-    crate::normalize_immutable_integer_bound_to_usize(program, expression)
+    crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, expression)
         .map_or(WindowBound::Invalid, WindowBound::Known)
 }
 

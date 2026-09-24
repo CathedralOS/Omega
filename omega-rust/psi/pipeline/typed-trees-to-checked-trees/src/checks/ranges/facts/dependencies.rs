@@ -51,6 +51,11 @@ impl RangeFacts<'_> {
         // storage. New extent evidence must not attach to its old typed reads.
         self.expression_dependencies
             .retain(|row| row.label != label);
+        self.recorded_expressions = self
+            .expression_dependencies
+            .iter()
+            .map(|row| (row.expression, row.machine, row.state))
+            .collect();
     }
 
     pub(in crate::checks::ranges) fn expression_exact_length(
@@ -170,6 +175,8 @@ impl RangeFacts<'_> {
     ) {
         for length in lengths {
             self.prove_exact_length(length.label.clone(), length.length);
+            self.recorded_expressions
+                .insert((length.expression, machine, state));
             self.expression_dependencies.push(ExpressionDependencies {
                 expression: length.expression,
                 label: length.label.clone(),
@@ -209,11 +216,10 @@ impl RangeFacts<'_> {
         ) {
             return;
         }
-        if self.expression_dependencies.iter().any(|row| {
-            row.expression == expression
-                && row.machine == machine.symbol
-                && row.state == state.symbol
-        }) {
+        if self
+            .recorded_expressions
+            .contains(&(expression, machine.symbol, state.symbol))
+        {
             return;
         }
         let mut reads = Vec::new();
@@ -233,6 +239,8 @@ impl RangeFacts<'_> {
             &mut reads,
             0,
         );
+        self.recorded_expressions
+            .insert((expression, machine.symbol, state.symbol));
         self.expression_dependencies.push(ExpressionDependencies {
             expression,
             label: program.expression_table.display_name(expression),

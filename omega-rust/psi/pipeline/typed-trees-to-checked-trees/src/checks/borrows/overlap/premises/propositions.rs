@@ -26,6 +26,7 @@ use typed_trees::state::State;
 /// transparent Boolean formula. Every other body kind contributes nothing.
 pub(super) fn append_proposition_premises(
     program: &TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
     fact: Handle<ContractProofFact>,
@@ -54,6 +55,7 @@ pub(super) fn append_proposition_premises(
     }
     decompose_premise_expression(
         program,
+        lookup,
         PremiseScope::Proposition {
             machine,
             state,
@@ -75,6 +77,7 @@ pub(super) fn append_proposition_premises(
 /// silently approximate.
 pub(super) fn substitute_bound(
     program: &TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     bound: NormalizedBound,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
@@ -83,7 +86,7 @@ pub(super) fn substitute_bound(
         let index = parameters
             .iter()
             .position(|parameter| parameter.symbol == symbol)?;
-        normalized_bound(program, arguments[index])
+        normalized_bound(program, lookup, arguments[index])
     };
     match bound {
         NormalizedBound::Integer(_) => Some(bound),
