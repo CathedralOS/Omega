@@ -162,15 +162,31 @@ pub(super) fn interpreter_package_inputs(
         })
 }
 
+fn golden_path(target: &str) -> PathBuf {
+    repo_root()
+        .join("tests/omega/golden/optimizer/no_selection")
+        .join(format!("{target}.txt"))
+}
+
+/// Re-pin every target's golden from the snapshot just observed. Runs only
+/// under `OMEGA_RECORD_NO_SELECTION_GOLDEN=1`, so an ordinary run can never
+/// launder a behavior change into the golden it is supposed to catch. The
+/// firewall this golden defends is the NATIVE half: re-pin only after reading
+/// which fields moved.
+pub(super) fn record_golden_for_target(target: &str, snapshot: &str) {
+    std::fs::write(golden_path(target), format!("{snapshot}\n"))
+        .unwrap_or_else(|error| panic!("cannot record no-selection golden for {target}: {error}"));
+}
+
+pub(super) fn recording_goldens() -> bool {
+    std::env::var("OMEGA_RECORD_NO_SELECTION_GOLDEN").is_ok_and(|value| value == "1")
+}
+
 pub(super) fn golden_for_target(target: &str) -> String {
-    std::fs::read_to_string(
-        repo_root()
-            .join("tests/omega/golden/optimizer/no_selection")
-            .join(format!("{target}.txt")),
-    )
-    .unwrap_or_else(|error| panic!("missing no-selection golden for {target}: {error}"))
-    .trim()
-    .to_owned()
+    std::fs::read_to_string(golden_path(target))
+        .unwrap_or_else(|error| panic!("missing no-selection golden for {target}: {error}"))
+        .trim()
+        .to_owned()
 }
 
 fn temporary_build_dir(target: &str) -> PathBuf {

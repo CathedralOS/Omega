@@ -4,7 +4,7 @@ use optimization_core::OptimizationReportRequest;
 
 use super::support::{
     HOSTED_NATIVE_TARGETS, compile_retained_native, golden_for_target, native_canary,
-    retained_native_snapshot,
+    record_golden_for_target, recording_goldens, retained_native_snapshot,
 };
 
 #[test]
@@ -45,6 +45,10 @@ fn retained_native_bytes_and_metadata_match_every_target_golden() {
         let first_snapshot = retained_native_snapshot(target, &first);
         let second_snapshot = retained_native_snapshot(target, &second);
         assert_eq!(first_snapshot, second_snapshot, "{target}");
+        if recording_goldens() {
+            record_golden_for_target(target, &first_snapshot);
+            continue;
+        }
         assert_eq!(first_snapshot, golden_for_target(target), "{target}");
     }
 }
