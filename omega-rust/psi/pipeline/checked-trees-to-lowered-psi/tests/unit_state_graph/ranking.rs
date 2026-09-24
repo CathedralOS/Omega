@@ -67,11 +67,15 @@ fn slice_ranked_writer_retains_its_witness_through_serialized_execution() {
     assert!(synopsis.contains("Preserving"));
     assert!(synopsis.contains("Strict"));
     // A slice-length rank rides the u64 carrier, so the composed cycle bound
-    // exists mathematically but cannot fit a u64 ceiling: the writer reports
-    // an analysis limit rather than fabricating a certificate.
+    // exists mathematically but cannot fit a u64 ceiling. The writer reports
+    // the component as unbounded by its rank (logical_work.md) rather than
+    // fabricating a certificate.
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+        Err(terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+            cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+            ..
+        })
     ));
     let executed = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),

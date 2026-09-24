@@ -437,8 +437,29 @@ fn altered_terminal_identity_returns_fail_independent_verification() {
 
 #[test]
 fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
-    for source in [
+    // A shared reference forwarded unchanged is not affine custody: it lowers
+    // through the ordinary route, verifies independently, and still never
+    // enters the claim-free affine producer.
+    let shared = checked(
         "data Value { number: u64; } machine forward(value: &Value) -> &Value { value }",
+    );
+    assert!(
+        shared
+            .facts
+            .flow
+            .terminal_structural_returns
+            .claim_free_affine_machines
+            .is_empty()
+    );
+    let lowered = lower_machine(&shared, TerminalMachineSelection::Name("forward"))
+        .expect("a forwarded shared reference lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("a forwarded shared reference verifies independently");
+    for source in [
         "data Value { number: u64; } machine forward(value: &mut Value) -> &mut Value { value }",
         "data Value { number: u64; } machine Value::drop(&mut self) {} machine forward(value: Value) -> Value { value }",
         "data Resource [linear] { number: u64; } data Value { resource: Resource; } machine forward(value: Value) -> Value { value }",
