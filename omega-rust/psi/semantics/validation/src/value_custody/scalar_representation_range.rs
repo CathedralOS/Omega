@@ -9,9 +9,11 @@ use typed_trees::types::{
 };
 
 /// Normalize a scalar type's declared representation invariants into one
-/// inclusive interval. This includes authored integer range shells, `bool`'s
-/// intrinsic `{0, 1}` representation, and the finite carrier bounds of
-/// `i32`/`u32`.
+/// inclusive interval. This includes authored integer range shells, declared
+/// domains whose membership is exactly an interval (which mean what the range
+/// shell they replace meant, so a decoder still rejects a hostile value
+/// outside them), `bool`'s intrinsic `{0, 1}` representation, and the finite
+/// carrier bounds of `i32`/`u32`.
 /// Callers must validate declared ranges before treating `None` as the full
 /// decoder value width (`i64`/`u64`); an unevaluated range is not unconstrained.
 /// Wire decoding and compact bit-layout validation deliberately share this
@@ -24,6 +26,7 @@ pub fn scalar_representation_range(
 ) -> Option<language_semantics::wire::WireScalarRange> {
     fn collect(
         program: &TypedTrees,
+        primitive: PrimitiveType,
         handle: TypeReferenceHandle,
         minimum: &mut BigInt,
         maximum: &mut BigInt,
@@ -31,13 +34,26 @@ pub fn scalar_representation_range(
     ) -> Option<()> {
         match program.type_reference_table.type_reference(handle) {
             TypeReferenceNode::Reference { referee, .. } => {
-                collect(program, *referee, minimum, maximum, found)
+                collect(program, primitive, *referee, minimum, maximum, found)
             }
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
+                    if let TypeConstraintNode::Domain(domain) = constraint
+                        && let Some((lower, upper)) = crate::exact_declared_domain_carrier_interval(
+                            program, primitive, domain,
+                        )
+                    {
+                        if lower > *minimum {
+                            *minimum = lower;
+                        }
+                        if upper < *maximum {
+                            *maximum = upper;
+                        }
+                        *found = true;
+                    }
                     if let TypeConstraintNode::Range {
                         minimum: lower,
                         maximum: upper,
@@ -56,7 +72,7 @@ pub fn scalar_representation_range(
                         *found = true;
                     }
                 }
-                collect(program, *base_type, minimum, maximum, found)
+                collect(program, primitive, *base_type, minimum, maximum, found)
             }
             _ => Some(()),
         }
@@ -84,7 +100,14 @@ pub fn scalar_representation_range(
     let mut minimum = BigInt::from_i64(carrier_minimum);
     let mut maximum = BigInt::from_u128(u128::try_from(carrier_maximum).ok()?);
     let mut found = matches!(primitive, PrimitiveType::I32 | PrimitiveType::U32);
-    collect(program, handle, &mut minimum, &mut maximum, &mut found)?;
+    collect(
+        program,
+        primitive,
+        handle,
+        &mut minimum,
+        &mut maximum,
+        &mut found,
+    )?;
     if !found {
         return None;
     }

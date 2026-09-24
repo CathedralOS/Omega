@@ -3903,20 +3903,27 @@ fn run_canary(path: &str) -> PathBuf {
     repo_root().join("tests/omega/run").join(path)
 }
 
-#[cfg(not(windows))]
-fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(to)?;
-    for entry in fs::read_dir(from)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let destination = to.join(entry.file_name());
-        if file_type.is_dir() {
-            copy_dir_recursive(&entry.path(), &destination)?;
-        } else if file_type.is_file() {
-            fs::copy(entry.path(), destination)?;
-        }
+/// Copy a fixture's `build.omg` into a scratch package, resolving every
+/// `Source::Path` dependency `location` against the fixture's own directory.
+/// A relative location names a path from the original package, so a copied
+/// declaration would otherwise point at nothing.
+fn relocate_build_declaration(from: &Path, to: &Path) -> std::io::Result<()> {
+    let source = fs::read_to_string(from.join("build.omg"))?;
+    let marker = "location: \"";
+    let mut relocated = String::with_capacity(source.len());
+    let mut rest = source.as_str();
+    while let Some(start) = rest.find(marker) {
+        let (before, after) = rest.split_at(start + marker.len());
+        let end = after.find('"').ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "unterminated location")
+        })?;
+        let location = fs::canonicalize(from.join(&after[..end]))?;
+        relocated.push_str(before);
+        relocated.push_str(&location.to_string_lossy());
+        rest = &after[end..];
     }
-    Ok(())
+    relocated.push_str(rest);
+    fs::write(to.join("build.omg"), relocated)
 }
 
 #[cfg(windows)]
