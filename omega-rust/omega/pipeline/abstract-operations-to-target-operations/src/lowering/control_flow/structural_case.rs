@@ -158,7 +158,7 @@ pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
-    live: &LiveDefinitions,
+    live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
@@ -193,19 +193,20 @@ pub(super) fn lower(
         {
             return Err(invalid());
         }
-        // This checks the supported cleanup carrier, not ownership liveness.
-        // The validated abstract graph remains the custody authority.
-        let mut discards = BTreeSet::new();
-        for place in &case.trivial_affine_discards {
-            let discarded = live.structural_homes.get(place).ok_or_else(invalid)?;
-            if !discards.insert(*place)
-                || discarded.multiplicity() != terminal_psi::StructuralMultiplicity::Affine
-                || discarded.has_claims()
-                || !discarded.qualifications().is_empty()
-                || !discarded.projected_qualifications().is_empty()
-            {
-                return Err(invalid());
-            }
+        // A case edge disposes of what it leaves behind by the same rule as
+        // every other edge: a plain affine home, or an owned affine arrival
+        // such as the dispatched parameter itself, with no claims or
+        // qualifications. This checks the supported cleanup carrier, not
+        // ownership liveness; the validated abstract graph remains the
+        // custody authority.
+        let discards = case
+            .trivial_affine_discards
+            .iter()
+            .copied()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .collect::<Vec<_>>();
+        if !super::terminator::plain_home_cleanup(function, live, structural_types, &discards)? {
+            return Err(invalid());
         }
         let fields = declared
             .fields
