@@ -9,9 +9,9 @@
    "item": "STRUCTURAL-BORROW-IDENTITY",
    "owning_paths": [
     "omega-rust/psi/representations/checked-trees/src/checked_trees/values/structural_values.rs",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/receiver_calls",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/calls/computation_arguments",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow/receiver_access.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/receiver_calls",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/computation_arguments",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/borrow/receiver_access.rs",
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations"
    ],
    "suggested_first_slice": "Runtime-index leg: CheckedUnitStructuralPathSegment (checked-trees .../values/structural_values.rs) has no runtime-index variant, and the remaining src/tests/borrow/receiver_access.rs pins cover local-rooted indexed receivers plus runtime-indexed parameter receivers/explicit shared arguments. Take ONE bounded step: add a runtime-index segment carrying a checked selector/value and bounds relationship (not a widened path predicate or trusted byte offset), admit it through execution/terminal_unit/receiver_calls or calls/computation_arguments for one pinned receiver_access case, and keep terminal-verifier structural_operations replay honest for the new segment. Reuse terminal-semantics::static_path. Owned-root/construction-local admission and bracketed-range fixture migration (REMOVE-BRACKETED-RANGE-ANNOTATIONS) are separate obligations - do not fold them in. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
@@ -33,10 +33,10 @@
    "board": "TASKS.md",
    "item": "TERMINATION-RANKING-CHECKS",
    "owning_paths": [
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/graph.rs",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/order.rs",
-    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/termination",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/ranking",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/graph.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/order.rs",
+    "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/termination",
     "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
     "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles",
     "tests/omega/fail/termination",

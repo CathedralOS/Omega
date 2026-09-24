@@ -2321,7 +2321,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/01_tokens-to-syntax-trees",
         "psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
         "psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
-        "psi/pipeline/typed-trees-to-checked-trees",
+        "psi/pipeline/04_typed-trees-to-checked-trees",
         "psi/pipeline/checked-trees-to-lowered-psi",
         "psi/pipeline/lowered-psi-to-lowered-psi",
         "psi/pipeline/lowered-psi-to-terminal-psi",

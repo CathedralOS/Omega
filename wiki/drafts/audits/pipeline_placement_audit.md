@@ -106,7 +106,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 
 **New finding**
 
-- `psi/pipeline/typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
+- `psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
   `CheckedTreeProductSelectionIdentity([u8; 32])` newtype plus a `Sha256`
   producer inside the transform. Row-1 violation; add to the
   DURABLE-CODEC-RELOCATION leg list (move to `representations/typed-trees` or

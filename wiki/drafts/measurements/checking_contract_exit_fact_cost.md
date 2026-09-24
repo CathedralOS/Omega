@@ -170,7 +170,7 @@ actual defect site.
 
 **This corrected a hypothesis taken from reading the code, which is why the
 chain was worth building.** Two routes in
-`typed-trees-to-checked-trees/src/execution/unit/candidate_closure/mod.rs`
+`04_typed-trees-to-checked-trees/src/execution/unit/candidate_closure/mod.rs`
 drop a callee: `require_entry` (:61-76) when the machine is absent from
 `entries`, and the roster construction (:36-44), which groups by machine
 symbol, retains **only groups of exactly one entry**, and drops any machine

@@ -70,7 +70,7 @@ non-writing branch. Equal-capacity field/source substitutions and altered copy
 operands or footprints reject independent replay.
 
 Runtime-view RHS and write-only bounded-domain assignment still need their
-authored Psi producers in `typed-trees-to-checked-trees/src/flow`; the runtime
+authored Psi producers in `04_typed-trees-to-checked-trees/src/flow`; the runtime
 and write-only tests construct verified Terminal explicitly, not pretend that
 those source forms already compile. The native copy itself is shared across
 literal and runtime views, with ISA-local loops rather than source CFG edges.

@@ -39,8 +39,8 @@
       "item": "FLOAT-PROVIDERS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/authored_selections",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/authored_selections",
         "omega-rust/omega/compiler/compiler/tests/canary_suite/providers_float_and_console",
         "tests/omega/pass/float"
       ],

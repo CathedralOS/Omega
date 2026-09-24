@@ -530,7 +530,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     );
 
     let certificate_path = repo_root.join(
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/proof/contract_entailment.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/proof/contract_entailment.rs",
     );
     let certificate = fs::read_to_string(&certificate_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", certificate_path.display()));

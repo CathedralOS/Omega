@@ -35,4 +35,4 @@ syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_synta
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }

@@ -91,6 +91,6 @@ from machine bytes. Checked arenas alone are not portable authority.
 
 General proof-derived compatibility and broader restoration publication remain
 implementation work. Current supported forms and source correspondence live
-beside [borrow checking](../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md).
+beside [borrow checking](../../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md).
 The [structural access contract](structural_access.md) governs permitted operations
 and original-referent preservation independently of these relational proofs.

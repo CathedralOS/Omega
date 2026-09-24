@@ -33,7 +33,7 @@ claim holds — the supported boards are `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
 
 ```text
 python tools/claims.py claim --board TASKS.md --item TERMINATION-RANKING-CHECKS \
-    --owner "Jarod / windows" --path omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination
+    --owner "Jarod / windows" --path omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination
 ```
 
 Retain the returned ticket. `--board` validates the item's `**<item>.**`

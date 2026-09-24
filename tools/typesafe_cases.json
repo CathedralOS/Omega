@@ -16,7 +16,7 @@
     {
       "source": "tools/swarm/waves/wave-6.outcomes.json @ 3c81e8a86623b97e70bf85be96f185f14d66e3a6, borrow-proof-convergence",
       "kind": "report_excerpt",
-      "evidence": "result: blocked; item_closed: false; commits: []. Next slice lives in typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/, claimed by macw4-value-generics-2 (RUNTIME-VALUE-GENERICS, lease to 2026-09-15T03:20Z). Re-offer after that claim clears.",
+      "evidence": "result: blocked; item_closed: false; commits: []. Next slice lives in 04_typed-trees-to-checked-trees/src/checks/ranges/facts/dependencies/, claimed by macw4-value-generics-2 (RUNTIME-VALUE-GENERICS, lease to 2026-09-15T03:20Z). Re-offer after that claim clears.",
       "claims": [["The report records an assignment conflict blocking this slice.", true], ["The compiler rejected the proposed borrow-proof implementation.", false], ["The session delivered a commit for this slice.", false], ["The recorded session has no commits.", true]]
     },
     {

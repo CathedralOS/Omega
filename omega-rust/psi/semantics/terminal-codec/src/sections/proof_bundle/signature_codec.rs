@@ -29,7 +29,7 @@
 // "until the lowering leg wires it": PROOF-CONTRACT-MIGRATION owns connecting
 // the checked signature to Terminal evidence, and its producer half already
 // carries the same allowance
-// (`typed-trees-to-checked-trees/src/proof/mathematical_signature.rs`'s
+// (`04_typed-trees-to-checked-trees/src/proof/mathematical_signature.rs`'s
 // `evidence`/`authored`). The allowance sits on the module rather than on each
 // item because the whole file is one wire format with one pending consumer; it
 // comes off when that leg lands, and until then `-D warnings` would otherwise

@@ -327,7 +327,7 @@ actually write. Both are true; only the second predicts whether an
 application compiles.
 
 The four leading sites live in
-`typed-trees-to-checked-trees/src/execution/terminal_unit/`, in
+`04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, in
 `state_graph/mod.rs` and `structural_scalar_store/mod.rs`. This entry is a
 reading, not an attribution: no site is bisected to a culprit here, and the
 diagnostic names the route that got furthest rather than a proven cause.

@@ -75,7 +75,7 @@ Per-invocation telemetry is not another interchangeable work currency.
 
 [Package boundaries](../../../../wiki/spec/packages/boundaries.md#admit-before-execution)
 requires declaration admission before early evaluation. The
-[selection-custody note](../../pipeline/typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
+[selection-custody note](../../pipeline/04_typed-trees-to-checked-trees/authored_selections.md#early-evaluation)
 maps that gate to exact calls, candidate sets, and authored application sites.
 
 Closed integer expressions for data applications and root-owned domain families in

@@ -55,8 +55,8 @@
       "item": "NOMINAL-FIELD-FLOW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/flow/transfers/scalar_values"
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/transfers/byte_sequences.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/transfers/scalar_values"
       ],
       "suggested_first_slice": "Add indexed text-writer numeric-conversion result evidence for one listed input class and carry that evidence through the existing scalar transfer path."
     },
@@ -66,8 +66,8 @@
       "item": "TPR6",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress/origins.rs",
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/progress/lineage.rs"
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress/origins.rs",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/termination/progress/lineage.rs"
       ],
       "suggested_first_slice": "Reconstruct one exact subject-bearing progress premise through a projected arrival in origins and lineage without touching the separate ranking checks."
     },

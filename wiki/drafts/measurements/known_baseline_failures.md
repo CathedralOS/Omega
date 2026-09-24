@@ -465,7 +465,7 @@ wording; none unblock a correct rejection):
 - `build/program_entry_binding_outside_build`: expected
   "root binding requires a compiler-issued &mut Build place", actual
   "…&mut Build receiver"
-  (`typed-trees-to-checked-trees/src/authored_selections/finalization.rs:78`).
+  (`04_typed-trees-to-checked-trees/src/authored_selections/finalization.rs:78`).
 - `comptime/fuel_exhausted_const_array_length`: expected
   "machine `table_size` is not build-time admissible", actual
   "fixed-array length `[i64; table_size()]`: const evaluation of
@@ -475,7 +475,7 @@ wording; none unblock a correct rejection):
   "cannot prove requires contract", actual
   "index compatibility condition … `Coordinate<7>` and expected
   `Coordinate<9>` are distinct normalized instances …"
-  (`typed-trees-to-checked-trees/src/facts/index_compatibility.rs:441`).
+  (`04_typed-trees-to-checked-trees/src/facts/index_compatibility.rs:441`).
 - `providers/provider_selection_outside_build`: expected
   "has no local state `select_provider`", actual
   "value call `select_provider(..)` does not resolve to a state of this
@@ -744,7 +744,7 @@ Service<R> family). The current failure set attributes to six families:
   fails at source check with ``cannot establish call-result qualification
   `Registration::Live`: the exact invocation, authorized route or consumed
   qualified claims, and result correspondence are not proved`` from
-  `typed-trees-to-checked-trees/src/checks/content/call_results.rs` — the
+  `04_typed-trees-to-checked-trees/src/checks/content/call_results.rs` — the
   fixture's `domain Registration::Live established by Registrar::register`
   route is the ENTRY-CONTENT-ROOTS documented residual ("`established by`
   establishment routes ... stay red until the receiver lifecycle leg
@@ -831,7 +831,7 @@ re-attributed member-by-member below.
   the family's sole member, now passes — in-window closers are
   851052b4f8f (admit constrained-result spelling as boundary issuance
   witness) or 1fc01bb6907 (transferred input is not fresh supply), both in
-  `typed-trees-to-checked-trees/src/checks/content`.
+  `04_typed-trees-to-checked-trees/src/checks/content`.
 - New — ranked safe-point segment bounds (2 tests):
   `structural_control_cases::ranked_countdown_lowers_to_verified_resumable_interpreter_execution`
   now reads per-edge ceiling 3·2³³ (0x600000000) instead of 3, and

@@ -309,7 +309,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "psi/pipeline/typed-trees-to-checked-trees",
+        "psi/pipeline/04_typed-trees-to-checked-trees",
         &[
             "authored_selections",
             "borrow",

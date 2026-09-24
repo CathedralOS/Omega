@@ -36,7 +36,7 @@ both `observe` calls run under checked premises and `run_false`/`run_true`
 return 7/11 through the transition contract. The breakage is strictly in
 Terminal transport:
 
-- `typed-trees-to-checked-trees/src/facts/contract_plan_facts.rs::lower_clause`
+- `04_typed-trees-to-checked-trees/src/facts/contract_plan_facts.rs::lower_clause`
   tries `lower_closed_clause`, then `lower_scalar_contract_predicate`. Both
   produce `Option` shapes over `CheckedBooleanExpression`; a predicate whose
   operands are machine calls has no closed form, so the requires row records
@@ -60,7 +60,7 @@ the callee's own `requires`/`terminates` obligations were discharged at the
 caller's call site. Terminal needs to carry exactly that citation so the
 verifier replays the *obligation join*, not the call.
 
-### 1. Checked retention (typed-trees-to-checked-trees)
+### 1. Checked retention (04_typed-trees-to-checked-trees)
 
 - Keep `lower_scalar_contract_predicate` unchanged for the call-free subset.
 - When the clause's predicate contains calls, retain a new

@@ -1561,7 +1561,7 @@ fn compile_request_owns_product_admission_before_source_acquisition() {
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =
-        root.join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/mod.rs");
+        root.join("omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/mod.rs");
     let source = std::fs::read_to_string(&psi_checks)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", psi_checks.display()));
     assert!(
@@ -1925,7 +1925,7 @@ fn direct_add_proof_search_exposes_its_semantic_owners() {
 fn composed_unit_lowering_exposes_its_semantic_owners() {
     let root = workspace_root();
     let typed = root
-        .join("omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit");
+        .join("omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit");
     let terminal =
         root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [

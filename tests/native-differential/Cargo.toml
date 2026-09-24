@@ -89,5 +89,5 @@ symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/0
 syntax-trees = { path = "../../omega-rust/psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../omega-rust/psi/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees" }
 sha2 = "0.10.9"

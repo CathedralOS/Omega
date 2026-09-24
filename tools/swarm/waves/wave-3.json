@@ -113,7 +113,7 @@
       "item": "CASE-CONSTRAINTS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/values",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values",
         "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/payloadless_case_return.rs",
         "omega-rust/omega/compiler/compiler/tests/canary_suite/value_and_type_checks.rs",
         "tests/omega/pass/constraints",
@@ -128,7 +128,7 @@
       "host": "linux",
       "probe_only": true,
       "owning_paths": [
-        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/facts",
+        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts",
         "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
         "omega-rust/psi/representations/terminal-psi/src",
         "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src",

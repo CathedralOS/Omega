@@ -43,7 +43,7 @@ task-plans = { path = "../../representations/task-plans" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }
 trust-model = { path = "../../build/trust-model" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/semantics/validation" }
 
 [dev-dependencies]

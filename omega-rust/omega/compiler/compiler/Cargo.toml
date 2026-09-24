@@ -59,7 +59,7 @@ flow-effects = { path = "../../../psi/representations/flow-effects" }
 symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 facts = { path = "../../../psi/representations/facts" }
 target = { path = "../../representations/target" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }

@@ -208,7 +208,7 @@ qualification. Named-state and entry backedges use exact target-state formals,
 not the machine's still-forming summary as if the jump were a nested call.
 Reference identity may transport an existing live qualification, never establish
 a missing or invalidated one. Bounded source-certificate support remains beside
-[checked progress](../../../omega-rust/psi/pipeline/typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
+[checked progress](../../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
 
 ## Composition and limits
 
