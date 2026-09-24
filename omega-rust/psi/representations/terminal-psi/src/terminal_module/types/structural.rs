@@ -106,13 +106,19 @@ impl StructuralFieldType {
     /// live length belong to the owning record declaration, so it has no
     /// standalone type identity a consumer could substitute at a path end;
     /// a byte field reaches a call parameter only through the inline
-    /// presentation routes, which keep the owning root and path.
+    /// presentation routes, which keep the owning root and path. A borrowed
+    /// view field is different: the descriptor is a whole structural leaf of
+    /// the parent's storage, and it resolves to the canonical borrowed-view
+    /// declaration its copy mints.
     pub fn canonical_leaf_shape(&self) -> Option<StructuralTypeShape> {
         match self {
             Self::Scalar(scalar_type) => Some(StructuralTypeShape::PrimitiveScalar(*scalar_type)),
             Self::IeeeFloat(format) => Some(StructuralTypeShape::PrimitiveScalar(
                 ScalarType::IeeeFloat(*format),
             )),
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView) => Some(
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            ),
             Self::ByteSequence(_)
             | Self::BoundedInteger(_)
             | Self::Structural(_)
