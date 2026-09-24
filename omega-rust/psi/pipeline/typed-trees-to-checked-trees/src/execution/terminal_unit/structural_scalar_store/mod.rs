@@ -1392,6 +1392,7 @@ fn build_structural_field_store_at(
             },
         ));
     }
+    trace.phase("structural field store: pure source: scalar expression row");
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
@@ -1400,6 +1401,7 @@ fn build_structural_field_store_at(
     if binding.expression != assignment.value {
         return None;
     }
+    trace.phase("structural field store: pure source: value shape");
     let direct_result_is_exact = matches!(
         (result_local, value),
         (
@@ -1445,6 +1447,7 @@ fn build_structural_field_store_at(
     {
         return None;
     }
+    trace.phase("structural field store: pure source: exact source");
     let exact_source = if exact_sequence_frame || direct_result_is_exact || literal {
         true
     } else if scalar_parameters.is_empty() {

@@ -298,7 +298,7 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
     assert_eq!(
         trace.stage(),
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "structural field store: pure source",
+            phase: "structural field store: pure source: scalar expression row",
             state_index: None,
             statement_index: Some(1),
         }
