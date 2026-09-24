@@ -428,7 +428,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             (
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor },
                 [StatementNode::Transition(transition)],
-            ) if transition.guard == TransitionGuardNode::Always => {
+            ) if transition.guard == TransitionGuardNode::Always
+                || (matches!(transition.guard, TransitionGuardNode::When(_))
+                    && u32::try_from(terminator_ordinal).is_ok_and(|ordinal| {
+                        checked
+                            .facts
+                            .values
+                            .scalar_expressions
+                            .guard_is_constant_true(state.state, ordinal)
+                    })) =>
+            {
                 edges::validate(
                     checked,
                     plan,

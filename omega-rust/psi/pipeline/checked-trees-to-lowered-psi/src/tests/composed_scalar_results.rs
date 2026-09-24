@@ -142,6 +142,35 @@ fn counting_loop_returns_its_leaf_expression_to_an_ordinary_caller() {
     );
 }
 
+/// `transition true { true -> done(v) }` always takes its one arm: it plans
+/// and lowers as the same unconditional jump an `Always` guard does.
+const CONSTANT_TRUE_TRANSITION: &str = r#"
+    data Tally { count: i32 in Wrapping; }
+    machine Tally::get(&mut self) -> i32 in Wrapping {
+        let v: i32 in Wrapping = 41;
+        transition true { true -> done(v + 1) }
+        state done(&mut self, value: i32 in Wrapping) -> i32 in Wrapping { value }
+    }
+    machine Tally::main(&mut self) -> i32 in Wrapping {
+        let a: i32 in Wrapping = self.get();
+        a
+    }
+"#;
+
+#[test]
+fn a_constant_true_transition_is_an_unconditional_jump() {
+    let checked = crate::front_end::checked_program(CONSTANT_TRUE_TRANSITION);
+    let graph = state_graph(&checked, "Tally::get");
+    assert!(matches!(
+        graph.states[0].terminator,
+        CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+    ));
+    assert_eq!(
+        signed_32(run_entry(CONSTANT_TRUE_TRANSITION, "Tally::main")),
+        42
+    );
+}
+
 /// A receiver field read carried by an unconditional jump, and value-only
 /// guarded arms that each return.
 const JUMP_AND_GUARDED_RETURNS: &str = r#"
