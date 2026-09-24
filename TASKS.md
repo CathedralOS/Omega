@@ -149,6 +149,18 @@ the complete product bar; focused successes below do not establish that baseline
   are -- but prove ONE of them against a fixture before propagating to the
   rest; this is the termination prover.
 
+  ONE ATTEMPT ALREADY FAILED, and it narrows the search. Adding a `Domain`
+  arm beside the `Range` arm in `ranking_range.rs`'s auxiliary-invariant
+  loop (the one that pushes `param >= minimum` and `param <= maximum` into
+  the engine) does NOT make
+  `termination/constrained_measure_parameter_compile` check; it was
+  reverted rather than landed unwitnessed. The refusal comes from
+  `ranking::machine_decrease_outcome` in
+  `typed-trees-to-checked-trees/src/checks/termination.rs`, so start by
+  finding which range read inside THAT decides the fixture --
+  `termination/ranking/nat.rs`'s positivity floor is not it, since it
+  answers the same for `[0..=5]` and for `requires self <= 5`.
+
   The original shape, for reference:
   `machine walk(remaining: u64 in Fuel) { transition remaining > 0 { true
   -> walk(remaining - 1) ... } }` with `domain u64::Fuel requires self <=
