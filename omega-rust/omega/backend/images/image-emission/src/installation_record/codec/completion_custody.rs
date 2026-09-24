@@ -11,7 +11,7 @@ use semantic_vocabulary::{
 use target_operations::CompletionClaimSource;
 use terminal_psi::{ClaimContentProjection, ContentEntryClaim, EntryClaim, StructuralArgument};
 
-use super::structural_argument::{decode_structural_argument, encode_structural_argument};
+use super::structural::argument::{decode_structural_argument, encode_structural_argument};
 use crate::installation_record::{
     InstallationError, Reader, decode_identity, encode_identity, push_u32, push_u64,
 };

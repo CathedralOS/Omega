@@ -10,10 +10,10 @@ use crate::installation_record::codec::function::{decode_functions, encode_funct
 use crate::installation_record::codec::installation_header::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
 };
-use crate::installation_record::codec::internal_unit_call::{
+use crate::installation_record::codec::internal_unit::call::{
     decode_internal_unit_calls, encode_internal_unit_calls,
 };
-use crate::installation_record::codec::internal_unit_scalar_call::{
+use crate::installation_record::codec::internal_unit::scalar_call::{
     decode_internal_unit_scalar_calls, encode_internal_unit_scalar_calls,
 };
 use crate::installation_record::codec::opaque_application::{
@@ -29,7 +29,7 @@ use crate::installation_record::codec::provider_plan::{
 use crate::installation_record::codec::semantic_code_attribution::{
     decode_semantic_code_attributions, encode_semantic_code_attributions,
 };
-use crate::installation_record::codec::structural_return::{
+use crate::installation_record::codec::structural::returns::{
     decode_structural_returns, encode_structural_returns,
 };
 use crate::installation_record::codec::wire::Reader;

@@ -7,8 +7,8 @@ use machine_code::UnitAffineCleanupRecord;
 use semantic_vocabulary::{EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction};
 
-use super::{
-    structural_argument::{decode_structural_argument, encode_structural_argument},
+use crate::installation_record::codec::{
+    structural::argument::{decode_structural_argument, encode_structural_argument},
     trivial_affine_local::{
         decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
         encode_trivial_affine_local_type,

@@ -10,10 +10,10 @@ use machine_code::{
 };
 use semantic_vocabulary::{MachineId, OperationId, ValueId};
 
-use super::{
+use crate::installation_record::codec::{
     call_site_owner::{decode_call_site_owner, encode_call_site_owner},
-    scalar_call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
-    unit_scalar::{
+    scalar::call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
+    unit::scalar::{
         decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
         encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },

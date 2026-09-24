@@ -2,7 +2,9 @@
 
 use terminal_psi::StructuralFieldDeclaration;
 
-use super::structural_field::{decode_structural_field, encode_structural_field};
+use crate::installation_record::codec::structural::field::{
+    decode_structural_field, encode_structural_field,
+};
 use crate::installation_record::{InstallationError, Reader, push_u32};
 
 pub(crate) fn encode_structural_fields(

@@ -7,7 +7,7 @@ use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
 };
 
-use super::structural_scalar::{decode_identity, encode_identity};
+use crate::installation_record::codec::structural::scalar::{decode_identity, encode_identity};
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u16, push_u64};
 
 pub(crate) fn encode_structural_field(
@@ -20,9 +20,18 @@ pub(crate) fn encode_structural_field(
     match &field.field_type {
         StructuralFieldType::BoundedInteger(bounds) => {
             bytes.push(8);
-            super::unit_scalar::encode_integer_type(bytes, bounds.integer_type())?;
-            super::unit_scalar::encode_integer_value(bytes, bounds.minimum());
-            super::unit_scalar::encode_integer_value(bytes, bounds.maximum());
+            crate::installation_record::codec::unit::scalar::encode_integer_type(
+                bytes,
+                bounds.integer_type(),
+            )?;
+            crate::installation_record::codec::unit::scalar::encode_integer_value(
+                bytes,
+                bounds.minimum(),
+            );
+            crate::installation_record::codec::unit::scalar::encode_integer_value(
+                bytes,
+                bounds.maximum(),
+            );
         }
         StructuralFieldType::Scalar(ScalarType::Boolean) => {
             bytes.push(1);
@@ -99,8 +108,10 @@ pub(crate) fn decode_structural_field(
             }
             let integer = IntegerType::new(sign, reader.u16()?)
                 .map_err(|_| InstallationError::InvalidStructuralTypeShape)?;
-            let minimum = super::unit_scalar::decode_integer_value(reader)?;
-            let maximum = super::unit_scalar::decode_integer_value(reader)?;
+            let minimum =
+                crate::installation_record::codec::unit::scalar::decode_integer_value(reader)?;
+            let maximum =
+                crate::installation_record::codec::unit::scalar::decode_integer_value(reader)?;
             StructuralFieldType::BoundedInteger(
                 semantic_vocabulary::BoundedIntegerType::new(integer, minimum, maximum)
                     .map_err(|_| InstallationError::InvalidStructuralTypeShape)?,

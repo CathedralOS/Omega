@@ -3,7 +3,9 @@
 
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 
-use super::value_placement::{decode_direct_placement, encode_direct_placement};
+use crate::installation_record::codec::value_placement::{
+    decode_direct_placement, encode_direct_placement,
+};
 use crate::installation_record::{InstallationError, Reader, push_u16, push_u32};
 
 pub(crate) fn encode_scalar_call_plan(

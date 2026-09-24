@@ -9,7 +9,7 @@ use semantic_vocabulary::{
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 
-use super::value_placement::{decode_shape, encode_shape};
+use crate::installation_record::codec::value_placement::{decode_shape, encode_shape};
 use crate::installation_record::{
     InstallationError, Reader, push_u16, push_u32, push_u64, push_u128,
 };

@@ -8,11 +8,11 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
 };
 
-use super::{
-    internal_unit_scalar_call::{
+use crate::installation_record::codec::{
+    internal_unit::scalar_call::{
         decode_argument_source, decode_offset, encode_argument_source, encode_offset,
     },
-    structural_scalar::{
+    structural::scalar::{
         access_tag, decode_access, decode_domains, decode_multiplicity, encode_domains,
         multiplicity_tag,
     },
