@@ -16,6 +16,7 @@ mod byte_write_loop;
 mod case_test_dispatch_payloads;
 mod composed_operand_catalogs;
 mod composed_provider_candidates;
+mod composed_receiver_scalar_calls;
 mod composed_scalar_results;
 mod composed_unit_claims;
 mod composed_unit_guarded_jumps;

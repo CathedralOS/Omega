@@ -1,11 +1,13 @@
 //! Ordinary state graphs share one callable closure and publication path.
 //!
 //! `state_graph` admits and emits the graph; each state's operations emit
-//! through `emission::emit_call_operations`, which sends stores, scalar
-//! locals, borrowed-storage windows and continuation cleanup to
-//! `operation_frame::OperationFrame`, the emitter the ordinary machine also
-//! uses, and keeps the composed call emitters (`emission`, `internal_calls`,
-//! `scalar_calls`).
+//! through `emission::emit_call_operations`, which evaluates each call's
+//! operands on the state's schedule and sends every operation, calls
+//! included, to `operation_frame::OperationFrame`, the emitter the ordinary
+//! machine also uses. `admission` and `internal_calls::admission` decide which
+//! call shapes a state admits; `catalogs` holds the call targets the frame
+//! resolves against; `scalar_calls` selects the scalar helpers a standalone
+//! catalog prepares.
 use super::{CheckedTrees, LoweringError};
 mod admission;
 pub(super) mod callable;

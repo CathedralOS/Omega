@@ -29,6 +29,10 @@ pub(crate) struct SharedUnitClosure {
         Vec<StructuralParameterDeclaration>,
         Vec<ScalarType>,
     )>,
+    /// Every emitted Unit body's allocated signature, so a Unit graph the
+    /// external caller emits later calls those bodies exactly as they call
+    /// each other.
+    pub(super) signatures: Vec<super::signatures::MachineSignature>,
     pub(crate) scalar_requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
     pub(crate) next_place: u64,
     pub(crate) next_value: u64,

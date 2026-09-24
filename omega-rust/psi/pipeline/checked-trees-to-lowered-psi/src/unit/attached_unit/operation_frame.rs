@@ -1,12 +1,15 @@
 //! One emitter for the Unit effect operations every attached body lowers the
 //! same way: port writes, primitive, indexed, scalar-field and byte-sequence
-//! stores, scalar locals, view-subslice locals, borrowed-storage windows and
-//! call-continuation cleanup. The ordinary machine (`ordinary_machine::MachineEmission`) and a
+//! stores, scalar locals, view-subslice locals, borrowed-storage windows,
+//! call-continuation cleanup, structural-value construction, and every call
+//! shape (`calls`: internal Unit and structural calls, member calls of a
+//! construction and scalar calls; `boundary_calls`: the three boundary call
+//! shapes). The ordinary machine (`ordinary_machine::MachineEmission`) and a
 //! composed-graph state (`composed_control/emission.rs::emit_call_operations`)
 //! each build an `OperationFrame` over their per-state environment and hand it
-//! the checked operation; `OperationFrame::emit` dispatches to the one method
-//! for that kind, which delegates the lowering itself to the shared
-//! `crate::emission::*` helpers.
+//! the checked operation; `OperationFrame::emit` and `OperationFrame::emit_call`
+//! dispatch to the one method for that kind, which delegates the lowering
+//! itself to the shared `crate::emission::*` and `ordinary_calls` helpers.
 //!
 //! A frame borrows the parameters, structural type roster, evaluation, value
 //! namespace, identity counters, operation buffer and scalar-call context of
@@ -15,30 +18,43 @@
 //! take a bare `&mut u64` and helpers that take the context advance the same
 //! identity space.
 //!
-//! The two routes keep two genuinely different representations, and both are
+//! Operand evaluation stays with each route, because the routes schedule it
+//! differently: the ordinary machine stages nested argument groups ahead of
+//! their call (`argument_schedule`), and a composed state evaluates each
+//! call's operands and literals just before it (`literal_arguments`). Both
+//! hand the completed operands to `emit_call` as `CallInputs`; everything from
+//! there on (target lookup, transfer validation, claim custody, requirement
+//! obligations, crash substitution, result publication) is one code path.
+//!
+//! The two routes keep genuinely different representations, and each is
 //! explicit here rather than hidden in parallel copies of each operation:
 //!
 //! - `StructuralResults`: the ordinary machine keeps a dense roster indexed by
 //!   authored binding ordinal, with each row's return-discard custody; a
 //!   composed state registers completed results in the operation buffer and a
-//!   machine-wide place catalog.
+//!   machine-wide place catalog. `StructuralResults::earlier` gives both the
+//!   dense `(declaration, discard)` view call operands resolve against.
 //! - `StructuralTypeRoster`: a body that owns its type roster may add the
 //!   generated literal-view carrier; a composed callee borrowing the closure's
 //!   published roster may not.
+//! - `PrivatePlaces`: the ordinary machine keeps byte-sequence literal places
+//!   and construction temporaries in two rosters; a composed body keeps both
+//!   in its one private temporary roster.
+//! - `ClaimBindings`: the ordinary machine's claim table grows when a linear
+//!   boundary result mints a caller binding; a composed state reads the
+//!   machine-wide table and cannot mint.
 //!
 //! Every other check either route applied runs for both. In particular a
 //! borrowed-window move or repair must name a machine-parameter root the
 //! sequence still holds (Terminal verification anchors windows on machine
 //! parameters only), and a repair value must be a whole owned result binding.
-//!
-//! Calls and structural-value construction (whose operands are calls) still
-//! emit through each route's own call emitter: `ordinary_machine/calls.rs`,
-//! `ordinary_machine/boundary_calls.rs` and `ordinary_machine/locals.rs` on the
-//! ordinary side, `composed_control/emission.rs` and
-//! `composed_control/internal_calls` on the composed side.
+//! What the routes still admit differently is decided before emission, by
+//! each route's admission, not by a narrower copy of the emitter.
 
 use super::argument_evaluation::Evaluation;
+use super::bodies::UnitPlans;
 use super::primitive_locals::{self, PrimitiveLocal};
+use super::signatures::MachineSignature;
 use super::view_ranges::{ViewRangeSite, ViewRangeSource};
 use crate::emission::borrowed_window::{BorrowedWindowLedger, BorrowedWindowRepairValue};
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -47,14 +63,32 @@ use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::bindings::view_locals;
+use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
-    CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
-    Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
-    ServiceReachSummary, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
+    ClaimId, LoweringError, Operation, OperationKind, OperationResult, PermissionClaimIdentity,
+    PlaceId, ScalarType, SemanticDomainId, ServiceId, ServiceReachId, ServiceReachSummary,
+    StructuralDomainId, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
-    allocate_dense, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type,
+    unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
+use std::borrow::Cow;
+
+mod boundary_calls;
+mod calls;
+pub(super) use calls::CallInputs;
+
+/// One lowered boundary declaration a call can name: its checked source, the
+/// published boundary identity, its structural formals and its dense scalar
+/// parameter types.
+pub(crate) type BoundaryParameters = (
+    symbols::SymbolHandle,
+    BoundaryMachineId,
+    Vec<StructuralParameterDeclaration>,
+    Vec<ScalarType>,
+);
 
 /// The per-state environment one operation emits into. Each route builds a
 /// frame per operation; the frame only borrows, so the route keeps ownership
@@ -78,10 +112,7 @@ pub(super) struct OperationFrame<'f, 'c> {
     /// Established primitive referents; a composed state establishes none.
     pub(super) primitive_locals: &'f [PrimitiveLocal],
     pub(super) results: StructuralResults<'f>,
-    /// The roster a store's byte-sequence literal place joins: the ordinary
-    /// machine's literal places, or a composed body's private temporaries.
-    /// Its ordinal counts only the literals already in the roster.
-    pub(super) literal_places: &'f mut Vec<StructuralPlaceDeclaration>,
+    pub(super) private_places: PrivatePlaces<'f>,
     /// Open borrowed-storage windows on the current straight-line sequence.
     pub(super) windows: &'f mut BorrowedWindowLedger,
     pub(super) evaluation: &'f mut Evaluation,
@@ -92,6 +123,113 @@ pub(super) struct OperationFrame<'f, 'c> {
     pub(super) next_edge: &'f mut u64,
     pub(super) calls: &'f mut CallEmissionContext<'c>,
     pub(super) operations: &'f mut OperationBuffer,
+    pub(super) callees: Callees<'f>,
+    pub(super) caller: CallerCustody<'f>,
+}
+
+/// The closure-wide targets a call resolves against. An ordinary machine and
+/// a composed graph emitted in the same Unit closure name the same
+/// signatures, boundaries and prepared scalar callees; a standalone composed
+/// catalog (a dynamic continuation) supplies the subset its leaves can call.
+#[derive(Clone, Copy)]
+pub(super) struct Callees<'f> {
+    /// The checked bodies and boundary plans the closure was admitted from.
+    pub(super) plans: UnitPlans<'f>,
+    /// Every Unit body's allocated formals, claims and `requires` roster;
+    /// `MachineSignature::call_target` is what a call substitutes into.
+    pub(super) signatures: &'f [MachineSignature],
+    pub(super) boundaries: &'f [BoundaryParameters],
+    pub(super) domain_ids: &'f [(SemanticDomainId, StructuralDomainId)],
+    /// The closure's Unit bodies: a scalar call may name one that completes
+    /// with a scalar instead of a prepared scalar callee.
+    pub(super) closure: &'f [symbols::SymbolHandle],
+    pub(super) prepared_scalar_machines: &'f [PreparedScalarCallee<'f>],
+}
+
+/// What the calling body itself contributes to a call's custody.
+pub(super) struct CallerCustody<'f> {
+    /// The caller's erased scalar formals; erased actuals lower over them.
+    pub(super) erased_scalar_parameters: &'f [ValueDeclaration],
+    /// The caller's erased proof-only roster; `Formal` actuals resolve in it.
+    pub(super) erased_proof_parameters: &'f [checked_trees::CheckedErasedProofParameterPlan],
+    /// The claims the emitting body (ordinary) or state (composed) holds on
+    /// entry. A boundary call expects one receipt per claim its parameter
+    /// arguments carry.
+    pub(super) entry_claims: &'f [checked_trees::CheckedUnitEntryClaimPlan],
+    pub(super) claims: ClaimBindings<'f>,
+    /// The ordinary machine's trivial affine locals; a composed state has none.
+    pub(super) local_places: &'f [StructuralPlaceDeclaration],
+}
+
+/// The caller's claim namespace.
+pub(super) enum ClaimBindings<'f> {
+    /// The ordinary machine's table: its lowered entry claims plus every
+    /// caller-local binding a linear boundary result mints for a claim
+    /// established at its own binding statement. `next_claim` is the dense
+    /// tail past the entry claims.
+    Growable {
+        bindings: &'f mut Vec<(PermissionClaimIdentity, ClaimId)>,
+        next_claim: &'f mut u64,
+    },
+    /// A composed state's machine-wide table. The graph publishes its claim
+    /// roster before any state emits, so a state cannot mint a binding.
+    Fixed(&'f [(PermissionClaimIdentity, ClaimId)]),
+}
+
+impl ClaimBindings<'_> {
+    pub(super) fn bindings(&self) -> &[(PermissionClaimIdentity, ClaimId)] {
+        match self {
+            Self::Growable { bindings, .. } => bindings,
+            Self::Fixed(bindings) => bindings,
+        }
+    }
+
+    /// Mint the caller binding for a claim this call's own statement
+    /// established.
+    fn mint(&mut self, identity: PermissionClaimIdentity) -> Result<ClaimId, LoweringError> {
+        let Self::Growable {
+            bindings,
+            next_claim,
+        } = self
+        else {
+            return unsupported("composed state cannot mint a boundary result claim binding");
+        };
+        let claim = claim_id(allocate_dense(next_claim)?);
+        bindings.push((identity, claim));
+        Ok(claim)
+    }
+}
+
+/// The private places a body declares beside its authored results.
+pub(super) enum PrivatePlaces<'f> {
+    /// The ordinary machine keeps byte-sequence literal places (preallocated
+    /// per call argument, then store literals) apart from the temporaries a
+    /// structural-value construction declares.
+    Split {
+        literals: &'f mut Vec<StructuralPlaceDeclaration>,
+        temporaries: &'f mut Vec<StructuralPlaceDeclaration>,
+    },
+    /// A composed body keeps literals, construction and join temporaries in
+    /// one roster. A literal's ordinal counts only the literals in it.
+    Shared(&'f mut Vec<StructuralPlaceDeclaration>),
+}
+
+impl PrivatePlaces<'_> {
+    /// The roster a store's byte-sequence literal place joins.
+    fn literals(&mut self) -> &mut Vec<StructuralPlaceDeclaration> {
+        match self {
+            Self::Split { literals, .. } => literals,
+            Self::Shared(places) => places,
+        }
+    }
+
+    /// The roster a structural-value construction's temporaries join.
+    fn temporaries(&mut self) -> &mut Vec<StructuralPlaceDeclaration> {
+        match self {
+            Self::Split { temporaries, .. } => temporaries,
+            Self::Shared(places) => places,
+        }
+    }
 }
 
 /// The structural type roster a frame reads.
@@ -194,23 +332,96 @@ impl StructuralResults<'_> {
     fn require_next(
         &self,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        drifted: &'static str,
     ) -> Result<(), LoweringError> {
         match self {
             Self::Dense(roster) if result.binding_ordinal as usize != roster.len() => {
-                unsupported("borrowed-window move result binding is not dense")
+                unsupported(drifted)
             }
             _ => Ok(()),
+        }
+    }
+
+    /// The completed results a call's operands resolve by binding ordinal,
+    /// as the dense `(declaration, discard)` roster transfer validation and
+    /// argument lowering index.
+    ///
+    /// A composed state's binding ordinals belong to the source state, while
+    /// its place catalog spans the whole emitted machine, so the view rejoins
+    /// the operation buffer's registry (one row per ordinal, in order) to the
+    /// one catalog declaration its producing operation established. Graph
+    /// states own each result's cleanup per edge (`result_custody`), so no
+    /// row is marked for a return discard here. A call naming no completed
+    /// result reads no row, and the view stays empty rather than failing on
+    /// a registry it never consults.
+    fn earlier(
+        &self,
+        arguments: &[CheckedUnitStructuralArgumentPlan],
+        operations: &OperationBuffer,
+    ) -> Result<Cow<'_, [(StructuralPlaceDeclaration, bool)]>, LoweringError> {
+        let places = match self {
+            Self::Dense(roster) => return Ok(Cow::Borrowed(roster.as_slice())),
+            Self::StateGraph { places, .. } => places,
+        };
+        if !arguments.iter().any(|argument| {
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+        }) {
+            return Ok(Cow::Owned(Vec::new()));
+        }
+        operations
+            .structural_values
+            .iter()
+            .enumerate()
+            .map(|(binding_position, (ordinal, result))| {
+                if *ordinal as usize != binding_position {
+                    return unsupported(
+                        "composed call result binding namespace is stale or duplicated",
+                    );
+                }
+                let mut declarations = places.iter().filter(|place| place.id == result.place);
+                let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+                    "composed call completed result has no place declaration",
+                ))?;
+                if declarations.next().is_some()
+                    || !matches!(declaration.kind,
+                    StructuralPlaceKind::OperationResult { structural_type, producer }
+                        if structural_type == result.structural_type
+                            && operations.operations.iter().any(|candidate| {
+                                candidate.id == producer
+                                    && candidate.result.structural() == Some(result)
+                            }))
+                {
+                    return unsupported(
+                        "composed call result declaration differs from its operation",
+                    );
+                }
+                Ok((*declaration, false))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map(Cow::Owned)
+    }
+
+    /// Add one completed result's declaration: the dense row with its
+    /// return-discard custody, or the machine-wide composed catalog.
+    fn push(&mut self, declaration: StructuralPlaceDeclaration, discard_on_return: bool) {
+        match self {
+            Self::Dense(roster) => roster.push((declaration, discard_on_return)),
+            Self::StateGraph { places, .. } => places.push(declaration),
         }
     }
 }
 
 impl OperationFrame<'_, '_> {
-    /// Whether `operation` emits through a frame. Each route sends every such
-    /// operation to `emit` and keeps only its calls for itself.
+    /// Whether `operation` emits through `emit`. Every other operation a
+    /// composed state carries is a call, which needs its completed operands
+    /// and emits through `emit_call`.
     pub(super) fn lowers(operation: &CheckedUnitEffectOperationPlan) -> bool {
         matches!(
             operation,
             CheckedUnitEffectOperationPlan::PortWrite { .. }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
@@ -282,6 +493,9 @@ impl OperationFrame<'_, '_> {
             } => self.call_continuation_cleanup(affine_discards),
             CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
                 self.establish_view_subslice(operation)
+            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                self.establish_structural_value(operation)
             }
             _ => unsupported("operation frame received a call operation"),
         }
@@ -446,7 +660,7 @@ impl OperationFrame<'_, '_> {
             store,
             self.parameters,
             self.structural_types.declarations(),
-            self.literal_places,
+            self.private_places.literals(),
             self.next_place,
             self.next_value,
             &mut self.calls.next_obligation_identity,
@@ -660,7 +874,8 @@ impl OperationFrame<'_, '_> {
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
-        self.results.require_next(result)?;
+        self.results
+            .require_next(result, "borrowed-window move result binding is not dense")?;
         require_parameter_window_root(self.parameters, source, self.evaluation)?;
         let moved = self.windows.emit_move(
             source,
@@ -723,7 +938,8 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("view subslice binding has no producer");
         };
-        self.results.require_next(result)?;
+        self.results
+            .require_next(result, "view subslice result binding is not dense")?;
         super::view_ranges::binding_local(self.checked, self.state, operation)?;
         let (root, family, expression, start, end) = match &source.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {

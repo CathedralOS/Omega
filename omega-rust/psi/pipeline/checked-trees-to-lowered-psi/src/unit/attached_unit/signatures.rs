@@ -23,6 +23,7 @@ use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::ValueDeclaration;
 
+#[derive(Clone)]
 pub(super) struct MachineSignature {
     pub source: SymbolHandle,
     pub parameters: Vec<StructuralParameterDeclaration>,

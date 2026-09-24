@@ -1,30 +1,34 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 use super::super::super::{
-    BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
-    StructuralDomainDeclaration, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    BoundaryMachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
+    StructuralDomainDeclaration, StructuralTypeDeclaration,
 };
 use super::super::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
-    CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweredPsi, ScalarType,
-    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
-    StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, boundary_machine_id,
-    dense_identity, lookup_domain_id, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_boundary_result, lower_fixed_boundary_service_reach,
-    lower_published_service_ceiling, lower_root_service_reach, lower_unit_parameters,
-    terminal_scalar_type, unsupported,
+    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedUnitEffectOperationPlan, LoweredPsi, SemanticDomainId, ServiceReachSummary,
+    StructuralDomainId, StructuralDomainRequirement, StructuralPlaceDeclaration, StructuralTypeId,
+    boundary_machine_id, dense_identity, lookup_domain_id, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_result,
+    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
+    lower_unit_parameters, terminal_scalar_type, unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
+use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
     collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
     lower_unit_structural_domains_including, lower_unit_structural_type_roots,
 };
-use semantic_vocabulary::Proposition;
+use crate::unit::attached_unit::operation_frame::BoundaryParameters;
+use crate::unit::attached_unit::signatures::MachineSignature;
 use std::borrow::Cow;
 
 /// Standalone roots own their publication tables; shared callees borrow the
 /// already allocated closure. Only owned type tables admit generated carriers.
+/// The call targets (`signatures`, `boundary_parameters`, `closure`,
+/// `prepared_scalar_machines`) are the same records an ordinary body's calls
+/// resolve against, so a state's calls emit through the one frame emitter.
 pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
@@ -33,8 +37,16 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) services: Cow<'a, [ServiceDeclaration]>,
     pub(crate) root_service_reach: Cow<'a, terminal_psi::TerminalRootServiceReach>,
     pub(crate) boundary_machines: Cow<'a, [BoundaryMachineDeclaration]>,
+    /// The boundaries a provider attachment names, by checked source.
     pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
-    pub(crate) internal_targets: Vec<LoweredComposedInternalTarget>,
+    pub(in crate::unit::attached_unit) boundary_parameters: Cow<'a, [BoundaryParameters]>,
+    /// The allocated signature of every Unit body the closure emits; a
+    /// state's internal calls substitute into the callee's.
+    pub(in crate::unit::attached_unit) signatures: Cow<'a, [MachineSignature]>,
+    /// The closure's Unit bodies and prepared scalar callees; a standalone
+    /// dynamic continuation has neither and makes no scalar call.
+    pub(in crate::unit::attached_unit) closure: &'a [symbols::SymbolHandle],
+    pub(in crate::unit::attached_unit) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
     pub(crate) service_ids: Cow<'a, [(ServiceReachId, ServiceId)]>,
     pub(crate) next_place: u64,
     /// Private constructor, join, and literal places; not authored result ordinals.
@@ -112,39 +124,22 @@ fn lower_composed_services(
     lower_selected_unit_services(checked, selected)
 }
 
-pub(crate) struct LoweredComposedInternalTarget {
-    pub(super) result: checked_trees::CheckedControlResultPlan,
-    pub(super) source: symbols::SymbolHandle,
-    pub(super) id: MachineId,
-    pub(super) scalar_parameters: Vec<ScalarType>,
-    /// The callee's published erased-formal roster; a call carries one
-    /// proof-only erased argument per row.
-    pub(super) erased_scalar_formals: Vec<ValueDeclaration>,
-    /// The callee's published erased-proof roster in contract order; a call
-    /// carries one erased proof argument per row.
-    pub(super) erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
-    /// The callee's published `requires` clauses in contract order; the call
-    /// allocates one obligation per row.
-    pub(super) requires: Vec<Proposition>,
-    pub(super) structural_parameters: Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
-    /// The callee's lowered structural parameter declarations in contract
-    /// order; a value-bound call replays them as operand predicates.
-    pub(super) lowered_parameters: Vec<StructuralParameterDeclaration>,
-    /// The callee's lowered scalar parameter declarations in contract order.
-    pub(super) lowered_scalar_parameters: Vec<ValueDeclaration>,
-    pub(super) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
-}
-
 pub(crate) struct LoweredComposedBoundary {
     pub(crate) source: symbols::SymbolHandle,
     pub(crate) id: BoundaryMachineId,
-    pub(crate) checked_structural_parameters:
-        Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
-    pub(crate) scalar_parameters: Vec<ScalarType>,
-    pub(crate) result: BoundaryMachineResult,
-    /// The checked boundary's declared result domains in semantic form, kept so
-    /// emission can replay the caller-side establishment mint for each one.
-    pub(crate) result_domains: Vec<SemanticDomainId>,
+}
+
+impl LoweredComposedBoundary {
+    /// The provider-facing `(source, identity)` view of the call roster.
+    pub(super) fn roster(boundaries: &[BoundaryParameters]) -> Vec<Self> {
+        boundaries
+            .iter()
+            .map(|(source, id, _, _)| Self {
+                source: *source,
+                id: *id,
+            })
+            .collect()
+    }
 }
 
 pub(crate) fn lower_dynamic_catalogs(
@@ -308,8 +303,7 @@ fn lower_catalogs(
     )?;
     let root_service_reach = lower_root_service_reach(checked, machine, &service_ids)?;
     let mut boundary_machines = Vec::with_capacity(boundaries.len());
-    let mut lowered_boundaries = Vec::with_capacity(boundaries.len());
-    let internal_targets = Vec::new();
+    let mut boundary_parameters = Vec::with_capacity(boundaries.len());
     let mut next_place = 1_u64;
     for (index, (boundary, identity)) in boundaries.iter().enumerate() {
         let scalar_parameters = boundary
@@ -364,7 +358,7 @@ fn lower_catalogs(
             scalar_parameters: scalar_parameters.clone(),
             crash_routes: lower_boundary_crash_routes(checked, boundary, &scalar_parameters)?,
             structural_parameters: structural_parameters.clone(),
-            result: result.clone(),
+            result,
             requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
@@ -389,22 +383,14 @@ fn lower_catalogs(
                 &service_ids,
             )?,
         });
-        lowered_boundaries.push(LoweredComposedBoundary {
-            source: boundary.machine,
+        boundary_parameters.push((
+            boundary.machine,
             id,
-            checked_structural_parameters: boundary.structural_parameters.clone(),
+            structural_parameters,
             scalar_parameters,
-            result_domains: match &boundary.result {
-                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                    qualifications.clone()
-                }
-                CheckedBoundaryMachineResultPlan::Unit
-                | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
-            },
-            result,
-        });
+        ));
     }
-    let scalar_calls = scalar_calls::prepare(checked, machine, states, &internal_targets)?;
+    let scalar_calls = scalar_calls::prepare(checked, machine, states)?;
     let root_crash_routes = crate::unit::effective_crash_routes(checked, machine)?;
     Ok(ComposedCatalogs {
         structural_types: structural_types.into(),
@@ -414,8 +400,13 @@ fn lower_catalogs(
         services: services.into(),
         root_service_reach: Cow::Owned(root_service_reach),
         boundary_machines: boundary_machines.into(),
-        lowered_boundaries,
-        internal_targets,
+        lowered_boundaries: LoweredComposedBoundary::roster(&boundary_parameters),
+        boundary_parameters: boundary_parameters.into(),
+        // No internal target means no signature to call and no scalar call
+        // (`admit_dynamic_continuation` admits only call-and-return leaves).
+        signatures: Cow::Owned(Vec::new()),
+        closure: &[],
+        prepared_scalar_machines: &[],
         service_ids: service_ids.into(),
         next_place,
         temporary_places: Vec::new(),

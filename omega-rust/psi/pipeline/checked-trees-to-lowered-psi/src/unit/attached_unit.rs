@@ -7,16 +7,17 @@
 //! Emission borrows those records in the single shared namespace:
 //! `ordinary_machine` emits each ordinary body and `composed_control::callable`
 //! each composed one. Both lower their stores, scalar locals, borrowed-storage
-//! windows and continuation cleanup through one `operation_frame::OperationFrame`.
+//! windows, continuation cleanup, structural-value construction and calls
+//! through one `operation_frame::OperationFrame`.
 use std::collections::BTreeMap;
 
 use super::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, ClaimTransfer, CompletionReceipt, LoweredPsi, LoweringError,
-    MachineContract, MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
-    ProofBundle, ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    CheckedUnitEffectOperationPlan, ClaimTransfer, LoweredPsi, LoweringError, MachineContract,
+    MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
     SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
@@ -753,6 +754,8 @@ pub(crate) fn lower_unit_closure(
                     machine_ids: &machine_ids,
                     signatures: &machine_signatures,
                     scalar_requirement_counts: &scalar_requirement_counts,
+                    closure: &closure,
+                    prepared_scalar_machines: &prepared_scalar_machines,
                 },
                 composed_control::callable::EmissionCounters {
                     place: &mut next_place,
@@ -1188,6 +1191,7 @@ pub(crate) fn lower_unit_closure(
         domain_ids,
         service_ids,
         boundary_parameters: lowered_boundary_parameters,
+        signatures: machine_signatures,
         scalar_requirement_counts,
         next_place,
         next_value,

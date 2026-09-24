@@ -1,15 +1,15 @@
 //! Emit a composed callee using the enclosing closure's catalogs and identities.
 use super::super::super::{
-    BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId,
-    StructuralDomainDeclaration, StructuralParameterDeclaration, StructuralTypeDeclaration,
+    MachineId, ServiceDeclaration, ServiceId, ServiceReachId, StructuralDomainDeclaration,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
-use super::super::bodies::UnitPlans;
+use super::super::operation_frame::BoundaryParameters;
 use super::super::{
-    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    ScalarType, SemanticDomainId, StructuralDomainId, StructuralTypeId, TerminalMachine,
-    ValueDeclaration, lookup_machine_id, unique_unit_boundary,
+    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, SemanticDomainId, StructuralDomainId,
+    StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
+use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 
@@ -42,15 +42,14 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub service_ids: &'a [(ServiceReachId, ServiceId)],
     pub root_service_reach: &'a terminal_psi::TerminalRootServiceReach,
     pub boundaries: &'a [BoundaryMachineDeclaration],
-    pub boundary_parameters: &'a [(
-        symbols::SymbolHandle,
-        BoundaryMachineId,
-        Vec<StructuralParameterDeclaration>,
-        Vec<ScalarType>,
-    )],
+    pub boundary_parameters: &'a [BoundaryParameters],
     pub machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub signatures: &'a [MachineSignature],
     pub scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
+    /// The closure's Unit bodies and prepared scalar callees, which a
+    /// state's scalar calls resolve against exactly as an ordinary body's do.
+    pub closure: &'a [symbols::SymbolHandle],
+    pub prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
 }
 
 pub(in crate::unit::attached_unit) struct EmissionCounters<'a> {
@@ -78,68 +77,6 @@ pub(in crate::unit::attached_unit) fn emit(
     ),
     LoweringError,
 > {
-    let lowered_boundaries = shared
-        .boundary_parameters
-        .iter()
-        .map(|(source, id, _, scalar_parameters)| {
-            let source_plan = unique_unit_boundary(
-                UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-                *source,
-            )?;
-            let declaration = shared
-                .boundaries
-                .iter()
-                .find(|declaration| declaration.id == *id)
-                .ok_or(LoweringError::Unsupported(
-                    "shared callable boundary is absent",
-                ))?;
-            Ok(catalogs::LoweredComposedBoundary {
-                source: *source,
-                id: *id,
-                checked_structural_parameters: source_plan.structural_parameters.clone(),
-                scalar_parameters: scalar_parameters.clone(),
-                result_domains: match &source_plan.result {
-                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                        qualifications.clone()
-                    }
-                    CheckedBoundaryMachineResultPlan::Unit
-                    | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
-                },
-                result: declaration.result.clone(),
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let source_targets = &admitted.internal_targets;
-    let internal_targets = source_targets
-        .iter()
-        .map(|(body, _)| {
-            let target = body.entry()?;
-            let signature = signatures::find(shared.signatures, target.machine)?;
-            Ok(catalogs::LoweredComposedInternalTarget {
-                result: body.result()?,
-                source: target.machine,
-                structural_parameters: target.structural_parameters.to_vec(),
-                id: lookup_machine_id(shared.machine_ids, target.machine)?,
-                erased_scalar_formals: signature.erased_scalar_parameters.clone(),
-                erased_proof_formals:
-                    crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations(
-                        &signature.erased_proof_parameters,
-                    ),
-                requires: signature.requires.clone(),
-                scalar_parameters: signature
-                    .scalar_parameters
-                    .iter()
-                    .map(|parameter| parameter.scalar_type)
-                    .collect(),
-                lowered_parameters: signature.parameters.clone(),
-                lowered_scalar_parameters: signature.scalar_parameters.clone(),
-                parameter_relative_crash_routes: crate::unit::effective_crash_routes(
-                    checked,
-                    target.machine,
-                )?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut catalogs = catalogs::ComposedCatalogs {
         temporary_places: Vec::new(),
         result_places: Vec::new(),
@@ -150,8 +87,11 @@ pub(in crate::unit::attached_unit) fn emit(
         services: Cow::Borrowed(shared.services),
         root_service_reach: Cow::Borrowed(shared.root_service_reach),
         boundary_machines: Cow::Borrowed(shared.boundaries),
-        lowered_boundaries,
-        internal_targets,
+        lowered_boundaries: catalogs::LoweredComposedBoundary::roster(shared.boundary_parameters),
+        boundary_parameters: Cow::Borrowed(shared.boundary_parameters),
+        signatures: Cow::Borrowed(shared.signatures),
+        closure: shared.closure,
+        prepared_scalar_machines: shared.prepared_scalar_machines,
         service_ids: Cow::Borrowed(shared.service_ids),
         scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
             shared.machine_ids.to_vec(),

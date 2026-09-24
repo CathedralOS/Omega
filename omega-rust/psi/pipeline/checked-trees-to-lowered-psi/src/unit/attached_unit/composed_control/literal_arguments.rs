@@ -34,6 +34,9 @@ pub(super) fn evaluate(
         catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
         return Ok((values, Vec::new()));
     }
+    let plans = crate::unit::attached_unit::bodies::UnitPlans::published(
+        &checked.facts.flow.terminal_unit_effects,
+    );
     let (target_parameters, scalar_count, coordinate) = match operation {
         CheckedUnitEffectOperationPlan::BoundaryCall {
             coordinate,
@@ -46,20 +49,13 @@ pub(super) fn evaluate(
             target_machine,
             scalar_arguments,
             ..
-        } => {
-            let target = catalogs
-                .lowered_boundaries
-                .iter()
-                .find(|target| target.source == *target_machine)
-                .ok_or(LoweringError::Unsupported(
-                    "literal call boundary target is absent",
-                ))?;
-            (
-                &target.checked_structural_parameters,
-                scalar_arguments.len(),
-                *coordinate,
-            )
-        }
+        } => (
+            crate::unit::attached_unit::unique_unit_boundary(plans, *target_machine)?
+                .structural_parameters
+                .as_slice(),
+            scalar_arguments.len(),
+            *coordinate,
+        ),
         CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
             target_machine,
@@ -71,20 +67,13 @@ pub(super) fn evaluate(
             target_machine,
             scalar_arguments,
             ..
-        } => {
-            let target = catalogs
-                .internal_targets
-                .iter()
-                .find(|target| target.source == *target_machine)
-                .ok_or(LoweringError::Unsupported(
-                    "literal call Unit target is absent",
-                ))?;
-            (
-                &target.structural_parameters,
-                scalar_arguments.len(),
-                *coordinate,
-            )
-        }
+        } => (
+            crate::unit::attached_unit::bodies::UnitBody::find(plans, *target_machine)?
+                .entry()?
+                .structural_parameters,
+            scalar_arguments.len(),
+            *coordinate,
+        ),
         _ => return unsupported("literal call escaped the composed Unit operation family"),
     };
     let positions = target_parameters
