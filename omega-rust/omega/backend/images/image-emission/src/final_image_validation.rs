@@ -10,15 +10,14 @@ use image::{
     validate_final_text_relocation_envelope,
 };
 
-use super::{LinuxX86ScalarExitShim, ObjectArtifact};
-use crate::hosted_unit_entry::LINUX_X86_SCALAR_EXIT_SHIM_BYTES;
+use super::ObjectArtifact;
 
 pub(super) fn validate_terminal_image(
     artifact: &ObjectArtifact,
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = object
@@ -32,7 +31,7 @@ pub(super) fn validate_terminal_image(
         object,
         relocations,
         text_bytes,
-        scalar_exit_shim,
+        entry_shim,
         output,
         expected_imports,
     )
@@ -47,7 +46,7 @@ pub(super) fn validate_terminal_dynamic_elf_image(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
     let expected_imports = artifact
@@ -62,7 +61,7 @@ pub(super) fn validate_terminal_dynamic_elf_image(
         object,
         relocations,
         text_bytes,
-        scalar_exit_shim,
+        entry_shim,
         output,
         expected_imports,
     )
@@ -73,7 +72,7 @@ fn validate_terminal_image_with_import_count(
     object: &object_file::ObjectPlan,
     relocations: &object_file::RelocationPlan,
     text_bytes: &[u8],
-    scalar_exit_shim: Option<super::hosted_unit_entry::EntryShim>,
+    entry_shim: Option<super::hosted_unit_entry::EntryShim>,
     output: &EmittedImageOutput,
     expected_imports: usize,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
@@ -188,7 +187,7 @@ fn validate_terminal_image_with_import_count(
     let expected_region_count = artifact.functions.len()
         + artifact.private_functions.len()
         + artifact.forwarded_dynamic_descriptor_adapters.len()
-        + usize::from(scalar_exit_shim.is_some());
+        + usize::from(entry_shim.is_some());
     if compiler_regions.len() != expected_region_count {
         return Err(Diagnostic::error(format!(
             "terminal-Psi image retained {} compiler function region(s), expected {}",
@@ -261,7 +260,7 @@ fn validate_terminal_image_with_import_count(
             )));
         }
     }
-    if let Some(shim) = scalar_exit_shim {
+    if let Some(shim) = entry_shim {
         match shim {
             shim @ (super::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
             | super::hosted_unit_entry::EntryShim::LinuxReceiver { .. }
@@ -275,9 +274,6 @@ fn validate_terminal_image_with_import_count(
                     shim,
                     output,
                 )?;
-            }
-            super::hosted_unit_entry::EntryShim::LinuxScalar(shim) => {
-                validate_linux_x86_scalar_exit_shim(artifact, object, text_bytes, shim, output)?
             }
             super::hosted_unit_entry::EntryShim::DarwinUnit { symbol, offset } => {
                 super::hosted_unit_entry::validate_darwin(
@@ -924,94 +920,6 @@ fn decode_aarch64_page_target(
     page_target
         .checked_add(page_offset)
         .ok_or_else(|| Diagnostic::error("final callback ADD target overflows"))
-}
-
-fn validate_linux_x86_scalar_exit_shim(
-    artifact: &ObjectArtifact,
-    object: &object_file::ObjectPlan,
-    text_bytes: &[u8],
-    shim: LinuxX86ScalarExitShim,
-    output: &EmittedImageOutput,
-) -> Result<(), Diagnostic> {
-    let end = shim
-        .text_offset
-        .checked_add(shim.byte_count)
-        .ok_or_else(|| Diagnostic::error("terminal scalar entry shim range overflows"))?;
-    if shim.byte_count != LINUX_X86_SCALAR_EXIT_SHIM_BYTES.len()
-        || text_bytes.get(shim.text_offset..end) != Some(&LINUX_X86_SCALAR_EXIT_SHIM_BYTES)
-        || shim.relocation_offset != shim.text_offset + 1
-        || shim.target_symbol != artifact.entry_function().symbol
-    {
-        return Err(Diagnostic::error(
-            "terminal scalar entry shim does not retain its exact product encoding",
-        ));
-    }
-    let symbol = object_file::object_symbol_name(object, shim.symbol);
-    let matching = output
-        .executable_regions
-        .regions
-        .iter()
-        .filter(|region| {
-            region.origin == FinalExecutableRegionOrigin::CompilerFunction
-                && region.symbol == symbol
-                && region.section_offset == shim.text_offset
-                && region.byte_count == shim.byte_count
-        })
-        .count();
-    if matching != 1 {
-        return Err(Diagnostic::error(format!(
-            "terminal scalar entry shim must bind exactly one final executable region; found {matching}"
-        )));
-    }
-
-    let expected_entry = output
-        .executable_regions
-        .text_address
-        .checked_add(shim.text_offset as u64)
-        .ok_or_else(|| Diagnostic::error("terminal scalar entry address overflows"))?;
-    let encoded_entry = output
-        .bytes
-        .get(24..32)
-        .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
-        .map(u64::from_le_bytes);
-    if encoded_entry != Some(expected_entry) {
-        return Err(Diagnostic::error(
-            "ELF entry does not point at the terminal scalar exit shim",
-        ));
-    }
-
-    let final_shim = output
-        .final_text_bytes
-        .get(shim.text_offset..end)
-        .ok_or_else(|| Diagnostic::error("final image truncates terminal scalar entry shim"))?;
-    if final_shim.first() != Some(&0xe8)
-        || final_shim.get(5..) != LINUX_X86_SCALAR_EXIT_SHIM_BYTES.get(5..)
-    {
-        return Err(Diagnostic::error(
-            "final terminal scalar entry shim changed outside its call relocation",
-        ));
-    }
-    let displacement = final_shim
-        .get(1..5)
-        .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
-        .map(i32::from_le_bytes)
-        .ok_or_else(|| Diagnostic::error("terminal scalar entry call is truncated"))?;
-    let instruction_end = output
-        .executable_regions
-        .text_address
-        .checked_add(shim.text_offset as u64 + 5)
-        .ok_or_else(|| Diagnostic::error("terminal scalar entry call address overflows"))?;
-    let actual_target = instruction_end.checked_add_signed(i64::from(displacement));
-    let expected_target = output
-        .executable_regions
-        .text_address
-        .checked_add(artifact.entry_function().text_offset as u64);
-    if actual_target != expected_target {
-        return Err(Diagnostic::error(
-            "terminal scalar entry shim call does not resolve to the semantic entry function",
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

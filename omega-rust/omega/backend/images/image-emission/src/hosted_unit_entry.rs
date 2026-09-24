@@ -30,7 +30,6 @@ pub(super) enum EntryShim {
         symbol: ObjectSymbolHandle,
         offset: usize,
     },
-    LinuxScalar(LinuxX86ScalarExitShim),
     DarwinUnit {
         symbol: ObjectSymbolHandle,
         offset: usize,
@@ -771,37 +770,6 @@ pub(super) fn main_points_to(bytes: &[u8], shim_offset: usize) -> bool {
         && entry.is_some()
         && entry == text.and_then(|text| text.checked_add(shim_offset as u64))
 }
-
-/// Product-owned Linux process-entry adapter for a zero-argument scalar
-/// terminal entry function. The semantic machine functions retain their exact
-/// bytes and order; this separately classified suffix calls the semantic entry
-/// and terminates the process with its low 32-bit result through `exit_group`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LinuxX86ScalarExitShim {
-    pub symbol: ObjectSymbolHandle,
-    pub target_symbol: ObjectSymbolHandle,
-    pub text_offset: usize,
-    pub byte_count: usize,
-    /// Absolute offset of the `call rel32` immediate in object `.text`.
-    pub relocation_offset: usize,
-}
-
-pub(crate) const LINUX_X86_SCALAR_EXIT_SHIM_BYTES: [u8; 16] = [
-    0xe8, 0, 0, 0, 0, // call rel32 (owned relocation to the semantic entry)
-    0x89, 0xc7, // mov edi, eax
-    0xb8, 0xe7, 0, 0, 0, // mov eax, 231 (exit_group)
-    0x0f, 0x05, // syscall
-    0x0f, 0x0b, // ud2 if the nonreturning syscall unexpectedly returns
-];
-
-/// Semantic identity of the exact published proof-free i32 scalar-call
-/// reference. Binding the process adapter to this identity is necessary because
-/// ordinary scalar arity is not retained by `ObjectFunction`: an unused
-/// entry parameter can otherwise have byte-identical machine code.
-pub(crate) const SCALAR_CALL_REFERENCE_FINGERPRINT: [u8; 32] = [
-    0x02, 0x5f, 0x4b, 0x5a, 0xa3, 0xdf, 0xd7, 0x0c, 0xdc, 0x92, 0x84, 0x3c, 0x41, 0x4c, 0x0b, 0x86,
-    0x91, 0x08, 0x9e, 0x09, 0x19, 0x27, 0xb5, 0x49, 0x61, 0xff, 0x45, 0x34, 0xd9, 0x47, 0x64, 0x3d,
-];
 
 #[cfg(test)]
 mod tests {

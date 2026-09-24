@@ -13,13 +13,11 @@ macOS, Windows, and QEMU/arm64 host legs report their own runs on that row.
 1. `program-entry-plan` binds `Main::main` to the target's `ProgramEntry`
    root declared in `build.omg` (`builder.roots.bind`).
 2. `image-emission::hosted_unit_entry::prepare` selects the physical entry
-   adapter by exact target: `LinuxScalar` (i32-returning entry),
-   `LinuxUnit` / `LinuxArm64Unit` / `DarwinUnit` / `WindowsUnit` (free Unit
-   entries), and hosted-receiver bridges. The adapters are product-owned
-   bytes: e.g. `LINUX_X86_SCALAR_EXIT_SHIM_BYTES` is
-   `call rel32; mov edi,eax; mov eax,231; syscall; ud2` — the process entry
-   calls the semantic entry and terminates through `exit_group` with its
-   low byte; Unit entries exit with status zero.
+   adapter by exact target: `LinuxUnit` / `LinuxArm64Unit` / `DarwinUnit` /
+   `WindowsUnit` (free Unit entries) and hosted-receiver bridges. The
+   adapters are product-owned bytes; each calls the semantic entry and
+   completes with status zero. A `ProgramEntry` has no result, so there is
+   no scalar-returning entry adapter.
 3. `image` binds `object.layout.entry_symbol` into
    `FinalImage.symbol_table.entry_symbol` and `function_linkage` validates
    the binding (entry symbol must be a bound text function).
@@ -44,8 +42,6 @@ test(~entry) or test(~runs)'` @ `03be2ee302`: 19/19 pass, including
   emits an ELF and executes it on this host (scalar exit).
 - `object_custody::linux_write_line_then_exit_survives_object_image_and_installation_replay` —
   write_line + exit end-to-end on host.
-- `scalar_call_reference::published_scalar_reference_binds_one_exit_shim_and_replays_to_its_result` —
-  execs the emitted ELF, exit status 37 observed.
 - `hosted_unit_entry::tests::{linux_x86_64_unit_entry_calls_entry_and_exits_with_zero_status,
   linux_arm64_unit_entry_..., windows_unit_entry_..., darwin_unit_entry_...}` —
   exact adapter bytes per target.
