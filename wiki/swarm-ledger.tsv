@@ -3,3 +3,4 @@
 2026-09-24 04:21z	z4	leaf/view-construction-arms	c1090ad714	merged	terminal: admit borrowed-leaf record construction (Wv/Nv build)
 2026-09-24 04:42z	z4	leaf/borrowed-view-member-calls	ede41e584a	merged	terminal: admit .len on borrowed-view record fields
 2026-09-24 06:08z	z4	leaf/borrowed-view-element-read	4c2a68051a	merged	terminal: admit element reads on byte-sequence record fields
+2026-09-24 06:15z	z3	leaf/param-indexed-subslice	ed0018111e	merged	whole-view subslice results resolve to the carrier parameter
