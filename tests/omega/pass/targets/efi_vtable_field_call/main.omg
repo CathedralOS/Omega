@@ -19,7 +19,7 @@ pub data EfiSystemTable {
     console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
 }
 pub data Main { out: Binding<TextOutput>; msg: [u16; 19]; }
-boundary machine Main::main(&self, handle: addr, table: &EfiSystemTable) -> i32
+boundary machine Main::main(&mut self, handle: addr, table: &EfiSystemTable) -> i32
 reaches TextOutput
 invokes TextOutput;
 {
