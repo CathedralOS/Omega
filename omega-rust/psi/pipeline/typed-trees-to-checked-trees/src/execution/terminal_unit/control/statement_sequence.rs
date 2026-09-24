@@ -1141,7 +1141,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 }
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
                     local_phase("statement sequence: local data: structural value: reference record loans");
-                    if super::super::reference_results::is_reference_record(program, local.type_reference) {
+                    if super::super::reference_results::local_owes_record_loans(program, local.type_reference) {
                         super::super::reference_results::local_record_loans(program, facts, machine.symbol, state, statement_index)?;
                     }
                     local_phase("statement sequence: local data: structural value: root identity");
