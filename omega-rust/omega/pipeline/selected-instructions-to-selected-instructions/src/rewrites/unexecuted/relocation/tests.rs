@@ -612,6 +612,104 @@ fn member_relocates_through_a_diamond_window() {
         moved.transformed().clone(),
     )
     .unwrap();
+    let run = relocate(&source, &environment, MOVING, MOVING_SECOND, HEAD).unwrap();
+    let function = &run.transformed().functions[0];
+    assert_eq!(ids(&function.blocks[0]), vec![LEAD, TRAIL]);
+    assert_eq!(
+        ids(&function.blocks[3]),
+        vec![MOVING, MOVING_SECOND, HEAD, MID, TAIL]
+    );
+    validate_member_run_relocation(
+        &source,
+        0,
+        MOVING,
+        MOVING_SECOND,
+        HEAD,
+        &environment,
+        budget(),
+        run.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// The bypassed triangle — a branch head whose one arm reaches the join and
+/// whose other edge reaches it directly — is a window the shared derivation
+/// covers without a shape of its own: A branches to C and to B, C jumps to B,
+/// and the member lands in B. Both edges into B lie on a crossed path, so no
+/// traversal is gained, and C's only exit reaches B, so none is lost.
+#[test]
+fn member_relocates_through_a_bypassed_triangle_window() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let branch_row = environment.constraint(keys.conditional_branch).unwrap();
+        let jump_row = environment.constraint(keys.jump).unwrap();
+        let materialize = environment.constraint(keys.materialize_i64).unwrap();
+        function.blocks.insert(
+            1,
+            block(
+                BLOCK_C,
+                3,
+                vec![instruction(
+                    BRIDGE,
+                    SelectedInstructionKind::MaterializeI64 {
+                        value: IntegerValue::Unsigned(31),
+                    },
+                    materialize,
+                    &[R_BRIDGE],
+                )],
+                jump_terminator(
+                    instruction(BRIDGE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
+                    successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_BC),
+                ),
+            ),
+        );
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                JUMP,
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch_row,
+                &[],
+            ),
+            when_nonzero: successor(BLOCK_C, BlockId::new(3).unwrap(), EDGE_AB),
+            when_zero: successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_AD),
+        };
+    });
+    let moved = relocate_member(&source, &environment, MOVING, HEAD).unwrap();
+    let function = &moved.transformed().functions[0];
+    assert_eq!(ids(&function.blocks[0]), vec![LEAD, MOVING_SECOND, TRAIL]);
+    assert_eq!(ids(&function.blocks[1]), vec![BRIDGE]);
+    assert_eq!(ids(&function.blocks[2]), vec![MOVING, HEAD, MID, TAIL]);
+    validate_member_run_relocation(
+        &source,
+        0,
+        MOVING,
+        MOVING,
+        HEAD,
+        &environment,
+        budget(),
+        moved.transformed().clone(),
+    )
+    .unwrap();
+    let run = relocate(&source, &environment, MOVING, MOVING_SECOND, HEAD).unwrap();
+    let function = &run.transformed().functions[0];
+    assert_eq!(ids(&function.blocks[0]), vec![LEAD, TRAIL]);
+    assert_eq!(
+        ids(&function.blocks[2]),
+        vec![MOVING, MOVING_SECOND, HEAD, MID, TAIL]
+    );
+    validate_member_run_relocation(
+        &source,
+        0,
+        MOVING,
+        MOVING_SECOND,
+        HEAD,
+        &environment,
+        budget(),
+        run.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A destination predecessor that no crossed path covers is a traversal the

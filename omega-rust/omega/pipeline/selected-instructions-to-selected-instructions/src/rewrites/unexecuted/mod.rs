@@ -9,16 +9,29 @@
 //! module may call them until that row exists (`super::module_catalog`
 //! reconciles the roster below and rejects a production caller).
 //!
-//! Disposition roster — every family is `staged-with-owner-row`; none is
-//! executed, and none is superseded or retired on the board today, so none
-//! is deleted:
+//! Disposition roster. A family stays only while it proves something no
+//! other family here proves. `relocation` derives the crossed window from
+//! the CFG itself, so every shape whose traversal set the move preserves —
+//! the in-block move, the single `Jump` edge, the block chain, the complete
+//! diamond, the bypassed triangle, and each of their run forms — is one
+//! admission over a run and a destination, with its own test in
+//! `relocation/tests.rs`. The eight families that enumerated those same
+//! windows by hand are deleted rather than staged.
+//!
+//! What remains is what `relocation` does not admit. Its crossing is
+//! `CrossingDirection::Forward` and its audit refuses a move whose gained
+//! or lost traversal set is nonempty, so the upstream families
+//! (`predecessor_relocation`, `join_relocation`, `triangle_relocation`) and
+//! the traversal-changing ones (`arm_relocation`, `fork_relocation`,
+//! `inflow_relocation`, `confluence_relocation`, and their run forms) still
+//! carry their own proofs; the `commuting_*` families prove ordering under
+//! memory commutation, which is a different audit. Extending `relocation`
+//! to the backward direction retires the upstream group the same way.
 //!
 //! - `address_fold` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `arm_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `bypass_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `bypass_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -30,16 +43,11 @@
 //! - `constant_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
-//! - `diamond_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `diamond_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `edge_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `edge_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `fork_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `fork_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `join_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
-//! - `local_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `local_schedule` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`condition_materialization`, `copied_call_operand`,
@@ -49,7 +57,6 @@
 //! - `predecessor_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `triangle_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //!
@@ -61,8 +68,6 @@ mod address_fold;
 mod arm_relocation;
 mod boundary_boolean;
 mod boundary_branch;
-mod bypass_relocation;
-mod bypass_run_relocation;
 mod commuting_accesses;
 mod commuting_interchange;
 mod commuting_member_run_interchange;
@@ -77,16 +82,11 @@ mod constant_branch;
 mod dead_compare;
 mod dead_path;
 mod dead_store;
-mod diamond_relocation;
-mod diamond_run_relocation;
-mod edge_relocation;
-mod edge_run_relocation;
 mod fork_relocation;
 mod fork_run_relocation;
 mod inflow_relocation;
 mod join_relocation;
 mod load_forwarding;
-mod local_relocation;
 mod local_schedule;
 mod member_run_interchange;
 pub mod peepholes;
@@ -95,7 +95,6 @@ mod predecessor_relocation;
 mod predecessor_run_relocation;
 mod relocation;
 mod run_interchange;
-mod run_relocation;
 mod store_motion;
 mod triangle_relocation;
 
@@ -114,14 +113,6 @@ pub use boundary_boolean::{
 pub use boundary_branch::{
     BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch,
     fold_selected_boundary_branch, validate_boundary_branch_fold,
-};
-pub use bypass_relocation::{
-    BypassRelocationError, BypassRelocationReceipt, ValidatedBypassRelocation,
-    relocate_selected_instruction_through_bypass, validate_bypass_relocation,
-};
-pub use bypass_run_relocation::{
-    BypassRunRelocationError, BypassRunRelocationReceipt, ValidatedBypassRunRelocation,
-    relocate_selected_run_through_bypass, validate_bypass_run_relocation,
 };
 pub use commuting_interchange::{
     CommutingInterchangeError, CommutingInterchangeReceipt, ValidatedCommutingInterchange,
@@ -171,22 +162,6 @@ pub use dead_store::{
     DeadStoreEliminationError, DeadStoreEliminationReceipt, ValidatedDeadStoreElimination,
     eliminate_selected_dead_store, validate_dead_store_elimination,
 };
-pub use diamond_relocation::{
-    DiamondRelocationError, DiamondRelocationReceipt, ValidatedDiamondRelocation,
-    relocate_selected_instruction_through_diamond, validate_diamond_relocation,
-};
-pub use diamond_run_relocation::{
-    DiamondRunRelocationError, DiamondRunRelocationReceipt, ValidatedDiamondRunRelocation,
-    relocate_selected_run_through_diamond, validate_diamond_run_relocation,
-};
-pub use edge_relocation::{
-    EdgeRelocationError, EdgeRelocationReceipt, ValidatedEdgeRelocation,
-    relocate_selected_instruction_across_edge, validate_edge_relocation,
-};
-pub use edge_run_relocation::{
-    EdgeRunRelocationError, EdgeRunRelocationReceipt, ValidatedEdgeRunRelocation,
-    relocate_selected_run_across_edge, validate_edge_run_relocation,
-};
 pub use fork_relocation::{
     ForkRelocationError, ForkRelocationReceipt, ValidatedForkRelocation,
     relocate_selected_instruction_into_arm, validate_fork_relocation,
@@ -206,10 +181,6 @@ pub use join_relocation::{
 pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
     forward_selected_stored_load, validate_stored_load_forwarding,
-};
-pub use local_relocation::{
-    LocalRelocationError, LocalRelocationReceipt, ValidatedLocalRelocation,
-    relocate_selected_instruction, validate_local_relocation,
 };
 pub use local_schedule::{
     LocalScheduleError, LocalScheduleReceipt, ScheduledRelocationError, ScheduledRelocationReceipt,
@@ -236,10 +207,6 @@ pub use relocation::{
 pub use run_interchange::{
     RunInterchangeError, RunInterchangeReceipt, ValidatedRunInterchange, interchange_selected_runs,
     validate_run_interchange,
-};
-pub use run_relocation::{
-    RunRelocationError, RunRelocationReceipt, ValidatedRunRelocation, relocate_selected_run,
-    validate_run_relocation,
 };
 pub use store_motion::{
     StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion,

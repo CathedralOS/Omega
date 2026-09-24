@@ -9,19 +9,17 @@ use crate::rewrites::unexecuted::peepholes::{
 };
 use crate::rewrites::unexecuted::{
     ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
-    ValidatedBoundaryBranch, ValidatedBypassRelocation, ValidatedBypassRunRelocation,
-    ValidatedCommutingInterchange, ValidatedCommutingMemberRunInterchange,
+    ValidatedBoundaryBranch, ValidatedCommutingInterchange, ValidatedCommutingMemberRunInterchange,
     ValidatedCommutingRelocation, ValidatedCommutingRunInterchange,
     ValidatedCommutingRunRelocation, ValidatedConfluenceRelocation,
     ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
-    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedDiamondRelocation,
-    ValidatedDiamondRunRelocation, ValidatedEdgeRelocation, ValidatedEdgeRunRelocation,
-    ValidatedEquivalentCompare, ValidatedForkRelocation, ValidatedForkRunRelocation,
-    ValidatedInflowRelocation, ValidatedJoinRelocation, ValidatedLocalRelocation,
-    ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedMemberRunRelocation,
-    ValidatedPredecessorRelocation, ValidatedPredecessorRunRelocation, ValidatedRedundantCompare,
-    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedScheduledRelocation,
-    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
+    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedEquivalentCompare,
+    ValidatedForkRelocation, ValidatedForkRunRelocation, ValidatedInflowRelocation,
+    ValidatedJoinRelocation, ValidatedLocalSchedule, ValidatedMemberRunInterchange,
+    ValidatedMemberRunRelocation, ValidatedPredecessorRelocation,
+    ValidatedPredecessorRunRelocation, ValidatedRedundantCompare, ValidatedRunInterchange,
+    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedTriangleRelocation,
 };
 use crate::{
     ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
@@ -96,46 +94,6 @@ impl ValidatedSelectedAnalysis for ValidatedBoundaryBoolean {
 impl sealed::Sealed for ValidatedBoundaryBranch {}
 
 impl ValidatedSelectedAnalysis for ValidatedBoundaryBranch {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedBypassRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedBypassRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedBypassRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedBypassRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
@@ -496,86 +454,6 @@ impl ValidatedSelectedAnalysis for ValidatedDeadStoreElimination {
     }
 }
 
-impl sealed::Sealed for ValidatedDiamondRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedDiamondRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedDiamondRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedDiamondRunRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedEdgeRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedEdgeRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedEdgeRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedEdgeRunRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
 impl sealed::Sealed for ValidatedEquivalentCompare {}
 
 impl ValidatedSelectedAnalysis for ValidatedEquivalentCompare {
@@ -659,26 +537,6 @@ impl ValidatedSelectedAnalysis for ValidatedInflowRelocation {
 impl sealed::Sealed for ValidatedJoinRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedJoinRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedLocalRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedLocalRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
@@ -799,26 +657,6 @@ impl ValidatedSelectedAnalysis for ValidatedPredecessorRunRelocation {
 impl sealed::Sealed for ValidatedRunInterchange {}
 
 impl ValidatedSelectedAnalysis for ValidatedRunInterchange {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

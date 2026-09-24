@@ -2254,9 +2254,10 @@ fn join_relocation_is_deterministic_and_re_admitted() {
         JoinRelocationError::UnsupportedPair
     );
     // A different scheduling family still admits on the second input.
-    let swapped = crate::rewrites::unexecuted::relocate_selected_instruction(
+    let swapped = crate::rewrites::unexecuted::relocate_selected_member_run(
         &first,
         0,
+        LEAD,
         LEAD,
         LATE,
         &environment,
