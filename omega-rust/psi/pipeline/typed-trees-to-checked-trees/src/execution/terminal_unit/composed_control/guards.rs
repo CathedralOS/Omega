@@ -20,6 +20,18 @@ pub(super) fn exact_guard(
         {
             Some(expression.clone())
         }
+        // The same single-Bool-parameter topology with the guard spelled as
+        // an equality against a Boolean literal instead of the bare
+        // parameter; the caller still binds `parameter` at the join and the
+        // equality is evaluated there, so the retained expression carries
+        // both operands verbatim.
+        ([parameter], [], checked_trees::CheckedBooleanExpression::Equal { left, right })
+            if parameter.source_position <= 1
+                && parameter.primitive_type == PrimitiveType::Bool
+                && (parameter_and_literal(left, right) || parameter_and_literal(right, left)) =>
+        {
+            Some(expression.clone())
+        }
         ([], [], boolean) if closed_boolean(boolean) => Some(expression.clone()),
         (
             [],
@@ -37,6 +49,19 @@ pub(super) fn exact_guard(
         }
         _ => None,
     }
+}
+
+fn parameter_and_literal(
+    parameter: &checked_trees::CheckedBooleanExpression,
+    literal: &checked_trees::CheckedBooleanExpression,
+) -> bool {
+    matches!(
+        parameter,
+        checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+    ) && matches!(
+        literal,
+        checked_trees::CheckedBooleanExpression::Constant(_)
+    )
 }
 
 fn local_and_literal(local: &CheckedScalarExpression, literal: &CheckedScalarExpression) -> bool {
