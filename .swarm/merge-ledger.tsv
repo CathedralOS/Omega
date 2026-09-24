@@ -155,3 +155,6 @@ z4	leaf/nested-borrowed-operands	MERGED	8053126902	borrowed-view nested-call res
 2026-09-24T16:39:04Z	repair	0faddb7cc1 marker bug	eb51224cdc — abort restored marker blobs; restored from 0faddb7cc1^1; ALL rows 29->28
 2026-09-24T17:14:00Z	merge	leaf/borrowed-result-affine-convergence (z4)	ba0d9adc49 pile — &'a V shelled identity + Affine convergence 796f51ac22
 2026-09-24T17:14:00Z	merge	leaf/self-return-named-view (z4)	ba0d9adc49 — receiver-as-return surface; merge f3783d841d, 5344/5344
+2026-09-24T17:34:55Z	merge	leaf/borrowed-result-affine-convergence (z4)	c4558d0b2c — &'a V shelled identity + Affine convergence (carried via lane rebase; merge pile)
+2026-09-24T17:34:55Z	merge	leaf/caller-forwarded-named-view (z4)	2de70a7328 — conflicts resolved toward HEAD (union already in affine merge); 5351/5351 green
+2026-09-24T17:34:55Z	merge	leaf/self-return-named-view (z4)	ba0d9adc49 ff — receiver-as-return surface
