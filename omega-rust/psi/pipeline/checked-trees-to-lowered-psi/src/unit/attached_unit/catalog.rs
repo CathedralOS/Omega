@@ -180,8 +180,12 @@ pub(super) fn lower_unit_structural_types_including(
         }
         for operation in body.operations() {
             match operation {
+                // A view subslice's result can be the body's only owner of
+                // its view type: a range over a fixed-array field narrows a
+                // view no earlier binding or parameter declared.
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     roots.push(result.type_identity.clone());
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {

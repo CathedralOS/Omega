@@ -14,6 +14,20 @@
 //! symbol only; the producer that sequences the body decides whether that
 //! local was actually established before this statement, and lowering
 //! resolves the symbol to its published place or refuses.
+//!
+//! A range over a fixed-array field (`let sub: &[T] = self.items[1..hi]`) has
+//! no established view to narrow, so the range names the field instead: its
+//! root is the structural parameter that owns the storage and its argument
+//! `path` is the record-field projection to the array. Lowering first
+//! establishes a whole element view over that field under a shared loan and
+//! then narrows it through the same subslice operation, so the field's
+//! extent, the endpoints' bounds and the narrowed length all come from the
+//! ordinary view vocabulary rather than a field-specific range. Only a view
+//! local's binding admits this form: its view outlives the statement, while a
+//! call argument over field storage keeps its call-scoped `FixedByteRange`
+//! window and an edge transfer carries no projection. The checked borrow
+//! ledger must already hold the local's shared loan of exactly that field, so
+//! later writes to the array while the view is live stay rejected there.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpression;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
@@ -34,7 +48,7 @@ use crate::execution::terminal_unit::types::{
 };
 use checked_trees::{
     CheckedScalarExpressionPlans, CheckedStorageRoot, CheckedStructuralControlTransferSourcePlan,
-    CheckedSubsliceSite,
+    CheckedSubsliceSite, CheckedUnitStructuralPathSegment,
 };
 use typed_trees::expression::ExpressionHandle;
 
@@ -50,6 +64,10 @@ pub(in crate::execution) enum ViewKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::execution) struct ViewRange {
     pub(in crate::execution) root: CheckedStorageRoot,
+    /// Record-field projection from a parameter root to the fixed array the
+    /// range views whole before narrowing; empty when the root is itself an
+    /// established view.
+    pub(in crate::execution) collection: Vec<CheckedUnitStructuralPathSegment>,
     pub(in crate::execution) kind: ViewKind,
     pub(in crate::execution) type_identity: String,
 }
@@ -91,7 +109,7 @@ impl ViewSubslice {
                     }
                 }
             },
-            path: Vec::new(),
+            path: range.collection,
             type_identity: range.type_identity,
             access: CheckedStructuralAccess::SharedBorrow,
         }
@@ -143,7 +161,7 @@ pub(in crate::execution) fn admit(
     {
         return None;
     }
-    admit_replayed(
+    let subslice = admit_replayed(
         program,
         &facts.values.scalar_expressions,
         machine,
@@ -153,7 +171,66 @@ pub(in crate::execution) fn admit(
         expression,
         statement_index,
         site,
-    )
+    )?;
+    (subslice.range.collection.is_empty()
+        || lends_field_collection(program, facts, machine, state, statement_index, expression))
+    .then_some(subslice)
+}
+
+/// Whether checked borrow admission recorded the `let` at `statement_index`
+/// as the sole shared loan of exactly the fixed-array field `expression`
+/// narrows. The view a field range establishes is that loan: the ledger, not
+/// the authored spelling, is what keeps the array unwritten while it lives.
+fn lends_field_collection(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(StatementNode::LocalData(local)) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    else {
+        return false;
+    };
+    if local.initial_value != expression {
+        return false;
+    }
+    // The loan names the ranged place itself: the field followed by the
+    // range's own index segment, spelled by the same canonicalization.
+    let Some(mut place) = crate::flow::canonical_place_from_expression(program, expression) else {
+        return false;
+    };
+    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
+    let Some((_, borrow_state)) = facts.borrow.states.iter().find(|(_, borrow_state)| {
+        borrow_state.machine_symbol == machine.symbol && borrow_state.state_symbol == state.symbol
+    }) else {
+        return false;
+    };
+    let mut loans = facts
+        .borrow
+        .loans
+        .span_or_empty(borrow_state.loans)
+        .iter()
+        .filter(|loan| loan.owner_symbol == local.symbol);
+    let (Some(loan), None) = (loans.next(), loans.next()) else {
+        return false;
+    };
+    let mut lent = crate::flow::CanonicalPlace {
+        root: facts::PlaceRoot::Symbol(loan.root_symbol),
+        segments: facts
+            .borrow
+            .access_segments
+            .span_or_empty(loan.segments)
+            .to_vec(),
+    };
+    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut lent);
+    loan.statement_index == statement_index
+        && loan.kind == checked_trees::BorrowAccessKind::Read
+        && lent == place
 }
 
 /// Admission without the operator-resolution veto. Lanes that replay emitted
@@ -179,6 +256,9 @@ pub(in crate::execution) fn admit_replayed(
         expression,
         statement_index,
     )?;
+    if !range.collection.is_empty() && site != CheckedSubsliceSite::LocalBinding {
+        return None;
+    }
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -240,8 +320,28 @@ pub(in crate::execution) fn shape(
     if range.end_inclusive {
         return None;
     }
+    let type_identity = match kind {
+        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
+        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
+    };
     let ExpressionNode::Name(path) = program.expression_table.expression(indexed.collection) else {
-        return None;
+        let (root, collection) = field_collection(
+            program,
+            machine,
+            state,
+            parameters,
+            target,
+            kind,
+            indexed.collection,
+            statement_index,
+        )?;
+        return validation::has_builtin_subslice_meaning(program, machine, Some(state), expression)
+            .then_some(ViewRange {
+                root,
+                collection,
+                kind,
+                type_identity,
+            });
     };
     if !path.symbol.is_valid()
         || path.head_symbol != path.symbol
@@ -253,10 +353,6 @@ pub(in crate::execution) fn shape(
     {
         return None;
     }
-    let type_identity = match kind {
-        ViewKind::Bytes => byte_sequence_type_identity(program, target, &[], &[])?,
-        ViewKind::Elements => borrowed_slice_view_type_identity(program, target, &[], &[]),
-    };
     let authored = program.state_parameters(state);
     let root = if let Some(position) = authored
         .iter()
@@ -296,9 +392,85 @@ pub(in crate::execution) fn shape(
     }
     Some(ViewRange {
         root,
+        collection: Vec::new(),
         kind,
         type_identity,
     })
+}
+
+/// The structural parameter and record-field path of a fixed-array field a
+/// range views whole: `collection` is a place below a readable structural
+/// parameter of the state (`self` included), every step is a record field,
+/// and the array's elements are the target view's elements. Byte views have
+/// no Terminal establishment over fixed byte storage, so only element views
+/// take this form.
+#[allow(clippy::too_many_arguments)]
+fn field_collection(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    target: TypeReferenceHandle,
+    kind: ViewKind,
+    collection: ExpressionHandle,
+    statement_index: usize,
+) -> Option<(CheckedStorageRoot, Vec<CheckedUnitStructuralPathSegment>)> {
+    if kind != ViewKind::Elements {
+        return None;
+    }
+    let element = borrowed_slice_view_element(program, target, &[])?;
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        collection,
+    )?;
+    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
+    if place.segments.is_empty() {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let position = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    // A shared view only reads the array; any readable loan or owned root
+    // lends it, while a write-only loan grants no read.
+    if !matches!(
+        parameters[parameter_index].access,
+        CheckedStructuralAccess::SharedBorrow
+            | CheckedStructuralAccess::MutableBorrow
+            | CheckedStructuralAccess::Owned
+    ) {
+        return None;
+    }
+    let (mut projected, path) =
+        super::projected_argument_path(program, state.symbol, statement_index, &place)?;
+    if !path
+        .iter()
+        .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+    {
+        return None;
+    }
+    let array_element = loop {
+        match program.type_reference_table.type_reference(projected) {
+            TypeReferenceNode::Constrained { base_type, .. } => projected = *base_type,
+            TypeReferenceNode::FixedArray { element_type, .. } => break *element_type,
+            _ => return None,
+        }
+    };
+    (program.normalized_type_identity(array_element) == program.normalized_type_identity(element))
+        .then_some((
+            CheckedStorageRoot::Parameter {
+                index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+        ))
 }
 
 /// The immutable borrowed-view `let` that `symbol` names, declared at an
