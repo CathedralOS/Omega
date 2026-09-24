@@ -26531,12 +26531,10 @@
  {
   "fixture": "pass/targets/efi_ref_param_call_arg",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 12,
+  "status": "checked",
+  "millis": 47,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` state `main` assignment cannot write `msg` because it is not mutable in this state (if `msg` is undeclared -- a typo -- no such field or local exists)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/targets/efi_vtable_call",
@@ -26550,10 +26548,9 @@
   "fixture": "pass/targets/efi_vtable_field_call",
   "tier": "pass",
   "status": "rejected",
-  "millis": 25,
+  "millis": 15,
   "expected_satisfied": null,
   "diagnostics": [
-   "machine `Main::main` state `main` assignment cannot write `msg` because it is not mutable in this state (if `msg` is undeclared -- a typo -- no such field or local exists)",
    "argument `text` for state `output_string` expects `addr`, got `member access`"
   ]
  },
@@ -26616,19 +26613,10 @@
  {
   "fixture": "pass/targets/sysv_vtable_field_call",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 853,
+  "status": "checked",
+  "millis": 1597,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` state `main` assignment cannot write `output` because it is not mutable in this state (if `output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `float_output` because it is not mutable in this state (if `float_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `packed_output` because it is not mutable in this state (if `packed_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `mixed_output` because it is not mutable in this state (if `mixed_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `split_output` because it is not mutable in this state (if `split_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `nested_output` because it is not mutable in this state (if `nested_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `array_output` because it is not mutable in this state (if `array_output` is undeclared -- a typo -- no such field or local exists)",
-   "machine `Main::main` state `main` assignment cannot write `wrapped_output` because it is not mutable in this state (if `wrapped_output` is undeclared -- a typo -- no such field or local exists)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/targets/sysv_wrapped_float_entry",
