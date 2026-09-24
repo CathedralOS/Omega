@@ -236,12 +236,21 @@ fn lower_terminal_selection(
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && completion.debug == DebugPublication::FromCheckedPlan
     {
+        let live_states = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .find(|plan| plan.machine == selection.machine)
+            .map(attached_unit::unit_graph_live_states)
+            .transpose()?;
         checked
             .facts
             .flow
             .terminal_debug
             .for_machine(selection.machine)
-            .map(|plan| build_debug_map(plan, &lowered.semantic_module))
+            .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
             .transpose()?
     } else {
         None

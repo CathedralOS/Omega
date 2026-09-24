@@ -120,6 +120,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let entry_reentered = plan
         .states
         .iter()
+        .zip(&admitted.live)
+        .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
         .any(|successor| successor.target_state == plan.states[0].state);
     // Invocation parameters are immutable. Reentering the authored entry
@@ -136,6 +138,14 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     let mut state_erased_proof = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
         state_ids.push(block_id(allocate_dense(&mut catalogs.next_block)?));
+        if !admitted.live[position] {
+            // Dead positions keep roster alignment but own no emitted block.
+            state_views.push(Vec::new());
+            state_values.push(Vec::new());
+            state_erased.push(Vec::new());
+            state_erased_proof.push(Vec::new());
+            continue;
+        }
         if position != 0 || entry_reentered {
             let mut block_parameters = lower_unit_parameters(
                 &state.structural_parameters,
@@ -319,8 +329,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         rank_edges,
     };
     for position in 0..plan.states.len() {
+        if !emission.admitted.live[position] {
+            continue;
+        }
         emission.emit_state(position)?;
     }
+    let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,
         scalar_parameters,
@@ -347,7 +361,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     // instead — invocation is an arrival without an edge proof.
     let mut scalar_block_invariants = Vec::new();
     for (position, state) in plan.states.iter().enumerate() {
-        if state.requires.is_empty() || (position == 0 && !entry_reentered) {
+        if state.requires.is_empty()
+            || (position == 0 && !entry_reentered)
+            || !live_states[position]
+        {
             continue;
         }
         let header = state_ids[position];
