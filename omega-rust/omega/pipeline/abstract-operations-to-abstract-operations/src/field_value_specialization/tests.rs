@@ -49,6 +49,19 @@ const PARAMETER_FIELD_SOURCE: &str = r#"
     }
 "#;
 
+/// A field read descending through a parameter's record field into an array
+/// element: the indexed position resolves, but no basis can prove its stored
+/// value — the parameter carries no establishment, and an `EstablishRecord`
+/// descent never crosses a `FixedIndex` because an array element is not a
+/// placed child. The read stays an observation.
+const ARRAY_ELEMENT_FIELD_SOURCE: &str = r#"
+    data Room { flag: bool; }
+    data Level { rooms: [Room; 2]; }
+    machine probe(l: Level) -> bool {
+        l.rooms[1].flag
+    }
+"#;
+
 /// A field read on a machine parameter place whose declared field bound
 /// closes over exactly one value: the declared `BoundedInteger` singleton
 /// proves the stored value with no producer at all.
@@ -368,6 +381,44 @@ fn parameter_field_read_yields_no_candidate() {
         field_read_on(&input, machine, place).is_some(),
         "the fixture must actually contain a field read"
     );
+    assert_declines(unit);
+}
+
+#[test]
+fn array_element_field_read_yields_no_candidate() {
+    let unit = lowered_unit_entry(
+        ARRAY_ELEMENT_FIELD_SOURCE,
+        "array element field read",
+        "probe",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    assert!(
+        field_read_on(&input, machine, place).is_some(),
+        "the fixture must actually contain a field read"
+    );
+    // The read's path really crosses a fixed index — the decline must come
+    // from the missing basis below an established child, not from a
+    // trivially unresolvable path.
+    let indexed = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .any(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::BooleanStructuralField { path, .. }
+                    if matches!(
+                        path.as_slice(),
+                        [
+                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(_),
+                            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)
+                        ]
+                    )
+            )
+        });
+    assert!(indexed, "the fixture's read crosses a fixed index");
     assert_declines(unit);
 }
 
