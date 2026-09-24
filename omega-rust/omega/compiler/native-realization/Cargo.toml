@@ -58,7 +58,7 @@ assembled-syntax-to-checked-compilation = { path = "../../pipeline/01_assembled-
 backend-plan = { path = "../../backend/plans/backend-plan" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
-checked-compilation-to-terminal-artifact = { path = "../../pipeline/checked-compilation-to-terminal-artifact" }
+checked-compilation-to-terminal-artifact = { path = "../../pipeline/02_checked-compilation-to-terminal-artifact" }
 compilation-report = { path = "../compilation-report" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 

@@ -110,7 +110,7 @@ members = [
     "omega-rust/omega/compiler/compiler",
     "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax",
     "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation",
-    "omega-rust/omega/pipeline/checked-compilation-to-terminal-artifact",
+    "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact",
     "omega-rust/omega/packages/review/evidence",
     "omega-rust/omega/build/package-compilation",
     "omega-rust/omega/packages/sources/acquisition",

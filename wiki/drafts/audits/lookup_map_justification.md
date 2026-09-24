@@ -57,7 +57,7 @@ to remove.
   exist.
 
 - **Canonical-identity rejoins and package registries**
-  (`checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  (`02_checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
   `package-compilation/src/package_compilation.rs`,
   `component-description/src/component_verification.rs`):
   `BTreeMap<String, SymbolHandle>` /
