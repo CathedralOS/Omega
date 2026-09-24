@@ -54,7 +54,7 @@ symbols = { path = "../../../psi/foundation/symbols" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
-assembled-syntax-to-checked-compilation = { path = "../../pipeline/assembled-syntax-to-checked-compilation" }
+assembled-syntax-to-checked-compilation = { path = "../../pipeline/01_assembled-syntax-to-checked-compilation" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }

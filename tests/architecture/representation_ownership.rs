@@ -2340,7 +2340,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     // build evaluation (pipeline.md "Omega frontend stages").
     const FRONTEND_ROUTE: &[&str] = &[
         "omega/pipeline/00_source-files-to-assembled-syntax",
-        "omega/pipeline/assembled-syntax-to-checked-compilation",
+        "omega/pipeline/01_assembled-syntax-to-checked-compilation",
         "omega/pipeline/checked-compilation-to-terminal-artifact",
     ];
     let mut covered = std::collections::BTreeSet::new();
