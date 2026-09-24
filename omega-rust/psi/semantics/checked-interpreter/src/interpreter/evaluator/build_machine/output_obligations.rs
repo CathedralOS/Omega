@@ -17,13 +17,13 @@
 //! activation. An authored `RequiredOutput {}` or `OutputReceipt {}` has the
 //! declared type name instead of the private marker name, so it can never
 //! satisfy `described_output_obligation` or name a table row.
-use super::{
+use crate::MAX_BUILD_OUTPUT_OBLIGATIONS;
+use crate::interpreter::evaluator::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemGrantRootIdentity,
     FilesystemHostOperation, FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutputSource, FilesystemOperationAttemptOutcome, Frame, Halt,
     SymbolHandle, Value, rooted_build_path_parts, validate_build_relative_path,
 };
-use crate::MAX_BUILD_OUTPUT_OBLIGATIONS;
 
 /// The marker type name carried by issued `RequiredOutput` values. An
 /// authored `RequiredOutput {}` has the declared type name instead and is
@@ -54,7 +54,7 @@ pub(in crate::interpreter) enum OutputSealState {
 impl<'program> Evaluator<'program> {
     /// `builder.output.require` / `complete` / `fail` as a value-position
     /// call on the compiler-issued `Build.output` facet.
-    pub(super) fn try_build_output_obligation_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_output_obligation_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -81,7 +81,7 @@ impl<'program> Evaluator<'program> {
     /// The statement-position twin: `builder.output.require(name);` still
     /// issues the obligation even though the marker result is dropped, and
     /// `complete`/`fail` still settle their operand obligation.
-    pub(super) fn try_build_output_obligation_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_output_obligation_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,
@@ -109,7 +109,7 @@ impl<'program> Evaluator<'program> {
 
     /// `required.path()` as a value-position call on an issued obligation
     /// marker: returns the obligation's declared canonical name.
-    pub(super) fn try_required_output_path_value_call(
+    pub(in crate::interpreter::evaluator) fn try_required_output_path_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -146,7 +146,7 @@ impl<'program> Evaluator<'program> {
 
     /// The statement-position twin of `required.path()`; the declared name is
     /// evaluated and dropped.
-    pub(super) fn try_required_output_path_statement(
+    pub(in crate::interpreter::evaluator) fn try_required_output_path_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &Frame,
@@ -195,16 +195,20 @@ impl<'program> Evaluator<'program> {
         let root = match &*receiver.borrow() {
             Value::Struct {
                 type_name, fields, ..
-            } if type_name == super::build_paths::OUTPUT_ROOT_FACET_TYPE => fields
-                .get("root")
-                .and_then(|root| root.borrow().as_int())
-                .and_then(|root| u32::try_from(root).ok())
-                .and_then(FilesystemGrantRootIdentity::new)
-                .ok_or_else(|| {
-                    Halt::Trap(
-                        "build-output activation facet has no valid root identity".to_owned(),
-                    )
-                })?,
+            } if type_name
+                == crate::interpreter::evaluator::build_machine::paths::OUTPUT_ROOT_FACET_TYPE =>
+            {
+                fields
+                    .get("root")
+                    .and_then(|root| root.borrow().as_int())
+                    .and_then(|root| u32::try_from(root).ok())
+                    .and_then(FilesystemGrantRootIdentity::new)
+                    .ok_or_else(|| {
+                        Halt::Trap(
+                            "build-output activation facet has no valid root identity".to_owned(),
+                        )
+                    })?
+            }
             _ => {
                 if target_symbol.is_valid()
                     && self.exact_build_facet_method("BuildOutput", target, target_symbol)
@@ -544,7 +548,10 @@ impl<'program> Evaluator<'program> {
     ///   last live writer is gone.
     /// - Any mutation of a completed obligation's path is recorded on the
     ///   obligation; final settlement rejects the activation.
-    pub(super) fn note_completed_build_output_attempt(&mut self, attempt_index: usize) {
+    pub(in crate::interpreter::evaluator) fn note_completed_build_output_attempt(
+        &mut self,
+        attempt_index: usize,
+    ) {
         let attempt = &self.filesystem_operation_attempts[attempt_index];
         if !matches!(
             attempt.outcome(),

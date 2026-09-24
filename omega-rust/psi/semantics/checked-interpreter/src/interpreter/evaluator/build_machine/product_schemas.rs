@@ -13,8 +13,10 @@
 //! inspection: it reads the description table and returns the selected
 //! declaration's canonical path as ordinary text.
 
-use super::product_entries::PRODUCT_FACET_TYPE;
-use super::{BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value};
+use crate::interpreter::evaluator::build_machine::product_entries::PRODUCT_FACET_TYPE;
+use crate::interpreter::evaluator::{
+    BTreeMap, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, Value,
+};
 
 /// The marker type name carried by issued `ProductTypeSchema` values. An
 /// authored `ProductTypeSchema {}` has the declared type name instead and is
@@ -25,7 +27,7 @@ impl<'program> Evaluator<'program> {
     /// `builder.product.schema(path)` as a value-position call: resolve
     /// `path` under the CALL's lexical package scope and return an opaque
     /// description marker.
-    pub(super) fn try_build_product_schema_value_call(
+    pub(in crate::interpreter::evaluator) fn try_build_product_schema_value_call(
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
@@ -76,7 +78,7 @@ impl<'program> Evaluator<'program> {
 
     /// The statement-position twin: `builder.product.schema(path);` still
     /// performs and checks the query, then drops the description.
-    pub(super) fn try_build_product_schema_statement(
+    pub(in crate::interpreter::evaluator) fn try_build_product_schema_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &mut Frame,
@@ -126,7 +128,7 @@ impl<'program> Evaluator<'program> {
     /// check is identical to `RequiredOutput::path`: an authored
     /// `ProductTypeSchema {}` that still resolves the toolchain machine is
     /// refused rather than allowed to mimic inspection.
-    pub(super) fn try_product_type_schema_path_value_call(
+    pub(in crate::interpreter::evaluator) fn try_product_type_schema_path_value_call(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
         frame: &mut Frame,
@@ -166,7 +168,7 @@ impl<'program> Evaluator<'program> {
 
     /// The statement-position twin of `schema.path()`; the declared path is
     /// evaluated and dropped.
-    pub(super) fn try_product_type_schema_path_statement(
+    pub(in crate::interpreter::evaluator) fn try_product_type_schema_path_statement(
         &mut self,
         call: &typed_trees::statement::TableCall,
         frame: &Frame,
@@ -207,7 +209,10 @@ impl<'program> Evaluator<'program> {
     /// description index outside the issued table cannot satisfy this check.
     /// `roots.bind` consumption goes through `described_product_entry`, whose
     /// distinct marker name makes a schema description unusable as an entry.
-    pub(super) fn described_product_schema(&self, value: &Value) -> EvalResult<usize> {
+    pub(in crate::interpreter::evaluator) fn described_product_schema(
+        &self,
+        value: &Value,
+    ) -> EvalResult<usize> {
         let Value::Struct {
             type_name, fields, ..
         } = value

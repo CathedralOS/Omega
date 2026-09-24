@@ -10,7 +10,7 @@
 //! value reaches its frame. A call evaluated on any other receiver claims
 //! an authority it does not have and traps rather than silently applying
 //! or silently dropping.
-use super::{
+use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall, Value,
     trap,
 };
@@ -26,7 +26,7 @@ impl<'program> Evaluator<'program> {
     /// Build machines; `exclude_service<Trait>` is the parser-carved marker
     /// (no resolved target machine). The evaluator intercepts these calls:
     /// the call IS the selection, not execution of the declared empty body.
-    pub(super) fn try_behavior_exclusion_statement(
+    pub(in crate::interpreter::evaluator) fn try_behavior_exclusion_statement(
         &mut self,
         statement: StatementHandle,
         call: &TableCall,
@@ -92,7 +92,7 @@ impl<'program> Evaluator<'program> {
     /// `handle` is the `ExpressionNode::Call`'s own handle wherever it sat —
     /// statement expression or nested position — since an evaluated call is
     /// a selection regardless of the surrounding syntactic slot.
-    pub(super) fn try_behavior_exclusion_value_call(
+    pub(in crate::interpreter::evaluator) fn try_behavior_exclusion_value_call(
         &mut self,
         handle: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
