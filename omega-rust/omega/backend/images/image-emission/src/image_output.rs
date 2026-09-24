@@ -20,11 +20,8 @@ use super::dynamic_elf::{
 };
 use super::final_image_validation::validate_terminal_image;
 use super::{
-    LinuxX86ScalarExitShim, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
-    ObjectCompilerPrivateFunction, ObjectFunction, ObjectPortEffect,
-};
-use crate::hosted_unit_entry::{
-    LINUX_X86_SCALAR_EXIT_SHIM_BYTES, SCALAR_CALL_REFERENCE_FINGERPRINT,
+    ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectCompilerPrivateFunction,
+    ObjectFunction, ObjectPortEffect,
 };
 
 /// Exact image-emission inputs selected outside the source-free object owner.
@@ -510,114 +507,6 @@ pub fn validate_direct_executable_image(
     Ok(())
 }
 
-/// Emit the runnable Linux x86-64 image for the exact published proof-free i32
-/// scalar-call reference.
-///
-/// This fixture/profile-specific API is deliberately not a general scalar
-/// process adapter. `ObjectFunction` does not retain ordinary scalar
-/// arity, and an unused entry parameter can produce byte-identical machine code.
-/// Exact semantic-identity binding prevents such an entry from silently
-/// acquiring zero-argument process-entry semantics.
-pub fn emit_scalar_call_reference_linux_x86_64_image(
-    artifact: &ObjectArtifact,
-) -> Result<ScalarCallReferenceImage, Diagnostic> {
-    if artifact.target != NativeTarget::linux_x64() {
-        return Err(Diagnostic::error(format!(
-            "Linux x86-64 scalar entry shim cannot target {:?}",
-            artifact.target
-        )));
-    }
-    if artifact.psi.vocabulary_marker != terminal_psi::VocabularyMarker::CURRENT
-        || artifact.psi.program_fingerprint.as_bytes() != &SCALAR_CALL_REFERENCE_FINGERPRINT
-    {
-        return Err(Diagnostic::error(format!(
-            "Linux x86-64 scalar-call reference image requires the exact published semantic identity; got {}:{}, expected {}:{:02x?}",
-            artifact.psi.vocabulary_marker.get(),
-            artifact.psi.program_fingerprint,
-            terminal_psi::VocabularyMarker::CURRENT.get(),
-            SCALAR_CALL_REFERENCE_FINGERPRINT,
-        )));
-    }
-    let entry = artifact.entry_function();
-    if entry.scalar_stack.is_none() || entry.bytes(artifact).last() != Some(&0xc3) {
-        return Err(Diagnostic::error(format!(
-            "terminal entry {} is not a completely accounted returning scalar function",
-            artifact.entry
-        )));
-    }
-
-    let mut object = artifact.object.clone();
-    let mut relocations = artifact.relocations.clone();
-    let mut text_bytes = artifact.text_bytes.clone();
-    let text_offset = text_bytes.len();
-    text_bytes.extend_from_slice(&LINUX_X86_SCALAR_EXIT_SHIM_BYTES);
-
-    let text_section = object
-        .layout
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == object_file::SectionKind::Text)
-        .map(|(handle, _)| handle)
-        .ok_or_else(|| Diagnostic::error("terminal object has no text section"))?;
-    object.layout.sections.get_mut(text_section).size = text_bytes.len();
-
-    let symbol = object.layout.symbols.insert(object_file::SymbolPlan {
-        name: "omega_terminal_linux_x86_64_scalar_exit_entry".into(),
-        section: object_file::SymbolSection::Section(object_file::SectionKind::Text),
-        offset: text_offset,
-        size: LINUX_X86_SCALAR_EXIT_SHIM_BYTES.len(),
-        kind: object_file::SymbolKind::Function,
-        import_library: String::new(),
-    });
-    object.layout.entry_symbol = symbol;
-    let relocation_offset = text_offset
-        .checked_add(1)
-        .ok_or_else(|| Diagnostic::error("terminal scalar entry relocation offset overflows"))?;
-    relocations.push_record(object_file::RelocationRecord {
-        origin: object_file::RelocationOrigin::Instruction {
-            function_symbol_handle: symbol,
-            selected_instruction_index: 0,
-        },
-        section: object_file::SectionKind::Text,
-        offset: relocation_offset,
-        byte_width: 4,
-        symbol_handle: entry.symbol,
-        addend: 0,
-        kind: object_file::RelocationKind::X86_64Relative32,
-    });
-    let shim = LinuxX86ScalarExitShim {
-        symbol,
-        target_symbol: entry.symbol,
-        text_offset,
-        byte_count: LINUX_X86_SCALAR_EXIT_SHIM_BYTES.len(),
-        relocation_offset,
-    };
-
-    let image = image::build_final_image(FinalImageInput {
-        target: artifact.target,
-        object: &object,
-        relocations: &relocations,
-        text_bytes: &text_bytes,
-        data_bytes: artifact.data_bytes(),
-    });
-    let output = image_elf::emit_elf_x86_64_executable(image)?;
-    let mut output = emitted_direct_executable_output(output);
-    output.compiler_text_validation = Some(validate_terminal_image(
-        artifact,
-        &object,
-        &relocations,
-        &text_bytes,
-        Some(super::hosted_unit_entry::EntryShim::LinuxScalar(shim)),
-        &output,
-    )?);
-    Ok(ScalarCallReferenceImage {
-        psi: artifact.psi,
-        target: artifact.target,
-        shim,
-        output,
-    })
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableImage {
     psi: TerminalPsiIdentity,
@@ -707,35 +596,5 @@ impl ExecutableImage {
 
     pub const fn final_image_symbol_digest(&self) -> image::FinalImageSymbolDigest {
         self.final_image_symbol_digest
-    }
-}
-
-/// Differential-only runnable image for the exact published scalar-call
-/// reference. This deliberately is not `ExecutableImage`, so it cannot
-/// be passed to installation-record or installed-artifact APIs that account
-/// only semantic terminal functions.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScalarCallReferenceImage {
-    psi: TerminalPsiIdentity,
-    target: NativeTarget,
-    shim: LinuxX86ScalarExitShim,
-    output: EmittedImageOutput,
-}
-
-impl ScalarCallReferenceImage {
-    pub const fn psi(&self) -> TerminalPsiIdentity {
-        self.psi
-    }
-
-    pub const fn target(&self) -> NativeTarget {
-        self.target
-    }
-
-    pub const fn linux_x86_scalar_exit_shim(&self) -> LinuxX86ScalarExitShim {
-        self.shim
-    }
-
-    pub const fn output(&self) -> &EmittedImageOutput {
-        &self.output
     }
 }

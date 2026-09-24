@@ -40,8 +40,6 @@ mod provider_and_call_plans;
 mod provider_execution;
 #[path = "artifacts/requested_executable_route.rs"]
 mod requested_executable_route;
-#[path = "artifacts/scalar_call_reference.rs"]
-mod scalar_call_reference;
 #[path = "artifacts/scalar_plans.rs"]
 mod scalar_plans;
 
