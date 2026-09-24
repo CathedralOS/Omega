@@ -38,12 +38,15 @@ requires
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::Score requires self >= 0 && self <= 100;
+
 data Entry {
     name: [u8; 5] in Utf8;
-    // Ranged so `entry1.score + entry2.score` is verifiably bounded (<= 200):
-    // Exact arithmetic on nested fields carries the overflow obligation, and a
-    // range discharges it by proof -- no overflow domain needed.
-    score: i32 [0..=100];
+    // In `Score` so `entry1.score + entry2.score` is verifiably bounded
+    // (<= 200): Exact arithmetic on nested fields carries the overflow
+    // obligation, and the domain's interval discharges it by proof -- no
+    // overflow domain needed.
+    score: i32 in Score;
 }
 
 data Catalog {
