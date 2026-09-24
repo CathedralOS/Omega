@@ -40,7 +40,7 @@ sha2 = "0.10.9"
 [dev-dependencies]
 build-declarations = { path = "../../../build/build-declarations" }
 package-compilation = { path = "../../../build/package-compilation", features = ["test-support"] }
-source-files-to-tokens = { path = "../../../../psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../../psi/pipeline/tokens-to-syntax-trees" }

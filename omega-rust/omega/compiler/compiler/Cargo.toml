@@ -40,7 +40,7 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../psi/foundation/numerics" }
 task-plans = { path = "../../representations/task-plans" }
 source = { path = "../../../psi/foundation/source" }
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 tokens = { path = "../../../psi/representations/tokens" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }

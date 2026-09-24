@@ -119,6 +119,24 @@ fn pipeline_crates() -> Vec<(String, String)> {
     crates
 }
 
+fn pipeline_package_name(directory_name: &str) -> &str {
+    let Some((ordering_prefix, package_name)) = directory_name.split_once('_') else {
+        return directory_name;
+    };
+    assert!(
+        ordering_prefix.len() == 2
+            && ordering_prefix
+                .chars()
+                .all(|character| character.is_ascii_digit()),
+        "pipeline directory {directory_name} must use a two-digit ordering prefix"
+    );
+    assert!(
+        !package_name.is_empty(),
+        "pipeline directory {directory_name} is missing its package name"
+    );
+    package_name
+}
+
 #[test]
 fn every_declared_route_owner_resolves_inside_its_named_crate() {
     let document = pipeline_map();
@@ -132,7 +150,8 @@ fn every_declared_route_owner_resolves_inside_its_named_crate() {
             if let Some(rest) = target.strip_prefix(prefix) {
                 let crate_dir = rest.split('/').next().unwrap();
                 assert_eq!(
-                    label, crate_dir,
+                    label,
+                    pipeline_package_name(crate_dir),
                     "route row label {label} must name its owner crate {crate_dir}"
                 );
                 let remainder = &rest[crate_dir.len() + 1..];
@@ -234,12 +253,13 @@ fn every_pipeline_crate_is_a_documented_route_owner() {
 
 #[test]
 fn pipeline_crate_names_and_packages_follow_the_route_shape() {
-    for (parent, name) in pipeline_crates() {
-        let parts: Vec<&str> = name.split("-to-").collect();
+    for (parent, directory_name) in pipeline_crates() {
+        let package_name = pipeline_package_name(&directory_name);
+        let parts: Vec<&str> = package_name.split("-to-").collect();
         assert_eq!(
             parts.len(),
             2,
-            "pipeline crate {name} must keep the followable X-to-Y shape"
+            "pipeline crate {directory_name} must keep the followable X-to-Y shape"
         );
         for part in parts {
             assert!(
@@ -247,15 +267,19 @@ fn pipeline_crate_names_and_packages_follow_the_route_shape() {
                     && part
                         .chars()
                         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'),
-                "pipeline crate {name} has a malformed route segment"
+                "pipeline crate {directory_name} has a malformed route segment"
             );
         }
-        let manifest =
-            std::fs::read_to_string(repository().join(parent).join(&name).join("Cargo.toml"))
-                .unwrap_or_else(|_| panic!("read {name}/Cargo.toml"));
+        let manifest = std::fs::read_to_string(
+            repository()
+                .join(parent)
+                .join(&directory_name)
+                .join("Cargo.toml"),
+        )
+        .unwrap_or_else(|_| panic!("read {directory_name}/Cargo.toml"));
         assert!(
-            manifest.contains(&format!("name = \"{name}\"")),
-            "pipeline crate {name} must publish a package of the same name"
+            manifest.contains(&format!("name = \"{package_name}\"")),
+            "pipeline directory {directory_name} must publish package {package_name}"
         );
     }
 }

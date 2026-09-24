@@ -23,7 +23,7 @@ validation = { path = "../validation" }
 
 [dev-dependencies]
 diagnostics = { path = "../../foundation/diagnostics" }
-source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }

@@ -77,7 +77,7 @@ diagnostics = { path = "../../omega-rust/psi/foundation/diagnostics" }
 flow-effects = { path = "../../omega-rust/psi/representations/flow-effects" }
 language-core = { path = "../../omega-rust/psi/foundation/language-core" }
 language-semantics = { path = "../../omega-rust/psi/foundation/language-semantics" }
-source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees = { path = "../../omega-rust/psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }

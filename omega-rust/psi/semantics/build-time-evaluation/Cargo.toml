@@ -31,5 +31,5 @@ typed-trees = { path = "../../representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-trees" }
 
 [dev-dependencies]
-source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
 tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }

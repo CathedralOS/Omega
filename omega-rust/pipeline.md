@@ -14,7 +14,7 @@ setup are not additional public program stages.
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → tokens | [source-files-to-tokens](psi/pipeline/source-files-to-tokens/src/lib.rs) |
+| Source files → tokens | [source-files-to-tokens](psi/pipeline/00_source-files-to-tokens/src/lib.rs) |
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/pipeline/tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lib.rs) |

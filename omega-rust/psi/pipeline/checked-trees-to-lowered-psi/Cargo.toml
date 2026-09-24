@@ -35,7 +35,7 @@ lowered-psi-to-lowered-psi = { path = "../lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../compiler/terminal-production" }
 syntax-trees = { path = "../../representations/syntax-trees" }
-source-files-to-tokens = { path = "../source-files-to-tokens" }
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../syntax-trees-to-symbol-resolved-trees" }
 terminal-fuel = { path = "../../semantics/terminal-fuel" }

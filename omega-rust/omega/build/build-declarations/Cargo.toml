@@ -9,6 +9,6 @@ name = "build_declarations"
 path = "src/lib.rs"
 
 [dependencies]
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }

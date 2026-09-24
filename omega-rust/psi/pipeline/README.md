@@ -155,7 +155,7 @@ both formats. A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
-[Lexing](source-files-to-tokens/src/lexer.rs) consumes loaded source records,
+[Lexing](00_source-files-to-tokens/src/lexer.rs) consumes loaded source records,
 preserving source identity and byte spans. Numeric metadata and decoded literal
 bytes are spelling-level payload, not typed values or proof facts. The closed
 lexical profile uses explicit whitespace, ASCII identifiers and byte escapes;

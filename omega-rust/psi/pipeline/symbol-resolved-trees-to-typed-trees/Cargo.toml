@@ -24,7 +24,7 @@ typed-trees = { path = "../../representations/typed-trees" }
 checked-trees = { path = "../../representations/checked-trees" }
 language-core = { path = "../../foundation/language-core" }
 source = { path = "../../foundation/source" }
-source-files-to-tokens = { path = "../source-files-to-tokens" }
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
 
