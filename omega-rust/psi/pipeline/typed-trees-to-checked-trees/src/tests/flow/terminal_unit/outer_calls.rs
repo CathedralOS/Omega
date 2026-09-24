@@ -494,6 +494,39 @@ fn let_bound_borrowed_view_result_names_the_call_binding() {
     );
 }
 
+const LET_BOUND_NAMED_VIEW_CALL: &str = r#"
+    data Nv { tag: u64 }
+
+    machine take(v: &Nv) -> &Nv {
+        v
+    }
+
+    machine consume(v: &Nv) {
+    }
+
+    machine Nv::render(&self, head: &Nv) {
+        let v: &Nv = take(head);
+        consume(v);
+    }
+"#;
+
+#[test]
+fn let_bound_named_view_result_names_the_call_binding() {
+    // The `&'a V` sibling of the let-bound `&[u8]` shape above: the named
+    // view's checked result already mints affine custody, so the same
+    // admission ladder should compose it without further arms.
+    let checked = checked(LET_BOUND_NAMED_VIEW_CALL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let render = machine_named(&checked, "Nv::render");
+    assert!(
+        plans.for_machine(render).is_some() || plans.composed_for_machine(render).is_some(),
+        "let-bound `&'a V` call result declined: {:?}\n  take: {:?}\n  consume: {:?}",
+        plans.omission_for_machine(render),
+        plans.omission_for_machine(machine_named(&checked, "take")),
+        plans.omission_for_machine(machine_named(&checked, "consume"))
+    );
+}
+
 #[test]
 fn transition_arm_runtime_index_reads_remain_declined() {
     // `self.collections[collection_index]` is a runtime-indexed read the
