@@ -25,12 +25,13 @@
 //! Blocks on a common cycle reach each other both ways and refuse.
 //!
 //! What remains is what `relocation` does not admit. Its audit refuses a
-//! move whose gained or lost traversal set is nonempty, so the
+//! move whose gained or lost traversal set is nonempty, so the four
 //! traversal-changing families — `arm_relocation`, `fork_relocation`,
-//! `inflow_relocation`, `confluence_relocation` and their run forms, the six
-//! that read the `dead_path` audit — carry their own proofs. The
-//! `commuting_*` families prove ordering under memory commutation, a
-//! different audit, and interchange swaps two runs rather than moving one.
+//! `inflow_relocation` and `confluence_relocation`, the ones that read the
+//! `dead_path` audit — carry their own proofs. Each admits a run of one or
+//! more members, so there is no separate member form; `commuting_relocation`
+//! proves ordering under memory commutation, a different audit, and
+//! `interchange` swaps two runs rather than moving one.
 //!
 //! `scheduled_relocation` is a second general member-run mechanism, not a
 //! per-shape family: it admits the dominance-based sink `relocation` refuses,
@@ -58,13 +59,11 @@
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `confluence_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_compare` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `dead_store` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `fork_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `fork_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `scheduled_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -86,14 +85,12 @@ mod commuting_accesses;
 mod commuting_relocation;
 mod condition_state;
 mod confluence_relocation;
-mod confluence_run_relocation;
 mod constant_boolean;
 mod constant_branch;
 mod dead_compare;
 mod dead_path;
 mod dead_store;
 mod fork_relocation;
-mod fork_run_relocation;
 mod inflow_relocation;
 mod interchange;
 mod load_forwarding;
@@ -125,11 +122,7 @@ pub use commuting_relocation::{
 };
 pub use confluence_relocation::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
-    relocate_selected_instruction_into_confluence, validate_confluence_relocation,
-};
-pub use confluence_run_relocation::{
-    ConfluenceRunRelocationError, ConfluenceRunRelocationReceipt, ValidatedConfluenceRunRelocation,
-    relocate_selected_run_into_confluence, validate_confluence_run_relocation,
+    relocate_selected_members_into_confluence, validate_confluence_relocation,
 };
 pub use constant_boolean::{
     ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean,
@@ -152,11 +145,7 @@ pub use dead_store::{
 };
 pub use fork_relocation::{
     ForkRelocationError, ForkRelocationReceipt, ValidatedForkRelocation,
-    relocate_selected_instruction_into_arm, validate_fork_relocation,
-};
-pub use fork_run_relocation::{
-    ForkRunRelocationError, ForkRunRelocationReceipt, ValidatedForkRunRelocation,
-    relocate_selected_run_into_arm, validate_fork_run_relocation,
+    relocate_selected_members_into_arm, validate_fork_relocation,
 };
 pub use inflow_relocation::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,

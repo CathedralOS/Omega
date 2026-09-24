@@ -25,37 +25,39 @@ use terminal_psi::{
 
 use super::{
     ForkRelocationError, ForkRelocationReceipt, ValidatedForkRelocation,
-    relocate_selected_instruction_into_arm, validate_fork_relocation,
+    relocate_selected_members_into_arm, validate_fork_relocation,
 };
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
-const MOVING: SelectedInstructionId = SelectedInstructionId(3);
-const TRAIL: SelectedInstructionId = SelectedInstructionId(4);
-const T_HEAD: SelectedInstructionId = SelectedInstructionId(5);
-const T_TAIL: SelectedInstructionId = SelectedInstructionId(6);
-const F_HEAD: SelectedInstructionId = SelectedInstructionId(7);
-const F_TAIL: SelectedInstructionId = SelectedInstructionId(8);
-const HEAD: SelectedInstructionId = SelectedInstructionId(9);
-const MID: SelectedInstructionId = SelectedInstructionId(10);
-const TAIL: SelectedInstructionId = SelectedInstructionId(11);
-const BRANCH: SelectedInstructionId = SelectedInstructionId(12);
-const T_JUMP: SelectedInstructionId = SelectedInstructionId(13);
-const F_JUMP: SelectedInstructionId = SelectedInstructionId(14);
-const RET: SelectedInstructionId = SelectedInstructionId(15);
+const TRAIL: SelectedInstructionId = SelectedInstructionId(3);
+const RUN_A: SelectedInstructionId = SelectedInstructionId(4);
+const RUN_B: SelectedInstructionId = SelectedInstructionId(5);
+const T_HEAD: SelectedInstructionId = SelectedInstructionId(6);
+const T_TAIL: SelectedInstructionId = SelectedInstructionId(7);
+const F_HEAD: SelectedInstructionId = SelectedInstructionId(8);
+const F_TAIL: SelectedInstructionId = SelectedInstructionId(9);
+const HEAD: SelectedInstructionId = SelectedInstructionId(10);
+const MID: SelectedInstructionId = SelectedInstructionId(11);
+const TAIL: SelectedInstructionId = SelectedInstructionId(12);
+const BRANCH: SelectedInstructionId = SelectedInstructionId(13);
+const T_JUMP: SelectedInstructionId = SelectedInstructionId(14);
+const F_JUMP: SelectedInstructionId = SelectedInstructionId(15);
+const RET: SelectedInstructionId = SelectedInstructionId(16);
 
 const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const R_LEAD: VirtualRegisterId = VirtualRegisterId(1);
-const R_MOVE: VirtualRegisterId = VirtualRegisterId(2);
-const R_TRAIL: VirtualRegisterId = VirtualRegisterId(3);
-const R_THEAD: VirtualRegisterId = VirtualRegisterId(4);
-const R_TTAIL: VirtualRegisterId = VirtualRegisterId(5);
-const R_FHEAD: VirtualRegisterId = VirtualRegisterId(6);
-const R_FTAIL: VirtualRegisterId = VirtualRegisterId(7);
-const R_HEAD: VirtualRegisterId = VirtualRegisterId(8);
-const R_MID: VirtualRegisterId = VirtualRegisterId(9);
-const R_TAIL: VirtualRegisterId = VirtualRegisterId(10);
-const R_BOUND: VirtualRegisterId = VirtualRegisterId(11);
+const R_TRAIL: VirtualRegisterId = VirtualRegisterId(2);
+const R_MOVE_A: VirtualRegisterId = VirtualRegisterId(3);
+const R_MOVE_B: VirtualRegisterId = VirtualRegisterId(4);
+const R_THEAD: VirtualRegisterId = VirtualRegisterId(5);
+const R_TTAIL: VirtualRegisterId = VirtualRegisterId(6);
+const R_FHEAD: VirtualRegisterId = VirtualRegisterId(7);
+const R_FTAIL: VirtualRegisterId = VirtualRegisterId(8);
+const R_HEAD: VirtualRegisterId = VirtualRegisterId(9);
+const R_MID: VirtualRegisterId = VirtualRegisterId(10);
+const R_TAIL: VirtualRegisterId = VirtualRegisterId(11);
+const R_BOUND: VirtualRegisterId = VirtualRegisterId(12);
 
 const BLOCK_B: SelectedBlockId = SelectedBlockId(0);
 const BLOCK_T: SelectedBlockId = SelectedBlockId(1);
@@ -133,13 +135,15 @@ fn jump_terminator(jump: SelectedInstruction, successor: SelectedSuccessor) -> S
 /// nonzero edge leads to arm block T and whose zero edge leads to arm
 /// block F; each arm's only predecessor is that branch and each ends in a
 /// `Jump` to block J, whose terminator is a plain return:
-/// `B = [LEAD; MOVING; TRAIL] -> branch -> T = [T_HEAD; T_TAIL] -> jump -> J`
-/// and `F = [F_HEAD; F_TAIL] -> jump -> J = [HEAD; MID; TAIL] -> return`.
-/// The default move relocates `MOVING` onto `T_HEAD`'s position — the head
-/// of T's body — crossing `TRAIL`, the branch terminator, and the landing
-/// edge, while J's body keeps its order. On the other edge's path the
-/// member no longer executes: F and the F-side traversal of J must never
-/// read `R_MOVE` before a write retires it.
+/// `B = [LEAD; RUN_A; RUN_B; TRAIL] -> branch -> T = [T_HEAD; T_TAIL] ->
+/// jump -> J` and `F = [F_HEAD; F_TAIL] -> jump -> J = [HEAD; MID; TAIL]
+/// -> return`.
+/// The default move relocates the run `RUN_A..=RUN_B` onto `T_HEAD`'s
+/// position — the head of T's body — crossing `TRAIL`, the branch
+/// terminator, and the landing edge, while J's body keeps its order. On
+/// the other edge's path the run no longer executes: F and the F-side
+/// traversal of J must never read `R_MOVE_A` or `R_MOVE_B` before a write
+/// retires them.
 fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
@@ -172,16 +176,17 @@ fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
             entry_fixed_view: None,
         },
         result_register(R_LEAD, LEAD, 2),
-        result_register(R_MOVE, MOVING, 3),
-        result_register(R_TRAIL, TRAIL, 4),
-        result_register(R_THEAD, T_HEAD, 5),
-        result_register(R_TTAIL, T_TAIL, 6),
-        result_register(R_FHEAD, F_HEAD, 7),
-        result_register(R_FTAIL, F_TAIL, 8),
-        result_register(R_HEAD, HEAD, 9),
-        result_register(R_MID, MID, 10),
-        result_register(R_TAIL, TAIL, 11),
-        result_register(R_BOUND, LEAD, 12),
+        result_register(R_TRAIL, TRAIL, 3),
+        result_register(R_MOVE_A, RUN_A, 4),
+        result_register(R_MOVE_B, RUN_B, 5),
+        result_register(R_THEAD, T_HEAD, 6),
+        result_register(R_TTAIL, T_TAIL, 7),
+        result_register(R_FHEAD, F_HEAD, 8),
+        result_register(R_FTAIL, F_TAIL, 9),
+        result_register(R_HEAD, HEAD, 10),
+        result_register(R_MID, MID, 11),
+        result_register(R_TAIL, TAIL, 12),
+        result_register(R_BOUND, LEAD, 13),
     ];
     let materialization = |id, register: VirtualRegisterId, value| {
         instruction(
@@ -221,7 +226,8 @@ fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
                     origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
                     instructions: vec![
                         materialization(LEAD, R_LEAD, 5),
-                        materialization(MOVING, R_MOVE, 7),
+                        materialization(RUN_A, R_MOVE_A, 7),
+                        materialization(RUN_B, R_MOVE_B, 11),
                         materialization(TRAIL, R_TRAIL, 9),
                     ],
                     terminator: SelectedTerminator::ConditionalBranch {
@@ -239,8 +245,8 @@ fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
                     id: BLOCK_T,
                     origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
                     instructions: vec![
-                        materialization(T_HEAD, R_THEAD, 11),
-                        materialization(T_TAIL, R_TTAIL, 13),
+                        materialization(T_HEAD, R_THEAD, 13),
+                        materialization(T_TAIL, R_TTAIL, 15),
                     ],
                     terminator: jump_terminator(
                         instruction(T_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
@@ -251,8 +257,8 @@ fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
                     id: BLOCK_F,
                     origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
                     instructions: vec![
-                        materialization(F_HEAD, R_FHEAD, 15),
-                        materialization(F_TAIL, R_FTAIL, 17),
+                        materialization(F_HEAD, R_FHEAD, 17),
+                        materialization(F_TAIL, R_FTAIL, 19),
                     ],
                     terminator: jump_terminator(
                         instruction(F_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
@@ -263,9 +269,9 @@ fn fixture(target: NativeTarget) -> ValidatedForkRelocation {
                     id: BLOCK_J,
                     origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
                     instructions: vec![
-                        materialization(HEAD, R_HEAD, 19),
-                        materialization(MID, R_MID, 21),
-                        materialization(TAIL, R_TAIL, 23),
+                        materialization(HEAD, R_HEAD, 21),
+                        materialization(MID, R_MID, 23),
+                        materialization(TAIL, R_TAIL, 25),
                     ],
                     terminator: SelectedTerminator::Return {
                         instruction: instruction(
@@ -312,20 +318,30 @@ fn mutated(
 fn relocate(
     source: &ValidatedForkRelocation,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    member: SelectedInstructionId,
+    first: SelectedInstructionId,
+    last: SelectedInstructionId,
     destination: SelectedInstructionId,
 ) -> Result<ValidatedForkRelocation, ForkRelocationError> {
-    relocate_selected_instruction_into_arm(source, 0, member, destination, environment, budget())
+    relocate_selected_members_into_arm(source, 0, first, last, destination, environment, budget())
 }
 
-/// The member sinks through the fork onto the destination's position on
-/// every target: `MOVING` leaves B's body, `TRAIL`, the branch, and the
-/// landing edge keep their positions, and the member lands at T's head
-/// with the destination and every later position one slot later in their
-/// original order — identity, kind, operands, and provenance intact. The
-/// replayed proposal restores the source bit-identically.
+fn block_order(block: &SelectedBlock) -> Vec<SelectedInstructionId> {
+    block
+        .instructions
+        .iter()
+        .map(|instruction| instruction.id)
+        .collect()
+}
+
+/// The run sinks through the fork onto the destination's position on
+/// every target: `RUN_A` and `RUN_B` leave B's body in their own order,
+/// `LEAD` and `TRAIL` keep their order around the vacated span, the run
+/// lands at T's head with `T_HEAD`, `T_TAIL`, and the jump terminator
+/// untouched, and the skipped arm and join keep their order — identity,
+/// kind, operands, and provenance intact. The replayed proposal restores
+/// the source bit-identically.
 #[test]
-fn member_relocates_into_the_arm() {
+fn run_relocates_into_the_arm() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -334,24 +350,13 @@ fn member_relocates_into_the_arm() {
     ] {
         let environment = baseline_target_register_environment(target).unwrap();
         let source = fixture(target);
-        let result = relocate(&source, &environment, MOVING, T_HEAD).unwrap();
+        let result = relocate(&source, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
         let original = &source.transformed().functions[0];
         let moved = &result.transformed().functions[0];
+        assert_eq!(block_order(&moved.blocks[0]), vec![LEAD, TRAIL]);
         assert_eq!(
-            moved.blocks[0]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![LEAD, TRAIL]
-        );
-        assert_eq!(
-            moved.blocks[1]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![MOVING, T_HEAD, T_TAIL]
+            block_order(&moved.blocks[1]),
+            vec![RUN_A, RUN_B, T_HEAD, T_TAIL]
         );
         assert_eq!(
             moved.blocks[2].instructions,
@@ -361,11 +366,15 @@ fn member_relocates_into_the_arm() {
             moved.blocks[3].instructions,
             original.blocks[3].instructions
         );
-        // The member moved bit-identically; every terminator, edge, and
+        // The members moved bit-identically; every terminator, edge, and
         // roster stayed untouched.
         assert_eq!(
             moved.blocks[1].instructions[0],
             original.blocks[0].instructions[1]
+        );
+        assert_eq!(
+            moved.blocks[1].instructions[1],
+            original.blocks[0].instructions[2]
         );
         for index in 0..4 {
             assert_eq!(
@@ -379,7 +388,8 @@ fn member_relocates_into_the_arm() {
         validate_fork_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             T_HEAD,
             &environment,
             budget(),
@@ -389,91 +399,158 @@ fn member_relocates_into_the_arm() {
     }
 }
 
-/// The destination names the landing position directly: a body instruction
-/// puts the member on its index, the arm's terminator-carried instruction
-/// lands the member at the body end, and the destination selects which arm
-/// the member sinks into — naming a position in F lands it there while the
-/// nonzero edge becomes the skipped path.
+/// The destination names the landing position directly: a body
+/// instruction puts the run on its index, the arm's terminator-carried
+/// instruction lands the run at the body end, and the destination selects
+/// which arm the run sinks into — naming a position in F lands it there
+/// while the nonzero edge becomes the skipped path.
 #[test]
-fn member_lands_at_the_named_position() {
+fn run_lands_at_the_named_position() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let middle = relocate(&source, &environment, MOVING, T_TAIL).unwrap();
+    let middle = relocate(&source, &environment, RUN_A, RUN_B, T_TAIL).unwrap();
     assert_eq!(
-        middle.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_HEAD, MOVING, T_TAIL]
+        block_order(&middle.transformed().functions[0].blocks[1]),
+        vec![T_HEAD, RUN_A, RUN_B, T_TAIL]
     );
-    let body_end = relocate(&source, &environment, MOVING, T_JUMP).unwrap();
+    let body_end = relocate(&source, &environment, RUN_A, RUN_B, T_JUMP).unwrap();
     assert_eq!(
-        body_end.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_HEAD, T_TAIL, MOVING]
+        block_order(&body_end.transformed().functions[0].blocks[1]),
+        vec![T_HEAD, T_TAIL, RUN_A, RUN_B]
     );
-    let other_arm = relocate(&source, &environment, MOVING, F_TAIL).unwrap();
+    let other_arm = relocate(&source, &environment, RUN_A, RUN_B, F_TAIL).unwrap();
     assert_eq!(
-        other_arm.transformed().functions[0].blocks[2]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![F_HEAD, MOVING, F_TAIL]
+        block_order(&other_arm.transformed().functions[0].blocks[2]),
+        vec![F_HEAD, RUN_A, RUN_B, F_TAIL]
     );
 }
 
-/// Every body index relocates: the block-tail member crosses only the
-/// branch and the landing edge, while the block-head member crosses its
-/// whole trailing body first — and each member's write must still die on
-/// the skipped path.
+/// Any contiguous run of at least two members sinks: the block-tail run
+/// crosses only the branch and the landing edge, the block-head run
+/// crosses its trailing body first, and the whole body leaves the block
+/// empty — a run of one member is the sibling family's case.
 #[test]
-fn tail_and_head_members_relocate() {
+fn tail_and_head_runs_relocate() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let tail = relocate(&source, &environment, TRAIL, T_HEAD).unwrap();
+    let tail = relocate(&source, &environment, RUN_B, TRAIL, T_HEAD).unwrap();
     assert_eq!(
-        tail.transformed().functions[0].blocks[0]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![LEAD, MOVING]
+        block_order(&tail.transformed().functions[0].blocks[0]),
+        vec![LEAD, RUN_A]
     );
     assert_eq!(
-        tail.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![TRAIL, T_HEAD, T_TAIL]
+        block_order(&tail.transformed().functions[0].blocks[1]),
+        vec![RUN_B, TRAIL, T_HEAD, T_TAIL]
     );
-    let head = relocate(&source, &environment, LEAD, T_TAIL).unwrap();
+    let head = relocate(&source, &environment, LEAD, RUN_A, T_TAIL).unwrap();
     assert_eq!(
-        head.transformed().functions[0].blocks[0]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MOVING, TRAIL]
+        block_order(&head.transformed().functions[0].blocks[0]),
+        vec![RUN_B, TRAIL]
     );
     assert_eq!(
-        head.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_HEAD, LEAD, T_TAIL]
+        block_order(&head.transformed().functions[0].blocks[1]),
+        vec![T_HEAD, LEAD, RUN_A, T_TAIL]
+    );
+    let whole = relocate(&source, &environment, LEAD, TRAIL, T_HEAD).unwrap();
+    assert_eq!(
+        block_order(&whole.transformed().functions[0].blocks[0]),
+        Vec::<SelectedInstructionId>::new()
+    );
+    assert_eq!(
+        block_order(&whole.transformed().functions[0].blocks[1]),
+        vec![LEAD, RUN_A, RUN_B, TRAIL, T_HEAD, T_TAIL]
     );
 }
 
-/// A degenerate fork whose both edges reach one arm still sinks the member
+/// The two named members bound the run. Naming one member twice bounds the
+/// run of one, which this admission carries itself; a last member that does
+/// not follow the first, or that sits outside the first's block, bounds no
+/// span at all.
+#[test]
+fn the_named_members_bound_a_contiguous_run() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    // The run of one: the same admission, one member wide.
+    let one = relocate(&source, &environment, RUN_A, RUN_A, T_HEAD).unwrap();
+    validate_fork_relocation(
+        &source,
+        0,
+        RUN_A,
+        RUN_A,
+        T_HEAD,
+        &environment,
+        budget(),
+        one.transformed().clone(),
+    )
+    .unwrap();
+    // Reversed names bound no span, and neither does a last member ahead
+    // of the first inside the same block.
+    assert_eq!(
+        relocate(&source, &environment, RUN_B, RUN_A, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    assert_eq!(
+        relocate(&source, &environment, RUN_A, LEAD, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    // A last member in another block bounds no span in the first's.
+    for last in [T_HEAD, F_HEAD, HEAD, T_JUMP, RET, SelectedInstructionId(99)] {
+        assert_eq!(
+            relocate(&source, &environment, RUN_A, last, T_HEAD).unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "last {last:?}"
+        );
+    }
+}
+
+/// A producer whose only crossed reader is the run's own next member
+/// moves with it: `RUN_B` reads `RUN_A`'s result inside the run, where
+/// internal coupling never trades order — the member move would starve
+/// the consumer it leaves behind, so the single-member family refuses
+/// where the run admits.
+#[test]
+fn internally_coupled_run_moves_as_one_body() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[2] = instruction(
+            RUN_B,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_MOVE_A, R_MOVE_B],
+        );
+    });
+    let moved = relocate(&source, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    assert_eq!(
+        block_order(&moved.transformed().functions[0].blocks[1]),
+        vec![RUN_A, RUN_B, T_HEAD, T_TAIL]
+    );
+    // `RUN_A` alone cannot cross `RUN_B`, whose read of its result sits in
+    // the member move's window — the single-member family refuses where
+    // the run admits.
+    assert_eq!(
+        crate::rewrites::unexecuted::relocate_selected_members_into_arm(
+            &source,
+            0,
+            RUN_A,
+            RUN_A,
+            T_HEAD,
+            &environment,
+            budget(),
+        )
+        .unwrap_err(),
+        crate::rewrites::unexecuted::ForkRelocationError::UnsupportedPair
+    );
+}
+
+/// A degenerate fork whose both edges reach one arm still sinks the run
 /// — every traversal of the branch block still executes it exactly once,
 /// so no path skips it and the dead-path audit is vacuous.
 #[test]
@@ -488,50 +565,50 @@ fn degenerate_single_arm_fork_relocates() {
         successor.block = BLOCK_T;
         successor.source_target = BlockId::new(2).unwrap();
     });
-    let result = relocate(&single, &environment, MOVING, T_TAIL).unwrap();
+    let result = relocate(&single, &environment, RUN_A, RUN_B, T_TAIL).unwrap();
     assert_eq!(
-        result.transformed().functions[0].blocks[0]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
+        block_order(&result.transformed().functions[0].blocks[0]),
         vec![LEAD, TRAIL]
     );
     assert_eq!(
-        result.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_HEAD, MOVING, T_TAIL]
+        block_order(&result.transformed().functions[0].blocks[1]),
+        vec![T_HEAD, RUN_A, RUN_B, T_TAIL]
     );
 }
 
 /// A member write a crossed position reads would starve the consumer: in
 /// the block tail, in the arm prefix when the landing index is past it —
-/// while a read at the landing index itself still observes the member —
-/// and on the skipped side, where the member never runs, a read of its
+/// while a read at the landing index itself still observes the run — and
+/// on the skipped side, where the run never runs, a read of either
 /// definition refuses outright.
 #[test]
 fn raw_hazard_keeps_order_through_the_fork() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let tail_reads = mutated(target, |function, environment| {
-        let copy = environment
-            .constraint(environment.selected_keys().copy_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            TRAIL,
-            SelectedInstructionKind::CopyI64,
-            &copy,
-            &[R_MOVE, R_TRAIL],
+    // The run's own block tail is crossed: either member's result read
+    // there refuses.
+    for input in [R_MOVE_A, R_MOVE_B] {
+        let tail_reads = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[3] = instruction(
+                TRAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[input, R_TRAIL],
+            );
+        });
+        assert_eq!(
+            relocate(&tail_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "tail reading {input:?}"
         );
-    });
-    assert_eq!(
-        relocate(&tail_reads, &environment, MOVING, T_HEAD).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
+    }
+    // The arm prefix is crossed when the run lands deeper: `T_HEAD` reads
+    // a member's result, so landing at `T_TAIL` refuses while landing at
+    // `T_HEAD` — where the read still observes the member — admits.
     let arm_reads = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -541,203 +618,32 @@ fn raw_hazard_keeps_order_through_the_fork() {
             T_HEAD,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_THEAD],
+            &[R_MOVE_A, R_THEAD],
         );
     });
-    // Landing at the head does not cross `T_HEAD`; landing at `T_TAIL`
-    // crosses it and the member's write would starve the crossed read.
-    relocate(&arm_reads, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&arm_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     assert_eq!(
-        relocate(&arm_reads, &environment, MOVING, T_TAIL).unwrap_err(),
+        relocate(&arm_reads, &environment, RUN_A, RUN_B, T_TAIL).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-}
-
-/// A member reading a location a crossed instruction writes would observe
-/// the new value after the move.
-#[test]
-fn war_hazard_keeps_order_through_the_fork() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let member_reads_pointer = |edit: &mut dyn FnMut(
-        &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
-    )| {
-        mutated(target, |function, environment| {
-            let copy = environment
-                .constraint(environment.selected_keys().copy_i64)
-                .unwrap()
-                .clone();
-            function.blocks[0].instructions[1] = instruction(
-                MOVING,
-                SelectedInstructionKind::CopyI64,
-                &copy,
-                &[POINTER, R_MOVE],
-            );
-            edit(function, environment);
-        })
-    };
-    let arm_writes = member_reads_pointer(&mut |function, environment| {
-        let materialize = environment
-            .constraint(environment.selected_keys().materialize_i64)
+    // A reader before the run's first index is never crossed: it kept the
+    // pre-run value on either order.
+    let before_reads = mutated(target, |function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
             .unwrap()
             .clone();
-        function.blocks[1].instructions[0] = instruction(
-            T_HEAD,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(9),
-            },
-            &materialize,
-            &[POINTER],
+        function.blocks[0].instructions[0] = instruction(
+            LEAD,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_MOVE_A, R_LEAD],
         );
     });
-    relocate(&arm_writes, &environment, MOVING, T_HEAD).unwrap();
-    assert_eq!(
-        relocate(&arm_writes, &environment, MOVING, T_TAIL).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-}
-
-/// A member and a crossed instruction writing the same register would
-/// change which definition later positions observe.
-#[test]
-fn waw_hazard_keeps_order_through_the_fork() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let tail_writes = mutated(target, |function, environment| {
-        let materialize = environment
-            .constraint(environment.selected_keys().materialize_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            TRAIL,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(9),
-            },
-            &materialize,
-            &[R_MOVE],
-        );
-    });
-    assert_eq!(
-        relocate(&tail_writes, &environment, MOVING, T_HEAD).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    let arm_writes = mutated(target, |function, environment| {
-        let materialize = environment
-            .constraint(environment.selected_keys().materialize_i64)
-            .unwrap()
-            .clone();
-        function.blocks[1].instructions[0] = instruction(
-            T_HEAD,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(9),
-            },
-            &materialize,
-            &[R_MOVE],
-        );
-    });
-    assert_eq!(
-        relocate(&arm_writes, &environment, MOVING, T_TAIL).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    relocate(&arm_writes, &environment, MOVING, T_HEAD).unwrap();
-}
-
-/// Condition state couples like registers through the fork: the branch
-/// terminator reads the target's condition units, so a flag-publishing
-/// member can never leave; a flag-reading member cannot cross a flag
-/// writer in its own tail or the arm prefix; and a flag consumer in the
-/// arm does not block a flag-inert member.
-#[test]
-fn condition_state_couples_through_the_fork() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let subtract_kind = SelectedInstructionKind::ExactSubtractI64 {
-        obligation: ObligationId::new(11).unwrap(),
-        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]),
-    };
-    // A flag-publishing member rewrites the units the branch terminator
-    // itself reads: the member's definition would land after the read.
-    let flag_writer = mutated(target, |function, environment| {
-        let subtract = environment
-            .constraint(environment.selected_keys().subtract_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[1] =
-            instruction(MOVING, subtract_kind, &subtract, &[POINTER, R_MOVE, R_MOVE]);
-    });
-    assert_eq!(
-        relocate(&flag_writer, &environment, MOVING, T_HEAD).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    // A flag-reading member cannot cross a flag writer in its own block
-    // tail — it would observe the new flags after the move.
-    let member_reads_flags = |edit: &mut dyn FnMut(
-        &mut SelectedFunction,
-        &register_environment::ValidatedTargetRegisterEnvironment,
-    )| {
-        mutated(target, |function, environment| {
-            let boolean = environment
-                .constraint(environment.selected_keys().materialize_boolean)
-                .unwrap()
-                .clone();
-            function.blocks[0].instructions[1] = instruction(
-                MOVING,
-                SelectedInstructionKind::MaterializeBooleanEqual,
-                &boolean,
-                &[R_MOVE],
-            );
-            edit(function, environment);
-        })
-    };
-    let tail_writes_flags = member_reads_flags(&mut |function, environment| {
-        let subtract = environment
-            .constraint(environment.selected_keys().subtract_i64)
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[2] = instruction(
-            TRAIL,
-            subtract_kind,
-            &subtract,
-            &[POINTER, R_TRAIL, R_TRAIL],
-        );
-    });
-    assert_eq!(
-        relocate(&tail_writes_flags, &environment, MOVING, T_HEAD).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    // The same coupling holds for a compare publishing flags in the arm
-    // prefix; landing before the flag writer admits because the member's
-    // read still observes the flags the branch saw.
-    let arm_writes_flags = member_reads_flags(&mut |function, environment| {
-        let compare = environment
-            .constraint(environment.selected_keys().compare_i64)
-            .unwrap()
-            .clone();
-        function.blocks[1].instructions[0] = instruction(
-            T_HEAD,
-            SelectedInstructionKind::CompareI64,
-            &compare,
-            &[R_THEAD, R_TTAIL],
-        );
-    });
-    relocate(&arm_writes_flags, &environment, MOVING, T_HEAD).unwrap();
-    assert_eq!(
-        relocate(&arm_writes_flags, &environment, MOVING, T_TAIL).unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-}
-
-/// The branch terminator is a crossed position, not a window barrier: a
-/// register the branch reads couples like any crossed read, while a read
-/// it shares with the member admits. The landing arm's own terminator is
-/// never crossed — the member lands inside the body — so its reads do not
-/// bound the move.
-#[test]
-fn terminator_positions_couple() {
-    let target = NativeTarget::linux_x64();
-    let environment = baseline_target_register_environment(target).unwrap();
-    let terminator_reads = mutated(target, |function, environment| {
+    relocate(&before_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    // The branch terminator is a crossed position: its read of a member's
+    // result refuses.
+    let branch_reads = mutated(target, |function, environment| {
         let branch_row = environment
             .constraint(environment.selected_keys().conditional_branch)
             .unwrap()
@@ -751,7 +657,7 @@ fn terminator_positions_couple() {
         );
         branch.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_B,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -773,11 +679,259 @@ fn terminator_positions_couple() {
         };
     });
     assert_eq!(
-        relocate(&terminator_reads, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&branch_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+}
+
+/// A member reading a location a crossed instruction writes would observe
+/// the new value after the move.
+#[test]
+fn war_hazard_keeps_order_through_the_fork() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let member_reads_pointer = |edit: &mut dyn FnMut(
+        &mut SelectedFunction,
+        &register_environment::ValidatedTargetRegisterEnvironment,
+    )| {
+        mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[1] = instruction(
+                RUN_A,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[POINTER, R_MOVE_A],
+            );
+            edit(function, environment);
+        })
+    };
+    let tail_writes = member_reads_pointer(&mut |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] = instruction(
+            TRAIL,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(9),
+            },
+            &materialize,
+            &[POINTER],
+        );
+    });
+    assert_eq!(
+        relocate(&tail_writes, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    let arm_writes = member_reads_pointer(&mut |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[0] = instruction(
+            T_HEAD,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(9),
+            },
+            &materialize,
+            &[POINTER],
+        );
+    });
+    relocate(&arm_writes, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    assert_eq!(
+        relocate(&arm_writes, &environment, RUN_A, RUN_B, T_TAIL).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+}
+
+/// A member and a crossed instruction writing the same register would
+/// change which definition later positions observe.
+#[test]
+fn waw_hazard_keeps_order_through_the_fork() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let tail_writes = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] = instruction(
+            TRAIL,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(9),
+            },
+            &materialize,
+            &[R_MOVE_B],
+        );
+    });
+    assert_eq!(
+        relocate(&tail_writes, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    let arm_writes = mutated(target, |function, environment| {
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[0] = instruction(
+            T_HEAD,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(9),
+            },
+            &materialize,
+            &[R_MOVE_A],
+        );
+    });
+    assert_eq!(
+        relocate(&arm_writes, &environment, RUN_A, RUN_B, T_TAIL).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    relocate(&arm_writes, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+}
+
+/// Condition state couples like registers through the fork: the branch
+/// terminator reads the target's condition units, so a flag-publishing
+/// member can never leave; a flag-reading member cannot cross a flag
+/// writer in its own tail or the arm prefix; and a flag consumer in the
+/// arm does not block a flag-inert run.
+#[test]
+fn condition_state_couples_through_the_fork() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let subtract_kind = SelectedInstructionKind::ExactSubtractI64 {
+        obligation: ObligationId::new(11).unwrap(),
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes([7; 32]),
+    };
+    // A flag-publishing member rewrites the units the branch terminator
+    // itself reads: the member's definition would land after the read —
+    // in either run position.
+    for index in [1usize, 2] {
+        let flag_writer = mutated(target, |function, environment| {
+            let subtract = environment
+                .constraint(environment.selected_keys().subtract_i64)
+                .unwrap()
+                .clone();
+            let id = function.blocks[0].instructions[index].id;
+            let output = function.blocks[0].instructions[index].operands[0].virtual_register;
+            function.blocks[0].instructions[index] =
+                instruction(id, subtract_kind, &subtract, &[POINTER, output, output]);
+        });
+        assert_eq!(
+            relocate(&flag_writer, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "flag writer at index {index}"
+        );
+    }
+    // A flag-reading member cannot cross a flag writer in its own block
+    // tail — it would observe the new flags after the move.
+    let member_reads_flags = |edit: &mut dyn FnMut(
+        &mut SelectedFunction,
+        &register_environment::ValidatedTargetRegisterEnvironment,
+    )| {
+        mutated(target, |function, environment| {
+            let boolean = environment
+                .constraint(environment.selected_keys().materialize_boolean)
+                .unwrap()
+                .clone();
+            function.blocks[0].instructions[2] = instruction(
+                RUN_B,
+                SelectedInstructionKind::MaterializeBooleanEqual,
+                &boolean,
+                &[R_MOVE_B],
+            );
+            edit(function, environment);
+        })
+    };
+    let tail_writes_flags = member_reads_flags(&mut |function, environment| {
+        let subtract = environment
+            .constraint(environment.selected_keys().subtract_i64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] = instruction(
+            TRAIL,
+            subtract_kind,
+            &subtract,
+            &[POINTER, R_TRAIL, R_TRAIL],
+        );
+    });
+    assert_eq!(
+        relocate(&tail_writes_flags, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+    // The same coupling holds for a compare publishing flags in the arm
+    // prefix; landing before the flag writer admits because the member's
+    // read still observes the flags the branch saw.
+    let arm_writes_flags = member_reads_flags(&mut |function, environment| {
+        let compare = environment
+            .constraint(environment.selected_keys().compare_i64)
+            .unwrap()
+            .clone();
+        function.blocks[1].instructions[0] = instruction(
+            T_HEAD,
+            SelectedInstructionKind::CompareI64,
+            &compare,
+            &[R_THEAD, R_TTAIL],
+        );
+    });
+    relocate(&arm_writes_flags, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    assert_eq!(
+        relocate(&arm_writes_flags, &environment, RUN_A, RUN_B, T_TAIL).unwrap_err(),
+        ForkRelocationError::UnsupportedPair
+    );
+}
+
+/// The branch terminator is a crossed position, not a window barrier: a
+/// register the branch reads couples like any crossed read. The landing
+/// arm's own terminator is never crossed — the run lands inside the body
+/// — so its reads do not bound the move.
+#[test]
+fn terminator_positions_couple() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let terminator_reads = mutated(target, |function, environment| {
+        let branch_row = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap()
+            .clone();
+        let class = function.blocks[0].instructions[0].operands[0].class;
+        let mut branch = instruction(
+            BRANCH,
+            SelectedInstructionKind::ConditionalBranchNonZero,
+            &branch_row,
+            &[],
+        );
+        branch.operands.push(SelectedOperand {
+            operand: 0,
+            virtual_register: R_MOVE_A,
+            access: RegisterOperandAccess::Use,
+            class,
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        });
+        let (when_nonzero, when_zero) = match &function.blocks[0].terminator {
+            SelectedTerminator::ConditionalBranch {
+                when_nonzero,
+                when_zero,
+                ..
+            } => (when_nonzero.clone(), when_zero.clone()),
+            _ => unreachable!(),
+        };
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: branch,
+            when_nonzero,
+            when_zero,
+        };
+    });
+    assert_eq!(
+        relocate(&terminator_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     // The landing arm's terminator is past the landing index, never a
-    // crossed position — its read of the member's result admits.
+    // crossed position — its read of a member's result admits.
     let arm_terminator_reads = mutated(target, |function, environment| {
         let jump_row = environment
             .constraint(environment.selected_keys().jump)
@@ -787,7 +941,7 @@ fn terminator_positions_couple() {
         let mut jump = instruction(T_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]);
         jump.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_B,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -800,10 +954,10 @@ fn terminator_positions_couple() {
         };
         function.blocks[1].terminator = jump_terminator(jump, successor);
     });
-    relocate(&arm_terminator_reads, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&arm_terminator_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
 }
 
-/// The landing edge's register transports sit between the member's old and
+/// The landing edge's register transports sit between the run's old and
 /// new positions: a member defining the transported argument would hand
 /// the binding a stale value, a member defining or reading the parameter
 /// would be overwritten or observe the transported value, while a member
@@ -829,15 +983,16 @@ fn register_transports_bind_the_landing_edge() {
                 parameter,
             },
         };
-    let member_writes = |register: VirtualRegisterId| {
+    let member_writes = |index: usize, register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let materialize = environment
                 .constraint(environment.selected_keys().materialize_i64)
                 .unwrap()
                 .clone();
-            function.blocks[0].instructions[1] = instruction(
-                MOVING,
+            let id = function.blocks[0].instructions[index].id;
+            function.blocks[0].instructions[index] = instruction(
+                id,
                 SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(9),
                 },
@@ -846,18 +1001,23 @@ fn register_transports_bind_the_landing_edge() {
             );
         }
     };
-    let member_reads = |register: VirtualRegisterId| {
+    let member_reads = |index: usize, register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
                 .clone();
-            function.blocks[0].instructions[1] = instruction(
-                MOVING,
+            let id = function.blocks[0].instructions[index].id;
+            let output = match index {
+                1 => R_MOVE_A,
+                _ => R_MOVE_B,
+            };
+            function.blocks[0].instructions[index] = instruction(
+                id,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[register, R_MOVE],
+                &[register, output],
             );
         }
     };
@@ -877,49 +1037,59 @@ fn register_transports_bind_the_landing_edge() {
     relocate(
         &on_landing_edge(&mut |_, _| {}),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         T_HEAD,
     )
     .unwrap();
     relocate(
-        &on_landing_edge(&mut member_reads(POINTER)),
+        &on_landing_edge(&mut member_reads(1, POINTER)),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         T_HEAD,
     )
     .unwrap();
-    assert_eq!(
-        relocate(
-            &on_landing_edge(&mut member_writes(POINTER)),
-            &environment,
-            MOVING,
-            T_HEAD,
-        )
-        .unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    assert_eq!(
-        relocate(
-            &on_landing_edge(&mut member_writes(R_BOUND)),
-            &environment,
-            MOVING,
-            T_HEAD,
-        )
-        .unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    assert_eq!(
-        relocate(
-            &on_landing_edge(&mut member_reads(R_BOUND)),
-            &environment,
-            MOVING,
-            T_HEAD,
-        )
-        .unwrap_err(),
-        ForkRelocationError::UnsupportedPair
-    );
-    // On the skipped edge a transport argument reading the member's write
-    // is a stale observation on a path the member never ran; a parameter
+    for index in [1usize, 2] {
+        assert_eq!(
+            relocate(
+                &on_landing_edge(&mut member_writes(index, POINTER)),
+                &environment,
+                RUN_A,
+                RUN_B,
+                T_HEAD,
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "member at {index} writing the transported argument"
+        );
+        assert_eq!(
+            relocate(
+                &on_landing_edge(&mut member_writes(index, R_BOUND)),
+                &environment,
+                RUN_A,
+                RUN_B,
+                T_HEAD,
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "member at {index} writing the parameter"
+        );
+        assert_eq!(
+            relocate(
+                &on_landing_edge(&mut member_reads(index, R_BOUND)),
+                &environment,
+                RUN_A,
+                RUN_B,
+                T_HEAD,
+            )
+            .unwrap_err(),
+            ForkRelocationError::UnsupportedPair,
+            "member at {index} reading the parameter"
+        );
+    }
+    // On the skipped edge a transport argument reading a member's write
+    // is a stale observation on a path the run never ran; a parameter
     // writing it retires the stale definition before any reader.
     let on_skipped_edge = |binding_of: &mut dyn FnMut() -> SelectedValueBinding| {
         mutated(target, |function, _| {
@@ -932,29 +1102,31 @@ fn register_transports_bind_the_landing_edge() {
     };
     assert_eq!(
         relocate(
-            &on_skipped_edge(&mut || binding(R_MOVE, R_BOUND)),
+            &on_skipped_edge(&mut || binding(R_MOVE_A, R_BOUND)),
             &environment,
-            MOVING,
+            RUN_A,
+            RUN_B,
             T_HEAD,
         )
         .unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     relocate(
-        &on_skipped_edge(&mut || binding(POINTER, R_MOVE)),
+        &on_skipped_edge(&mut || binding(POINTER, R_MOVE_A)),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         T_HEAD,
     )
     .unwrap();
 }
 
-/// The fork must be a real fork for this move: the member's block needs a
+/// The fork must be a real fork for this move: the run's block needs a
 /// two-successor conditional terminator, the destination must name a
-/// position inside a block the branch reaches, the arm's only predecessors
-/// are that branch's edges, and the arm must be a plain source block —
-/// never the member's own block, the entry block, or an implementation
-/// block.
+/// position inside a block the branch reaches, the arm's only
+/// predecessors are that branch's edges, and the arm must be a plain
+/// source block — never the run's own block, the entry block, or an
+/// implementation block.
 #[test]
 fn the_fork_must_open() {
     let target = NativeTarget::linux_x64();
@@ -971,20 +1143,22 @@ fn the_fork_must_open() {
         );
     });
     assert_eq!(
-        relocate(&jumped, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&jumped, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // The destination must name a position in a branch target: a member of
-    // the member's own block, a join position, and a dangling id refuse.
+    // The destination must name a position in a branch target: a member
+    // of the run's own block, a join position or its terminator-carried
+    // instruction, the branch terminator itself, and a dangling id
+    // refuse.
     let source = fixture(target);
-    for destination in [LEAD, HEAD, SelectedInstructionId(99)] {
+    for destination in [LEAD, HEAD, RET, BRANCH, SelectedInstructionId(99)] {
         assert_eq!(
-            relocate(&source, &environment, MOVING, destination).unwrap_err(),
+            relocate(&source, &environment, RUN_A, RUN_B, destination).unwrap_err(),
             ForkRelocationError::UnsupportedPair,
             "destination {destination:?}"
         );
     }
-    // A second predecessor into the arm gives its stream a member that
+    // A second predecessor into the arm gives its stream a run that
     // never ran on that path.
     let extra_pred = mutated(target, |function, environment| {
         let jump_row = environment
@@ -997,11 +1171,11 @@ fn the_fork_must_open() {
         );
     });
     assert_eq!(
-        relocate(&extra_pred, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&extra_pred, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // An implementation-origin arm carries boundary work the bounded audit
-    // does not cross.
+    // An implementation-origin arm carries boundary work the bounded
+    // audit does not cross.
     let cased = mutated(target, |function, _| {
         function.blocks[1].origin = SelectedBlockOrigin::CaseDispatch {
             source: BlockId::new(2).unwrap(),
@@ -1009,11 +1183,12 @@ fn the_fork_must_open() {
         };
     });
     assert_eq!(
-        relocate(&cased, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&cased, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // An arm that is the member's own block names an in-block move, and an
-    // arm that is the entry block was reached with no predecessor at all.
+    // An arm that is the run's own block names an in-block move, and an
+    // arm that is the entry block was reached with no predecessor at
+    // all.
     let self_edge = mutated(target, |function, _| {
         let successor = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranch { when_nonzero, .. } => when_nonzero,
@@ -1023,19 +1198,19 @@ fn the_fork_must_open() {
         successor.source_target = BlockId::new(1).unwrap();
     });
     assert_eq!(
-        relocate(&self_edge, &environment, MOVING, LEAD).unwrap_err(),
+        relocate(&self_edge, &environment, RUN_A, RUN_B, LEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
 }
 
-/// Only a plain semantic edge carries the member into the arm: a
+/// Only a plain semantic edge carries the run into the arm: a
 /// continuation role, case custody, per-edge fuel, or a live structural
 /// transport on a landing edge all refuse. The skipped edge is never
-/// crossed, so fuel and inert structural payloads on it stay free — while
-/// a case payload or structural binding that reads a live member
+/// crossed, so fuel and inert structural payloads on it stay free —
+/// while a case payload or structural binding that reads a live member
 /// definition is a dead-path observation and refuses.
 #[test]
-fn only_plain_semantic_edges_carry_the_member() {
+fn only_plain_semantic_edges_carry_the_run() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for role in [
@@ -1050,7 +1225,7 @@ fn only_plain_semantic_edges_carry_the_member() {
             successor.role = role;
         });
         assert_eq!(
-            relocate(&continued, &environment, MOVING, T_HEAD).unwrap_err(),
+            relocate(&continued, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
             ForkRelocationError::UnsupportedPair
         );
     }
@@ -1068,7 +1243,7 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
     });
     assert_eq!(
-        relocate(&case_edge, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&case_edge, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     let fueled = mutated(target, |function, _| {
@@ -1082,11 +1257,11 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
     });
     assert_eq!(
-        relocate(&fueled, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&fueled, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // A live structural transport on the landing edge moves a stored value
-    // the member would cross.
+    // A live structural transport on the landing edge moves a stored
+    // value the run would cross.
     let structural = mutated(target, |function, _| {
         let successor = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranch { when_nonzero, .. } => when_nonzero,
@@ -1114,7 +1289,7 @@ fn only_plain_semantic_edges_carry_the_member() {
             });
     });
     assert_eq!(
-        relocate(&structural, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&structural, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     // Fuel on the skipped edge is never crossed and stays free.
@@ -1128,10 +1303,10 @@ fn only_plain_semantic_edges_carry_the_member() {
             units: 1,
         });
     });
-    relocate(&fueled_skipped, &environment, MOVING, T_HEAD).unwrap();
-    // A case payload on the skipped edge whose transport reads the
-    // member's definition is a dead-path observation; an `Unused` payload
-    // moves nothing.
+    relocate(&fueled_skipped, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    // A case payload on the skipped edge whose transport reads a member's
+    // definition is a dead-path observation; an `Unused` payload moves
+    // nothing.
     let case_reads_member = mutated(target, |function, _| {
         let successor = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranch { when_zero, .. } => when_zero,
@@ -1157,7 +1332,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                     },
                 },
                 transport: selected_instructions::SelectedCasePayloadTransport::Registers {
-                    argument: R_MOVE,
+                    argument: R_MOVE_B,
                     parameter: R_BOUND,
                 },
             }],
@@ -1165,11 +1340,11 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
     });
     assert_eq!(
-        relocate(&case_reads_member, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&case_reads_member, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // A structural binding on the skipped edge reads its argument register
-    // at the boundary — reading the member's definition refuses.
+    // A structural binding on the skipped edge reads its argument
+    // register at the boundary — reading a member's definition refuses.
     let structural_reads_member = mutated(target, |function, _| {
         let successor = match &mut function.blocks[0].terminator {
             SelectedTerminator::ConditionalBranch { when_zero, .. } => when_zero,
@@ -1187,7 +1362,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                     },
                 },
                 transport: SelectedStructuralTransport::WholeValue {
-                    argument: R_MOVE,
+                    argument: R_MOVE_A,
                     destination: selected_instructions::LocalStorageSlotId::Spill {
                         register: R_BOUND,
                     },
@@ -1197,15 +1372,16 @@ fn only_plain_semantic_edges_carry_the_member() {
             });
     });
     assert_eq!(
-        relocate(&structural_reads_member, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&structural_reads_member, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
 }
 
-/// Barrier kinds and call-roster entries refuse as the member or anywhere
-/// inside the crossed window — the block tail and the arm prefix included
-/// — while a barrier sitting at the landing index is never crossed and a
-/// call-roster row on the skipped side still executes on its own path.
+/// Barrier kinds and call-roster entries refuse as a run member or
+/// anywhere inside the crossed window — the block tail and the arm prefix
+/// included — while a barrier sitting at the landing index is never
+/// crossed and a call-roster row on the skipped side still executes on
+/// its own path.
 #[test]
 fn barrier_kinds_and_call_roster_reject() {
     let target = NativeTarget::linux_x64();
@@ -1219,19 +1395,21 @@ fn barrier_kinds_and_call_roster_reject() {
         },
         SelectedInstructionKind::HostedExitProcessI32,
     ] {
-        let member_barrier = mutated(target, |function, _| {
-            function.blocks[0].instructions[1].kind = kind;
-        });
-        assert_eq!(
-            relocate(&member_barrier, &environment, MOVING, T_HEAD).unwrap_err(),
-            ForkRelocationError::UnsupportedInstruction,
-            "member {kind:?}"
-        );
+        for index in [1usize, 2] {
+            let member_barrier = mutated(target, |function, _| {
+                function.blocks[0].instructions[index].kind = kind;
+            });
+            assert_eq!(
+                relocate(&member_barrier, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+                ForkRelocationError::UnsupportedInstruction,
+                "member at {index} {kind:?}"
+            );
+        }
         let tail_barrier = mutated(target, |function, _| {
-            function.blocks[0].instructions[2].kind = kind;
+            function.blocks[0].instructions[3].kind = kind;
         });
         assert_eq!(
-            relocate(&tail_barrier, &environment, MOVING, T_HEAD).unwrap_err(),
+            relocate(&tail_barrier, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
             ForkRelocationError::UnsupportedInstruction,
             "crossed tail {kind:?}"
         );
@@ -1239,18 +1417,18 @@ fn barrier_kinds_and_call_roster_reject() {
             function.blocks[1].instructions[0].kind = kind;
         });
         assert_eq!(
-            relocate(&arm_barrier, &environment, MOVING, T_TAIL).unwrap_err(),
+            relocate(&arm_barrier, &environment, RUN_A, RUN_B, T_TAIL).unwrap_err(),
             ForkRelocationError::UnsupportedInstruction,
             "crossed arm {kind:?}"
         );
         // A barrier at the landing index is never crossed.
-        relocate(&arm_barrier, &environment, MOVING, T_HEAD).unwrap();
+        relocate(&arm_barrier, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
         // A barrier on the skipped side still runs on its own path; it
         // only refuses if it would read a still-live member definition.
         let skipped_barrier = mutated(target, |function, _| {
             function.blocks[2].instructions[0].kind = kind;
         });
-        relocate(&skipped_barrier, &environment, MOVING, T_HEAD).unwrap();
+        relocate(&skipped_barrier, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     }
     let call_contract = |instruction: SelectedInstructionId| SelectedCallContract {
         instruction,
@@ -1285,7 +1463,8 @@ fn barrier_kinds_and_call_roster_reject() {
         ownership: Vec::new(),
     };
     for (instruction_id, destination) in [
-        (MOVING, T_HEAD),
+        (RUN_A, T_HEAD),
+        (RUN_B, T_HEAD),
         (TRAIL, T_HEAD),
         (T_HEAD, T_TAIL),
         (BRANCH, T_HEAD),
@@ -1294,50 +1473,57 @@ fn barrier_kinds_and_call_roster_reject() {
             function.calls.push(call_contract(instruction_id));
         });
         assert_eq!(
-            relocate(&contract, &environment, MOVING, destination).unwrap_err(),
+            relocate(&contract, &environment, RUN_A, RUN_B, destination).unwrap_err(),
             ForkRelocationError::UnsupportedInstruction,
             "call roster {instruction_id:?}"
         );
     }
-    // The arm terminator is outside the window: a call-roster row there is
-    // a dead-path position like any other.
+    // The arm terminator is outside the window: a call-roster row there
+    // is a dead-path position like any other.
     let contract = mutated(target, |function, _| {
         function.calls.push(call_contract(T_JUMP));
     });
-    relocate(&contract, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&contract, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
 }
 
-/// Only pure register and condition-state work may sink: a member carrying
-/// a memory roster row would run its access only on the landing path, and
-/// a row-less load or private-slot store sheds the same access — so every
-/// memory-touching kind refuses as the member, while an accounted or
-/// unaccounted access elsewhere on the skipped paths never moves.
+/// Only pure register and condition-state work may sink: a member
+/// carrying a memory roster row would run its access only on the landing
+/// path, and a row-less load or private-slot store sheds the same access
+/// — so every memory-touching or potentially-faulting kind refuses as a
+/// run member, while an accounted or unaccounted access on the skipped
+/// paths never moves.
 #[test]
-fn member_must_be_memory_inert() {
+fn run_must_be_pure_work() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // A roster-carrying member's recorded access would become conditional.
-    let roster_member = mutated(target, |function, environment| {
-        let load = environment
-            .constraint(environment.selected_keys().load8.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[1] = instruction(
-            MOVING,
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            &load,
-            &[POINTER, R_MOVE],
+    // A roster-carrying member's recorded access would become conditional
+    // — in either run position.
+    for index in [1usize, 2] {
+        let roster_member = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            let id = function.blocks[0].instructions[index].id;
+            let output = function.blocks[0].instructions[index].operands[0].virtual_register;
+            function.blocks[0].instructions[index] = instruction(
+                id,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, output],
+            );
+            function.memory_accesses.push(access(
+                id,
+                PlaceId::new(1).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            relocate(&roster_member, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+            ForkRelocationError::UnsupportedInstruction,
+            "roster member at index {index}"
         );
-        function.memory_accesses.push(access(
-            MOVING,
-            PlaceId::new(1).unwrap(),
-            SelectedMemoryAccessRole::ReadPlace,
-        ));
-    });
-    assert_eq!(
-        relocate(&roster_member, &environment, MOVING, T_HEAD).unwrap_err(),
-        ForkRelocationError::UnsupportedInstruction
-    );
+    }
     // A row-less load still performs an access whose absence the skipped
     // path would observe through its result — and any fault it carried.
     let rowless_load = mutated(target, |function, environment| {
@@ -1345,15 +1531,15 @@ fn member_must_be_memory_inert() {
             .constraint(environment.selected_keys().load8.unwrap())
             .unwrap()
             .clone();
-        function.blocks[0].instructions[1] = instruction(
-            MOVING,
+        function.blocks[0].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::Load8 { byte_offset: 0 },
             &load,
-            &[POINTER, R_MOVE],
+            &[POINTER, R_MOVE_B],
         );
     });
     assert_eq!(
-        relocate(&rowless_load, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&rowless_load, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedInstruction
     );
     // A row-less private-slot store still writes storage on every
@@ -1365,7 +1551,7 @@ fn member_must_be_memory_inert() {
             .unwrap()
             .clone();
         function.blocks[0].instructions[1] = instruction(
-            MOVING,
+            RUN_A,
             SelectedInstructionKind::Store64 {
                 slot: selected_instructions::FrameStorageSlotId::Local(
                     selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
@@ -1373,11 +1559,34 @@ fn member_must_be_memory_inert() {
                 byte_offset: 0,
             },
             &store,
-            &[POINTER, R_MOVE],
+            &[POINTER, R_MOVE_A],
         );
     });
     assert_eq!(
-        relocate(&rowless_store, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&rowless_store, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
+        ForkRelocationError::UnsupportedInstruction
+    );
+    // A potentially-faulting kind ran on every traversal before the move:
+    // the divide would vanish from the skipped paths — and could fault.
+    let exact_divide = mutated(target, |function, environment| {
+        let divide = environment
+            .constraint(environment.selected_keys().divide_u64)
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[2] = instruction(
+            RUN_B,
+            SelectedInstructionKind::ExactDivideU64 {
+                obligation: ObligationId::new(11).unwrap(),
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    [7; 32],
+                ),
+            },
+            &divide,
+            &[POINTER, R_MOVE_B, R_MOVE_B],
+        );
+    });
+    assert_eq!(
+        relocate(&exact_divide, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedInstruction
     );
     // Memory work on the skipped paths never moves: a store in F refuses
@@ -1402,7 +1611,7 @@ fn member_must_be_memory_inert() {
             SelectedMemoryAccessRole::WritePlace,
         ));
     });
-    relocate(&skipped_store, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&skipped_store, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     let skipped_store_reads_member = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
@@ -1415,7 +1624,7 @@ fn member_must_be_memory_inert() {
                 byte_size: 8,
             },
             &store,
-            &[R_MOVE, R_FHEAD],
+            &[R_MOVE_A, R_FHEAD],
         );
         function.memory_accesses.push(access(
             F_HEAD,
@@ -1424,22 +1633,29 @@ fn member_must_be_memory_inert() {
         ));
     });
     assert_eq!(
-        relocate(&skipped_store_reads_member, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(
+            &skipped_store_reads_member,
+            &environment,
+            RUN_A,
+            RUN_B,
+            T_HEAD
+        )
+        .unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
 }
 
-/// Every location the member writes must be dead — unread until rewritten —
+/// Every location a member writes must be dead — unread until rewritten —
 /// on every path the branch's other edges reach: a reader in the skipped
 /// arm, in a deeper block, or in the shared join reached through the
-/// skipped side all refuse, while a write that retires the stale
-/// definition before any reader admits. A loop back through the member's
-/// own block scans it without the member's slot.
+/// skipped side all refuse, while writes that retire the stale
+/// definitions before any reader admit. A loop back through the run's
+/// own block scans it without the run's slots.
 #[test]
-fn member_writes_must_die_on_the_skipped_paths() {
+fn run_writes_must_die_on_the_skipped_paths() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let reads_member = |block: usize, index: usize, destination: VirtualRegisterId| {
+    let reads_member = |block: usize, index: usize, input: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
@@ -1447,29 +1663,31 @@ fn member_writes_must_die_on_the_skipped_paths() {
                 .unwrap()
                 .clone();
             let id = function.blocks[block].instructions[index].id;
+            let output = function.blocks[block].instructions[index].operands[0].virtual_register;
             function.blocks[block].instructions[index] = instruction(
                 id,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_MOVE, destination],
+                &[input, output],
             );
         }
     };
-    // A reader anywhere on the skipped side observes the stale definition.
-    for (block, index, destination, label) in [
-        (2usize, 0usize, R_FHEAD, "skipped arm"),
-        (2usize, 1usize, R_FTAIL, "skipped arm tail"),
-        (3usize, 0usize, R_HEAD, "join via the skipped arm"),
-        (3usize, 2usize, R_TAIL, "join tail via the skipped arm"),
+    // A reader anywhere on the skipped side observes the stale
+    // definition — either member's.
+    for (block, index, input, label) in [
+        (2usize, 0usize, R_MOVE_A, "skipped arm"),
+        (2, 1, R_MOVE_B, "skipped arm tail"),
+        (3, 0, R_MOVE_A, "join via the skipped arm"),
+        (3, 2, R_MOVE_B, "join tail via the skipped arm"),
     ] {
-        let reading = mutated(target, reads_member(block, index, destination));
+        let reading = mutated(target, reads_member(block, index, input));
         assert_eq!(
-            relocate(&reading, &environment, MOVING, T_HEAD).unwrap_err(),
+            relocate(&reading, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
             ForkRelocationError::UnsupportedPair,
             "{label}"
         );
     }
-    // The skipped arm's terminator reading the member's write refuses just
+    // The skipped arm's terminator reading a member's write refuses just
     // the same — its position is on the skipped path.
     let terminator_reads = mutated(target, |function, environment| {
         let jump_row = environment
@@ -1480,7 +1698,7 @@ fn member_writes_must_die_on_the_skipped_paths() {
         let mut jump = instruction(F_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]);
         jump.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_A,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -1494,11 +1712,12 @@ fn member_writes_must_die_on_the_skipped_paths() {
         function.blocks[2].terminator = jump_terminator(jump, successor);
     });
     assert_eq!(
-        relocate(&terminator_reads, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&terminator_reads, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // A write retiring the stale definition before any reader admits — the
-    // reader then observes the rewrite it always saw on that path.
+    // Writes retiring the stale definitions before any reader admit —
+    // the readers then observe the rewrites they always saw on that
+    // path.
     let retired = mutated(target, |function, environment| {
         let materialize = environment
             .constraint(environment.selected_keys().materialize_i64)
@@ -1514,22 +1733,30 @@ fn member_writes_must_die_on_the_skipped_paths() {
                 value: IntegerValue::Unsigned(9),
             },
             &materialize,
-            &[R_MOVE],
+            &[R_MOVE_A],
         );
         function.blocks[2].instructions[1] = instruction(
             F_TAIL,
-            SelectedInstructionKind::CopyI64,
-            &copy,
-            &[R_MOVE, R_FTAIL],
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(10),
+            },
+            &materialize,
+            &[R_MOVE_B],
         );
         function.blocks[3].instructions[0] = instruction(
             HEAD,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_HEAD],
+            &[R_MOVE_A, R_HEAD],
+        );
+        function.blocks[3].instructions[2] = instruction(
+            TAIL,
+            SelectedInstructionKind::CopyI64,
+            &copy,
+            &[R_MOVE_B, R_TAIL],
         );
     });
-    relocate(&retired, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&retired, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     // A deeper dead-path reader still refuses: the walk crosses blocks.
     let deeper = mutated(target, |function, environment| {
         let materialize = environment
@@ -1565,7 +1792,7 @@ fn member_writes_must_die_on_the_skipped_paths() {
                     SelectedInstructionId(31),
                     SelectedInstructionKind::CopyI64,
                     &copy,
-                    &[R_MOVE, R_MID],
+                    &[R_MOVE_B, R_MID],
                 ),
             ],
             terminator: jump_terminator(
@@ -1580,11 +1807,11 @@ fn member_writes_must_die_on_the_skipped_paths() {
         });
     });
     assert_eq!(
-        relocate(&deeper, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&deeper, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
-    // A loop back through the member's own block scans the vacated stream:
-    // a prefix read of the still-live definition refuses, while a prefix
+    // A loop back through the run's own block scans the vacated stream:
+    // a prefix read of a still-live definition refuses, while a prefix
     // rewrite retires it before any reader and admits.
     let looped_read = mutated(target, |function, environment| {
         let jump_row = environment
@@ -1603,11 +1830,11 @@ fn member_writes_must_die_on_the_skipped_paths() {
             LEAD,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_LEAD],
+            &[R_MOVE_A, R_LEAD],
         );
     });
     assert_eq!(
-        relocate(&looped_read, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&looped_read, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     let looped_retired = mutated(target, |function, environment| {
@@ -1629,29 +1856,31 @@ fn member_writes_must_die_on_the_skipped_paths() {
                 value: IntegerValue::Unsigned(9),
             },
             &materialize,
-            &[R_MOVE],
+            &[R_MOVE_A],
         );
     });
-    relocate(&looped_retired, &environment, MOVING, T_HEAD).unwrap();
+    relocate(&looped_retired, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
 }
 
-/// A settlement positioned past the member's index in its own block
-/// observed it inside that executed prefix, and one past the landing index
-/// in the arm newly observes it there; settlements on the skipped paths
-/// never had the member in their streams.
+/// A boundary settlement observes the executed prefix at its position:
+/// a settlement inside the run's span or past the run's first index in
+/// its own block observed a member inside that executed prefix, and one
+/// past the landing index in the arm newly observes the run there;
+/// settlements on the skipped paths never had the run in their streams.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // In the member's block, settlements at or before the member's index
-    // admit; positions past it observed the member inside the prefix.
-    for (position, admits) in [(0u32, true), (1, true), (2, false), (3, false)] {
+    // In the run's block, settlements at or before the run's first index
+    // admit; positions inside the span or past it observed a member in
+    // the executed prefix.
+    for (position, admits) in [(0u32, true), (1, true), (2, false), (3, false), (4, false)] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_B, position, 50));
         });
-        let result = relocate(&settled, &environment, MOVING, T_HEAD);
+        let result = relocate(&settled, &environment, RUN_A, RUN_B, T_HEAD);
         assert_eq!(
             result.is_ok(),
             admits,
@@ -1659,41 +1888,41 @@ fn boundary_settlements_bound_the_window() {
         );
     }
     // In the arm the bound is the landing index: at or before it the
-    // executed prefix is unchanged; past it the member joins the prefix.
+    // executed prefix is unchanged; past it the run joins the prefix.
     for (position, admits) in [(0u32, true), (1, true), (2, false)] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(BLOCK_T, position, 51));
         });
-        let result = relocate(&settled, &environment, MOVING, T_TAIL);
+        let result = relocate(&settled, &environment, RUN_A, RUN_B, T_TAIL);
         assert_eq!(result.is_ok(), admits, "arm settlement at {position}");
     }
     // Landing at the body end keeps every arm settlement: none sits past
-    // the member's new index.
+    // the run's new index.
     let settled = mutated(target, |function, _| {
         function
             .boundary_settlements
             .push(settlement(BLOCK_T, 2, 53));
     });
-    relocate(&settled, &environment, MOVING, T_JUMP).unwrap();
+    relocate(&settled, &environment, RUN_A, RUN_B, T_JUMP).unwrap();
     // Settlements on the skipped side and in the join never observe the
-    // member — it was never in those streams.
+    // run — it was never in those streams.
     for (block, position) in [(BLOCK_F, 0u32), (BLOCK_F, 2), (BLOCK_J, 0), (BLOCK_J, 3)] {
         let settled = mutated(target, |function, _| {
             function
                 .boundary_settlements
                 .push(settlement(block, position, 54));
         });
-        relocate(&settled, &environment, MOVING, T_HEAD).unwrap();
+        relocate(&settled, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     }
 }
 
-/// The pair must name one member in the branch block's body and one
-/// position in a block the branch reaches: an unknown member, a wrong
-/// function, a destination outside the branch targets, a member whose own
-/// block lacks the two-successor terminator, and a terminator id as member
-/// all refuse.
+/// The triple must name one contiguous run in the branch block's body
+/// and one position in a block the branch reaches: an unknown member, a
+/// wrong function, a destination outside the branch targets, a run
+/// whose own block lacks the two-successor terminator, and a terminator
+/// id as member all refuse.
 #[test]
 fn only_the_named_fork_window_relocates() {
     let target = NativeTarget::linux_x64();
@@ -1701,10 +1930,11 @@ fn only_the_named_fork_window_relocates() {
     let source = fixture(target);
     // An unknown member or function index never locates the window.
     assert_eq!(
-        relocate_selected_instruction_into_arm(
+        relocate_selected_members_into_arm(
             &source,
             0,
             SelectedInstructionId(99),
+            RUN_B,
             T_HEAD,
             &environment,
             budget(),
@@ -1713,64 +1943,77 @@ fn only_the_named_fork_window_relocates() {
         ForkRelocationError::SourceMismatch
     );
     assert_eq!(
-        relocate_selected_instruction_into_arm(&source, 9, MOVING, T_HEAD, &environment, budget(),)
-            .unwrap_err(),
+        relocate_selected_members_into_arm(
+            &source,
+            9,
+            RUN_A,
+            RUN_B,
+            T_HEAD,
+            &environment,
+            budget(),
+        )
+        .unwrap_err(),
         ForkRelocationError::SourceMismatch
     );
-    // A body member of a block without the branch names no window: the
-    // join's own members have only a return terminator, and an arm's block
-    // ends in `Jump`, not the two-successor form.
+    // A run in a block without the branch names no window: the join's own
+    // members have only a return terminator, and an arm's block ends in
+    // `Jump`, not the two-successor form.
     assert_eq!(
-        relocate(&source, &environment, HEAD, TAIL).unwrap_err(),
+        relocate(&source, &environment, HEAD, MID, T_HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     assert_eq!(
-        relocate(&source, &environment, T_HEAD, HEAD).unwrap_err(),
+        relocate(&source, &environment, T_HEAD, T_TAIL, HEAD).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
     // Naming the branch block's terminator as member is not a body
     // position; naming it as destination names no branch target.
     assert_eq!(
-        relocate(&source, &environment, BRANCH, T_HEAD).unwrap_err(),
+        relocate(&source, &environment, BRANCH, TRAIL, T_HEAD).unwrap_err(),
         ForkRelocationError::SourceMismatch
     );
     assert_eq!(
-        relocate(&source, &environment, MOVING, BRANCH).unwrap_err(),
+        relocate(&source, &environment, RUN_A, RUN_B, BRANCH).unwrap_err(),
         ForkRelocationError::UnsupportedPair
     );
 }
 
-/// Replay consumes only the exact move: a proposal that drops the member,
-/// lands it anywhere else, permutes the crossed positions, or carries an
-/// unrelated edit all reject.
+/// Replay consumes only the exact move: a proposal that drops a member,
+/// lands the run anywhere else, permutes the crossed positions, or
+/// carries an unrelated edit all reject.
 #[test]
 fn replay_rejects_anything_but_the_move() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, MOVING, T_TAIL).unwrap();
+    let result = relocate(&source, &environment, RUN_A, RUN_B, T_TAIL).unwrap();
     // The honest proposal replays.
     validate_fork_relocation(
         &source,
         0,
-        MOVING,
+        RUN_A,
+        RUN_B,
         T_TAIL,
         &environment,
         budget(),
         result.transformed().clone(),
     )
     .unwrap();
-    // The member at the wrong index rejects.
+    // The run at the wrong index rejects.
     let mut displaced = result.transformed().clone();
-    let member = displaced.functions[0].blocks[1].instructions.remove(1);
+    let run: Vec<_> = displaced.functions[0].blocks[1]
+        .instructions
+        .drain(1..3)
+        .collect();
     displaced.functions[0].blocks[1]
         .instructions
-        .insert(2, member.clone());
+        .splice(2..2, run);
     assert_eq!(
         validate_fork_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             T_TAIL,
             &environment,
             budget(),
@@ -1779,23 +2022,44 @@ fn replay_rejects_anything_but_the_move() {
         .unwrap_err(),
         ForkRelocationError::ReplayMismatch
     );
-    // The member left in its own block rejects.
+    // The run left in its own block rejects.
     let mut unmoved = result.transformed().clone();
-    unmoved.functions[0].blocks[1].instructions.remove(1);
+    let run: Vec<_> = unmoved.functions[0].blocks[1]
+        .instructions
+        .drain(1..3)
+        .collect();
     unmoved.functions[0].blocks[0]
         .instructions
-        .insert(2, member);
+        .splice(1..1, run);
     assert_eq!(
-        validate_fork_relocation(&source, 0, MOVING, T_TAIL, &environment, budget(), unmoved)
-            .unwrap_err(),
+        validate_fork_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            T_TAIL,
+            &environment,
+            budget(),
+            unmoved
+        )
+        .unwrap_err(),
         ForkRelocationError::ReplayMismatch
     );
     // A dropped instruction in the landing arm rejects.
     let mut dropped = result.transformed().clone();
     dropped.functions[0].blocks[1].instructions.pop();
     assert_eq!(
-        validate_fork_relocation(&source, 0, MOVING, T_TAIL, &environment, budget(), dropped)
-            .unwrap_err(),
+        validate_fork_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            T_TAIL,
+            &environment,
+            budget(),
+            dropped
+        )
+        .unwrap_err(),
         ForkRelocationError::ReplayMismatch
     );
     // An unrelated literal edit inside the source block rejects.
@@ -1804,8 +2068,17 @@ fn replay_rejects_anything_but_the_move() {
         value: IntegerValue::Unsigned(12),
     };
     assert_eq!(
-        validate_fork_relocation(&source, 0, MOVING, T_TAIL, &environment, budget(), edited)
-            .unwrap_err(),
+        validate_fork_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            T_TAIL,
+            &environment,
+            budget(),
+            edited
+        )
+        .unwrap_err(),
         ForkRelocationError::ReplayMismatch
     );
     // Naming a different window on the same proposal re-derives a
@@ -1814,7 +2087,8 @@ fn replay_rejects_anything_but_the_move() {
         validate_fork_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             T_HEAD,
             &environment,
             budget(),
@@ -1826,41 +2100,43 @@ fn replay_rejects_anything_but_the_move() {
 }
 
 /// The bounded audit is measured: the fork window prices every scan,
-/// crossed-surface pair, roster row, and the dead-path fixpoint bound
-/// against the work budget, and a budget one step short refuses rather
-/// than skimping. Landing at `T_TAIL` crosses one more arm position than
-/// landing at `T_HEAD`.
+/// crossed member-against-position surface pair, roster row, and the
+/// dead-path fixpoint bound against the work budget, and a budget one
+/// step short refuses rather than skimping. Landing at `T_TAIL` crosses
+/// one more arm position per member than landing at `T_HEAD`.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
-    // once across the plan (4+3+3+4 = 14), and again for this function's
-    // blocks (14). The crossed surfaces pair the member (1) against TRAIL
-    // (1) and the branch terminator (2 uses + 1 definition on x86-64):
-    // 2+4 = 6 steps. The dead-path bound prices each block's body,
-    // terminator, and edge surfaces once per member location plus the
-    // initial scan: on x86-64 the arm bodies cost 1 each, the jumps 2,
-    // the branch 3, and the return 9 — (3+3)+(2+2)+(2+2)+(3+9) = 26 —
-    // times one written member register plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 6 + 52;
+    // once across the plan (5+3+3+4 = 15), and again for this function's
+    // blocks (15). The crossed surfaces pair each member (1) against
+    // `TRAIL` (1) and the branch terminator (2 uses + 1 definition on
+    // x86-64): (2+4) per member = 12 steps. The dead-path bound prices
+    // each block's body, terminator, and edge surfaces once per run
+    // location plus the initial scan: on x86-64 the materializations cost
+    // 1 each, the jumps 2, the branch 3, and the return 9 —
+    // (4+3)+(2+2)+(2+2)+(3+9) = 27 — times two written member registers
+    // plus one: 27*3 = 81.
+    let steps: u64 = 15 + 15 + 12 + 81;
     let exact = measured_step_budget(steps);
-    relocate_selected_instruction_into_arm(&source, 0, MOVING, T_HEAD, &environment, exact)
+    relocate_selected_members_into_arm(&source, 0, RUN_A, RUN_B, T_HEAD, &environment, exact)
         .unwrap();
     let starved = measured_step_budget(steps - 1);
     assert_eq!(
-        relocate_selected_instruction_into_arm(&source, 0, MOVING, T_HEAD, &environment, starved,)
+        relocate_selected_members_into_arm(&source, 0, RUN_A, RUN_B, T_HEAD, &environment, starved,)
             .unwrap_err(),
         ForkRelocationError::WorkBudgetExceeded
     );
-    // Landing one position deeper crosses the arm head's surface pair.
-    let exact = measured_step_budget(steps + 2);
-    relocate_selected_instruction_into_arm(&source, 0, MOVING, T_TAIL, &environment, exact)
+    // Landing one position deeper crosses the arm head's surface pair per
+    // member.
+    let exact = measured_step_budget(steps + 4);
+    relocate_selected_members_into_arm(&source, 0, RUN_A, RUN_B, T_TAIL, &environment, exact)
         .unwrap();
-    let starved = measured_step_budget(steps + 1);
+    let starved = measured_step_budget(steps + 3);
     assert_eq!(
-        relocate_selected_instruction_into_arm(&source, 0, MOVING, T_TAIL, &environment, starved,)
+        relocate_selected_members_into_arm(&source, 0, RUN_A, RUN_B, T_TAIL, &environment, starved,)
             .unwrap_err(),
         ForkRelocationError::WorkBudgetExceeded
     );
@@ -1873,7 +2149,7 @@ fn target_mismatch_rejects() {
     let source = fixture(NativeTarget::linux_x64());
     let environment = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     assert_eq!(
-        relocate(&source, &environment, MOVING, T_HEAD).unwrap_err(),
+        relocate(&source, &environment, RUN_A, RUN_B, T_HEAD).unwrap_err(),
         ForkRelocationError::SourceMismatch
     );
 }
@@ -1881,37 +2157,34 @@ fn target_mismatch_rejects() {
 /// Two runs over the identical source produce the identical validated
 /// result, and the published plan is a legal second input through the
 /// sealed analysis boundary: the tail member sinks through the same fork
-/// onto it, a hazard-coupled member still declines, and an in-block family
-/// still admits.
+/// onto it, a hazard-coupled member still declines, and an in-block
+/// family still admits.
 #[test]
-fn fork_relocation_is_deterministic_and_re_admitted() {
+fn fork_run_relocation_is_deterministic_and_re_admitted() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let first = relocate(&source, &environment, MOVING, T_HEAD).unwrap();
-    let second = relocate(&source, &environment, MOVING, T_HEAD).unwrap();
+    let first = relocate(&source, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
+    let second = relocate(&source, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     assert_eq!(first, second);
     // The validated output carries the sealed analysis boundary, so it is
     // a legal second input — not merely a reconstruction of one. The tail
     // member sinks through the same fork onto it.
     let again =
-        relocate_selected_instruction_into_arm(&first, 0, TRAIL, T_TAIL, &environment, budget())
+        relocate_selected_members_into_arm(&first, 0, LEAD, TRAIL, T_TAIL, &environment, budget())
             .unwrap();
     assert_eq!(
-        again.transformed().functions[0].blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MOVING, T_HEAD, TRAIL, T_TAIL]
+        block_order(&again.transformed().functions[0].blocks[1]),
+        vec![RUN_A, RUN_B, T_HEAD, LEAD, TRAIL, T_TAIL]
     );
     assert_eq!(
         again.receipt().source_selected(),
         first.receipt().transformed_selected()
     );
-    // A hazard-coupled member still declines on the second input: once
-    // `MOVING` sits at T's head, `T_HEAD` reads `R_TRAIL` ahead of
-    // `T_TAIL`, so `TRAIL` cannot cross it to land on `T_TAIL`'s position.
+    // A hazard-coupled move still declines on the second input: once
+    // `RUN_A` and `RUN_B` sit at T's head, `T_HEAD` — reading `R_TRAIL`
+    // ahead of `T_TAIL` — refuses to let `TRAIL` cross it onto `T_TAIL`'s
+    // position.
     let coupled = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -1924,11 +2197,19 @@ fn fork_relocation_is_deterministic_and_re_admitted() {
             &[R_TRAIL, R_THEAD],
         );
     });
-    let moved = relocate(&coupled, &environment, MOVING, T_HEAD).unwrap();
+    let moved = relocate(&coupled, &environment, RUN_A, RUN_B, T_HEAD).unwrap();
     assert_eq!(
-        relocate_selected_instruction_into_arm(&moved, 0, TRAIL, T_TAIL, &environment, budget(),)
-            .unwrap_err(),
-        ForkRelocationError::UnsupportedPair
+        crate::rewrites::unexecuted::relocate_selected_members_into_arm(
+            &moved,
+            0,
+            TRAIL,
+            TRAIL,
+            T_TAIL,
+            &environment,
+            budget(),
+        )
+        .unwrap_err(),
+        crate::rewrites::unexecuted::ForkRelocationError::UnsupportedPair
     );
     // A different scheduling family still admits on the second input.
     let swapped = crate::rewrites::unexecuted::relocate_selected_member_run(
@@ -1942,11 +2223,7 @@ fn fork_relocation_is_deterministic_and_re_admitted() {
     )
     .unwrap();
     assert_eq!(
-        swapped.transformed().functions[0].blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
+        block_order(&swapped.transformed().functions[0].blocks[3]),
         vec![HEAD, TAIL, MID]
     );
 }
@@ -1958,38 +2235,39 @@ fn fork_relocation_is_deterministic_and_re_admitted() {
 /// restore-by-content comparison.
 mod independence_tests {
     use super::{
-        BLOCK_T, BlockId, F_TAIL, ForkRelocationError, MID, MOVING, NativeTarget, PlaceId, R_FTAIL,
-        R_MOVE, R_TRAIL, SelectedInstructionKind, SelectedInstructionPlan,
+        BLOCK_T, BlockId, F_TAIL, ForkRelocationError, MID, NativeTarget, PlaceId, R_FTAIL,
+        R_MOVE_A, R_TRAIL, RUN_A, RUN_B, SelectedInstructionKind, SelectedInstructionPlan,
         SelectedMemoryAccessRole, SelectedTerminator, T_HEAD, TRAIL, ValidatedForkRelocation,
         access, baseline_target_register_environment, budget, fixture, instruction, mutated,
         settlement, validate_fork_relocation,
     };
 
-    /// The edit a producer emitting `MOVING`'s fork relocation would
-    /// publish: the member leaves the branch block's body and lands on
-    /// `T_HEAD`'s index in the landing arm. Built by editing the source
-    /// plan directly — no admission runs.
+    /// The edit a producer emitting the `RUN_A..=RUN_B` fork run
+    /// relocation would publish: the run leaves the branch block's body
+    /// as one body and lands on `T_HEAD`'s index in the landing arm.
+    /// Built by editing the source plan directly — no admission runs.
     fn forged(source: &ValidatedForkRelocation) -> SelectedInstructionPlan {
         let mut proposed = source.transformed().clone();
         let function = &mut proposed.functions[0];
-        let moved = function.blocks[0].instructions.remove(1);
-        function.blocks[1].instructions.insert(0, moved);
+        let run: Vec<_> = function.blocks[0].instructions.drain(1..=2).collect();
+        function.blocks[1].instructions.splice(0..0, run);
         proposed
     }
 
-    /// A forged landing of the legal pair validates on the validator's
-    /// own audit: the reconstruction derives the branch block, the
-    /// landing arm, and the landing index from the source, and the
-    /// content restore reproduces the source bit-for-bit.
+    /// A forged landing of the legal triple validates on the validator's
+    /// own audit: the reconstruction derives the branch block, the run
+    /// span, the landing arm, and the landing index from the source, and
+    /// the content restore reproduces the source bit-for-bit.
     #[test]
-    fn forged_landing_of_a_legal_pair_validates() {
+    fn forged_landing_of_a_legal_triple_validates() {
         let target = NativeTarget::linux_x64();
         let environment = baseline_target_register_environment(target).unwrap();
         let source = fixture(target);
         validate_fork_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             T_HEAD,
             &environment,
             budget(),
@@ -1998,7 +2276,7 @@ mod independence_tests {
         .unwrap();
     }
 
-    /// A producer that admitted the pair with the member's write feeding
+    /// A producer that admitted the triple with a member's write feeding
     /// a crossed tail position would still publish this edit. The
     /// validator's own audit refuses with `UnsupportedPair`, not a replay
     /// mismatch, because it reconstructs the window coupling instead of
@@ -2012,18 +2290,19 @@ mod independence_tests {
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
                 .clone();
-            function.blocks[0].instructions[2] = instruction(
+            function.blocks[0].instructions[3] = instruction(
                 TRAIL,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_MOVE, R_TRAIL],
+                &[R_MOVE_A, R_TRAIL],
             );
         });
         assert_eq!(
             validate_fork_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 T_HEAD,
                 &environment,
                 budget(),
@@ -2044,7 +2323,7 @@ mod independence_tests {
         let environment = baseline_target_register_environment(target).unwrap();
         let source = mutated(target, |function, _| {
             function.memory_accesses.push(access(
-                MOVING,
+                RUN_A,
                 PlaceId::new(7).unwrap(),
                 SelectedMemoryAccessRole::ReadPlace,
             ));
@@ -2053,7 +2332,8 @@ mod independence_tests {
             validate_fork_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 T_HEAD,
                 &environment,
                 budget(),
@@ -2064,8 +2344,8 @@ mod independence_tests {
         );
     }
 
-    /// A producer that admitted the pair with a settlement observing the
-    /// member inside the arm's executed prefix would still publish this
+    /// A producer that admitted the triple with a settlement observing
+    /// the run inside the arm's executed prefix would still publish this
     /// edit. The validator's own audit refuses with `UnsupportedPair`
     /// because it reconstructs the settlement window itself.
     #[test]
@@ -2081,7 +2361,8 @@ mod independence_tests {
             validate_fork_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 T_HEAD,
                 &environment,
                 budget(),
@@ -2092,10 +2373,10 @@ mod independence_tests {
         );
     }
 
-    /// A producer that admitted the pair with the member's write still
+    /// A producer that admitted the triple with a member's write still
     /// live on the skipped path would still publish this edit. The
     /// validator's own dead-path audit refuses with `UnsupportedPair`:
-    /// `F_TAIL` reads `R_MOVE` on a traversal the member no longer
+    /// `F_TAIL` reads `R_MOVE_A` on a traversal the run no longer
     /// executes on.
     #[test]
     fn forged_sink_whose_write_survives_the_skipped_path_rejects_on_the_audit() {
@@ -2110,14 +2391,15 @@ mod independence_tests {
                 F_TAIL,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_MOVE, R_FTAIL],
+                &[R_MOVE_A, R_FTAIL],
             );
         });
         assert_eq!(
             validate_fork_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 T_HEAD,
                 &environment,
                 budget(),
@@ -2128,10 +2410,10 @@ mod independence_tests {
         );
     }
 
-    /// A producer that admitted the pair while a second predecessor also
-    /// reached the arm would still publish this edit — the arm's stream
-    /// would gain a member that never ran on that path. The validator's
-    /// own predecessor count refuses with `UnsupportedPair`.
+    /// A producer that admitted the triple while a second predecessor
+    /// also reached the arm would still publish this edit — the arm's
+    /// stream would gain a run that never ran on that path. The
+    /// validator's own predecessor count refuses with `UnsupportedPair`.
     #[test]
     fn forged_sink_into_a_shared_arm_rejects_on_the_audit() {
         let target = NativeTarget::linux_x64();
@@ -2148,7 +2430,8 @@ mod independence_tests {
             validate_fork_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 T_HEAD,
                 &environment,
                 budget(),
@@ -2161,7 +2444,7 @@ mod independence_tests {
 
     /// A forged proposal carrying an unrelated mutation — here a third
     /// roster row — fails the restore-by-content comparison even though
-    /// the member's move itself is shaped correctly.
+    /// the run's move itself is shaped correctly.
     #[test]
     fn forged_unrelated_roster_edit_rejects_as_replay() {
         let target = NativeTarget::linux_x64();
@@ -2174,8 +2457,17 @@ mod independence_tests {
             SelectedMemoryAccessRole::ReadPlace,
         ));
         assert_eq!(
-            validate_fork_relocation(&source, 0, MOVING, T_HEAD, &environment, budget(), proposed,)
-                .unwrap_err(),
+            validate_fork_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                T_HEAD,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
             ForkRelocationError::ReplayMismatch
         );
     }

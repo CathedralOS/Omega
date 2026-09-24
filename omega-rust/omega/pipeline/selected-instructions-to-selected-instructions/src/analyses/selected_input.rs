@@ -10,11 +10,11 @@ use crate::rewrites::unexecuted::peepholes::{
 use crate::rewrites::unexecuted::{
     ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
     ValidatedBoundaryBranch, ValidatedCommutingRelocation, ValidatedConfluenceRelocation,
-    ValidatedConfluenceRunRelocation, ValidatedConstantBoolean, ValidatedConstantBranch,
-    ValidatedDeadCompare, ValidatedDeadStoreElimination, ValidatedEquivalentCompare,
-    ValidatedForkRelocation, ValidatedForkRunRelocation, ValidatedInflowRelocation,
-    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedRedundantCompare,
-    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedDeadCompare,
+    ValidatedDeadStoreElimination, ValidatedEquivalentCompare, ValidatedForkRelocation,
+    ValidatedInflowRelocation, ValidatedInterchange, ValidatedMemberRunRelocation,
+    ValidatedRedundantCompare, ValidatedScheduledRelocation, ValidatedStoreMutationMotion,
+    ValidatedStoredLoadForwarding,
 };
 use crate::{
     ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
@@ -189,26 +189,6 @@ impl ValidatedSelectedAnalysis for ValidatedCommutingRelocation {
 impl sealed::Sealed for ValidatedConfluenceRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedConfluenceRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedConfluenceRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedConfluenceRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }
@@ -412,26 +392,6 @@ impl ValidatedSelectedAnalysis for ValidatedEquivalentCompare {
 impl sealed::Sealed for ValidatedForkRelocation {}
 
 impl ValidatedSelectedAnalysis for ValidatedForkRelocation {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedForkRunRelocation {}
-
-impl ValidatedSelectedAnalysis for ValidatedForkRunRelocation {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

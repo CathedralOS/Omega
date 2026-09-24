@@ -1,13 +1,15 @@
-//! Shared admission for fork relocation: locate the named `member` in one
+//! Shared admission for fork run relocation: locate the named
+//! `first_member` and `last_member` bounding one contiguous run inside a
 //! block's body, require that block to end in a two-successor conditional
-//! branch, locate the named `destination` in the one arm the branch's plain
-//! edges alone feed, and prove the move sound in both directions — the
-//! crossed window independent (no register or condition-state hazard
-//! between the member and any crossed position, no interference with the
-//! landing edge's register transports, no barrier, call, hosted effect, or
-//! call-roster entry inside the window, and no boundary settlement whose
-//! observed executed prefix changes) and every member-written location dead
-//! on every path the member no longer executes on.
+//! branch, locate the named `destination` in the one arm the branch's
+//! plain edges alone feed, and prove the move sound in both directions —
+//! the crossed window independent (no register or condition-state hazard
+//! between any member and any crossed position, no member interference
+//! with any landing edge's register transports, no barrier, call, hosted
+//! effect, or call-roster entry inside the window, and no boundary
+//! settlement whose observed executed prefix changes) and every
+//! member-written location dead on every path the run no longer executes
+//! on.
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
@@ -27,20 +29,23 @@ use crate::rewrites::window_hazards::{
 };
 
 pub(super) struct Admission {
-    /// The member's own block: the fork's branching head.
+    /// The run's own block: the fork's branching head.
     pub block_index: usize,
-    /// The member's index inside that block's body.
-    pub member_index: usize,
+    /// The run's first member index in the block body.
+    pub first_index: usize,
+    /// The run's last member index; the run is the contiguous span
+    /// `first_index..=last_index` of at least two members.
+    pub last_index: usize,
     /// The landing arm's index in `function.blocks`.
     pub target_index: usize,
-    /// The destination instruction's position in the arm body: the member
+    /// The destination instruction's position in the arm body: the run
     /// lands at this index. Naming the arm's terminator-carried
-    /// instruction lands the member at the body end, index
+    /// instruction lands the run at the body end, index
     /// `target.instructions.len()`.
     pub landing_index: usize,
 }
 
-/// Whether the member's effect is pure register and condition-state work
+/// Whether a member's effect is pure register and condition-state work
 /// that cannot observe or abandon the execution it leaves behind.
 /// `schedulable` already cleared barrier kinds, call contracts, and
 /// unaccounted memory-capable kinds, but a row-less load or private-slot
@@ -51,7 +56,9 @@ pub(super) struct Admission {
 /// obligations establish definedness for the source operation, but this
 /// audit runs at the selected level where the encoded trap behavior is
 /// the honest bound — an execution that could fault must still run on
-/// every path that ran it before.
+/// every path that ran it before. Every member of the run meets the bar
+/// independently: one impure member would shed its own effect on the
+/// same skipped paths.
 fn sinkable(instruction: &SelectedInstruction) -> bool {
     use selected_instructions::SelectedInstructionKind::*;
     !matches!(
@@ -91,7 +98,8 @@ fn landing_position(block: &SelectedBlock, destination: SelectedInstructionId) -
 pub(super) fn admit(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
-    member: SelectedInstructionId,
+    first_member: SelectedInstructionId,
+    last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
@@ -104,7 +112,7 @@ pub(super) fn admit(
         .functions
         .get(function_index)
         .ok_or(ForkRelocationError::SourceMismatch)?;
-    let (block_index, member_index) = function
+    let (block_index, first_index) = function
         .blocks
         .iter()
         .enumerate()
@@ -112,13 +120,24 @@ pub(super) fn admit(
             block
                 .instructions
                 .iter()
-                .position(|instruction| instruction.id == member)
-                .map(|member_index| (block_index, member_index))
+                .position(|instruction| instruction.id == first_member)
+                .map(|first_index| (block_index, first_index))
         })
         .ok_or(ForkRelocationError::SourceMismatch)?;
     let block = &function.blocks[block_index];
-    let member_instruction = &block.instructions[member_index];
-    // Only a two-successor conditional terminator gives the member's block
+    // The run is the contiguous span the two named members bound in this
+    // block, in the named order; a repeated id or a last member that does
+    // not follow the first names no multi-member run. A single member is
+    // the one-instruction fork relocation the sibling family already
+    // proves.
+    let last_index = block
+        .instructions
+        .iter()
+        .position(|instruction| instruction.id == last_member)
+        .filter(|position| *position >= first_index)
+        .ok_or(ForkRelocationError::UnsupportedPair)?;
+    let run = &block.instructions[first_index..=last_index];
+    // Only a two-successor conditional terminator gives the run's block
     // the fork this step sinks through; every other terminator shape is
     // the single-edge family's case or no relocation at all.
     let branch_edges: Vec<&SelectedSuccessor> = match &block.terminator {
@@ -146,9 +165,9 @@ pub(super) fn admit(
     };
     let terminator = terminator_instruction(&block.terminator);
     // The destination selects the landing arm: exactly one distinct branch
-    // target may name it, either as a body instruction — the member lands
-    // on its index — or as the target's terminator-carried instruction,
-    // landing the member at the body end.
+    // target may name it, either as a body instruction — the run lands on
+    // its index — or as the target's terminator-carried instruction,
+    // landing the run at the body end.
     let mut candidates: Vec<(usize, usize)> = Vec::new();
     for edge in &branch_edges {
         let Some(arm_index) = function
@@ -172,8 +191,8 @@ pub(super) fn admit(
     let landing_index = *landing_index;
     let target = &function.blocks[target_index];
     // The arm must be a plain source block the branch alone reaches: a
-    // second predecessor would hand the arm's stream a member that never
-    // ran on that path, the member's own block would make the move
+    // second predecessor would hand the arm's stream a run that never ran
+    // on that path, the run's own block would make the move
     // self-referential, the entry block is reached with no predecessor at
     // all, and an implementation block's origin carries edge or case work
     // the bounded audit does not cross.
@@ -194,9 +213,9 @@ pub(super) fn admit(
     {
         return Err(ForkRelocationError::UnsupportedPair);
     }
-    // The member physically crosses every branch edge into the arm: each
-    // must be a plain semantic successor, and its register transports sit
-    // between the member's old and new positions.
+    // The run physically crosses every branch edge into the arm: each must
+    // be a plain semantic successor, and its register transports sit
+    // between the run's old and new positions.
     let mut landing_edges: Vec<&SelectedSuccessor> = Vec::new();
     let mut skipped_edges: Vec<&SelectedSuccessor> = Vec::new();
     for edge in &branch_edges {
@@ -206,27 +225,30 @@ pub(super) fn admit(
             skipped_edges.push(*edge);
         }
     }
-    // The member's execution becomes conditional on the landing edge: only
+    // The run's execution becomes conditional on the landing edge: only
     // pure register and condition-state work may sink — a roster-carrying
     // or unaccounted memory access that ran on every traversal would run
     // only on the landing path after the move, and a row-less load or
-    // private-slot store would shed its access the same way.
-    if schedulable(function, member_instruction) != Some(false) || !sinkable(member_instruction) {
-        return Err(ForkRelocationError::UnsupportedInstruction);
+    // private-slot store would shed its access the same way. Every member
+    // meets the bar itself; the run then carries no roster rows at all.
+    for member in run {
+        if schedulable(function, member) != Some(false) || !sinkable(member) {
+            return Err(ForkRelocationError::UnsupportedInstruction);
+        }
     }
-    // The fork's window is structural: the member's block tail, the arm's
-    // head before the landing index, and the landing edges — each carried
-    // by the branch terminator as the edge's own position. The shared
-    // run-level audit proves the window independent once: schedulability
-    // and coupling against every crossed position and edge, plain-edge and
-    // transport checks, and the boundary-settlement refusal — replacing
-    // the per-shape spelling of the same checks.
+    // The fork's window is structural: the run block's tail behind the
+    // run, the arm's head before the landing index, and the landing edges
+    // — each carried by the branch terminator as the edge's own position.
+    // The shared run-level audit proves the window independent once:
+    // schedulability and coupling against every crossed position and edge,
+    // plain-edge and transport checks, and the boundary-settlement
+    // refusal — replacing the per-shape spelling of the same checks.
     let crossing = RelocationCrossing {
         reachable: true,
         positions: vec![
             (
                 block_index,
-                (member_index + 1..block.instructions.len()).collect(),
+                (last_index + 1..block.instructions.len()).collect(),
             ),
             (target_index, (0..landing_index).collect()),
         ],
@@ -239,33 +261,32 @@ pub(super) fn admit(
             })
             .collect(),
         run_block: block_index,
-        run_start: member_index,
-        run_end: member_index,
+        run_start: first_index,
+        run_end: last_index,
         destination_block: target_index,
         landing_index,
     };
-    admit_run_relocation(function, &[member_instruction], &crossing).map_err(|rejection| {
-        match rejection {
-            RunRelocationRejection::Unschedulable => ForkRelocationError::UnsupportedInstruction,
-            _ => ForkRelocationError::UnsupportedPair,
-        }
+    let members: Vec<&SelectedInstruction> = run.iter().collect();
+    admit_run_relocation(function, &members, &crossing).map_err(|rejection| match rejection {
+        RunRelocationRejection::Unschedulable => ForkRelocationError::UnsupportedInstruction,
+        _ => ForkRelocationError::UnsupportedPair,
     })?;
-    // The dead-path audit: every location the member writes must be dead —
+    // The dead-path audit: every location any member writes must be dead —
     // unread until rewritten — along every path leaving the branch's other
-    // edges.
+    // edges. The run publishes the union of its members' locations.
     if !skipped_edges.is_empty()
         && !dead_path::dead(
             function,
             dead_path::Relocation {
-                members: &[member_instruction],
+                members: &members,
                 vacated_block: block_index,
-                vacated_first: member_index,
-                vacated_last: member_index,
+                vacated_first: first_index,
+                vacated_last: last_index,
                 landing_block: target_index,
                 landing_index,
                 landing: dead_path::Landing::Executed,
-                // The vacated index stays silent: every position behind it
-                // in the head that could observe the missing write is a
+                // The vacated span stays silent: every position behind it
+                // in the head that could observe the missing writes is a
                 // crossed window position the hazard audit already owns.
                 vacated: dead_path::Vacated::Silent,
             },
@@ -275,14 +296,17 @@ pub(super) fn admit(
         return Err(ForkRelocationError::UnsupportedPair);
     }
     // The scan walks every block body and terminator instruction once to
-    // locate the member, and again with successor edges to count
-    // predecessor edges; the window audit walks the member's surface
-    // against each crossed position's; the dead-path audit rescans a
-    // block's stream and edge surfaces only while its entry set grows —
-    // at most once per member location per block.
-    let member_locations = register_writes(member_instruction).count()
-        + member_instruction.implicit_defs.len()
-        + member_instruction.clobbers.len();
+    // locate the run's first member, and again with successor edges to
+    // count predecessor edges; the window audit walks every
+    // member-against-crossed operand and unit surface; the dead-path
+    // audit rescans a block's stream and edge surfaces only while its
+    // entry set grows — at most once per member location per block.
+    let run_locations: usize = run
+        .iter()
+        .map(|member| {
+            register_writes(member).count() + member.implicit_defs.len() + member.clobbers.len()
+        })
+        .sum();
     let block_scan: usize = function
         .blocks
         .iter()
@@ -319,15 +343,17 @@ pub(super) fn admit(
             })
         })
         .and_then(|total| {
-            block.instructions[member_index + 1..]
-                .iter()
-                .chain(target.instructions[..landing_index].iter())
-                .chain(std::iter::once(terminator))
-                .try_fold(total, |total, crossed| {
-                    total
-                        .checked_add(surface(member_instruction))?
-                        .checked_add(surface(crossed))
-                })
+            run.iter().try_fold(total, |total, member| {
+                block.instructions[last_index + 1..]
+                    .iter()
+                    .chain(target.instructions[..landing_index].iter())
+                    .chain(std::iter::once(terminator))
+                    .try_fold(total, |total, crossed| {
+                        total
+                            .checked_add(surface(member))?
+                            .checked_add(surface(crossed))
+                    })
+            })
         })
         .and_then(|total| {
             total
@@ -336,12 +362,12 @@ pub(super) fn admit(
                 .checked_add(function.boundary_settlements.len())
         })
         .and_then(|total| {
-            landing_edges
-                .iter()
-                .try_fold(total, |total, edge| total.checked_add(edge.bindings.len()))
+            landing_edges.iter().try_fold(total, |total, edge| {
+                total.checked_add(edge.bindings.len().saturating_mul(run.len()))
+            })
         })
         .and_then(|total| {
-            total.checked_add(block_scan.saturating_mul(member_locations.saturating_add(1)))
+            total.checked_add(block_scan.saturating_mul(run_locations.saturating_add(1)))
         })
         .ok_or(ForkRelocationError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| ForkRelocationError::IdentityOverflow)?
@@ -351,7 +377,8 @@ pub(super) fn admit(
     }
     Ok(Admission {
         block_index,
-        member_index,
+        first_index,
+        last_index,
         target_index,
         landing_index,
     })
