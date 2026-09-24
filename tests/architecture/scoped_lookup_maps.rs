@@ -123,6 +123,11 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "binder spellings bound to intervals inside one judgment environment",
     ),
     (
+        "omega-rust/psi/semantics/validation/src/proof_contracts/immutable_integer_bounds.rs",
+        "whole-program local spellings bound to their one immutable declaration, \
+         preserving the scan's ambiguity verdict",
+    ),
+    (
         "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/arithmetic_judgment.rs",
         "polynomial variable spellings bound to coefficients inside one judgment",
     ),
