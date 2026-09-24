@@ -7,6 +7,12 @@
 /samples/*/build_win/
 /tests/omega/*/*/build/
 
+# Package-manager state is host-local: a sample's omega.lock names its
+# absolute checkout path, so a committed one fails in every other checkout
+# (tools/benchmark/README.md).
+/samples/**/omega.lock
+/samples/**/omega.admissions
+
 # Claude Code local worktrees, settings, and skill link; canonical skills are in .agents
 .claude/*
 
