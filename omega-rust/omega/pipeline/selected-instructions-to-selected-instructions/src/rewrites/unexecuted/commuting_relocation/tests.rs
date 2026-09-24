@@ -22,22 +22,24 @@ use terminal_psi::{
 
 use super::{
     CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation,
-    relocate_selected_commuting_member, validate_commuting_relocation,
+    relocate_selected_commuting_members, validate_commuting_relocation,
 };
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const STORE_A: SelectedInstructionId = SelectedInstructionId(2);
-const MAT_B: SelectedInstructionId = SelectedInstructionId(3);
-const LOAD_C: SelectedInstructionId = SelectedInstructionId(4);
-const MAT_D: SelectedInstructionId = SelectedInstructionId(5);
-const TERMINAL: SelectedInstructionId = SelectedInstructionId(6);
+const LOAD_B: SelectedInstructionId = SelectedInstructionId(3);
+const MAT_C: SelectedInstructionId = SelectedInstructionId(4);
+const LOAD_D: SelectedInstructionId = SelectedInstructionId(5);
+const MAT_E: SelectedInstructionId = SelectedInstructionId(6);
+const TERMINAL: SelectedInstructionId = SelectedInstructionId(7);
 
 const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const FIRST: VirtualRegisterId = VirtualRegisterId(1);
 const SECOND: VirtualRegisterId = VirtualRegisterId(2);
 const THIRD: VirtualRegisterId = VirtualRegisterId(3);
 const FOURTH: VirtualRegisterId = VirtualRegisterId(4);
+const FIFTH: VirtualRegisterId = VirtualRegisterId(5);
 
 fn register(
     id: VirtualRegisterId,
@@ -111,11 +113,12 @@ fn settlement(position: u32, operation: u64) -> SelectedBoundarySettlement {
 }
 
 /// A raw selected-stage unit fixture, not a source/Terminal admission claim:
-/// `*r0+0 = r1; r2 = 5; r3 = *r0+16; r4 = 9; return`. The named pair the
-/// tests relocate are the store `STORE_A` at position 0 and the load
-/// `LOAD_C` at position 2 around the inert interior `MAT_B`, with `MAT_D`
-/// after the window and `r0` an entry parameter so both address operands
-/// have no in-body producer. The store and the load reach distinct places.
+/// `*r0+0 = r1; r2 = *r0+16; r3 = 13; r4 = *r0+24; r5 = 7; return`. The run
+/// the tests relocate is the `STORE_A; LOAD_B` pair at positions 0 and 1 —
+/// each carrying one roster row on its own place — around the inert
+/// interior `MAT_C` and the accounted `LOAD_D` at position 3, with `MAT_E`
+/// after the window and `r0` an entry parameter so every address operand
+/// has no in-body producer. The store and both loads reach distinct places.
 fn fixture(target: NativeTarget) -> ValidatedCommutingRelocation {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
@@ -138,9 +141,10 @@ fn fixture(target: NativeTarget) -> ValidatedCommutingRelocation {
             entry_fixed_view: None,
         },
         register(FIRST, class, STORE_A, 2),
-        register(SECOND, class, MAT_B, 3),
-        register(THIRD, class, LOAD_C, 4),
-        register(FOURTH, class, MAT_D, 5),
+        register(SECOND, class, LOAD_B, 3),
+        register(THIRD, class, MAT_C, 4),
+        register(FOURTH, class, LOAD_D, 5),
+        register(FIFTH, class, MAT_E, 6),
     ];
     let instructions = vec![
         instruction(
@@ -153,26 +157,32 @@ fn fixture(target: NativeTarget) -> ValidatedCommutingRelocation {
             &[POINTER, FIRST],
         ),
         instruction(
-            MAT_B,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(5),
-            },
-            materialize,
-            &[SECOND],
-        ),
-        instruction(
-            LOAD_C,
+            LOAD_B,
             SelectedInstructionKind::Load8 { byte_offset: 16 },
             load,
-            &[POINTER, THIRD],
+            &[POINTER, SECOND],
         ),
         instruction(
-            MAT_D,
+            MAT_C,
             SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(9),
+                value: IntegerValue::Unsigned(13),
             },
             materialize,
-            &[FOURTH],
+            &[THIRD],
+        ),
+        instruction(
+            LOAD_D,
+            SelectedInstructionKind::Load8 { byte_offset: 24 },
+            load,
+            &[POINTER, FOURTH],
+        ),
+        instruction(
+            MAT_E,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(7),
+            },
+            materialize,
+            &[FIFTH],
         ),
     ];
     let machine = MachineId::new(1).unwrap();
@@ -195,7 +205,8 @@ fn fixture(target: NativeTarget) -> ValidatedCommutingRelocation {
             normalized_foreign_calls: Vec::new(),
             memory_accesses: vec![
                 access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-                access(LOAD_C, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+                access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+                access(LOAD_D, 3, SelectedMemoryAccessRole::ReadPlace, 24, 8),
             ],
             boundary_settlements: Vec::new(),
             entry_block: SelectedBlockId(0),
@@ -248,20 +259,62 @@ fn mutated(
 fn relocate(
     source: &ValidatedCommutingRelocation,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    member: SelectedInstructionId,
+    first_member: SelectedInstructionId,
+    last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
 ) -> Result<ValidatedCommutingRelocation, CommutingRelocationError> {
-    relocate_selected_commuting_member(source, 0, member, destination, environment, budget())
+    relocate_selected_commuting_members(
+        source,
+        0,
+        first_member,
+        last_member,
+        destination,
+        environment,
+        budget(),
+    )
 }
 
-/// An accounted store relocates past an inert position and an accounted
-/// load on every target — downward to the destination's index and upward
-/// back again: the member keeps its identity, kind, operands, and
-/// provenance, the crossed run keeps its relative order shifted one slot,
-/// and the roster's window rows follow the new execution order while the
-/// receipt binds both identities.
+/// A run bounded by one member twice is the single-member move, which the
+/// separate commuting member relocation proved on its own: STORE_A alone
+/// takes LOAD_D's position, crossing the inert MAT_C and the accounted
+/// LOAD_D under the same commutation audit. The run's own member keeps its
+/// identity and the crossed positions shift one slot.
 #[test]
-fn commuting_member_relocates_on_every_target() {
+fn a_run_of_one_member_is_the_member_relocation() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let result = relocate(&source, &environment, STORE_A, STORE_A, LOAD_D).unwrap();
+    let original = &source.transformed().functions[0].blocks[0].instructions;
+    let body = &result.transformed().functions[0].blocks[0].instructions;
+    assert_eq!(
+        body.iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![LOAD_B, MAT_C, LOAD_D, STORE_A, MAT_E]
+    );
+    assert_eq!(body[3], original[0]);
+    validate_commuting_relocation(
+        &source,
+        0,
+        STORE_A,
+        STORE_A,
+        LOAD_D,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// An accounted run relocates past an inert position and an accounted load
+/// on every target — downward to the destination's index and upward across
+/// a crossed run — the members keeping their identity, kind, operands,
+/// provenance, and relative order, the crossed positions keeping theirs
+/// shifted one run-width, and the roster's window rows following the new
+/// execution order while the receipt binds both identities.
+#[test]
+fn commuting_run_relocates_on_every_target() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -270,27 +323,29 @@ fn commuting_member_relocates_on_every_target() {
     ] {
         let environment = baseline_target_register_environment(target).unwrap();
         let source = fixture(target);
-        let result = relocate(&source, &environment, STORE_A, LOAD_C).unwrap();
+        let result = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
         let original = &source.transformed().functions[0].blocks[0].instructions;
         let body = &result.transformed().functions[0].blocks[0].instructions;
         assert_eq!(
             body.iter()
                 .map(|instruction| instruction.id)
                 .collect::<Vec<_>>(),
-            vec![MAT_B, LOAD_C, STORE_A, MAT_D]
+            vec![MAT_C, LOAD_D, STORE_A, LOAD_B, MAT_E]
         );
-        assert_eq!(body[0], original[1]);
-        assert_eq!(body[1], original[2]);
+        assert_eq!(body[0], original[2]);
+        assert_eq!(body[1], original[3]);
         assert_eq!(body[2], original[0]);
-        assert_eq!(body[3], original[3]);
-        // The roster followed the new execution order: LOAD_C's row now
-        // leads the window and STORE_A's closes it, each row itself
-        // bit-identical.
+        assert_eq!(body[3], original[1]);
+        assert_eq!(body[4], original[4]);
+        // The roster followed the new execution order: LOAD_D's row now
+        // leads the window and the run's rows close it in member order,
+        // each row itself bit-identical.
         let roster = &result.transformed().functions[0].memory_accesses;
         let source_roster = &source.transformed().functions[0].memory_accesses;
         assert_eq!(roster.len(), source_roster.len());
-        assert_eq!(roster[0], source_roster[1]);
+        assert_eq!(roster[0], source_roster[2]);
         assert_eq!(roster[1], source_roster[0]);
+        assert_eq!(roster[2], source_roster[1]);
         assert_eq!(
             result.receipt().source_selected(),
             source.selected_identity()
@@ -307,22 +362,25 @@ fn commuting_member_relocates_on_every_target() {
             result.receipt().fuel_schedule(),
             source.fuel_schedule_identity()
         );
-        // The upward direction relocates the load onto the store's index.
-        let upward = relocate(&source, &environment, LOAD_C, STORE_A).unwrap();
+        // The upward direction relocates the trailing `LOAD_D; MAT_E` run
+        // onto the store's index: the row-less member rides inside the run
+        // while the load's row trades order with both run members' rows.
+        let upward = relocate(&source, &environment, LOAD_D, MAT_E, STORE_A).unwrap();
         let body = &upward.transformed().functions[0].blocks[0].instructions;
         assert_eq!(
             body.iter()
                 .map(|instruction| instruction.id)
                 .collect::<Vec<_>>(),
-            vec![LOAD_C, STORE_A, MAT_B, MAT_D]
+            vec![LOAD_D, MAT_E, STORE_A, LOAD_B, MAT_C]
         );
         let roster = &upward.transformed().functions[0].memory_accesses;
-        assert_eq!(roster[0].instruction, LOAD_C);
+        assert_eq!(roster[0].instruction, LOAD_D);
         assert_eq!(roster[1].instruction, STORE_A);
+        assert_eq!(roster[2].instruction, LOAD_B);
     }
 }
 
-/// The family's accounting rule admits every commuting row shape the local
+/// The family's accounting rule admits every commuting row shape the run
 /// relocation refused: two reads of one place, a read against a write on a
 /// disjoint extent of one place, a write into staging storage distinct
 /// from any place, and a dynamic-extent read against a write on a
@@ -332,17 +390,19 @@ fn commuting_member_relocates_on_every_target() {
 fn commuting_access_shapes_admit() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // A store against a read of the same place's disjoint bytes.
+    // A member's store against a crossed read of the same place's disjoint
+    // bytes.
     let disjoint = mutated(target, |function, _| {
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_D, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8),
         ];
     });
-    relocate(&disjoint, &environment, STORE_A, LOAD_C).unwrap();
-    // A write into a boundary slot is storage distinct from any place:
-    // the slot is never a place's own storage, so the staged bytes never
-    // reach the place's bytes.
+    relocate(&disjoint, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
+    // A member's write into a boundary slot is storage distinct from any
+    // place: the slot is never a place's own storage, so the staged bytes
+    // never reach the place's bytes.
     let staged = mutated(target, |function, _| {
         function.memory_accesses = vec![
             access(
@@ -356,17 +416,31 @@ fn commuting_access_shapes_admit() {
                 0,
                 8,
             ),
-            access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_D, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8),
         ];
     });
-    relocate(&staged, &environment, STORE_A, LOAD_C).unwrap();
-    // A dynamic-extent read commutes with a write whose reach it provably
-    // never shares — here a different place entirely.
-    let span = mutated(target, |function, _| {
+    relocate(&staged, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
+    // A dynamic-extent member read commutes with a crossed write whose
+    // reach it provably never shares — here a different place entirely.
+    let span = mutated(target, |function, environment| {
+        let store = environment
+            .constraint(environment.selected_keys().store.unwrap())
+            .unwrap()
+            .clone();
+        function.blocks[0].instructions[3] = instruction(
+            LOAD_D,
+            SelectedInstructionKind::Store {
+                byte_offset: 24,
+                byte_size: 8,
+            },
+            &store,
+            &[POINTER, FOURTH],
+        );
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
             dynamic_access(
-                LOAD_C,
+                LOAD_B,
                 2,
                 SelectedMemoryAccessRole::ReadByteSpan {
                     length: ValueId::new(11).unwrap(),
@@ -376,30 +450,22 @@ fn commuting_access_shapes_admit() {
                     ),
                 },
             ),
+            access(LOAD_D, 3, SelectedMemoryAccessRole::WritePlace, 24, 8),
         ];
     });
-    relocate(&span, &environment, STORE_A, LOAD_C).unwrap();
+    relocate(&span, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
     // Two reads of one place: neither changes what the other observes.
-    let reads = mutated(target, |function, environment| {
-        let load = environment
-            .constraint(environment.selected_keys().load8.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[0].instructions[0] = instruction(
-            STORE_A,
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            &load,
-            &[POINTER, FIRST],
-        );
+    let reads = mutated(target, |function, _| {
         function.memory_accesses = vec![
-            access(STORE_A, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
-            access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
+            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_D, 2, SelectedMemoryAccessRole::ReadPlace, 40, 8),
         ];
     });
-    let result = relocate(&reads, &environment, STORE_A, LOAD_C).unwrap();
+    let result = relocate(&reads, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
     assert_eq!(
         result.transformed().functions[0].memory_accesses[0].instruction,
-        LOAD_C
+        LOAD_D
     );
 }
 
@@ -412,50 +478,53 @@ fn commuting_access_shapes_admit() {
 fn noncommuting_accesses_reject() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // Overlapping fixed extents on one place: the member's write against
-    // the crossed read of the same bytes.
+    // Overlapping fixed extents on one place: a member's write against the
+    // crossed read of the same bytes.
     let overlapping = mutated(target, |function, _| {
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 4, 8),
-            access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_D, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
         ];
     });
     assert_eq!(
-        relocate(&overlapping, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&overlapping, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // Two writes on one place's shared extent: either order changes the
-    // bytes both leave behind.
+    // A member's write against a crossed write on one place's shared
+    // extent: either order changes the bytes both leave behind.
     let writes = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
             .unwrap()
             .clone();
-        function.blocks[0].instructions[2] = instruction(
-            LOAD_C,
+        function.blocks[0].instructions[3] = instruction(
+            LOAD_D,
             SelectedInstructionKind::Store {
                 byte_offset: 8,
                 byte_size: 8,
             },
             &store,
-            &[POINTER, THIRD],
+            &[POINTER, FOURTH],
         );
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 16),
-            access(LOAD_C, 1, SelectedMemoryAccessRole::WritePlace, 8, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_D, 1, SelectedMemoryAccessRole::WritePlace, 8, 8),
         ];
     });
     assert_eq!(
-        relocate(&writes, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&writes, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // A dynamic-extent span cannot be bounded away from the member's write
+    // A dynamic-extent span cannot be bounded away from a member's write
     // on the same place even though its own recorded extent is empty.
     let span = mutated(target, |function, _| {
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 64, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
             dynamic_access(
-                LOAD_C,
+                LOAD_D,
                 1,
                 SelectedMemoryAccessRole::ReadByteSpan {
                     length: ValueId::new(11).unwrap(),
@@ -468,41 +537,42 @@ fn noncommuting_accesses_reject() {
         ];
     });
     assert_eq!(
-        relocate(&span, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&span, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // The member's row against an accounted interior position refuses
-    // under the same rule: the write trades order with the interior's
+    // A member's row against an accounted interior position refuses under
+    // the same rule: the store's write trades order with the interior's
     // read of the same bytes.
     let interior = mutated(target, |function, environment| {
         let load = environment
             .constraint(environment.selected_keys().load8.unwrap())
             .unwrap()
             .clone();
-        function.blocks[0].instructions[1] = instruction(
-            MAT_B,
+        function.blocks[0].instructions[2] = instruction(
+            MAT_C,
             SelectedInstructionKind::Load8 { byte_offset: 0 },
             &load,
-            &[POINTER, SECOND],
+            &[POINTER, THIRD],
         );
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(MAT_B, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
-            access(LOAD_C, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(MAT_C, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8),
+            access(LOAD_D, 3, SelectedMemoryAccessRole::ReadPlace, 24, 8),
         ];
     });
     assert_eq!(
-        relocate(&interior, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&interior, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
 }
 
-/// The local relocation's own accounting cases stay with it: a window
-/// whose trading pairs carry no rowed-vs-rowed trade — no rows at all, or
-/// rows on only one side — is `UnsupportedPair` here even though the
+/// The run relocation's own accounting cases stay with it: a window whose
+/// trading pairs carry no rowed-vs-rowed trade — no rows at all, or rows
+/// on only one side — is `UnsupportedPair` here even though the
 /// commutation audit is vacuously satisfied.
 #[test]
-fn rowless_windows_belong_to_the_local_relocation() {
+fn rowless_windows_belong_to_the_run_relocation() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // No rows at all: the plain relocation case. The member keeps an
@@ -522,26 +592,22 @@ fn rowless_windows_belong_to_the_local_relocation() {
         function.memory_accesses = Vec::new();
     });
     assert_eq!(
-        relocate(&bare, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&bare, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // A rowed member against row-less positions: the single-actor case.
+    // A rowed run against row-less positions: the single-actor case.
     let one_side = mutated(target, |function, _| {
-        function.memory_accesses = vec![access(
-            STORE_A,
-            1,
-            SelectedMemoryAccessRole::WritePlace,
-            0,
-            8,
-        )];
+        function.memory_accesses = vec![
+            access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+        ];
     });
     assert_eq!(
-        relocate(&one_side, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&one_side, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // A rowed crossed run alone admits in the plain family when the member
-    // is row-less; here the member rows but every crossed position is
-    // row-less.
+    // A rowed crossed run alone admits in the plain family when the run is
+    // row-less; here the run rows but every crossed position is row-less.
     let crossed_only = mutated(target, |function, environment| {
         let load = environment
             .constraint(environment.selected_keys().load8.unwrap())
@@ -549,88 +615,78 @@ fn rowless_windows_belong_to_the_local_relocation() {
             .clone();
         function.blocks[0].instructions[0] = instruction(
             STORE_A,
-            SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(3),
-            },
-            &environment
-                .constraint(environment.selected_keys().materialize_i64)
-                .unwrap()
-                .clone(),
-            &[FIRST],
-        );
-        function.blocks[0].instructions[1] = instruction(
-            MAT_B,
-            SelectedInstructionKind::Load8 { byte_offset: 24 },
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
             &load,
-            &[POINTER, SECOND],
+            &[POINTER, FIRST],
+        );
+        function.blocks[0].instructions[2] = instruction(
+            MAT_C,
+            SelectedInstructionKind::Load8 { byte_offset: 8 },
+            &load,
+            &[POINTER, THIRD],
         );
         function.memory_accesses = vec![
-            access(MAT_B, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8),
-            access(LOAD_C, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(MAT_C, 1, SelectedMemoryAccessRole::ReadPlace, 8, 8),
+            access(LOAD_D, 3, SelectedMemoryAccessRole::ReadPlace, 24, 8),
         ];
     });
     assert_eq!(
-        relocate(&crossed_only, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&crossed_only, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
 }
 
-/// Register and condition-state hazards keep the local relocation's audit
-/// unchanged: a crossed position writing a register the member reads — or
-/// reading one the member writes — refuses the move.
+/// Register and condition-state hazards keep the run relocation's audit
+/// unchanged: a crossed position writing a register a member reads — or
+/// reading one a member writes — refuses the move.
 #[test]
 fn register_hazards_reject() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // The interior now defines POINTER, which both the store and the load
-    // read as their address: relocating the member past it would observe
-    // the wrong address.
+    // The interior now defines POINTER, which the store and the load both
+    // read as their address: relocating the run past it would observe the
+    // wrong address.
     let hazard = mutated(target, |function, environment| {
         let add = environment
             .constraint(environment.selected_keys().add_i64)
             .unwrap()
             .clone();
-        function.blocks[0].instructions[1] = instruction(
-            MAT_B,
+        function.blocks[0].instructions[2] = instruction(
+            MAT_C,
             SelectedInstructionKind::WrappingAddI64,
             &add,
-            &[SECOND, FIRST, POINTER],
+            &[THIRD, FIRST, POINTER],
         );
     });
     assert_eq!(
-        relocate(&hazard, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&hazard, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
-    // The destination writes the register the member reads as its stored
-    // value: relocating the member past it stores the wrong bytes.
+    // The destination writes the register a member reads as its stored
+    // value: relocating the run past it stores the wrong bytes. The
+    // destination's own roster row keeps the window's rowed trade.
     let reader = mutated(target, |function, environment| {
         let add = environment
             .constraint(environment.selected_keys().add_i64)
             .unwrap()
             .clone();
-        function.blocks[0].instructions[2] = instruction(
-            LOAD_C,
+        function.blocks[0].instructions[3] = instruction(
+            LOAD_D,
             SelectedInstructionKind::WrappingAddI64,
             &add,
             &[THIRD, FOURTH, FIRST],
         );
-        function
-            .memory_accesses
-            .retain(|access| access.instruction != LOAD_C);
-        function
-            .memory_accesses
-            .push(access(MAT_B, 1, SelectedMemoryAccessRole::ReadPlace, 24, 8));
     });
     assert_eq!(
-        relocate(&reader, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&reader, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
 }
 
 /// A boundary settlement inside the window's span observes a different
-/// executed prefix once the member relocates and refuses; a settlement at
-/// the window's own first index or past its end sees the same executed
-/// set and admits.
+/// executed prefix once the run relocates and refuses; a settlement at the
+/// window's own first index or past its end sees the same executed set and
+/// admits.
 #[test]
 fn interior_settlements_reject() {
     let target = NativeTarget::linux_x64();
@@ -644,21 +700,21 @@ fn interior_settlements_reject() {
             source: ValueId::new(9).unwrap(),
         },
     };
-    for position in [1, 2] {
+    for position in [1, 2, 3] {
         let source = mutated(target, |function, _| {
             function.boundary_settlements.push(settlement(position));
         });
         assert_eq!(
-            relocate(&source, &environment, STORE_A, LOAD_C).unwrap_err(),
+            relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
             CommutingRelocationError::UnsupportedPair,
             "settlement at {position}"
         );
     }
     let outside = mutated(target, |function, _| {
         function.boundary_settlements.push(settlement(0));
-        function.boundary_settlements.push(settlement(3));
+        function.boundary_settlements.push(settlement(4));
     });
-    relocate(&outside, &environment, STORE_A, LOAD_C).unwrap();
+    relocate(&outside, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
 }
 
 /// A memory-capable kind without a roster row is an unaccounted access
@@ -668,7 +724,7 @@ fn interior_settlements_reject() {
 fn unaccounted_and_barrier_positions_reject() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    for position in [0, 1, 2] {
+    for position in [0, 2, 3] {
         let bare = mutated(target, |function, environment| {
             let store = environment
                 .constraint(environment.selected_keys().store.unwrap())
@@ -690,7 +746,7 @@ fn unaccounted_and_barrier_positions_reject() {
                 .retain(|access| access.instruction != id);
         });
         assert_eq!(
-            relocate(&bare, &environment, STORE_A, LOAD_C).unwrap_err(),
+            relocate(&bare, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
             CommutingRelocationError::UnsupportedInstruction,
             "position {position}"
         );
@@ -703,10 +759,10 @@ fn unaccounted_and_barrier_positions_reject() {
         SelectedInstructionKind::HostedExitProcessI32,
     ] {
         let source = mutated(target, |function, _| {
-            function.blocks[0].instructions[1].kind = kind;
+            function.blocks[0].instructions[2].kind = kind;
         });
         assert_eq!(
-            relocate(&source, &environment, STORE_A, LOAD_C).unwrap_err(),
+            relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
             CommutingRelocationError::UnsupportedInstruction,
             "kind {kind:?}"
         );
@@ -714,7 +770,7 @@ fn unaccounted_and_barrier_positions_reject() {
     let call_row =
         mutated(target, |function, _| {
             function.calls.push(SelectedCallContract {
-            instruction: MAT_B,
+            instruction: MAT_C,
             operation: OperationId::new(41).unwrap(),
             call: legalized_operations::LegalizedScalarCall {
                 source: legalized_operations::NativeCallOrigin::Authored,
@@ -744,47 +800,77 @@ fn unaccounted_and_barrier_positions_reject() {
         });
         });
     assert_eq!(
-        relocate(&call_row, &environment, STORE_A, LOAD_C).unwrap_err(),
+        relocate(&call_row, &environment, STORE_A, LOAD_B, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedInstruction
     );
 }
 
-/// A source the admission cannot locate — an absent member or
-/// destination, the destination at the member's own position, a missing
-/// function, a different target — reports its own reason, and an
+/// A source the admission cannot locate — an absent or misordered member,
+/// a one-member run, a destination inside the run or outside the body, a
+/// missing function, a different target — reports its own reason, and an
 /// exhausted work budget reports `WorkBudgetExceeded`.
 #[test]
 fn admission_reports_its_own_reasons() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
+    // A destination inside the run names a member's own position.
     assert_eq!(
-        relocate(&source, &environment, STORE_A, TERMINAL).unwrap_err(),
+        relocate(&source, &environment, STORE_A, LOAD_D, LOAD_B).unwrap_err(),
+        CommutingRelocationError::UnsupportedPair
+    );
+    // A destination outside the block body names no in-block window.
+    assert_eq!(
+        relocate(&source, &environment, STORE_A, LOAD_B, TERMINAL).unwrap_err(),
+        CommutingRelocationError::UnsupportedPair
+    );
+    // A last member that does not follow the first names no run.
+    assert_eq!(
+        relocate(&source, &environment, LOAD_B, STORE_A, LOAD_D).unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
     assert_eq!(
-        relocate(&source, &environment, STORE_A, STORE_A).unwrap_err(),
-        CommutingRelocationError::UnsupportedPair
-    );
-    assert_eq!(
-        relocate(&source, &environment, SelectedInstructionId(77), LOAD_C).unwrap_err(),
+        relocate(
+            &source,
+            &environment,
+            SelectedInstructionId(77),
+            LOAD_B,
+            LOAD_D
+        )
+        .unwrap_err(),
         CommutingRelocationError::SourceMismatch
     );
     assert_eq!(
-        relocate_selected_commuting_member(&source, 7, STORE_A, LOAD_C, &environment, budget())
-            .unwrap_err(),
+        relocate_selected_commuting_members(
+            &source,
+            7,
+            STORE_A,
+            LOAD_B,
+            LOAD_D,
+            &environment,
+            budget()
+        )
+        .unwrap_err(),
         CommutingRelocationError::SourceMismatch
     );
     let arm64 = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     assert_eq!(
-        relocate_selected_commuting_member(&source, 0, STORE_A, LOAD_C, &arm64, budget())
+        relocate_selected_commuting_members(&source, 0, STORE_A, LOAD_B, LOAD_D, &arm64, budget())
             .unwrap_err(),
         CommutingRelocationError::SourceMismatch
     );
     let tight = measured_step_budget(1);
     assert_eq!(
-        relocate_selected_commuting_member(&source, 0, STORE_A, LOAD_C, &environment, tight)
-            .unwrap_err(),
+        relocate_selected_commuting_members(
+            &source,
+            0,
+            STORE_A,
+            LOAD_B,
+            LOAD_D,
+            &environment,
+            tight
+        )
+        .unwrap_err(),
         CommutingRelocationError::WorkBudgetExceeded
     );
 }
@@ -799,12 +885,13 @@ fn replay_restores_the_source_by_content() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, STORE_A, LOAD_C).unwrap();
+    let result = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
     let reproposed = validate_commuting_relocation(
         &source,
         0,
         STORE_A,
-        LOAD_C,
+        LOAD_B,
+        LOAD_D,
         &environment,
         budget(),
         result.transformed().clone(),
@@ -822,7 +909,8 @@ fn replay_restores_the_source_by_content() {
             &source,
             0,
             STORE_A,
-            LOAD_C,
+            LOAD_B,
+            LOAD_D,
             &environment,
             budget(),
             stale_roster
@@ -839,7 +927,8 @@ fn replay_restores_the_source_by_content() {
             &source,
             0,
             STORE_A,
-            LOAD_C,
+            LOAD_B,
+            LOAD_D,
             &environment,
             budget(),
             stale_body
@@ -847,24 +936,33 @@ fn replay_restores_the_source_by_content() {
         .unwrap_err(),
         CommutingRelocationError::ReplayMismatch
     );
-    // Any unrelated mutation — here a third roster row — fails the
+    // Any unrelated mutation — here a fourth roster row — fails the
     // restore-by-content comparison.
     let mut extra = result.transformed().clone();
     extra.functions[0].memory_accesses.push(access(
-        MAT_D,
-        3,
+        MAT_E,
+        4,
         SelectedMemoryAccessRole::ReadPlace,
         0,
         8,
     ));
     assert_eq!(
-        validate_commuting_relocation(&source, 0, STORE_A, LOAD_C, &environment, budget(), extra)
-            .unwrap_err(),
+        validate_commuting_relocation(
+            &source,
+            0,
+            STORE_A,
+            LOAD_B,
+            LOAD_D,
+            &environment,
+            budget(),
+            extra
+        )
+        .unwrap_err(),
         CommutingRelocationError::ReplayMismatch
     );
 }
 
-/// An adjacent destination is the distance-one case: the member and the
+/// An adjacent destination is the distance-one case: the run and the
 /// accounted position it lands on trade places directly with an empty
 /// interior, and the roster rows of positions outside the window keep
 /// their places.
@@ -877,30 +975,32 @@ fn adjacent_destination_relocates() {
             .constraint(environment.selected_keys().load8.unwrap())
             .unwrap()
             .clone();
-        function.blocks[0].instructions[1] = instruction(
-            MAT_B,
-            SelectedInstructionKind::Load8 { byte_offset: 24 },
+        function.blocks[0].instructions[2] = instruction(
+            MAT_C,
+            SelectedInstructionKind::Load8 { byte_offset: 32 },
             &load,
-            &[POINTER, SECOND],
+            &[POINTER, THIRD],
         );
         function.memory_accesses = vec![
             access(STORE_A, 1, SelectedMemoryAccessRole::WritePlace, 0, 8),
-            access(MAT_B, 2, SelectedMemoryAccessRole::ReadPlace, 24, 8),
-            access(LOAD_C, 3, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(LOAD_B, 2, SelectedMemoryAccessRole::ReadPlace, 16, 8),
+            access(MAT_C, 4, SelectedMemoryAccessRole::ReadPlace, 32, 8),
+            access(LOAD_D, 3, SelectedMemoryAccessRole::ReadPlace, 24, 8),
         ];
     });
-    let result = relocate(&source, &environment, STORE_A, MAT_B).unwrap();
+    let result = relocate(&source, &environment, STORE_A, LOAD_B, MAT_C).unwrap();
     let body = &result.transformed().functions[0].blocks[0].instructions;
     assert_eq!(
         body.iter()
             .map(|instruction| instruction.id)
             .collect::<Vec<_>>(),
-        vec![MAT_B, STORE_A, LOAD_C, MAT_D]
+        vec![MAT_C, STORE_A, LOAD_B, LOAD_D, MAT_E]
     );
     let roster = &result.transformed().functions[0].memory_accesses;
-    assert_eq!(roster[0].instruction, MAT_B);
+    assert_eq!(roster[0].instruction, MAT_C);
     assert_eq!(roster[1].instruction, STORE_A);
-    assert_eq!(roster[2].instruction, LOAD_C);
+    assert_eq!(roster[2].instruction, LOAD_B);
+    assert_eq!(roster[3].instruction, LOAD_D);
 }
 
 /// The admission walk is bounded by the validation budget: a plan whose
@@ -911,11 +1011,12 @@ fn work_budget_bounds_the_scan() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     assert_eq!(
-        relocate_selected_commuting_member(
+        relocate_selected_commuting_members(
             &source,
             0,
             STORE_A,
-            LOAD_C,
+            LOAD_B,
+            LOAD_D,
             &environment,
             OptimizationWorkBudget::new(100, 100, 1, 100, 100).unwrap(),
         )
@@ -926,11 +1027,11 @@ fn work_budget_bounds_the_scan() {
 
 /// The measured validation-step boundary: admission charges one step per
 /// block plus one per instruction across the plan, then the member and
-/// crossed surfaces plus the roster-row product for each crossed
-/// position, then the admitted function's memory, call, and settlement
-/// roster lengths — so the exact count admits the relocation on both the
-/// proposal and the independent replay path while one step below rejects
-/// both.
+/// crossed surfaces plus the roster-row product for each run
+/// member-against-crossed pair, then the admitted function's memory,
+/// call, and settlement roster lengths — so the exact count admits the
+/// relocation on both the proposal and the independent replay path while
+/// one step below rejects both.
 #[test]
 fn measured_validation_step_boundary_admits_and_rejects() {
     let target = NativeTarget::linux_x64();
@@ -953,7 +1054,7 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 value: IntegerValue::Unsigned(17),
             },
             &materialize,
-            &[SECOND],
+            &[THIRD],
         )];
         function.blocks[0].terminator = SelectedTerminator::Jump {
             instruction: instruction(
@@ -979,33 +1080,42 @@ fn measured_validation_step_boundary_admits_and_rejects() {
             },
         });
     });
-    // A boundary settlement at the window's first index observes the same
+    // A boundary settlement at the run's own first index observes the same
     // executed prefix on either order, so it admits — and charges the
     // settlement roster term.
     let settled = mutated(target, |function, _| {
         function.boundary_settlements.push(settlement(0, 71));
     });
     for (source, exact_steps) in [
-        // (4 instructions + 1 block) + member-against-crossed surfaces
-        // (the member against the interior and the destination: store 2,
-        // materialize 1, load 2 — 3 + 5, including the rowed pair's
-        // product) + 2 roster rows = 15.
-        (fixture(target), 15u64),
-        // (5 instructions + 1 per block over 2 blocks) + the same 8 + 2 =
-        // 17.
-        (later_block, 17u64),
-        // The base charge plus one settlement roster row = 16.
-        (settled, 16u64),
+        // (5 instructions + 1 block) + member-against-crossed surfaces
+        // (each run member against the interior and the destination:
+        // store 2, load 2, materialize 1 — 3 + 5 + 3 + 5, including each
+        // rowed member's product with the destination's row) + 3 roster
+        // rows = 25.
+        (fixture(target), 25u64),
+        // (6 instructions + 1 per block over 2 blocks) + the same 16 + 3 =
+        // 27.
+        (later_block, 27u64),
+        // The base charge plus one settlement roster row = 26.
+        (settled, 26u64),
     ] {
         let exact = measured_step_budget(exact_steps);
-        let result =
-            relocate_selected_commuting_member(&source, 0, STORE_A, LOAD_C, &environment, exact)
-                .unwrap();
+        let result = relocate_selected_commuting_members(
+            &source,
+            0,
+            STORE_A,
+            LOAD_B,
+            LOAD_D,
+            &environment,
+            exact,
+        )
+        .unwrap();
         validate_commuting_relocation(
             &source,
             0,
             STORE_A,
-            LOAD_C,
+            LOAD_B,
+            LOAD_D,
             &environment,
             exact,
             result.transformed().clone(),
@@ -1013,8 +1123,16 @@ fn measured_validation_step_boundary_admits_and_rejects() {
         .unwrap();
         let starved = measured_step_budget(exact_steps - 1);
         assert_eq!(
-            relocate_selected_commuting_member(&source, 0, STORE_A, LOAD_C, &environment, starved)
-                .unwrap_err(),
+            relocate_selected_commuting_members(
+                &source,
+                0,
+                STORE_A,
+                LOAD_B,
+                LOAD_D,
+                &environment,
+                starved
+            )
+            .unwrap_err(),
             CommutingRelocationError::WorkBudgetExceeded
         );
         assert_eq!(
@@ -1022,7 +1140,8 @@ fn measured_validation_step_boundary_admits_and_rejects() {
                 &source,
                 0,
                 STORE_A,
-                LOAD_C,
+                LOAD_B,
+                LOAD_D,
                 &environment,
                 starved,
                 result.transformed().clone(),
@@ -1035,26 +1154,33 @@ fn measured_validation_step_boundary_admits_and_rejects() {
 
 /// Two relocations over the identical source produce the identical
 /// validated result, and the published plan is a legal second input
-/// through the sealed analysis boundary: on the transformed plan the
-/// member sits on the crossed run's far side, so naming the window's
+/// through the sealed analysis boundary: on the transformed plan the run
+/// sits on the crossed positions' far side, so naming the window's
 /// leading position relocates it back to restore the source plan
-/// bit-identically, while a rowless member still declines.
+/// bit-identically, while a misordered run still declines.
 #[test]
 fn relocation_is_deterministic_and_re_admitted() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let first = relocate(&source, &environment, STORE_A, LOAD_C).unwrap();
-    let second = relocate(&source, &environment, STORE_A, LOAD_C).unwrap();
+    let first = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
+    let second = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
     assert_eq!(first, second);
     // The validated output carries the sealed analysis boundary, so it is
     // a legal second input — not merely a reconstruction of one. On the
-    // transformed plan the member follows the crossed run, so naming
-    // MAT_B's leading position admits the relocation back to the
+    // transformed plan the run follows the crossed positions, so naming
+    // MAT_C's leading position admits the relocation back to the
     // published source.
-    let restored =
-        relocate_selected_commuting_member(&first, 0, STORE_A, MAT_B, &environment, budget())
-            .unwrap();
+    let restored = relocate_selected_commuting_members(
+        &first,
+        0,
+        STORE_A,
+        LOAD_B,
+        MAT_C,
+        &environment,
+        budget(),
+    )
+    .unwrap();
     assert_eq!(restored.transformed(), source.transformed());
     assert_eq!(
         restored.receipt().transformed_selected(),
@@ -1064,185 +1190,57 @@ fn relocation_is_deterministic_and_re_admitted() {
         &first,
         0,
         STORE_A,
-        MAT_B,
+        LOAD_B,
+        MAT_C,
         &environment,
         budget(),
         restored.transformed().clone(),
     )
     .unwrap();
-    // A rowless member still declines on the second input: MAT_D carries
-    // no roster row, so no trading pair is rowed on both sides.
+    // A misordered run still declines on the second input: the last member
+    // must follow the first inside the block, and on the transformed plan
+    // STORE_A leads LOAD_B — naming them in reverse bounds no run.
     assert_eq!(
-        relocate_selected_commuting_member(&first, 0, MAT_D, MAT_B, &environment, budget())
-            .unwrap_err(),
+        relocate_selected_commuting_members(
+            &first,
+            0,
+            LOAD_B,
+            STORE_A,
+            MAT_C,
+            &environment,
+            budget()
+        )
+        .unwrap_err(),
         CommutingRelocationError::UnsupportedPair
     );
 }
 
 /// Replay drift beyond the admitted window still fails the
 /// restore-by-content comparison: an instruction the relocation never
-/// touched carries mutated content, so restoring the member's position
-/// and the window's rows cannot reproduce the source.
+/// touched carries mutated content, so restoring the run's position and
+/// the window's rows cannot reproduce the source.
 #[test]
 fn replay_rejects_drift_outside_the_window() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, STORE_A, LOAD_C).unwrap();
+    let result = relocate(&source, &environment, STORE_A, LOAD_B, LOAD_D).unwrap();
     let mut drifted = result.transformed().clone();
-    drifted.functions[0].blocks[0].instructions[3].kind = SelectedInstructionKind::MaterializeI64 {
+    drifted.functions[0].blocks[0].instructions[4].kind = SelectedInstructionKind::MaterializeI64 {
         value: IntegerValue::Unsigned(10),
     };
     assert_eq!(
-        validate_commuting_relocation(&source, 0, STORE_A, LOAD_C, &environment, budget(), drifted)
-            .unwrap_err(),
-        CommutingRelocationError::ReplayMismatch
-    );
-}
-
-/// The validator cannot consult the producer's admission: each forged
-/// proposal below is handed to `validate_commuting_relocation` directly,
-/// so every rejection comes from the validator's own window audit.
-mod independence_tests {
-    use super::{
-        CommutingRelocationError, LOAD_C, MAT_B, MAT_D, NativeTarget, STORE_A,
-        SelectedInstructionPlan, SelectedMemoryAccessRole, ValidatedCommutingRelocation, access,
-        baseline_target_register_environment, budget, fixture, mutated,
-        validate_commuting_relocation,
-    };
-
-    /// Move the member at `member_index` onto `destination_index` inside
-    /// a source fixture's plan, permuting the roster's window rows into
-    /// the new execution order — the edit a producer emitting that
-    /// relocation would publish — without asking admission whether the
-    /// window is legal.
-    fn forged(
-        source: &ValidatedCommutingRelocation,
-        member_index: usize,
-        destination_index: usize,
-    ) -> SelectedInstructionPlan {
-        let mut proposed = source.transformed().clone();
-        let function = &mut proposed.functions[0];
-        let moved = function.blocks[0].instructions.remove(member_index);
-        function.blocks[0]
-            .instructions
-            .insert(destination_index, moved);
-        // The roster's window rows follow the members' new order: the two
-        // recorded accesses swap when the member carries the earlier one.
-        if member_index < destination_index {
-            function.memory_accesses.swap(0, 1);
-        }
-        proposed
-    }
-
-    /// A forged rotation of a window the validator's own audit admits
-    /// validates: the store's and load's rows reach disjoint places, so
-    /// the audit derives the move, the content comparison accepts the
-    /// rotation, and the permuted roster equals the source's own rows in
-    /// the new execution order.
-    #[test]
-    fn forged_rotation_of_a_commuting_window_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
         validate_commuting_relocation(
             &source,
             0,
             STORE_A,
-            LOAD_C,
+            LOAD_B,
+            LOAD_D,
             &environment,
             budget(),
-            forged(&source, 0, 2),
+            drifted
         )
-        .unwrap();
-    }
-
-    /// A producer that admitted a non-commuting window anyway would
-    /// publish the store moved past a load reaching the same bytes —
-    /// here `LOAD_C`'s row mutated onto the store's place and extent. The
-    /// validator's own legality audit refuses with `UnsupportedPair`,
-    /// not a replay mismatch, because it reconstructs the row
-    /// commutation instead of trusting the producer's admission record.
-    #[test]
-    fn forged_move_past_noncommuting_rows_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = mutated(target, |function, _| {
-            // Point the load's row at the store's place and bytes: the
-            // write and the read no longer commute.
-            function.memory_accesses[1] =
-                access(LOAD_C, 1, SelectedMemoryAccessRole::ReadPlace, 0, 8);
-        });
-        assert_eq!(
-            validate_commuting_relocation(
-                &source,
-                0,
-                STORE_A,
-                LOAD_C,
-                &environment,
-                budget(),
-                forged(&source, 0, 2),
-            )
-            .unwrap_err(),
-            CommutingRelocationError::UnsupportedPair
-        );
-    }
-
-    /// A producer that rotated the members but left the roster in source
-    /// order publishes a proposal whose recorded accesses no longer bind
-    /// the new execution order: the roster comparison rejects it with
-    /// `ReplayMismatch`.
-    #[test]
-    fn forged_unpermuted_roster_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let mut proposed = source.transformed().clone();
-        let moved = proposed.functions[0].blocks[0].instructions.remove(0);
-        proposed.functions[0].blocks[0]
-            .instructions
-            .insert(2, moved);
-        assert_eq!(
-            validate_commuting_relocation(
-                &source,
-                0,
-                STORE_A,
-                LOAD_C,
-                &environment,
-                budget(),
-                proposed,
-            )
-            .unwrap_err(),
-            CommutingRelocationError::ReplayMismatch
-        );
-    }
-
-    /// A forged proposal for a member carrying no roster rows names the
-    /// local relocation's own accounting case — the commutation contract
-    /// never trades a rowed member across row-less positions — and the
-    /// validator's own audit refuses it before content is compared.
-    #[test]
-    fn forged_rowless_member_rejects_on_the_audit() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
-        let mut proposed = source.transformed().clone();
-        let moved = proposed.functions[0].blocks[0].instructions.remove(1);
-        proposed.functions[0].blocks[0]
-            .instructions
-            .insert(3, moved);
-        assert_eq!(
-            validate_commuting_relocation(
-                &source,
-                0,
-                MAT_B,
-                MAT_D,
-                &environment,
-                budget(),
-                proposed,
-            )
-            .unwrap_err(),
-            CommutingRelocationError::UnsupportedPair
-        );
-    }
+        .unwrap_err(),
+        CommutingRelocationError::ReplayMismatch
+    );
 }
