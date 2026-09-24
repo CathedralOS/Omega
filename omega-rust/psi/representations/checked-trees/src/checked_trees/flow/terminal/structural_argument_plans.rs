@@ -72,7 +72,10 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     /// Exclusive element range over one established immutable `&[T]` view,
     /// T != u8, rooted exactly as a byte range is. Endpoints share the same
     /// source-bound scalar roles; the view's stored extent names its element
-    /// count, not a byte length.
+    /// count, not a byte length. A view local's range over a fixed-array
+    /// field (`self.items[a..b]`) roots at the parameter owning the field,
+    /// and the enclosing plan's `path` names the record-field projection to
+    /// the array, which lowering views whole before narrowing it.
     ElementViewSubslice {
         root: CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,

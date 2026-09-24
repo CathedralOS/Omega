@@ -416,3 +416,60 @@ fn view_local_lengths_and_reads_root_at_the_local() {
         } if read_root == root && path.is_empty()
     ));
 }
+
+/// A range over a fixed-array field names no established view: the binding
+/// roots the range at the parameter owning the field and records the field
+/// projection, so lowering views the whole array before narrowing it.
+#[test]
+fn a_field_range_local_narrows_the_whole_field_view() {
+    let checked = checked(
+        r#"
+        data Holder {
+            values: [i32 in Wrapping; 5];
+            hi: u64;
+        }
+
+        machine observe(view: &[i32 in Wrapping]) {}
+
+        machine Holder::run(&mut self) {
+            self.hi = 4;
+            let tail: &[i32 in Wrapping] = self.values[1..self.hi];
+            observe(tail);
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "run"))
+        .expect("the field range local no longer leaves the unit plan roster");
+    let Some(CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, source }) =
+        plan.operations.iter().find(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            )
+        })
+    else {
+        panic!("the field range binds a view subslice: {plan:?}");
+    };
+    assert_eq!(result.statement_index, 1);
+    assert_eq!(result.type_identity, VIEW_IDENTITY);
+    assert_eq!(source.access, CheckedStructuralAccess::SharedBorrow);
+    assert_eq!(
+        source.path,
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "values".to_owned()
+        )]
+    );
+    let CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+        root: checked_trees::CheckedStorageRoot::Parameter { .. },
+        start: Some(_),
+        end: Some(_),
+        ..
+    } = &source.source
+    else {
+        panic!("the range is rooted at the field's owner with both endpoints: {source:?}");
+    };
+}

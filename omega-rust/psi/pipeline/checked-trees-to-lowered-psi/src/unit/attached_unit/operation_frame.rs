@@ -868,6 +868,13 @@ impl OperationFrame<'_, '_> {
     /// published place joins the local namespace exactly as an `as_slice`
     /// view local's does, so later edges, calls, lengths and element reads
     /// resolve either kind of view local the same way.
+    ///
+    /// A range over a fixed-array field (`self.items[a..b]`) has no view to
+    /// narrow yet. It first establishes a whole element view of the field
+    /// under a shared loan -- the same `EstablishElementView` an `as_slice`
+    /// local emits -- into a private temporary, and narrows that. The
+    /// verifier then relates the whole view's length to the array's declared
+    /// extent and checks the range against it like any other subslice.
     fn establish_view_subslice(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
@@ -894,7 +901,11 @@ impl OperationFrame<'_, '_> {
             } => (*root, ViewFamily::Elements, *expression, start, end),
             _ => return unsupported("view subslice binding lost its range source"),
         };
+        let field_range = !source.path.is_empty();
         let range_source = match root {
+            checked_trees::CheckedStorageRoot::Parameter { index } if field_range => {
+                self.establish_whole_field_view(index, source, &result.type_identity, family)?
+            }
             checked_trees::CheckedStorageRoot::Parameter { index } => {
                 let parameter =
                     self.parameters
@@ -956,23 +967,40 @@ impl OperationFrame<'_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
             .with_view_locals(&self.evaluation.view_locals);
         let destination = place_id(allocate_dense(self.next_place)?);
-        let declaration = super::view_ranges::emit(
-            self.checked,
-            ViewRangeSite {
-                state: self.state,
-                statement: result.statement_index,
-                site: checked_trees::CheckedSubsliceSite::LocalBinding,
-                expression,
-                retained: Some((start, end)),
-            },
-            range_source,
-            lookup_type_id(self.type_ids, &result.type_identity)?,
-            destination,
-            &bindings,
-            self.values,
-            self.next_value,
-            self.operations,
-        )?;
+        let site = ViewRangeSite {
+            state: self.state,
+            statement: result.statement_index,
+            site: checked_trees::CheckedSubsliceSite::LocalBinding,
+            expression,
+            retained: Some((start, end)),
+        };
+        let result_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        let declaration = if field_range {
+            super::view_ranges::emit_over_field(
+                self.checked,
+                site,
+                range_source,
+                &source.path,
+                result_type,
+                destination,
+                &bindings,
+                self.values,
+                self.next_value,
+                self.operations,
+            )?
+        } else {
+            super::view_ranges::emit(
+                self.checked,
+                site,
+                range_source,
+                result_type,
+                destination,
+                &bindings,
+                self.values,
+                self.next_value,
+                self.operations,
+            )?
+        };
         let produced = self
             .operations
             .operations
@@ -995,6 +1023,106 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             self.operations,
         )
+    }
+
+    /// Establish a whole element view of the fixed-array field `source.path`
+    /// below structural parameter `index`, as the source a field range
+    /// narrows. The view reads the array through a shared loan, so any
+    /// readable root lends it; the temporary is private to this binding.
+    fn establish_whole_field_view(
+        &mut self,
+        index: u32,
+        source: &CheckedUnitStructuralArgumentPlan,
+        type_identity: &str,
+        family: ViewFamily,
+    ) -> Result<ViewRangeSource, LoweringError> {
+        let parameter = self
+            .parameters
+            .get(index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "view subslice field owner parameter is absent",
+            ))?;
+        if family != ViewFamily::Elements
+            || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::Owned
+            )
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return unsupported("view subslice field owner cannot lend a shared element view");
+        }
+        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        let symbol = self
+            .checked
+            .state_parameters(authored)
+            .get(parameter.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "view subslice field owner has no authored parameter",
+            ))?
+            .symbol;
+        let structural_type = lookup_type_id(self.type_ids, type_identity)?;
+        let element = self
+            .structural_types
+            .declarations()
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                terminal_psi::StructuralTypeShape::ElementView { element }
+                    if declaration.id == structural_type =>
+                {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "view subslice field range lost its element view type",
+            ))?;
+        let whole = place_id(allocate_dense(self.next_place)?);
+        let producer = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: producer,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: whole,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishElementView {
+                destination: whole,
+                source: terminal_psi::StructuralArgument {
+                    place: self.evaluation.current_structural_place(parameter.place),
+                    path: lower_structural_path(&source.path)?,
+                    access: terminal_psi::StructuralAccess::SharedBorrow,
+                },
+                element,
+            },
+        });
+        self.private_places
+            .temporaries()
+            .push(StructuralPlaceDeclaration {
+                id: whole,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                },
+            });
+        Ok(ViewRangeSource {
+            symbol,
+            place: whole,
+            structural_type,
+            family,
+        })
     }
 
     /// Store a whole owned result back into its open window. The ledger
