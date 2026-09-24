@@ -407,7 +407,7 @@ pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()

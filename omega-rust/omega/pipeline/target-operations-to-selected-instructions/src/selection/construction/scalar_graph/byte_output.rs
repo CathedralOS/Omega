@@ -19,7 +19,7 @@ pub(super) fn emit(
     let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let (_, input, _, scalar_type) = builder.resolve(source).ok_or_else(invalid)?;
     if row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())

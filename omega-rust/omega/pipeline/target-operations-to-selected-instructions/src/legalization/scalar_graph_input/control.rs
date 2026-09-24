@@ -10,7 +10,7 @@ pub(super) fn validate(
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     match (&node.operation, &function.result) {
         (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
@@ -190,7 +190,7 @@ fn terminal_edge(
             .iter()
             .any(|fuel| fuel.site != PsiProvenance::Edge(edge))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }
@@ -218,7 +218,7 @@ fn branch_edges(
                     .any(|fuel| fuel.site != PsiProvenance::Edge(edge.psi_edge))
         })
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

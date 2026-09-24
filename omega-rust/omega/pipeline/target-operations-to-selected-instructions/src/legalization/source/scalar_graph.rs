@@ -46,11 +46,11 @@ pub(super) fn derive(
             let (last, body) = block
                 .nodes
                 .split_last()
-                .ok_or(Error::SourceCustodyMismatch)?;
+                .ok_or(Error::custody())?;
             let mut custody = custody_entries
                 .get(&block.id)
                 .cloned()
-                .ok_or(Error::SourceCustodyMismatch)?;
+                .ok_or(Error::custody())?;
             let mut instructions = Vec::with_capacity(body.len());
             for node in body {
                 // Signature-only descriptor declarations project no

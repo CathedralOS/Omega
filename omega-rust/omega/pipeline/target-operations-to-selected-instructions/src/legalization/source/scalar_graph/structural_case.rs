@@ -12,7 +12,7 @@ pub(super) fn project(
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
-    let invalid = Error::SourceCustodyMismatch;
+    let invalid = Error::custody();
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };

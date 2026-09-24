@@ -62,7 +62,7 @@ pub(in crate::legalization) fn parameter_call_contract(
     expected_result: Option<ScalarType>,
     target: NativeTarget,
 ) -> Result<ParameterDynamicCallContract, LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     // The semantic join: the dispatch names this operation, one exact borrowed
     // descriptor parameter of the same owner, and a requirement slot that
     // selects exactly one closed-interface row.

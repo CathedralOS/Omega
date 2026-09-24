@@ -11,7 +11,7 @@ pub(super) fn function_abi(
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment

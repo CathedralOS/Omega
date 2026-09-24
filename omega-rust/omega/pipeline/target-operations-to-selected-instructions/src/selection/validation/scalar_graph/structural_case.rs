@@ -20,7 +20,7 @@ pub(super) fn validate(
     replay: &mut Replay<'_>,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let LegalizedScalarTerminator::StructuralCase {
         source: subject,
         layout,
@@ -206,7 +206,7 @@ fn successor(
     slot: LocalStorageSlotId,
     replay: &Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let destination = replay
         .selected
         .blocks

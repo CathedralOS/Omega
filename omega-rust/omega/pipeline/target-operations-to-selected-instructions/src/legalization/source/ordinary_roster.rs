@@ -24,7 +24,7 @@ pub(super) fn derive_remaining(
         let ([abstracted], [optimized]) =
             (abstract_matches.as_slice(), optimized_matches.as_slice())
         else {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         };
         rosters.scalar_functions.push(super::scalar_graph::derive(
             target_function,

@@ -19,7 +19,7 @@ pub(in crate::legalization) fn layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -72,7 +72,7 @@ pub(in crate::legalization) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (
         TargetUnitOperation::BoundarySettlement {
             psi_operation,

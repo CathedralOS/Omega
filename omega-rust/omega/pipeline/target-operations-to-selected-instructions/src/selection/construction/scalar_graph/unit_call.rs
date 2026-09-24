@@ -16,7 +16,7 @@ pub(super) fn emit(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
         return Err(invalid());
     };

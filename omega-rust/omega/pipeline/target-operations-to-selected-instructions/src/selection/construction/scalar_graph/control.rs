@@ -311,7 +311,7 @@ fn terminal(
         .instructions
         .last()
         .cloned()
-        .ok_or(SelectedInstructionError::SourceCustodyMismatch)
+        .ok_or(SelectedInstructionError::custody())
 }
 
 fn successor(
@@ -323,13 +323,13 @@ fn successor(
     let position = order
         .iter()
         .position(|index| source.blocks[*index].id == next.target)
-        .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+        .ok_or(SelectedInstructionError::custody())?;
     Ok(SelectedSuccessor {
         structural_case: None,
         role: selected_instructions::SelectedSuccessorRole::Semantic,
         psi_edge: next.edge,
         block: SelectedBlockId(
-            u32::try_from(position).map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+            u32::try_from(position).map_err(|_| SelectedInstructionError::custody())?,
         ),
         source_target: next.target,
         structural_bindings: next
@@ -357,7 +357,7 @@ fn successor(
                             &builder.transport.pointers,
                             &builder.transport.local_slots,
                         )
-                        .ok_or(SelectedInstructionError::SourceCustodyMismatch)?,
+                        .ok_or(SelectedInstructionError::custody())?,
                     });
                 }
                 let argument = builder
@@ -366,10 +366,10 @@ fn successor(
                     .iter()
                     .find(|(place, _)| *place == semantic.argument.place)
                     .map(|(_, pointer)| *pointer)
-                    .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                    .ok_or(SelectedInstructionError::custody())?;
                 if semantic.argument.access == terminal_psi::StructuralAccess::Owned {
-                    let parameter = source.blocks.iter().find(|block| block.id == next.target).and_then(|block| block.structural_parameters.iter().find(|parameter| parameter.place == semantic.parameter)).ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
-                    let shape = crate::selection::aggregate_result_input::block_parameter_shape(source, parameter).ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                    let parameter = source.blocks.iter().find(|block| block.id == next.target).and_then(|block| block.structural_parameters.iter().find(|parameter| parameter.place == semantic.parameter)).ok_or(SelectedInstructionError::custody())?;
+                    let shape = crate::selection::aggregate_result_input::block_parameter_shape(source, parameter).ok_or(SelectedInstructionError::custody())?;
                     return Ok(selected_instructions::SelectedStructuralBinding {
                         semantic: semantic.clone(),
                         transport: selected_instructions::SelectedStructuralTransport::WholeValue {
@@ -400,14 +400,14 @@ fn successor(
                 let transport = if builder.required_values.contains(&semantic.parameter) {
                     let (_, argument, _, argument_type) = builder
                         .resolve(semantic.argument)
-                        .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                        .ok_or(SelectedInstructionError::custody())?;
                     let (_, parameter, _, parameter_type) = builder
                         .resolve(semantic.parameter)
-                        .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                        .ok_or(SelectedInstructionError::custody())?;
                     if argument_type != semantic.scalar_type
                         || parameter_type != semantic.scalar_type
                     {
-                        return Err(SelectedInstructionError::SourceCustodyMismatch);
+                        return Err(SelectedInstructionError::custody());
                     }
                     SelectedValueTransport::Registers {
                         argument,

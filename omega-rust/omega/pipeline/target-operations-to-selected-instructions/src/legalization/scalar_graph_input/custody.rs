@@ -9,7 +9,7 @@ pub(in crate::legalization) fn validate_unit_custody(
     unit: &PsiOptimizationUnit,
     verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if abstract_plan.functions.len() != target.functions.len() {
         return Err(invalid);
     }

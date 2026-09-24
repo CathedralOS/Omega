@@ -24,7 +24,7 @@ pub(super) fn validate_source_custody(
         || target.functions.len() != unit.functions.len()
         || optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     Ok(())
 }

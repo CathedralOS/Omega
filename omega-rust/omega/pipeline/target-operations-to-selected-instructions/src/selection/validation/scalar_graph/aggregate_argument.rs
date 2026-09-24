@@ -17,7 +17,7 @@ pub(super) fn argument(
     target: &target_operations::TargetStructuralArgument,
     replay: &mut Replay<'_>,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let place = semantic.place;
     let slot = match target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
@@ -310,7 +310,7 @@ fn outgoing_memory(
                 replay
                     .instruction_cursor
                     .try_into()
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
             origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
             place,

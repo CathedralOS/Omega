@@ -63,7 +63,7 @@ pub(in crate::legalization) fn call_argument(
     parameter_ordinal: usize,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let (block, parameter) = parameter(caller, semantic.place, plan).ok_or(invalid.clone())?;
     let call_block = operation_block(caller, call_operation).ok_or(invalid.clone())?;
     let referent = crate::structural_inputs::structural_reference_input::shape(

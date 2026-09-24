@@ -15,7 +15,7 @@ pub(super) fn build_plan(
 ) -> Result<SelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
     if target.target != environment.target() {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     let catalog = environment.constraints();
     require_key_rows(&constraints.keys, catalog)?;

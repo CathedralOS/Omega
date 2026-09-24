@@ -11,7 +11,7 @@ pub(super) fn validate(
     operation: &legalized_operations::LegalizedScalarInstruction,
     state: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let result = operation.result.ok_or_else(invalid)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(invalid());

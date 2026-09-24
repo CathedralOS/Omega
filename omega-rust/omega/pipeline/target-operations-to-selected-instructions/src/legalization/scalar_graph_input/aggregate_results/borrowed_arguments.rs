@@ -19,7 +19,7 @@ pub(super) fn reconstruct(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let destination = callee
         .structural_parameters
         .get(position)

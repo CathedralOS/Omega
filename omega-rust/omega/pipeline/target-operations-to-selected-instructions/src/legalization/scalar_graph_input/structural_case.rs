@@ -11,7 +11,7 @@ pub(in crate::legalization) fn source_result(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<(OperationId, &StructuralOperationResult), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let mut matching = function
         .blocks
         .iter()
@@ -97,14 +97,14 @@ pub(in crate::legalization) fn source_owner(
     });
     let (block, declaration) = parameters
         .next()
-        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+        .ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || declaration.access != terminal_psi::StructuralAccess::Owned
         || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(
         legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
@@ -131,7 +131,7 @@ pub(in crate::legalization) fn case_source(
         .filter(|parameter| parameter.place == place);
     let declaration = parameters
         .next()
-        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+        .ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
         || declaration.is_self
         || declaration.access != terminal_psi::StructuralAccess::Owned
@@ -140,7 +140,7 @@ pub(in crate::legalization) fn case_source(
         || !declaration.projected_qualifications.is_empty()
         || !function.entry_claims.is_empty()
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(
         legalized_operations::LegalizedStructuralCaseSource::Parameter {
@@ -155,7 +155,7 @@ fn source_identity(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if let Ok((_, result)) = source_result(function, source) {
         if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !result.claims.is_empty()
@@ -196,7 +196,7 @@ pub(in crate::legalization) fn membership_layout(
     case: semantic_vocabulary::StructuralCaseId,
     plan: &AbstractOperationPlan,
 ) -> Result<(u32, u32), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let identity = source_identity(function, source)?;
     let (identity, byte_offset) = if path.is_empty() {
         (identity, 0)
@@ -246,7 +246,7 @@ pub(in crate::legalization) fn leaf_copy_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<(u32, calling_conventions::ValueShape, Vec<(u32, u32)>), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
@@ -294,7 +294,7 @@ pub(super) fn validate(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };

@@ -37,7 +37,7 @@ pub(super) fn validate_tails(
                 || !matches!(&block.nodes[position + 1].operation,
                         AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty()))
             {
-                return Err(LegalizationError::SourceCustodyMismatch);
+                return Err(LegalizationError::custody());
             }
         }
     }
@@ -49,7 +49,7 @@ pub(in crate::legalization) fn hosted_realization(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<BoundaryRealization, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let mut functions = native
         .functions
         .iter()

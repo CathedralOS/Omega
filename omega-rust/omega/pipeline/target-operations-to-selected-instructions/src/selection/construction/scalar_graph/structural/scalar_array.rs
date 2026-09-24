@@ -13,7 +13,7 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let (established, shape, stores) =
         crate::selection::scalar_array_input::storage(source, row).ok_or_else(invalid)?;
     if shape.byte_size == 0 {

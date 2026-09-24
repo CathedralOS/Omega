@@ -151,7 +151,7 @@ pub(super) fn validate(
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let graph = &target.graph;
     if !body(function)
         || target.machine != abstracted.machine

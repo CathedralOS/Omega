@@ -1299,7 +1299,7 @@ impl Builder<'_> {
             self.registers
                 .len()
                 .try_into()
-                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         );
         self.registers.push(VirtualRegister {
             id,
@@ -1310,7 +1310,7 @@ impl Builder<'_> {
                     self.instructions
                         .len()
                         .try_into()
-                        .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                        .map_err(|_| SelectedInstructionError::custody())?,
                 ),
                 source_value: value,
             },
@@ -1331,7 +1331,7 @@ impl Builder<'_> {
             self.instructions
                 .len()
                 .try_into()
-                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         );
         let provenance = self.settle_provenance(provenance);
         self.instructions.push(instruction(
@@ -1453,7 +1453,7 @@ fn saturating_divide_selection(
 fn saturation_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
     let instruction = SelectedInstructionId(
         builder
@@ -1484,7 +1484,7 @@ fn saturation_scratch(
 fn remainder_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
     let instruction = SelectedInstructionId(
         builder
@@ -1514,7 +1514,7 @@ fn remainder_scratch(
 fn division_scratch(
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
     let instruction = SelectedInstructionId(
         builder

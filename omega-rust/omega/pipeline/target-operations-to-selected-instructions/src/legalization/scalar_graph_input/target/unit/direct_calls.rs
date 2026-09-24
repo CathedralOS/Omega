@@ -22,7 +22,7 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
+    let invalid = || LegalizationError::custody();
     let TargetUnitOperation::Call {
         origin: NativeCallOrigin::Authored,
         psi_operation,

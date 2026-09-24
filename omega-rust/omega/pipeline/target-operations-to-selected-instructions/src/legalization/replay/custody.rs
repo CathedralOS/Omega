@@ -26,7 +26,7 @@ pub(super) fn validate_replay_custody(
         || target.functions.len() != abstract_plan.functions.len()
         || target.functions.len() != unit.functions.len()
     {
-        return Err(Error::SourceCustodyMismatch);
+        return Err(Error::custody());
     }
     if proposed.psi != target.psi
         || proposed.optimization_unit != unit.identity

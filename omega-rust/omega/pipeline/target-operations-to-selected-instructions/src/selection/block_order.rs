@@ -5,7 +5,7 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
 pub(super) fn derive(
     source: &LegalizedScalarFunction,
 ) -> Result<Vec<usize>, SelectedInstructionError> {
-    let invalid = SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = SelectedInstructionError::custody();
     let entry = source
         .blocks
         .iter()

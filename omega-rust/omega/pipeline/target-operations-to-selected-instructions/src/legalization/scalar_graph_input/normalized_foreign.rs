@@ -22,7 +22,7 @@ pub(in crate::legalization) fn row(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<Option<&TargetUnitOperation>, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let function = native
         .functions
         .iter()
@@ -57,7 +57,7 @@ pub(in crate::legalization) fn row(
 pub(in crate::legalization) fn validate_native_callback_roster(
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     for (index, callback) in native.native_callback_arguments.iter().enumerate() {
         if native.native_callback_arguments[..index]
             .iter()
@@ -108,7 +108,7 @@ pub(in crate::legalization) fn native_callback_at<'a>(
     operation: OperationId,
     boundary_entry_plan: &BoundaryEntryPlan,
 ) -> Result<Option<&'a TargetNativeCallbackArgument>, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let materialized = !boundary_entry_plan
         .call
         .callback_materializations
@@ -156,7 +156,7 @@ pub(in crate::legalization) fn structural_argument_at(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
-    let invalid = LegalizationError::SourceCustodyMismatch;
+    let invalid = LegalizationError::custody();
     let declarations = plan.structural_types.as_slice();
     let caller_parameter = parameters
         .iter()

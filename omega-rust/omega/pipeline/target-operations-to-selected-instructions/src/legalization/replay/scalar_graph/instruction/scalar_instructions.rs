@@ -44,7 +44,7 @@ pub(super) fn validate_integer_exact_cast(
                 && fact.operation == *psi_operation
                 && fact.obligation == *source_obligation
         })
-        .ok_or(Error::SourceCustodyMismatch)?;
+        .ok_or(Error::custody())?;
     if operand != source || source_type != source_integer || obligation != source_obligation || *accepted_fact != fact.identity
         || !optimized.facts.iter().any(|fact| matches!(fact,
             optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
@@ -229,7 +229,7 @@ pub(super) fn validate_exact_binary(
                 && fact.operation == *psi_operation
                 && fact.obligation == *source_obligation
         })
-        .ok_or(Error::SourceCustodyMismatch)?;
+        .ok_or(Error::custody())?;
     if *operator != expected_operator || left != source_left || right != source_right
             || obligation != source_obligation || *accepted_fact != fact.identity
             || !optimized.facts.iter().any(|fact| matches!(fact,
@@ -356,7 +356,7 @@ pub(super) fn validate_shift(
                     && fact.operation == *psi_operation
                     && fact.obligation == *source_obligation
             })
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
         if obligation != source_obligation
             || *accepted_fact != fact.identity
             || !optimized.facts.iter().any(|fact| matches!(fact,

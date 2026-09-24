@@ -76,7 +76,7 @@ pub(super) fn validate(
                     let parameter = usize::try_from(selector)
                         .ok()
                         .and_then(|position| optimized.parameters.get(position))
-                        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+                        .ok_or(LegalizationError::custody())?;
                     Ok::<_, LegalizationError>(legalized_operations::LegalizedRuntimeIndexOperand {
                         operand: abstract_operations::AbstractResult {
                             value: parameter.value,
