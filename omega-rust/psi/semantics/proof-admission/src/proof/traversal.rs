@@ -156,6 +156,19 @@ fn schedule_children<'proof>(
             pending.push(Action::Enter(positive));
             pending.push(Action::Enter(difference));
         }
+        ProofRule::IntegerAddOrder { sum, positive } => {
+            pending.push(Action::Enter(positive));
+            pending.push(Action::Enter(sum));
+        }
+        ProofRule::IntegerSubtractAntitone {
+            smaller,
+            larger,
+            order,
+        } => {
+            pending.push(Action::Enter(order));
+            pending.push(Action::Enter(larger));
+            pending.push(Action::Enter(smaller));
+        }
         ProofRule::IntegerOrderWeakening { relation }
         | ProofRule::IntegerOrderDiscreteness { relation } => {
             pending.push(Action::Enter(relation));

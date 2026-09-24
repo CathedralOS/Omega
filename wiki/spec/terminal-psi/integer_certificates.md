@@ -60,6 +60,8 @@ endpoints below are exact, not matched by spelling.
 | `IntegerOrderDiscreteness` | Replace one literal endpoint of fixed-integer `<=` with its immediate outward neighbor to obtain `<`, such as `1 <= length` to `0 < length`. Check adjacency and carrier bounds; no wrap or address carrier. |
 | `IntegerCarrierBound` | Exactly `MIN <= value` or `value <= MAX` for a declared fixed-integer SSA value of the matching signed width. No strict, compound, address, or narrower bound. |
 | `IntegerSubtractOrder` | From exact fixed-integer `result = original - decrement` and `0 < decrement`, conclude `result < original`. Match all operand identities/types; wrapping subtraction and nonstrict positivity do not qualify. |
+| `IntegerAddOrder` | From exact fixed-integer `result = original + increment` and `0 < increment`, conclude `original < result`. Match all operand identities/types; wrapping or saturating addition and nonstrict positivity do not qualify. |
+| `IntegerSubtractAntitone` | From exact fixed-integer `smaller = minuend - large`, `larger = minuend - small` and `small < large`, conclude `smaller < larger`. Both differences name one exact minuend term and carrier; each subtrahend matches its order endpoint exactly. |
 
 Reflexive integer order can use reflexive equality and weakening. Closed strict
 comparisons use the closed-integer primitive; relating an evaluated operand

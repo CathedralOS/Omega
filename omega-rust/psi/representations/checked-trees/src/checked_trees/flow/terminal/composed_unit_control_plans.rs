@@ -65,7 +65,8 @@ pub struct CheckedScalarCaseFieldPlan {
 /// One cyclic state's rank, stated over that state's own parameters. Emission
 /// evaluates the same measure on the state's entry and, from the actual
 /// arguments, on every arriving successor edge; the verifier substitutes one
-/// into the other and proves each edge's comparison.
+/// into the other and proves each edge's comparison. `parameter` is the
+/// measured subject — for a distance, its climbing lower subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStateNaturalRank {
     pub state: SymbolHandle,
@@ -84,6 +85,15 @@ pub enum CheckedNaturalRankMeasure {
     /// `Nat::Descending`: the fixed-width integer subject itself, signed or
     /// unsigned. The checker proves it descends on every cyclic edge.
     IntegerParameter { primitive_type: PrimitiveType },
+    /// `Nat::BoundedDistance` and `Nat::IncreasingTo(limit)`: the natural
+    /// distance from the climbing lower subject (`parameter`) up to `upper`.
+    /// Both are unsigned parameters of `primitive_type`; every cyclic edge
+    /// advances the lower subject and keeps `upper`.
+    UnsignedDistance {
+        primitive_type: PrimitiveType,
+        upper: SymbolHandle,
+        upper_position: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

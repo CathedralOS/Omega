@@ -9,6 +9,7 @@ use super::super::super::affine_custody::DefinitionIndex;
 use super::super::super::integer_evidence::{closed_integer_relation, projected_facts};
 use super::super::{bound, exact, wrapping};
 
+mod antitone;
 mod subtract;
 mod transitive;
 
@@ -28,6 +29,10 @@ pub(super) fn prove(
             prove_discrete_endpoint(context, goal, assumptions, semantic_axioms, definitions)
         })
         .or_else(|| transitive::prove(context, goal, assumptions, semantic_axioms, definitions))
+        // Relational steps come last, so every goal an earlier leg already
+        // answered keeps its certificate.
+        .or_else(|| antitone::increase(context, goal, assumptions, semantic_axioms))
+        .or_else(|| antitone::prove(context, goal, assumptions, semantic_axioms, definitions))
 }
 
 /// A literal endpoint, including a separately observed equal value, turns a

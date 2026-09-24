@@ -100,6 +100,15 @@ fn proof_rule_exemplars() -> Vec<ProofRule> {
             difference: leaf(),
             positive: leaf(),
         },
+        ProofRule::IntegerAddOrder {
+            sum: leaf(),
+            positive: leaf(),
+        },
+        ProofRule::IntegerSubtractAntitone {
+            smaller: leaf(),
+            larger: leaf(),
+            order: leaf(),
+        },
         ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle: leaf(),
             middle_less_or_equal_right: leaf(),

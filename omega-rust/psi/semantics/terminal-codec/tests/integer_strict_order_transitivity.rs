@@ -157,10 +157,10 @@ fn appended_rule_tag_and_current_markers_reject_unknown_or_stale_bytes() {
     assert_eq!(bytes[rule_position], 21);
     assert_eq!(previous_bytes[rule_position], 10);
     let mut unknown = bytes.clone();
-    unknown[rule_position] = 24;
+    unknown[rule_position] = 26;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
     let mut stale_format = bytes.clone();
     stale_format[8..10].copy_from_slice(&30_u16.to_le_bytes());

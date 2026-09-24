@@ -92,7 +92,11 @@ steps do not relax the authored state-transition decrease requirement.
 
 Rank substitution follows the actual selected scalar and structural successor
 arguments. A length observation belongs to its descriptor binding; rebinding
-the descriptor cannot reuse the previous observation as the new extent.
+the descriptor cannot reuse the previous observation as the new extent. A rank
+may also be one exact subtraction over parameters and integer constants, such as
+a climbing cursor's `MAX - index`; its arrival is the same subtraction over the
+edge's actual arguments. A rank's carrier is any fixed-width integer type: a
+signed carrier is a finite order too, and its sign enters the relation identity.
 
 One grouped control certificate covers each reconstructed component, with a
 shared well-foundedness citation and evidence for every internal edge. Rank
