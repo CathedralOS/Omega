@@ -186,10 +186,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "confluence_run_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
         module: "constant_boolean",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
@@ -211,10 +207,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "fork_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "fork_run_relocation",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

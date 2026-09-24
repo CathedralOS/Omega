@@ -5,24 +5,27 @@ use selected_instructions::SelectedInstructionId;
 use super::{ForkRelocationError, ValidatedForkRelocation, admission};
 use crate::ValidatedSelectedAnalysis;
 
-/// Relocate one admitted member through its block's branch fork: the named
-/// `member` leaves its own block's body and takes the named `destination`
-/// instruction's position in the arm the branch's plain edges alone feed,
-/// with the destination and every later position keeping their relative
-/// order one slot later. Naming the arm's terminator-carried instruction
-/// lands the member at the body end. Admission has proven both sides of
-/// the conditional move — the crossed window independent (no register or
-/// unit hazard between the member and any crossed position, no
-/// landing-edge transport interference, no barrier or settlement whose
-/// observed state changes) and every member-written location dead on every
-/// path the member no longer executes on — so every observer sees the same
-/// values, memory order, and boundary state it saw before. Every other
-/// function, block, instruction, register, roster row, call, settlement,
-/// and edge is retained, and replay independently confirms that.
-pub fn relocate_selected_instruction_into_arm(
+/// Relocate one admitted run through its block's branch fork: the
+/// contiguous run the named `first_member` and `last_member` bound leaves
+/// its own block's body as a single body — its members keeping their own
+/// order — and takes the named `destination` instruction's position in
+/// the arm the branch's plain edges alone feed, with the destination and
+/// every later position keeping their relative order one run-width later.
+/// Naming the arm's terminator-carried instruction lands the run at the
+/// body end. Admission has proven both sides of the conditional move —
+/// the crossed window independent (no register or unit hazard between any
+/// member and any crossed position, no landing-edge transport
+/// interference, no barrier or settlement whose observed state changes)
+/// and every member-written location dead on every path the run no longer
+/// executes on — so every observer sees the same values, memory order,
+/// and boundary state it saw before. Every other function, block,
+/// instruction, register, roster row, call, settlement, and edge is
+/// retained, and replay independently confirms that.
+pub fn relocate_selected_members_into_arm(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
-    member: SelectedInstructionId,
+    first_member: SelectedInstructionId,
+    last_member: SelectedInstructionId,
     destination: SelectedInstructionId,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
@@ -30,22 +33,25 @@ pub fn relocate_selected_instruction_into_arm(
     let admitted = admission::admit(
         source,
         function_index,
-        member,
+        first_member,
+        last_member,
         destination,
         environment,
         budget,
     )?;
     let mut transformed = source.selected_plan().clone();
-    let member_instruction = transformed.functions[function_index].blocks[admitted.block_index]
+    let run: Vec<_> = transformed.functions[function_index].blocks[admitted.block_index]
         .instructions
-        .remove(admitted.member_index);
+        .drain(admitted.first_index..=admitted.last_index)
+        .collect();
     transformed.functions[function_index].blocks[admitted.target_index]
         .instructions
-        .insert(admitted.landing_index, member_instruction);
+        .splice(admitted.landing_index..admitted.landing_index, run);
     super::validate_fork_relocation(
         source,
         function_index,
-        member,
+        first_member,
+        last_member,
         destination,
         environment,
         budget,

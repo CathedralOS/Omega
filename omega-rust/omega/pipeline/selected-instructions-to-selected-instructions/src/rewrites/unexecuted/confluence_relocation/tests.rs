@@ -25,41 +25,43 @@ use terminal_psi::{
 
 use super::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
-    relocate_selected_instruction_into_confluence, validate_confluence_relocation,
+    relocate_selected_members_into_confluence, validate_confluence_relocation,
 };
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
 
 const LEAD: SelectedInstructionId = SelectedInstructionId(2);
-const MOVING: SelectedInstructionId = SelectedInstructionId(3);
-const TRAIL: SelectedInstructionId = SelectedInstructionId(4);
-const T_HEAD: SelectedInstructionId = SelectedInstructionId(5);
-const T_TAIL: SelectedInstructionId = SelectedInstructionId(6);
-const F_HEAD: SelectedInstructionId = SelectedInstructionId(7);
-const F_TAIL: SelectedInstructionId = SelectedInstructionId(8);
-const HEAD: SelectedInstructionId = SelectedInstructionId(9);
-const MID: SelectedInstructionId = SelectedInstructionId(10);
-const TAIL: SelectedInstructionId = SelectedInstructionId(11);
-const BRANCH: SelectedInstructionId = SelectedInstructionId(12);
-const T_JUMP: SelectedInstructionId = SelectedInstructionId(13);
-const F_JUMP: SelectedInstructionId = SelectedInstructionId(14);
-const RET: SelectedInstructionId = SelectedInstructionId(15);
-const DEEP: SelectedInstructionId = SelectedInstructionId(16);
-const J_JUMP: SelectedInstructionId = SelectedInstructionId(17);
-const DEEP_HEAD: SelectedInstructionId = SelectedInstructionId(18);
+const TRAIL: SelectedInstructionId = SelectedInstructionId(3);
+const T_HEAD: SelectedInstructionId = SelectedInstructionId(4);
+const RUN_A: SelectedInstructionId = SelectedInstructionId(5);
+const RUN_B: SelectedInstructionId = SelectedInstructionId(6);
+const T_TAIL: SelectedInstructionId = SelectedInstructionId(7);
+const F_HEAD: SelectedInstructionId = SelectedInstructionId(8);
+const F_TAIL: SelectedInstructionId = SelectedInstructionId(9);
+const HEAD: SelectedInstructionId = SelectedInstructionId(10);
+const MID: SelectedInstructionId = SelectedInstructionId(11);
+const TAIL: SelectedInstructionId = SelectedInstructionId(12);
+const BRANCH: SelectedInstructionId = SelectedInstructionId(13);
+const T_JUMP: SelectedInstructionId = SelectedInstructionId(14);
+const F_JUMP: SelectedInstructionId = SelectedInstructionId(15);
+const RET: SelectedInstructionId = SelectedInstructionId(16);
+const DEEP: SelectedInstructionId = SelectedInstructionId(17);
+const J_JUMP: SelectedInstructionId = SelectedInstructionId(18);
+const DEEP_HEAD: SelectedInstructionId = SelectedInstructionId(19);
 
 const POINTER: VirtualRegisterId = VirtualRegisterId(0);
 const R_LEAD: VirtualRegisterId = VirtualRegisterId(1);
-const R_MOVE: VirtualRegisterId = VirtualRegisterId(2);
-const R_TRAIL: VirtualRegisterId = VirtualRegisterId(3);
-const R_THEAD: VirtualRegisterId = VirtualRegisterId(4);
-const R_TTAIL: VirtualRegisterId = VirtualRegisterId(5);
-const R_FHEAD: VirtualRegisterId = VirtualRegisterId(6);
-const R_FTAIL: VirtualRegisterId = VirtualRegisterId(7);
-const R_HEAD: VirtualRegisterId = VirtualRegisterId(8);
-const R_MID: VirtualRegisterId = VirtualRegisterId(9);
-const R_TAIL: VirtualRegisterId = VirtualRegisterId(10);
-const R_BOUND: VirtualRegisterId = VirtualRegisterId(11);
-const R_DEEP: VirtualRegisterId = VirtualRegisterId(12);
+const R_TRAIL: VirtualRegisterId = VirtualRegisterId(2);
+const R_THEAD: VirtualRegisterId = VirtualRegisterId(3);
+const R_MOVE_A: VirtualRegisterId = VirtualRegisterId(4);
+const R_MOVE_B: VirtualRegisterId = VirtualRegisterId(5);
+const R_TTAIL: VirtualRegisterId = VirtualRegisterId(6);
+const R_FHEAD: VirtualRegisterId = VirtualRegisterId(7);
+const R_FTAIL: VirtualRegisterId = VirtualRegisterId(8);
+const R_HEAD: VirtualRegisterId = VirtualRegisterId(9);
+const R_MID: VirtualRegisterId = VirtualRegisterId(10);
+const R_TAIL: VirtualRegisterId = VirtualRegisterId(11);
+const R_BOUND: VirtualRegisterId = VirtualRegisterId(12);
+const R_DEEP: VirtualRegisterId = VirtualRegisterId(13);
 
 const BLOCK_B: SelectedBlockId = SelectedBlockId(0);
 const BLOCK_T: SelectedBlockId = SelectedBlockId(1);
@@ -140,14 +142,15 @@ fn jump_terminator(jump: SelectedInstruction, successor: SelectedSuccessor) -> S
 /// nonzero edge leads to block T and whose zero edge leads to block F;
 /// T and F each end in a `Jump` to the shared join J, whose terminator is
 /// a plain return:
-/// `B = [LEAD; TRAIL] -> branch -> T = [T_HEAD; MOVING; T_TAIL] -> jump -> J`
-/// and `F = [F_HEAD; F_TAIL] -> jump -> J = [HEAD; MID; TAIL] -> return`.
-/// The default move relocates `MOVING` onto `HEAD`'s position — the head
-/// of J's body — crossing `T_TAIL`, the jump terminator, the landing
-/// edge's transports, and no join position, while B and F keep their
-/// order. On F's inflow the member newly executes: J's tail, its return,
-/// and every reachable continuation must never read `R_MOVE` before a
-/// write retires the foreign definition.
+/// `B = [LEAD; TRAIL] -> branch -> T = [T_HEAD; RUN_A; RUN_B; T_TAIL] ->
+/// jump -> J` and `F = [F_HEAD; F_TAIL] -> jump -> J = [HEAD; MID; TAIL]
+/// -> return`.
+/// The default move relocates the run `RUN_A..=RUN_B` onto `HEAD`'s
+/// position — the head of J's body — crossing `T_TAIL`, the jump
+/// terminator, and the landing edge's transports while B and F keep their
+/// order. On F's inflow the run newly executes: J's tail, its return, and
+/// every reachable continuation must never read `R_MOVE_A` or `R_MOVE_B`
+/// before a write retires the foreign definition.
 fn fixture(target: NativeTarget) -> ValidatedConfluenceRelocation {
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.selected_keys();
@@ -180,17 +183,18 @@ fn fixture(target: NativeTarget) -> ValidatedConfluenceRelocation {
             entry_fixed_view: None,
         },
         result_register(R_LEAD, LEAD, 2),
-        result_register(R_MOVE, MOVING, 3),
-        result_register(R_TRAIL, TRAIL, 4),
-        result_register(R_THEAD, T_HEAD, 5),
-        result_register(R_TTAIL, T_TAIL, 6),
-        result_register(R_FHEAD, F_HEAD, 7),
-        result_register(R_FTAIL, F_TAIL, 8),
-        result_register(R_HEAD, HEAD, 9),
-        result_register(R_MID, MID, 10),
-        result_register(R_TAIL, TAIL, 11),
-        result_register(R_BOUND, LEAD, 12),
-        result_register(R_DEEP, DEEP, 13),
+        result_register(R_TRAIL, TRAIL, 3),
+        result_register(R_THEAD, T_HEAD, 4),
+        result_register(R_MOVE_A, RUN_A, 5),
+        result_register(R_MOVE_B, RUN_B, 6),
+        result_register(R_TTAIL, T_TAIL, 7),
+        result_register(R_FHEAD, F_HEAD, 8),
+        result_register(R_FTAIL, F_TAIL, 9),
+        result_register(R_HEAD, HEAD, 10),
+        result_register(R_MID, MID, 11),
+        result_register(R_TAIL, TAIL, 12),
+        result_register(R_BOUND, LEAD, 13),
+        result_register(R_DEEP, DEEP, 14),
     ];
     let materialization = |id, register: VirtualRegisterId, value| {
         instruction(
@@ -248,8 +252,9 @@ fn fixture(target: NativeTarget) -> ValidatedConfluenceRelocation {
                     origin: SelectedBlockOrigin::Source(BlockId::new(2).unwrap()),
                     instructions: vec![
                         materialization(T_HEAD, R_THEAD, 11),
-                        materialization(MOVING, R_MOVE, 7),
-                        materialization(T_TAIL, R_TTAIL, 13),
+                        materialization(RUN_A, R_MOVE_A, 7),
+                        materialization(RUN_B, R_MOVE_B, 13),
+                        materialization(T_TAIL, R_TTAIL, 15),
                     ],
                     terminator: jump_terminator(
                         instruction(T_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
@@ -260,8 +265,8 @@ fn fixture(target: NativeTarget) -> ValidatedConfluenceRelocation {
                     id: BLOCK_F,
                     origin: SelectedBlockOrigin::Source(BlockId::new(3).unwrap()),
                     instructions: vec![
-                        materialization(F_HEAD, R_FHEAD, 15),
-                        materialization(F_TAIL, R_FTAIL, 17),
+                        materialization(F_HEAD, R_FHEAD, 17),
+                        materialization(F_TAIL, R_FTAIL, 19),
                     ],
                     terminator: jump_terminator(
                         instruction(F_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
@@ -272,9 +277,9 @@ fn fixture(target: NativeTarget) -> ValidatedConfluenceRelocation {
                     id: BLOCK_J,
                     origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
                     instructions: vec![
-                        materialization(HEAD, R_HEAD, 19),
-                        materialization(MID, R_MID, 21),
-                        materialization(TAIL, R_TAIL, 23),
+                        materialization(HEAD, R_HEAD, 21),
+                        materialization(MID, R_MID, 23),
+                        materialization(TAIL, R_TAIL, 25),
                     ],
                     terminator: SelectedTerminator::Return {
                         instruction: instruction(
@@ -321,28 +326,38 @@ fn mutated(
 fn relocate(
     source: &ValidatedConfluenceRelocation,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    member: SelectedInstructionId,
+    first: SelectedInstructionId,
+    last: SelectedInstructionId,
     destination: SelectedInstructionId,
 ) -> Result<ValidatedConfluenceRelocation, ConfluenceRelocationError> {
-    relocate_selected_instruction_into_confluence(
+    relocate_selected_members_into_confluence(
         source,
         0,
-        member,
+        first,
+        last,
         destination,
         environment,
         budget(),
     )
 }
 
-/// The member sinks through the confluence edge onto the destination's
-/// position on every target: `MOVING` leaves T's body, `T_HEAD` and
-/// `T_TAIL` keep their order behind it, the member lands at J's head with
-/// `HEAD`, `MID`, `TAIL`, and the return terminator untouched, and the
-/// other inflow's block keeps its order — identity, kind, operands, and
-/// provenance intact. The replayed proposal restores the source
-/// bit-identically.
+fn block_order(block: &SelectedBlock) -> Vec<SelectedInstructionId> {
+    block
+        .instructions
+        .iter()
+        .map(|instruction| instruction.id)
+        .collect()
+}
+
+/// The run sinks through the confluence edge onto the destination's
+/// position on every target: `RUN_A` and `RUN_B` leave T's body in their
+/// own order, `T_HEAD` and `T_TAIL` keep their order behind them, the run
+/// lands at J's head with `HEAD`, `MID`, `TAIL`, and the return
+/// terminator untouched, and the other inflow's block keeps its order —
+/// identity, kind, operands, and provenance intact. The replayed proposal
+/// restores the source bit-identically.
 #[test]
-fn member_relocates_into_the_join() {
+fn run_relocates_into_the_join() {
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -351,25 +366,14 @@ fn member_relocates_into_the_join() {
     ] {
         let environment = baseline_target_register_environment(target).unwrap();
         let source = fixture(target);
-        let result = relocate(&source, &environment, MOVING, HEAD).unwrap();
+        let result = relocate(&source, &environment, RUN_A, RUN_B, HEAD).unwrap();
         let original = &source.transformed().functions[0];
         let moved = &result.transformed().functions[0];
         assert_eq!(
-            moved.blocks[3]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![MOVING, HEAD, MID, TAIL]
+            block_order(&moved.blocks[3]),
+            vec![RUN_A, RUN_B, HEAD, MID, TAIL]
         );
-        assert_eq!(
-            moved.blocks[1]
-                .instructions
-                .iter()
-                .map(|instruction| instruction.id)
-                .collect::<Vec<_>>(),
-            vec![T_HEAD, T_TAIL]
-        );
+        assert_eq!(block_order(&moved.blocks[1]), vec![T_HEAD, T_TAIL]);
         assert_eq!(
             moved.blocks[0].instructions,
             original.blocks[0].instructions
@@ -378,11 +382,15 @@ fn member_relocates_into_the_join() {
             moved.blocks[2].instructions,
             original.blocks[2].instructions
         );
-        // The member moved bit-identically; every terminator, edge, and
+        // The members moved bit-identically; every terminator, edge, and
         // roster stayed untouched.
         assert_eq!(
             moved.blocks[3].instructions[0],
             original.blocks[1].instructions[1]
+        );
+        assert_eq!(
+            moved.blocks[3].instructions[1],
+            original.blocks[1].instructions[2]
         );
         for index in 0..4 {
             assert_eq!(
@@ -396,7 +404,8 @@ fn member_relocates_into_the_join() {
         validate_confluence_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
             &environment,
             budget(),
@@ -407,105 +416,118 @@ fn member_relocates_into_the_join() {
 }
 
 /// The destination names the landing position directly: a join body
-/// instruction puts the member on its index, and the join's
-/// terminator-carried instruction lands the member at the body end.
-/// Either inflow's member sinks — `F_HEAD` leaves the zero arm onto
-/// `HEAD`'s position while T's edge becomes the other inflow whose
-/// traversals speculate.
+/// instruction puts the run on its index, and the join's
+/// terminator-carried instruction lands the run at the body end. Either
+/// inflow's run sinks — `F_HEAD..=F_TAIL` leaves the zero arm's whole
+/// body onto `HEAD`'s position while T's edge becomes the other inflow
+/// whose traversals speculate.
 #[test]
-fn member_lands_at_the_named_position() {
+fn run_lands_at_the_named_position() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, MOVING, MID).unwrap();
+    let result = relocate(&source, &environment, RUN_A, RUN_B, MID).unwrap();
     assert_eq!(
-        result.transformed().functions[0].blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![HEAD, MOVING, MID, TAIL]
+        block_order(&result.transformed().functions[0].blocks[3]),
+        vec![HEAD, RUN_A, RUN_B, MID, TAIL]
     );
-    let result = relocate(&source, &environment, MOVING, RET).unwrap();
+    let result = relocate(&source, &environment, RUN_A, RUN_B, RET).unwrap();
     assert_eq!(
-        result.transformed().functions[0].blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![HEAD, MID, TAIL, MOVING]
+        block_order(&result.transformed().functions[0].blocks[3]),
+        vec![HEAD, MID, TAIL, RUN_A, RUN_B]
     );
-    let result = relocate(&source, &environment, F_HEAD, HEAD).unwrap();
+    let result = relocate(&source, &environment, F_HEAD, F_TAIL, HEAD).unwrap();
     let moved = &result.transformed().functions[0];
     assert_eq!(
-        moved.blocks[2]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![F_TAIL]
+        block_order(&moved.blocks[2]),
+        Vec::<SelectedInstructionId>::new()
     );
     assert_eq!(
-        moved.blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![F_HEAD, HEAD, MID, TAIL]
+        block_order(&moved.blocks[3]),
+        vec![F_HEAD, F_TAIL, HEAD, MID, TAIL]
     );
 }
 
-/// Any member of a lone-`Jump` inflow may sink: the tail member crosses
-/// only the terminator and edge, the head member crosses its whole tail
-/// and the join's prefix.
+/// Any contiguous run of at least two members sinks: the block-tail run
+/// crosses only the terminator and edge, the block-head run crosses its
+/// trailing body, and the whole body leaves the block empty — a run of
+/// one member is the sibling family's case.
 #[test]
-fn tail_and_head_members_relocate() {
+fn tail_and_head_runs_relocate() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, T_TAIL, HEAD).unwrap();
-    let moved = &result.transformed().functions[0];
+    let tail = relocate(&source, &environment, RUN_B, T_TAIL, HEAD).unwrap();
     assert_eq!(
-        moved.blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_HEAD, MOVING]
+        block_order(&tail.transformed().functions[0].blocks[1]),
+        vec![T_HEAD, RUN_A]
     );
     assert_eq!(
-        moved.blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![T_TAIL, HEAD, MID, TAIL]
+        block_order(&tail.transformed().functions[0].blocks[3]),
+        vec![RUN_B, T_TAIL, HEAD, MID, TAIL]
     );
-    let result = relocate(&source, &environment, T_HEAD, MID).unwrap();
-    let moved = &result.transformed().functions[0];
+    let head = relocate(&source, &environment, T_HEAD, RUN_A, HEAD).unwrap();
     assert_eq!(
-        moved.blocks[1]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MOVING, T_TAIL]
+        block_order(&head.transformed().functions[0].blocks[1]),
+        vec![RUN_B, T_TAIL]
     );
     assert_eq!(
-        moved.blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![HEAD, T_HEAD, MID, TAIL]
+        block_order(&head.transformed().functions[0].blocks[3]),
+        vec![T_HEAD, RUN_A, HEAD, MID, TAIL]
+    );
+    let whole = relocate(&source, &environment, T_HEAD, T_TAIL, HEAD).unwrap();
+    assert_eq!(
+        block_order(&whole.transformed().functions[0].blocks[1]),
+        Vec::<SelectedInstructionId>::new()
+    );
+    assert_eq!(
+        block_order(&whole.transformed().functions[0].blocks[3]),
+        vec![T_HEAD, RUN_A, RUN_B, T_TAIL, HEAD, MID, TAIL]
     );
 }
 
-/// The member's block needs only its lone `Jump` exit — the entry block is
-/// a legal inflow: `LEAD` sinks out of B once B's terminator is a `Jump`
-/// to the join, crossing `TRAIL`, the jump, and the edge.
+/// The two named members bound the run. Naming one member twice bounds the
+/// run of one, which this admission carries itself; a last member that does
+/// not follow the first, or that sits outside the first's block, bounds no
+/// span at all.
 #[test]
-fn entry_inflow_member_relocates() {
+fn the_named_members_bound_a_contiguous_run() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    // The run of one: the same admission, one member wide.
+    let one = relocate(&source, &environment, RUN_A, RUN_A, HEAD).unwrap();
+    validate_confluence_relocation(
+        &source,
+        0,
+        RUN_A,
+        RUN_A,
+        HEAD,
+        &environment,
+        budget(),
+        one.transformed().clone(),
+    )
+    .unwrap();
+    // Reversed names bound no span.
+    assert_eq!(
+        relocate(&source, &environment, RUN_B, RUN_A, HEAD).unwrap_err(),
+        ConfluenceRelocationError::UnsupportedPair
+    );
+    // A last member in another block bounds no span in the first's.
+    for last in [LEAD, F_HEAD, HEAD, T_JUMP, RET, SelectedInstructionId(99)] {
+        assert_eq!(
+            relocate(&source, &environment, RUN_A, last, HEAD).unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair,
+            "last {last:?}"
+        );
+    }
+}
+
+/// The run's block needs only its lone `Jump` exit — the entry block is
+/// a legal inflow: `LEAD..=TRAIL` sinks out of B once B's terminator is a
+/// `Jump` to the join, crossing the jump and the edge alone.
+#[test]
+fn entry_inflow_run_relocates() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let jumped = mutated(target, |function, environment| {
@@ -518,31 +540,23 @@ fn entry_inflow_member_relocates() {
             successor(BLOCK_J, BlockId::new(4).unwrap(), EDGE_BT),
         );
     });
-    let result = relocate(&jumped, &environment, LEAD, HEAD).unwrap();
+    let result = relocate(&jumped, &environment, LEAD, TRAIL, HEAD).unwrap();
     let moved = &result.transformed().functions[0];
     assert_eq!(
-        moved.blocks[0]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![TRAIL]
+        block_order(&moved.blocks[0]),
+        Vec::<SelectedInstructionId>::new()
     );
     assert_eq!(
-        moved.blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![LEAD, HEAD, MID, TAIL]
+        block_order(&moved.blocks[3]),
+        vec![LEAD, TRAIL, HEAD, MID, TAIL]
     );
 }
 
-/// The member's block must end in the lone unconditional `Jump`, its edge
+/// The run's block must end in the lone unconditional `Jump`, its edge
 /// must land on a join at least one other predecessor's edge also
 /// reaches, and the destination must name a position in that join: a
-/// conditional terminator keeps a second exit the member still executes
-/// on, a sole-predecessor target is the single-edge family's case, a
+/// conditional terminator keeps a second exit the run still executes on,
+/// a sole-predecessor target is the single-edge family's case, a
 /// self-edge is the in-block family's case, the entry block is reached
 /// with no predecessor, and an implementation block's origin carries
 /// boundary work the audit does not cross. The other inflow's own shape
@@ -553,15 +567,16 @@ fn the_confluence_must_open() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    // A member of B sits behind a conditional terminator: the branch keeps
-    // a second exit the member would still execute on after the move.
+    // A run of B sits behind a conditional terminator: the branch keeps a
+    // second exit the run would still execute on after the move.
     assert_eq!(
-        relocate(&source, &environment, LEAD, HEAD).unwrap_err(),
+        relocate(&source, &environment, LEAD, TRAIL, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // A destination outside the join names no landing position: the
-    // member's own block mates, the other inflow's, B's, and dangling ids.
+    // A destination outside the join names no landing position: the run's
+    // own block mates, the other inflow's, B's, and dangling ids.
     for destination in [
+        RUN_A,
         T_HEAD,
         T_TAIL,
         F_HEAD,
@@ -570,12 +585,12 @@ fn the_confluence_must_open() {
         SelectedInstructionId(99),
     ] {
         assert_eq!(
-            relocate(&source, &environment, MOVING, destination).unwrap_err(),
+            relocate(&source, &environment, RUN_A, RUN_B, destination).unwrap_err(),
             ConfluenceRelocationError::UnsupportedPair,
             "destination {destination:?}"
         );
     }
-    // The join reached by only the member's edge is the sole-predecessor
+    // The join reached by only the run's edge is the sole-predecessor
     // edge family's case — no traversal speculates.
     let sole = mutated(target, |function, environment| {
         let jump_row = environment
@@ -606,7 +621,7 @@ fn the_confluence_must_open() {
         });
     });
     assert_eq!(
-        relocate(&sole, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&sole, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // A self-edge is the in-block family's case with a back-edge transport
@@ -622,7 +637,7 @@ fn the_confluence_must_open() {
         );
     });
     assert_eq!(
-        relocate(&self_loop, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&self_loop, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // The entry block is reached with no predecessor at all.
@@ -637,7 +652,7 @@ fn the_confluence_must_open() {
         );
     });
     assert_eq!(
-        relocate(&entry_target, &environment, MOVING, LEAD).unwrap_err(),
+        relocate(&entry_target, &environment, RUN_A, RUN_B, LEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // An implementation-origin join carries boundary work the bounded
@@ -649,7 +664,7 @@ fn the_confluence_must_open() {
         };
     });
     assert_eq!(
-        relocate(&cased_join, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&cased_join, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // The other inflow's own terminator shape is unconstrained: a
@@ -671,7 +686,7 @@ fn the_confluence_must_open() {
             when_zero: successor(BLOCK_J, BlockId::new(4).unwrap(), EDGE_DJ),
         };
     });
-    relocate(&branched_inflow, &environment, MOVING, HEAD).unwrap();
+    relocate(&branched_inflow, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // A third inflow opens the same confluence.
     let three_way = mutated(target, |function, environment| {
         let jump_row = environment
@@ -688,17 +703,17 @@ fn the_confluence_must_open() {
             ),
         });
     });
-    relocate(&three_way, &environment, MOVING, HEAD).unwrap();
+    relocate(&three_way, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// Only a plain semantic edge carries the member across: a continuation
+/// Only a plain semantic edge carries the run across: a continuation
 /// role, case custody, per-edge fuel, or a live structural transport on
 /// the crossed edge all refuse. The other inflow's edge is never crossed
 /// — it runs before the landing index on its own arrivals — so fuel, a
 /// continuation role, a case payload, or a structural transport on it all
-/// stay free, even when they read the member's register.
+/// stay free, even when they read a member's register.
 #[test]
-fn only_plain_semantic_edges_carry_the_member() {
+fn only_plain_semantic_edges_carry_the_run() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for role in [
@@ -713,7 +728,7 @@ fn only_plain_semantic_edges_carry_the_member() {
             successor.role = role;
         });
         assert_eq!(
-            relocate(&continued, &environment, MOVING, HEAD).unwrap_err(),
+            relocate(&continued, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
             ConfluenceRelocationError::UnsupportedPair
         );
     }
@@ -731,7 +746,7 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
     });
     assert_eq!(
-        relocate(&case_edge, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&case_edge, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     let fueled = mutated(target, |function, _| {
@@ -745,11 +760,11 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
     });
     assert_eq!(
-        relocate(&fueled, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&fueled, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // A live structural transport on the crossed edge moves a stored value
-    // the member would cross.
+    // the run would cross.
     let structural = mutated(target, |function, _| {
         let successor = match &mut function.blocks[1].terminator {
             SelectedTerminator::Jump { successor, .. } => successor,
@@ -777,7 +792,7 @@ fn only_plain_semantic_edges_carry_the_member() {
             });
     });
     assert_eq!(
-        relocate(&structural, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&structural, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // Everything on the other inflow's edge stays free: it runs before the
@@ -793,7 +808,7 @@ fn only_plain_semantic_edges_carry_the_member() {
         });
         successor.role = SelectedSuccessorRole::EdgeTransferContinuation;
     });
-    relocate(&fueled_inflow, &environment, MOVING, HEAD).unwrap();
+    relocate(&fueled_inflow, &environment, RUN_A, RUN_B, HEAD).unwrap();
     let cased_inflow = mutated(target, |function, _| {
         let successor = match &mut function.blocks[2].terminator {
             SelectedTerminator::Jump { successor, .. } => successor,
@@ -819,7 +834,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                     },
                 },
                 transport: selected_instructions::SelectedCasePayloadTransport::Registers {
-                    argument: R_MOVE,
+                    argument: R_MOVE_A,
                     parameter: R_BOUND,
                 },
             }],
@@ -837,7 +852,7 @@ fn only_plain_semantic_edges_carry_the_member() {
                     },
                 },
                 transport: SelectedStructuralTransport::WholeValue {
-                    argument: R_MOVE,
+                    argument: R_MOVE_B,
                     destination: selected_instructions::LocalStorageSlotId::Spill {
                         register: R_BOUND,
                     },
@@ -846,17 +861,19 @@ fn only_plain_semantic_edges_carry_the_member() {
                 },
             });
     });
-    relocate(&cased_inflow, &environment, MOVING, HEAD).unwrap();
+    relocate(&cased_inflow, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// The crossed edge's register transports sit between the member's old
-/// and new positions: a member defining the transported argument would
-/// hand the binding a new value, a member defining the parameter would be
+/// The crossed edge's register transports sit between the run's old and
+/// new positions: a member defining the transported argument would hand
+/// the binding a new value, a member defining the parameter would be
 /// overwritten by it, and a member reading the parameter would observe
 /// the transported value only after the move — while a member merely
-/// reading the argument crosses freely. The other inflow's transports are
-/// never crossed — they join the boundary run before the landing index on
-/// their own arrivals, whatever they read or write.
+/// reading the argument crosses freely. Every member meets the audit:
+/// either run member writing the argument refuses on its own. The other
+/// inflow's transports are never crossed — they join the boundary run
+/// before the landing index on their own arrivals, whatever they read or
+/// write.
 #[test]
 fn register_transports_bind_the_crossed_edge() {
     let target = NativeTarget::linux_x64();
@@ -875,15 +892,15 @@ fn register_transports_bind_the_crossed_edge() {
                 parameter,
             },
         };
-    let member_writes = |register: VirtualRegisterId| {
+    let member_writes = |index: usize, id: SelectedInstructionId, register: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let materialize = environment
                 .constraint(environment.selected_keys().materialize_i64)
                 .unwrap()
                 .clone();
-            function.blocks[1].instructions[1] = instruction(
-                MOVING,
+            function.blocks[1].instructions[index] = instruction(
+                id,
                 SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(9),
                 },
@@ -892,18 +909,21 @@ fn register_transports_bind_the_crossed_edge() {
             );
         }
     };
-    let member_reads = |register: VirtualRegisterId| {
+    let member_reads = |index: usize,
+                        id: SelectedInstructionId,
+                        register: VirtualRegisterId,
+                        output: VirtualRegisterId| {
         move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
                 .unwrap()
                 .clone();
-            function.blocks[1].instructions[1] = instruction(
-                MOVING,
+            function.blocks[1].instructions[index] = instruction(
+                id,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[register, R_MOVE],
+                &[register, output],
             );
         }
     };
@@ -920,19 +940,43 @@ fn register_transports_bind_the_crossed_edge() {
             edit(function, environment);
         })
     };
-    relocate(&on_crossed_edge(&mut |_, _| {}), &environment, MOVING, HEAD).unwrap();
     relocate(
-        &on_crossed_edge(&mut member_reads(POINTER)),
+        &on_crossed_edge(&mut |_, _| {}),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         HEAD,
     )
     .unwrap();
+    relocate(
+        &on_crossed_edge(&mut member_reads(1, RUN_A, POINTER, R_MOVE_A)),
+        &environment,
+        RUN_A,
+        RUN_B,
+        HEAD,
+    )
+    .unwrap();
+    // Either member defining the transported argument refuses on its own.
+    for (index, id) in [(1usize, RUN_A), (2, RUN_B)] {
+        assert_eq!(
+            relocate(
+                &on_crossed_edge(&mut member_writes(index, id, POINTER)),
+                &environment,
+                RUN_A,
+                RUN_B,
+                HEAD,
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair,
+            "member {id:?} writing the argument"
+        );
+    }
     assert_eq!(
         relocate(
-            &on_crossed_edge(&mut member_writes(POINTER)),
+            &on_crossed_edge(&mut member_writes(2, RUN_B, R_BOUND)),
             &environment,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
         )
         .unwrap_err(),
@@ -940,26 +984,17 @@ fn register_transports_bind_the_crossed_edge() {
     );
     assert_eq!(
         relocate(
-            &on_crossed_edge(&mut member_writes(R_BOUND)),
+            &on_crossed_edge(&mut member_reads(2, RUN_B, R_BOUND, R_MOVE_B)),
             &environment,
-            MOVING,
-            HEAD,
-        )
-        .unwrap_err(),
-        ConfluenceRelocationError::UnsupportedPair
-    );
-    assert_eq!(
-        relocate(
-            &on_crossed_edge(&mut member_reads(R_BOUND)),
-            &environment,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
         )
         .unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // On the other inflow's edge a transport runs before the landing index
-    // on its own arrivals: a parameter writing the member's register is
+    // on its own arrivals: a parameter writing a member's register is
     // overwritten again at the landing position, and an argument reading
     // it observes the value that inflow always carried.
     let on_inflow_edge = |binding_of: &mut dyn FnMut() -> SelectedValueBinding| {
@@ -972,71 +1007,118 @@ fn register_transports_bind_the_crossed_edge() {
         })
     };
     relocate(
-        &on_inflow_edge(&mut || binding(POINTER, R_MOVE)),
+        &on_inflow_edge(&mut || binding(POINTER, R_MOVE_A)),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         HEAD,
     )
     .unwrap();
     relocate(
-        &on_inflow_edge(&mut || binding(R_MOVE, R_BOUND)),
+        &on_inflow_edge(&mut || binding(R_MOVE_B, R_BOUND)),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         HEAD,
     )
     .unwrap();
 }
 
-/// A reader of the member's written register anywhere in the crossed run
-/// keeps the old order: the member's own block tail, the `Jump`
-/// terminator itself, and the join's prefix all refuse — the source
-/// program observed the member's definition there. A reader before the
-/// member's old index keeps the pre-member value on every path.
+/// The run moves as one body: a producer whose only crossed reader is the
+/// run's own next member cannot leave its block alone — the member move
+/// would starve the consumer it leaves behind — while the run carries the
+/// consumer with it through the confluence.
 #[test]
-fn raw_hazard_keeps_order_through_the_edge() {
+fn internally_coupled_run_moves_as_one_body() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let read_move = |function: &mut SelectedFunction,
-                     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-                     block: usize,
-                     index: usize,
-                     id: SelectedInstructionId,
-                     output: VirtualRegisterId| {
+    let source = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
             .unwrap()
             .clone();
-        function.blocks[block].instructions[index] = instruction(
-            id,
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, output],
+            &[R_MOVE_A, R_MOVE_B],
         );
+    });
+    // The run admits: `RUN_B` reads `RUN_A`'s result inside the run, where
+    // internal coupling never trades order.
+    let moved = relocate(&source, &environment, RUN_A, RUN_B, HEAD).unwrap();
+    assert_eq!(
+        block_order(&moved.transformed().functions[0].blocks[3]),
+        vec![RUN_A, RUN_B, HEAD, MID, TAIL]
+    );
+    // `RUN_A` alone cannot cross `RUN_B`, whose read of its result sits in
+    // the member move's window — the single-member family refuses where
+    // the run admits.
+    assert_eq!(
+        crate::rewrites::unexecuted::relocate_selected_members_into_confluence(
+            &source,
+            0,
+            RUN_A,
+            RUN_A,
+            HEAD,
+            &environment,
+            budget(),
+        )
+        .unwrap_err(),
+        crate::rewrites::unexecuted::ConfluenceRelocationError::UnsupportedPair
+    );
+}
+
+/// A reader of a member's written register anywhere in the crossed run
+/// keeps the old order: the run's own block tail, the `Jump` terminator
+/// itself, and the join's prefix all refuse — the source program
+/// observed the member's definition there. A reader before the run's
+/// first index keeps the pre-run value on every path.
+#[test]
+fn raw_hazard_keeps_order_through_the_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let reads = |block: usize,
+                 index: usize,
+                 id: SelectedInstructionId,
+                 input: VirtualRegisterId,
+                 output: VirtualRegisterId| {
+        move |function: &mut SelectedFunction,
+              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[block].instructions[index] = instruction(
+                id,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[input, output],
+            );
+        }
     };
-    // The member's own block tail is crossed.
-    let tail_reads = mutated(target, |function, environment| {
-        read_move(function, environment, 1, 2, T_TAIL, R_TTAIL);
-    });
+    // The run's own block tail is crossed: either member's result read
+    // there refuses.
+    for input in [R_MOVE_A, R_MOVE_B] {
+        let tail_reads = mutated(target, reads(1, 3, T_TAIL, input, R_TTAIL));
+        assert_eq!(
+            relocate(&tail_reads, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair,
+            "tail reading {input:?}"
+        );
+    }
+    // The join's prefix is crossed when the run lands deeper.
+    let head_reads = mutated(target, reads(3, 0, HEAD, R_MOVE_B, R_HEAD));
     assert_eq!(
-        relocate(&tail_reads, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&head_reads, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // The join's prefix is crossed when the member lands deeper.
-    let head_reads = mutated(target, |function, environment| {
-        read_move(function, environment, 3, 0, HEAD, R_HEAD);
-    });
-    assert_eq!(
-        relocate(&head_reads, &environment, MOVING, MID).unwrap_err(),
-        ConfluenceRelocationError::UnsupportedPair
-    );
-    // A reader before the member's old index is never crossed: it kept
-    // the pre-member value on either order.
-    let before_reads = mutated(target, |function, environment| {
-        read_move(function, environment, 1, 0, T_HEAD, R_THEAD);
-    });
-    relocate(&before_reads, &environment, MOVING, HEAD).unwrap();
-    // The `Jump` terminator is a crossed position: the member sinks past
-    // it, so its read of the member's result refuses.
+    // A reader before the run's first index is never crossed: it kept the
+    // pre-run value on either order.
+    let before_reads = mutated(target, reads(1, 0, T_HEAD, R_MOVE_A, R_THEAD));
+    relocate(&before_reads, &environment, RUN_A, RUN_B, HEAD).unwrap();
+    // The `Jump` terminator is a crossed position: the run sinks past it,
+    // so its read of a member's result refuses.
     let jump_reads = mutated(target, |function, environment| {
         let jump_row = environment
             .constraint(environment.selected_keys().jump)
@@ -1046,7 +1128,7 @@ fn raw_hazard_keeps_order_through_the_edge() {
         let mut jump = instruction(T_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]);
         jump.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_A,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -1060,16 +1142,15 @@ fn raw_hazard_keeps_order_through_the_edge() {
         function.blocks[1].terminator = jump_terminator(jump, successor);
     });
     assert_eq!(
-        relocate(&jump_reads, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&jump_reads, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
 }
 
-/// A writer of a register the member reads anywhere in the crossed run
-/// would hand the member a different input at its new position: the
-/// member's own block tail and the join's prefix refuse, while a writer
-/// before the member's old index already published the value the member
-/// reads.
+/// A writer of a register a member reads anywhere in the crossed run
+/// would hand the member a different input at its new position: the run's
+/// own block tail and the join's prefix refuse, while a writer before
+/// the run's first index already published the value the member reads.
 #[test]
 fn war_hazard_keeps_order_through_the_edge() {
     let target = NativeTarget::linux_x64();
@@ -1082,10 +1163,10 @@ fn war_hazard_keeps_order_through_the_edge() {
                 .unwrap()
                 .clone();
             function.blocks[1].instructions[1] = instruction(
-                MOVING,
+                RUN_A,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[POINTER, R_MOVE],
+                &[POINTER, R_MOVE_A],
             );
         };
     let writes_pointer = |block: usize, index: usize, id: SelectedInstructionId| {
@@ -1105,10 +1186,10 @@ fn war_hazard_keeps_order_through_the_edge() {
     };
     let tail_writes = mutated(target, |function, environment| {
         member_reads_pointer(function, environment);
-        writes_pointer(1, 2, T_TAIL)(function, environment);
+        writes_pointer(1, 3, T_TAIL)(function, environment);
     });
     assert_eq!(
-        relocate(&tail_writes, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&tail_writes, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     let prefix_writes = mutated(target, |function, environment| {
@@ -1116,20 +1197,20 @@ fn war_hazard_keeps_order_through_the_edge() {
         writes_pointer(3, 0, HEAD)(function, environment);
     });
     assert_eq!(
-        relocate(&prefix_writes, &environment, MOVING, MID).unwrap_err(),
+        relocate(&prefix_writes, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // A writer before the member's old index already published the input:
+    // A writer before the run's first index already published the input:
     // the member reads the same value at its new position on this inflow's
     // path.
     let before_writes = mutated(target, |function, environment| {
         member_reads_pointer(function, environment);
         writes_pointer(1, 0, T_HEAD)(function, environment);
     });
-    relocate(&before_writes, &environment, MOVING, HEAD).unwrap();
+    relocate(&before_writes, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// A writer of the member's written register in the crossed run refuses —
+/// A writer of a member's written register in the crossed run refuses —
 /// either side would observe the other's value where the source observed
 /// its own. A writer at or after the landing index simply retires the
 /// member's foreign definition: readers after it see the rewrite on every
@@ -1138,8 +1219,9 @@ fn war_hazard_keeps_order_through_the_edge() {
 fn waw_hazard_keeps_order_through_the_edge() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let writes_move = |block: usize, index: usize, id: SelectedInstructionId| {
-        move |function: &mut SelectedFunction,
+    let writes =
+        |block: usize, index: usize, id: SelectedInstructionId, output: VirtualRegisterId| {
+            move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
             let copy = environment
                 .constraint(environment.selected_keys().copy_i64)
@@ -1149,35 +1231,34 @@ fn waw_hazard_keeps_order_through_the_edge() {
                 id,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_TRAIL, R_MOVE],
+                &[R_TRAIL, output],
             );
         }
-    };
-    let tail_writes = mutated(target, writes_move(1, 2, T_TAIL));
+        };
+    let tail_writes = mutated(target, writes(1, 3, T_TAIL, R_MOVE_A));
     assert_eq!(
-        relocate(&tail_writes, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&tail_writes, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    let prefix_writes = mutated(target, writes_move(3, 0, HEAD));
+    let prefix_writes = mutated(target, writes(3, 0, HEAD, R_MOVE_B));
     assert_eq!(
-        relocate(&prefix_writes, &environment, MOVING, MID).unwrap_err(),
+        relocate(&prefix_writes, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // `TAIL` sits after the landing index: it overwrites the member's
     // register on every arrival, retiring the foreign definition before
     // any reader.
-    let retires = mutated(target, writes_move(3, 2, TAIL));
-    relocate(&retires, &environment, MOVING, HEAD).unwrap();
+    let retires = mutated(target, writes(3, 2, TAIL, R_MOVE_A));
+    relocate(&retires, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
 /// Condition state couples the same way registers do: a member clobbering
-/// the flags refuses against a crossed flag reader — in its own tail or
-/// the join's prefix — and against a reader at or after the landing
-/// index, where the dead-path audit sees the foreign flags still live; a
-/// flag reader in the member's own terminator-free tail or a flag writer
-/// crossed by a flag-reading member refuses the other direction. Pure
-/// flag work in either direction admits when nothing crossed or reached
-/// observes it.
+/// the flags refuses against a crossed flag reader — in the run's own
+/// tail or the join's prefix — and against a reader at or after the
+/// landing index, where the dead-path audit sees the foreign flags still
+/// live; a flag reader in the run's own tail or a flag writer crossed by
+/// a flag-reading member refuses the other direction. Pure flag work in
+/// either direction admits when nothing crossed or reached observes it.
 #[test]
 fn condition_state_couples_through_the_edge() {
     let target = NativeTarget::linux_x64();
@@ -1224,59 +1305,59 @@ fn condition_state_couples_through_the_edge() {
     // A flag-writing member lands cleanly while nothing crossed or
     // reached observes the flags.
     let member_writes_flags = mutated(target, |function, environment| {
-        flag_writer(function, environment, 1, 1, MOVING, R_MOVE);
+        flag_writer(function, environment, 1, 1, RUN_A, R_MOVE_A);
     });
-    relocate(&member_writes_flags, &environment, MOVING, HEAD).unwrap();
+    relocate(&member_writes_flags, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // A crossed flag reader in the join's prefix refuses.
     let prefix_reads_flags = mutated(target, |function, environment| {
-        flag_writer(function, environment, 1, 1, MOVING, R_MOVE);
+        flag_writer(function, environment, 1, 1, RUN_A, R_MOVE_A);
         flag_reader(function, environment, 3, 0, HEAD, R_HEAD);
     });
     assert_eq!(
-        relocate(&prefix_reads_flags, &environment, MOVING, MID).unwrap_err(),
+        relocate(&prefix_reads_flags, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // A flag reader past the landing index meets the member's foreign
     // flags still live.
     let tail_reads_flags = mutated(target, |function, environment| {
-        flag_writer(function, environment, 1, 1, MOVING, R_MOVE);
+        flag_writer(function, environment, 1, 1, RUN_A, R_MOVE_A);
         flag_reader(function, environment, 3, 2, TAIL, R_TAIL);
     });
     assert_eq!(
-        relocate(&tail_reads_flags, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&tail_reads_flags, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // A flag-reading member refuses a crossed flag writer in its own tail.
     let tail_writes_flags = mutated(target, |function, environment| {
-        flag_reader(function, environment, 1, 1, MOVING, R_MOVE);
-        flag_writer(function, environment, 1, 2, T_TAIL, R_TTAIL);
+        flag_reader(function, environment, 1, 2, RUN_B, R_MOVE_B);
+        flag_writer(function, environment, 1, 3, T_TAIL, R_TTAIL);
     });
     assert_eq!(
-        relocate(&tail_writes_flags, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&tail_writes_flags, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // … and in the join's prefix when the member lands deeper.
+    // … and in the join's prefix when the run lands deeper.
     let head_writes_flags = mutated(target, |function, environment| {
-        flag_reader(function, environment, 1, 1, MOVING, R_MOVE);
+        flag_reader(function, environment, 1, 2, RUN_B, R_MOVE_B);
         flag_writer(function, environment, 3, 0, HEAD, R_HEAD);
     });
     assert_eq!(
-        relocate(&head_writes_flags, &environment, MOVING, MID).unwrap_err(),
+        relocate(&head_writes_flags, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // With nothing crossed writing the flags the flag-reading member
     // sinks freely: its speculative executions read foreign flags, but
     // their output dies unread.
     let member_reads_flags = mutated(target, |function, environment| {
-        flag_reader(function, environment, 1, 1, MOVING, R_MOVE);
+        flag_reader(function, environment, 1, 2, RUN_B, R_MOVE_B);
     });
-    relocate(&member_reads_flags, &environment, MOVING, HEAD).unwrap();
+    relocate(&member_reads_flags, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// Both terminators bordering the window couple: the member's own `Jump`
-/// — a crossed position — refuses a read of the member's register, while
-/// a read of anything else crosses freely; the join's `Return` is a
-/// dead-path position, so a read of the member's still-live register
+/// Both terminators bordering the window couple: the run's own `Jump` —
+/// a crossed position — refuses a read of a member's register, while a
+/// read of anything else crosses freely; the join's `Return` is a
+/// dead-path position, so a read of a member's still-live register
 /// refuses and a read of anything else admits; the other inflow's
 /// terminator is never crossed or walked and stays free.
 #[test]
@@ -1310,9 +1391,10 @@ fn terminator_positions_couple() {
     };
     assert_eq!(
         relocate(
-            &mutated(target, jump_reads(R_MOVE)),
+            &mutated(target, jump_reads(R_MOVE_B)),
             &environment,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
         )
         .unwrap_err(),
@@ -1321,11 +1403,12 @@ fn terminator_positions_couple() {
     relocate(
         &mutated(target, jump_reads(R_TTAIL)),
         &environment,
-        MOVING,
+        RUN_A,
+        RUN_B,
         HEAD,
     )
     .unwrap();
-    // The join's return is a dead-path position: a read of the member's
+    // The join's return is a dead-path position: a read of a member's
     // still-live register observes the foreign definition.
     let return_reads = mutated(target, |function, environment| {
         let return_row = environment
@@ -1336,7 +1419,7 @@ fn terminator_positions_couple() {
         let mut ret = instruction(RET, SelectedInstructionKind::ReturnUnit, &return_row, &[]);
         ret.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_A,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -1349,11 +1432,11 @@ fn terminator_positions_couple() {
         };
     });
     assert_eq!(
-        relocate(&return_reads, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&return_reads, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // The other inflow's terminator is never crossed or walked: its read
-    // of the member's register sees the value its own path always had.
+    // of a member's register sees the value its own path always had.
     let other_terminator_reads = mutated(target, |function, environment| {
         let jump_row = environment
             .constraint(environment.selected_keys().jump)
@@ -1363,7 +1446,7 @@ fn terminator_positions_couple() {
         let mut jump = instruction(F_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]);
         jump.operands.push(SelectedOperand {
             operand: 0,
-            virtual_register: R_MOVE,
+            virtual_register: R_MOVE_B,
             access: RegisterOperandAccess::Use,
             class,
             fixed_view: None,
@@ -1376,16 +1459,16 @@ fn terminator_positions_couple() {
         };
         function.blocks[2].terminator = jump_terminator(jump, successor);
     });
-    relocate(&other_terminator_reads, &environment, MOVING, HEAD).unwrap();
+    relocate(&other_terminator_reads, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// Barrier kinds and call-roster entries refuse as the member or anywhere
-/// inside the crossed window — the member's own block tail, the `Jump`
-/// terminator's call contract, and the join's prefix included — while a
-/// barrier before the member's index, at or after the landing index, or
-/// on the other inflow is never crossed: every crossed position is one
-/// the member trades order with, and a rostered crossed position is an
-/// accounted access the row-less member passes without reordering.
+/// Barrier kinds and call-roster entries refuse as a run member or
+/// anywhere inside the crossed window — the run's own block tail, the
+/// `Jump` terminator's call contract, and the join's prefix included —
+/// while a barrier before the run's first index, at or after the landing
+/// index, or on the other inflow is never crossed: every crossed position
+/// is one the run trades order with, and a rostered crossed position is
+/// an accounted access the row-less run passes without reordering.
 #[test]
 fn barrier_kinds_and_call_roster_reject() {
     let target = NativeTarget::linux_x64();
@@ -1399,19 +1482,21 @@ fn barrier_kinds_and_call_roster_reject() {
         },
         SelectedInstructionKind::HostedExitProcessI32,
     ] {
-        let member_barrier = mutated(target, |function, _| {
-            function.blocks[1].instructions[1].kind = kind;
-        });
-        assert_eq!(
-            relocate(&member_barrier, &environment, MOVING, HEAD).unwrap_err(),
-            ConfluenceRelocationError::UnsupportedInstruction,
-            "member {kind:?}"
-        );
+        for index in [1usize, 2] {
+            let member_barrier = mutated(target, |function, _| {
+                function.blocks[1].instructions[index].kind = kind;
+            });
+            assert_eq!(
+                relocate(&member_barrier, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+                ConfluenceRelocationError::UnsupportedInstruction,
+                "member {kind:?} at index {index}"
+            );
+        }
         let tail_barrier = mutated(target, |function, _| {
-            function.blocks[1].instructions[2].kind = kind;
+            function.blocks[1].instructions[3].kind = kind;
         });
         assert_eq!(
-            relocate(&tail_barrier, &environment, MOVING, HEAD).unwrap_err(),
+            relocate(&tail_barrier, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
             ConfluenceRelocationError::UnsupportedInstruction,
             "crossed tail {kind:?}"
         );
@@ -1419,28 +1504,28 @@ fn barrier_kinds_and_call_roster_reject() {
             function.blocks[3].instructions[0].kind = kind;
         });
         assert_eq!(
-            relocate(&prefix_barrier, &environment, MOVING, MID).unwrap_err(),
+            relocate(&prefix_barrier, &environment, RUN_A, RUN_B, MID).unwrap_err(),
             ConfluenceRelocationError::UnsupportedInstruction,
             "crossed prefix {kind:?}"
         );
-        // A barrier before the member's old index is never crossed — the
-        // member leaves ahead of it either way.
+        // A barrier before the run's first index is never crossed — the
+        // run leaves ahead of it either way.
         let head_barrier = mutated(target, |function, _| {
             function.blocks[1].instructions[0].kind = kind;
         });
-        relocate(&head_barrier, &environment, MOVING, HEAD).unwrap();
+        relocate(&head_barrier, &environment, RUN_A, RUN_B, HEAD).unwrap();
         // A barrier at or after the landing index is never crossed — the
-        // member stays ahead of it on every arrival.
+        // run stays ahead of it on every arrival.
         let past_barrier = mutated(target, |function, _| {
             function.blocks[3].instructions[1].kind = kind;
         });
-        relocate(&past_barrier, &environment, MOVING, HEAD).unwrap();
+        relocate(&past_barrier, &environment, RUN_A, RUN_B, HEAD).unwrap();
         // A barrier on the other inflow still runs on its own path; the
-        // member never enters its stream.
+        // run never enters its stream.
         let inflow_barrier = mutated(target, |function, _| {
             function.blocks[2].instructions[0].kind = kind;
         });
-        relocate(&inflow_barrier, &environment, MOVING, HEAD).unwrap();
+        relocate(&inflow_barrier, &environment, RUN_A, RUN_B, HEAD).unwrap();
     }
     let call_contract = |instruction: SelectedInstructionId| SelectedCallContract {
         instruction,
@@ -1474,30 +1559,34 @@ fn barrier_kinds_and_call_roster_reject() {
         },
         ownership: Vec::new(),
     };
-    for (instruction_id, destination) in
-        [(MOVING, HEAD), (T_TAIL, HEAD), (HEAD, MID), (T_JUMP, HEAD)]
-    {
+    for (instruction_id, destination) in [
+        (RUN_A, HEAD),
+        (RUN_B, HEAD),
+        (T_TAIL, HEAD),
+        (HEAD, MID),
+        (T_JUMP, HEAD),
+    ] {
         let contract = mutated(target, |function, _| {
             function.calls.push(call_contract(instruction_id));
         });
         assert_eq!(
-            relocate(&contract, &environment, MOVING, destination).unwrap_err(),
+            relocate(&contract, &environment, RUN_A, RUN_B, destination).unwrap_err(),
             ConfluenceRelocationError::UnsupportedInstruction,
             "call roster {instruction_id:?}"
         );
     }
-    // A call-roster row before the member's index, at or after the landing
-    // index, on the join's own terminator, or on the other inflow is
-    // outside the window: those positions keep the member on the side they
-    // always had.
+    // A call-roster row before the run's first index, at or after the
+    // landing index, on the join's own terminator, or on the other inflow
+    // is outside the window: those positions keep the run on the side
+    // they always had.
     for instruction_id in [T_HEAD, MID, TAIL, RET, F_HEAD, F_JUMP, LEAD, TRAIL, BRANCH] {
         let contract = mutated(target, |function, _| {
             function.calls.push(call_contract(instruction_id));
         });
-        relocate(&contract, &environment, MOVING, HEAD).unwrap();
+        relocate(&contract, &environment, RUN_A, RUN_B, HEAD).unwrap();
     }
-    // A rostered crossed position is an accounted access the row-less
-    // member passes without reordering a recorded access.
+    // A rostered crossed position is an accounted access the row-less run
+    // passes without reordering a recorded access.
     let rostered_prefix = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
@@ -1518,7 +1607,7 @@ fn barrier_kinds_and_call_roster_reject() {
             SelectedMemoryAccessRole::WritePlace,
         ));
     });
-    relocate(&rostered_prefix, &environment, MOVING, MID).unwrap();
+    relocate(&rostered_prefix, &environment, RUN_A, RUN_B, MID).unwrap();
     // An unaccounted memory-capable crossed position can never trade
     // order at all: a row-less `Store` reaches place-backed storage the
     // roster does not record.
@@ -1527,7 +1616,7 @@ fn barrier_kinds_and_call_roster_reject() {
             .constraint(environment.selected_keys().store.unwrap())
             .unwrap()
             .clone();
-        function.blocks[1].instructions[2] = instruction(
+        function.blocks[1].instructions[3] = instruction(
             T_TAIL,
             SelectedInstructionKind::Store {
                 byte_offset: 0,
@@ -1538,7 +1627,7 @@ fn barrier_kinds_and_call_roster_reject() {
         );
     });
     assert_eq!(
-        relocate(&rowless_tail_store, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&rowless_tail_store, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
 }
@@ -1547,36 +1636,42 @@ fn barrier_kinds_and_call_roster_reject() {
 /// carrying a memory roster row would run its access on every arrival,
 /// and a row-less load or private-slot store gains the same access — as
 /// would a kind whose target encoding may fault on the arrivals that
-/// never ran it. Memory work on the other inflow never moves: its
-/// positions run before the landing index on their own arrivals, and the
-/// member never enters their stream.
+/// never ran it. Every member meets the bar independently: one impure
+/// member sinks the whole run. Memory work on the other inflow never
+/// moves: its positions run before the landing index on their own
+/// arrivals, and the run never enters their stream.
 #[test]
-fn member_must_be_pure_work() {
+fn run_must_be_pure_work() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // A roster-carrying member's recorded access would become
-    // unconditional across the join's arrivals.
-    let roster_member = mutated(target, |function, environment| {
-        let load = environment
-            .constraint(environment.selected_keys().load8.unwrap())
-            .unwrap()
-            .clone();
-        function.blocks[1].instructions[1] = instruction(
-            MOVING,
-            SelectedInstructionKind::Load8 { byte_offset: 0 },
-            &load,
-            &[POINTER, R_MOVE],
+    // unconditional across the join's arrivals — in either run position.
+    for index in [1usize, 2] {
+        let roster_member = mutated(target, |function, environment| {
+            let load = environment
+                .constraint(environment.selected_keys().load8.unwrap())
+                .unwrap()
+                .clone();
+            let id = function.blocks[1].instructions[index].id;
+            let output = function.blocks[1].instructions[index].operands[0].virtual_register;
+            function.blocks[1].instructions[index] = instruction(
+                id,
+                SelectedInstructionKind::Load8 { byte_offset: 0 },
+                &load,
+                &[POINTER, output],
+            );
+            function.memory_accesses.push(access(
+                id,
+                PlaceId::new(1).unwrap(),
+                SelectedMemoryAccessRole::ReadPlace,
+            ));
+        });
+        assert_eq!(
+            relocate(&roster_member, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+            ConfluenceRelocationError::UnsupportedInstruction,
+            "roster member at index {index}"
         );
-        function.memory_accesses.push(access(
-            MOVING,
-            PlaceId::new(1).unwrap(),
-            SelectedMemoryAccessRole::ReadPlace,
-        ));
-    });
-    assert_eq!(
-        relocate(&roster_member, &environment, MOVING, HEAD).unwrap_err(),
-        ConfluenceRelocationError::UnsupportedInstruction
-    );
+    }
     // A row-less load still performs an access — and carries any fault —
     // on every arrival after the move.
     let rowless_load = mutated(target, |function, environment| {
@@ -1584,15 +1679,15 @@ fn member_must_be_pure_work() {
             .constraint(environment.selected_keys().load8.unwrap())
             .unwrap()
             .clone();
-        function.blocks[1].instructions[1] = instruction(
-            MOVING,
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::Load8 { byte_offset: 0 },
             &load,
-            &[POINTER, R_MOVE],
+            &[POINTER, R_MOVE_B],
         );
     });
     assert_eq!(
-        relocate(&rowless_load, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&rowless_load, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
     // A row-less private-slot store still writes storage on every
@@ -1604,7 +1699,7 @@ fn member_must_be_pure_work() {
             .unwrap()
             .clone();
         function.blocks[1].instructions[1] = instruction(
-            MOVING,
+            RUN_A,
             SelectedInstructionKind::Store64 {
                 slot: selected_instructions::FrameStorageSlotId::Local(
                     selected_instructions::LocalStorageSlotId::Spill { register: R_BOUND },
@@ -1612,11 +1707,11 @@ fn member_must_be_pure_work() {
                 byte_offset: 0,
             },
             &store,
-            &[POINTER, R_MOVE],
+            &[POINTER, R_MOVE_A],
         );
     });
     assert_eq!(
-        relocate(&rowless_store, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&rowless_store, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
     // A potentially-faulting kind ran only on this inflow's path: the
@@ -1626,8 +1721,8 @@ fn member_must_be_pure_work() {
             .constraint(environment.selected_keys().divide_u64)
             .unwrap()
             .clone();
-        function.blocks[1].instructions[1] = instruction(
-            MOVING,
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::ExactDivideU64 {
                 obligation: ObligationId::new(11).unwrap(),
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
@@ -1635,11 +1730,11 @@ fn member_must_be_pure_work() {
                 ),
             },
             &divide,
-            &[POINTER, R_MOVE, R_MOVE],
+            &[POINTER, R_MOVE_B, R_MOVE_B],
         );
     });
     assert_eq!(
-        relocate(&exact_divide, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&exact_divide, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
     let saturating_divide = mutated(target, |function, environment| {
@@ -1647,8 +1742,8 @@ fn member_must_be_pure_work() {
             .constraint(environment.selected_keys().saturating_divide_signed)
             .unwrap()
             .clone();
-        function.blocks[1].instructions[1] = instruction(
-            MOVING,
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::SaturatingDivide {
                 carrier: selected_instructions::SaturatingCarrier::U64,
                 obligation: ObligationId::new(11).unwrap(),
@@ -1657,11 +1752,11 @@ fn member_must_be_pure_work() {
                 ),
             },
             &divide,
-            &[POINTER, R_MOVE, R_MOVE],
+            &[POINTER, R_MOVE_B, R_MOVE_B],
         );
     });
     assert_eq!(
-        relocate(&saturating_divide, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&saturating_divide, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
     // Saturating remainder divides at the machine level; its carried
@@ -1672,8 +1767,8 @@ fn member_must_be_pure_work() {
             .constraint(environment.selected_keys().remainder_i64)
             .unwrap()
             .clone();
-        function.blocks[1].instructions[1] = instruction(
-            MOVING,
+        function.blocks[1].instructions[2] = instruction(
+            RUN_B,
             SelectedInstructionKind::SaturatingRemainder {
                 carrier: selected_instructions::SaturatingCarrier::I64,
                 obligation: ObligationId::new(11).unwrap(),
@@ -1682,11 +1777,11 @@ fn member_must_be_pure_work() {
                 ),
             },
             &remainder,
-            &[POINTER, R_MOVE, R_MOVE, R_MOVE],
+            &[POINTER, R_MOVE_B, R_MOVE_B, R_MOVE_B],
         );
     });
     assert_eq!(
-        relocate(&saturating_remainder, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&saturating_remainder, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedInstruction
     );
     // Memory work on the other inflow never moves: a rostered store in F
@@ -1703,7 +1798,7 @@ fn member_must_be_pure_work() {
                 byte_size: 8,
             },
             &store,
-            &[R_MOVE, R_FHEAD],
+            &[R_MOVE_A, R_FHEAD],
         );
         function.memory_accesses.push(access(
             F_HEAD,
@@ -1711,7 +1806,7 @@ fn member_must_be_pure_work() {
             SelectedMemoryAccessRole::WritePlace,
         ));
     });
-    relocate(&inflow_store, &environment, MOVING, HEAD).unwrap();
+    relocate(&inflow_store, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // A rostered position after the landing index is a dead-path position
     // like any other: it refuses only when it would read a still-live
     // member definition.
@@ -1735,7 +1830,7 @@ fn member_must_be_pure_work() {
             SelectedMemoryAccessRole::WritePlace,
         ));
     });
-    relocate(&tail_store, &environment, MOVING, HEAD).unwrap();
+    relocate(&tail_store, &environment, RUN_A, RUN_B, HEAD).unwrap();
     let tail_store_reads_member = mutated(target, |function, environment| {
         let store = environment
             .constraint(environment.selected_keys().store.unwrap())
@@ -1748,7 +1843,7 @@ fn member_must_be_pure_work() {
                 byte_size: 8,
             },
             &store,
-            &[R_MOVE, R_TAIL],
+            &[R_MOVE_B, R_TAIL],
         );
         function.memory_accesses.push(access(
             TAIL,
@@ -1757,25 +1852,44 @@ fn member_must_be_pure_work() {
         ));
     });
     assert_eq!(
-        relocate(&tail_store_reads_member, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&tail_store_reads_member, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
 }
 
-/// Every location the member writes must be dead — unread until
-/// rewritten — from the landing index forward: a reader in the join's
-/// tail, in the join's terminator, in a deeper successor block, or in a
-/// block a loop reaches all refuse, while a write that retires the
-/// foreign definition before any reader admits. A loop back through the
-/// join scans the positions before the landing index against the live
-/// foreign set, republishes at the member's new position, and walks on;
-/// a loop back through the member's vacated block scans its remaining
-/// positions against the same set.
+/// Every location a member writes must be dead — unread until rewritten —
+/// from the landing index forward: a reader in the join's tail, in the
+/// join's terminator, in a deeper successor block, or in a block a loop
+/// reaches all refuse, while a write that retires the foreign definition
+/// before any reader admits. A loop back through the join scans the
+/// positions before the landing index against the live foreign set,
+/// republishes at the run's new position, and walks on; a loop back
+/// through the run's vacated block scans its remaining positions against
+/// the same set.
 #[test]
-fn member_writes_must_die_on_the_other_inflows() {
+fn run_writes_must_die_on_the_other_inflows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let reads_move =
+    let reads = |block: usize,
+                 index: usize,
+                 id: SelectedInstructionId,
+                 input: VirtualRegisterId,
+                 output: VirtualRegisterId| {
+        move |function: &mut SelectedFunction,
+              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[block].instructions[index] = instruction(
+                id,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[input, output],
+            );
+        }
+    };
+    let writes =
         |block: usize, index: usize, id: SelectedInstructionId, output: VirtualRegisterId| {
             move |function: &mut SelectedFunction,
               environment: &register_environment::ValidatedTargetRegisterEnvironment| {
@@ -1787,43 +1901,32 @@ fn member_writes_must_die_on_the_other_inflows() {
                 id,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_MOVE, output],
+                &[R_TRAIL, output],
             );
         }
         };
-    let writes_move = |block: usize, index: usize, id: SelectedInstructionId| {
-        move |function: &mut SelectedFunction,
-              environment: &register_environment::ValidatedTargetRegisterEnvironment| {
-            let copy = environment
-                .constraint(environment.selected_keys().copy_i64)
-                .unwrap()
-                .clone();
-            function.blocks[block].instructions[index] = instruction(
-                id,
-                SelectedInstructionKind::CopyI64,
-                &copy,
-                &[R_TRAIL, R_MOVE],
-            );
-        }
-    };
     // A reader anywhere after the landing index observes the foreign
-    // definition on the other inflows' arrivals.
-    for (block, index, id, output) in [(3usize, 1usize, MID, R_MID), (3, 2, TAIL, R_TAIL)] {
-        let reader = mutated(target, reads_move(block, index, id, output));
+    // definition on the other inflows' arrivals — either member's.
+    for (block, index, id, input, output) in [
+        (3usize, 1usize, MID, R_MOVE_A, R_MID),
+        (3, 2, TAIL, R_MOVE_B, R_TAIL),
+    ] {
+        let reader = mutated(target, reads(block, index, id, input, output));
         assert_eq!(
-            relocate(&reader, &environment, MOVING, HEAD).unwrap_err(),
+            relocate(&reader, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
             ConfluenceRelocationError::UnsupportedPair,
-            "reader {id:?}"
+            "reader {id:?} of {input:?}"
         );
     }
-    // A write that retires the foreign definition before any reader
-    // admits: `MID` observes `HEAD`'s rewrite on every arrival, exactly
-    // what the source computed.
+    // A write that retires a foreign definition before any reader admits:
+    // `MID` observes `HEAD`'s rewrite of `R_MOVE_A` on every arrival,
+    // exactly what the source computed — and `R_MOVE_B` simply dies
+    // unread past the landing index.
     let retired = mutated(target, |function, environment| {
-        writes_move(3, 0, HEAD)(function, environment);
-        reads_move(3, 1, MID, R_MID)(function, environment);
+        writes(3, 0, HEAD, R_MOVE_A)(function, environment);
+        reads(3, 1, MID, R_MOVE_A, R_MID)(function, environment);
     });
-    relocate(&retired, &environment, MOVING, HEAD).unwrap();
+    relocate(&retired, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // A deeper successor block is walked across the join's exit edge.
     let deep = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
@@ -1869,7 +1972,8 @@ fn member_writes_must_die_on_the_other_inflows() {
             edit(function, environment);
         })
     };
-    // The deep block reading `R_MOVE` observes the foreign definition.
+    // The deep block reading a member's register observes the foreign
+    // definition.
     let deep_reads = deep(&mut |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -1879,14 +1983,15 @@ fn member_writes_must_die_on_the_other_inflows() {
             DEEP,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_DEEP],
+            &[R_MOVE_A, R_DEEP],
         );
     });
     assert_eq!(
-        relocate(&deep_reads, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&deep_reads, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // A deep write retires the definition before the read.
+    // A deep write retires the read member's definition before the read;
+    // the other member's register stays live but is never observed.
     let deep_retired = deep(&mut |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
@@ -1898,20 +2003,20 @@ fn member_writes_must_die_on_the_other_inflows() {
                 DEEP_HEAD,
                 SelectedInstructionKind::CopyI64,
                 &copy,
-                &[R_TRAIL, R_MOVE],
+                &[R_TRAIL, R_MOVE_A],
             ),
         );
         function.blocks[4].instructions[1] = instruction(
             DEEP,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_DEEP],
+            &[R_MOVE_A, R_DEEP],
         );
     });
-    relocate(&deep_retired, &environment, MOVING, HEAD).unwrap();
+    relocate(&deep_retired, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // A loop back through the other inflow's block: J exits to F, F
-    // re-enters the join, and the member's still-live definition meets
-    // F's reader on the second traversal.
+    // re-enters the join, and a member's still-live definition meets F's
+    // reader on the second traversal.
     let looped = |edit: &mut dyn FnMut(
         &mut SelectedFunction,
         &register_environment::ValidatedTargetRegisterEnvironment,
@@ -1929,22 +2034,21 @@ fn member_writes_must_die_on_the_other_inflows() {
         })
     };
     let looped_reads = looped(&mut |function, environment| {
-        reads_move(2, 0, F_HEAD, R_FHEAD)(function, environment);
+        reads(2, 0, F_HEAD, R_MOVE_B, R_FHEAD)(function, environment);
     });
     assert_eq!(
-        relocate(&looped_reads, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&looped_reads, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // The looped inflow's own write retires the foreign definition before
     // its reader — and the re-entering edge carries nothing live back.
     let looped_retired = looped(&mut |function, environment| {
-        writes_move(2, 0, F_HEAD)(function, environment);
-        reads_move(2, 1, F_TAIL, R_FTAIL)(function, environment);
+        writes(2, 0, F_HEAD, R_MOVE_B)(function, environment);
+        reads(2, 1, F_TAIL, R_MOVE_B, R_FTAIL)(function, environment);
     });
-    relocate(&looped_retired, &environment, MOVING, HEAD).unwrap();
-    // A loop back through the member's own vacated block scans its
-    // remaining positions against the foreign set: the tail reader
-    // refuses.
+    relocate(&looped_retired, &environment, RUN_A, RUN_B, HEAD).unwrap();
+    // A loop back through the run's own vacated block scans its remaining
+    // positions against the foreign set: the tail reader refuses.
     let vacated_loop = mutated(target, |function, environment| {
         let jump_row = environment
             .constraint(environment.selected_keys().jump)
@@ -1954,96 +2058,109 @@ fn member_writes_must_die_on_the_other_inflows() {
             instruction(J_JUMP, SelectedInstructionKind::Jump, &jump_row, &[]),
             successor(BLOCK_T, BlockId::new(2).unwrap(), EDGE_JD),
         );
-        reads_move(1, 2, T_TAIL, R_TTAIL)(function, environment);
+        reads(1, 3, T_TAIL, R_MOVE_A, R_TTAIL)(function, environment);
     });
     assert_eq!(
-        relocate(&vacated_loop, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&vacated_loop, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    // Without a loop the other inflow is never walked: a read of the
+    // Without a loop the other inflow is never walked: a read of a
     // member's register in F sees the value F's own path always carried.
-    let inflow_reads = mutated(target, reads_move(2, 0, F_HEAD, R_FHEAD));
-    relocate(&inflow_reads, &environment, MOVING, HEAD).unwrap();
+    let inflow_reads = mutated(target, reads(2, 0, F_HEAD, R_MOVE_A, R_FHEAD));
+    relocate(&inflow_reads, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
 /// A boundary settlement observes the executed prefix at its position:
-/// any settlement past the member's index in its own block or past the
-/// landing index in the join observes a different executed set once the
-/// member lands on the other side of the crossed run, while positions at
-/// or before either boundary — and settlements in blocks the member's
-/// stream never touches — keep the prefix they always had.
+/// any settlement inside the run's span or past it in the run's own
+/// block, or past the landing index in the join, observes a different
+/// executed set once the run lands on the other side of the crossed
+/// positions, while positions at or before either boundary — and
+/// settlements in blocks the run's stream never touches — keep the
+/// prefix they always had.
 #[test]
 fn boundary_settlements_bound_the_window() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // Past the member's index in its own block.
-    let past_member = mutated(target, |function, _| {
+    // Inside the run's span — the settlement at `RUN_B`'s index observed
+    // the run's first member in the executed prefix.
+    let inside_run = mutated(target, |function, _| {
         function
             .boundary_settlements
             .push(settlement(BLOCK_T, 2, 60));
     });
     assert_eq!(
-        relocate(&past_member, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&inside_run, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
+        ConfluenceRelocationError::UnsupportedPair
+    );
+    // Past the run's span in its own block.
+    let past_run = mutated(target, |function, _| {
+        function
+            .boundary_settlements
+            .push(settlement(BLOCK_T, 3, 61));
+    });
+    assert_eq!(
+        relocate(&past_run, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // Past the landing index in the join.
     let past_landing = mutated(target, |function, _| {
         function
             .boundary_settlements
-            .push(settlement(BLOCK_J, 1, 61));
+            .push(settlement(BLOCK_J, 1, 62));
     });
     assert_eq!(
-        relocate(&past_landing, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&past_landing, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
     // At or before either boundary the executed prefix is unchanged.
-    let at_member = mutated(target, |function, _| {
+    let at_run = mutated(target, |function, _| {
         function
             .boundary_settlements
-            .push(settlement(BLOCK_T, 1, 62));
+            .push(settlement(BLOCK_T, 1, 63));
         function
             .boundary_settlements
-            .push(settlement(BLOCK_J, 0, 63));
+            .push(settlement(BLOCK_J, 0, 64));
     });
-    relocate(&at_member, &environment, MOVING, HEAD).unwrap();
+    relocate(&at_run, &environment, RUN_A, RUN_B, HEAD).unwrap();
     // Landing deeper moves the join's boundary with it.
     let deeper = mutated(target, |function, _| {
         function
             .boundary_settlements
-            .push(settlement(BLOCK_J, 2, 64));
+            .push(settlement(BLOCK_J, 2, 65));
     });
     assert_eq!(
-        relocate(&deeper, &environment, MOVING, MID).unwrap_err(),
+        relocate(&deeper, &environment, RUN_A, RUN_B, MID).unwrap_err(),
         ConfluenceRelocationError::UnsupportedPair
     );
-    relocate(&deeper, &environment, MOVING, TAIL).unwrap();
-    // Settlements in blocks the member never enters — the other inflow,
-    // the fork head — keep their executed prefixes.
+    relocate(&deeper, &environment, RUN_A, RUN_B, TAIL).unwrap();
+    // Settlements in blocks the run never enters — the other inflow, the
+    // fork head — keep their executed prefixes.
     let elsewhere = mutated(target, |function, _| {
         function
             .boundary_settlements
-            .push(settlement(BLOCK_F, 2, 65));
+            .push(settlement(BLOCK_F, 2, 66));
         function
             .boundary_settlements
-            .push(settlement(BLOCK_B, 2, 66));
+            .push(settlement(BLOCK_B, 2, 67));
     });
-    relocate(&elsewhere, &environment, MOVING, HEAD).unwrap();
+    relocate(&elsewhere, &environment, RUN_A, RUN_B, HEAD).unwrap();
 }
 
-/// Only the named member inside the named confluence relocates: unknown
-/// member or function ids, a terminator-carried member, and destinations
-/// outside the join all refuse without touching the plan.
+/// Only the named run inside the named confluence relocates: unknown
+/// member or function ids, a terminator-carried first member, and
+/// destinations outside the join all refuse without touching the plan.
 #[test]
 fn only_the_named_confluence_window_relocates() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    // An unknown member or function index never locates the window.
+    // An unknown first member or function index never locates the window.
     assert_eq!(
-        relocate_selected_instruction_into_confluence(
+        relocate_selected_members_into_confluence(
             &source,
             0,
             SelectedInstructionId(99),
+            RUN_B,
             HEAD,
             &environment,
             budget(),
@@ -2052,10 +2169,11 @@ fn only_the_named_confluence_window_relocates() {
         ConfluenceRelocationError::SourceMismatch
     );
     assert_eq!(
-        relocate_selected_instruction_into_confluence(
+        relocate_selected_members_into_confluence(
             &source,
             9,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
             &environment,
             budget(),
@@ -2063,22 +2181,17 @@ fn only_the_named_confluence_window_relocates() {
         .unwrap_err(),
         ConfluenceRelocationError::SourceMismatch
     );
-    // Naming a terminator-carried instruction as member is not a body
-    // position.
-    assert_eq!(
-        relocate(&source, &environment, T_JUMP, HEAD).unwrap_err(),
-        ConfluenceRelocationError::SourceMismatch
-    );
-    assert_eq!(
-        relocate(&source, &environment, RET, HEAD).unwrap_err(),
-        ConfluenceRelocationError::SourceMismatch
-    );
-    assert_eq!(
-        relocate(&source, &environment, BRANCH, HEAD).unwrap_err(),
-        ConfluenceRelocationError::SourceMismatch
-    );
-    // A destination outside the join names no landing position: the
-    // member's own block mates, the other inflow's, B's, and dangling ids.
+    // Naming a terminator-carried instruction as the run's first member
+    // is not a body position.
+    for first in [T_JUMP, RET, BRANCH] {
+        assert_eq!(
+            relocate(&source, &environment, first, T_TAIL, HEAD).unwrap_err(),
+            ConfluenceRelocationError::SourceMismatch,
+            "first {first:?}"
+        );
+    }
+    // A destination outside the join names no landing position: the run's
+    // own block mates, the other inflow's, B's, and dangling ids.
     for destination in [
         LEAD,
         TRAIL,
@@ -2092,61 +2205,93 @@ fn only_the_named_confluence_window_relocates() {
         SelectedInstructionId(99),
     ] {
         assert_eq!(
-            relocate(&source, &environment, MOVING, destination).unwrap_err(),
+            relocate(&source, &environment, RUN_A, RUN_B, destination).unwrap_err(),
             ConfluenceRelocationError::UnsupportedPair,
             "destination {destination:?}"
         );
     }
 }
 
-/// Replay consumes only the exact move: a proposal that drops the member,
-/// lands it anywhere else, permutes the crossed positions, or carries an
-/// unrelated edit all reject.
+/// Replay consumes only the exact move: a proposal that drops a member,
+/// lands the run anywhere else, permutes the crossed positions, or
+/// carries an unrelated edit all reject.
 #[test]
 fn replay_rejects_anything_but_the_move() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
-    let result = relocate(&source, &environment, MOVING, MID).unwrap();
+    let result = relocate(&source, &environment, RUN_A, RUN_B, MID).unwrap();
     // The honest proposal replays.
     validate_confluence_relocation(
         &source,
         0,
-        MOVING,
+        RUN_A,
+        RUN_B,
         MID,
         &environment,
         budget(),
         result.transformed().clone(),
     )
     .unwrap();
-    // The member at the wrong index rejects.
+    // The run at the wrong index rejects.
     let mut displaced = result.transformed().clone();
-    let member = displaced.functions[0].blocks[3].instructions.remove(1);
-    displaced.functions[0].blocks[3]
+    let run: Vec<_> = displaced.functions[0].blocks[3]
         .instructions
-        .insert(3, member.clone());
+        .drain(1..3)
+        .collect();
+    displaced.functions[0].blocks[3].instructions.extend(run);
     assert_eq!(
-        validate_confluence_relocation(&source, 0, MOVING, MID, &environment, budget(), displaced,)
-            .unwrap_err(),
+        validate_confluence_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            MID,
+            &environment,
+            budget(),
+            displaced,
+        )
+        .unwrap_err(),
         ConfluenceRelocationError::ReplayMismatch
     );
-    // The member left in its own block rejects.
+    // The run left in its own block rejects.
     let mut unmoved = result.transformed().clone();
-    unmoved.functions[0].blocks[3].instructions.remove(1);
+    let run: Vec<_> = unmoved.functions[0].blocks[3]
+        .instructions
+        .drain(1..3)
+        .collect();
     unmoved.functions[0].blocks[1]
         .instructions
-        .insert(1, member);
+        .splice(1..1, run);
     assert_eq!(
-        validate_confluence_relocation(&source, 0, MOVING, MID, &environment, budget(), unmoved,)
-            .unwrap_err(),
+        validate_confluence_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            MID,
+            &environment,
+            budget(),
+            unmoved,
+        )
+        .unwrap_err(),
         ConfluenceRelocationError::ReplayMismatch
     );
     // A dropped instruction in the join rejects.
     let mut dropped = result.transformed().clone();
     dropped.functions[0].blocks[3].instructions.pop();
     assert_eq!(
-        validate_confluence_relocation(&source, 0, MOVING, MID, &environment, budget(), dropped,)
-            .unwrap_err(),
+        validate_confluence_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            MID,
+            &environment,
+            budget(),
+            dropped,
+        )
+        .unwrap_err(),
         ConfluenceRelocationError::ReplayMismatch
     );
     // An unrelated literal edit inside the join rejects.
@@ -2155,8 +2300,17 @@ fn replay_rejects_anything_but_the_move() {
         value: IntegerValue::Unsigned(12),
     };
     assert_eq!(
-        validate_confluence_relocation(&source, 0, MOVING, MID, &environment, budget(), edited,)
-            .unwrap_err(),
+        validate_confluence_relocation(
+            &source,
+            0,
+            RUN_A,
+            RUN_B,
+            MID,
+            &environment,
+            budget(),
+            edited,
+        )
+        .unwrap_err(),
         ConfluenceRelocationError::ReplayMismatch
     );
     // Naming a different window on the same proposal re-derives a
@@ -2165,7 +2319,8 @@ fn replay_rejects_anything_but_the_move() {
         validate_confluence_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             TAIL,
             &environment,
             budget(),
@@ -2177,35 +2332,38 @@ fn replay_rejects_anything_but_the_move() {
 }
 
 /// The bounded audit is measured: the confluence window prices every scan,
-/// crossed-surface pair, roster row, and the dead-path fixpoint bound
-/// against the work budget, and a budget one step short refuses rather
-/// than skimping. Landing deeper into the join's body crosses more join
-/// positions.
+/// crossed member-against-position surface pair, roster row, and the
+/// dead-path fixpoint bound against the work budget, and a budget one
+/// step short refuses rather than skimping. Landing deeper into the
+/// join's body crosses more join positions per member.
 #[test]
 fn measured_validation_step_boundary() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     // The member-locate scan prices every block's body plus terminator
-    // once across the plan (3+4+3+4 = 14), and again for this function's
-    // blocks (14); the path walk pushes the lone `Jump` edge once (1).
-    // The crossed surfaces pair the member (1) against `T_TAIL` (1) and
-    // the `Jump` terminator (2 uses + defs on x86-64): 2+3 = 5 steps. The
-    // dead-path bound prices each block's body, terminator, and edge
-    // surfaces once per member location plus the initial scan: on x86-64
-    // the materializations cost 1 each, the jumps 2, the branch 3, and
-    // the return 9 — (2+3)+(3+2)+(2+2)+(3+9) = 26 — times one written
-    // member register plus one: 26*2 = 52.
-    let steps: u64 = 14 + 14 + 1 + 5 + 52;
+    // once across the plan (3+5+3+4 = 15), and again for this function's
+    // blocks (15); the path walk pushes the lone `Jump` edge once (1).
+    // The crossed surfaces pair each member (1) against `T_TAIL` (1) —
+    // 2 per member — and each member against the `Jump` terminator (2
+    // uses + defs on x86-64) plus the plain edge's empty surface — 3 per
+    // member: (2+3)*2 = 10 steps. The dead-path bound prices each
+    // block's body, terminator, and edge surfaces once per run location
+    // plus the initial scan: on x86-64 the materializations cost 1 each,
+    // the jumps 2, the branch 3, and the return 9 — (2+3)+(4+2)+(2+2)+
+    // (3+9) = 27 — times two written member registers plus one:
+    // 27*3 = 81.
+    let steps: u64 = 15 + 15 + 1 + 10 + 81;
     let exact = measured_step_budget(steps);
-    relocate_selected_instruction_into_confluence(&source, 0, MOVING, HEAD, &environment, exact)
+    relocate_selected_members_into_confluence(&source, 0, RUN_A, RUN_B, HEAD, &environment, exact)
         .unwrap();
     let starved = measured_step_budget(steps - 1);
     assert_eq!(
-        relocate_selected_instruction_into_confluence(
+        relocate_selected_members_into_confluence(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
             &environment,
             starved,
@@ -2213,18 +2371,20 @@ fn measured_validation_step_boundary() {
         .unwrap_err(),
         ConfluenceRelocationError::WorkBudgetExceeded
     );
-    // Landing at the body end crosses the whole join body: the member
-    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the terminator.
-    let steps_end: u64 = 14 + 14 + 1 + (2 + 2 + 2 + 2 + 3) + 52;
+    // Landing at the body end crosses the whole join body: each member
+    // pairs against `T_TAIL`, `HEAD`, `MID`, `TAIL`, and the `Jump`
+    // terminator's edge — (2+2+2+2+3) per member = 22.
+    let steps_end: u64 = 15 + 15 + 1 + 22 + 81;
     let exact = measured_step_budget(steps_end);
-    relocate_selected_instruction_into_confluence(&source, 0, MOVING, RET, &environment, exact)
+    relocate_selected_members_into_confluence(&source, 0, RUN_A, RUN_B, RET, &environment, exact)
         .unwrap();
     let starved = measured_step_budget(steps_end - 1);
     assert_eq!(
-        relocate_selected_instruction_into_confluence(
+        relocate_selected_members_into_confluence(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             RET,
             &environment,
             starved,
@@ -2241,70 +2401,68 @@ fn target_mismatch_rejects() {
     let source = fixture(NativeTarget::linux_x64());
     let environment = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
     assert_eq!(
-        relocate(&source, &environment, MOVING, HEAD).unwrap_err(),
+        relocate(&source, &environment, RUN_A, RUN_B, HEAD).unwrap_err(),
         ConfluenceRelocationError::SourceMismatch
     );
 }
 
 /// Two runs over the identical source produce the identical validated
 /// result, and the published plan is a legal second input through the
-/// sealed analysis boundary: the head member of the same inflow sinks
-/// through the same confluence onto it, a hazard-coupled member still
-/// declines, and an in-block family still admits.
+/// sealed analysis boundary: the other inflow's run sinks through the
+/// same confluence onto it, a hazard-coupled run still declines, and an
+/// in-block family still admits.
 #[test]
-fn confluence_relocation_is_deterministic_and_re_admitted() {
+fn confluence_run_relocation_is_deterministic_and_re_admitted() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    // `MOVING` last in its block keeps the first move's crossed run clear
-    // of `T_TAIL`, whose read of `R_MOVE` then couples against the landed
-    // member on the second input.
+    // `T_HEAD` reads `R_MOVE_A` before the run: the first move's crossed
+    // window never contains it, while on the second input the landed
+    // `RUN_A` sits in the join's prefix ahead of any deeper sink.
     let source = mutated(target, |function, environment| {
         let copy = environment
             .constraint(environment.selected_keys().copy_i64)
             .unwrap()
             .clone();
-        function.blocks[1].instructions[2] = instruction(
-            T_TAIL,
+        function.blocks[1].instructions[0] = instruction(
+            T_HEAD,
             SelectedInstructionKind::CopyI64,
             &copy,
-            &[R_MOVE, R_TTAIL],
+            &[R_MOVE_A, R_THEAD],
         );
-        function.blocks[1].instructions.swap(1, 2);
     });
-    let first = relocate(&source, &environment, MOVING, HEAD).unwrap();
-    let second = relocate(&source, &environment, MOVING, HEAD).unwrap();
+    let first = relocate(&source, &environment, RUN_A, RUN_B, HEAD).unwrap();
+    let second = relocate(&source, &environment, RUN_A, RUN_B, HEAD).unwrap();
     assert_eq!(first, second);
     // The validated output carries the sealed analysis boundary, so it is
-    // a legal second input — not merely a reconstruction of one. The same
-    // inflow's head member sinks through the same confluence onto it.
-    let again = relocate_selected_instruction_into_confluence(
+    // a legal second input — not merely a reconstruction of one. The
+    // other inflow's whole-body run sinks through the same confluence
+    // onto it.
+    let again = relocate_selected_members_into_confluence(
         &first,
         0,
-        T_HEAD,
+        F_HEAD,
+        F_TAIL,
         HEAD,
         &environment,
         budget(),
     )
     .unwrap();
     assert_eq!(
-        again.transformed().functions[0].blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MOVING, T_HEAD, HEAD, MID, TAIL]
+        block_order(&again.transformed().functions[0].blocks[3]),
+        vec![RUN_A, RUN_B, F_HEAD, F_TAIL, HEAD, MID, TAIL]
     );
     assert_eq!(
         again.receipt().source_selected(),
         first.receipt().transformed_selected()
     );
-    // A hazard-coupled member still declines on the second input: once
-    // `MOVING` sits at J's head, `T_TAIL` — reading `R_MOVE` — cannot sink
-    // past it.
+    // A hazard-coupled run still declines on the second input: once
+    // `RUN_A` sits at J's head, `T_HEAD` — reading `R_MOVE_A` — cannot
+    // sink past it, so the run `T_HEAD` opens never lands.
     assert_eq!(
-        relocate_selected_instruction_into_confluence(
+        relocate_selected_members_into_confluence(
             &first,
             0,
+            T_HEAD,
             T_TAIL,
             HEAD,
             &environment,
@@ -2325,217 +2483,87 @@ fn confluence_relocation_is_deterministic_and_re_admitted() {
     )
     .unwrap();
     assert_eq!(
-        swapped.transformed().functions[0].blocks[3]
-            .instructions
-            .iter()
-            .map(|instruction| instruction.id)
-            .collect::<Vec<_>>(),
-        vec![MOVING, HEAD, TAIL, MID]
+        block_order(&swapped.transformed().functions[0].blocks[3]),
+        vec![RUN_A, RUN_B, HEAD, TAIL, MID]
     );
 }
 
-/// The validator proves its legality reconstruction is its own: a forged
-/// proposal — the same edit a producer would publish — is produced
-/// directly on the source's plan without consulting admission, so the
-/// validator's verdict cannot ride on the producer's admission record. A
-/// legal forged move validates; a forged move across a hazard-coupled
-/// crossed position, a still-live member write, or a non-speculatable
-/// member rejects with the legality error, not a replay mismatch.
 mod independence_tests {
     use super::{
-        ConfluenceRelocationError, HEAD, MID, MOVING, NativeTarget, POINTER, R_MID, R_MOVE,
-        R_TTAIL, RET, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
-        T_TAIL, ValidatedConfluenceRelocation, baseline_target_register_environment, budget,
-        fixture, instruction, mutated, validate_confluence_relocation,
+        BLOCK_J, ConfluenceRelocationError, HEAD, IntegerValue, MID, NativeTarget, POINTER,
+        R_MOVE_A, R_MOVE_B, R_TAIL, R_TTAIL, RUN_A, RUN_B, SelectedInstructionKind,
+        SelectedInstructionPlan, T_TAIL, TAIL, ValidatedConfluenceRelocation,
+        baseline_target_register_environment, budget, fixture, instruction, mutated, settlement,
+        validate_confluence_relocation,
     };
 
-    /// Relocate `member` out of its inflow block onto `landing_index`
-    /// inside the join block's body — the edit a producer emitting that
-    /// relocation would publish — without asking admission whether the
-    /// window is legal.
+    /// Move the run at `run` inside the source's T block onto
+    /// `landing_index` inside the J block — the edit a producer emitting
+    /// that relocation would publish — without asking admission whether
+    /// the window is legal. The indices are block-body positions in the
+    /// fixture's T (index 1) and J (index 3) blocks.
     fn forged(
         source: &ValidatedConfluenceRelocation,
-        member: SelectedInstructionId,
+        run: std::ops::RangeInclusive<usize>,
         landing_index: usize,
     ) -> SelectedInstructionPlan {
         let mut proposed = source.transformed().clone();
         let function = &mut proposed.functions[0];
-        let (block_index, member_index) = function
-            .blocks
-            .iter()
-            .enumerate()
-            .find_map(|(block_index, block)| {
-                block
-                    .instructions
-                    .iter()
-                    .position(|instruction| instruction.id == member)
-                    .map(|member_index| (block_index, member_index))
-            })
-            .unwrap();
-        let instruction = function.blocks[block_index]
+        let members: Vec<_> = function.blocks[1]
             .instructions
-            .remove(member_index);
+            .drain(*run.start()..=*run.end())
+            .collect();
         function.blocks[3]
             .instructions
-            .insert(landing_index, instruction);
+            .splice(landing_index..landing_index, members);
         proposed
     }
 
     /// A forged relocation of a window the validator's own audit admits
-    /// validates: the member is pure register work, the crossed tail and
-    /// edge carry no hazards, and its write dies unread on every
-    /// continuation, so the audit derives the move and the content
-    /// comparison accepts it.
+    /// validates at both ends of the join's body: the `RUN_A; RUN_B` run
+    /// taking `HEAD`'s leading position and `MID`'s interior position —
+    /// the members pure register work, the crossed `Jump` and `T_TAIL`
+    /// carrying no hazard, every member-written location dead from the
+    /// landing index forward, and the content comparison accepting the
+    /// move.
     #[test]
-    fn forged_member_move_on_a_legal_window_validates() {
+    fn forged_relocation_of_a_legal_window_validates() {
         let target = NativeTarget::linux_x64();
         let environment = baseline_target_register_environment(target).unwrap();
         let source = fixture(target);
         validate_confluence_relocation(
             &source,
             0,
-            MOVING,
+            RUN_A,
+            RUN_B,
             HEAD,
             &environment,
             budget(),
-            forged(&source, MOVING, 0),
+            forged(&source, 1..=2, 0),
         )
         .unwrap();
-    }
-
-    /// The same forged move validates at the body end: naming the join's
-    /// terminator-carried return instruction lands the member past every
-    /// body position, and the validator derives that landing itself.
-    #[test]
-    fn forged_member_move_to_the_body_end_validates() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = fixture(target);
         validate_confluence_relocation(
             &source,
             0,
-            MOVING,
-            RET,
+            RUN_A,
+            RUN_B,
+            MID,
             &environment,
             budget(),
-            forged(&source, MOVING, 3),
+            forged(&source, 1..=2, 1),
         )
         .unwrap();
     }
 
-    /// A producer that admitted a hazard-coupled window anyway would
-    /// publish the member moved past a crossed position reading the
-    /// register it defines — here `T_TAIL` mutated to read `R_MOVE`. The
-    /// validator's own legality audit refuses with `UnsupportedPair`,
-    /// not a replay mismatch, because it reconstructs the window's
-    /// hazards instead of trusting the producer's admission record. The
-    /// member's own block tail is crossed at every landing, so the
-    /// body-end landing refuses the same way.
+    /// A producer that admitted an impure run anyway would publish the
+    /// run sunk into the join with a member whose memory effect newly
+    /// runs on the other inflows' arrivals — here `RUN_B` mutated to a
+    /// row-less `Load8`. The validator's own purity audit refuses with
+    /// `UnsupportedInstruction`, not a replay mismatch, because it
+    /// reconstructs the members' effects instead of trusting the
+    /// producer's admission record.
     #[test]
-    fn forged_member_past_a_coupled_crossed_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = mutated(target, |function, environment| {
-            let copy = environment
-                .constraint(environment.selected_keys().copy_i64)
-                .unwrap()
-                .clone();
-            function.blocks[1].instructions[2] = instruction(
-                T_TAIL,
-                SelectedInstructionKind::CopyI64,
-                &copy,
-                &[R_MOVE, R_TTAIL],
-            );
-        });
-        assert_eq!(
-            validate_confluence_relocation(
-                &source,
-                0,
-                MOVING,
-                HEAD,
-                &environment,
-                budget(),
-                forged(&source, MOVING, 0),
-            )
-            .unwrap_err(),
-            ConfluenceRelocationError::UnsupportedPair
-        );
-        assert_eq!(
-            validate_confluence_relocation(
-                &source,
-                0,
-                MOVING,
-                RET,
-                &environment,
-                budget(),
-                forged(&source, MOVING, 3),
-            )
-            .unwrap_err(),
-            ConfluenceRelocationError::UnsupportedPair
-        );
-    }
-
-    /// A producer that skipped the dead-path audit would publish the
-    /// member landing ahead of a join position that still reads the
-    /// member's register — here `MID` mutated to read `R_MOVE`. The
-    /// position sits past the landing index so the window's hazard audit
-    /// never crosses it; the validator's own dead-path walk finds the
-    /// foreign definition live at a shared reader and refuses with
-    /// `UnsupportedPair`. Landing at the body end crosses the same
-    /// reader instead, which the hazard audit's coupling refuses —
-    /// either gate the validator derives itself.
-    #[test]
-    fn forged_member_whose_write_stays_live_rejects() {
-        let target = NativeTarget::linux_x64();
-        let environment = baseline_target_register_environment(target).unwrap();
-        let source = mutated(target, |function, environment| {
-            let copy = environment
-                .constraint(environment.selected_keys().copy_i64)
-                .unwrap()
-                .clone();
-            function.blocks[3].instructions[1] = instruction(
-                MID,
-                SelectedInstructionKind::CopyI64,
-                &copy,
-                &[R_MOVE, R_MID],
-            );
-        });
-        assert_eq!(
-            validate_confluence_relocation(
-                &source,
-                0,
-                MOVING,
-                HEAD,
-                &environment,
-                budget(),
-                forged(&source, MOVING, 0),
-            )
-            .unwrap_err(),
-            ConfluenceRelocationError::UnsupportedPair
-        );
-        assert_eq!(
-            validate_confluence_relocation(
-                &source,
-                0,
-                MOVING,
-                RET,
-                &environment,
-                budget(),
-                forged(&source, MOVING, 3),
-            )
-            .unwrap_err(),
-            ConfluenceRelocationError::UnsupportedPair
-        );
-    }
-
-    /// A producer that dropped the speculation bound would publish a
-    /// memory-capable member sunk into the confluence — here `MOVING`
-    /// mutated to a row-less `Load8`, which passes `schedulable` but
-    /// performs an access on every arrival it newly runs on. The
-    /// validator's own pure-work gate refuses with
-    /// `UnsupportedInstruction`, not a replay mismatch.
-    #[test]
-    fn forged_non_speculatable_member_rejects() {
+    fn forged_relocation_with_an_impure_member_rejects() {
         let target = NativeTarget::linux_x64();
         let environment = baseline_target_register_environment(target).unwrap();
         let source = mutated(target, |function, environment| {
@@ -2543,25 +2571,212 @@ mod independence_tests {
                 .constraint(environment.selected_keys().load8.unwrap())
                 .unwrap()
                 .clone();
-            function.blocks[1].instructions[1] = instruction(
-                MOVING,
+            function.blocks[1].instructions[2] = instruction(
+                RUN_B,
                 SelectedInstructionKind::Load8 { byte_offset: 0 },
                 &load,
-                &[POINTER, R_MOVE],
+                &[POINTER, R_MOVE_B],
             );
         });
         assert_eq!(
             validate_confluence_relocation(
                 &source,
                 0,
-                MOVING,
+                RUN_A,
+                RUN_B,
                 HEAD,
                 &environment,
                 budget(),
-                forged(&source, MOVING, 0),
+                forged(&source, 1..=2, 0),
             )
             .unwrap_err(),
             ConfluenceRelocationError::UnsupportedInstruction
+        );
+    }
+
+    /// A producer that admitted a hazard-coupled window anyway would
+    /// publish the run sunk past a crossed position reading a register a
+    /// member writes — here `T_TAIL` mutated to read `R_MOVE_A`. The
+    /// validator's own legality audit refuses with `UnsupportedPair`
+    /// because it reconstructs the window's hazards instead of trusting
+    /// the producer's admission record.
+    #[test]
+    fn forged_relocation_across_a_coupled_hazard_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[1].instructions[3] = instruction(
+                T_TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE_A, R_TTAIL],
+            );
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a live member write anyway would publish
+    /// the run sunk while a join position past the landing index still
+    /// reads what a member writes — here `TAIL` mutated to read
+    /// `R_MOVE_B`. The validator's own dead-path audit refuses with
+    /// `UnsupportedPair`: on the other inflows' arrivals the write is
+    /// new, so its readers may not observe it before a rewrite.
+    #[test]
+    fn forged_relocation_with_a_live_member_write_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, environment| {
+            let copy = environment
+                .constraint(environment.selected_keys().copy_i64)
+                .unwrap()
+                .clone();
+            function.blocks[3].instructions[2] = instruction(
+                TAIL,
+                SelectedInstructionKind::CopyI64,
+                &copy,
+                &[R_MOVE_B, R_TAIL],
+            );
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A producer that admitted a settled window anyway would publish the
+    /// run sunk across a boundary settlement past the landing index — the
+    /// settlement would observe the run inside the join's executed prefix
+    /// on the other inflows' arrivals, so the validator's own audit
+    /// refuses with `UnsupportedPair`.
+    #[test]
+    fn forged_relocation_past_a_settlement_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = mutated(target, |function, _| {
+            function
+                .boundary_settlements
+                .push(settlement(BLOCK_J, 1, 41));
+        });
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 0),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::UnsupportedPair
+        );
+    }
+
+    /// A forged proposal that leaves the named run unmoved is a proposal
+    /// for a different (absent) rewrite: no position carries the run on
+    /// the derived landing index, so the window content comparison
+    /// rejects it.
+    #[test]
+    fn forged_unmoved_window_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                source.transformed().clone(),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged relocation landing off the derived index — the run
+    /// spliced past `MID` while the destination names `HEAD` — publishes
+    /// a window whose content is not the admitted move and fails the
+    /// content comparison with `ReplayMismatch`.
+    #[test]
+    fn forged_relocation_off_the_derived_index_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                forged(&source, 1..=2, 2),
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::ReplayMismatch
+        );
+    }
+
+    /// A forged relocation plus an unrelated extra edit still fails
+    /// restore: the run's placement is right, but the drifted instruction
+    /// in the other inflow keeps the restore-by-content comparison from
+    /// reproducing the source.
+    #[test]
+    fn forged_window_with_drifted_content_rejects() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(target);
+        let mut proposed = forged(&source, 1..=2, 0);
+        proposed.functions[0].blocks[2].instructions[0].kind =
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(10),
+            };
+        assert_eq!(
+            validate_confluence_relocation(
+                &source,
+                0,
+                RUN_A,
+                RUN_B,
+                HEAD,
+                &environment,
+                budget(),
+                proposed,
+            )
+            .unwrap_err(),
+            ConfluenceRelocationError::ReplayMismatch
         );
     }
 }
