@@ -493,7 +493,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["resolved_selected_form_layout"],
     ),
     (
-        "omega/pipeline/08_selected-instructions-to-register-homes",
+        "omega/pipeline/05_selected-instructions-to-register-homes",
         &[
             "assignment",
             "output",
