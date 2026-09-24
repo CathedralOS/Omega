@@ -11,6 +11,7 @@ mod facts;
 mod guards;
 pub(in crate::checks) mod incoming_guards;
 mod indexes;
+pub(in crate::checks) use indexes::ranges_seam_owns;
 mod loop_invariants;
 mod proofs;
 pub(in crate::checks) mod requirements;
