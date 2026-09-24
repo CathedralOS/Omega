@@ -83,6 +83,6 @@ host with `python3` and POSIX `find`; it does not execute the seeds.
 The audit covers input sets only. A product *built by* `omega-rust` can
 still carry a checkout-derived `source/library` dependency at runtime
 (the bundled root is baked from `CARGO_MANIFEST_DIR` in
-`omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/frontend/mod.rs`);
+`omega-rust/omega/compiler/source-assembly/src/frontend/mod.rs`);
 that producer-side residual belongs to the self-hosted product's own
 input set, not to this checker's declaration surface.

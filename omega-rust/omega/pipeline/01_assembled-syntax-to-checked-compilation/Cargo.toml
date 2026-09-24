@@ -32,7 +32,7 @@ representation-planning = { path = "../../build/representation-planning" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
-source-files-to-assembled-syntax = { path = "../00_source-files-to-assembled-syntax" }
+source-files-to-assembled-syntax = { path = "../../compiler/source-assembly" }
 symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 symbols = { path = "../../../psi/foundation/symbols" }
