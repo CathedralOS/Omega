@@ -832,7 +832,12 @@ fn call_parameter_qualification_identities_indexed<'plans>(
     program: &'plans typed_trees::TypedTrees,
     build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
-) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
+) -> Vec<(
+    usize,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+    bool,
+)> {
     let Some(parameters) = memoized_call_target_parameters(program, build, target) else {
         return Vec::new();
     };
@@ -844,7 +849,12 @@ fn parameter_identity_rows(
     program: &typed_trees::TypedTrees,
     parameters: &[typed_trees::signature::StateParameter],
     contracts: &[&typed_trees::signature::SignatureContract],
-) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
+) -> Vec<(
+    usize,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+    bool,
+)> {
     let mut rows = Vec::new();
     for contract in contracts
         .iter()

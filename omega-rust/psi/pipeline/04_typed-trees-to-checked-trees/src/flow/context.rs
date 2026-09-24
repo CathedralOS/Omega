@@ -101,8 +101,17 @@ pub(super) struct FlowBuildContext<'plans> {
     >,
     /// Out-parameter `ensures <parameter> in D` rows per callable: the same
     /// program-pure contract collection as `call_result_identities`.
-    pub(super) call_parameter_identities:
-        HashMap<SymbolHandle, Rc<Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)>>>,
+    pub(super) call_parameter_identities: HashMap<
+        SymbolHandle,
+        Rc<
+            Vec<(
+                usize,
+                SymbolHandle,
+                language_semantics::SemanticDomainId,
+                bool,
+            )>,
+        >,
+    >,
     /// Provable `(field path, domain)` reseed rows a readable `&mut`
     /// parameter's declared referent type hands back at return; `None` marks
     /// parameters that are not readable mutable references or have no
