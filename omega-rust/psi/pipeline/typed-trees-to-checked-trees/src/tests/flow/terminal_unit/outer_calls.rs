@@ -70,3 +70,38 @@ fn local_initializer_field_call_consumes_its_nested_call_arguments() {
             .omission_for_machine(machine_named(&checked, "Asc::nested_let"))
     );
 }
+
+const TRANSITION_SOURCE: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Dtr::default() -> Dtr { Dtr { tag: 0 } }
+    machine Srfc::empty(dtr: Dtr, count: u64) -> Srfc {
+        Srfc { dtr: dtr, count: count }
+    }
+
+    machine Srsr::get_filter_collection(&self, collection_index: u64) -> Srfc {
+        transition collection_index < self.collection_count && collection_index < 4 {
+            true -> (self.collections[collection_index])
+            false -> (Srfc::empty(Dtr::default(), 0))
+        }
+    }
+"#;
+
+#[test]
+fn transition_arm_values_own_their_calls() {
+    // A bool-guarded transition mints one structural root per `(value)` arm;
+    // the outer-call walk must visit every root at the statement, not only
+    // the first, or arm calls read as unconsumed.
+    let checked = checked(TRANSITION_SOURCE);
+    assert!(
+        !omission(&checked, "Srsr::get_filter_collection").starts_with("outer calls"),
+        "transition arm values own their calls: {:?}",
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+    );
+}
