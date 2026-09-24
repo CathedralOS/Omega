@@ -21949,10 +21949,10 @@
   "fixture": "pass/float/foreign_control_state_restore",
   "tier": "pass",
   "status": "rejected",
-  "millis": 5815,
+  "millis": 3116,
   "expected_satisfied": null,
   "diagnostics": [
-   "machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared service `FloatingEnvironment`"
+   "selected operator expression Handle { arena_index: 33, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained"
   ]
  },
  {
@@ -27861,12 +27861,10 @@
  {
   "fixture": "pass/text/runtime_bounded_carrier_length_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 168,
+  "status": "checked",
+  "millis": 54,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::Utf8`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_bounded_carrier_length_field_exit",
@@ -27911,10 +27909,9 @@
   "fixture": "pass/text/runtime_bounded_carrier_write_line_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 142,
+  "millis": 22,
   "expected_satisfied": null,
   "diagnostics": [
-   "public interface selects private domain `[u8]::Utf8`",
    "argument `text` for state `write_line` expects `&[u8][in Utf8]`, got `member access`"
   ]
  },
@@ -28150,12 +28147,10 @@
  {
   "fixture": "pass/text/runtime_mandelbrot_render_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 7228,
+  "status": "checked",
+  "millis": 1762,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::Utf8`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_mutable_string_parameter_concat_exit",
@@ -28296,12 +28291,10 @@
  {
   "fixture": "pass/text/runtime_stderr_write_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 133,
+  "status": "checked",
+  "millis": 54,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::Utf8`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_stdin_command_branch_exit",
@@ -28394,10 +28387,9 @@
   "fixture": "pass/text/runtime_text_builder",
   "tier": "pass",
   "status": "rejected",
-  "millis": 141,
+  "millis": 19,
   "expected_satisfied": null,
   "diagnostics": [
-   "public interface selects private domain `[u8]::Utf8`",
    "argument `text` for state `write_line` expects `&[u8][in Utf8]`, got `member access`"
   ]
  },

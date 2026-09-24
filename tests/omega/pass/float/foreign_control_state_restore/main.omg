@@ -32,7 +32,7 @@ data Main {
     environment: Binding<FloatingEnvironment>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + FloatingEnvironment {
     let upward: i32 = 4194304;
     let status: i32 = self.environment.set_rounding(upward);
     let one: f64 = F64::from_i32(status) + 1.0;
