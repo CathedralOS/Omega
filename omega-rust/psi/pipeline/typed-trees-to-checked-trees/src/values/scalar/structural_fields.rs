@@ -62,19 +62,19 @@ pub(super) fn structural_sequence_length(
         });
         return Some(CheckedScalarExpression::IntegerLiteral { literal });
     }
-    let TypeReferenceNode::Reference {
-        referee,
-        access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
-        ..
-    } = program.type_reference_table.type_reference(
-        parameters
-            .get(usize::try_from(parameter_position).ok()?)?
-            .type_reference,
-    )
-    else {
-        return None;
-    };
     if path.is_empty() {
+        let TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
+            ..
+        } = program.type_reference_table.type_reference(
+            parameters
+                .get(usize::try_from(parameter_position).ok()?)?
+                .type_reference,
+        )
+        else {
+            return None;
+        };
         let TypeReferenceNode::Slice { element_type } =
             program.type_reference_table.type_reference(*referee)
         else {
@@ -88,10 +88,15 @@ pub(super) fn structural_sequence_length(
         .iter()
         .any(|segment| matches!(segment, CheckedStructuralPredicatePathSegment::Case(_)))
         // The shared carrier classifier distinguishes a bounded byte field's
-        // live length from a raw fixed array's static capacity.
+        // live length from a raw fixed array's static capacity. A borrowed
+        // `&[u8]` leaf keeps a runtime length on its view descriptor, so its
+        // `.len` reads the same live extent.
         || !matches!(
             crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+            Some(
+                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView
+            )
         )
     {
         return None;

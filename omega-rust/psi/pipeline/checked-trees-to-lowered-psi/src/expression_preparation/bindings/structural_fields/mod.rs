@@ -348,10 +348,14 @@ pub(crate) fn resolve_byte_length(
         identity,
         &binding.declarations,
     )?;
-    // Raw fixed arrays have static capacity, not bounded-owned live metadata.
+    // Raw fixed arrays have static capacity, not live metadata; a borrowed
+    // view leaf carries its extent on the view descriptor instead.
     if !matches!(
         field.field_type,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+        StructuralFieldType::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                | terminal_psi::ByteSequenceCarrier::BorrowedView
+        )
     ) {
         return unsupported("byte field length requires a bounded-owned byte carrier");
     }
