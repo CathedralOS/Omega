@@ -62,7 +62,7 @@ pub(in crate::validation) fn validate(
     {
         return Err(invalid());
     }
-    field_path(module, machine, root, path, field).ok_or_else(invalid)?;
+    field_path(module, machine, root, path, field, writing).ok_or_else(invalid)?;
     if writing {
         if operation.result != OperationResult::Unit
             || !freshness::exact_length_is_current(module, machine, operation)
@@ -90,6 +90,7 @@ fn field_path(
     root: PlaceId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
+    writing: bool,
 ) -> Option<Vec<StructuralPathSegment>> {
     let parameter = machine
         .structural_parameters
@@ -106,10 +107,19 @@ fn field_path(
     let field = fields
         .iter()
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
-    if !matches!(
-        field.field_type,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-    ) {
+    // A borrowed-view field's length rides the view descriptor, so a read is
+    // admissible; a byte store still requires the bounded-owned carrier whose
+    // live extent the write custody rules track.
+    let carrier_admitted = match field.field_type {
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            ..
+        }) => true,
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
+            !writing
+        }
+        _ => false,
+    };
+    if !carrier_admitted {
         return None;
     }
     let mut exact = path.to_vec();
