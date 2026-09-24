@@ -21,9 +21,9 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     nums: [i32; 5];
-    i: u64 [0..=5];  // guard-proven Exact counters: the loop-head bound
-    j: u64 [0..=4];  // dominates each re-guarded increment
-    jp: u64;         // j + 1 folds bounded from j's range -- plain Exact
+    i: u64;          // guard-proven Exact counters: the loop-head bound
+    j: u64;          // dominates each re-guarded increment
+    jp: u64;         // j + 1 folds bounded from the `j < 4` guard -- plain Exact
     a: i32;
     b: i32;
     pause: [u8; 256];
@@ -87,7 +87,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     // Re-guard before each increment: the bound on the DIRECT edge proves the
-    // `+ 1` stays within the counter's range -- fully Exact, no domain.
+    // `+ 1` cannot overflow -- fully Exact, no domain.
     state advance(&mut self) {
         transition self.j < 4 {
             true -> j_bump()

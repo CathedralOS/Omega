@@ -37,10 +37,11 @@ data Command {
 data Elevator [copy] {
     floor: i32;
     door_open: i32;
-    // Ranged + the modular-counter idiom at the increment: Exact-provable, no
-    // overflow domain (nested-field arithmetic carries the decision-17
-    // obligation; the `% 101` declares the wrap-at-ceiling behavior).
-    moves: i32 [0..=100];
+    // The modular-counter idiom at the increment: reducing `% 101` before the
+    // `+ 1` makes it Exact-provable with no overflow domain (nested-field
+    // arithmetic carries the decision-17 obligation; the outer `% 101`
+    // declares the wrap-at-ceiling behavior).
+    moves: i32;
 }
 
 data Main {
@@ -126,7 +127,7 @@ machine Main::send(&mut self, cmd: Command) {
 
     state do_move(&mut self, floor: i32) {
         self.lift.floor = floor;
-        self.lift.moves = (self.lift.moves + 1) % 101;
+        self.lift.moves = (self.lift.moves % 101 + 1) % 101;
     }
 
     state handle_open(&mut self) {

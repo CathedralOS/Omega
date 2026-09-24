@@ -7,7 +7,7 @@
 // Previously each `a[i]` had to be materialized into its own field first. The
 // compiler hoists them into temps automatically. The accumulator and elements
 // are `in Wrapping` (element reads carry no range facts, so the multiply-add
-// cannot prove overflow-freedom); the counter is a guard-proven Exact range.
+// cannot prove overflow-freedom); the counter is a guard-proven Exact i32.
 //
 // [1,2,3] . [4,5,6] = 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32.
 // Expected exit: 32.
@@ -21,7 +21,7 @@ data Main {
     // no range facts yet, so the multiply-accumulate cannot prove its bounds.
     a: [i32; 3] in Wrapping;
     b: [i32; 3] in Wrapping;
-    i: i32 [0..=3];
+    i: i32;
     sum: i32 in Wrapping;
     pause: [u8; 256];
 }

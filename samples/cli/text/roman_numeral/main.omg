@@ -18,10 +18,10 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     text: [u8; 16] in Utf8;
-    // Exact ranged index: the byte read is bounded by the `.len` guard, and the
+    // Exact index: the byte read is bounded by the `.len` guard, and the
     // increment is guard-proven by the `i < 16` edge into bump() (the carrier's
     // capacity bound; i < text.len <= 16, so the re-guard never fails).
-    i: i32 [0..=16];
+    i: i32;
     b: u8;
     // Wrapping DECLARED (v/prev/total): a parse accumulator over arbitrary input
     // symbols -- the subtractive-pair correction can also dip below zero mid-parse.

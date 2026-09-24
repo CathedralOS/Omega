@@ -5,7 +5,7 @@ below `w` is Red, everything from `b` up is Blue, and the White cursor walks
 the unknown middle until it meets the fence. `[White, Blue, Red]` becomes
 `[Red, White, Blue]`; the program exits **70**.
 
-The sample uses the field-counter idiom: declared `Exact` counter ranges plus
+The sample uses the field-counter idiom: plain `Exact` counters plus
 literal re-guard states dominate every runtime-indexed access, and the
 `confused(9x)` arms stand as honest runtime checks for the loop invariants a
 verified port would carry as `requires`/`ensures` facts.
