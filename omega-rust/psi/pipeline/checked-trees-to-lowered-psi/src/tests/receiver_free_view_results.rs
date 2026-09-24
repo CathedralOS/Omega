@@ -61,6 +61,67 @@ fn record_construction_with_view_member_reaches_the_record_gate() {
 }
 
 #[test]
+fn record_with_named_view_member_reaches_the_reference_custody_gate() {
+    // A `&'a V` member keeps its reference shell in the declared field type —
+    // `Structural { ref(named(V)) }` — matching the identity the `&`-rooted
+    // literal value mints. The unclaimed chain admits the record and emits
+    // the member's leaf copy; the decline left is the reference-result
+    // custody arm the Terminal channel gate reserves for
+    // `EstablishReference`/call results — copying an existing shared loan's
+    // descriptor needs its own arm.
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Inner { code: u64; }
+            data NamedViews<'r> { inner: &'r Inner; tag: u64; }
+
+            machine NamedViews::build<'r>(x: &'r Inner) -> NamedViews<'r> {
+                NamedViews { inner: x, tag: 0 }
+            }
+        "#,
+    );
+    let error = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("NamedViews::build"),
+    )
+    .expect_err("named-view member construction stops at the reference custody gate");
+    assert!(
+        matches!(
+            error,
+            crate::lowering_error::LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::InvalidReferenceCustody { .. }
+            )
+        ),
+        "unexpected outcome: {error:?}"
+    );
+}
+
+#[test]
+fn member_subslice_results_keep_their_frontier_decline() {
+    // An authored member subslice establishes a fresh view over the
+    // receiver's own storage — the ordered-destination custody family that
+    // authored subslices belong to still owns this shape.
+    let checked = crate::front_end::checked_program(
+        r#"
+            data Views { data: [u8; 64]; tag: u64; }
+
+            machine Views::head<'r>(&self) -> &'r [u8] {
+                self.data[0..64]
+            }
+        "#,
+    );
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Views::head"))
+        .expect_err("authored member subslices keep their ordered-destination decline");
+    assert!(
+        matches!(
+            error,
+            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
+                | crate::lowering_error::LoweringError::Unsupported(_)
+        ),
+        "unexpected outcome: {error:?}"
+    );
+}
+
+#[test]
 fn exclusive_view_member_construction_keeps_its_decline() {
     // A `&mut` view member is not a shared loan — the exclusive custody
     // family still owns this shape and it keeps its result-type decline.
