@@ -6,6 +6,7 @@
 // fence otherwise). make(3500) -> {35, 7} -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u32::U320To10000 requires self <= 10000;
 data Pair8 {
     a: u32;
     b: u32;
@@ -14,7 +15,7 @@ data Main {
     console: Binding<Console>;
     p: Pair8;
 }
-machine Pair8::make(n: u32 [0..=10000]) -> Pair8 {
+machine Pair8::make(n: u32 in U320To10000) -> Pair8 {
     transition { _ -> Pair8 { a: n / 100, b: 7 } }
 }
 machine Main::main(&mut self) reaches Console {
