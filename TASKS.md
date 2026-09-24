@@ -2458,13 +2458,13 @@ syntax and other terminal services are not prerequisites.
      precedence changes no native canary: the machines the state graph
      cannot take are all in checked-only fixtures, and the 14 run canaries
      whose fixtures hold one keep their status and message. It fails 73 c2l
-     and ttct tests that pin capabilities only the scalar graph has:
-     - a result guarantee (`ensures`, a closed result range) on a
-       multi-state scalar result (6 tests; 110 checked-only corpus machines,
-       mostly `terminal_psi/integer_control_contract`): the state graph
-       refuses at `scalar result guarantee`, and composed emission publishes
-       no `ensures` (`composed_control/callable.rs` sets only `requires`).
-       With the guarantee published, the counts below remain;
+     and ttct tests. The state graph now publishes a result guarantee
+     (`ensures`, a closed result range; `callable::scalar_guarantees`),
+     which 6 of them and 110 checked-only corpus machines need. Terminal
+     proves one only from facts every exit shares (`guaranteed_exit_facts`),
+     so `ensures result >= 20` over `(20)` and `(30)` exits stops lowering
+     (`a_guarantee_no_shared_exit_fact_proves_stops_lowering`). The other 67
+     pin capabilities only the scalar graph has:
      - a guarded transition with a continuation arm (the combined arm form
        `scalar_return_calls_source` replays, 26 tests):
        `CheckedStructuralControlSuccessorPlan` has no continuation flag, so a
