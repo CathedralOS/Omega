@@ -20,6 +20,7 @@ use super::{
     lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
     place_id, unsupported, value_id,
 };
+use crate::emission::scalar_types::{integer_value, terminal_scalar_type};
 use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, lower_exact_application,
 };
@@ -43,9 +44,11 @@ use crate::unit::dynamic_composed_unit::structural_types::{
 };
 use checked_trees::{
     CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
-    CheckedDynamicRealizationCallablePlan,
+    CheckedDynamicRealizationCallablePlan, CheckedIntegerComparisonKind,
+    CheckedStructuralScalarParameterPlan,
 };
-use semantic_vocabulary::{MachineId, ScalarType};
+use semantic_vocabulary::{MachineId, ScalarType, ValueId};
+use terminal_psi::OperationKind;
 
 /// Lower one checked join: validate the control split and both branch calls,
 /// lower their shared caller ABI and sources once, retain each branch's exact
@@ -176,6 +179,17 @@ pub(super) fn lower<Call: DynamicCall>(
     let (first_helper_machine, first_helper_operation) =
         (first_helper.machine, first_helper.operation);
     let [true_result, false_result] = branch_results;
+    let [join_parameter] = control.scalar_parameters.as_slice() else {
+        return unsupported("joined dynamic control requires one scalar parameter");
+    };
+    let join_parameter_scalar_type = terminal_scalar_type(join_parameter.primitive_type)?;
+    let (guard_operations, guard_value) = lower_join_guard(
+        &control.guard,
+        join_parameter_scalar_type,
+        value_id(1),
+        &mut next_operation,
+        &mut next_value,
+    )?;
     let caller_blocks = vec![
         Block {
             structural_parameters: Vec::new(),
@@ -183,9 +197,9 @@ pub(super) fn lower<Call: DynamicCall>(
             parameters: Vec::new(),
             erased_scalar_formals: Vec::new(),
             erased_proof_formals: Vec::new(),
-            operations: Vec::new(),
+            operations: guard_operations,
             terminator: Terminator::Conditional {
-                condition: value_id(1),
+                condition: guard_value,
                 when_true: terminal_psi::SuccessorEdge {
                     structural_arguments: Vec::new(),
                     edge: edge_id(1),
@@ -348,7 +362,7 @@ pub(super) fn lower<Call: DynamicCall>(
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
             id: value_id(1),
-            scalar_type: ScalarType::Boolean,
+            scalar_type: join_parameter_scalar_type,
         }],
         structural_parameters: vec![caller_self.clone()],
         ranked_scc: None,
@@ -428,17 +442,10 @@ fn validate_join_control_plan<Call: DynamicCall>(
         return unsupported("joined dynamic control plan drifted from checked custody");
     }
     let [parameter] = control.scalar_parameters.as_slice() else {
-        return unsupported("joined dynamic control requires one Boolean parameter");
+        return unsupported("joined dynamic control requires one scalar parameter");
     };
-    if parameter.source_position != 1
-        || parameter.primitive_type != PrimitiveType::Bool
-        || !matches!(
-            &control.guard,
-            CheckedScalarExpression::Boolean(boolean)
-                if matches!(boolean.as_ref(), CheckedBooleanExpression::Parameter { position: 0 })
-        )
-    {
-        return unsupported("joined dynamic control guard drifted from its Boolean input");
+    if parameter.source_position != 1 || !join_guard_is_supported(parameter, &control.guard) {
+        return unsupported("joined dynamic control guard drifted from its checked input");
     }
     let states = checked
         .facts
@@ -603,4 +610,263 @@ fn joined_source_call_occurrences<Call: DynamicCall>(
         ],
         helpers,
     )
+}
+
+/// The guard grammar the joined caller's entry block can evaluate — mirrors
+/// the t2c `exact_guard` allowlist clause for clause: a lone Boolean
+/// parameter, `param == literal` / `param != literal` for Boolean and integer
+/// parameters alike, and the literal on either side. Everything the
+/// emitter below emits is admitted here, and nothing else.
+fn join_guard_is_supported(
+    parameter: &CheckedStructuralScalarParameterPlan,
+    guard: &CheckedScalarExpression,
+) -> bool {
+    let CheckedScalarExpression::Boolean(expression) = guard else {
+        return false;
+    };
+    join_boolean_guard_is_supported(parameter, expression)
+}
+
+fn join_boolean_guard_is_supported(
+    parameter: &CheckedStructuralScalarParameterPlan,
+    expression: &CheckedBooleanExpression,
+) -> bool {
+    match expression {
+        CheckedBooleanExpression::Parameter { position: 0 } => {
+            parameter.primitive_type == PrimitiveType::Bool
+        }
+        CheckedBooleanExpression::Equal { left, right } => {
+            parameter.primitive_type == PrimitiveType::Bool
+                && (boolean_parameter_and_constant(left, right)
+                    || boolean_parameter_and_constant(right, left))
+        }
+        CheckedBooleanExpression::Not(inner) => join_boolean_guard_is_supported(parameter, inner),
+        CheckedBooleanExpression::IntegerComparison {
+            kind: CheckedIntegerComparisonKind::Equal,
+            left,
+            right,
+        } => {
+            integer_parameter_and_literal(left, right, parameter.primitive_type)
+                || integer_parameter_and_literal(right, left, parameter.primitive_type)
+        }
+        _ => false,
+    }
+}
+
+fn boolean_parameter_and_constant(
+    parameter: &CheckedBooleanExpression,
+    constant: &CheckedBooleanExpression,
+) -> bool {
+    matches!(
+        parameter,
+        CheckedBooleanExpression::Parameter { position: 0 }
+    ) && matches!(constant, CheckedBooleanExpression::Constant(_))
+}
+
+fn integer_parameter_and_literal(
+    operand: &CheckedScalarExpression,
+    literal: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    matches!(
+        operand,
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: operand_type,
+        } if *operand_type == primitive_type
+    ) && matches!(literal, CheckedScalarExpression::IntegerLiteral { .. })
+}
+
+/// Emit the operations evaluating the join guard into the caller's entry
+/// block and return them together with the Boolean value the Conditional
+/// terminator branches on. Covers exactly the grammar
+/// [`join_guard_is_supported`] accepts; anything else is Unsupported.
+fn lower_join_guard(
+    guard: &CheckedScalarExpression,
+    parameter_scalar_type: ScalarType,
+    parameter_value: ValueId,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+) -> Result<(Vec<Operation>, ValueId), LoweringError> {
+    let CheckedScalarExpression::Boolean(expression) = guard else {
+        return unsupported("joined dynamic control guard is not a Boolean scalar");
+    };
+    let mut operations = Vec::new();
+    let value = emit_join_guard_boolean(
+        expression,
+        parameter_value,
+        parameter_scalar_type,
+        next_operation,
+        next_value,
+        &mut operations,
+    )?;
+    Ok((operations, value))
+}
+
+fn emit_join_guard_leaf(
+    kind: OperationKind,
+    scalar_type: ScalarType,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> Result<ValueId, LoweringError> {
+    let id = value_id(allocate_dense(next_value)?);
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(allocate_dense(next_operation)?),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id,
+            scalar_type,
+        }),
+        kind,
+    });
+    Ok(id)
+}
+
+fn emit_join_guard_boolean(
+    expression: &CheckedBooleanExpression,
+    parameter_value: ValueId,
+    parameter_scalar_type: ScalarType,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> Result<ValueId, LoweringError> {
+    match expression {
+        CheckedBooleanExpression::Parameter { position: 0 } => Ok(parameter_value),
+        CheckedBooleanExpression::Constant(value) => emit_join_guard_leaf(
+            OperationKind::BooleanConstant { value: *value },
+            ScalarType::Boolean,
+            next_operation,
+            next_value,
+            operations,
+        ),
+        CheckedBooleanExpression::Equal { left, right } => {
+            let left = emit_join_guard_boolean_operand(
+                left,
+                parameter_value,
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )?;
+            let right = emit_join_guard_boolean_operand(
+                right,
+                parameter_value,
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )?;
+            emit_join_guard_leaf(
+                OperationKind::BooleanEqual { left, right },
+                ScalarType::Boolean,
+                next_operation,
+                next_value,
+                operations,
+            )
+        }
+        CheckedBooleanExpression::Not(inner) => {
+            let operand = emit_join_guard_boolean(
+                inner,
+                parameter_value,
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )?;
+            emit_join_guard_leaf(
+                OperationKind::BooleanNot { operand },
+                ScalarType::Boolean,
+                next_operation,
+                next_value,
+                operations,
+            )
+        }
+        CheckedBooleanExpression::IntegerComparison {
+            kind: CheckedIntegerComparisonKind::Equal,
+            left,
+            right,
+        } => {
+            let left = emit_join_guard_scalar_operand(
+                left,
+                parameter_value,
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )?;
+            let right = emit_join_guard_scalar_operand(
+                right,
+                parameter_value,
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )?;
+            emit_join_guard_leaf(
+                OperationKind::IntegerEqual { left, right },
+                ScalarType::Boolean,
+                next_operation,
+                next_value,
+                operations,
+            )
+        }
+        _ => unsupported("joined dynamic control guard has no lowering"),
+    }
+}
+
+fn emit_join_guard_boolean_operand(
+    operand: &CheckedBooleanExpression,
+    parameter_value: ValueId,
+    parameter_scalar_type: ScalarType,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> Result<ValueId, LoweringError> {
+    match operand {
+        CheckedBooleanExpression::Parameter { position: 0 } => Ok(parameter_value),
+        CheckedBooleanExpression::Constant(value) => emit_join_guard_leaf(
+            OperationKind::BooleanConstant { value: *value },
+            ScalarType::Boolean,
+            next_operation,
+            next_value,
+            operations,
+        ),
+        _ => emit_join_guard_boolean(
+            operand,
+            parameter_value,
+            parameter_scalar_type,
+            next_operation,
+            next_value,
+            operations,
+        ),
+    }
+}
+
+fn emit_join_guard_scalar_operand(
+    operand: &CheckedScalarExpression,
+    parameter_value: ValueId,
+    parameter_scalar_type: ScalarType,
+    next_operation: &mut u64,
+    next_value: &mut u64,
+    operations: &mut Vec<Operation>,
+) -> Result<ValueId, LoweringError> {
+    match operand {
+        CheckedScalarExpression::Parameter { position: 0, .. } => Ok(parameter_value),
+        CheckedScalarExpression::IntegerLiteral { literal } => {
+            // The literal rides the parameter's landed integer type — the
+            // checker only retains the comparison when both operands agree.
+            let value = integer_value(literal, parameter_scalar_type)?;
+            emit_join_guard_leaf(
+                OperationKind::IntegerConstant { value },
+                parameter_scalar_type,
+                next_operation,
+                next_value,
+                operations,
+            )
+        }
+        _ => unsupported("joined dynamic control guard operand has no lowering"),
+    }
 }
