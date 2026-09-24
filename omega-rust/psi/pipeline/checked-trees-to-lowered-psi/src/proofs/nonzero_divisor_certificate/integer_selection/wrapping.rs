@@ -18,8 +18,8 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::affine_custody::{self, CheckedWord, DefinitionIndex};
-use super::super::integer_evidence::projected_facts;
-use super::{bound, exact};
+use super::super::integer_evidence::{projected_facts, relax};
+use super::{bound, exact, range};
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -140,7 +140,14 @@ fn prove_uncached(
         Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
         _ => return None,
     };
-    for bound in rooted_bounds(context, assumptions, semantic_axioms) {
+    // Operation-semantic bounds are not cited in the source roster: a
+    // remainder's `value < divisor` range exists only through its own
+    // definition. Seed the same transport with each definition target's
+    // synthesized bounds so chains like `48 + (x % 10) <= N` carry the
+    // operand's derived range to the goal.
+    let mut bounds = rooted_bounds(context, assumptions, semantic_axioms);
+    bounds.extend(synthesized_operand_bounds(context, semantic_axioms));
+    for bound in bounds {
         for target in [goal_left, goal_right] {
             if bound.root == *target || !matches!(target, ScalarTerm::Value { .. }) {
                 continue;
@@ -171,6 +178,34 @@ fn prove_uncached(
     None
 }
 
+/// Bounds each definition target earns from its operation semantics alone:
+/// `x % 10` lands in `[0, 9]` without any cited relation. The transport
+/// treats these like cited roots so wrapping chains carry them onward.
+fn synthesized_operand_bounds(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+) -> Vec<RootedBound> {
+    let mut bounds = Vec::new();
+    for proposition in semantic_axioms {
+        let Proposition::Equal(left, right) = proposition else {
+            continue;
+        };
+        for candidate in [left, right] {
+            if !matches!(candidate, ScalarTerm::Value { .. }) {
+                continue;
+            }
+            for proof in range::target_bounds(context, candidate, semantic_axioms) {
+                bounds.push(RootedBound {
+                    proposition: proof.conclusion.clone(),
+                    proof,
+                    root: candidate.clone(),
+                });
+            }
+        }
+    }
+    bounds
+}
+
 #[allow(clippy::too_many_arguments)]
 fn prove_word(
     context: &PropositionContext,
@@ -192,7 +227,12 @@ fn prove_word(
         definition_axioms,
     )?;
     if proof.conclusion != *goal {
-        return None;
+        // A mapped bound like `v <= 57` closes the goal `v <= 255` through
+        // transitivity with a closed literal relation.
+        let relaxed = relax(goal, proof)?;
+        return check_certificate(context, goal, assumptions, semantic_axioms, &relaxed)
+            .is_ok()
+            .then_some(relaxed);
     }
     check_certificate(context, goal, assumptions, semantic_axioms, &proof)
         .is_ok()
@@ -221,10 +261,21 @@ pub(super) fn map_word(
         target,
         definition_axioms,
     )?;
-    if checked.evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
+    if checked.evidence.is_empty()
+        && !matches!(bound.proposition, Proposition::LessThan(_, _))
+        && !definition_axioms.iter().any(|&index| {
+            let Proposition::Equal(left, right) = &semantic_axioms[index] else {
+                return false;
+            };
+            [left, right].iter().any(|term| is_wrapping_term(term))
+        })
+    {
         // A bare non-strict relation is already the ordinary affine path's
         // root bound. This leg exists for strict roots and for the wrapping
-        // evidence conjunction the ordinary path cannot construct.
+        // evidence conjunction the ordinary path cannot construct. A word
+        // containing a wrapping definition has no affine coverage either:
+        // its unconditional transports (an operand's derived range into the
+        // target's upper bound) land only through this leg.
         return None;
     }
     map_checked_word(
@@ -376,4 +427,17 @@ fn map_checked_word(
             witness,
         },
     })
+}
+
+fn is_wrapping_term(term: &ScalarTerm) -> bool {
+    matches!(
+        term,
+        ScalarTerm::WrappingIntegerAdd { .. }
+            | ScalarTerm::WrappingIntegerSubtract { .. }
+            | ScalarTerm::WrappingIntegerMultiply { .. }
+            | ScalarTerm::WrappingIntegerDivide { .. }
+            | ScalarTerm::WrappingIntegerRemainder { .. }
+            | ScalarTerm::WrappingIntegerShiftLeft { .. }
+            | ScalarTerm::WrappingIntegerShiftRight { .. }
+    )
 }
