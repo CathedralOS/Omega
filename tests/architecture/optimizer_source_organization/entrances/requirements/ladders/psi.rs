@@ -221,14 +221,14 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "rewrite model",
         paths: &[
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/mod.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/mod.rs",
             "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/canonical_encoding.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/foundations.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/scalar_evaluation.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/sccp.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/cfg_rewrite_plans.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/scalar_rewrite_plans.rs",
-            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/model/contracts.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/foundations.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/scalar_evaluation.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/sccp.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/cfg_rewrite_plans.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/scalar_rewrite_plans.rs",
+            "omega-rust/omega/representations/optimization-unit/src/optimization_unit/rewrite/contracts.rs",
         ],
     },
     SemanticLadder {

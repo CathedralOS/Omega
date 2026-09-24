@@ -1,11 +1,11 @@
-use super::super::canonical_encoding::{
+use super::canonical_encoding::{
     encode_definition_site, encode_integer_value, encode_len, encode_scalar_type,
 };
-use super::super::{
+use super::scalar_evaluation::ScalarConstantValue;
+use super::{
     BlockId, EdgeId, IntegerValue, MachineId, OptimizationUnitIdentity, ScalarConstantFactIdentity,
     ScalarType, ValueDefinition,
 };
-use super::scalar_evaluation::ScalarConstantValue;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SccpValueState {

@@ -1,7 +1,5 @@
-use super::super::canonical_encoding::{
-    encode_definition_site, encode_integer_value, encode_scalar_type,
-};
-use super::super::{
+use super::canonical_encoding::{encode_definition_site, encode_integer_value, encode_scalar_type};
+use super::{
     AcceptedObligationFactIdentity, IntegerValue, MachineId, OperationId, OptimizationUnitIdentity,
     ScalarConstantFactIdentity, ScalarType, ValueDefinition, ValueRangeFactIdentity,
 };
