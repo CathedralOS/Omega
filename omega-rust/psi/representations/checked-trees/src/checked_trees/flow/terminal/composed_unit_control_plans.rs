@@ -153,18 +153,17 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_false: CheckedStructuralControlSuccessorPlan,
     },
     /// The two-way conditional whose other arm names an authored
-    /// `(expression)` target: that arm returns the established value instead
-    /// of transferring to a named state. `jump` carries the named arm's
-    /// ordinary custody plan; `return_arm` is the value arm's
-    /// `EstablishStructuralValue` producer in the same local child storage
-    /// `Guarded::return_values` uses. `return_when_true` records which arm
-    /// position the authored `(expression)` target occupied. (A conditional
-    /// whose two arms are both `(expression)` targets checks as `Guarded`,
+    /// `(expression)` target: that arm returns its value instead of
+    /// transferring to a named state. `jump` carries the named arm's ordinary
+    /// custody plan; `return_arm` is the value arm, structural or scalar as the
+    /// state's result is. `return_when_true` records which arm position the
+    /// authored `(expression)` target occupied. (A conditional whose two arms
+    /// are both `(expression)` targets checks as `Guarded` or scalar `Exits`,
     /// never this variant.)
     ConditionalReturn {
         guard: CheckedCallScalarArgument,
         jump: CheckedStructuralControlSuccessorPlan,
-        return_arm: CheckedUnitEffectOperationPlan,
+        return_arm: CheckedConditionalReturnArm,
         return_when_true: bool,
     },
     /// Ordered Boolean guards each select a named-state edge. Guards evaluate
@@ -216,9 +215,10 @@ impl CheckedComposedUnitControlStatePlan {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                 return_values.as_slice()
             }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
-                std::slice::from_ref(return_arm)
-            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                return_arm: CheckedConditionalReturnArm::Structural(operation),
+                ..
+            } => std::slice::from_ref(operation),
             _ => &[],
         };
         self.operations.iter().chain(selected)
@@ -283,6 +283,20 @@ impl CheckedComposedUnitControlStatePlan {
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar
 /// expression the authored guard selected and the selected edge's custody plan.
+/// The value arm of a `ConditionalReturn`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedConditionalReturnArm {
+    /// The arm's `EstablishStructuralValue` producer, in the same local child
+    /// storage `Guarded::return_values` uses.
+    Structural(CheckedUnitEffectOperationPlan),
+    /// The value checking recorded under the `Return` role at the arm's
+    /// transition, evaluated only on that arm.
+    Scalar {
+        statement_ordinal: u32,
+        primitive_type: PrimitiveType,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedGuardedJumpPlan {
     /// Exact checked Boolean value at `successor.statement_ordinal` under the

@@ -707,15 +707,10 @@ pub(super) fn build_traced(
                         statement_ordinal: ordinal,
                     }
                 }
-                // `transition true { true -> done(v) }` always takes its one arm:
-                // the same unconditional jump as an `Always` guard.
+                // Typing already lowered a run-closing constant-true arm
+                // (`transition true { true -> done(v) }`) to `Always`.
                 [StatementNode::Transition(transition)]
-                    if transition.guard == TransitionGuardNode::Always
-                        || (matches!(transition.guard, TransitionGuardNode::When(_))
-                            && facts
-                                .values
-                                .scalar_expressions
-                                .guard_is_constant_true(state.symbol, ordinal)) =>
+                    if transition.guard == TransitionGuardNode::Always =>
                 {
                     trace.phase("state graph: terminator: jump successor");
                     CheckedComposedUnitControlTerminatorPlan::Jump {
@@ -751,7 +746,7 @@ pub(super) fn build_traced(
                         Result<
                             CheckedStructuralControlSuccessorPlan,
                             (
-                                CheckedUnitEffectOperationPlan,
+                                checked_trees::CheckedConditionalReturnArm,
                                 Vec<CheckedUnitEffectOperationPlan>,
                             ),
                         >,
@@ -767,6 +762,36 @@ pub(super) fn build_traced(
                                 );
                                 return None;
                             }
+                            trace.phase(
+                                "state graph: terminator: conditional successors: return arm value",
+                            );
+                            trace.statement(Some(edge_ordinal));
+                            // A scalar result is the value checking retained
+                            // under the arm's `Return` role; the arm alone
+                            // evaluates it.
+                            if let checked_trees::CheckedControlResultPlan::Scalar {
+                                primitive_type,
+                            } = result
+                            {
+                                let role = CheckedScalarExpressionRole::Return;
+                                let retained = facts
+                                    .values
+                                    .scalar_expressions
+                                    .expression_at(state.symbol, edge_ordinal, role)
+                                    .is_some()
+                                    || facts
+                                        .values
+                                        .scalar_computations
+                                        .root_at(state.symbol, edge_ordinal, role)
+                                        .is_some_and(|root| root.machine == machine.symbol);
+                                return retained.then_some(Err((
+                                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                                        statement_ordinal: edge_ordinal,
+                                        primitive_type,
+                                    },
+                                    Vec::new(),
+                                )));
+                            }
                             return returns::return_value_operation(
                                 program,
                                 facts,
@@ -781,7 +806,14 @@ pub(super) fn build_traced(
                                 *expression,
                                 trace,
                             )
-                            .map(Err);
+                            .map(|(operation, operand_calls)| {
+                                Err((
+                                    checked_trees::CheckedConditionalReturnArm::Structural(
+                                        operation,
+                                    ),
+                                    operand_calls,
+                                ))
+                            });
                         }
                         successor(
                             program,
@@ -1100,9 +1132,11 @@ pub(super) fn build_traced(
                             &[jump],
                             &disposable_locals,
                         )
-                        || return_arm.with_value_calls().skip(1).any(|operation| {
-                            terminator_call_consumes_result(operation, result.binding_ordinal)
-                        })
+                        || matches!(return_arm,
+                        checked_trees::CheckedConditionalReturnArm::Structural(operation)
+                            if operation.with_value_calls().skip(1).any(|operation| {
+                                terminator_call_consumes_result(operation, result.binding_ordinal)
+                            }))
                 }
                 CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
                     let successors = arms

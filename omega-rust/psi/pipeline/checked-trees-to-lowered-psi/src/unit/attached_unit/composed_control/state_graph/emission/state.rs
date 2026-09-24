@@ -160,14 +160,25 @@ impl StateGraphEmission<'_, '_> {
             }
             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 jump,
-                return_arm: CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
+                return_arm,
                 return_when_true,
                 ..
-            } => Some(if *return_when_true {
-                result.statement_index
-            } else {
-                jump.statement_ordinal
-            }),
+            } => match (return_when_true, return_arm) {
+                (false, _) => Some(jump.statement_ordinal),
+                (
+                    true,
+                    checked_trees::CheckedConditionalReturnArm::Structural(
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
+                    ),
+                ) => Some(result.statement_index),
+                (
+                    true,
+                    checked_trees::CheckedConditionalReturnArm::Scalar {
+                        statement_ordinal, ..
+                    },
+                ) => Some(*statement_ordinal),
+                (true, checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
+            },
             _ => None,
         };
         // A named true successor with expression arguments may read the case
@@ -466,22 +477,90 @@ impl StateGraphEmission<'_, '_> {
             };
             operations.byte_lengths.clear();
             operations.field_byte_lengths.clear();
-            let terminator = super::super::guarded::emit_return(
-                checked,
-                plan,
-                state,
-                return_arm,
-                self.catalogs,
-                &state_parameters,
-                &self.claims.source_claims,
-                &mut arm_evaluation,
-                &mut arm_values,
-                &self.state_erased[position],
-                &mut next_value,
-                &mut next_block,
-                &mut next_edge,
-                &mut operations,
-            )?;
+            let terminator = match return_arm {
+                checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
+                    super::super::guarded::emit_return(
+                        checked,
+                        plan,
+                        state,
+                        operation,
+                        self.catalogs,
+                        &state_parameters,
+                        &self.claims.source_claims,
+                        &mut arm_evaluation,
+                        &mut arm_values,
+                        &self.state_erased[position],
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                    )?
+                }
+                // The arm alone evaluates the value checking retained under its
+                // `Return` role, then disposes the roots a scalar return does.
+                checked_trees::CheckedConditionalReturnArm::Scalar {
+                    statement_ordinal,
+                    primitive_type,
+                } => {
+                    let role = CheckedScalarExpressionRole::Return;
+                    let retained = match checked.facts.values.scalar_expressions.expression_at(
+                        state.state,
+                        *statement_ordinal,
+                        role,
+                    ) {
+                        Some(expression) => {
+                            checked_trees::CheckedCallScalarArgument::Pure(expression.clone())
+                        }
+                        None => checked_trees::CheckedCallScalarArgument::Computation(
+                            checked
+                                .facts
+                                .values
+                                .scalar_computations
+                                .root_at(state.state, *statement_ordinal, role)
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph scalar return arm lost its retained value",
+                                ))?
+                                .root,
+                        ),
+                    };
+                    let mut calls = self.catalogs.scalar_calls.emission_context();
+                    let value = arm_evaluation.source_value(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        *statement_ordinal,
+                        role,
+                        &retained,
+                        arm_values.len(),
+                        &mut arm_values,
+                        &mut next_value,
+                        &mut next_block,
+                        &mut next_edge,
+                        &mut operations,
+                        &mut calls,
+                    )?;
+                    self.catalogs.scalar_calls.next_call_obligation =
+                        calls.next_obligation_identity;
+                    if value.scalar_type != terminal_scalar_type(*primitive_type)? {
+                        return unsupported("Unit graph scalar return arm changed its carrier");
+                    }
+                    Terminator::Return {
+                        edge: edge_id(allocate_dense(&mut next_edge)?),
+                        value: value.id,
+                        cleanup_actions: return_root_discards(
+                            checked,
+                            plan,
+                            state,
+                            &operations,
+                            &arm_evaluation,
+                            &state_parameters,
+                        )?
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
+                    }
+                }
+            };
             arm_evaluation.remap_transported_call_operands(&mut operations);
             arm_evaluation.blocks.push(Block {
                 id: arm_evaluation.current,
@@ -1091,33 +1170,14 @@ impl StateGraphEmission<'_, '_> {
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                let source = checked
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == plan.machine)
-                    .and_then(|machine| {
-                        checked
-                            .machine_states(machine)
-                            .iter()
-                            .find(|source| source.symbol == state.state)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit return source state missing",
-                    ))?;
-                let discards = edges::return_discards(checked, plan.machine, source, state)?;
-                let mut local_discards =
-                    result_custody::local_discards(checked, plan.machine, source, state, None)?
-                        .into_iter()
-                        .map(|ordinal| {
-                            let result = case_emission::result(state, ordinal, &operations)?;
-                            Ok(evaluation.current_structural_place(result.place))
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
-                local_discards.extend(
-                    discards
-                        .into_iter()
-                        .map(|index| state_parameters[index].place),
-                );
+                let local_discards = return_root_discards(
+                    checked,
+                    plan,
+                    state,
+                    &operations,
+                    &evaluation,
+                    &state_parameters,
+                )?;
                 let edge = edge_id(allocate_dense(&mut next_edge)?);
                 // A scalar return disposes the same whole roots a Unit return
                 // does, after the returned value is established.
@@ -1621,6 +1681,46 @@ impl StateGraphEmission<'_, '_> {
 /// Plan one short-circuit guard as a Boolean decision whose case dispatches
 /// allocate payload values. Returns the plan and the scalar namespace its true
 /// outcome reads, which includes the payloads its dispatches established.
+/// The whole roots a returning exit of this state disposes: its dying local
+/// results, then the parameters its exit drops.
+fn return_root_discards(
+    checked: &checked_trees::CheckedTrees,
+    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    operations: &OperationBuffer,
+    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
+    state_parameters: &[terminal_psi::StructuralParameterDeclaration],
+) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
+    let source = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == plan.machine)
+        .and_then(|machine| {
+            checked
+                .machine_states(machine)
+                .iter()
+                .find(|source| source.symbol == state.state)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "Unit return source state missing",
+        ))?;
+    let discards = edges::return_discards(checked, plan.machine, source, state)?;
+    let mut local_discards =
+        result_custody::local_discards(checked, plan.machine, source, state, None)?
+            .into_iter()
+            .map(|ordinal| {
+                let result = case_emission::result(state, ordinal, operations)?;
+                Ok(evaluation.current_structural_place(result.place))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+    local_discards.extend(
+        discards
+            .into_iter()
+            .map(|index| state_parameters[index].place),
+    );
+    Ok(local_discards)
+}
+
 /// The owned parameter each edge of a case-test dispatch consumes, keyed by
 /// the edge's transition ordinal: a tested arm consumes its own subject, and
 /// the dispatch's closing `_` arm the subject of the arm before it.
