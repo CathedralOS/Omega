@@ -2096,7 +2096,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 29);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 28);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
