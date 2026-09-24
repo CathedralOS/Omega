@@ -60,6 +60,11 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
 4. "Reuse your existing clone/worktree when present" — suspended workers
    resume on the same VM; a re-clone plus cold build is measured leg-time tax.
+   **At the start of EVERY leg the worker runs `git fetch origin` and merges
+   `origin/main` into its lane** (`git merge origin/main --no-edit`) before
+   touching code — a stale base hides already-landed fixes and guarantees
+   merge-check conflicts at drain; clerical conflicts get resolved, real
+   semantic conflicts get reported in the verdict instead of guessed at.
    Never `cargo clean` and never build `omega` from source for evidence:
    fetch the `swarm-binaries` release binary — a local
    `cargo build --release` is the single largest measured leg-time waste.
