@@ -57,6 +57,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import urllib.request
 import threading
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -125,11 +126,167 @@ def run_runner(binary: Path) -> list[dict]:
         raise SystemExit(f"corpus_gate: runner emitted no JSON: {error}")
 
 
+# --- Jev advisory (--jev): per-diff classification + record verdict ---
+# Worked example: build/experiments/failure-triage/CLASSIFY.md. Verdict
+# reliability 4/4; per-diff labels inside a batch are contaminated by the
+# worst member, so low verdicts re-ask each diff alone to localize.
+
+JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+JEV_MODEL = "jev-1.13.0"
+
+
+def jev_key() -> str:
+    key = os.environ.get("TYPESAFE_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, text=True, timeout=15)
+        roots = [Path("build"), Path(done.stdout.strip()).parent / "build"]
+    except (OSError, subprocess.SubprocessError):
+        roots = [Path("build")]
+    for root in roots:
+        path = root / "typesafe.env.txt"
+        if path.is_file():
+            keys = [line.partition("=")[2].strip().strip("\"'")
+                    for line in path.read_text(encoding="utf-8-sig").splitlines()
+                    if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
+            if len(keys) == 1:
+                return keys[0]
+    path = Path.home() / ".config" / "typesafe" / "typesafe.env.txt"
+    if path.is_file():
+        keys = [line.partition("=")[2].strip().strip("\"'")
+                for line in path.read_text(encoding="utf-8-sig").splitlines()
+                if line.partition("=")[0].strip() == "TYPESAFE_API_KEY"]
+        if len(keys) == 1:
+            return keys[0]
+    return ""
+
+
+def jev_post(payload: dict, key: str) -> dict:
+    request = urllib.request.Request(
+        JEV_ENDPOINT, data=json.dumps(payload).encode(),
+        headers={"Authorization": f"Bearer {key}",
+                 "Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def diff_questions(diffs: list) -> dict:
+    questions = {}
+    for index in range(len(diffs)):
+        questions[f"diff_{index}"] = {
+            "type": "choice",
+            "instructions": (
+                "Classify this fixture outcome change under the commit's "
+                "subject and touched files. `intended`: what the commit was "
+                "for, a harmless consequence, or only millis moved. "
+                "`accidental`: status/expected_satisfied/diagnostics moved "
+                "in a way this commit should not produce — pinning it would "
+                "record a regression. `needs_review`: undecidable here."),
+            "criteria": {
+                "intended": "what this commit was for, harmless, or "
+                            "timing-only",
+                "accidental": "a semantic move this commit should not "
+                              "produce — a regression",
+                "needs_review": "cannot be decided from this evidence"}}
+    questions["record_safe"] = {
+        "type": "noul",
+        "instructions": (
+            "Would re-pinning the golden with these diffs record intended "
+            "behavior only (high) or hide a regression (low)?"),
+        "criteria": {
+            "true": "every diff is intended or harmless; --record is safe",
+            "false": "at least one diff looks accidental; --record would "
+                     "pin a regression"}}
+    return questions
+
+
+def jev_advise(diffs: list) -> None:
+    """Advisory annotation for structural diffs. Never raises; silent when
+    no key; OMEGA_JEV_OFFLINE=1 suppresses."""
+    if os.environ.get("OMEGA_JEV_OFFLINE", "").strip() == "1":
+        return
+    if not diffs:
+        return
+    key = jev_key()
+    if not key:
+        return
+    try:
+        subject = subprocess.run(
+            ["git", "log", "-1", "--format=%s"], capture_output=True,
+            text=True, timeout=10).stdout.strip()
+        files = subprocess.run(
+            ["git", "show", "--format=", "--name-only", "HEAD"],
+            capture_output=True, text=True, timeout=10).stdout.split()[:40]
+        state = {"commit_subject": subject,
+                 "files_touched": files,
+                 "fixture_diffs": diffs[:30]}
+        request = {"model": JEV_MODEL, "state": state,
+                   "questions": diff_questions(diffs[:30])}
+        response = jev_post(request, key)
+        answers = response.get("answers", {})
+        safe = answers.get("record_safe", {}).get("noul", 0.5)
+        verdict = ("looks safe to --record" if safe >= 0.5
+                   else "--record would likely pin a regression")
+        print(f"  = jev advisory: record_safe {safe:.2f} — {verdict}")
+        flagged = [i for i in range(len(diffs[:30]))
+                   if answers.get(f"diff_{i}", {}).get("choice")
+                   == "accidental"]
+        if safe < 0.5 and flagged:
+            # Batch labels are contaminated by the worst member, and a solo
+            # intended/accidental re-ask conflates "unexplained by this
+            # commit" with "intended". Ask the causal question instead:
+            # could THIS commit plausibly produce this diff?
+            for index in flagged[:10]:
+                solo = {"model": JEV_MODEL,
+                        "state": {"commit_subject": subject,
+                                  "files_touched": files,
+                                  "fixture_diffs": [diffs[index]]},
+                        "questions": {"caused_by_commit": {
+                            "type": "noul",
+                            "instructions": (
+                                "Could this commit plausibly produce this "
+                                "fixture outcome change? Timing-only "
+                                "movement is noise (high). A status or "
+                                "diagnostic change outside the commit's "
+                                "domain is unexplained — unexplained means "
+                                "suspicious (low)."),
+                            "criteria": {
+                                "true": "this commit could plausibly cause "
+                                        "this outcome change",
+                                "false": "unexplained by this commit — "
+                                         "suspicious"}}}}
+                try:
+                    one = jev_post(solo, key).get("answers", {})
+                    caused = one.get("caused_by_commit", {}).get("noul", 0.5)
+                except Exception:
+                    caused = 0.5
+                if caused < 0.5:
+                    print(f"    SUSPECT: {diffs[index]['fixture']} "
+                          f"(unexplained by commit, {caused:.2f})")
+                else:
+                    print(f"    probably fine: {diffs[index]['fixture']} "
+                          f"({caused:.2f})")
+        elif flagged:
+            for index in flagged[:10]:
+                print(f"    possibly accidental: "
+                      f"{diffs[index]['fixture']}")
+    except Exception as error:
+        print(f"  = jev advisory unavailable: {type(error).__name__}",
+              file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--record", action="store_true",
                         help="rewrite the golden from this run instead of diffing")
+    parser.add_argument("--jev", action="store_true",
+                        help="annotate structural diffs with an advisory "
+                             "intended/accidental classification + "
+                             "record_safe verdict (needs TYPESAFE_API_KEY)")
     parser.add_argument("--runner", type=Path,
                         help="use an existing corpus_runner binary instead of building")
     parser.add_argument("--golden", type=Path, default=GOLDEN)
@@ -185,6 +342,7 @@ def main() -> int:
     actual = {record["fixture"]: record for record in records}
 
     structural_moves = []
+    structured_diffs = []
     perf_moves = []
     perf_notes = []
     for fixture, record in actual.items():
@@ -192,6 +350,12 @@ def main() -> int:
         if before is None:
             structural_moves.append(f"+ {fixture}: new fixture "
                                   f"({record['status']})")
+            structured_diffs.append(
+                {"fixture": fixture,
+                 "before": {"status": "absent"},
+                 "after": {"status": record["status"],
+                           "expected_satisfied": record["expected_satisfied"],
+                           "diagnostics": record["diagnostics"]}})
             continue
         for field in ("status", "expected_satisfied", "diagnostics"):
             if record[field] != before[field]:
@@ -199,6 +363,16 @@ def main() -> int:
                     f"~ {fixture}: {field} moved\n"
                     f"    - {json.dumps(before[field])[:300]}\n"
                     f"    + {json.dumps(record[field])[:300]}")
+                structured_diffs.append(
+                    {"fixture": fixture,
+                     "before": {"status": before["status"],
+                                "expected_satisfied":
+                                    before["expected_satisfied"],
+                                "diagnostics": before["diagnostics"]},
+                     "after": {"status": record["status"],
+                               "expected_satisfied":
+                                   record["expected_satisfied"],
+                               "diagnostics": record["diagnostics"]}})
                 break
         else:
             old_ms, new_ms = before.get("millis", 0), record.get("millis", 0)
@@ -212,6 +386,10 @@ def main() -> int:
         for fixture in golden:
             if fixture not in actual:
                 structural_moves.append(f"- {fixture}: removed from corpus")
+                structured_diffs.append(
+                    {"fixture": fixture,
+                     "before": {"status": golden[fixture]["status"]},
+                     "after": {"status": "absent"}})
 
     counts = {}
     for record in records:
@@ -236,6 +414,8 @@ def main() -> int:
         print(line)
     print(f"corpus_gate: {len(structural_moves)} structural move(s), "
           f"{len(perf_moves)} perf move(s) — {summary}")
+    if options.jev:
+        jev_advise(structured_diffs)
     return 1
 
 
