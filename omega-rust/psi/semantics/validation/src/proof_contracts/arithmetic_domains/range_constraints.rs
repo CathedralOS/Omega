@@ -265,3 +265,25 @@ pub(crate) fn enforced_declared_range_interval(
         _ => None,
     }
 }
+
+/// Whether the type spells a BRACKETED range constraint anywhere in its
+/// shells, as opposed to carrying its bound through a declared domain. Both
+/// now yield an interval, so a check that owns only the bracketed spelling
+/// must ask this before speaking.
+pub(crate) fn declares_bracketed_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => declares_bracketed_range(program, *referee),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
+                || declares_bracketed_range(program, *base_type)
+        }
+        _ => false,
+    }
+}
