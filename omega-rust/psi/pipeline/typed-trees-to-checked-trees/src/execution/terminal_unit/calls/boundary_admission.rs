@@ -1,7 +1,6 @@
 //! Which boundary scalar targets, result values, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
-use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::call_operations::ExpectedCallValueResult;
 use crate::execution::terminal_unit::types::{
     base_type_identity, is_unit, type_graph_requires_nominal_drop,
@@ -13,26 +12,6 @@ use crate::execution::terminal_unit::{
     DataMember, Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
     is_reference,
 };
-
-pub(crate) fn is_registered_boundary_scalar_target(
-    scalar_callees: Option<ScalarCalleePlans<'_>>,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    result: PrimitiveType,
-) -> bool {
-    let Some(scalar_callees) = scalar_callees else {
-        return false;
-    };
-    let mut targets = scalar_callees
-        .boundary_returns
-        .machines
-        .iter()
-        .filter(|plan| plan.machine == machine);
-    targets
-        .next()
-        .is_some_and(|plan| plan.state == state && plan.result_type == result)
-        && targets.next().is_none()
-}
 
 /// `substitutions` carries the call edge's admitted specialization: a
 /// generic requirement's `Type` result formal resolves to its derived actual

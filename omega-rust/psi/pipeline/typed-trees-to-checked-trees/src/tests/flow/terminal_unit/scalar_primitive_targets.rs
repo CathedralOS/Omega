@@ -527,7 +527,7 @@ fn literal_index_store_stays_on_the_static_path() {
 }
 
 #[test]
-fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration() {
+fn primitive_scalar_call_borrows_the_body_for_a_deleted_registration_and_rejects_drift() {
     let original = checked_program(SOURCE);
     let caller = machine_named(&original, "enter");
     let callee = machine_named(&original, "reset");
@@ -569,8 +569,13 @@ fn primitive_scalar_call_rejects_deleted_duplicate_or_drifted_body_registration(
             &[],
             &[],
         );
-        assert!(
-            rebuilt.for_machine(caller).is_none(),
+        // A deleted registration leaves the callee's complete ordinary
+        // scalar-result body, which the candidate closure borrows
+        // (`scalar_targets::available_target`); a duplicate or drifted row
+        // must match its own machine and cannot select that fallback.
+        assert_eq!(
+            rebuilt.for_machine(caller).is_some(),
+            mutation == 0,
             "callee registration mutation {mutation}"
         );
     }

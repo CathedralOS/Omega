@@ -12,8 +12,7 @@ use crate::execution::terminal_unit::calls::argument_paths::{
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, boundary_value_result_matches,
-    fixed_byte_array_view_is_admitted, is_registered_boundary_scalar_target,
-    provider_attachment_receiver_matches,
+    fixed_byte_array_view_is_admitted, provider_attachment_receiver_matches,
 };
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_integer_at, exact_structural_argument_access,
@@ -37,7 +36,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionEventKind,
-    PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, scalar_targets,
+    PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
     strips_erased_parameter,
 };
 use validation::exact_compiler_intrinsic_boundary_requirement;
@@ -1082,23 +1081,19 @@ pub(in crate::execution) fn build_call_operation(
         })
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())
-        // A settled provider adapter is the registered producer for its
-        // requirement's scalar result: boundary-dispatch settlement already
-        // re-verified the exact signature and reach, so the retargeted call
-        // schedules the same scalar structural edge a cataloged callee takes.
-        // Every other scalar-result call with structural operands still
-        // requires a registered producer catalog.
+        // A scalar result over structural operands is a `ScalarCall` whose
+        // callee the candidate closure resolves after every body is built:
+        // a registered producer, or the callee's own ordinary body when it
+        // completes with a scalar (`scalar_targets::available_target`), and
+        // the caller is dropped as `UnavailableScalarTarget` otherwise. A
+        // pass with no scalar-callee catalog has no closure to defer to and
+        // still admits only a settled provider adapter, whose settlement
+        // already re-verified the exact signature and reach.
+        && scalar_callees.is_none()
         && !facts
             .boundary_adapter_dispatch
             .iter()
             .any(|row| row.realization_state == target_state.symbol)
-        && !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(result))
-            if is_registered_boundary_scalar_target(
-                scalar_callees, target_machine.symbol, target_state.symbol, result)
-                || scalar_targets::registered_primitive_store_target(
-                    program, facts, scalar_callees, target_machine.symbol, target_state.symbol, result).is_some()
-                || scalar_targets::registered_structural_graph_target(
-                    program, facts, scalar_callees, target_machine.symbol, target_state.symbol, result).is_some())
     {
         phase("call operation: scalar result producer");
         None
