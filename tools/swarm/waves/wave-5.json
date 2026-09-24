@@ -135,7 +135,7 @@
       "item": "RUNTIME-VALUE-GENERICS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/generic_data",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/generic_data",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system"
       ],
       "suggested_first_slice": "Implement one scalar runtime-capable value binder through substitution while preserving checked subject typing."

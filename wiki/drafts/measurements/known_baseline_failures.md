@@ -501,7 +501,7 @@ wording; none unblock a correct rejection):
   "indexed domain `Quantity` requires 1 closed index argument(s), but 0
   were supplied"
   (`build-time-evaluation/…/lexical_selection.rs:364`,
-  `syntax-trees-to-symbol-resolved-trees/…/const_evaluation/domains.rs:319`).
+  `02_syntax-trees-to-symbol-resolved-trees/…/const_evaluation/domains.rs:319`).
 - `canary_suite/relational_invariants.rs:5` shares the stale inline pin
   `INDEX_REJECTION = "cannot prove index `self.i` is within length 8"`
   across six `dependent/relational_loop_invariant_*` members whose own
@@ -1209,7 +1209,7 @@ does not resolve to one exact trait"). The fixture package declares its own
 `pub boundary trait ExtentRootProvider {}` and imports nothing; since
 5d134569b6 seeded the hosted entry contract and its `core` imports into
 every hosted package-aware compilation, `core/extent.omg` is in the program
-and `syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
+and `02_syntax-trees-to-symbol-resolved-trees/src/selection/signature_free_requirements.rs`
 (`resolve_signature_free_requirement`) collects every same-named trait
 program-wide, filtered only by resolution stratum, so the package's trait and
 `core`'s collide as `TraitNotUnique`. Per wiki/spec/language/modules.md a

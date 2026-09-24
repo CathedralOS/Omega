@@ -9,7 +9,7 @@ them against the exact source graph; Psi does not interpret package aliases.
 
 The [selection vocabulary](../../foundation/language-semantics/src/declaration_selection/mod.rs)
 retains exact occurrence, source span, exposure, and declaration/intrinsic/late
-target. [Resolution](../syntax-trees-to-symbol-resolved-trees/src/selection/authored_selections.rs)
+target. [Resolution](../02_syntax-trees-to-symbol-resolved-trees/src/selection/authored_selections.rs)
 captures paths while they are still attached to source. Typing records exact
 nominal selections and enclosing public/private position.
 [Checked finalization](src/authored_selections.rs) settles late receiver calls,

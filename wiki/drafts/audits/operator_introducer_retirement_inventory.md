@@ -46,7 +46,7 @@ The board row's count (208 at its measurement base) drifts to 212 at
   rewrites each resolved binary/indexed use into an ordinary call on
   the declaration's entry state.
 - **Supply mode.** `MachineSupplyMode::Boundary` — the
-  undifferentiated mode `syntax-trees-to-symbol-resolved-trees/src/
+  undifferentiated mode `02_syntax-trees-to-symbol-resolved-trees/src/
   lowering/machine.rs` still assigns — is referenced by 23 files
   under `omega-rust/psi/` and retires after the source migrations.
 

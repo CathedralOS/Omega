@@ -54,6 +54,6 @@ sha2 = "0.10.9"
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

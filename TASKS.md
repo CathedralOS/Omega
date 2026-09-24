@@ -2806,7 +2806,7 @@ syntax and other terminal services are not prerequisites.
 - **MODULE-NAMESPACE-RESOLUTION.** Carry the exact selections required by the
   [module/name contract](wiki/spec/language/modules.md) through checking,
   constant evaluation and source-independent artifacts. Owners:
-  `syntax-trees-to-symbol-resolved-trees/src/preparation/`
+  `02_syntax-trees-to-symbol-resolved-trees/src/preparation/`
   (`module_normalization.rs`, `generic_data/`), validation's
   `proof_contracts/domains.rs`, and build-time evaluation's
   `const_evaluation/const_initializers/`. Module normalization and

@@ -68,7 +68,7 @@ expected value:
 2. **Answer `payload_variant_for_field` from the symbol parent.** The
    scoped symbol tree already holds the answer the scan reconstructs: a
    payload field's symbol is a CHILD of its variant symbol.
-   `syntax-trees-to-symbol-resolved-trees/src/symbols/lookup.rs:234-238`
+   `02_syntax-trees-to-symbol-resolved-trees/src/symbols/lookup.rs:234-238`
    states it and relies on it — "a case payload has its own lexical fields,
    then inherits its data's common fields", reached through
    `symbols.get(parent).parent` when `parent`'s kind is `Variant` — and

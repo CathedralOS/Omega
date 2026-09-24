@@ -37,7 +37,7 @@ to remove.
 ### Justified classes observed
 
 - **Generic-application substitution environments**
-  (`syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/{substitution,synthesis,eligibility,trait_defaults,const_evaluation/*}.rs`,
+  (`02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/{substitution,synthesis,eligibility,trait_defaults,const_evaluation/*}.rs`,
   `preparation/type_equations.rs`):
   `HashMap<String, TypeReferenceHandle>` /
   `HashMap<String, ClosedArgumentIdentity>`. Key space is one declaration's

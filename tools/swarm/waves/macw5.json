@@ -84,8 +84,8 @@
       "item": "MODULE-NAMESPACE-RESOLUTION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation",
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/tests/module_namespace_residuals.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/tests/module_namespace_residuals.rs",
         "omega-rust/psi/semantics/validation/src/proof_contracts/domains.rs",
         "omega-rust/psi/semantics/validation/src/proof_contracts/domains",
         "omega-rust/psi/semantics/validation/src/proof_contracts/bound_expression_meaning.rs",

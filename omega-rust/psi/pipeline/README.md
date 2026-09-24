@@ -738,10 +738,10 @@ cargo run -p omega -- --check tests/omega/pass/modules/boolean_equality_indices/
 cargo run -p omega -- --check tests/omega/pass/modules/aggregate_machine_indices/main.omg
 ```
 
-[Resolution](syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
+[Resolution](02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) owns declaration
 identity and exact lexical lookup, not type compatibility, borrow legality,
 proof discharge or runtime support. Its private
-[generic-data normalization](syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/mod.rs)
+[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/mod.rs)
 closes eligible data applications before stamping names. Templates, pending
 substitutions and evaluation scratch are not new public representations.
 Known-builtin anonymous remainder formation is checked before reduction; an

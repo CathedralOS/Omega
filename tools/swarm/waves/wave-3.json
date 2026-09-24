@@ -50,7 +50,7 @@
       "item": "MODULE-NAMESPACE-RESOLUTION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
+        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
         "omega-rust/psi/semantics/build-time-evaluation/src/const_initializers.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices.rs",
         "omega-rust/omega/compiler/compiler/tests/module_machine_indices"
