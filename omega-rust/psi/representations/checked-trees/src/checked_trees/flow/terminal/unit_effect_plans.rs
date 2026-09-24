@@ -459,6 +459,39 @@ impl CheckedStructuralValueCall {
 }
 
 impl CheckedUnitEffectOperationPlan {
+    /// The authored structural arguments of an ordinary call — Unit, scalar,
+    /// structural or boundary — in argument order; empty for every other
+    /// operation. Selected-operator calls keep their own operand lanes.
+    pub fn call_structural_arguments(&self) -> &[CheckedUnitStructuralArgumentPlan] {
+        match self {
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::ScalarCall {
+                structural_arguments,
+                ..
+            }
+            | Self::StructuralCall {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryStructuralCall {
+                structural_arguments,
+                ..
+            } => structural_arguments,
+            _ => &[],
+        }
+    }
+
     /// Enumerate retained operation dependencies for signature/catalog readers.
     /// This is not execution order: structural expressions evaluate their call
     /// operands in their own authored field and selected-arm order.
