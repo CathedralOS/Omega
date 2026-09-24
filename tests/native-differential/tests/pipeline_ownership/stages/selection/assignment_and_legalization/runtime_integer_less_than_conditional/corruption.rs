@@ -117,7 +117,7 @@ fn ordered_less_than_custody_and_successor_corruption_fail_closed() {
         std::mem::swap(when_less, when_not_less);
         assert!(matches!(
             validate_raw_selection(&staged, selected),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
         ));
     }
 }

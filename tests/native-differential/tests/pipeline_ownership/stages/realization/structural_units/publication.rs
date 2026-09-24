@@ -172,14 +172,13 @@ fn claim_completion_machines_fail_closed_at_native_lowering() {
                 native_callbacks: &[],
             },
         );
-        assert_eq!(
+        assert!(matches!(
             result.map(|_| ()),
-            Err(
-                abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow(
-                    semantic_vocabulary::MachineId::new(3_602).unwrap()
-                )
-            )
-        );
+            Err(abstract_operations_to_target_operations::LoweringError::UnsupportedControlFlow {
+                machine,
+                ..
+            }) if machine == semantic_vocabulary::MachineId::new(3_602).unwrap()
+        ));
     }
 }
 

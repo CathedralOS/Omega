@@ -90,7 +90,7 @@ fn signed_predicate_compare_order_and_successor_corruption_fail_closed() {
         std::mem::swap(when_less, when_not_less);
         assert!(matches!(
             validate_raw_selection(&staged, successor_swap),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
         ));
     }
 }
