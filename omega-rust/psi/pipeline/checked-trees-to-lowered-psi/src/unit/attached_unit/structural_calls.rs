@@ -3,12 +3,13 @@
 //! claim frontier; an empty producer custody record is accepted only after the
 //! same reconstruction as a claim-bearing call.
 use super::super::{MachineId, StructuralParameterDeclaration, StructuralTypeDeclaration};
+use super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     Multiplicity, Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
-    lower_structural_arguments, place_id, retain_exact_checked_flow_call, terminal_scalar_type,
+    lower_structural_arguments, place_id, retain_exact_flow_call, terminal_scalar_type,
     unsupported, validate_transfer_shape,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -19,10 +20,6 @@ mod continuation;
 mod result_uses;
 mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
-pub(super) use result_uses::{
-    produced_as_call_argument, validate_argument_construction_consumer,
-    validate_linear_result_consumer,
-};
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
 pub(crate) fn validate_custody(
@@ -117,7 +114,7 @@ fn target(
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
     let CheckedUnitEffectOperationPlan::StructuralCall {
@@ -136,7 +133,13 @@ pub(super) fn validate(
     else {
         return unsupported("ordinary structural validation requires a structural call");
     };
-    retain_exact_checked_flow_call(checked, caller, *coordinate, *target_state)?;
+    retain_exact_flow_call(
+        checked,
+        caller.machine,
+        caller.state,
+        *coordinate,
+        *target_state,
+    )?;
     let target = target(checked, *target_machine, *target_state)?;
     let contract = checked
         .facts
@@ -264,15 +267,15 @@ pub(super) fn validate(
             "ordinary structural call source must be a whole parameter or earlier result",
         );
     }
+    // The result's final use is the route's to rejoin: an ordinary body's
+    // `validate_unit_operation_sequence`, or a composed graph's edges.
     validate_consumer(
         checked,
         caller,
         operation,
         std::slice::from_ref(&target.structural_parameter),
         &[],
-    )?;
-    validate_usage(checked, caller, result)?;
-    Ok(())
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

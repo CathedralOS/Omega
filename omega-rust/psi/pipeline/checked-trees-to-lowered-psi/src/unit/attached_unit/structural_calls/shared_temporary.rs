@@ -1,8 +1,6 @@
 //! Rejoin a temporary owner's establishment, shared loan, and dying continuation.
-use super::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, LoweringError, Multiplicity, StatementNode,
-    unsupported,
-};
+use super::super::admission::CallerView;
+use super::{CheckedTrees, LoweringError, Multiplicity, StatementNode, unsupported};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,
@@ -10,7 +8,7 @@ use language_semantics::{
 
 pub(super) fn validate(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     producer: checked_trees::CheckedUnitCallCoordinate,
     consumer: checked_trees::CheckedUnitCallCoordinate,
     expression: checked_trees::expression::ExpressionHandle,

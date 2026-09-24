@@ -2398,25 +2398,29 @@ syntax and other terminal services are not prerequisites.
      lowering and the checked join each borrow them through their own view
      (`dynamic_lanes.rs::DynamicCallView`, `join.rs::JoinBranchView`). One
      custody struct embedded in both plans would delete all four.
-  4. Composed-graph states and ordinary machines emit every operation,
-     calls included, through `attached_unit/operation_frame`
-     (`calls.rs`, `boundary_calls.rs`), but call admission is still two
-     copies: `admission/operations.rs` rejoins an ordinary body's calls
-     against its `CheckedUnitEffectMachinePlan`, while
-     `composed_control/admission.rs` and `internal_calls/admission.rs`
-     re-derive the same checks per state. The state copy still refuses
-     shapes the shared emitter lowers: `BoundaryScalarCall`
-     (`retain_call_targets`), `CallUnit` claim transfers and claim-bearing
-     Unit targets (`retain_call_target_body`), and scalar-call claim
-     transfers (`retain_scalar_call`). A state also cannot yet take a linear
-     boundary result: its claim table cannot mint the caller binding
-     (`ClaimBindings::Fixed`), and `Evaluation::establish_structural_result`
-     registers a linear local only from a structural-call producer. Next:
-     give `structural_calls::validate_consumer`,
-     `scalar_structural_calls::validate_call_source` and
-     `primitive_locals::validate_argument_source` one caller view (machine,
-     state, operations, structural parameters, entry claims) that both
-     routes build, then delete the state copies.
+  4. Ordinary bodies and composed-graph states emit every call through
+     `attached_unit/operation_frame` and admit it through one call
+     admission, `admission/calls.rs::admit`, over a `CallerView` of the
+     ordinary body or of one state. Shapes that admission accepts still stop
+     in a state outside it. `BoundaryScalarCall` has no arm in
+     `state_graph/body.rs` ("Unit graph reordered a source effect").
+     `CallUnit` and `ScalarCall` claim transfers stop at the checked planner
+     (`terminal_unit/state_graph/mod.rs`, "state graph: operation custody:
+     call claim transfers") and at `body.rs`'s `CallUnit` arm. A linear
+     boundary result needs a caller claim binding for the claim its
+     statement establishes: `operation_frame.rs::ClaimBindings::Fixed`
+     cannot mint one, and the graph's claim roster (`state_graph/emission.rs`)
+     publishes only entry claims. It also needs
+     `Evaluation::establish_structural_result` to register a linear local
+     from a boundary producer, and the graph's boundary check ("Unit graph
+     boundary requires additional provider or result custody") to admit a
+     linear result. Neither route materializes a byte-sequence literal for a
+     scalar call's structural operand (the literal rosters in
+     `ordinary_machine.rs` and `composed_control/literal_arguments.rs` cover
+     Unit, structural and boundary calls), so
+     `runtime_value_call_literal_len_arm_guard_exit` stops at "byte-sequence
+     argument place is absent". Selected-operator calls keep an
+     ordinary-only admission (`selected_operator.rs`, over the ordinary plan).
   5. Seven return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
      Families the general route still refuses, with c2l tests only they
@@ -2505,19 +2509,15 @@ syntax and other terminal services are not prerequisites.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
-  - A composed caller's scalar call to a projected receiver
-    (`self.store.pick(..)`, `self.only.get()`) fails
-    `composed_control/admission.rs::retain_scalar_call_structural_arguments`
-    with "composed scalar call structural actual lost its authored position":
-    the authored call lists no receiver position, and only explicit formals
-    rejoin. This is 14 run canaries on the full run, plus the former
-    `transition true { true -> done(v) }` callers
-    (`runtime_nested_inline_chain_result_exit`,
-    `runtime_param_receiver_second_instance_exit`,
-    `runtime_deep_state_name_collision_exit`), and the re-pinned fail canary
-    `calls/value_call_param_effect_arm_rejected`. Route composed calls through
-    the ordinary call preparation (LOWERING-ROUTE-CONSOLIDATION target 4)
-    rather than teaching the composed copy about receivers.
+  - Of the projected-receiver callers that once stopped at the per-state
+    scalar-call admission copy (now the one call admission,
+    LOWERING-ROUTE-CONSOLIDATION target 4),
+    `runtime_param_receiver_second_instance_exit` stops in Terminal
+    verification (`OverlappingExclusiveStructuralArguments`). The fail canary
+    `calls/value_call_param_effect_arm_rejected` produces an invalid Terminal
+    module (`InvalidBlockStructuralParameter`) rather than its pinned
+    expected.txt fragment: a producer defect to repair, not a rejection to
+    re-pin.
   - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
     (`call operation: structural arguments: parameter access`).
     `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
@@ -3444,13 +3444,13 @@ syntax and other terminal services are not prerequisites.
     after an earlier operand's write; do not reintroduce synthesized arm states.
     Delete superseded shape producers as their operations compose; a failed
     custody rejoin must never fall back to a weaker recognizer.
-  - Rejoin composed scalar calls with boundary callees and claim transfers
-    before structural returns.
-    `unit/attached_unit/composed_control/admission.rs::retain_scalar_call`
-    still refuses that custody. Extend ordinary ordered operations, not a
-    fallback recognizer. Retain
-    record/array/generic return-substitution and affine-transfer rejection
-    controls.
+  - Carry claim transfers on a composed state's calls before structural
+    returns. The shared call admission (`attached_unit/admission/calls.rs`)
+    admits them in a state, but the checked planner refuses them
+    (`terminal_unit/state_graph/mod.rs`, "state graph: operation custody:
+    call claim transfers"). Extend ordinary ordered operations, not a
+    fallback recognizer. Retain record/array/generic return-substitution and
+    affine-transfer rejection controls.
   - Complete structural/Unit control-flow composition with computed successor
     arguments, preserving owned values, loans and ordered operations through
     joins and calls. `unit/structural_unit_control.rs` still rejects checked

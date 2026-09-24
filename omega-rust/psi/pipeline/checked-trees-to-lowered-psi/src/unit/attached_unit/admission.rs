@@ -7,7 +7,9 @@ use super::super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     unsupported,
 };
+mod calls;
 mod operations;
+pub(super) use calls::{CallerView, admit as admit_call};
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};

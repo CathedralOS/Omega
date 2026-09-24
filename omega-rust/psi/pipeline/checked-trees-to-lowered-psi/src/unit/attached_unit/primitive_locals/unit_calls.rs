@@ -1,18 +1,19 @@
-//! Ordinary Unit arguments retain their authored local and exact borrow event.
+//! Unit call arguments retain their authored local and exact borrow event.
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{
-    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralParameterPlan,
 };
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::unit::attached_unit::admission::CallerView;
 
 pub(in crate::unit::attached_unit) fn validate(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
@@ -88,7 +89,13 @@ pub(in crate::unit::attached_unit) fn validate(
         if !retained_local && !authored_local {
             continue;
         }
-        super::super::retain_exact_checked_flow_call(checked, caller, *coordinate, *target_state)?;
+        crate::expression_preparation::source_custody::flow_calls::retain_exact_flow_call(
+            checked,
+            caller.machine,
+            caller.state,
+            *coordinate,
+            *target_state,
+        )?;
         if !super::validate_argument_source(
             checked,
             caller,
