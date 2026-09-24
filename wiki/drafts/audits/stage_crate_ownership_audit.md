@@ -121,7 +121,7 @@ artifacts (`include_str!`/`include_bytes!`).
 
 ## Cataloged, not flagged
 
-- `selected-instructions-to-register-homes/unsequenced_spill_stages`
+- `08_selected-instructions-to-register-homes/unsequenced_spill_stages`
   (26.7k lines): honestly labeled "validated but not yet sequenced by
   register allocation" — staged transforms awaiting sequencing under the
   `SPILL-REALIZATION` board item, not misplaced ownership. The replay codecs

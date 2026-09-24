@@ -38,7 +38,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/representations/register-homes/src/register_homes",
     "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations",
     "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations",
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
+    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions",
     "omega-rust/omega/backend/machine-emission/src/frame_protocol",
     "omega-rust/omega/representations/physical-instructions/src/physical_instructions/costs",
@@ -136,7 +136,7 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         ],
         output_marker: "selected_allocation_recovery_rule",
         consumers: &[
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/register_allocation.rs",
+            "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/register_allocation.rs",
         ],
     },
     RuleStageDescriptor {

@@ -77,7 +77,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // segment_homes` and `stage_optimized_fixed_view_copies` from its
         // assignment recovery.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/recovery.rs",
+            caller: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/recovery.rs",
             evidence: "stage_optimized_fixed_view_copies",
         },
     },
@@ -118,7 +118,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // Register allocation replays `rematerialize_selected_runtime_value`
         // through its runtime-spill route.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
+            caller: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
             evidence: "rematerialize_selected_runtime_value",
         },
     },
@@ -127,7 +127,7 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         // Register allocation's `assignment/runtime_spill` executes and
         // replays `spill_selected_runtime_value`.
         route: RewriteModuleRoute::Routed {
-            caller: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
+            caller: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
             evidence: "spill_selected_runtime_value",
         },
     },

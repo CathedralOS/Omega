@@ -28,7 +28,7 @@ files that must still name the stage's `output_marker`:
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | `run_psi_optimization` | `terminal-production/src/terminal_production.rs` |
 | `04_abstract-operations-to-abstract-operations/src/rules/mod.rs` | `built_in_psi_registries` | `.../pass_manager/entry.rs` |
 | `07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | `resolve_selected_lowering_rules` | `.../rewrites/literal_folds/mod.rs` |
-| `07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | `selected_allocation_recovery_rule` | `selected-instructions-to-register-homes/src/register_allocation.rs` |
+| `07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | `selected_allocation_recovery_rule` | `08_selected-instructions-to-register-homes/src/register_allocation.rs` |
 | `resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | `stage_optimized_x86_branch_relaxation` | `resolved-layout-to-resolved-layout/src/phase.rs` |
 
 ## Finding
@@ -82,7 +82,7 @@ test-only channels are cataloged, not flagged.
 | `TargetOperationPlan` | omega/representations/target-operations | 0 | — | — | — |
 | `StagedOptimizedSelectedInstructions` | omega/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
 | `SelectedInstructionOptimizationOutput` | omega/pipeline/07_selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |
-| `RetainedAllocation` | omega/pipeline/selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
+| `RetainedAllocation` | omega/pipeline/08_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
 | `StagedOptimizedPostAllocationMachinePlan` | omega/pipeline/register-homes-to-post-allocation-machine | 0 | — | — | — |
 | `CanonicalTerminalArtifact` | psi/semantics/terminal-codec | 8 | 8 | 0 | 0 |
 | `ProgramEntryTerminalArtifact` | omega/pipeline/02_checked-compilation-to-terminal-artifact | 3 | 3 | 0 | 0 |

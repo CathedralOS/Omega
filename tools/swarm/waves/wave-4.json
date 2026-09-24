@@ -77,7 +77,7 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
       ],
       "suggested_first_slice": "Extend one returning-block runtime-spill recovery case from nonaddress u64 results through selected rewrite validation and register-home replay."
@@ -142,7 +142,7 @@
       "item": "GENERAL-CALL-CLOBBERS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation"
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation"
       ],
       "suggested_first_slice": "Extend the landed call-preservation witness from attached-Unit fork/join to one general scalar call while keeping clobber replay in the preservation owner."
     },

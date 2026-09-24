@@ -99,7 +99,7 @@ replay alone inspects retained transformation history. Do not add a program
 representation or a complete emission route for each rule, fixture shape, or
 optimization-history combination.
 
-[Allocation](omega/pipeline/selected-instructions-to-register-homes/README.md)
+[Allocation](omega/pipeline/08_selected-instructions-to-register-homes/README.md)
 owns homes and pressure recovery.
 [Machine emission](omega/backend/machine-emission/README.md) owns frame
 realization, fragment emission, and text placement. Target ISA crates own

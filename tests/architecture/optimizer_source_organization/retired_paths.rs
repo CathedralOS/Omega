@@ -121,14 +121,14 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let obsolete_post_allocation_manifest = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/post_allocation_manifest.rs";
+    let obsolete_post_allocation_manifest = "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/post_allocation_manifest.rs";
     if repository.join(obsolete_post_allocation_manifest).exists() {
         violations.insert(format!(
             "register allocation retains the mixed post-allocation manifest file: {obsolete_post_allocation_manifest}"
         ));
     }
 
-    let retired_allocation_entry = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/current.rs";
+    let retired_allocation_entry = "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/current.rs";
     if repository.join(retired_allocation_entry).exists() {
         violations.insert(format!(
             "register allocation retains its entry beneath the assignment group instead of the crate root: {retired_allocation_entry}"
@@ -154,7 +154,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "synthetic_reload_values",
     ] {
         let obsolete = format!(
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/{family}"
+            "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/{family}"
         );
         if repository.join(&obsolete).exists() {
             violations.insert(format!(
@@ -164,9 +164,9 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/validate.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute_tests.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/compute.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/validate.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/compute_tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -176,16 +176,16 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/compute.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/codec.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/tests.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/logical_spill_operations/tests.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/codec.rs",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/tests.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(
@@ -194,7 +194,7 @@ pub(crate) fn check(audit: &mut Audit) {
         }
     }
 
-    let retired_coloring_home = "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring";
+    let retired_coloring_home = "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/stack_slot_coloring";
     if repository.join(retired_coloring_home).exists() {
         violations.insert(format!(
             "stack-slot coloring retains an unsequenced home beside its sequenced assignment module: {retired_coloring_home}"
@@ -262,7 +262,7 @@ pub(crate) fn check(audit: &mut Audit) {
     for path in source_files.iter().filter(|path| {
         !is_test_source(path)
             && (path.starts_with(
-                "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/",
+                "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/rewrites/",
             ) || path.starts_with(
                 "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/",
             ) || path.starts_with(

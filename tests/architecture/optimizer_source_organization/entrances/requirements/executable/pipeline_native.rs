@@ -30,7 +30,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_allocation_legality_with_availability",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/baseline/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/baseline/mod.rs",
         coordination_marker: "pub fn stage_optimized_register_homes",
     },
     RequiredCoordinationEntrance {
@@ -62,7 +62,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_target_frame_protocol_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites/rematerialization/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/rewrites/rematerialization/mod.rs",
         coordination_marker: "pub fn stage_optimized_active_resident_rematerialization",
     },
     RequiredCoordinationEntrance {
@@ -74,7 +74,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn run_selected_lowering_optimizations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/transformed/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/transformed/mod.rs",
         coordination_marker: "pub fn stage_optimized_register_homes_after_literal_folds",
     },
     RequiredCoordinationEntrance {

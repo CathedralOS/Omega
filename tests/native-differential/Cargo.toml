@@ -78,7 +78,7 @@ isa-x86_64 = { path = "../../omega-rust/omega/backend/instruction_set_architectu
 optimization-core = { path = "../../omega-rust/omega/representations/optimization-core", features = ["test-support"] }
 target-operations-to-selected-instructions = { path = "../../omega-rust/omega/pipeline/06_target-operations-to-selected-instructions", features = ["test-support"] }
 abstract-operations-to-abstract-operations = { path = "../../omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations", features = ["test-support"] }
-selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/selected-instructions-to-register-homes", features = ["test-support"] }
+selected-instructions-to-register-homes = { path = "../../omega-rust/omega/pipeline/08_selected-instructions-to-register-homes", features = ["test-support"] }
 register-model = { path = "../../omega-rust/omega/representations/register-model" }
 optimization-unit = { path = "../../omega-rust/omega/representations/optimization-unit" }
 optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }

@@ -420,7 +420,7 @@ fn frame_records_are_data_and_backend_validation_remains_sealed() {
 fn frame_calculations_have_phase_owners_and_replay_does_not_run_producers() {
     let root = repository();
     for owner in [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/save_storage",
         "omega-rust/omega/backend/machine-emission/src/frame_layout/spill_requirements",
         "omega-rust/omega/backend/machine-emission/src/frame_layout",
@@ -1086,7 +1086,7 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
         assert_eq!(declarations, 1, "{declaration}");
     }
     let allocation = rust_source(
-        &root.join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
+        &root.join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
     );
     assert_eq!(
         allocation
@@ -1114,7 +1114,7 @@ fn register_home_data_is_independent_of_allocation_authority() {
     let owner = repository().join("omega-rust/omega/representations/register-homes");
     let representation = rust_source(&owner.join("src"));
     let allocator = rust_source(
-        &repository().join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src"),
+        &repository().join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src"),
     );
     for declaration in [
         "pub struct RegisterHomePlan {",
@@ -1154,7 +1154,7 @@ fn register_home_stages_read_current_data_not_producer_ancestry() {
     // `transformation_stage`, `live_range_stage` passed to custody validators)
     // stay: they name the stage under inspection, not a data read.
     let root =
-        repository().join("omega-rust/omega/pipeline/selected-instructions-to-register-homes/src");
+        repository().join("omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());
@@ -2031,7 +2031,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
             "retired phase fragment: {retired}"
         );
     }
-    let allocation = pipeline.join("selected-instructions-to-register-homes/src");
+    let allocation = pipeline.join("08_selected-instructions-to-register-homes/src");
     for area in [
         "rewrites",
         "assignment",
@@ -2077,7 +2077,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(retained.contains("self.current.validate_against(&current)?"));
     for consumer in [
         "register-homes-to-post-allocation-machine/src",
-        "selected-instructions-to-register-homes/src/preservation",
+        "08_selected-instructions-to-register-homes/src/preservation",
     ] {
         let source = rust_source(&pipeline.join(consumer));
         assert!(
@@ -2346,7 +2346,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/05_abstract-operations-to-target-operations",
         "omega/pipeline/06_target-operations-to-selected-instructions",
         "omega/pipeline/07_selected-instructions-to-selected-instructions",
-        "omega/pipeline/selected-instructions-to-register-homes",
+        "omega/pipeline/08_selected-instructions-to-register-homes",
         "omega/pipeline/register-homes-to-post-allocation-machine",
         "omega/pipeline/post-allocation-machine-to-selected-form-encoding",
         "omega/pipeline/selected-form-encoding-to-resolved-layout",

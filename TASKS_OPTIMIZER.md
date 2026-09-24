@@ -232,7 +232,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **SPILL-REALIZATION.** Finish executable pressure recovery and join its
   frames to stack provisioning.
-  [Register allocation](omega-rust/omega/pipeline/selected-instructions-to-register-homes/README.md)
+  [Register allocation](omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/README.md)
   chooses victims in `src/assignment/runtime_spill/`; the rewrite owner,
   `07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`,
   inserts and independently replays the private stores and reload pairs.
