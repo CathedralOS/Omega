@@ -213,17 +213,27 @@ pub(super) fn argument(
     // so a forwarded view cannot outlast the storage it borrows. Every other
     // shared argument keeps the `&place` lane below, which checks its own
     // borrow expression and referent.
-    // A `&[T]`/`&[u8]` view forwarded whole names a live `Read` loan on the
-    // view symbol — `let`-bound `&[u8]` results register exactly that loan,
-    // so the byte carrier joins the same lane (its element is `u8`, which
-    // the older `&[T]` predicate excluded).
+    // A `&[T]`/`&[u8]`/`&'a V` view forwarded whole names a live `Read`
+    // loan on the view symbol — `let`-bound `&[u8]` results register
+    // exactly that loan, so the byte carrier joins the same lane (its
+    // element is `u8`, which the older `&[T]` predicate excluded). A
+    // `let`-bound `&'a V` mints its `ref(...)`-shelled identity — the
+    // shared-view result's own spelling — and only that shelled mint
+    // enters: an owned local read through `&token` keeps the peeled
+    // carrier identity of its binding and stays on the `&place` lanes.
     if !projected
         && access == CheckedStructuralAccess::SharedBorrow
-        && crate::execution::terminal_unit::types::borrowed_slice_view(
+        && ((crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
             parameter.type_reference,
-        )
-        && result.type_identity == target_identity
+        ) && result.type_identity == target_identity)
+            || (crate::execution::terminal_unit::types::borrowed_named_view(
+                program,
+                parameter.type_reference,
+            ) && result.type_identity
+                == program
+                    .normalized_type_identity(parameter.type_reference)
+                    .as_str()))
         && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
         let borrow_state = facts
