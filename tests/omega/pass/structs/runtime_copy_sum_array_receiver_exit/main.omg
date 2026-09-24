@@ -15,6 +15,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u64::Slot16 requires self <= 15;
 data Kind [copy] {
     case Plain;
     case Weighted(weight: u64 in Trapping);
@@ -55,7 +56,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state classify(&mut self, index: u64 [0..=15]) {
+    state classify(&mut self, index: u64 in Slot16) {
         let token: Token = self.tokens[index];
         transition token {
             Token::Word -> word(index, token.start)
@@ -63,14 +64,14 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state word(&mut self, index: u64 [0..=15], start: u64 in Trapping) {
+    state word(&mut self, index: u64 in Slot16, start: u64 in Trapping) {
         self.total = self.total + start;
         transition { _ -> scan(index + 1) }
     }
 
     state number(
         &mut self,
-        index: u64 [0..=15],
+        index: u64 in Slot16,
         start: u64 in Trapping,
         value: u64 in Trapping,
         kind: Kind
@@ -83,7 +84,7 @@ machine Main::main(&mut self) reaches Console {
 
     state weighted(
         &mut self,
-        index: u64 [0..=15],
+        index: u64 in Slot16,
         start: u64 in Trapping,
         value: u64 in Trapping,
         weight: u64 in Trapping
@@ -94,14 +95,14 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state plain(&mut self, index: u64 [0..=15], start: u64 in Trapping, value: u64 in Trapping) {
+    state plain(&mut self, index: u64 in Slot16, start: u64 in Trapping, value: u64 in Trapping) {
         transition start == 9 {
             true -> accumulate(index, value)
             _ -> bad()
         }
     }
 
-    state accumulate(&mut self, index: u64 [0..=15], amount: u64 in Trapping) {
+    state accumulate(&mut self, index: u64 in Slot16, amount: u64 in Trapping) {
         self.total = self.total + amount;
         transition { _ -> scan(index + 1) }
     }
