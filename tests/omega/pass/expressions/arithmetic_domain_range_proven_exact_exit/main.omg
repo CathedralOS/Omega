@@ -12,10 +12,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::Coord requires 0 <= self && self <= 100;
 data Main {
     console: Binding<Console>;
-    x: i32 [0..=100];
-    y: i32 [0..=100];
+    x: i32 in Coord;
+    y: i32 in Coord;
 }
 
 machine Main::main(&mut self) reaches Console {
