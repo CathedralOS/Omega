@@ -32,12 +32,7 @@ const MODEL_DIRECTORY_EXCEPTIONS: &[&str] = &[];
 
 /// Entrypoint files carrying an inline `#[cfg(test)] mod <name> { .. }`
 /// body instead of a named test module file (`mod <name>_tests;`).
-const INLINE_TEST_ENTRYPOINTS: &[&str] = &[
-    "omega-rust/omega/backend/artifacts/component-candidate/src/lib.rs",
-    "omega-rust/omega/backend/instruction_set_architectures/x86-encoding/src/lib.rs",
-    "omega-rust/omega/representations/function-identity/src/lib.rs",
-    "omega-rust/psi/semantics/terminal-codec/src/lib.rs",
-];
+const INLINE_TEST_ENTRYPOINTS: &[&str] = &[];
 
 fn workspace_crates() -> Vec<PathBuf> {
     let mut crates = Vec::new();

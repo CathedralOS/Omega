@@ -856,7 +856,7 @@ fn shared_vocabulary_representations_need_no_program_root() {
         // the operand constraint catalog, reservation profiles and
         // preservation storage — declared by ISA owners. The sealed catalogs
         // are independent artifacts, not areas of one current program.
-        ("register-model", &["register_model.rs", "tests.rs"][..]),
+        ("register-model", &["register_model.rs"][..]),
         // Task activation plans are a checked-compilation sidecar, and the
         // stack leases, provider admission gate, lifecycle ledger and
         // invocation receipts beside them are runtime authority and evidence
@@ -899,6 +899,8 @@ fn shared_vocabulary_representations_need_no_program_root() {
             .map(|entry| entry.unwrap().path())
             .filter(|path| path.is_file())
             .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+            // A crate's test module is not a program root.
+            .filter(|name| name != "tests.rs")
             .collect::<Vec<_>>();
         files.sort();
         let mut expected = vec!["lib.rs".to_owned()];
