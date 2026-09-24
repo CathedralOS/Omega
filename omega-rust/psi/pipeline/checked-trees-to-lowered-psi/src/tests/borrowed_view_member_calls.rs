@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //! Borrowed-view member calls: reading `.len` or an element `self.view[i]` on a
 //! `&'r [u8]` record field is a live-length observation on the field's view
 //! descriptor — admissible in a scalar result, an entry `requires` clause, a
@@ -16,6 +17,24 @@
 //! spelling; authored-bound subslice results have no floor spelling either
 //! (`-> T` states die at the result-signature wall and tails cannot carry the
 //! `self.view.len >= k` premise).
+||||||| cc52d33521
+//! Borrowed-view member calls: reading `.len` on a `&'r [u8]` record field is
+//! a live-length observation on the field's view descriptor — admissible in a
+//! scalar result, an entry `requires` clause, and a transition guard. The
+//! `&[u8]` param root requirement only gates the whole-parameter case; a
+//! field-path read is classified by the leaf's own byte-sequence carrier.
+=======
+//! Borrowed-view member calls: reading `.len` or an element `self.view[i]` on a
+//! `&'r [u8]` record field is a live-length observation on the field's view
+//! descriptor — admissible in a scalar result, an entry `requires` clause, a
+//! transition guard, and a guarding `&&` conjunct. The `&[u8]` param root
+//! requirement only gates the whole-parameter case; a field-path read is
+//! classified by the leaf's own byte-sequence carrier.
+//!
+//! Residual: a scalar contract `requires i < self.view.len` cannot be retained
+//! — `ScalarTerm` has no byte-length term, so the clause has no proposition
+//! spelling (and a byte store through a shared `&'r [u8]` view has none).
+>>>>>>> origin/leaf/borrowed-view-element-read
 use crate::{TerminalMachineSelection, lower_machine};
 
 fn verify(source: &str, machine: &'static str) {
@@ -94,6 +113,7 @@ fn borrowed_view_field_length_guard_lowers_and_verifies() {
         "Wv::guard_len",
     );
 }
+<<<<<<< HEAD
 
 #[test]
 fn borrowed_view_field_element_read_lowers_and_verifies() {
@@ -398,3 +418,112 @@ fn shared_view_field_subslice_mutable_result_rejects() {
         "Wv::head",
     );
 }
+||||||| cc52d33521
+=======
+
+#[test]
+fn borrowed_view_field_element_read_lowers_and_verifies() {
+    verify(
+        &format!(
+            "{WV}
+            boundary trait Output {{ machine flag(value: bool) reaches Output; }}
+            machine Wv::probe(&self, i: u64) reaches Output {{
+                Output::flag(i < self.view.len && self.view[i] == 7);
+            }}"
+        ),
+        "Wv::probe",
+    );
+}
+
+#[test]
+fn borrowed_view_field_element_read_transition_lowers_and_verifies() {
+    verify(
+        &format!(
+            "{WV}
+            machine Wv::probe {{
+                state probe(&mut self, i: u64) {{
+                    transition i < self.view.len && self.view[i] == 7 {{
+                        true -> hit()
+                        _ -> miss()
+                    }}
+                }}
+                state hit(&mut self) {{
+                    self.out = 1;
+                }}
+                state miss(&mut self) {{
+                    self.out = 2;
+                }}
+            }}"
+        ),
+        "Wv::probe",
+    );
+}
+
+#[test]
+fn borrowed_view_field_element_read_requires_term_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::read(&self, i: u64) -> u8 requires i < self.view.len {{
+                self.view[i]
+            }}"
+        ),
+        "Wv::read",
+    );
+}
+
+#[test]
+fn borrowed_view_field_element_read_mutable_requires_term_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::read_mut(&mut self, i: u64) -> u8 requires i < self.view.len {{
+                self.view[i]
+            }}"
+        ),
+        "Wv::read_mut",
+    );
+}
+
+#[test]
+fn borrowed_view_field_element_read_unguarded_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::read(&self, i: u64) -> u8 {{
+                self.view[i]
+            }}"
+        ),
+        "Wv::read",
+    );
+}
+
+#[test]
+fn borrowed_view_field_byte_store_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::poke(&mut self, i: u64) requires i < self.view.len {{
+                self.view[i] = 1;
+            }}"
+        ),
+        "Wv::poke",
+    );
+}
+
+#[test]
+fn bounded_owned_field_element_read_lowers_and_verifies() {
+    verify(
+        &format!(
+            "{WV}
+            boundary trait Output {{ machine flag(value: bool) reaches Output; }}
+            domain [u8; 3]::Utf8 requires valid_utf8(self);
+            data D {{ buf: [u8; 3] in Utf8; }}
+            machine D::probe(&self, i: u64) reaches Output {{
+                Output::flag(i < self.buf.len && self.buf[i] == 7);
+            }}"
+        ),
+        "D::probe",
+    );
+}
+>>>>>>> origin/leaf/borrowed-view-element-read
