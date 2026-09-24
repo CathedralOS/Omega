@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("specialized_structural_fixed_operator_hosted_native");
+    builder.package("specialized_structural_fixed_operator_hosted_native");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
