@@ -97,8 +97,8 @@
       "owning_paths": [
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill",
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation",
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/rewrites"
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/rewrites"
       ],
       "suggested_first_slice": "Reload intervals that survive an intervening call, or structural-argument calls \u2014 the board names rewrites/runtime_spill.rs as the excluding seam. register-homes/src/assignment is claimed by SPILL-REALIZATION until ~06:23Z; keep writes in your owned paths."
     },
@@ -345,7 +345,7 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
       ],
       "suggested_first_slice": "Extend executable spill recovery: admitted uses now include body and terminator operands plus register-transport arguments on outgoing successor edges \u2014 extend recovery to one more exact class (e.g. cyclic-function block parameters or broader fixed-use composition with selected recovery rules), or extend final spill-inclusive frame demand into stack provisioning reusing the existing final-local-frame demand path. Keep WRITE-ONLY-BORROW's three-call regression as the hosted execution control; slot reuse must not double-count; stale demand must invalidate.",

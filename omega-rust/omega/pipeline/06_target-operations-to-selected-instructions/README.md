@@ -500,6 +500,6 @@ settlements. Producer success is not its own validation.
 
 Broader supported behavior must enter the common graph with exact ABI, memory,
 ownership, proof and frame replay. Unsupported shapes reject at their owner;
-there is no assigned-program fallback. [Allocation](../selected-instructions-to-register-homes/README.md)
+there is no assigned-program fallback. [Allocation](../08_selected-instructions-to-register-homes/README.md)
 owns homes and recovery, and [machine emission](../../backend/machine-emission/README.md)
 owns the physical continuation.

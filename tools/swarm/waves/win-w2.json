@@ -191,7 +191,7 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes"
+        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes"
       ],
       "suggested_first_slice": "Realize one spill/reload decision in register-home assignment with explicit storage evidence."
     },

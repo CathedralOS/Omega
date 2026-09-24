@@ -12,7 +12,7 @@ isa-x86_64 = { path = "../../backend/instruction_set_architectures/isa-x86_64" }
 machine-code = { path = "../../representations/machine-code" }
 optimization-core = { path = "../../representations/optimization-core" }
 physical-instructions = { path = "../../representations/physical-instructions" }
-selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
+selected-instructions-to-register-homes = { path = "../08_selected-instructions-to-register-homes" }
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }

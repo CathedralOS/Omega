@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 register-model = { path = "../../../representations/register-model" }
 selected-instructions = { path = "../../../representations/selected-instructions" }
-selected-instructions-to-register-homes = { path = "../../../pipeline/selected-instructions-to-register-homes" }
+selected-instructions-to-register-homes = { path = "../../../pipeline/08_selected-instructions-to-register-homes" }
 abstract-operations = { path = "../../../representations/abstract-operations" }
 boundary-applications = { path = "../../../representations/boundary-applications" }
 calling-conventions = { path = "../../../representations/calling-conventions" }

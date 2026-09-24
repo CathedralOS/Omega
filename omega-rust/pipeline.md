@@ -27,7 +27,7 @@ setup are not additional public program stages.
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/05_abstract-operations-to-target-operations/README.md) |
 | Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/06_target-operations-to-selected-instructions/README.md) |
 | Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/07_selected-instructions-to-selected-instructions/src/lib.rs) |
-| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/selected-instructions-to-register-homes/README.md) |
+| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/08_selected-instructions-to-register-homes/README.md) |
 | Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/register-homes-to-post-allocation-machine/src/lib.rs) |
 | Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
 | Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/selected-form-encoding-to-resolved-layout/src/lib.rs) |

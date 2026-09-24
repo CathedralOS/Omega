@@ -13,7 +13,7 @@ test-support = []
 
 [dependencies]
 physical-instructions = { path = "../../representations/physical-instructions" }
-selected-instructions-to-register-homes = { path = "../selected-instructions-to-register-homes" }
+selected-instructions-to-register-homes = { path = "../08_selected-instructions-to-register-homes" }
 register-environment = { path = "../../backend/register-environment" }
 optimization-core = { path = "../../representations/optimization-core" }
 register-model = { path = "../../representations/register-model" }

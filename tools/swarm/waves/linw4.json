@@ -22,7 +22,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "SPILL-REALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Victim/use admission leg: rewrites/runtime_spill/admission.rs still rejects a foreign-class victim without the frame-row transport pair (vector-class values, non-IEEE scalars), an early-clobber write tied to a victim use, an entry-bound victim on an edge targeting the entry block, and multi-chunk stored snapshots with pinned/separated chunk loads. Take ONE bounded step admitting or pinning one of those rejected shapes honestly - foreign-class IEEE scalar via the shared carrier class is the most worked example. Preserve: recovery tries the next roster candidate and fails when exhausted. Fenced: s2rh assignment/stack_slot_coloring, s2s rewrites/{mod.rs,module_catalog.rs,allocation_recovery,load_forwarding,dead_store,store_motion} (linw4-alias-aware-memory holds the memory three). ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."

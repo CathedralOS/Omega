@@ -92,7 +92,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "CUSTODY-MUTATION-COVERAGE",
    "owning_paths": [
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src",
+    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src",
     "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src",
     "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized",
     "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/structural_inputs",
@@ -281,7 +281,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "SPILL-REALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Logical-to-physical join leg: assignment/runtime_spill/recovery.rs calls sequenced_logical_operations to choose logical victims and plans operations, but the actual candidate loop still selects and rewrites victims independently \u2014 connect the retained plan to the emitted spill/reload ops (or prove the plan redundant and remove it) such that a mismatch between plan and emitted operations rejects. Preserve executable recovery + independent checking. Fenced: s2rh/src/unsequenced_spill_stages (POC-SPILL), s2rh/src/assignment (DURABLE-CODEC claims a subdir \u2014 check), s2s/rewrites/{mod.rs,module_catalog.rs,allocation_recovery}. Check tools/claims.py status and narrow to touched files. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",

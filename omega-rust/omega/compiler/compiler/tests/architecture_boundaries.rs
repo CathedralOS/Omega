@@ -68,7 +68,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "selected-instructions-to-register-homes",
-            "../../pipeline/selected-instructions-to-register-homes",
+            "../../pipeline/08_selected-instructions-to-register-homes",
         ),
         (
             "machine-emission/Cargo.toml",
@@ -83,7 +83,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "artifacts/native-artifact/Cargo.toml",
             "selected-instructions-to-register-homes",
-            "../../../pipeline/selected-instructions-to-register-homes",
+            "../../../pipeline/08_selected-instructions-to-register-homes",
         ),
     ]);
 

@@ -34,7 +34,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_liveness",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/mod.rs",
         coordination_marker: "compute::compute_terminal_register_homes(",
     },
     RequiredCoordinationEntrance {
@@ -46,15 +46,15 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_fixed_precolored_segment_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/mod.rs",
         coordination_marker: "compute_function(index, legality, ranges, physical)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/home_assignment/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/home_assignment/validate/mod.rs",
         coordination_marker: "replay::validate_function(function_index, actual, legality, ranges, physical)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/post_allocation_manifest/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/post_allocation_manifest/mod.rs",
         coordination_marker: "pub(crate) fn project_post_allocation_optimization_manifest",
     },
     RequiredCoordinationEntrance {
@@ -114,91 +114,91 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn choose_spill_victims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs",
         coordination_marker: "pub fn plan_logical_spill_operations",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/mod.rs",
         coordination_marker: "action::compute_action(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/logical_spill_operations/validate/mod.rs",
         coordination_marker: "replay::replay_action(",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs",
         coordination_marker: "pub fn color_logical_spill_stack_slots",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/mod.rs",
         coordination_marker: "color_intervals_first_fit(function, logical.machine, intervals)",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/validate/mod.rs",
         coordination_marker: "let expected = replay::replay(source)?;",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/mod.rs",
         coordination_marker: "pub fn schedule_abstract_spill_insertion",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/mod.rs",
         coordination_marker: "pub fn assign_reload_value_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/mod.rs",
         coordination_marker: "pub fn choose_spill_recovery_victims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/mod.rs",
         coordination_marker: "pub fn plan_spill_recovery_actions",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/mod.rs",
         coordination_marker: "pub fn schedule_generalized_spill_insertion",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/mod.rs",
         coordination_marker: "pub fn assign_generalized_reload_value_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/mod.rs",
         coordination_marker: "pub fn seed_generalized_spill_recovery_worklist",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/mod.rs",
         coordination_marker: "pub fn choose_generalized_spill_recovery_victims",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/mod.rs",
         coordination_marker: "pub fn plan_generalized_spill_recovery_actions",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/mod.rs",
         coordination_marker: "pub fn schedule_recursive_spill_insertion",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/mod.rs",
         coordination_marker: "pub fn assign_recursive_reload_value_homes",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/mod.rs",
         coordination_marker: "pub fn lower_recursive_spill_pseudos",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/mod.rs",
         coordination_marker: "pub fn lower_homed_recursive_spill_pseudos",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/mod.rs",
         coordination_marker: "pub fn derive_abstract_spill_memory_effects",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/mod.rs",
         coordination_marker: "pub fn constrain_abstract_spill_accesses",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation/mod.rs",
         coordination_marker: "pub fn stage_allocated_callee_saved_requirements",
     },
     RequiredCoordinationEntrance {
@@ -210,11 +210,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_non_authoritative_spill_frame_requirements",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/mod.rs",
         coordination_marker: "pub fn seed_spill_recovery_worklist",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/mod.rs",
+        path: "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/mod.rs",
         coordination_marker: "pub fn bind_synthetic_reload_values",
     },
     RequiredCoordinationEntrance {

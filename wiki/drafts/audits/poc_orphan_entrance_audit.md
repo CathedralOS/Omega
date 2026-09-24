@@ -1,7 +1,7 @@
 # PoC orphan-entrance audit
 
 Status: point-in-time inventory of the parked proof-of-concept spill boundaries
-under `omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/`,
+under `omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/unsequenced_spill_stages/`,
 recorded at revision `61e01c1d66` — **which is not an ancestor of main** (it
 lives only on `origin/zergling/z186-root-file-discipline`), so this reading is
 not reproducible from main. **Corrected 2026-09-21: the park now holds 16
@@ -17,7 +17,7 @@ audit once that row disposes of the park — every family sequenced into
 `stage_register_allocation` or deleted.
 
 Affected subject: executable spill recovery in
-[register allocation](../../omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/register_allocation.rs).
+[register allocation](../../omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/register_allocation.rs).
 
 ## Finding 1 — zero production entrances
 

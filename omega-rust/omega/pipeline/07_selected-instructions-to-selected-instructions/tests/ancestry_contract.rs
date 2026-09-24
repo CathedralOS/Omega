@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 // called only by the files that replay or custody-validate the stage it
 // names. This table is the complete in-crate inventory — a new call site must
 // land in a custody file listed here, and a retired call site must drop its
-// row. Downstream consumers (selected-instructions-to-register-homes) are
+// row. Downstream consumers (08_selected-instructions-to-register-homes) are
 // outside this scan; `transformation_stage` has no in-crate caller because
 // its custody hop is exercised there.
 const CUSTODY_HOP_FILES: &[(&str, &[&str])] = &[
