@@ -10,11 +10,11 @@
 //! study needs. Normal invocations collect nothing beyond one env-var
 //! check per stage; measurements describe cost, never a verdict.
 //!
-//! The CLI already owns an opt-in `--timings` route for command-stage
-//! durations (`omega-rust/omega/src/cli/arguments/compile.rs`); this
-//! env-var channel is a second observation surface and should either be
-//! reached from `--timings` on `install|update|audit packages` or folded
-//! into it before it is documented as a user-facing knob.
+//! A compile or check that asked for `--timings` requests the same stages
+//! through [`requested`] for the duration of its candidate compilation, so
+//! the per-pass and per-package lines print beside the command's stage
+//! ladder without the variable. `install|update|audit packages` still reach
+//! them only through the variable.
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
@@ -27,6 +27,8 @@ thread_local! {
     /// finishing order; the outermost stage completes last, so its elapsed
     /// is the run total.
     static COMPLETED: RefCell<Vec<(Cow<'static, str>, u64)>> = const { RefCell::new(Vec::new()) };
+    /// A caller on this thread asked for review timings for a bounded scope.
+    static REQUESTED: Cell<bool> = const { Cell::new(false) };
     /// Live stage guards on this thread. A stage nested inside another
     /// (for example triage inside source-review assembly) reports inside
     /// the outermost stage's run instead of flushing alone.
@@ -43,8 +45,7 @@ pub(crate) struct StageTiming {
 /// set; does nothing otherwise. Stages are named for the operation their
 /// entry point performs (`candidate_compilation`, `policy_comparison`, ...).
 pub(crate) fn stage(name: &'static str) -> Option<StageTiming> {
-    std::env::var_os(TIMINGS_VARIABLE)?;
-    Some(StageTiming::start(name))
+    enabled().then(|| StageTiming::start(name))
 }
 
 /// The same measurement for a stage whose name carries its subject -- the
@@ -52,8 +53,31 @@ pub(crate) fn stage(name: &'static str) -> Option<StageTiming> {
 /// when the variable is set, so an ordinary run still pays one env-var check
 /// and no formatting.
 pub(crate) fn subject_stage(name: impl FnOnce() -> String) -> Option<StageTiming> {
-    std::env::var_os(TIMINGS_VARIABLE)?;
-    Some(StageTiming::start_owned(Cow::Owned(name())))
+    enabled().then(|| StageTiming::start_owned(Cow::Owned(name())))
+}
+
+/// Record review stages on this thread while the returned guard lives when
+/// `requested` is true, as the variable does for a whole run. Dropping the
+/// guard restores the previous request, so nested scopes compose.
+pub(crate) fn requested(requested: bool) -> Option<RequestedTimings> {
+    requested.then(|| RequestedTimings {
+        previous: REQUESTED.with(|flag| flag.replace(true)),
+    })
+}
+
+/// A scope in which a caller asked for review timings.
+pub(crate) struct RequestedTimings {
+    previous: bool,
+}
+
+impl Drop for RequestedTimings {
+    fn drop(&mut self) {
+        REQUESTED.with(|flag| flag.set(self.previous));
+    }
+}
+
+fn enabled() -> bool {
+    REQUESTED.with(Cell::get) || std::env::var_os(TIMINGS_VARIABLE).is_some()
 }
 
 impl StageTiming {
@@ -117,6 +141,21 @@ mod tests {
         }
         drop(outer);
         assert!(completed_stages().is_empty());
+    }
+
+    #[test]
+    fn a_requested_scope_records_stages_without_the_variable() {
+        let variable_set = std::env::var_os(super::TIMINGS_VARIABLE).is_some();
+        {
+            let _requested = super::requested(true);
+            let stage = super::stage("requested");
+            assert!(stage.is_some());
+            drop(stage);
+        }
+        if !variable_set {
+            assert!(super::stage("unrequested").is_none());
+            assert!(super::requested(false).is_none());
+        }
     }
 
     #[test]
