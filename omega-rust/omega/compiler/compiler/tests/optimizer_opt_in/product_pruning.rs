@@ -427,7 +427,7 @@ fn package_aware_root_build_retains_its_exact_selection() {
 
 #[test]
 fn checked_tree_product_pruning_retains_the_selected_product_root() {
-    let root = checked_tree_pruning_project("checked-tree-pruning", true, true);
+    let root = checked_tree_pruning_project("checked_tree_pruning", true, true);
 
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &root.join("main.omg"),
@@ -487,7 +487,7 @@ fn checked_tree_product_pruning_retains_the_selected_product_root() {
 
 #[test]
 fn absent_checked_tree_pruning_selection_is_the_identity_boundary() {
-    let root = checked_tree_pruning_project("checked-tree-identity", false, true);
+    let root = checked_tree_pruning_project("checked_tree_identity", false, true);
 
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &root.join("main.omg"),
@@ -509,7 +509,7 @@ fn absent_checked_tree_pruning_selection_is_the_identity_boundary() {
 
 #[test]
 fn checked_tree_product_pruning_without_a_bound_product_root_rejects() {
-    let root = checked_tree_pruning_project("checked-tree-no-roots", true, false);
+    let root = checked_tree_pruning_project("checked_tree_no_roots", true, false);
 
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &root.join("main.omg"),
@@ -525,7 +525,7 @@ fn checked_tree_product_pruning_without_a_bound_product_root_rejects() {
 
 #[test]
 fn checked_tree_product_pruning_cannot_hide_an_invalid_authored_declaration() {
-    let root = checked_tree_pruning_project("checked-tree-invalid", true, true);
+    let root = checked_tree_pruning_project("checked_tree_invalid", true, true);
     std::fs::write(
         root.join("main.omg"),
         "data Main { value: u8; }\nmachine Main::main(&mut self) { }\ndata Dead { value: u8; }\nmachine Dead::unused(&mut self) { self.missing(); }\n",
@@ -550,7 +550,7 @@ fn checked_tree_product_pruning_cannot_hide_an_invalid_authored_declaration() {
 
 #[test]
 fn checked_tree_product_pruning_rollback_restores_the_full_product() {
-    let root = checked_tree_pruning_project("checked-tree-rollback", true, true);
+    let root = checked_tree_pruning_project("checked_tree_rollback", true, true);
 
     let checked = compile_to_checked(CheckedCompileRequest {
         optimization_rollback: OptimizationRollback::new([Optimization::CheckedTreeProductPruning])

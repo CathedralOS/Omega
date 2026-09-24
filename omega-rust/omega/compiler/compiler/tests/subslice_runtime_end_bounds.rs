@@ -13,15 +13,28 @@ use std::process::Command;
 #[path = "fixture_rosters/subslice_runtime_end_bounds.rs"]
 mod fixture_roster;
 
+#[path = "support/fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
 fn compile(
     options: CompileOptions,
 ) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
     let build_dir = options.build_dir();
-    let report = compiler::compile(
-        compiler::CompileRequest::new(options)
-            .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)?;
+    // The canary imports `omega_language_std::console` and declares the
+    // bundled standard library in its own `build.omg`; without the package
+    // inputs that declaration resolves to, the compile looks for
+    // `<fixture>/omega_language_std/console.omg` and fails to resolve it.
+    let package_inputs = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &options.root_path,
+        options.target_name.as_deref(),
+    )?;
+    let mut request = compiler::CompileRequest::new(options)
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
     report
         .publish_retained_native_artifact(&build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])
