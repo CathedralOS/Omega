@@ -345,43 +345,22 @@ pub(in crate::selection) fn validate_with_environment(
                     } => {
                         let (_, input, _, actual_type) =
                             replay.resolve(*operand).ok_or_else(invalid)?;
-                        if actual_type != ScalarType::Integer(*source_type)
-                            || !matches!(scalar_type, ScalarType::Integer(integer)
-                            if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                && matches!(integer.bits(), 8 | 16 | 32 | 64)
-                                && if matches!(operation.kind, LegalizedScalarInstructionKind::IntegerExactCast { .. }) {
-                                    source_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                                        && matches!(source_type.bits(), 8 | 16 | 32 | 64)
-                                        && source_type.can_exact_cast_to(integer)
-                                        && !(source_type.sign() == IntegerSign::Signed
-                                            && integer.sign() == IntegerSign::Signed
-                                            && (source_type.bits() != 64 || integer.bits() != 64))
-                                        && !(source_type.bits() == 16 && integer.bits() > 16)
-                                } else {
-                                    matches!(source_type.bits(), 8 | 16 | 32 | 64)
-                                        && source_type.can_widen_to(integer)
-                                })
-                        {
+                        if actual_type != ScalarType::Integer(*source_type) {
                             return Err(invalid());
                         }
+                        let normalization =
+                            crate::selection::construction::scalar_graph::integer_conversion::normalization(
+                                &operation.kind,
+                                scalar_type,
+                            )
+                            .ok_or_else(invalid)?;
                         let output = replay.result_register(
                             result.value,
                             result.definition_site,
                             scalar_type,
                         )?;
                         replay.check_instruction(
-                            if matches!(
-                                operation.kind,
-                                LegalizedScalarInstructionKind::IntegerExactCast { .. }
-                            ) {
-                                crate::selection::scalar_call_abi::integer_carrier_normalization(
-                                    scalar_type,
-                                )
-                            } else {
-                                crate::selection::scalar_call_abi::integer_carrier_normalization(
-                                    ScalarType::Integer(*source_type),
-                                )
-                            },
+                            normalization,
                             constraints.keys.copy_i64,
                             &[input, output],
                             &SelectedInstructionProvenance {

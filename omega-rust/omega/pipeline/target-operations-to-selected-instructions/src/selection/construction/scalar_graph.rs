@@ -28,7 +28,7 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod ieee_comparison;
-mod integer_conversion;
+pub(in crate::selection) mod integer_conversion;
 mod normalized_foreign;
 mod process_exit;
 mod scalar_call;

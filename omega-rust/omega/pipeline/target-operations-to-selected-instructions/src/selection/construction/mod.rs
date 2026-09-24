@@ -4,7 +4,7 @@
 use crate::legalization::ValidatedLegalizedOperations;
 use crate::selection::model::SelectedInstructionError;
 use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
-mod scalar_graph;
+pub(in crate::selection) mod scalar_graph;
 
 use crate::selection::constraints::require_key_rows;
 
