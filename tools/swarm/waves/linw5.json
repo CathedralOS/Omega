@@ -23,7 +23,7 @@
    "item": "SPILL-REALIZATION",
    "owning_paths": [
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "CONTINUATION leg (prior leg landed 04d2099ae1: early-clobber tied writes admitted beside unpinned co-readers via dedicated reload pair recorded in Admission::dedicated_tie_uses). Pick ONE next bounded SPILL-REALIZATION row: shapes still rejected include UseDef early-clobber (a second victim write), foreign-class non-IEEE values, or entry-bound victims with entry-targeting edges - admit one honestly or prove and pin why it must stay rejected. Keep the validator re-deriving the same contract independently; extend the reject table only by moving one shape to admitted coverage. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [
@@ -37,9 +37,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/load_forwarding",
-    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_store",
-    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/store_motion"
+    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/load_forwarding",
+    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_store",
+    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/store_motion"
    ],
    "suggested_first_slice": "CONTINUATION leg (prior leg landed 96893353d1: store motion sinks across grown reconvergent regions via frontier fixed-point in admission.rs + validation.rs). Pick ONE next bounded ALIAS-AWARE-MEMORY row: the untaken premise-binding direction - ownership_frontier_facts currently live only on LegalizedScalarFunction upstream; carry retained loan/compatibility/fact identities into SelectedMemoryAccess or a rewrite receipt. Transport into SelectedInstructionPlan is outside current owning_paths - widen the claim first if the honest leg needs it. A different bounded row in rewrites/unexecuted/{load_forwarding,dead_store,store_motion} is an acceptable alternative. Keep admission and validation independently re-deriving the same contract. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
    "host_gates": [

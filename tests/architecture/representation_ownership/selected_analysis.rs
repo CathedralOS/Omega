@@ -41,7 +41,7 @@ fn selected_analysis_schemas_and_identities_have_one_representation_owner() {
     let root = repository();
     let owner = root.join("omega-rust/omega/representations/selected-instructions");
     let transform =
-        root.join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+        root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let stage = rust_source(&transform);
     let homes = rust_source(&root.join("omega-rust/omega/representations/register-homes/src"));
     let representation = rust_source(&owner.join("src"));
@@ -119,7 +119,7 @@ fn selected_analysis_schemas_and_identities_have_one_representation_owner() {
 fn selected_analysis_validation_seals_stay_in_the_transform() {
     let root = repository();
     let owner =
-        root.join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+        root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let representation =
         rust_source(&root.join("omega-rust/omega/representations/selected-instructions/src"));
     for (module, plan, validated, receipt, error) in [

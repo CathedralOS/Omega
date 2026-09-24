@@ -900,7 +900,7 @@ fn rust_files(directory: &Path, files: &mut Vec<PathBuf>) {
 #[test]
 fn selected_optimization_stages_read_current_data_not_producer_ancestry() {
     let root = repository()
-        .join("omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src");
+        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());

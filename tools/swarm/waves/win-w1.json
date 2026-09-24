@@ -63,7 +63,7 @@
       "item": "DECLARATIVE-PEEPHOLES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites"
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites"
       ],
       "suggested_first_slice": "Generalize one symbolic instruction-pair descriptor to physical register units, effects, traps, memory, stack, or control flow while preserving the independent validator."
     },

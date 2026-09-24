@@ -77,7 +77,7 @@ to remove.
 (`HashMap<SymbolHandle, Vec<SymbolHandle>>` edges),
 `05_abstract-operations-to-target-operations/.../dynamic.rs`
 (`BTreeMap<MachineId|PlaceId|StructuralTypeId, _>`),
-`selected-instructions-to-selected-instructions/.../liveness/validate/replay.rs`,
+`07_selected-instructions-to-selected-instructions/.../liveness/validate/replay.rs`,
 `abstract-operations/src/abstract_operations/atomic.rs`,
 `behavior_exclusions.rs` virtual-filesystem tables
 (`BTreeMap<u32|handle, _>`), and similar — keyed by arena/machine handles, so

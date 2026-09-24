@@ -90,7 +90,7 @@ impl RuleCoverage {
 const MANDATORY_RECOVERY_REWRITES: &[&str] = &["runtime_rematerialization", "runtime_spill"];
 
 const REWRITES: &str =
-    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites";
+    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites";
 
 const COVERAGE: &[RuleCoverage] = &[
     // -- Psi selection members: the abstract-operations evidence matrix
@@ -381,805 +381,805 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "SelectedIncomingU12ExactAddImmediate",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_immediate_fold_commutes_the_literal_operand_on_both_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_rejects_a_literal_claiming_the_wrong_operand_position",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_is_disabled_without_the_add_bit",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "add_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingU12ExactSubtractImmediate",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_immediate_fold_replaces_the_flag_clobbering_consumer_on_both_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_is_disabled_without_the_subtract_bit",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "subtract_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingU12CompareImmediate",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_immediate_fold_rewrites_the_flag_defining_consumer_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_is_disabled_without_the_compare_bit",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/compare_subtract_add_folds.rs",
             "compare_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingLiteralExtensionElimination",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_elimination_folds_every_unary_consumer_to_a_materialization_on_both_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_rejects_result_types_that_cannot_admit_the_folded_constant",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "extension_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingU12Load8IndexedOffset",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "load8_indexed_fold_rewrites_the_index_operand_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_admits_the_widest_encodable_byte_offset",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "load8_indexed_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingLiteralCopyMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_folds_the_unary_copy_to_a_materialization_on_both_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_rejects_result_types_that_cannot_admit_the_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/extension_and_copy_folds.rs",
             "copy_materialization_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingU12ByteViewAddressOffset",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_rewrites_the_offset_operand_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_rejects_unadmitted_candidate_shapes",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_admits_the_widest_encodable_byte_offset",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "byte_view_address_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingExactDivideIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "exact_divide_identity_fold_rewrites_the_divide_to_a_copy_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "divide_fold_rejects_an_auxiliary_operand_without_zero_custody",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/load_and_byte_view_folds.rs",
             "divide_fold_rejects_a_non_unit_divisor",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingWrappingRemainderOneZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "wrapping_remainder_one_fold_rewrites_the_remainder_to_a_zero_materialization_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_rejects_a_dropped_def_without_dead_custody",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_rejects_a_non_unit_divisor",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingBitwiseAndZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_rewrites_the_consumer_to_a_zero_materialization_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_rejects_a_nonzero_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_zero_folds.rs",
             "and_zero_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingBitwiseXorZeroIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_rejects_a_nonzero_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_xor_zero_copies.rs",
             "xor_zero_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingWrappingAddZeroIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_rejects_a_nonzero_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/wrapping_add_zero_copies.rs",
             "wrapping_add_zero_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingBitwiseAndOnesIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_rewrites_the_consumer_to_a_surviving_operand_copy_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_rejects_a_literal_that_is_not_all_ones",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/bitwise_and_ones_copies.rs",
             "and_ones_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "wrapping_remainder_zero_dividend_fold_rewrites_the_remainder_to_a_zero_materialization_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_rejects_a_missing_obligation",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_rejects_a_non_zero_dividend",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_zero_dividend_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingExactDivideZeroDividendZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "exact_divide_zero_dividend_fold_rewrites_the_divide_to_a_zero_materialization_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_rejects_a_missing_obligation",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_rejects_a_non_zero_dividend",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingAddZeroIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_rejects_a_nonzero_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_zero_copies.rs",
             "saturating_add_zero_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingSubtractZeroIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_rewrites_the_consumer_to_a_surviving_operand_copy",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_rejects_the_left_literal_form",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_copies.rs",
             "saturating_subtract_zero_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingDivideOneIdentityCopy",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_rewrites_every_unsigned_carrier_consumer",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_rejects_a_literal_claiming_the_wrong_operand_position",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_rejects_a_non_one_divisor",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_one_copies.rs",
             "saturating_divide_one_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_rewrites_every_unsigned_carrier_consumer",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_rejects_a_missing_obligation",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_rejects_a_non_zero_dividend",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_divide_zero_dividend_materializations.rs",
             "saturating_divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_rewrites_every_unsigned_carrier_consumer",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_rejects_every_signed_carrier",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_zero_minuend_materializations.rs",
             "saturating_subtract_zero_minuend_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingAddUpperBoundMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_rewrites_every_unsigned_carrier_consumer",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_rejects_a_sub_maximum_literal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_add_upper_bound_materializations.rs",
             "saturating_add_upper_bound_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingWrappingRemainderMinusOneZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "wrapping_remainder_minus_one_fold_rewrites_the_remainder_to_a_zero_materialization_on_both_linux_targets",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_rejects_a_dropped_def_without_dead_custody",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_rejects_a_non_minus_one_divisor",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/divide_and_remainder_folds.rs",
             "remainder_minus_one_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
     RuleCoverage {
         rule: "SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_rewrites_every_unsigned_carrier_consumer",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_rejects_malformed_operand_arrangements",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_rejects_a_sub_maximum_subtrahend",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_rejects_consumers_the_selection_does_not_enable",
         ),
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_reports_and_enforces_its_measured_work",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_is_deterministic_and_a_fixed_point_on_its_output",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold/tests/saturating_subtract_upper_bound_subtrahend_materializations.rs",
             "saturating_subtract_upper_bound_fold_replay_rejects_every_decision_field_substitution",
         ),
     },
@@ -1231,7 +1231,7 @@ const COVERAGE: &[RuleCoverage] = &[
             "negative_declines_every_candidate_and_publishes_unchanged",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/copy_removal/tests.rs",
             "source_redefinition_interval",
         ),
         disabled: covered(
@@ -1269,7 +1269,7 @@ const COVERAGE: &[RuleCoverage] = &[
             "negative_declines_every_candidate_and_publishes_unchanged",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/redundant_extension/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/redundant_extension/tests.rs",
             "producer_normalization_table",
         ),
         disabled: covered(
@@ -1297,19 +1297,19 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
             "shared_entry_policy_inserts_one_copy_at_the_source_exit_and_rewrites_both_returns",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
             "unconnected_boundaries_fall_back_to_site_copies_or_refuse_under_the_declared_leg",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
             "shared_entry_copy_is_deterministic_bounded_and_terminal",
         ),
         disabled: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/tests.rs",
             "unselected_allocation_recovery_phase_declines",
         ),
         budget: covered(
@@ -1317,22 +1317,22 @@ const COVERAGE: &[RuleCoverage] = &[
             "shared_entry_fixed_view_copy_pins_exact_work_and_every_budget_domain_boundary",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/compute/tests.rs",
             "shared_entry_copy_is_deterministic_bounded_and_terminal",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
             "independent_shared_copy_replay_is_terminal_on_the_transformed_function",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/validate/source_exit/tests.rs",
             "independent_shared_copy_replay_rejects_invalid_source_and_boundary_premises",
         ),
     },
     RuleCoverage {
         rule: "ActiveResidentImmediateU64MultiUseRematerializationV1",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/multiple_use.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/multiple_use.rs",
             "active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes",
         ),
         negative: covered(
@@ -1340,7 +1340,7 @@ const COVERAGE: &[RuleCoverage] = &[
             "active_resident_rule_declines_when_ordinary_allocation_has_no_pressure",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/sole_use.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/sole_use.rs",
             "active_resident_is_split_before_sole_future_use_and_reanalyzes",
         ),
         disabled: covered(
@@ -1352,7 +1352,7 @@ const COVERAGE: &[RuleCoverage] = &[
             "active_resident_rule_pins_exact_work_and_every_representable_first_over_boundary",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/multiple_use.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/pressure_rematerialization/tests/multiple_use.rs",
             "multiple_use_rematerialization_is_deterministic_and_terminal",
         ),
         fixed_point: covered(
@@ -1405,64 +1405,64 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "runtime_rematerialization",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "every_flexible_use_regenerates_the_same_immediate",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "non_materialize_definitions_and_fixed_uses_gain_no_regeneration",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "dominated_successor_uses_regenerate_in_their_own_block",
         ),
         disabled: NO_SELECTION_VOCABULARY,
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "validation_budget_covers_the_admission_scan",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "rematerialization_is_deterministic_and_per_victim_terminal",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "rematerialization_is_deterministic_and_per_victim_terminal",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization/tests.rs",
             "independent_replay_rejects_regeneration_and_lineage_corruption",
         ),
     },
     RuleCoverage {
         rule: "runtime_spill",
         positive: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "every_future_flexible_use_names_the_block_shared_reload",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "ieee_raw_bit_spills_retain_type_and_transport_fp_register_residence",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "a_call_closes_the_shared_reload_for_later_flexible_uses",
         ),
         disabled: NO_SELECTION_VOCABULARY,
         budget: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "measured_validation_step_boundary_admits_and_rejects",
         ),
         determinism: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "spill_is_deterministic_and_the_published_plan_re_admits",
         ),
         fixed_point: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "spill_is_deterministic_and_the_published_plan_re_admits",
         ),
         corruption: covered(
-            "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
+            "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/tests.rs",
             "independent_replay_rejects_storage_use_source_and_fuel_corruption",
         ),
     },

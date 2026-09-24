@@ -78,7 +78,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
       ],
       "suggested_first_slice": "Extend one returning-block runtime-spill recovery case from nonaddress u64 results through selected rewrite validation and register-home replay."
     },
@@ -88,7 +88,7 @@
       "item": "DECLARATIVE-PEEPHOLES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
+        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
         "omega-rust/omega/representations/optimization-core/src/selection.rs"
       ],
       "suggested_first_slice": "Extend the landed selected-lowering catalog descriptor with one symbolic instruction-pair rule while retaining its independent validator and optimization-core identity."
