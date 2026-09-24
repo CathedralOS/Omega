@@ -53,7 +53,7 @@ form, certificate-reserved obligations, and non-scalar-leaf proof bearers
 keep their checks. The
 execution record survives canonical Terminal encoding and independent decoding.
 
-The [post-Terminal abstract phase](omega/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
+The [post-Terminal abstract phase](omega/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
 joins verified input construction, bounded execution, and independent projection
 publication. Its result exposes the current abstract program and replay evidence,
 not the executing session or analysis cache. Legacy `Psi` names still occur in
@@ -128,7 +128,7 @@ sibling rule merely because it was implemented first.
 
 The bounded countdown machinery illustrates a private restriction, not a
 language limit. Its
-[ranked-cycle validation](omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
+[ranked-cycle validation](omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/mod.rs)
 reconstructs component/ranking evidence. Only authenticated guard-zero and
 decrement-one relocation to the canonical preheader suffix may normalize the
 otherwise frozen component; provenance and fuel settlements remain unchanged.

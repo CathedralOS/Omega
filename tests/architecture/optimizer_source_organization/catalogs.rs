@@ -18,31 +18,31 @@ struct RequiredExactRuleFile {
 /// rules in a mixed `rule.rs` catch-all one rung below the catalog.
 const REQUIRED_EXACT_RULE_FILES: &[RequiredExactRuleFile] = &[
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_neutral_arithmetic_identity.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_neutral_arithmetic_identity.rs",
         rule_marker: "pub struct WrappingNeutralArithmeticIdentityRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_shift_zero_count_identity.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_shift_zero_count_identity.rs",
         rule_marker: "pub struct WrappingShiftZeroCountIdentityRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_multiply_zero_annihilation.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/wrapping_multiply_zero_annihilation.rs",
         rule_marker: "pub struct WrappingMultiplyZeroAnnihilationRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_neutral_arithmetic_identity.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_neutral_arithmetic_identity.rs",
         rule_marker: "pub struct SaturatingNeutralArithmeticIdentityRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_multiply_zero_annihilation.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/saturating_multiply_zero_annihilation.rs",
         rule_marker: "pub struct SaturatingMultiplyZeroAnnihilationRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_neutral_literal_identity.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_neutral_literal_identity.rs",
         rule_marker: "pub struct BitwiseNeutralLiteralIdentityRule",
     },
     RequiredExactRuleFile {
-        path: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_absorbing_literal_identity.rs",
+        path: "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules/global_value_numbering/bitwise_absorbing_literal_identity.rs",
         rule_marker: "pub struct BitwiseAbsorbingLiteralIdentityRule",
     },
 ];

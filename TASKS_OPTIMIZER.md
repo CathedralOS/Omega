@@ -191,7 +191,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
 - **GENERAL-LICM.** Extend invariant motion beyond the authenticated
   shared-source preheader in
-  `04_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
+  `01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion/`.
   Keep independent admission/replay in `src/validation/`, including invariant
   operand substitution and the existing topology-based non-speculation gate.
   No Psi optimization selection runs the rewrite today: it and the countdown
@@ -524,7 +524,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   validator must each establish the required alias and byte-extent facts.
 - **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance beyond
   existing proven membership and scalar-constant observation folds in
-  `04_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
+  `01_abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
   `92856482da` (macw8b) descended field-value proofs through stored-whole
   structural children (`Field` path segments, child carrier/type equality,
   owned empty-path access), and `ca85e84578` (macw8b) reseats producer-less
