@@ -68,17 +68,13 @@ use semantic_vocabulary::{
     EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
     ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
-use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
-use typed_trees::signature::SignatureContractKind;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use crate::checker::AssignmentRangeContext;
-use crate::checker::arrival_stability;
-use crate::checker::assignment_stability::collect_read_place_paths;
 use crate::checker::derivation_cache::DerivationConsultation;
 use crate::checker::guards::{expressions_equivalent_for_proof, unwrap_true_guard_condition};
 use crate::checker::integer_ranges::{
@@ -86,6 +82,7 @@ use crate::checker::integer_ranges::{
     type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
+use crate::checker::requires_conditions;
 use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
     ProofConstraint, ProofPlan,
@@ -326,7 +323,7 @@ fn interval_premise_certificate(
 
 /// The Requires-contract leg for a state return: each authored condition
 /// whose operands survive the state prefix contributes the same `subject OP
-/// literal` facts `return_arrival::apply_condition` applies, restated as
+/// literal` facts `requires_conditions::apply_condition` applies, restated as
 /// `<=` premises on the return atom beside the declared pair. The trusted
 /// path's operand-level refold stays uncovered, as does every leg when the
 /// declared carrier interval is absent.
@@ -345,49 +342,15 @@ fn contract_refined_certificate<'program>(
     let declared = integer_range_for_return_value(proof_plan, obligation)?;
     let integer_type = fixed_integer_type(program.primitive_type_reference(obligation.base_type)?)?;
 
-    let is_entry = program
-        .machine_states(machine)
-        .first()
-        .is_some_and(|entry| entry.symbol == state.symbol);
-    let mut conditions = Vec::new();
-    for contract in program
-        .machine_contracts(machine)
-        .iter()
-        .filter(|_| is_entry)
-        .chain(program.state_contracts(state))
-        .filter(|contract| contract.kind == SignatureContractKind::Requires)
-    {
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let ProofFact::Expression(condition) = fact else {
-                continue;
-            };
-            if !contract_stable_expression(proof_plan, *condition) {
-                continue;
-            }
-            let mut premise_reads = Vec::new();
-            collect_read_place_paths(proof_plan, *condition, &mut premise_reads);
-            let mut value_reads = premise_reads.clone();
-            collect_read_place_paths(proof_plan, obligation.value, &mut value_reads);
-            if let Some(operands) = &obligation.binary_operands {
-                collect_read_place_paths(proof_plan, operands.left, &mut value_reads);
-                collect_read_place_paths(proof_plan, operands.right, &mut value_reads);
-            }
-            let Some(call_frames) = context.call_frames() else {
-                continue;
-            };
-            if arrival_stability::prefix_preserves_reads(
-                proof_plan,
-                machine,
-                state,
-                obligation.statement_index,
-                &premise_reads,
-                &value_reads,
-                call_frames,
-            ) {
-                conditions.push(*condition);
-            }
-        }
-    }
+    let conditions = requires_conditions::surviving_conditions(
+        proof_plan,
+        context,
+        machine.symbol,
+        state.symbol,
+        obligation.statement_index,
+        obligation.value,
+        obligation.binary_operands.as_ref(),
+    );
     if conditions.is_empty() {
         return None;
     }
@@ -428,7 +391,7 @@ fn contract_refined_certificate<'program>(
 }
 
 /// `condition`'s `subject OP literal` conjuncts restated as `<=` facts on
-/// the subject -- the certificate mirror of `return_arrival::apply_condition`:
+/// the subject -- the certificate mirror of `requires_conditions::apply_condition`:
 /// one `== true` unwrap, `&&` splits, and a side spelling the subject as the
 /// SAME stable place owns the comparison. Unlike the guard collectors there
 /// is no `!` arm: contract conditions are assumptions, not fall-through
@@ -462,56 +425,16 @@ fn collect_contract_bounds(
         collect_contract_bounds(proof_plan, subject, binary.right, facts);
         return;
     }
-    if contract_same_place(proof_plan, binary.left, subject) {
+    if requires_conditions::same_place(proof_plan, binary.left, subject) {
         if let Some(value) = integer_literal_handle(proof_plan, binary.right) {
             push_right_literal_bounds(binary.operator, BigInt::from_i64(value), facts);
         }
         return;
     }
-    if contract_same_place(proof_plan, binary.right, subject)
+    if requires_conditions::same_place(proof_plan, binary.right, subject)
         && let Some(value) = integer_literal_handle(proof_plan, binary.left)
     {
         push_left_literal_bounds(binary.operator, BigInt::from_i64(value), facts);
-    }
-}
-
-/// `return_arrival::same_place`: the condition side is a stable `Name` or
-/// `Member` place and the subject spells the same stable place.
-fn contract_same_place(
-    proof_plan: &ProofPlan,
-    condition_side: ExpressionHandle,
-    subject: ExpressionHandle,
-) -> bool {
-    let table = &proof_plan.program.expression_table;
-    matches!(
-        table.expression(condition_side),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_)
-    ) && contract_stable_expression(proof_plan, condition_side)
-        && contract_stable_expression(proof_plan, subject)
-        && table.expressions_structurally_equal(condition_side, subject)
-}
-
-/// `return_arrival::stable_expression`: an authored condition becomes a
-/// premise only when every operand is a spelling-stable place or literal --
-/// calls, indexing and unresolved names cannot be.
-fn contract_stable_expression(proof_plan: &ProofPlan, value: ExpressionHandle) -> bool {
-    let table = &proof_plan.program.expression_table;
-    if !table.expression_is_valid(value) {
-        return false;
-    }
-    match table.expression(value) {
-        ExpressionNode::Name(path) => path.symbol.is_valid() && path.head_symbol.is_valid(),
-        ExpressionNode::Member(member) => {
-            member.member_symbol.is_valid()
-                && contract_stable_expression(proof_plan, member.receiver)
-        }
-        ExpressionNode::Binary(binary) => {
-            contract_stable_expression(proof_plan, binary.left)
-                && contract_stable_expression(proof_plan, binary.right)
-        }
-        ExpressionNode::Unary(unary) => contract_stable_expression(proof_plan, unary.operand),
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
-        _ => false,
     }
 }
 
@@ -1627,11 +1550,11 @@ mod coverage_tests {
 
     use super::{
         CertificateVerdict, GuardBound, collect_contract_bounds, contract_refined_certificate,
-        contract_same_place, contract_stable_expression, interval_premise_certificate,
-        state_return_integer_verdict,
+        interval_premise_certificate, state_return_integer_verdict,
     };
     use crate::checker::AssignmentRangeContext;
     use crate::checker::measurement::ProofPlanMeasurements;
+    use crate::checker::requires_conditions::{same_place, stable_expression};
     use crate::obligations::{
         BoundedStateReturnObligation, IntegerRange, ProofConstraint, ProofPlan,
     };
@@ -1928,10 +1851,10 @@ mod coverage_tests {
             .expression_table
             .insert(ExpressionNode::ZeroValue(fixture.carrier));
         let plan = ProofPlan::new(&fixture.program);
-        assert!(contract_same_place(&plan, fixture.value, fixture.value));
-        assert!(!contract_same_place(&plan, foreign, fixture.value));
-        assert!(contract_stable_expression(&plan, fixture.condition));
-        assert!(!contract_stable_expression(&plan, projection));
+        assert!(same_place(&plan, fixture.value, fixture.value));
+        assert!(!same_place(&plan, foreign, fixture.value));
+        assert!(stable_expression(&plan, fixture.condition));
+        assert!(!stable_expression(&plan, projection));
     }
 
     #[test]

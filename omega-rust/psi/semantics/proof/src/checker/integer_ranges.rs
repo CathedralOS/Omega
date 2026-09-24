@@ -5,6 +5,7 @@ use crate::checker::guards::{
     apply_assignment_guard, apply_handle_condition, apply_handle_guard, apply_source_condition,
     expressions_equivalent_for_proof, unwrap_true_guard_condition,
 };
+use crate::checker::requires_conditions;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
@@ -238,7 +239,7 @@ pub(crate) fn guarded_integer_range_for_assignment(
     guarded_integer_range_for_assignment_with_context(proof_plan, obligation, &context)
 }
 
-fn guarded_integer_range_for_assignment_with_context(
+pub(crate) fn guarded_integer_range_for_assignment_with_context(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     context: &AssignmentRangeContext<'_>,
@@ -366,6 +367,26 @@ fn guarded_integer_range_for_assignment_with_context(
             };
         }
     }
+
+    // The machine's and state's own `requires` bound the stored value the
+    // way an incoming guard does: a setter's contract is what keeps its
+    // callers inside the field's range.
+    let requires = requires_conditions::surviving_conditions(
+        proof_plan,
+        context,
+        obligation.machine_symbol,
+        obligation.state_symbol,
+        obligation.statement_index,
+        obligation.value,
+        obligation.binary_operands.as_ref(),
+    );
+    range = requires_conditions::refine(
+        proof_plan,
+        range,
+        obligation.value,
+        obligation.binary_operands.as_ref(),
+        &requires,
+    );
 
     // Nothing declared AND nothing narrowed: keep reporting "no range" rather
     // than a vacuous full-line interval.
