@@ -4025,6 +4025,13 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `instantiated_methods_keep_each_package_use_authority`. Fixture/provider and
   name-collision repairs have since landed: reproduce before assigning more
   repair, retaining exact selection and package-use authority checks.
+  macw8b collateral: the package-name snake_case rule reddens
+  `compiler/compiler/tests` — 29 distinct hyphenated identities remain
+  (runtime_value_generics: 10 failures; no_selection_golden::rollback: 4).
+  Find them with `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
+  --include='*.rs' omega-rust/omega/compiler/compiler/tests/`. `-p compiler`
+  is excluded from `land_tight.sh`'s workspace check, so these stay red
+  without blocking anything.
 
   Package command fixtures: reproduce `fixture module path ends in ::fixture`
   in `named_workspace_install::cases`. Fix caller-specific child-test selection
