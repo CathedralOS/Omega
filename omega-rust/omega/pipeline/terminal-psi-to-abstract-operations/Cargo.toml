@@ -26,7 +26,7 @@ abstract-operations-to-target-operations = { path = "../abstract-operations-to-t
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 target = { path = "../../representations/target" }
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
-checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

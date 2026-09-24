@@ -1794,7 +1794,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 #[test]
 fn expression_preparation_does_not_depend_on_machine_producers() {
     let root = workspace_root()
-        .join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/expression_preparation");
+        .join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation");
     let source = recursive_rust_source(&root);
     for producer in ["scalar_graph", "unit", "returns", "machine_lowering"] {
         assert!(
@@ -1807,13 +1807,13 @@ fn expression_preparation_does_not_depend_on_machine_producers() {
 #[test]
 fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
-    let source_root = root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src");
+    let source_root = root.join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src");
     let path = source_root.join("machine_lowering.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
     let production_source = recursive_production_rust_source(&source_root);
     let manifest_path =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/Cargo.toml");
+        root.join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/Cargo.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
     let production_manifest = manifest
@@ -1897,7 +1897,7 @@ fn pre_resolution_seam_is_not_driven_by_later_pipeline_stages() {
 fn direct_add_proof_search_exposes_its_semantic_owners() {
     let root = workspace_root();
     let direct_add = root.join(
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate/integer_selection/direct_add",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate/integer_selection/direct_add",
     );
     for (entrance, modules) in [
         (
@@ -1927,7 +1927,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
     let typed = root
         .join("omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit");
     let terminal =
-        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit");
+        root.join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit");
     for (entrance, modules) in [
         (
             typed.join("composed_control/mod.rs"),
@@ -2175,7 +2175,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     assert!(publication.contains("CanonicalTerminalArtifact::from_parts("));
     assert!(!publication.contains("CheckedTrees"));
     let lowering = std::fs::read_to_string(
-        root.join("omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/lib.rs"),
+        root.join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/lib.rs"),
     )
     .expect("read checked lowering");
     assert!(!lowering.contains("pub fn produce_terminal_artifact"));

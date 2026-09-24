@@ -16,7 +16,7 @@ boundary-applications = { path = "../../representations/boundary-applications" }
 build-evaluation = { path = "../../build/build-evaluation" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
-checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 compilation-report = { path = "../../compiler/compilation-report" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 effects = { path = "../../representations/effects" }

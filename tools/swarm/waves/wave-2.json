@@ -62,7 +62,7 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts/operator_crashes.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow/expression.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests"
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests"
       ],
       "suggested_first_slice": "reuse the scalar boundary requirement contract for one selected operator, retaining exact occurrence and saved actuals"
     },

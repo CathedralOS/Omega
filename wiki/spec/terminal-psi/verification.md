@@ -197,7 +197,7 @@ equality. `terminal-verifier`'s `validation/control_flow/unranked_cycles.rs`
 still admits cyclic machines only through its shape allowlist, and the
 "integer ranges use this same predicate rule" clause is pinned by the
 `cyclic_field_divisor_*` controls under
-`checked-trees-to-lowered-psi/src/tests/`. What remains open is recorded on
+`05_checked-trees-to-lowered-psi/src/tests/`. What remains open is recorded on
 GENERAL-CYCLIC-EXECUTION: composed cyclic Unit plans and the per-callee
 call/return composition the admission roster cannot yet express.
 

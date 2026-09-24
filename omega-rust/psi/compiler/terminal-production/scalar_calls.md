@@ -105,7 +105,7 @@ roster, destination, RHS, and return coordinates are rejoined before emission.
 Authored contracts, published crash routes, and constrained input/result types
 remain unsupported on this prefix until their exact contracts are carried too.
 The source-to-artifact execution regression is
-[`primitive_store_return_source.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/primitive_store_return_source.rs):
+[`primitive_store_return_source.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/primitive_store_return_source.rs):
 `cargo nextest run -p checked-trees-to-lowered-psi --test primitive_store_return_source --no-fail-fast`.
 This establishes the body of an operand callee such as
 `machine reset(value: &mut u64) -> u64 { value = 0; 0 }`.
@@ -125,7 +125,7 @@ scalar parameters. They retain an empty effect prefix, not a fabricated store;
 the authored statement roster still rejects deletion of a real assignment.
 The selected callee's type closure is validated in the shared allocated namespace;
 unrelated retained bodies do not add types or machines to that artifact.
-[`borrowed_scalar_call_source.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_call_source.rs)
+[`borrowed_scalar_call_source.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/borrowed_scalar_call_source.rs)
 checks observable callee/caller writes, returned values, suspension without replay,
 and rejection of substituted borrowed actuals or callee custody. Both store owners
 rejoin their exact authored assignment and RHS namespace; a direct call initializer
@@ -143,7 +143,7 @@ Readable primitive-reference initializers retain their original input place,
 independently of dense scalar parameter positions. Write-only reads reject.
 The ordinary native graph realizes fixed 8/16/32/64-bit integer, Boolean, and
 IEEE binary32/binary64 locals, exact-width fresh reads, and borrowed calls.
-[`primitive_local_unit_calls.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/primitive_local_unit_calls.rs)
+[`primitive_local_unit_calls.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/primitive_local_unit_calls.rs)
 checks source/borrow substitutions, crash-route arguments, read access, and
 canonical interpretation with one-unit fuel pauses. Native width and protected-page
 controls live in the
@@ -155,7 +155,7 @@ short-circuit selection. Shared aliases retain distinct formal occurrences in
 the ordered borrow observations; exclusive aliases remain invalid. Source replay
 rejoins mutable reads inside computation operands as well as direct arguments.
 The source-to-artifact regressions in
-[`borrowed_computation_arguments.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_computation_arguments.rs)
+[`borrowed_computation_arguments.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/borrowed_computation_arguments.rs)
 reload and independently verify the artifact, then execute with one-unit fuel
 pauses.
 
@@ -166,7 +166,7 @@ call assembler allocates their real parameter places and complete callee/type
 catalog before expanding computations. Standalone roots and ordinary Unit
 consumers use the same graph body and `CallStructuralScalar`; there is no Unit
 wrapper. Existing call-free reference leaves retain their scalar-return owner.
-[`borrowed_scalar_root.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/borrowed_scalar_root.rs)
+[`borrowed_scalar_root.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/borrowed_scalar_root.rs)
 checks returned snapshots, ordered mutations, selected calls, fuel suspension,
 and source-custody rejection.
 
@@ -179,7 +179,7 @@ retain their completed values. The full authored binding prefix must precede
 the terminator; deleting a trailing write cannot silently change the result.
 Scalar-only callers of helpers with local storage use the same closure and
 `CallStructuralScalar`, even when the helper has no structural formals.
-[`scalar_local_borrows.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
+[`scalar_local_borrows.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_local_borrows.rs)
 checks canonical reload, independent verification, local identity, ordered
 mutations, snapshots, and one-unit fuel suspension without replay.
 
@@ -196,7 +196,7 @@ contracts, empty service reach, and no claim transfers. Producer eligibility
 leaves operations requiring contract substitution with the existing ordinary
 Unit body owner; the graph receiver independently rejoins retained source and
 contract custody and rejects mutations without selecting a fallback plan.
-[`scalar_unit_calls.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
+[`scalar_unit_calls.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_unit_calls.rs)
 exercises this composition and rejects omitted, duplicated, reordered, and
 substituted call custody under canonical replay and one-unit fuel suspension.
 The Boolean-local branch in
@@ -219,7 +219,7 @@ in reverse declaration order. Short-circuit joins dispose an untransferred owner
 on the appropriate incoming edge, without runtime cleanup instructions.
 Claims, nominal cleanup, partial moves, and mutable owned formals remain outside
 this graph route. Affine permission alone never licenses erasing selected cleanup.
-[`owned_scalar_graphs.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/owned_scalar_graphs.rs)
+[`owned_scalar_graphs.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/owned_scalar_graphs.rs)
 checks canonical publication, source-custody rejection, selected transfers, and
 integer/Boolean field execution under one-unit fuel pauses. The interpreter accepts
 explicit typed scalar-field inputs; it never invents missing field contents.
@@ -233,7 +233,7 @@ substitution cites the actual SSA bindings; an earlier iteration supplies no fac
 Unannotated loops use the same source normalization and ownership path without
 inventing a termination guarantee. Borrowed loop formals and multiple mixed state
 signatures remain outside this producer route.
-[`owned_scalar_cycles.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/owned_scalar_cycles.rs)
+[`owned_scalar_cycles.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/owned_scalar_cycles.rs)
 checks the guarded customer below, canonical reload, independent verification,
 selected calls, exact owned arrivals, ranking mutations, and fuel-paused execution.
 Owned integer-field native lowering remains unfinished. The primitive-local
@@ -242,7 +242,7 @@ native regressions below are separate from these Terminal interpretation checks.
 Empty standalone scalar contracts must also agree with the authored normal-clause
 and parameter-range roster; a missing checked row cannot erase either. Crash
 routes retain their separate publication. The source-to-artifact regressions in
-[`scalar_empty_contract_custody.rs`](../../pipeline/checked-trees-to-lowered-psi/tests/scalar_empty_contract_custody.rs)
+[`scalar_empty_contract_custody.rs`](../../pipeline/05_checked-trees-to-lowered-psi/tests/scalar_empty_contract_custody.rs)
 exercise roots and transitive callees.
 
 ## One complete call closure

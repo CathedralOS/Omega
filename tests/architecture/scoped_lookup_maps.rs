@@ -245,7 +245,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "authored import spellings bound to coverage rows",
     ),
     (
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/proof_recursion.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/proofs/proof_recursion.rs",
         "type/field spellings bound to rendered diagnostic rows",
     ),
     // Hardware catalog names — ISA register units/views named by the ISA's

@@ -117,7 +117,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 - `abstract-operations-to-abstract-operations/.../global_value_numbering/identities/*`
   and `proof_check_elision/scalar_identities.rs` — `*IdentityRule` structs are
   algebraic rule names, not durable content identities; no Sha256 producer.
-- `checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —
+- `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —
   `LoweredContentIdentityReshuffles` is transform working state (private
   bookkeeping a pipeline crate may own), not a durable identity newtype.
 - `checked-interpreter/src/filesystem_sponsor.rs` `NEXT_ACCOUNT_ID:

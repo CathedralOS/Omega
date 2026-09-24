@@ -610,7 +610,7 @@ Service<R> family). The current failure set attributes to six families:
   checking (already migrated in 0e1977994b) and stop while admitting the
   attached closure's bodies. Fences: `execution/terminal_unit/{control,state_graph,composed_control}`
   is under GENERAL-CYCLIC-EXECUTION and `execution/terminal_unit/{mod.rs,candidate_closure,calls}`
-  plus `checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF.
+  plus `05_checked-trees-to-lowered-psi/src/unit` under UEFI-OS-HANDOFF.
 
   **Cross-suite span, measured 2026-09-21 on macOS arm64 once
   `cargo check --workspace` came back green.** The same refusal STRING accounts
@@ -1706,7 +1706,7 @@ either reason recorded above. The two extra members are
 and `::structural_calls_preserve_verified_crash_continuations`. Measured on
 clean upstream with no local change, so it is upstream's, not a candidate's;
 the rejection site is
-`checked-trees-to-lowered-psi/src/expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`.
+`05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`.
 This newer break fails the fixture before the contract lowering `915122bedb`
 repaired is reached, so that repair's effect is masked at this revision --
 it was measured green on base `18848f50f3`, where the Unit member passed.

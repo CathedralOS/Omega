@@ -4,7 +4,7 @@
 //!
 //! The one operation is `TerminalProductionRequest::produce`
 //! (`terminal_production.rs`). It lowers the selected machine
-//! (checked-trees-to-lowered-psi), runs the selected Psi optimization, and
+//! (05_checked-trees-to-lowered-psi), runs the selected Psi optimization, and
 //! publishes the canonical artifact (lowered-psi-to-terminal-psi).
 //! Checked-source receipts stay beside the portable artifact, not inside it.
 

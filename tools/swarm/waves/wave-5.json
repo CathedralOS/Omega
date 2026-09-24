@@ -79,7 +79,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/attached_unit",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Complete one cyclic control-contract path with separate safety and progress validation for the existing Console-writer customer."

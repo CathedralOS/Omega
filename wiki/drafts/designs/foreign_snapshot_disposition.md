@@ -248,7 +248,7 @@ status` at implementation time)
   the wave's rotating issuance/custody claims.
 - Terminal row + verifier: `terminal-psi` declarations and
   `terminal-verifier` content/boundary-calls.
-- Lowering: `checked-trees-to-lowered-psi/src/retention/` sibling to the
+- Lowering: `05_checked-trees-to-lowered-psi/src/retention/` sibling to the
   borrow row.
 - Native: `external-roots/src/program_local` under
   EPOCH-RESOURCE-SNAPSHOTS (~11:32Z); the provider-planning/

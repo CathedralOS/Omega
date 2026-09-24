@@ -19,10 +19,10 @@
         "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/finite_family.rs",
         "omega-rust/psi/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/tests/dynamic_conformances",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit.rs"
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit.rs"
       ],
       "suggested_first_slice": "Parked WIP exists on branch swarm/macw5-finite-dispatch (one unvalidated commit, ~600 lines across dynamic_scalar_calls/, finite_family.rs and dynamic trait declarations) - fetch it, review the draft, and either continue it in your worktree or discard it and start fresh. Then: In execution/terminal_unit/dynamic_scalar_calls/, replace the static-only dynamic_family_tuple path for runtime-capable calls with checked roster membership and generated selection among the closed bodies: one scalar binder, one common concrete result, dispatch around a region-sized operation. Unproved membership rejects.",
       "host_gates": [
@@ -96,8 +96,8 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering"
       ],
       "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",
@@ -130,12 +130,12 @@
       "item": "DOMAIN-ISSUER-ROUTES",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
-        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs",
         "omega-rust/psi/semantics/terminal-verifier/tests/calls/qualification_establishments.rs",
         "omega-rust/psi/semantics/terminal-verifier/tests/straight_line/scalar_qualifications.rs"
       ],
-      "suggested_first_slice": "In checked-trees-to-lowered-psi/src/unit/attached_unit.rs and its catalog.rs: ordinary attached units publish no conformance applications and call_result_qualification_establishments emits only boundary-requirement bindings backed by an exact CallEnsures admitted receipt. Retain the missing ordinary callee/conformance identities and connect checked establishment evidence to its exact invocation result; establish a source-produced qualified boundary-result roundtrip.",
+      "suggested_first_slice": "In 05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs and its catalog.rs: ordinary attached units publish no conformance applications and call_result_qualification_establishments emits only boundary-requirement bindings backed by an exact CallEnsures admitted receipt. Retain the missing ordinary callee/conformance identities and connect checked establishment evidence to its exact invocation result; establish a source-produced qualified boundary-result roundtrip.",
       "host_gates": [
         "which mbx || which cargo"
       ],

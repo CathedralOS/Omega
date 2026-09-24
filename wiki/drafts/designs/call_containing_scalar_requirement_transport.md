@@ -42,7 +42,7 @@ Terminal transport:
   operands are machine calls has no closed form, so the requires row records
   `None` in `ClosedScalarValueContractPlan::requires
   (Vec<Option<ClosedScalarContractValue>>)`.
-- `checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs::
+- `05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_contracts.rs::
   covered_requires` rejects any `None` row with `scalar contract contains an
   unsupported clause`. `produce_artifact()` on `caller` dies there.
 
@@ -81,7 +81,7 @@ verifier replays the *obligation join*, not the call.
   `Some`, so `covered_requires`'s `None` rejection continues to catch a
   genuinely dropped predicate.
 
-### 2. Lowering (checked-trees-to-lowered-psi)
+### 2. Lowering (05_checked-trees-to-lowered-psi)
 
 - `covered_requires` admits `CallCited` rows alongside `Predicate` rows;
   `clauses()` converts the *call-free spine* of the predicate to the ordinary

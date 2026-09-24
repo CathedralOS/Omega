@@ -14,7 +14,7 @@ It is not a spelling for `transition`. Scalar computation dispatch saves the
 subject once, evaluates patterns in order, and sends only the selected result
 to the ordinary expression continuation. Source replay independently checks the
 exact arm identities and coverage; it cannot treat an arbitrary last arm as a
-default. [Terminal execution tests](checked-trees-to-lowered-psi/tests/value_dispatch.rs)
+default. [Terminal execution tests](05_checked-trees-to-lowered-psi/tests/value_dispatch.rs)
 cover overlaps, call-argument composition, subject-once execution and skipped calls.
 
 The [dispatch contract](../../../wiki/spec/language/patterns.md) is broader than

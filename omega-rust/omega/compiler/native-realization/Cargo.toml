@@ -47,7 +47,7 @@ terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-a
 target-operations = { path = "../../representations/target-operations" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 numerics = { path = "../../../psi/foundation/numerics" }
 symbols = { path = "../../../psi/foundation/symbols" }
