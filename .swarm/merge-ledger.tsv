@@ -160,3 +160,4 @@ z4	leaf/nested-borrowed-operands	MERGED	8053126902	borrowed-view nested-call res
 2026-09-24T17:34:55Z	merge	leaf/self-return-named-view (z4)	ba0d9adc49 ff — receiver-as-return surface
 leaf/generic-self-return-named-view	a995e1a97bd	z4	merged	2026-09-24T18:08:30Z	t2c lib 5354/5354 green
 leaf/latebound-equality-guards	2322c0795e9	z4	merged	2026-09-24T18:08:30Z	t2c lib 5354/5354 green
+leaf/negated-equality-guards	6951fa6a8a4	z4	merged	2026-09-24T18:25:55Z	t2c check+fmt clean; lib 5356/5356 per verdict
