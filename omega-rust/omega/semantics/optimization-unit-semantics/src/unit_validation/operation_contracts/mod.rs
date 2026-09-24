@@ -25,7 +25,7 @@ mod structural_access;
 mod structural_cases;
 mod values;
 
-pub(crate) use records::constructible_record;
+pub(crate) use records::constructible;
 pub(crate) use structural_access::structural_source_contract;
 
 #[cfg(test)]

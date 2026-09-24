@@ -223,27 +223,12 @@ pub(super) fn call_result<'a>(
                 )
             })?
         }
-        terminal_psi::StructuralTypeShape::Sum { cases } => {
-            let payloads = cases
-                .iter()
-                .map(|case| {
-                    case.fields
-                        .iter()
-                        .map(|field| {
-                            if field.relevance.is_erased() {
-                                return None;
-                            }
-                            field
-                                .field_type
-                                .scalar_type()
-                                .and_then(super::scalar_call_abi::scalar_shape)
-                        })
-                        .collect::<Option<Vec<_>>>()
-                })
-                .collect::<Option<Vec<_>>>()?;
-            let layout =
-                calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
-            layout.shape
+        terminal_psi::StructuralTypeShape::Sum { .. }
+        | terminal_psi::StructuralTypeShape::Mixed { .. } => {
+            crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &source.structural.as_ref()?.structural_types,
+            )?
         }
         _ => return None,
     };

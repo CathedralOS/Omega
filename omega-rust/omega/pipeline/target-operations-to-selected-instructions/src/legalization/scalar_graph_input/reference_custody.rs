@@ -163,9 +163,49 @@ fn leaf_paths(
                     }
                 }
             }
+            // Case payloads hold leaves under field-identity paths as well.
+            // Identical segments across cases collapse into the single leaf
+            // the authored path names.
+            StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields).rev() {
+                    if let StructuralFieldType::Structural(child) = field.field_type {
+                        if !contains_reference(types, child) {
+                            continue;
+                        }
+                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                            return None;
+                        }
+                        let mut child_path = path.clone();
+                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                        pending.push((child, child_path));
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for field in cases
+                    .iter()
+                    .flat_map(|case| &case.fields)
+                    .chain(fields)
+                    .rev()
+                {
+                    if let StructuralFieldType::Structural(child) = field.field_type {
+                        if !contains_reference(types, child) {
+                            continue;
+                        }
+                        if pending.len().checked_add(output.len())? >= maximum_leaves {
+                            return None;
+                        }
+                        let mut child_path = path.clone();
+                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                        pending.push((child, child_path));
+                    }
+                }
+            }
             _ => {}
         }
     }
+    output.sort();
+    output.dedup();
     Some(output)
 }
 
@@ -207,17 +247,35 @@ fn leaf_referent(
             return None;
         };
         let declaration = types.iter().find(|declaration| declaration.id == current)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return None;
+        // Field segments name fields by identity; a sum or mixed payload keeps
+        // a segment legal while every matching case field resolves to one
+        // structural type.
+        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            _ => return None,
         };
-        let field = fields.iter().find(|field| &field.identity == identity)?;
-        if field.relevance.is_erased() {
-            return None;
+        let mut resolved = None;
+        for field in matching {
+            if field.identity != *identity || field.relevance.is_erased() {
+                continue;
+            }
+            let StructuralFieldType::Structural(child) = field.field_type else {
+                return None;
+            };
+            match resolved {
+                None => resolved = Some(child),
+                Some(previous) if previous != child => return None,
+                _ => {}
+            }
         }
-        let StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
-        };
-        current = child;
+        current = resolved?;
     }
     referent(types, current)
 }
@@ -1027,13 +1085,13 @@ fn entry(
         if !contains_reference(types, parameter.structural_type) {
             continue;
         }
-        // Only owned affine record carriers may enter with loans; the verified
+        // Only owned affine carriers may enter with loans; the verified
         // contract rejects every other reference-bearing entry parameter.
         if parameter.access != StructuralAccess::Owned
             || parameter.multiplicity != StructuralMultiplicity::Affine
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
-            || !constructible_record(types, parameter.structural_type)
+            || !constructible(types, parameter.structural_type)
             || function
                 .entry_claim_declarations
                 .iter()
@@ -1074,33 +1132,35 @@ fn entry(
     Ok(custody)
 }
 
-/// Every owned-carrier ingress parameter is a constructible record: scalar
-/// leaves and bare primitive-reference leaves compose the complete type.
-fn constructible_record(types: &[StructuralTypeDeclaration], root: StructuralTypeId) -> bool {
-    let mut pending = vec![(root, false)];
+/// Every owned-carrier ingress parameter is a constructible carrier: scalar
+/// leaves and bare primitive-reference leaves compose the complete type, in
+/// record fields and case payloads alike.
+fn constructible(types: &[StructuralTypeDeclaration], root: StructuralTypeId) -> bool {
+    let mut pending = vec![root];
     let mut active = BTreeSet::new();
     let mut complete = BTreeSet::new();
-    while let Some((current, exiting)) = pending.pop() {
-        if exiting {
-            active.remove(&current);
-            complete.insert(current);
-            continue;
-        }
+    while let Some(current) = pending.pop() {
         if complete.contains(&current) {
             continue;
         }
         if !active.insert(current) {
             return false;
         }
-        let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Record { fields },
-            ..
-        }) = types.iter().find(|declaration| declaration.id == current)
-        else {
+        let Some(declaration) = types.iter().find(|declaration| declaration.id == current) else {
             return false;
         };
-        pending.push((current, true));
-        for field in fields {
+        let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| case.fields.iter()).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                .collect(),
+            _ => return false,
+        };
+        for field in matching {
             if field.relevance.is_erased() {
                 return false;
             }
@@ -1109,10 +1169,12 @@ fn constructible_record(types: &[StructuralTypeDeclaration], root: StructuralTyp
                 | StructuralFieldType::IeeeFloat(_)
                 | StructuralFieldType::BoundedInteger(_) => {}
                 StructuralFieldType::Structural(child) if referent(types, child).is_some() => {}
-                StructuralFieldType::Structural(child) => pending.push((child, false)),
+                StructuralFieldType::Structural(child) => pending.push(child),
                 _ => return false,
             }
         }
+        active.remove(&current);
+        complete.insert(current);
     }
     true
 }
