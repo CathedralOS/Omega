@@ -16,8 +16,8 @@
 //! conservative: a program that moves an origin after the view's final use
 //! inside that region is rejected here even though it is sound.
 
-use crate::O;
 use crate::OptimizationUnitValidationError;
+use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -84,7 +84,8 @@ impl AddressJoinPins {
             }
             origins = expanded;
         }
-        let dominators = crate::independent_reachable_dominators(function);
+        let dominators =
+            crate::candidates::global_value_numbering::independent_reachable_dominators(function);
         let mut pins = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
         for (join, owner) in &joins {
             let roots = origins

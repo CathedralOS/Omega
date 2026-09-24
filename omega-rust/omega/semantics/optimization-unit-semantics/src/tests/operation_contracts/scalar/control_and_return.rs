@@ -1,8 +1,8 @@
 //! Conditional-input and scalar-return type corruption rejection.
 
-use crate::tests::{
-    redundant_parameter_region_fixture, refresh_identity, refresh_node_derivatives, unit,
-};
+use crate::tests::fixtures::candidates::redundant_parameter_region_fixture;
+use crate::tests::fixtures::scalar_units::unit;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};

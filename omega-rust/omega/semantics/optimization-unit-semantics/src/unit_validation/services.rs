@@ -1,16 +1,12 @@
 //! Service catalogs, root reachability, and structural signatures.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BoundaryMachineId;
-use crate::MachineId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
 use crate::unit_validation::structural_catalog::structural_qualifications_match;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn index_service_catalog(
     unit: &PsiOptimizationUnit,

@@ -1,7 +1,5 @@
-use crate::BlockId;
-use crate::EdgeId;
-use crate::O;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 
 pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: ValueId) {
     let replace = |value: &mut ValueId| {

@@ -1,12 +1,10 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
-use crate::PsiOptimizationFunction;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::proposition_structural_roots;
-use crate::unit_validation::operation_contracts::structural_paths_may_overlap;
+use crate::unit_validation::operation_contracts::claim_transfers::proposition_structural_roots;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,

@@ -1,17 +1,14 @@
 //! Closed-region normalization and outside-region comparison.
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::MachineId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::RedundantBlockParameterRewrite;
-use crate::ValueDefinitionSite;
-use crate::ValueId;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_uses,
+};
+use optimization_unit::{
+    PsiOptimizationUnit, RedundantBlockParameterRewrite, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{BlockId, MachineId, ValueId};
+use std::collections::BTreeSet;
 
 /// Construct the validator's normalized pre-rewrite question independently of
 /// the output constructor below. Only the exact scalar substitution and the

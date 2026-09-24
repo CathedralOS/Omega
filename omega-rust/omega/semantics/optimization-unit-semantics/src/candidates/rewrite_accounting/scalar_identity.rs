@@ -6,18 +6,12 @@
 //! reconstruction names its own patch, then runs the shared dead-node
 //! accounting plus the use-site provenance rows below.
 
-use crate::BlockId;
-use crate::DeadScalarNodeRewrite;
-use crate::NodeLocation;
-use crate::OperationId;
-use crate::ProofCertifiedScalarIdentityRewrite;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiRealizationSite;
-use crate::ScalarType;
-use crate::TotalScalarIdentityRewrite;
-use crate::ValueId;
-use crate::reconstruct_dead_scalar_node_accounting;
+use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
+use optimization_unit::{
+    DeadScalarNodeRewrite, NodeLocation, ProofCertifiedScalarIdentityRewrite,
+    ProvenanceDisposition, PsiOptimizationFunction, PsiRealizationSite, TotalScalarIdentityRewrite,
+};
+use semantic_vocabulary::{BlockId, OperationId, ScalarType, ValueId};
 
 pub(crate) fn reconstruct_proof_certified_scalar_identity_accounting(
     function: &PsiOptimizationFunction,

@@ -1,7 +1,6 @@
 //! Dominance reconstruction and terminator classification.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
+use semantic_vocabulary::BlockId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn dominators(
     entry: BlockId,

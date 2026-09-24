@@ -4,22 +4,19 @@
 //! claims and parameters, CFG shape, results, structural roots, provenance,
 //! facts, values, ownership, and service contracts. Each invariant family
 //! descends into one named leaf.
-use crate::BTreeMap;
-use crate::BoundaryMachineId;
-use crate::MachineId;
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
-use crate::current_ownership;
 use crate::unit_validation::derived_metadata::validate_places_and_claims;
 use crate::unit_validation::operation_contracts::validate_values_and_bindings;
 use crate::unit_validation::services::valid_service_ceiling;
-use crate::unit_validation::structural_catalog::validate_byte_sequence_literal_witnesses;
-use crate::unit_validation::structural_catalog::validate_function_structural_catalog;
-use crate::unit_validation::structural_catalog::validate_provider_attachment_specialization;
-use crate::unit_validation::structural_catalog::validate_trivial_affine_local_witnesses;
+use crate::unit_validation::structural_catalog::{
+    validate_byte_sequence_literal_witnesses, validate_function_structural_catalog,
+    validate_provider_attachment_specialization, validate_trivial_affine_local_witnesses,
+};
+use crate::{OptimizationUnitValidationError, current_ownership};
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
+};
+use std::collections::BTreeMap;
 
 mod byte_field_freshness;
 mod byte_views;

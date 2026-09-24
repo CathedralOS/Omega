@@ -3,8 +3,8 @@
 use abstract_operations::AbstractOperation;
 use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction};
 
-use super::fixtures::*;
-use crate::tests::refresh_function_derivatives;
+use super::fixtures::{array, cleanup_actions, field, index, mixed_unit, record, unit};
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 #[test]

@@ -16,7 +16,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
 
-use crate::tests::id;
+use crate::tests::support::id;
 
 pub(super) fn field(identity: &str) -> StructuralPathSegment {
     StructuralPathSegment::Field(identity.into())
@@ -328,7 +328,7 @@ fn build_unit(
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
             });
-        crate::tests::refresh_identity(&mut unit);
+        crate::tests::support::refresh_identity(&mut unit);
     }
     if matches!(producer, RootProducer::Boundary) {
         let service = id(9_003, semantic_vocabulary::ServiceId::new);
@@ -347,7 +347,7 @@ fn build_unit(
             }];
         crate::unit_validation::services::refresh_root_service_reach(&mut unit)
             .expect("factory requirement retains its installation-bound service reach");
-        crate::tests::refresh_identity(&mut unit);
+        crate::tests::support::refresh_identity(&mut unit);
     }
     unit
 }

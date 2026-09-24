@@ -1,4 +1,4 @@
-use super::super::super::id;
+use crate::tests::support::id;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{ClaimId, PlaceId, StructuralDomainId, StructuralTypeId};
 

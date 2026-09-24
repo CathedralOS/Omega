@@ -1,12 +1,13 @@
 //! Result roots retain producer identity and the exact partial ownership frontier.
 
-use super::fixtures::*;
+use super::fixtures::{array, call_result_unit, cleanup_actions, field, index, record};
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::support::id;
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, TerminalAffineCleanupAction};
 
-use crate::tests::{id, refresh_function_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 fn mixed_result() -> PsiOptimizationUnit {

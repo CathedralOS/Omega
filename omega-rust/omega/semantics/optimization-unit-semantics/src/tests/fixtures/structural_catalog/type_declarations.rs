@@ -1,5 +1,5 @@
-use super::super::super::{id, refresh_identity};
-use super::super::unit;
+use crate::tests::fixtures::scalar_units::unit;
+use crate::tests::support::{id, refresh_identity};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult,
@@ -162,7 +162,7 @@ pub(crate) fn direct_realization_boolean_structural_field_unit() -> PsiOptimizat
     };
     cleanup_actions.clear();
 
-    super::super::refresh_function_derivatives(&mut unit, 0);
+    crate::tests::fixtures::dominance::refresh_function_derivatives(&mut unit, 0);
     unit
 }
 
@@ -225,7 +225,7 @@ pub(crate) fn direct_realization_integer_structural_field_unit() -> PsiOptimizat
         scalar_type: integer,
         cleanup_actions: Vec::new(),
     };
-    super::super::refresh_function_derivatives(&mut unit, 0);
+    crate::tests::fixtures::dominance::refresh_function_derivatives(&mut unit, 0);
     unit
 }
 
@@ -296,7 +296,7 @@ pub(crate) fn structural_scalar_field_store_unit() -> PsiOptimizationUnit {
         psi_edge: id(4_708, EdgeId::new),
         cleanup_actions: Vec::new(),
     };
-    super::super::refresh_function_derivatives(&mut unit, 0);
+    crate::tests::fixtures::dominance::refresh_function_derivatives(&mut unit, 0);
     unit
 }
 

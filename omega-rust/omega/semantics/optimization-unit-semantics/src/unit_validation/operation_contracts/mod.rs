@@ -3,17 +3,13 @@
 //! Value flow, node contract families, bindings, structural access, claims,
 //! payloadless cases, boundaries, and scalar typing descend into named leaves.
 //! This entrance owns their exact per-node validation order.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::MachineId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
 use crate::unit_validation::derived_metadata::dominators;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 mod affine_calls;
 mod atomic_coherence;
@@ -29,15 +25,17 @@ mod structural_access;
 mod structural_cases;
 mod values;
 
-pub(crate) use affine_calls::*;
-pub(crate) use boundaries::*;
-pub(crate) use claim_transfers::*;
-pub(crate) use payloadless_cases::*;
-pub(crate) use records::*;
-pub(crate) use scalar_arrays::*;
-pub(crate) use scalar_types::*;
-pub(crate) use service_calls::*;
-pub(crate) use structural_access::*;
+pub(crate) use records::constructible_record;
+pub(crate) use structural_access::structural_source_contract;
+
+#[cfg(test)]
+pub(crate) use claim_transfers::validate_internal_claim_transfers;
+#[cfg(test)]
+pub(crate) use payloadless_cases::scalar_case_establishment_matches;
+#[cfg(test)]
+pub(crate) use service_calls::operation_service_contract_matches;
+#[cfg(test)]
+pub(crate) use structural_access::{StructuralProjectionPolicy, structural_arguments_match};
 
 pub(crate) fn validate_values_and_bindings(
     function: &PsiOptimizationFunction,

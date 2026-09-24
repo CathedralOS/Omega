@@ -1,23 +1,20 @@
 //! Independent linear empty-block replay mechanics.
-use crate::NodeLocation;
-use crate::O;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_linear_thread_accounting;
-use crate::reconstruct_linear_thread_bindings;
-use crate::reconstruct_linear_thread_ownership_is_identity;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::rewrite_accounting::threading::{
+    reconstruct_linear_thread_accounting, reconstruct_linear_thread_bindings,
+    reconstruct_linear_thread_ownership_is_identity,
+};
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_uses,
+    reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    NodeLocation, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

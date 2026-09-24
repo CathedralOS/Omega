@@ -1,11 +1,12 @@
 //! Boundary qualification consumption from a dominating structural operation result.
 
-use crate::tests::{
-    OperationResultCfgShape, id, operation_result_cfg_unit, refresh_function_derivatives,
-    refresh_identity,
+use crate::tests::fixtures::dominance::{
+    OperationResultCfgShape, operation_result_cfg_unit, refresh_function_derivatives,
 };
-use crate::{OptimizationUnitValidationError, PsiOptimizationUnit, validate_psi_optimization_unit};
+use crate::tests::support::{id, refresh_identity};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
+use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     BoundaryMachineId, OperationId, PlaceId, StructuralDomainId, StructuralFieldId,
     StructuralTypeId,

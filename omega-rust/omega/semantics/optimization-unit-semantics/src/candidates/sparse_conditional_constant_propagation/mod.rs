@@ -3,11 +3,8 @@
 //! This entrance owns the exact rule and patch routing join. Integer and
 //! boolean acceptance, typed-range comparison, observation equality, exact
 //! arithmetic, and SCCP snapshot reconstruction descend into named leaves.
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
 
 mod boolean_candidate;
 mod boolean_evaluation;
@@ -33,7 +30,7 @@ pub(crate) use snapshot_reconstruction::{
     scalar_value_definition, validator_scalar_constant_facts,
 };
 
-pub fn validate_scalar_evaluation_candidate(
+pub(super) fn validate_scalar_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

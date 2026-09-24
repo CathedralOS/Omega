@@ -1,21 +1,13 @@
 //! Source-produced sum inspection through the independent abstract validator.
-use super::id;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralPlaceKind;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::unit_validation::affine_authority::valid_edge_affine_transition;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::OwnershipFrontierFact;
-use optimization_unit::reconstruct_psi_optimization_unit_seed;
-use semantic_vocabulary::ScalarType;
-use semantic_vocabulary::ValueId;
+use optimization_unit::{
+    OwnershipFrontierFact, PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed,
+};
+use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ScalarType, StructuralPlaceKind, ValueId};
 
 fn inspection_unit() -> PsiOptimizationUnit {
     let source = r#"

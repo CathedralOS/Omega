@@ -1,9 +1,8 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::PsiOptimizationFunction;
-use crate::StructuralDomainId;
-use crate::unit_validation::operation_contracts::function_claim_input;
-use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::operation_contracts::claim_transfers::function_claim_input;
+use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::StructuralDomainId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn boundary_requirements_match(
     caller: &PsiOptimizationFunction,

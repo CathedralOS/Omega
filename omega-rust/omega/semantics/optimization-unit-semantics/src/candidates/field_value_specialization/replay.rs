@@ -16,46 +16,29 @@
 //! replay also recomputes the substitution set, the exact use-site roster,
 //! initializer dominance, and the shifted-custody provenance ledger.
 
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::FieldValueResolution;
-use crate::FieldValueRow;
-use crate::FoldedFieldValue;
-use crate::ForwardedFieldValue;
-use crate::O;
-use crate::OperationId;
-use crate::OptimizationNode;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PlaceId;
-use crate::ProvenanceDisposition;
-use crate::ProvenanceRewrite;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarSubstitution;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::rewrite_scalar_value_uses;
 use crate::unit_validation::derived_metadata::{
     dominators, expected_definitions, expected_ownership, expected_uses,
     reconstruct_declared_places,
 };
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
-use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, ValueId,
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    FieldValueResolution, FieldValueRow, FoldedFieldValue, ForwardedFieldValue, OptimizationNode,
+    ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition,
+    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
 };
+use semantic_vocabulary::{
+    BlockId, CanonicalStructuralPathSegment, OperationId, PlaceId, ScalarType, StructuralCaseId,
+    StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
     StructuralPlaceDeclaration, StructuralTypeShape,
@@ -312,7 +295,7 @@ fn admit_field_node(
         kind,
     )?;
     Some(FieldValueRow {
-        site: crate::NodeLocation {
+        site: optimization_unit::NodeLocation {
             machine: function.machine,
             block: block.id,
             node: u32::try_from(node_index).ok()?,
@@ -694,7 +677,7 @@ fn forwarded_resolution(
             ) {
                 return None;
             }
-            let site = crate::NodeLocation {
+            let site = optimization_unit::NodeLocation {
                 machine: function.machine,
                 block: use_block.id,
                 node: u32::try_from(use_index).ok()?,
@@ -1100,7 +1083,7 @@ fn expected_accounting(
             if !retired && node.provenance.is_empty() {
                 continue;
             }
-            let input_site = PsiRealizationSite::Node(crate::NodeLocation {
+            let input_site = PsiRealizationSite::Node(optimization_unit::NodeLocation {
                 machine: function.machine,
                 block: block.id,
                 node: node_index,
@@ -1115,7 +1098,7 @@ fn expected_accounting(
                     .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
                 )
                 .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-            let output_site = PsiRealizationSite::Node(crate::NodeLocation {
+            let output_site = PsiRealizationSite::Node(optimization_unit::NodeLocation {
                 machine: function.machine,
                 block: block.id,
                 node: output_index,

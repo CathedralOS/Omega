@@ -1,22 +1,18 @@
 //! Independent dead-node rewrite reconstruction and application.
-use crate::OptimizationFact;
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_closed_scalar_node_boundary;
-use crate::reconstruct_dead_scalar_node_accounting;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::rewrite_accounting::dead_scalar::reconstruct_dead_scalar_node_accounting;
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{
+    OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
+    validate_psi_optimization_unit,
+};
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition,
+    ValueDefinitionSite, recompute_psi_optimization_unit_identity,
+};
 
 use super::operation_partition::independently_validated_dead_scalar_shape;
 

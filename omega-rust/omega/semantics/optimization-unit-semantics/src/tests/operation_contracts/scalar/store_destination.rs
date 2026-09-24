@@ -1,9 +1,9 @@
 //! Write-only store destination access, type, position, and dominance validation.
 
-use crate::tests::{
-    id, refresh_identity, refresh_node_derivatives, write_only_store_before_value_unit,
-    write_only_store_unit,
+use crate::tests::fixtures::scalar_units::{
+    write_only_store_before_value_unit, write_only_store_unit,
 };
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};

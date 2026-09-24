@@ -3,11 +3,10 @@
 //! Type indexing precedes domain indexing at this entrance. Projection,
 //! declaration, graph, function-local, witness, provider-specialization, and
 //! path mechanics descend into named leaves.
-use crate::BTreeMap;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use std::collections::BTreeMap;
 
 mod catalog;
 mod content_projection;
@@ -17,12 +16,12 @@ mod provider_specialization;
 mod type_declarations;
 mod witnesses;
 
-pub(crate) use content_projection::*;
-pub(crate) use function_catalog::*;
-pub(crate) use paths::*;
-pub(crate) use provider_specialization::*;
-pub(crate) use type_declarations::*;
-pub(crate) use witnesses::*;
+pub(crate) use function_catalog::{structural_root_key, validate_function_structural_catalog};
+pub(crate) use paths::{resolve_structural_path, structural_qualifications_match};
+pub(crate) use provider_specialization::validate_provider_attachment_specialization;
+pub(crate) use witnesses::{
+    validate_byte_sequence_literal_witnesses, validate_trivial_affine_local_witnesses,
+};
 
 pub(crate) fn index_structural_catalogs(
     unit: &PsiOptimizationUnit,

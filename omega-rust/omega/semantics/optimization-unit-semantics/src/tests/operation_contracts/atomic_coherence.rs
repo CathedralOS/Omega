@@ -1,7 +1,7 @@
 //! Reads-from and modification-after coherence of retained atomic-event
 //! edges under the bounded `happens_before` derivation.
 
-use crate::tests::{id, refresh_identity};
+use crate::tests::support::{id, refresh_identity};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractBlockEntry, AbstractFunction,
@@ -157,7 +157,7 @@ fn atomic_cfg_unit(
     entry: u64,
     blocks: &[(u64, usize)],
     operations: Vec<AbstractOperation>,
-) -> crate::PsiOptimizationUnit {
+) -> optimization_unit::PsiOptimizationUnit {
     let machine = id(31, MachineId::new);
     let mut operation_offset = 0;
     let block_entries = blocks
@@ -202,7 +202,7 @@ fn atomic_cfg_unit(
     .expect("valid unit")
 }
 
-fn atomic_unit(load_witness: Option<AtomicReadsFrom>) -> crate::PsiOptimizationUnit {
+fn atomic_unit(load_witness: Option<AtomicReadsFrom>) -> optimization_unit::PsiOptimizationUnit {
     atomic_cfg_unit(
         32,
         &[(32, 4)],
@@ -570,7 +570,9 @@ fn a_fence_neither_writes_nor_disturbs_the_order() {
 
 /// One block with two chained writes and a load: node 1 writes initial,
 /// node 2 follows it, node 3 observes node 2.
-fn chained_writes_unit(predecessor: Option<AtomicModificationAfter>) -> crate::PsiOptimizationUnit {
+fn chained_writes_unit(
+    predecessor: Option<AtomicModificationAfter>,
+) -> optimization_unit::PsiOptimizationUnit {
     atomic_cfg_unit(
         32,
         &[(32, 5)],

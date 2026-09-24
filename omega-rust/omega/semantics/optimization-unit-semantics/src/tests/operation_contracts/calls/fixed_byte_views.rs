@@ -1,6 +1,6 @@
 //! Boundary loans preserve the fixed array's type, extent and exclusive access.
 
-use crate::tests::{refresh_identity, refresh_node_derivatives};
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;

@@ -1,24 +1,16 @@
 //! Candidate contract, shape, evidence, and accounting join.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::OptimizationFact;
-use crate::OptimizationRuleIdentity;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarSubstitution;
-use crate::ScalarType;
-use crate::TotalScalarIdentityKind;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::reconstruct_total_scalar_identity_accounting;
-use crate::scalar_value_definition;
-use crate::validate_psi_optimization_unit;
+use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_total_scalar_identity_accounting;
+use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    ScalarSubstitution, TotalScalarIdentityKind, ValueDefinition, ValueDefinitionSite,
+};
+use semantic_vocabulary::ScalarType;
 
 use super::application::independently_apply_total_scalar_identity;
 use super::classification::independently_classify_total_scalar_identity;

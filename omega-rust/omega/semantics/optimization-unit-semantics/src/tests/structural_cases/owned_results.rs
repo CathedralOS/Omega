@@ -1,12 +1,10 @@
 use super::id;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
 use crate::tests::structural_cases::source_machine_unit;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{OperationId, PlaceId};
 
 #[path = "owned_results/returns.rs"]
 mod returns;

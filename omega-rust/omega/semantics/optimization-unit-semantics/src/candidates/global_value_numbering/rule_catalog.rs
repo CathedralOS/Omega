@@ -1,6 +1,6 @@
 //! Exact GVN rule identities and the proof classes they admit.
-use crate::OptimizationRuleIdentity;
 use crate::OptimizationUnitValidationError;
+use optimization_core::OptimizationRuleIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ScalarCseScope {

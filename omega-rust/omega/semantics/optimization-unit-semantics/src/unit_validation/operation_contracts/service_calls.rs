@@ -1,26 +1,27 @@
-use crate::BTreeMap;
-use crate::BoundaryMachineId;
-use crate::MachineId;
-use crate::O;
-use crate::PsiOptimizationFunction;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::StructuralProjectionPolicy;
-use crate::unit_validation::operation_contracts::boundary_completion_matches;
-use crate::unit_validation::operation_contracts::boundary_requirements_match;
-use crate::unit_validation::operation_contracts::exact_payloadless_structural_call;
-use crate::unit_validation::operation_contracts::exact_plain_affine_structural_call;
-use crate::unit_validation::operation_contracts::payloadless_selected_evidence_surface_matches;
-use crate::unit_validation::operation_contracts::plain_record_call;
-use crate::unit_validation::operation_contracts::plain_scalar_array_call;
-use crate::unit_validation::operation_contracts::plain_scalar_sum_call;
-use crate::unit_validation::operation_contracts::record_establishment_matches;
-use crate::unit_validation::operation_contracts::scalar_array_establishment_matches;
-use crate::unit_validation::operation_contracts::scalar_case_establishment_matches;
-use crate::unit_validation::operation_contracts::structural_arguments_match;
-use crate::unit_validation::operation_contracts::validate_internal_claim_transfers;
-use crate::unit_validation::operation_contracts::validate_structural_call_result;
+use crate::unit_validation::operation_contracts::affine_calls::exact_plain_affine_structural_call;
+use crate::unit_validation::operation_contracts::boundaries::{
+    boundary_completion_matches, boundary_requirements_match,
+};
+use crate::unit_validation::operation_contracts::claim_transfers::validate_internal_claim_transfers;
+use crate::unit_validation::operation_contracts::payloadless_cases::{
+    exact_payloadless_structural_call, payloadless_selected_evidence_surface_matches,
+    plain_scalar_sum_call, scalar_case_establishment_matches, validate_structural_call_result,
+};
+use crate::unit_validation::operation_contracts::records::{
+    plain_record_call, record_establishment_matches,
+};
+use crate::unit_validation::operation_contracts::scalar_arrays::{
+    plain_scalar_array_call, scalar_array_establishment_matches,
+};
+use crate::unit_validation::operation_contracts::structural_access::{
+    StructuralProjectionPolicy, structural_arguments_match,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
+};
+use std::collections::BTreeMap;
 
 pub(crate) fn operation_service_contract_matches(
     caller: &PsiOptimizationFunction,
@@ -349,7 +350,7 @@ fn reference_call_matches(
         && result.projected_qualifications == signature.projected_qualifications
         && crate::unit_validation::references::contains_reference(types, result.structural_type)
         && (crate::unit_validation::references::referent(types, result.structural_type).is_some()
-            || crate::unit_validation::operation_contracts::constructible_record(
+            || crate::unit_validation::operation_contracts::records::constructible_record(
                 types,
                 result.structural_type,
             ))
@@ -358,7 +359,7 @@ fn reference_call_matches(
         && caller.structural_places.iter().any(|place| {
             place.id == result.place
                 && place.kind
-                    == crate::StructuralPlaceKind::OperationResult {
+                    == semantic_vocabulary::StructuralPlaceKind::OperationResult {
                         producer: *psi_operation,
                         structural_type: result.structural_type,
                     }

@@ -1,24 +1,17 @@
 //! Affine claim, place, and join fixture units.
-use super::super::{
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::scalar_units::structural_call_unit;
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, FuelScheduleIdentity, SemanticFingerprint, TerminalPsiIdentity,
-    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+    AbstractOperationPlan,
 };
-
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::ClaimId;
-use crate::EdgeId;
-use crate::MachineId;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::refresh_function_derivatives;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::structural_call_unit;
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId,
+    PlaceId, StructuralTypeId, ValueId,
+};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub(crate) fn affine_claim_transfer_unit() -> PsiOptimizationUnit {
     let mut unit = structural_call_unit();

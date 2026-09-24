@@ -1,12 +1,9 @@
 //! Independent proof-certified scalar identity classification.
-use crate::IntegerCarrier;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::IntegerValue;
-use crate::O;
-use crate::OperationId;
-use crate::ProofCertifiedScalarIdentityKind;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::ProofCertifiedScalarIdentityKind;
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, ValueId,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct IndependentProofCertifiedScalarIdentity {

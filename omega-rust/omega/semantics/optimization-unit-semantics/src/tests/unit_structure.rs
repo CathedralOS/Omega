@@ -1,41 +1,30 @@
 //! General unit, dominance, affine-local, and custody tests.
-use super::id;
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::MachineId;
-use crate::O;
-use crate::OptimizationUnitValidationError;
-use crate::OwnershipFrontierOwnedPlace;
-use crate::OwnershipFrontierSnapshot;
-use crate::PlaceId;
-use crate::PsiProvenance;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::tests::OperationResultCfgShape;
-use crate::tests::byte_literal_boundary_unit;
-use crate::tests::byte_literal_dominating_non_topological_unit;
-use crate::tests::byte_literal_partial_predecessor_unit;
-use crate::tests::byte_literal_sibling_use_unit;
-use crate::tests::compressed_trivial_affine_return_unit;
-use crate::tests::compressed_trivial_affine_return_unit_with_prefix;
-use crate::tests::explicit_local_dominating_non_topological_unit;
-use crate::tests::explicit_local_same_block_use_before_definition_unit;
-use crate::tests::explicit_local_sibling_cleanup_unit;
-use crate::tests::explicit_trivial_affine_return_unit;
-use crate::tests::operation_result_cfg_unit;
-use crate::tests::refresh_function_derivatives;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::scalar_boundary_call_unit;
-use crate::tests::scalar_call_unit;
-use crate::tests::unit;
-use crate::unit_validation::affine_authority::valid_edge_affine_transition;
-use crate::unit_validation::affine_authority::valid_hidden_affine_establishment;
-use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractOperation;
-use semantic_vocabulary::OperationId;
+use crate::tests::fixtures::dominance::{
+    OperationResultCfgShape, byte_literal_boundary_unit,
+    byte_literal_dominating_non_topological_unit, byte_literal_partial_predecessor_unit,
+    byte_literal_sibling_use_unit, explicit_local_dominating_non_topological_unit,
+    explicit_local_same_block_use_before_definition_unit, explicit_local_sibling_cleanup_unit,
+    operation_result_cfg_unit, refresh_function_derivatives,
+};
+use crate::tests::fixtures::scalar_units::{scalar_boundary_call_unit, scalar_call_unit, unit};
+use crate::tests::fixtures::structural_catalog::{
+    compressed_trivial_affine_return_unit, compressed_trivial_affine_return_unit_with_prefix,
+    explicit_trivial_affine_return_unit,
+};
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::unit_validation::affine_authority::{
+    valid_edge_affine_transition, valid_hidden_affine_establishment,
+};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use abstract_operations::{AbstractOperation as O, AbstractOperation};
+use optimization_unit::{
+    OwnershipFrontierOwnedPlace, OwnershipFrontierSnapshot, PsiProvenance,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{
+    BlockId, MachineId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn structural_block_root_keys_retain_block_and_position() {

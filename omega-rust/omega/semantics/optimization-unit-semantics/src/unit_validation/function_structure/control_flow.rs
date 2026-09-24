@@ -1,16 +1,12 @@
 //! Block indexing, node metadata, edge indexing, and total-CFG validation.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::MachineId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::is_terminator;
-use crate::unit_validation::derived_metadata::provenance_matches_operation;
-use crate::unit_validation::derived_metadata::successors_match_operation;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, is_terminator,
+    provenance_matches_operation, successors_match_operation,
+};
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{BlockId, MachineId};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct FunctionControlFlow<'a> {
     pub(super) blocks: BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock>,

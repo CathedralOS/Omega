@@ -1,13 +1,8 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::StructuralTypeId;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, ValueDefinition, ValueDefinitionSite};
+use semantic_vocabulary::{BlockId, StructuralTypeId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn collect_value_definitions(
     function: &PsiOptimizationFunction,

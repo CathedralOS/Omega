@@ -1,27 +1,21 @@
 //! Boolean constant-evaluation candidate acceptance.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::BooleanConstantRewrite;
-use crate::IntegerEvaluationWitness;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarType;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::candidates::sparse_conditional_constant_propagation::boolean_evaluation;
-use crate::observation_at;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_closed_scalar_node_boundary;
-use crate::same_closed_scalar_observation;
+use crate::candidates::sparse_conditional_constant_propagation::{
+    boolean_evaluation, observation_at, same_closed_scalar_observation,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{
+    OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
+    validate_psi_optimization_unit,
+};
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    BooleanConstantRewrite, IntegerEvaluationWitness, ProvenanceDisposition, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::ScalarType;
 
 pub fn validate_boolean_evaluation_candidate(
     input: &PsiOptimizationUnit,

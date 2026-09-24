@@ -1,21 +1,16 @@
 //! Ordered continuation cleanup retires one partial owner, not the whole frontier.
-use crate::O;
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::partial_affine_residuals;
-use crate::current_ownership::partial_affine_root_type;
-use optimization_unit::OptimizationBlock;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::PlaceId;
-use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralAffineDiscard;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralPathSegment;
-use terminal_psi::StructuralTypeDeclaration;
+use crate::current_ownership::residuals::partial_affine_residuals;
+use crate::current_ownership::structural::partial_affine_root_type;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{
+    StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeDeclaration,
+};
 
 pub(super) fn validate_partial_continuation_roster(
     function: &PsiOptimizationFunction,

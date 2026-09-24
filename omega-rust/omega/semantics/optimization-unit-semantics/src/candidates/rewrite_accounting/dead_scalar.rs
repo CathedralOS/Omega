@@ -1,9 +1,8 @@
-use crate::BlockId;
-use crate::DeadScalarNodeRewrite;
-use crate::NodeLocation;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiRealizationSite;
+use optimization_unit::{
+    DeadScalarNodeRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationFunction,
+    PsiRealizationSite,
+};
+use semantic_vocabulary::BlockId;
 
 pub(crate) fn reconstruct_dead_scalar_node_accounting(
     function: &PsiOptimizationFunction,

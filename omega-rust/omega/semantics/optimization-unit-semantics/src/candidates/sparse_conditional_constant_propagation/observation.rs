@@ -1,7 +1,7 @@
 //! Closed scalar observation reconstruction and equality.
-use crate::PsiNodeObservation;
-use crate::PsiOptimizationUnit;
-use crate::reconstruct_psi_observation_model;
+use optimization_unit::{
+    PsiNodeObservation, PsiOptimizationUnit, reconstruct_psi_observation_model,
+};
 
 pub(crate) fn observation_at(
     unit: &PsiOptimizationUnit,

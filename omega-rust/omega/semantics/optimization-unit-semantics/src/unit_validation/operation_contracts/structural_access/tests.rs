@@ -1,14 +1,10 @@
 //! A derived descriptor never acquires the access of an owning result.
-use crate::O;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::ScalarType;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::unit_validation::operation_contracts::StructuralProjectionPolicy;
-use crate::unit_validation::operation_contracts::structural_access_can_supply;
-use crate::unit_validation::operation_contracts::structural_arguments_match;
-use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::operation_contracts::structural_access::{
+    StructuralProjectionPolicy, structural_access_can_supply, structural_arguments_match,
+    structural_source_contract,
+};
+use abstract_operations::AbstractOperation as O;
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
 
 #[test]
 fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
@@ -17,7 +13,8 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
         StructuralFieldType, StructuralMultiplicity as Multiplicity, StructuralPathSegment as Path,
         StructuralTypeDeclaration, StructuralTypeShape as Shape,
     };
-    let mut unit = crate::tests::projected_shared_structural_scalar_call_unit();
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
     let primitive = StructuralTypeId::new(9_001).unwrap();
     let array = StructuralTypeId::new(9_002).unwrap();
     let record = StructuralTypeId::new(9_003).unwrap();
@@ -158,7 +155,8 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
 #[test]
 fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitution() {
     use terminal_psi::{StructuralAccess as Access, StructuralMultiplicity as Multiplicity};
-    let mut unit = crate::tests::projected_shared_structural_scalar_call_unit();
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
     let types = unit
         .structural_types
         .iter()
@@ -211,7 +209,8 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
 
 #[test]
 fn subslice_source_contract_retains_shared_access_and_exact_result_identity() {
-    let mut unit = crate::tests::projected_shared_structural_scalar_call_unit();
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
     let caller = &mut unit.functions[0];
     let parameter = &caller.structural_parameters[0];
     let place = PlaceId::new(900).unwrap();

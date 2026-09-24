@@ -12,10 +12,9 @@
 //! borrow. Replays use this to re-derive the establishment a
 //! parameter-observing row claims, rather than trusting the row.
 
-use crate::O;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralPlaceKind;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralAccess, StructuralArgument};
 
 /// The one place `place` is bound to by every incoming edge when `place`

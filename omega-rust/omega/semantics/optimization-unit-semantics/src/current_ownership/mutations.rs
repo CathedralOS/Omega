@@ -1,14 +1,10 @@
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::discard_owned;
-use crate::current_ownership::parameter_establishment_order;
+use crate::current_ownership::references::discard_owned;
+use crate::current_ownership::{CurrentOwnership, parameter_establishment_order};
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::PlaceId;
-use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralTypeDeclaration;
+use terminal_psi::{StructuralMultiplicity, StructuralTypeDeclaration};
 
 pub(super) fn insert_owned_result(
     function: &PsiOptimizationFunction,

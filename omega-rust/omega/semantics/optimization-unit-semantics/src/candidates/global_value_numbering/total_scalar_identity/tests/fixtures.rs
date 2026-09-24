@@ -17,7 +17,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::candidates::{reconstruct_total_scalar_identity_accounting, scalar_value_definition};
+use crate::candidates::rewrite_accounting::scalar_identity::reconstruct_total_scalar_identity_accounting;
+use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
 
 const RULE_DOMAIN: &[u8] =
     b"omega.psi-rule.live-obligation-free-wrapping-integer-neutral-arithmetic-identity-elimination.v1";

@@ -8,35 +8,22 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact node custody the folded observations carry.
 
-use crate::BTreeMap;
-use crate::FoldedCaseMembershipRow;
-use crate::MachineId;
-use crate::O;
-use crate::OperationId;
-use crate::OptimizationFact;
-use crate::OptimizationNode;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PlaceId;
-use crate::ProvenanceDisposition;
-use crate::ProvenanceRewrite;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarType;
-use crate::StructuralCaseId;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValidatedPsiRewrite;
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::validate_psi_optimization_unit;
-use semantic_vocabulary::{BlockId, StructuralFieldId};
-use std::collections::BTreeSet;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    FoldedCaseMembershipRow, OptimizationFact, OptimizationNode, ProvenanceDisposition,
+    ProvenanceRewrite, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{
+    BlockId, MachineId, OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId,
+    StructuralPlaceKind, StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeShape,
@@ -457,7 +444,7 @@ fn admit_membership_node(
             })?
     };
     Some(FoldedCaseMembershipRow {
-        site: crate::NodeLocation {
+        site: optimization_unit::NodeLocation {
             machine,
             block,
             node: u32::try_from(node_index).ok()?,

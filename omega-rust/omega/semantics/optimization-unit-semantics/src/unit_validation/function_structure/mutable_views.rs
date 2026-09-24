@@ -1,10 +1,9 @@
 //! Current-graph exclusive bindings and fresh mutable view observations.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::StructuralTypeId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
 pub(super) fn validate(

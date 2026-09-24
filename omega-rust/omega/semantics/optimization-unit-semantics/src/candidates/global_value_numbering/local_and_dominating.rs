@@ -1,39 +1,30 @@
 //! Same-block and dominating scalar CSE validation and rewrite application.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::LocalScalarCommonSubexpressionRewrite;
-use crate::NodeLocation;
-use crate::O;
-use crate::OptimizationFact;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarSubstitution;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::candidates::global_value_numbering::ScalarCseProofClass;
-use crate::candidates::global_value_numbering::ScalarCseScope;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_local_cse_accounting;
-use crate::rewrite_scalar_value_uses;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::global_value_numbering::{ScalarCseProofClass, ScalarCseScope};
+use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_local_cse_accounting;
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
+    OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    LocalScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution, ValueDefinition, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
-use super::admission::*;
-use super::dominance_reconstruction::*;
-use super::expression_keys::*;
+use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
+use super::dominance_reconstruction::independent_reachable_dominators;
+use super::expression_keys::{
+    independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
+};
 
 pub(super) fn validate_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,

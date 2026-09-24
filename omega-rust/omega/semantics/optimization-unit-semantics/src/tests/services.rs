@@ -1,36 +1,25 @@
 //! Service hierarchy and root-reach tests.
-use super::id;
-use crate::BTreeMap;
-use crate::MachineId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::ServiceId;
-use crate::StructuralTypeId;
-use crate::tests::install_service_catalog;
-use crate::tests::installation_root_service_unit;
-use crate::tests::multiple_installation_root_service_unit;
-use crate::tests::provider_service_unit;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::scalar_boundary_call_unit;
-use crate::tests::scalar_call_unit;
-use crate::tests::service_effect_unit;
-use crate::tests::structural_call_unit;
-use crate::tests::structural_result_call_unit;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_provenance;
-use crate::unit_validation::derived_metadata::expected_uses;
+use crate::tests::fixtures::scalar_units::{
+    scalar_boundary_call_unit, scalar_call_unit, structural_call_unit,
+};
+use crate::tests::fixtures::structural_catalog::{
+    install_service_catalog, installation_root_service_unit,
+    multiple_installation_root_service_unit, provider_service_unit, service_effect_unit,
+    structural_result_call_unit,
+};
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_provenance, expected_uses,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::operation_contracts::operation_service_contract_matches;
 use crate::unit_validation::services::refresh_root_service_reach;
-use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractOperation;
-use abstract_operations::AbstractResult;
-use semantic_vocabulary::OperationId;
-use semantic_vocabulary::ScalarType;
-use semantic_vocabulary::ValueId;
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use abstract_operations::{AbstractOperation, AbstractResult};
+use semantic_vocabulary::{
+    MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+};
+use std::collections::BTreeMap;
 
 #[test]
 fn replays_service_catalog_hierarchy_ceilings_and_concrete_effects() {

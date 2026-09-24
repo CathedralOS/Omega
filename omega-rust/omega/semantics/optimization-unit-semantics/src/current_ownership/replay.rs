@@ -1,28 +1,23 @@
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::LiveClaim;
-use crate::current_ownership::apply_edge_partial_affine_discards;
-use crate::current_ownership::apply_edge_trivial_affine_discards;
-use crate::current_ownership::bind_owned_parameters;
-use crate::current_ownership::expected_trivial_affine_discards;
-use crate::current_ownership::insert_owned_result;
-use crate::current_ownership::projected_root_is_fully_consumed;
-use crate::current_ownership::reject_live_linear_claim;
-use crate::current_ownership::validate_partial_continuation_roster;
-use crate::current_ownership::validate_scalar_cleanup_actions;
-use crate::current_ownership::validate_unit_cleanup_actions;
-use optimization_unit::OptimizationBlock;
-use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::MachineId;
-use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use terminal_psi::BoundaryMachineDeclaration;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralTypeDeclaration;
+use crate::current_ownership::cleanup::{
+    validate_scalar_cleanup_actions, validate_unit_cleanup_actions,
+};
+use crate::current_ownership::mutations::{
+    apply_edge_trivial_affine_discards, expected_trivial_affine_discards, insert_owned_result,
+    reject_live_linear_claim,
+};
+use crate::current_ownership::structural::projected_root_is_fully_consumed;
+use crate::current_ownership::{
+    CurrentOwnership, LiveClaim, apply_edge_partial_affine_discards, bind_owned_parameters,
+    validate_partial_continuation_roster,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{
+    BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(

@@ -1,11 +1,9 @@
 //! Closed case rosters and edge-produced scalar payload telescopes.
-use crate::BTreeMap;
-use crate::BlockId;
 use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::operation_contracts::structural_access::structural_source_contract;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use std::collections::BTreeMap;
 
 pub(super) fn validate(
     function: &PsiOptimizationFunction,

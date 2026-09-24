@@ -1,13 +1,11 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
-use crate::unit_validation::structural_catalog::validate_structural_cases;
-use crate::unit_validation::structural_catalog::validate_structural_content_projection;
-use crate::unit_validation::structural_catalog::validate_structural_fields;
-use crate::unit_validation::structural_catalog::validate_structural_type_graph;
+use crate::unit_validation::structural_catalog::content_projection::validate_structural_content_projection;
+use crate::unit_validation::structural_catalog::type_declarations::{
+    validate_structural_cases, validate_structural_fields, validate_structural_type_graph,
+};
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn index_structural_types(
     unit: &PsiOptimizationUnit,

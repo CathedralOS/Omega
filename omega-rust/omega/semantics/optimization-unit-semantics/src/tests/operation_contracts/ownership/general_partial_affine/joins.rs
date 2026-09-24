@@ -1,14 +1,14 @@
 //! Exact source, qualification, and claim joins remain independent of cleanup.
 
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::support::id;
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{ClaimId, StructuralDomainId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathQualification};
 
-use super::fixtures::*;
-use crate::tests::{id, refresh_function_derivatives};
-use crate::unit_validation::operation_contracts::validate_internal_claim_transfers;
+use super::fixtures::{field, index, mixed_unit};
 use crate::unit_validation::operation_contracts::{
-    StructuralProjectionPolicy, structural_arguments_match,
+    StructuralProjectionPolicy, structural_arguments_match, validate_internal_claim_transfers,
 };
 use crate::validate_psi_optimization_unit;
 

@@ -1,17 +1,14 @@
-use crate::BTreeMap;
-use crate::BoundaryMachineId;
-use crate::MachineId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
-use crate::ValueDefinition;
-use crate::ValueId;
-use crate::unit_validation::operation_contracts::operation_scalar_types_match;
-use crate::unit_validation::operation_contracts::operation_service_contract_matches;
-use crate::unit_validation::operation_contracts::operation_structural_call_contract_matches;
+use crate::unit_validation::operation_contracts::scalar_types::operation_scalar_types_match;
+use crate::unit_validation::operation_contracts::service_calls::{
+    operation_service_contract_matches, operation_structural_call_contract_matches,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
+};
+use std::collections::BTreeMap;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_node_operation_contracts(

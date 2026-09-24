@@ -1,12 +1,13 @@
 //! Continuation cleanup is replayed before the successor, including result roots.
 
-use super::fixtures::*;
+use super::fixtures::{array, boundary_result_unit, call_result_unit, field, index, record, unit};
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::support::id;
 use abstract_operations::AbstractOperation;
 use optimization_unit::{OptimizationBlock, PsiOptimizationUnit};
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralAffineDiscard, TerminalAffineCleanupAction};
 
-use crate::tests::{id, refresh_function_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 fn continuation(mut unit: PsiOptimizationUnit) -> PsiOptimizationUnit {
@@ -350,7 +351,7 @@ fn partial_continuation_rejoins_exact_retained_edge_snapshots() {
                 exit,
             ),
         ];
-        crate::tests::refresh_identity(&mut unit);
+        crate::tests::support::refresh_identity(&mut unit);
         let result = validate_psi_optimization_unit(&unit);
         if mutation == 0 {
             result.expect("retained entry and exit reconstruct the exact same partial cleanup");

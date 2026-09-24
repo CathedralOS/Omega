@@ -1,19 +1,16 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::ClaimId;
-use crate::O;
-use crate::OperationId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::StructuralDomainId;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
 use crate::unit_validation::services::structural_signature_matches;
-use crate::unit_validation::structural_catalog::resolve_structural_path;
-use crate::unit_validation::structural_catalog::structural_projected_qualifications_match;
-use crate::unit_validation::structural_catalog::structural_qualifications_match;
+use crate::unit_validation::structural_catalog::paths::{
+    resolve_structural_path, structural_projected_qualifications_match,
+    structural_qualifications_match,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, OperationId, StructuralDomainId, StructuralPlaceKind,
+    StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum ValidatorStructuralRootKey {

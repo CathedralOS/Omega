@@ -1,6 +1,7 @@
 //! Scalar operation result and literal-domain corruption rejection.
 
-use crate::tests::{exact_add_unit, id, refresh_node_derivatives, unit};
+use crate::tests::fixtures::scalar_units::{exact_add_unit, unit};
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{BlockId, IntegerValue, MachineId};

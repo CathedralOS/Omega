@@ -1,23 +1,18 @@
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::expected_trivial_affine_discards;
-use crate::current_ownership::has_live_owned_operation_result;
-use crate::current_ownership::parameter_establishment_order;
-use crate::current_ownership::partial_affine_residuals;
-use crate::current_ownership::partial_affine_root_type;
-use crate::current_ownership::place_structural_type;
+use crate::current_ownership::mutations::expected_trivial_affine_discards;
+use crate::current_ownership::residuals::partial_affine_residuals;
+use crate::current_ownership::structural::{
+    has_live_owned_operation_result, partial_affine_root_type, place_structural_type,
+};
+use crate::current_ownership::{CurrentOwnership, parameter_establishment_order};
 use abstract_operations::AbstractFunctionResult;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::MachineId;
-use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::StructuralAffineDiscard;
-use terminal_psi::StructuralFieldType;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralTypeDeclaration;
-use terminal_psi::StructuralTypeShape;
-use terminal_psi::TerminalAffineCleanupAction;
+use terminal_psi::{
+    StructuralAffineDiscard, StructuralFieldType, StructuralMultiplicity,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+};
 
 pub(super) fn validate_unit_cleanup_actions(
     function: &PsiOptimizationFunction,

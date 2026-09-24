@@ -1,7 +1,5 @@
-use crate::BTreeMap;
-use crate::ContentProjectionExpression;
-use crate::ContentProjectionScalar;
-use crate::StructuralTypeId;
+use semantic_vocabulary::{ContentProjectionExpression, ContentProjectionScalar, StructuralTypeId};
+use std::collections::BTreeMap;
 
 pub(crate) fn validate_content_projection_scalar(
     value: &ContentProjectionScalar,

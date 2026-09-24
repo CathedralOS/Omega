@@ -1,15 +1,8 @@
 //! Optimizer module role: stage group. Typed units and candidates shared by independent-validator test families.
 
-mod candidates;
-mod dominance;
-mod ownership;
-mod primitive_locals;
-mod scalar_units;
-mod structural_catalog;
-
-pub(crate) use candidates::*;
-pub(crate) use dominance::*;
-pub(crate) use ownership::*;
-pub(crate) use primitive_locals::*;
-pub(crate) use scalar_units::*;
-pub(crate) use structural_catalog::*;
+pub(crate) mod candidates;
+pub(crate) mod dominance;
+pub(crate) mod ownership;
+pub(crate) mod primitive_locals;
+pub(crate) mod scalar_units;
+pub(crate) mod structural_catalog;

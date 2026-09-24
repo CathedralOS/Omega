@@ -16,11 +16,10 @@
 //! the concurrent-execution route.
 use abstract_operations::{AbstractOperation, happens_before_atomic_coherence_violation};
 
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::BlockId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_function_atomic_coherence(
     function: &PsiOptimizationFunction,

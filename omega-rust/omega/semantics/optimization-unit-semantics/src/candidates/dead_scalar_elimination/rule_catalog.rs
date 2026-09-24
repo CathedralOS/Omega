@@ -1,7 +1,7 @@
 //! Exact dead-scalar rule identities and their independently accepted families.
-use crate::OptimizationRuleIdentity;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationValidatorIdentity;
+use optimization_core::{
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum DeadScalarFamily {

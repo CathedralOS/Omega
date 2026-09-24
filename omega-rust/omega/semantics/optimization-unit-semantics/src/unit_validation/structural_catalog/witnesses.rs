@@ -1,10 +1,8 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::PsiProvenance;
 use crate::unit_validation::derived_metadata::expected_provenance;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_byte_sequence_literal_witnesses(
     function: &PsiOptimizationFunction,

@@ -1,11 +1,11 @@
 //! Rejoin retained edge snapshots after cleanup and whole owned rebinding.
-use crate::BTreeMap;
-use crate::OwnershipFrontierOwnedPlace;
-use crate::OwnershipFrontierSnapshot;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
 use crate::unit_validation::affine_authority::valid_edge_partial_affine_transition;
 use abstract_operations::AbstractStructuralBinding;
+use optimization_unit::{
+    OwnershipFrontierOwnedPlace, OwnershipFrontierSnapshot, PsiOptimizationFunction,
+};
+use semantic_vocabulary::PlaceId;
+use std::collections::BTreeMap;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn valid_transition(

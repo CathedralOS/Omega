@@ -1,12 +1,8 @@
 //! Integer proposition extraction and exact interval algebra.
-use semantic_vocabulary::IntegerCarrier;
-use semantic_vocabulary::IntegerSign;
-use semantic_vocabulary::IntegerType;
-use semantic_vocabulary::IntegerValue;
-use semantic_vocabulary::Proposition;
-use semantic_vocabulary::ScalarTerm;
-use semantic_vocabulary::ScalarType;
-use semantic_vocabulary::ValueId;
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    ValueId,
+};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, Default)]

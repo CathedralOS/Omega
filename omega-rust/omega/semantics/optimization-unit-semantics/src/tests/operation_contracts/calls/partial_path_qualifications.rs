@@ -1,6 +1,7 @@
 //! Exact parameter-rooted path qualification consumption and corruption refusal.
 
-use crate::tests::{partial_path_qualified_boundary_unit, refresh_identity};
+use crate::tests::fixtures::dominance::partial_path_qualified_boundary_unit;
+use crate::tests::support::refresh_identity;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::StructuralDomainId;

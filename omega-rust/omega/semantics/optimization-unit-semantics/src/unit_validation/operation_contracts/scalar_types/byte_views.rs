@@ -1,11 +1,8 @@
 //! Byte payloads and checked view coordinates retain exact scalar carriers.
-use crate::BTreeMap;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::O;
-use crate::ScalarType;
-use crate::ValueDefinition;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::ValueDefinition;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
+use std::collections::BTreeMap;
 
 pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDefinition>) -> bool {
     let scalar = |value: ValueId| definitions.get(&value).map(|row| row.scalar_type);

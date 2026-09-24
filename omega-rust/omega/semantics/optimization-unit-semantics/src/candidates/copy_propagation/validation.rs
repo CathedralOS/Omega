@@ -1,26 +1,20 @@
 //! Redundant-parameter witness reconstruction and rewrite acceptance.
-use crate::BTreeSet;
-use crate::BlockParameterIncomingBinding;
-use crate::NodeLocation;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinitionSite;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_psi_closed_region_observation;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_uses,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    BlockParameterIncomingBinding, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
+};
+use std::collections::BTreeSet;
 
-use super::observation::*;
+use super::observation::{
+    normalize_redundant_parameter_observation_input, unchanged_outside_redundant_parameter_region,
+};
 use super::operation_rewrite::rewrite_block_parameter_operation;
 
 pub(super) fn validate_redundant_block_parameter_candidate(
