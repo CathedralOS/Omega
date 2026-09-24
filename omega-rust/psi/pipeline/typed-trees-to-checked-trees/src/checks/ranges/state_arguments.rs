@@ -92,10 +92,29 @@ enum MergedFact<T> {
     Conflicting,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ParameterIndexProofSide {
+    /// A destination parameter position -- the callee names it.
+    Parameter(usize),
+    /// Machine storage (`self.field`) names the same place in every state of
+    /// this machine: a receiver transition hands off the live storage, so a
+    /// caller-seeded pair involving it rides the edge unchanged.
+    MachineStorage(String),
+}
+
+impl ParameterIndexProofSide {
+    fn label<'a>(&'a self, parameters: &'a [ParameterFacts]) -> Option<&'a str> {
+        match self {
+            Self::Parameter(position) => parameters.get(*position).map(|p| p.name.as_str()),
+            Self::MachineStorage(label) => Some(label.as_str()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ParameterIndexProof {
-    collection_parameter: usize,
-    index_parameter: usize,
+    collection: ParameterIndexProofSide,
+    index: ParameterIndexProofSide,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -412,13 +431,13 @@ pub(super) fn seed_state_argument_facts(
     }
 
     for proof in state_facts.index_proofs.get() {
-        let Some(collection) = state_facts.parameters.get(proof.collection_parameter) else {
+        let Some(collection) = proof.collection.label(&state_facts.parameters) else {
             continue;
         };
-        let Some(index) = state_facts.parameters.get(proof.index_parameter) else {
+        let Some(index) = proof.index.label(&state_facts.parameters) else {
             continue;
         };
-        facts.prove_index(collection.name.clone(), index.name.clone());
-        facts.prove_range_bound(collection.name.clone(), index.name.clone());
+        facts.prove_index(collection.to_owned(), index.to_owned());
+        facts.prove_range_bound(collection.to_owned(), index.to_owned());
     }
 }

@@ -3,12 +3,15 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
-use super::{MergedFact, ParameterFacts, StateArgumentFacts};
+use super::{
+    MergedFact, ParameterFacts, ParameterIndexProof, ParameterIndexProofSide, StateArgumentFacts,
+};
 use crate::checks::ranges::expressions::{
     ensured_call_result_bounds, expression_indexable_length, expression_integer_value,
 };
 use crate::checks::ranges::facts::RangeFacts;
 use crate::checks::ranges::proofs::unknown_length_index_is_proven;
+use language_core::is_receiver_rooted;
 
 pub(super) fn collect_state_argument_facts_for_call(
     program: &typed_trees::TypedTrees,
@@ -147,12 +150,39 @@ pub(super) fn collect_state_argument_facts_for_call(
             if argument_is_proven_index_for_collection(
                 program, machine, state, facts, collection, index,
             ) {
-                index_proofs.push(super::ParameterIndexProof {
-                    collection_parameter,
-                    index_parameter,
+                index_proofs.push(ParameterIndexProof {
+                    collection: ParameterIndexProofSide::Parameter(collection_parameter),
+                    index: ParameterIndexProofSide::Parameter(index_parameter),
                 });
             }
         }
+        // A pair can also ride machine storage on the index side: `self.field`
+        // names the same place in every state of this machine, so a proven
+        // `(argument, self.field)` pair re-keys onto the destination parameter.
+        let collection_label = program.expression_table.display_name(collection);
+        index_proofs.extend(
+            facts
+                .proven_index_labels(&collection_label)
+                .filter(|index| is_receiver_rooted(index))
+                .map(|index| ParameterIndexProof {
+                    collection: ParameterIndexProofSide::Parameter(collection_parameter),
+                    index: ParameterIndexProofSide::MachineStorage(index.clone()),
+                }),
+        );
+    }
+    for (index_parameter, index) in parameter_arguments.iter().copied() {
+        // The mirror: `(self.field, argument)` -- machine storage on the
+        // collection side (`self.slice[index_arg]`).
+        let index_label = program.expression_table.display_name(index);
+        index_proofs.extend(
+            facts
+                .proven_collections_for_index(&index_label)
+                .filter(|collection| is_receiver_rooted(collection))
+                .map(|collection| ParameterIndexProof {
+                    collection: ParameterIndexProofSide::MachineStorage(collection.clone()),
+                    index: ParameterIndexProofSide::Parameter(index_parameter),
+                }),
+        );
     }
     entry.index_proofs.merge(index_proofs);
 }
