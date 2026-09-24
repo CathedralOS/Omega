@@ -27,6 +27,7 @@ pub boundary trait ObjectiveC {
     machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
 }
 
+domain i32::I320To8 requires 0 <= self && self <= 8;
 data Main {
     console: Binding<Console>;
     objc: Binding<ObjectiveC>;
@@ -41,7 +42,7 @@ data Main {
     pump_sel: u64;
     evt: u64;
     mask: u64;
-    n: i32 [0..=8];
+    n: i32 in I320To8;
 }
 
 machine Main::main(&mut self) reaches Console {

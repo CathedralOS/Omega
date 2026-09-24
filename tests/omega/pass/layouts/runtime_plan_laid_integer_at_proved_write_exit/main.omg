@@ -4,15 +4,19 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u64::U640To4096 requires self <= 4096;
+domain u64::U641To16 requires 1 <= self && self <= 16;
+domain u64::U640To32 requires self <= 32;
+domain i64::I64n128To127 requires -128 <= self && self <= 127;
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
     key: u64;
-    size: u64 [0..=4096];
-    align: u64 [1..=16];
+    size: u64 in U640To4096;
+    align: u64 in U641To16;
     number: i64;
     kind: FieldKind;
 }
-data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 in U640To32; }
 data IntegerInterpretation { case Signed; case Unsigned; }
 data FieldPlan {
     case IntegerAt(offset: u64, stored_width: u64, interpretation: IntegerInterpretation);
@@ -51,7 +55,7 @@ data RawView { value: SignedByte<PortableByte>; }
 data Main {
     console: Binding<Console>;
     packed: SignedByte<PortableByte>;
-    source: i64 [-128..=127];
+    source: i64 in I64n128To127;
     flow_source: i64;
     bytes: [u8; 1];
 }

@@ -40,6 +40,7 @@ pub boundary trait CoreGraphics {
     machine bitmap_context_image(ctx: u64) -> u64;
 }
 
+domain i32::I320To8 requires 0 <= self && self <= 8;
 data Main {
     console: Binding<Console>;
     objc: Binding<ObjectiveC>;
@@ -67,7 +68,7 @@ data Main {
     nsimg: u64;
     evt: u64;
     mask: u64;
-    frame: i32 [0..=8];
+    frame: i32 in I320To8;
     alive: u64;
     rc: u64;
 }

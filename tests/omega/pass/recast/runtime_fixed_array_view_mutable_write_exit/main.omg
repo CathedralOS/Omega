@@ -4,10 +4,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u32::U320To2 requires self <= 2;
 data Main {
     console: Binding<Console>;
     bytes: [u8; 10];
-    k: u32 [0..=2];
+    k: u32 in U320To2;
 }
 
 machine Main::main(&mut self) reaches Console {
