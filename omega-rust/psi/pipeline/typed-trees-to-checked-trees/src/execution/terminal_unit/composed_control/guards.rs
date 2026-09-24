@@ -32,15 +32,34 @@ pub(super) fn exact_guard(
         {
             Some(expression.clone())
         }
-        // Negated spellings of the same single-Bool-parameter guards:
-        // `!flag` is `Not{Parameter{0}}` and `flag != literal` is
-        // `Not{Equal{Parameter{0}, Constant}}` — the authored polarity is
-        // carried inside the retained expression, so the join admits them
-        // verbatim.
+        // Negated spellings of the same single-parameter guards:
+        // `!flag` is `Not{Parameter{0}}`, `flag != literal` is
+        // `Not{Equal{Parameter{0}, Constant}}`, and `x != 5` is
+        // `Not{IntegerComparison{Equal, Parameter{0}, IntegerLiteral}}` —
+        // the authored polarity is carried inside the retained expression,
+        // so the join admits it verbatim.
         ([parameter], [], checked_trees::CheckedBooleanExpression::Not(inner))
             if parameter.source_position <= 1
-                && parameter.primitive_type == PrimitiveType::Bool
-                && negated_parameter_guard(inner) =>
+                && negated_parameter_guard(inner, parameter.primitive_type) =>
+        {
+            Some(expression.clone())
+        }
+        // The integer sibling of the Boolean equality arm: `x == 5` is
+        // `IntegerComparison{Equal, Parameter{0}, IntegerLiteral}` under the
+        // sole scalar parameter — the operand's primitive type ties it to
+        // `parameter`, and the literal may ride either side. Ordering
+        // comparisons and parameter-on-parameter equality still decline.
+        (
+            [parameter],
+            [],
+            checked_trees::CheckedBooleanExpression::IntegerComparison {
+                kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                left,
+                right,
+            },
+        ) if parameter.source_position <= 1
+            && (parameter_and_integer_literal(left, right, parameter.primitive_type)
+                || parameter_and_integer_literal(right, left, parameter.primitive_type)) =>
         {
             Some(expression.clone())
         }
@@ -63,14 +82,45 @@ pub(super) fn exact_guard(
     }
 }
 
-fn negated_parameter_guard(expression: &checked_trees::CheckedBooleanExpression) -> bool {
-    match expression {
-        checked_trees::CheckedBooleanExpression::Parameter { position: 0 } => true,
-        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+fn negated_parameter_guard(
+    expression: &checked_trees::CheckedBooleanExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    match (primitive_type, expression) {
+        (
+            PrimitiveType::Bool,
+            checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
+        ) => true,
+        (PrimitiveType::Bool, checked_trees::CheckedBooleanExpression::Equal { left, right }) => {
             parameter_and_literal(left, right) || parameter_and_literal(right, left)
+        }
+        (
+            _,
+            checked_trees::CheckedBooleanExpression::IntegerComparison {
+                kind: checked_trees::CheckedIntegerComparisonKind::Equal,
+                left,
+                right,
+            },
+        ) => {
+            parameter_and_integer_literal(left, right, primitive_type)
+                || parameter_and_integer_literal(right, left, primitive_type)
         }
         _ => false,
     }
+}
+
+fn parameter_and_integer_literal(
+    parameter: &CheckedScalarExpression,
+    literal: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    matches!(
+        parameter,
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: operand_type,
+        } if *operand_type == primitive_type
+    ) && matches!(literal, CheckedScalarExpression::IntegerLiteral { .. })
 }
 
 fn parameter_and_literal(

@@ -1,7 +1,7 @@
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarParameterPlan, PrimitiveType,
-    StatementNode, SymbolHandle, TransitionExit, TransitionGuardNode, TypedTrees,
+    CheckedStructuralControlSuccessorPlan, CheckedStructuralScalarParameterPlan, StatementNode,
+    SymbolHandle, TransitionExit, TransitionGuardNode, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use crate::execution::terminal_unit::composed_control::topology;
@@ -19,9 +19,12 @@ pub(in crate::execution::terminal_unit) struct DynamicJoinControlTopology {
 }
 
 /// Reuse the ordinary composed-control topology proof for the dynamic join
-/// lane. The first rung accepts only an implicit borrowed `self`, one Boolean
-/// entry parameter, and two custody-free leaves; the leaf operations are owned
-/// by the dynamic call plans instead of the general effect planner.
+/// lane. The entry accepts an implicit borrowed `self`, one scalar entry
+/// parameter at authored position 1, and two custody-free leaves; the leaf
+/// operations are owned by the dynamic call plans instead of the general
+/// effect planner. Which (parameter type, guard shape) pairs compose is
+/// decided by `exact_guard`, not here — a Boolean parameter admits the
+/// bare/equality/negated forms, an integer parameter the comparison forms.
 pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -47,7 +50,6 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
             !is_unit(program, state.return_type) || !program.state_contracts(state).is_empty()
         })
         || scalar_parameter.source_position != 1
-        || scalar_parameter.primitive_type != PrimitiveType::Bool
         || attachment_type_identity != true_attachment
         || attachment_type_identity != false_attachment
         || !entry_structural.is_empty()
