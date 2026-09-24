@@ -207,7 +207,7 @@ rows! {
         "scope:primitive-value-snapshots",
         PremiseScope,
         "a copied primitive SSA value's reaching-store query over the machine within the bounded work limit",
-        "the exact root/path store identities reaching the value, stopping at definitions and preserving only statically disjoint sibling writes; queries never evaluate source expressions or consult the requested contract",
+        "the exact root/path store identities reaching the value, stopping at definitions and preserving only statically disjoint sibling writes; a runtime-selected element is never an exact definition and overlaps every sibling; queries never evaluate source expressions or consult the requested contract",
         &["scope:dominance-order"],
         &[tv!( "verification/reconstruction/primitive_snapshots.rs")]
     );
@@ -234,14 +234,6 @@ rows! {
         WriteInvalidation,
         "a WriteOnlyPrimitiveStore to a destination place",
         "every proposition still observing the destination after exact scalar capture is removed from the axiom set",
-        &["fact:structural-effect-observation", "scope:field-value-snapshots"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
-    );
-    INV_INDEXED_PRIMITIVE_STORE => (
-        "invalidation:write-only-indexed-primitive-store",
-        WriteInvalidation,
-        "a WriteOnlyIndexedPrimitiveStore to a destination place",
-        "every proposition still observing the destination root after exact scalar capture is removed from the axiom set; the runtime index cannot name the written leaf",
         &["fact:structural-effect-observation", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/propositions.rs")]
     );

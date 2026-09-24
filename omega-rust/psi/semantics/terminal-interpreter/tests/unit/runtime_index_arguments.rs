@@ -592,3 +592,225 @@ fn only_runtime_projecting_operations_carry_a_runtime_element() {
         Err(VerificationError::Module(_))
     ));
 }
+
+const OCTET: u64 = 80;
+const ROW_BYTES: u64 = 81;
+const BYTE_GRID: u64 = 82;
+const BYTE_OWNER: u64 = 83;
+const STORED: u64 = 42;
+
+fn u8_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap())
+}
+
+/// `Owner { bytes: [[u8; 2]; 3] }` behind a mutable borrow: the machine
+/// stores `v` into `self.bytes[i][j]`, reads the same element back through a
+/// second projection, and returns the read. Both primitive-leaf operations
+/// carry the two runtime elements in their paths, each with its own
+/// obligation.
+fn byte_grid_module(requires: Vec<Proposition>) -> TerminalModule {
+    let mut module = unit_module();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: structural_type_id(OCTET),
+            identity: "test::Octet".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(u8_type()),
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(ROW_BYTES),
+            identity: "test::RowBytes".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: structural_type_id(OCTET),
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(BYTE_GRID),
+            identity: "test::ByteGrid".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: structural_type_id(ROW_BYTES),
+                length: 3,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(BYTE_OWNER),
+            identity: "test::ByteOwner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(
+                    1,
+                    "bytes",
+                    StructuralFieldType::Structural(structural_type_id(BYTE_GRID)),
+                )],
+            },
+        },
+    ];
+    let grid_path = |row_obligation, column_obligation| {
+        vec![
+            StructuralPathSegment::Field("bytes".into()),
+            runtime(ROW_SELECTOR, row_obligation),
+            runtime(COLUMN_SELECTOR, column_obligation),
+        ]
+    };
+    let machine = &mut module.machines[0];
+    machine.attachment = Some(structural_type_id(BYTE_OWNER));
+    machine.parameters = [
+        (ROW_SELECTOR, ScalarType::Integer(u64_type())),
+        (COLUMN_SELECTOR, ScalarType::Integer(u64_type())),
+        (STORED, u8_type()),
+    ]
+    .into_iter()
+    .map(|(raw, scalar_type)| ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(raw),
+        scalar_type,
+    })
+    .collect();
+    machine.structural_parameters = vec![StructuralParameterDeclaration {
+        place: place_id(CALLER_ROOT),
+        position: 0,
+        is_self: true,
+        structural_type: structural_type_id(BYTE_OWNER),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }];
+    machine.structural_places = vec![StructuralPlaceDeclaration {
+        id: place_id(CALLER_ROOT),
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: true,
+        },
+    }];
+    machine.contract.requires = requires;
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(3),
+        scalar_type: u8_type(),
+    });
+    machine.blocks[0].operations = vec![
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(1),
+            result: OperationResult::Unit,
+            kind: OperationKind::WriteOnlyPrimitiveStore {
+                destination: place_id(CALLER_ROOT),
+                path: grid_path(1, 2),
+                value: value_id(STORED),
+            },
+        },
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(2),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(2),
+                scalar_type: u8_type(),
+            }),
+            kind: OperationKind::PrimitiveScalarRead {
+                source: place_id(CALLER_ROOT),
+                path: grid_path(3, 4),
+            },
+        },
+    ];
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(2),
+        cleanup_actions: Vec::new(),
+    };
+    module
+}
+
+/// Run the byte-grid artifact: rows start as `[10r, 10r + 1]`.
+fn run_byte_grid(module: &TerminalModule, bundle: &ProofBundle, row: u64, column: u64) -> u128 {
+    let semantic = encode_module(module).unwrap();
+    assert_eq!(decode_module(&semantic).unwrap(), *module);
+    let proof = encode_proof_section(module, bundle).unwrap();
+    let integer = |value: u128, scalar_type: IntegerType| TerminalScalarValue::Integer {
+        scalar_type,
+        value: IntegerValue::Unsigned(value),
+    };
+    let arguments = [
+        integer(u128::from(row), u64_type()),
+        integer(u128::from(column), u64_type()),
+        integer(99, IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+    ];
+    let rows = (0..3u8)
+        .map(
+            |row| terminal_interpreter::TerminalStructuralByteArrayValue {
+                argument_index: 0,
+                path: vec![
+                    StructuralPathSegment::Field("bytes".into()),
+                    StructuralPathSegment::FixedIndex(u64::from(row)),
+                ],
+                bytes: vec![10 * row, 10 * row + 1],
+            },
+        )
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &arguments,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 701,
+                structural_type: structural_type_id(BYTE_OWNER),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            byte_arrays: &rows,
+            ..Default::default()
+        },
+    )
+    .expect("the verified artifact starts");
+    match execution
+        .resume(
+            &mut TerminalFuelMeter::unbounded(),
+            &mut AcceptTerminalEffects,
+        )
+        .unwrap()
+    {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: IntegerValue::Unsigned(value),
+                ..
+            },
+        )) => value,
+        other => panic!("the machine returns the stored element: {other:?}"),
+    }
+}
+
+#[test]
+fn primitive_leaves_store_and_read_through_nested_runtime_elements() {
+    let module = byte_grid_module(vec![at_most(ROW_SELECTOR, 2), at_most(COLUMN_SELECTOR, 1)]);
+    let sites = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let mut bounds = sites
+        .obligations()
+        .iter()
+        .map(|site| (site.obligation.id, site.obligation.proposition.clone()))
+        .collect::<Vec<_>>();
+    bounds.sort_by_key(|(id, _)| *id);
+    let row = Proposition::LessThan(selector(ROW_SELECTOR), literal(3));
+    let column = Proposition::LessThan(selector(COLUMN_SELECTOR), literal(2));
+    assert_eq!(
+        bounds,
+        vec![
+            (obligation_id(1), row.clone()),
+            (obligation_id(2), column.clone()),
+            (obligation_id(3), row),
+            (obligation_id(4), column),
+        ]
+    );
+    let bundle = certificates(&module);
+    for row in 0..3 {
+        for column in 0..2 {
+            assert_eq!(run_byte_grid(&module, &bundle, row, column), 99);
+        }
+    }
+    // Without the column bound, nothing proves `j < 2` for either operation.
+    let unbounded = byte_grid_module(vec![at_most(ROW_SELECTOR, 2)]);
+    rejection(&unbounded, &ProofBundle::default());
+}

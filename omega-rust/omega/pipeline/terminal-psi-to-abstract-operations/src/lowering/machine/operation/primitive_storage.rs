@@ -67,6 +67,7 @@ pub(super) fn scalar_type(
 
 pub(super) fn lower(
     operation: &Operation,
+    block: &terminal_psi::Block,
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
     values: &BTreeMap<ValueId, ScalarType>,
@@ -114,7 +115,27 @@ pub(super) fn lower(
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(invalid)?;
-            if terminal_semantics::primitive_place_type(types.iter(), identity, path)
+            let path = match super::primitive_projection::split(types, identity, path) {
+                Some(super::primitive_projection::PrimitiveProjection::Static(path)) => path,
+                // One trailing runtime element reads through the abstract
+                // indexed read, over the same readable source.
+                Some(super::primitive_projection::PrimitiveProjection::TrailingRuntimeIndex {
+                    array,
+                    element,
+                    index,
+                    obligation,
+                }) => {
+                    return super::structural_scalar_fields::lower_indexed_read(
+                        operation, block, machine, source, &array, element, index, obligation,
+                    );
+                }
+                None => {
+                    return Err(LoweringError::UnsupportedRuntimeIndexProjection(
+                        operation.id,
+                    ));
+                }
+            };
+            if terminal_semantics::primitive_place_type(types.iter(), identity, &path)
                 != Some(result.scalar_type)
             {
                 return Err(invalid());
@@ -122,7 +143,7 @@ pub(super) fn lower(
             Ok(AbstractOperation::PrimitiveScalarRead {
                 psi_operation: operation.id,
                 source,
-                path: path.clone(),
+                path,
                 result: AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,

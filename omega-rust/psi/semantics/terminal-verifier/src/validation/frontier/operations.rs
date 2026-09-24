@@ -362,7 +362,6 @@ fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
         | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::StoreStructuralField { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. } => vec![*destination],
         // Extraction mutates through the borrowed root a shared view may
         // observe, so a pinned source rejects like a store's destination.

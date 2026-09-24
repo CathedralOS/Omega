@@ -138,14 +138,12 @@ pub(super) const ESTABLISH_RECORD: u8 = 68;
 pub(super) const ESTABLISH_REFERENCE: u8 = 69;
 /// `OperationKind::ReleaseReference`.
 pub(super) const RELEASE_REFERENCE: u8 = 70;
-/// `OperationKind::PrimitiveScalarRead` (projected path).
-pub(super) const PROJECTED_PRIMITIVE_SCALAR_READ: u8 = 73;
-/// `OperationKind::WriteOnlyPrimitiveStore` (projected path).
-pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 74;
+// Tags 73 and 74 carried the canonical-path primitive read and store, 76 the
+// runtime-indexed store and 87 the runtime-indexed read. A primitive leaf
+// projection is now a structural path whose elements may be runtime-selected
+// (tags 89 and 90); the retired tags are refused rather than reread.
 /// `OperationKind::StructuralScalarFieldStore` (with range obligation).
 pub(super) const RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE: u8 = 75;
-/// `OperationKind::WriteOnlyIndexedPrimitiveStore`.
-pub(super) const WRITE_ONLY_INDEXED_PRIMITIVE_STORE: u8 = 76;
 /// `OperationKind::MoveStructuralField`.
 pub(super) const MOVE_STRUCTURAL_FIELD: u8 = 77;
 /// `OperationKind::StoreStructuralField`.
@@ -169,5 +167,8 @@ pub(super) const STRUCTURAL_CASE_LEAF_COPY: u8 = 85;
 /// `OperationKind::StructuralByteSequenceFieldRead`.
 pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: u8 = 86;
 
-/// `OperationKind::IndexedPrimitiveRead`.
-pub(super) const INDEXED_PRIMITIVE_READ: u8 = 87;
+/// `OperationKind::PrimitiveScalarRead` over a nonempty structural path.
+pub(super) const PROJECTED_PRIMITIVE_SCALAR_READ: u8 = 89;
+
+/// `OperationKind::WriteOnlyPrimitiveStore` over a nonempty structural path.
+pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 90;

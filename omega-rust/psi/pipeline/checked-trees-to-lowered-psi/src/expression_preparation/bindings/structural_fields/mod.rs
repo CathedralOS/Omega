@@ -373,7 +373,7 @@ pub(crate) fn resolve_indexed_array(
 ) -> Result<
     Option<(
         PlaceId,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        Vec<terminal_psi::StructuralPathSegment>,
         ScalarType,
     )>,
     LoweringError,
@@ -413,13 +413,7 @@ pub(crate) fn resolve_primitive(
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
-) -> Result<
-    (
-        PlaceId,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    ),
-    LoweringError,
-> {
+) -> Result<(PlaceId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);

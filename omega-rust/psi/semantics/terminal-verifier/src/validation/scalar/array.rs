@@ -15,10 +15,8 @@ pub(in crate::validation) fn validate_uses(
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let direct = match operation.kind {
-        OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::IndexedPrimitiveRead { source, .. } => Some(source),
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => Some(destination),
+        OperationKind::PrimitiveScalarRead { source, .. } => Some(source),
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => Some(destination),
         _ => None,
     };
     if let Some(place) = direct

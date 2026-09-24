@@ -9,6 +9,7 @@ mod ieee_float;
 mod integer_bitwise;
 mod integer_constants_and_relations;
 mod integer_conversion;
+mod primitive_projection;
 mod routing;
 mod shifts;
 mod structural_establishment;

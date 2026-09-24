@@ -217,102 +217,6 @@ pub(super) fn append_operation(
     )? {
         axioms.push(equation);
     }
-    if let OperationKind::WriteOnlyIndexedPrimitiveStore {
-        destination,
-        path,
-        index,
-        obligation,
-        ..
-    } = &operation.kind
-    {
-        let (_, extent) = crate::validation::indexed_store_shape(
-            module,
-            machine,
-            operation.id,
-            *destination,
-            path,
-        )?;
-        // A runtime index cannot name the written leaf, so every fact that
-        // observes the destination root is dropped — the same root-level
-        // invalidation the static store performs.
-        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            !crate::validation::proposition_observes_places(proposition, &[*destination])
-        });
-        let integer_type =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid");
-        let bound = semantic_vocabulary::ScalarTerm::integer(
-            integer_type,
-            semantic_vocabulary::IntegerValue::Unsigned(u128::from(extent)),
-        )
-        .map_err(|error| {
-            ModuleError::OperationSemanticSchema(
-                terminal_semantics::OperationSemanticError::InvalidProposition(error),
-            )
-        })?;
-        operation_obligations.push(ReconstructedOperationObligation {
-            owner: ReconstructedTerminalObligationOwner::Operation {
-                machine: machine.id,
-                operation: operation.id,
-            },
-            obligation: Obligation {
-                id: *obligation,
-                proposition: Proposition::LessThan(
-                    semantic_vocabulary::ScalarTerm::value(
-                        *index,
-                        ScalarType::Integer(integer_type),
-                    ),
-                    bound,
-                ),
-                class: ObligationClass::Derivable,
-            },
-            semantic_axioms: axioms.clone(),
-            canonical_certificate: true,
-        });
-        return Ok(());
-    }
-    if let OperationKind::IndexedPrimitiveRead {
-        source,
-        path,
-        index,
-        obligation,
-    } = &operation.kind
-    {
-        let (_, extent) =
-            crate::validation::indexed_read_shape(module, machine, operation.id, *source, path)?;
-        let integer_type =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .expect("u64 is valid");
-        let bound = semantic_vocabulary::ScalarTerm::integer(
-            integer_type,
-            semantic_vocabulary::IntegerValue::Unsigned(u128::from(extent)),
-        )
-        .map_err(|error| {
-            ModuleError::OperationSemanticSchema(
-                terminal_semantics::OperationSemanticError::InvalidProposition(error),
-            )
-        })?;
-        operation_obligations.push(ReconstructedOperationObligation {
-            owner: ReconstructedTerminalObligationOwner::Operation {
-                machine: machine.id,
-                operation: operation.id,
-            },
-            obligation: Obligation {
-                id: *obligation,
-                proposition: Proposition::LessThan(
-                    semantic_vocabulary::ScalarTerm::value(
-                        *index,
-                        ScalarType::Integer(integer_type),
-                    ),
-                    bound,
-                ),
-                class: ObligationClass::Derivable,
-            },
-            semantic_axioms: axioms.clone(),
-            canonical_certificate: true,
-        });
-        return Ok(());
-    }
     if let OperationKind::StructuralByteSequenceFieldStore {
         length, obligation, ..
     } = &operation.kind
@@ -494,8 +398,6 @@ pub(super) fn append_operation(
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::WriteOnlyPrimitiveStore { .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
-        | OperationKind::IndexedPrimitiveRead { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }

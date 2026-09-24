@@ -99,7 +99,11 @@ impl<'a> PrimitiveSnapshots<'a> {
         let Some(result) = operation.result.scalar_ref() else {
             return Ok(());
         };
-        if matches!(result.scalar_type, ScalarType::IeeeFloat(_)) {
+        // A runtime-selected element names no single place, so no store can
+        // be its exact reaching definition.
+        if matches!(result.scalar_type, ScalarType::IeeeFloat(_))
+            || !terminal_psi::is_static_structural_path(path)
+        {
             return Ok(());
         }
         let Some(value) = self.reaching_value(block, position, source, path)? else {
@@ -121,7 +125,7 @@ impl<'a> PrimitiveSnapshots<'a> {
         block: BlockId,
         position: usize,
         source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<Option<ValueId>, ModuleError> {
         let mut pending = vec![(block, position)];
         let mut visited = BTreeSet::new();
@@ -185,7 +189,7 @@ impl<'a> PrimitiveSnapshots<'a> {
         &mut self,
         operation: &Operation,
         source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<ReachingEffect, ModuleError> {
         let stored = match operation.kind {
             OperationKind::EstablishPrimitiveLocal { value } => operation
@@ -200,17 +204,23 @@ impl<'a> PrimitiveSnapshots<'a> {
             _ => None,
         };
         if let Some((destination, written, value)) = stored {
-            return Ok(if destination == source && written == path {
-                ReachingEffect::Store(value)
-            } else if (destination == source
-                && !written.starts_with(path)
-                && !path.starts_with(written))
-                || self.distinct_local_roots(source, destination)
-            {
-                ReachingEffect::Preserve
-            } else {
-                ReachingEffect::Unknown
-            });
+            // A runtime-selected element may be any element of its array: it
+            // is never the exact definition and overlaps every sibling.
+            return Ok(
+                if destination == source
+                    && written == path
+                    && terminal_psi::is_static_structural_path(written)
+                {
+                    ReachingEffect::Store(value)
+                } else if (destination == source
+                    && !terminal_semantics::structural_paths_may_overlap(written, path))
+                    || self.distinct_local_roots(source, destination)
+                {
+                    ReachingEffect::Preserve
+                } else {
+                    ReachingEffect::Unknown
+                },
+            );
         }
         // Read effect metadata, not cloned field/array payloads or newly built
         // scalar equations. Ordinary operation reconstruction owns those facts.
@@ -220,13 +230,11 @@ impl<'a> PrimitiveSnapshots<'a> {
             return Ok(match row.schema().action() {
                 StructuralEffectAction::EstablishPrimitiveLocal
                 | StructuralEffectAction::StorePrimitive
-                | StructuralEffectAction::StoreIndexedPrimitive
                 | StructuralEffectAction::StoreScalarField
                 | StructuralEffectAction::StoreByteSequenceField
                 | StructuralEffectAction::StoreByteSequenceFieldByte
                 | StructuralEffectAction::WriteByteSequence => ReachingEffect::Unknown,
                 StructuralEffectAction::ReadPrimitive
-                | StructuralEffectAction::ReadIndexedPrimitive
                 | StructuralEffectAction::EstablishReference
                 | StructuralEffectAction::ReleaseReference
                 | StructuralEffectAction::ObserveCaseMembership

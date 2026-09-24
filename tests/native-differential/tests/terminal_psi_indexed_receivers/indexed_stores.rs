@@ -337,9 +337,9 @@ fn live_element_subloan_admits_parent_receiver_calls() {
 }
 
 /// A runtime scalar index whose bound arrives as an ordinary machine contract
-/// produces `WriteOnlyIndexedPrimitiveStore` — the path terminates at the
-/// array, the index stays a `u64` operand, and the `index < extent` bounds
-/// obligation is retained. `requires` is the contract-fact spelling that
+/// produces a `WriteOnlyPrimitiveStore` whose path ends in the `RuntimeIndex`
+/// segment naming the `u64` selector, and the segment's `index < extent`
+/// bounds obligation is retained. `requires` is the contract-fact spelling that
 /// replaced the revoked `u64 [0..=3]` suffix here; the remaining corpus
 /// migration belongs to `REMOVE-BRACKETED-RANGE-ANNOTATIONS`. Omega admission
 /// carries the operation into the verified abstract inventory and the
@@ -363,17 +363,18 @@ fn contract_bound_runtime_index_store_executes_on_host() {
             .flat_map(|machine| machine.blocks.iter())
             .flat_map(|block| block.operations.iter())
             .find_map(|operation| match &operation.kind {
-                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore {
-                    path,
-                    obligation,
-                    ..
-                } => Some((path, *obligation)),
+                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. } => {
+                    path.split_last().and_then(|(last, prefix)| {
+                        last.runtime_index()
+                            .map(|(_, obligation)| (prefix, obligation))
+                    })
+                }
                 _ => None,
             })
             .unwrap_or_else(|| panic!("{access}: Terminal Psi keeps the indexed store"));
         assert!(
             path.is_empty(),
-            "{access}: the runtime selector is an operand; the path terminates at the array"
+            "{access}: the runtime element ends the path; the array is the parameter itself"
         );
         let _ = obligation;
         // Omega admission + optimization inventory accept the operation.
@@ -542,8 +543,9 @@ fn runtime_indexed_store_rejects_authority_and_bound_substitution() {
                     machine.blocks.iter().any(|block| {
                         block.operations.iter().any(|operation| {
                             matches!(
-                                operation.kind,
-                                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                                &operation.kind,
+                                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. }
+                                    if !terminal_psi::is_static_structural_path(path)
                             )
                         })
                     })
@@ -562,22 +564,28 @@ fn runtime_indexed_store_rejects_authority_and_bound_substitution() {
                         .flat_map(|block| block.operations.iter_mut())
                         .find(|operation| {
                             matches!(
-                                operation.kind,
-                                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                                &operation.kind,
+                                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. }
+                                    if !terminal_psi::is_static_structural_path(path)
                             )
                         })
                         .unwrap();
-                    let terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore {
-                        index,
-                        value,
-                        obligation,
-                        ..
+                    let terminal_psi::OperationKind::WriteOnlyPrimitiveStore {
+                        path, value, ..
                     } = &mut operation.kind
                     else {
                         unreachable!("matched the indexed store above")
                     };
+                    let Some(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index,
+                        obligation,
+                    }) = path.last_mut()
+                    else {
+                        unreachable!("the runtime element ends the path")
+                    };
                     match mutation {
-                        // The index operand is the exact u64 selector.
+                        // The stored value is an integer too, but the
+                        // certificate proved the selector's bound, not its.
                         1 => *index = *value,
                         // A defined u64 the certificate never covered: the
                         // reconstructed `spare < extent` has no evidence.
@@ -600,7 +608,7 @@ fn runtime_indexed_store_rejects_authority_and_bound_substitution() {
                 }
             }
             match mutation {
-                0 | 1 => assert!(
+                0 => assert!(
                     terminal_verifier::validate_module(&changed).is_err(),
                     "{access}: mutation {mutation}"
                 ),
@@ -714,8 +722,7 @@ fn indexed_store_contracts_reject_access_and_index_substitution() {
                         terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. }
                             if !indexed_field_store =>
                         {
-                            path[0] =
-                                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(7);
+                            path[0] = terminal_psi::StructuralPathSegment::FixedIndex(7);
                         }
                         _ => unreachable!("matched the opposite store kind"),
                     }

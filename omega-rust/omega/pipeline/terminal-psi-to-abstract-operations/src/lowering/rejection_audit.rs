@@ -576,12 +576,13 @@ fn runtime_indexed_store_without_declared_destination_rejects() {
     let operation = op(
         1,
         OperationResult::Unit,
-        OperationKind::WriteOnlyIndexedPrimitiveStore {
+        OperationKind::WriteOnlyPrimitiveStore {
             destination: PlaceId::new(9).unwrap(),
-            path: Vec::new(),
-            index: ValueId::new(1).unwrap(),
+            path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(1).unwrap(),
+                obligation: ObligationId::new(1).unwrap(),
+            }],
             value: ValueId::new(2).unwrap(),
-            obligation: ObligationId::new(1).unwrap(),
         },
     );
     let module = module(vec![machine(

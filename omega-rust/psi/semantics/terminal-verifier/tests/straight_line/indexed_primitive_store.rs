@@ -1,5 +1,7 @@
-//! Runtime-indexed write-only primitive stores carry an independently
-//! reconstructed `index < declared extent` obligation over a u64 operand.
+//! A write-only primitive store through a runtime-selected element: the
+//! store's path ends in `RuntimeIndex { index, obligation }`, and the verifier
+//! reconstructs `index < declared extent` for that segment from the array its
+//! prefix resolves to.
 
 use super::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerSign, IntegerType, IntegerValue,
@@ -30,6 +32,26 @@ fn count(raw: u128) -> ScalarTerm {
 }
 fn index_term() -> ScalarTerm {
     ScalarTerm::value(id(10), u64_type())
+}
+/// `prefix` followed by the runtime element value 10 selects, whose bound is
+/// obligation 1.
+fn runtime_path(
+    prefix: Vec<terminal_psi::StructuralPathSegment>,
+) -> Vec<terminal_psi::StructuralPathSegment> {
+    let mut path = prefix;
+    path.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+        index: id(10),
+        obligation: id(1),
+    });
+    path
+}
+fn store_path(module: &mut TerminalModule) -> &mut Vec<terminal_psi::StructuralPathSegment> {
+    let OperationKind::WriteOnlyPrimitiveStore { path, .. } =
+        &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    path
 }
 
 fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
@@ -105,12 +127,10 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
             suspension_crossing: None,
             id: id(3),
             result: OperationResult::Unit,
-            kind: OperationKind::WriteOnlyIndexedPrimitiveStore {
+            kind: OperationKind::WriteOnlyPrimitiveStore {
                 destination: id(1),
-                path: Vec::new(),
-                index: id(10),
+                path: runtime_path(Vec::new()),
                 value: id(11),
-                obligation: id(1),
             },
         },
     ];
@@ -266,14 +286,7 @@ fn nested_field_path_to_the_array_resolves_the_same_extent() {
         },
     });
     module.machines[0].structural_parameters[0].structural_type = id(3);
-    let OperationKind::WriteOnlyIndexedPrimitiveStore { path, .. } =
-        &mut module.machines[0].blocks[0].operations[2].kind
-    else {
-        unreachable!()
-    };
-    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-        id(1),
-    ));
+    *store_path(&mut module) = runtime_path(vec!["triple".into()]);
     let bundle = bundle_for(&module);
     validate_module(&module).unwrap();
     verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
@@ -288,14 +301,19 @@ fn indexed_store_mutations_reject_formation() {
         match mutation {
             // A shared borrow can never host a runtime-selected write.
             0 => machine.structural_parameters[0].access = StructuralAccess::SharedBorrow,
-            // The index must be an exact u64 operand.
+            // The index must be an integer operand.
             1 => {
-                machine.blocks[0].operations[0]
-                    .result
-                    .scalar_mut()
-                    .unwrap()
-                    .scalar_type =
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+                machine.blocks[0].operations[0] = Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: id(1),
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: id(10),
+                        scalar_type: ScalarType::Boolean,
+                    }),
+                    kind: OperationKind::BooleanConstant { value: true },
+                }
             }
             // The stored value must exactly match the declared element type.
             2 => {
@@ -316,49 +334,31 @@ fn indexed_store_mutations_reject_formation() {
             // Dominance: the index and value must be defined before the store.
             4 => machine.blocks[0].operations.swap(1, 2),
             5 => {
-                let OperationKind::WriteOnlyIndexedPrimitiveStore { index, .. } =
-                    &mut machine.blocks[0].operations[2].kind
-                else {
-                    unreachable!()
-                };
-                *index = id(77);
+                *store_path(&mut changed) =
+                    vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: id(77),
+                        obligation: id(1),
+                    }];
             }
             // A repeated static index selects the primitive element, which is
             // not an array and cannot host another index.
             6 => {
-                let OperationKind::WriteOnlyIndexedPrimitiveStore { path, .. } =
-                    &mut machine.blocks[0].operations[2].kind
-                else {
-                    unreachable!()
-                };
-                *path = vec![
-                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0),
-                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0),
-                ];
+                *store_path(&mut changed) = runtime_path(vec![
+                    terminal_psi::StructuralPathSegment::FixedIndex(0),
+                    terminal_psi::StructuralPathSegment::FixedIndex(0),
+                ]);
             }
             // A field after a fixed index does not resolve to an array either.
             7 => {
-                let OperationKind::WriteOnlyIndexedPrimitiveStore { path, .. } =
-                    &mut machine.blocks[0].operations[2].kind
-                else {
-                    unreachable!()
-                };
-                *path = vec![
-                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0),
-                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(id(1)),
-                ];
+                *store_path(&mut changed) = runtime_path(vec![
+                    terminal_psi::StructuralPathSegment::FixedIndex(0),
+                    "triple".into(),
+                ]);
             }
             // A literal index that is itself out of bounds never reaches the
             // runtime operand.
             8 => {
-                let OperationKind::WriteOnlyIndexedPrimitiveStore { path, .. } =
-                    &mut machine.blocks[0].operations[2].kind
-                else {
-                    unreachable!()
-                };
-                *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                    id(9),
-                )];
+                *store_path(&mut changed) = runtime_path(vec!["missing".into()]);
             }
             // Obligation identities are unique across the machine.
             9 => {

@@ -137,11 +137,13 @@ fn local_type(machine: &ExecutableMachine, place: PlaceId) -> Option<StructuralT
 }
 
 impl TerminalExecution {
+    /// `path` is static here: the execution loop already replaced each
+    /// runtime-selected element with the fixed index its value names.
     fn primitive_access(
         &self,
         place: PlaceId,
         writing: bool,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[StructuralPathSegment],
     ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
@@ -201,6 +203,13 @@ impl TerminalExecution {
                     .map(|result| result.structural_type)
             })
             .ok_or_else(invalid)?;
+        let path = terminal_semantics::canonical_primitive_path(
+            self.structural_types.values(),
+            structural_type,
+            path,
+        )
+        .ok_or_else(invalid)?;
+        let path = path.as_slice();
         let scalar_type = terminal_semantics::primitive_place_type(
             self.structural_types.values(),
             structural_type,
@@ -464,7 +473,7 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
         source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         let result = operation
             .result
@@ -526,7 +535,7 @@ impl TerminalExecution {
         operation: &Operation,
         destination: PlaceId,
         value: ValueId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
         if operation.result != OperationResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
@@ -583,71 +592,6 @@ impl TerminalExecution {
             }
         }
         Ok(())
-    }
-
-    /// The runtime index is a `u64` operand, not a path segment: once its
-    /// exact value is resolved the read proceeds through the same verified
-    /// access walk as a literal-indexed read, which re-checks the element
-    /// against the declared extent segment by segment.
-    pub(crate) fn execute_indexed_primitive_read(
-        &mut self,
-        operation: &Operation,
-        source: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        index: ValueId,
-    ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let TerminalScalarValue::Integer {
-            scalar_type,
-            value: IntegerValue::Unsigned(raw),
-        } = self
-            .values
-            .get(&index)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
-        else {
-            return Err(invalid());
-        };
-        if scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())? {
-            return Err(invalid());
-        }
-        let index = u64::try_from(raw).map_err(|_| invalid())?;
-        let mut projected = path.to_vec();
-        projected.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
-        self.execute_primitive_read(operation, source, &projected)
-    }
-
-    /// The runtime index is a `u64` operand, not a path segment: once its
-    /// exact value is resolved the store proceeds through the same verified
-    /// access walk as a literal-indexed store, which re-checks the element
-    /// against the declared extent segment by segment.
-    pub(crate) fn execute_indexed_primitive_store(
-        &mut self,
-        operation: &Operation,
-        destination: PlaceId,
-        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        index: ValueId,
-        value: ValueId,
-    ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let TerminalScalarValue::Integer {
-            scalar_type,
-            value: IntegerValue::Unsigned(raw),
-        } = self
-            .values
-            .get(&index)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
-        else {
-            return Err(invalid());
-        };
-        if scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())? {
-            return Err(invalid());
-        }
-        let index = u64::try_from(raw).map_err(|_| invalid())?;
-        let mut projected = path.to_vec();
-        projected.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
-        self.execute_primitive_store(operation, destination, value, &projected)
     }
 
     pub(crate) fn primitive_local_count(&self) -> usize {

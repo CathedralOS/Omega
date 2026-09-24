@@ -351,6 +351,9 @@ fn validate_surviving_byte_operations(
                         obligation: *obligation,
                     },
                 ),
+                // Terminal spells the runtime element as the read path's
+                // trailing `RuntimeIndex` segment; the abstract read carries
+                // the canonical path to the array and the index as an operand.
                 O::IndexedPrimitiveRead {
                     result,
                     source,
@@ -358,19 +361,16 @@ fn validate_surviving_byte_operations(
                     index,
                     obligation,
                     ..
-                } => (
-                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: result.value,
-                        scalar_type: result.scalar_type,
-                    }),
-                    terminal_psi::OperationKind::IndexedPrimitiveRead {
-                        source: *source,
-                        path: path.clone(),
-                        index: index.value,
-                        obligation: *obligation,
-                    },
-                ),
+                } => {
+                    return indexed_read_matches(
+                        module,
+                        function.machine,
+                        original,
+                        (result, *source, path, index.value, *obligation),
+                        &representatives,
+                        &scalar_representatives,
+                    );
+                }
                 O::ElementViewSubslice {
                     result,
                     source,
@@ -414,6 +414,93 @@ fn validate_surviving_byte_operations(
         }
     }
     Ok(())
+}
+
+/// Whether the original Terminal `PrimitiveScalarRead` is the abstract
+/// indexed read: the same scalar result, a path whose static prefix spells the
+/// abstract canonical array path and whose trailing runtime element carries
+/// the abstract index and obligation, modulo the same root and operand
+/// representatives `byte_operation_kind_matches` admits.
+fn indexed_read_matches(
+    module: &terminal_psi::TerminalModule,
+    machine: semantic_vocabulary::MachineId,
+    original: &terminal_psi::Operation,
+    (result, source, array, index, obligation): (
+        &abstract_operations::AbstractResult,
+        semantic_vocabulary::PlaceId,
+        &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ObligationId,
+    ),
+    representatives: &BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::PlaceId>,
+    scalar_representatives: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::ValueId>,
+) -> bool {
+    let terminal_psi::OperationKind::PrimitiveScalarRead {
+        source: original_source,
+        path: original_path,
+    } = &original.kind
+    else {
+        return false;
+    };
+    let Some((last, prefix)) = original_path.split_last() else {
+        return false;
+    };
+    let Some((original_index, original_obligation)) = last.runtime_index() else {
+        return false;
+    };
+    let Some(root_type) = module
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == machine)
+        .and_then(|machine| terminal_place_type(machine, *original_source))
+    else {
+        return false;
+    };
+    let Some((canonical, _)) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        root_type,
+        prefix,
+    ) else {
+        return false;
+    };
+    original.result
+        == terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+            qualifications: Default::default(),
+            id: result.value,
+            scalar_type: result.scalar_type,
+        })
+        && canonical == array
+        && original_obligation == obligation
+        && (source == *original_source || representatives.get(&source) == Some(original_source))
+        && (index == original_index || scalar_representatives.get(&index) == Some(&original_index))
+}
+
+/// The declared structural type of one Terminal place: a structural parameter
+/// (machine or block) or an operation result.
+fn terminal_place_type(
+    machine: &terminal_psi::TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter_map(|operation| operation.result.structural())
+                .find(|result| result.place == place)
+                .map(|result| result.structural_type)
+        })
 }
 
 /// Whether `actual` is `expected` modulo the substitutions an admitted
@@ -532,25 +619,6 @@ fn byte_operation_kind_matches(
                 && root_matches(*expected_source, *actual_source)
                 && operand_matches(*expected_index, *actual_index)
                 && operand_matches(*expected_length, *actual_length)
-        }
-        (
-            terminal_psi::OperationKind::IndexedPrimitiveRead {
-                source: expected_source,
-                path: expected_path,
-                index: expected_index,
-                obligation: expected_obligation,
-            },
-            terminal_psi::OperationKind::IndexedPrimitiveRead {
-                source: actual_source,
-                path: actual_path,
-                index: actual_index,
-                obligation: actual_obligation,
-            },
-        ) => {
-            expected_obligation == actual_obligation
-                && expected_path == actual_path
-                && root_matches(*expected_source, *actual_source)
-                && operand_matches(*expected_index, *actual_index)
         }
         (
             terminal_psi::OperationKind::ElementViewSubslice {

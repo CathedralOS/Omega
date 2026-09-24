@@ -18,7 +18,7 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 /// exclusive parameter projection and evaluates exactly one authored RHS.
 pub(crate) struct Destination {
     pub(crate) place: PlaceId,
-    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) scalar_type: ScalarType,
 }
 
@@ -88,10 +88,11 @@ pub(crate) fn emit_assignment(
 
 /// The resolved array-carrier endpoint for a runtime-indexed store: the
 /// retained path stops at the fixed array itself, so its element type is the
-/// store's scalar carrier and the runtime index is a separate operand.
+/// store's scalar carrier, and the evaluated index joins the path as its
+/// `RuntimeIndex` segment.
 pub(crate) struct IndexedDestination {
     pub(crate) place: PlaceId,
-    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) scalar_type: ScalarType,
 }
 
@@ -169,12 +170,17 @@ pub(crate) fn emit_indexed_assignment(
     if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
         return unsupported("primitive store RHS differs from its destination carrier");
     }
-    Ok(OperationKind::WriteOnlyIndexedPrimitiveStore {
-        destination: destination.place,
-        path: destination.path,
+    // The runtime element is one more path segment; the store owns its
+    // obligation, which the verifier reconstructs as `index < extent`.
+    let mut path = destination.path;
+    path.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
         index,
-        value: value.id,
         obligation: calls.allocate_requirement()?,
+    });
+    Ok(OperationKind::WriteOnlyPrimitiveStore {
+        destination: destination.place,
+        path,
+        value: value.id,
     })
 }
 
@@ -577,13 +583,7 @@ pub(crate) fn lower_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        ScalarType,
-    ),
-    LoweringError,
-> {
+) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
     let (result, structural_type) = walk_path(structural_type, path, types)?;
     let StructuralTypeShape::PrimitiveScalar(scalar_type) =
         unique_type(types, structural_type)?.shape
@@ -593,21 +593,16 @@ pub(crate) fn lower_path(
     Ok((result, scalar_type))
 }
 
-/// The static prefix of a runtime-indexed store ends at the fixed array
-/// itself; the runtime index is an operand, never a path segment. The
-/// element must be a primitive scalar — a record or nested-array element
-/// keeps its own store owners.
+/// The static prefix of a runtime-indexed primitive leaf ends at the fixed
+/// array itself; the emitter appends the `RuntimeIndex` segment once it has
+/// evaluated the selector and allocated the segment's obligation. The element
+/// must be a primitive scalar — a record or nested-array element keeps its
+/// own store owners.
 pub(crate) fn lower_indexed_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        ScalarType,
-    ),
-    LoweringError,
-> {
+) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
     let (result, structural_type) = walk_path(structural_type, path, types)?;
     let StructuralTypeShape::FixedArray { element, .. } =
         unique_type(types, structural_type)?.shape
@@ -622,19 +617,14 @@ pub(crate) fn lower_indexed_path(
 }
 
 /// Walk literal field/index segments from the destination root, returning the
-/// canonical path and the structural type it selects.
+/// structural path, each field resolved against its declared record, and the
+/// structural type it selects.
 fn walk_path(
     mut structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        StructuralTypeId,
-    ),
-    LoweringError,
-> {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+) -> Result<(Vec<terminal_psi::StructuralPathSegment>, StructuralTypeId), LoweringError> {
+    use terminal_psi::StructuralPathSegment as Segment;
     let mut result = Vec::with_capacity(path.len());
     let mut visited = Vec::new();
     for segment in path {
@@ -665,7 +655,7 @@ fn walk_path(
                 let StructuralFieldType::Structural(child) = field.field_type else {
                     return unsupported("primitive projection requires a structural carrier field");
                 };
-                result.push(Segment::Field(field.id));
+                result.push(Segment::Field(field.identity.clone()));
                 child
             }
             (

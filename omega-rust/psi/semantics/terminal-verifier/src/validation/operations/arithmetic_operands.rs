@@ -326,8 +326,6 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
-        | OperationKind::IndexedPrimitiveRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }

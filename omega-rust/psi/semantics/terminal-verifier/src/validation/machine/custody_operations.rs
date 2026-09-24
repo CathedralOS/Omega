@@ -216,7 +216,6 @@ pub(super) fn register_custody_operation(
         OperationKind::CallUnit { .. }
             | OperationKind::ReleaseReference { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
-            | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::StoreStructuralField { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
@@ -233,7 +232,6 @@ pub(super) fn register_custody_operation(
         validate_unit_operation_static(module, machine, machines, operation)?;
         if let OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { obligation, .. }
         | OperationKind::ByteSequenceWrite { obligation, .. } = &operation.kind
         {
             insert_unique(

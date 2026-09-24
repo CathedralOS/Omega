@@ -45,21 +45,6 @@ pub(super) fn lower(
             path,
             field,
         } => lower_integer_read(operation, machine, structural_types, *source, path, *field),
-        OperationKind::IndexedPrimitiveRead {
-            source,
-            path,
-            index,
-            obligation,
-        } => lower_indexed_read(
-            operation,
-            block,
-            machine,
-            structural_types,
-            *source,
-            path,
-            *index,
-            *obligation,
-        ),
         _ => unreachable!("structural scalar-field router is exhaustive"),
     }
 }
@@ -163,24 +148,22 @@ fn lower_integer_read(
 }
 
 /// One element of a fixed-array leaf read at a verified runtime position: the
-/// path ends at the array, the result is its element type, and the dominating
-/// index is the `u64` position the bounds obligation constrains.
+/// canonical `array` path ends at the array whose primitive `element` the
+/// result carries, and the dominating index is the `u64` position the
+/// Terminal path's runtime element bound.
 #[allow(clippy::too_many_arguments)]
-fn lower_indexed_read(
+pub(super) fn lower_indexed_read(
     operation: &Operation,
     block: &Block,
     machine: &TerminalMachine,
-    structural_types: &[StructuralTypeDeclaration],
     source: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    array: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    element: ScalarType,
     index: semantic_vocabulary::ValueId,
     obligation: semantic_vocabulary::ObligationId,
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIndexedPrimitiveRead(operation.id);
-    let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
-    let (element, _extent) =
-        terminal_semantics::fixed_array_place_shape(structural_types.iter(), structural_type, path)
-            .ok_or_else(invalid)?;
+    readable_source_type(machine, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     let index_type =
         dominating_scalar_type(machine, block, operation.id, index).ok_or_else(invalid)?;
@@ -197,7 +180,7 @@ fn lower_indexed_read(
             scalar_type: result.scalar_type,
         },
         source,
-        path: path.to_vec(),
+        path: array.to_vec(),
         index: AbstractResult {
             value: index,
             scalar_type: index_type,

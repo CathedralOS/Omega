@@ -381,9 +381,7 @@ fn primitive_shared_loan_rejects_mutated_access_custody_or_leaf() {
                 module.machines[1].blocks[0].operations[0].kind =
                     OperationKind::PrimitiveScalarRead {
                         source: place_id(CALLEE_ROOT),
-                        path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-                            structural_field_id(1),
-                        )],
+                        path: vec![terminal_psi::StructuralPathSegment::Field("value".into())],
                     }
             }
             17 => {

@@ -16,7 +16,7 @@ pub(crate) enum LoweredBooleanReturnExpression {
     },
     PrimitiveRead {
         source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
     },
     Constant {
         value: bool,

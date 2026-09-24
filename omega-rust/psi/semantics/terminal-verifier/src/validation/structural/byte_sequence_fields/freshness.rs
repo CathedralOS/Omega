@@ -97,8 +97,7 @@ fn changes_length(
                 && field_path(module, machine, *destination, written, *field, true)
                     .is_none_or(|written| overlaps(path, &written))
         }
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => *destination == root,
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => *destination == root,
         OperationKind::CallUnit {
             structural_arguments,
             ..

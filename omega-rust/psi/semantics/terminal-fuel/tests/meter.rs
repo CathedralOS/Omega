@@ -85,12 +85,13 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
             path: Vec::new(),
             value: value_id(1),
         },
-        OperationKind::WriteOnlyIndexedPrimitiveStore {
+        OperationKind::WriteOnlyPrimitiveStore {
             destination: place_id(1),
-            path: Vec::new(),
-            index: value_id(2),
+            path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: value_id(2),
+                obligation: ObligationId::new(1).unwrap(),
+            }],
             value: value_id(1),
-            obligation: ObligationId::new(1).unwrap(),
         },
         OperationKind::CallUnit {
             erased_arguments: Vec::new(),

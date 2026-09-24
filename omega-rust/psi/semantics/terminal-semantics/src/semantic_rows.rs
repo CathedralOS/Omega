@@ -169,8 +169,6 @@ operation_semantic_rows! {
     StructuralLeafCopy => ("schema:operation:structural-leaf-copy", LeafDenotation, None),
     StructuralCaseLeafCopy => ("schema:operation:structural-case-leaf-copy", LeafDenotation, None),
     WriteOnlyPrimitiveStore => ("schema:operation:write-only-primitive-store", LeafDenotation, None),
-    WriteOnlyIndexedPrimitiveStore => ("schema:operation:write-only-indexed-primitive-store", LeafDenotation, None),
-    IndexedPrimitiveRead => ("schema:operation:indexed-primitive-read", LeafDenotation, None),
     StructuralScalarFieldStore => ("schema:operation:structural-scalar-field-store", LeafDenotation, None),
     MoveStructuralField => ("schema:operation:move-structural-field", LeafDenotation, None),
     StoreStructuralField => ("schema:operation:store-structural-field", LeafDenotation, None),

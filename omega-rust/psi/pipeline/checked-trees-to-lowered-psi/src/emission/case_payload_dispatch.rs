@@ -488,7 +488,10 @@ fn case_reads<'e>(
 ) {
     use LoweredBooleanReturnExpression as Boolean;
     match expression {
-        Boolean::StructuralField { source, path, .. } | Boolean::PrimitiveRead { source, path } => {
+        // A primitive read's structural path has no case segment; only field
+        // observations can await a payload dispatch.
+        Boolean::PrimitiveRead { .. } => {}
+        Boolean::StructuralField { source, path, .. } => {
             if path
                 .iter()
                 .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
@@ -537,8 +540,8 @@ fn collect_direct_case_reads<'e>(
 ) {
     use LoweredDirectExpression as Direct;
     match expression {
-        Direct::StructuralField { source, path, .. }
-        | Direct::PrimitiveRead { source, path, .. } => {
+        Direct::PrimitiveRead { .. } => {}
+        Direct::StructuralField { source, path, .. } => {
             if path
                 .iter()
                 .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
