@@ -427,6 +427,7 @@ impl PreparedCheckedSource {
             .selected_target_profile
             .map(target::TargetProfile::target_name);
         let mut timings = self.shared_timings;
+        let assembly_started = std::time::Instant::now();
         let (source_file_count, syntax) = match target_name {
             Some(target_name) => self
                 .source_checkpoint
@@ -436,6 +437,11 @@ impl PreparedCheckedSource {
                 .source_checkpoint
                 .assemble_targetless(child.package_inputs, &mut timings)?,
         };
+        timings.add_completed(
+            artifacts::compile_timings::SOURCE_ASSEMBLY,
+            assembly_started.elapsed().as_micros(),
+            artifacts::allocations::AllocationDelta::default(),
+        );
         compile_assembled_checked_child(&self.root_path, child, source_file_count, syntax, timings)
     }
 }
@@ -523,6 +529,7 @@ fn compile_assembled_checked_child(
     let optimization_rollback = child.optimization_rollback.clone();
     let independent_component_discovery = child.independent_component_discovery.take();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
+    let build_started = std::time::Instant::now();
     let (built, sources) = build_continuation::evaluate_build_and_continue(
         root_path,
         child,
@@ -530,6 +537,11 @@ fn compile_assembled_checked_child(
         syntax,
         &mut timings,
     )?;
+    timings.add_completed(
+        artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
+        build_started.elapsed().as_micros(),
+        artifacts::allocations::AllocationDelta::default(),
+    );
     // The evaluated build configuration never leaves this crate, so the
     // discovery stop records `Independent` selections and the evaluation's
     // usage here — after the build computed them and before
@@ -552,6 +564,7 @@ fn compile_assembled_checked_child(
                 }),
         );
     }
+    let settlement_started = std::time::Instant::now();
     let execution = execution_settlement::check_selected_execution(
         built,
         selected_target_profile,
@@ -560,6 +573,11 @@ fn compile_assembled_checked_child(
         &mut timings,
         permit_unsettled_fused_service_fields,
     )?;
+    timings.add_completed(
+        artifacts::compile_timings::EXECUTION_SETTLEMENT,
+        settlement_started.elapsed().as_micros(),
+        artifacts::allocations::AllocationDelta::default(),
+    );
     CheckedCompilation::seal(execution, sources, package_inputs, timings)
 }
 
