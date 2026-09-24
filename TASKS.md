@@ -446,36 +446,64 @@ the complete product bar; focused successes below do not establish that baseline
   cycle. Start with `src/tests/termination/rank_ranges/` and matching
   `tests/omega/{pass,fail}/termination/` controls.
 
-- **CHECK-CLOSURE-ONCE.** (new-scope) `omega --check` of a 20-line fixture
-  importing `omega_language_std` takes 40 s in the release build (`--timings`
-  at `589a1f1951`, Windows x86-64): the package review compiles every closure
-  package to checked trees twice, once for semantic-binding discovery
-  (`review/candidate/compilation.rs::compile_candidate`) and once with the
-  discovered bindings, and each std pass runs `typed_trees_to_checked_trees`
-  twice (build continuation, then `execution_settlement::check_selected_execution`),
-  so the 27.5k-line library is checked four times at 7.2 s each
-  (`checks::check_checked_facts` 2.8 s, `build_check_facts` 1.6 s,
-  `validate_typed_program` 1.3 s, `finalize_execution` 0.6 s) before the
-  root's own 1.9 s; a fixture without std checks in 14 ms. Owners:
-  `packages/manager` review candidate passes and
-  `assembled-syntax-to-checked-compilation` settlement. Reuse a dependency
-  package's checked review across the two passes when its consumer-scoped
-  bindings and discovery tolerance are unchanged, and skip settlement's
-  re-check when selection landed no fold or float destination in the typed
-  program; do not weaken review evidence or trust settlement to get there.
-  The canary suite pays the same shape per owner test: the harness's
-  preliminary `compile_to_checked` for dangerous-service acceptance
-  (`support/fixture_package_inputs.rs::reviewed_repository_fixture_package_inputs`,
-  22.4 s in the dev profile with the checking crate optimized) and then the
-  product compile (17.4 s, of which the typed-to-checked stage runs twice at
-  6.7 s: build continuation and settlement); `OMEGA_TEST_TIMINGS=1` prints
-  that split. Optimizing the checking crate alone changed nothing, so the
-  cost is the whole-program check of the assembled root plus library, not
-  one crate's code generation.
-  Acceptance: the same command checks std once per invocation and completes
-  in under 12 s, `--timings` names each review pass with its package and
-  duration, and an owner test compiles its fixture without a second
-  whole-program check of the library.
+- **CHECK-CLOSURE-ONCE.** (new-scope) `omega --check` of a std-importing
+  sample is dominated by checking the bundled library twice. Reproduced on
+  macOS arm64 at `587697f037` with the release binary on
+  `samples/cli/basics/print_squares`: 41.2 s total, of which `--timings` names
+  only 4.3 s (Stage 05 TypedTrees -> CheckedTrees 2.1 s, build step 1.1 s,
+  settle step 1.1 s). `OMEGA_REVIEW_TIMINGS=1` now attributes the rest per
+  pass and per package:
+
+      review_pass discovery  18.39 s   omega_language_std 16.39 s
+                                       print_squares       1.98 s
+      review_pass bound      18.21 s   omega_language_std 16.23 s
+        (5 discovered bindings)        print_squares       1.98 s
+      candidate_compilation  36.60 s
+
+  The 27.5k-line library is checked once per pass at 16.3 s, so 32.6 s of the
+  36.6 s is one package checked twice with the same consumer-scoped bindings.
+  A fixture without std checks in 14 ms.
+
+  Correcting the earlier evidence: the claim that each pass ran
+  `typed_trees_to_checked_trees` twice (build continuation, then settlement)
+  no longer matches the tree. `assembled-syntax-to-checked-compilation` has
+  ONE call site, in `execution_settlement::check_selected_execution`;
+  `build_continuation::lower_checked_frontend` stops at typed trees. Do not
+  re-derive a settlement skip from that paragraph.
+
+  Owner: `packages/manager` `review/candidate/compilation.rs::compile_candidate`,
+  which runs `compile_pass` with `&[]` bindings and
+  `TargetEntryDiscovery::Dependencies`, then, when discovery proposed bindings,
+  drops that result and runs `compile_pass` again with them and
+  `TargetEntryDiscovery::Disabled`.
+
+  WHY REUSE IS NOT A PLAIN CACHE, and the condition that makes it sound. The
+  two passes are not the same check: pass one sets
+  `permit_unsettled_fused_service_fields`, so its verdict is strictly weaker.
+  That relaxation is reachable only inside
+  `execution_settlement`'s `if let Some(entry) = selected_program_entry`, at
+  `derive_fused_program_entry_establishments`. A package whose compilation
+  selected NO program entry therefore cannot have relied on it, and its pass-one
+  verdict is exactly what pass two would produce -- which is the case for
+  `omega_language_std` and every other library dependency. Reuse gated on
+  "same (package, purpose), equal consumer-scoped bindings, equal build
+  snapshot and inputs, and no selected program entry in the retained result"
+  does not weaken review evidence; reuse gated only on the bindings does.
+
+  Three obstacles remain for whoever implements it, none addressed here: the
+  compile in `package_pass.rs` also writes back `prepared_source_output` for
+  the preparation slots, fills `IndependentComponentDiscovery`, and consumes
+  sponsored build evaluation that `ReviewBuildSession::dispose` reconciles --
+  so skipping it must still account for the build it did not run. Custody
+  verification must keep running per pass; it is the trust gate, not the cost.
+
+  Acceptance: `omega --check` of that sample checks the library once per
+  invocation, `--timings` reaches the per-pass and per-package attribution
+  that `OMEGA_REVIEW_TIMINGS` already prints, and an owner test compiles its
+  fixture without a second whole-program check of the library. Note the bound
+  before promising the original 12 s: deduplication removes about 16.2 s of
+  36.6 s, leaving roughly 20 s, so 12 s additionally requires the library's own
+  16.3 s check to come down and is not reachable by deduplication alone.
 
 ## Automatic service reach
 
