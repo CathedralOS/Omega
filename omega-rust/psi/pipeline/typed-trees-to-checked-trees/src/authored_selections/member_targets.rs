@@ -6,7 +6,7 @@ use crate::authored_selections::CheckedResolutionTarget;
 use crate::authored_selections::call_targets::declaration_target;
 use crate::authored_selections::contexts;
 use crate::authored_selections::operator_targets::{
-    authored_operand_type, type_reference_for_symbol,
+    authored_operand_descriptor, authored_operand_type, type_reference_for_symbol,
 };
 use crate::semantic::calls::MeasureReceiver;
 use checked_trees::CheckFacts;
@@ -510,11 +510,11 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 | BinaryOperator::CaseMembership => unreachable!("handled above"),
             };
             let operand_types = [
-                authored_operand_type(program, binary.left),
-                authored_operand_type(program, binary.right),
+                authored_operand_descriptor(program, binary.left),
+                authored_operand_descriptor(program, binary.right),
             ];
-            if operand_types.iter().all(Option::is_none)
-                || !typed_trees::operator::resolve_spelling_for_operands(
+            if operand_types.iter().all(|operand| operand.is_unknown())
+                || !typed_trees::operator::resolve_spelling_for_operand_types(
                     program,
                     spelling,
                     &operand_types,
@@ -523,7 +523,13 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             {
                 return false;
             }
-            return expression_is_intrinsic_primitive_without_origin(program, binary.left)
+            // An operand whose carrier is known without a type reference --
+            // a comparison result, a boolean literal -- answers this question
+            // directly; it is exactly a builtin primitive with nothing to
+            // point at.
+            return operand_types.iter().any(|operand| {
+                matches!(operand, typed_trees::operator::OperandType::Primitive(_))
+            }) || expression_is_intrinsic_primitive_without_origin(program, binary.left)
                 || expression_is_intrinsic_primitive_without_origin(program, binary.right);
         }
         ExpressionNode::Unary(_) => return true,

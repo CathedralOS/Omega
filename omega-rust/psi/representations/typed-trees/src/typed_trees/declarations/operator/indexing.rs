@@ -5,7 +5,9 @@ use super::{
     TypeReferenceNode, TypedTrees, resolve_spelling,
 };
 use crate::data::TypeParameter;
-use crate::typed_trees::declarations::operator::spellings::operator_matches_operands_with_indexed_collection;
+use crate::typed_trees::declarations::operator::spellings::{
+    OperandType, operator_matches_operands_with_indexed_collection,
+};
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use symbols::SymbolHandle;
 /// Resolve `[]` / `[..]` with an implicit shared collection view in the first
@@ -22,13 +24,18 @@ pub fn resolve_indexed_spelling_for_operands<'program>(
     if !matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         return Vec::new();
     }
+    let operand_types = operand_types
+        .iter()
+        .copied()
+        .map(OperandType::from_reference)
+        .collect::<Vec<_>>();
     resolve_spelling(program, spelling, None)
         .into_iter()
         .filter(|candidate| {
             operator_matches_operands_with_indexed_collection(
                 program,
                 candidate.operator,
-                operand_types,
+                &operand_types,
                 true,
             )
         })
