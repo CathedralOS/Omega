@@ -135,8 +135,21 @@ the complete product bar; focused successes below do not establish that baseline
   `control_flow`, `constraints`, `proofs`, `storage` and `structs` by hand.
   The pass tier is down to 344 suffix sites.
 
-  `termination` is 0 of 67 and is the largest group left. Its shape is one
-  gap, minimally:
+  `termination` is 0 of 67 and is the largest group left. HALF of its gap is
+  closed: a membership requirement whose subject is an EXPRESSION now
+  carries its own interval, so `walk(remaining - 1)` discharges
+  `remaining - 1 in Fuel` from `remaining`'s domain and the arm guard. What
+  still refuses that fixture is the `terminates by` RANKING, which reads
+  `TypeConstraintNode::Range` directly at six sites under
+  `contract_entailment/ranking_range/` (`projections.rs`,
+  `identity_views.rs`, `state_aliases.rs`, `telescope.rs`, and
+  `ranking_range.rs` twice) and so does not see a bound stated as a domain.
+  Route those through `declared_domain_predicate_bounds` the way
+  `range_constraint_interval` and `enforced_range_of_type_reference` now
+  are -- but prove ONE of them against a fixture before propagating to the
+  rest; this is the termination prover.
+
+  The original shape, for reference:
   `machine walk(remaining: u64 in Fuel) { transition remaining > 0 { true
   -> walk(remaining - 1) ... } }` with `domain u64::Fuel requires self <=
   5` rejects "cannot prove requires contract for call walk from walk:
