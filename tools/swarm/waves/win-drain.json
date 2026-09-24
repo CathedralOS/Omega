@@ -52,8 +52,8 @@
       "item": "OPERATOR-MACHINE-SUPPLY",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/operator.rs",
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/machine",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/operator.rs",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/machine",
         "tests/omega/pass/expressions/declared_operator_match_result"
       ],
       "suggested_first_slice": "Continuation: this worktree already landed 85cce06907 (dynamic-parameter call custody slice) and now carries WIP checkpoint b9b94ddb7c with 9 files of in-flight operator/machine work spanning parser, syntax-trees, symbol-resolved and typed-trees machine definitions. Inspect `git log origin/main..HEAD` and `git status` first; finish the in-flight slice. The touched paths exceed the original owning set: re-claim with a corrected path set covering what you actually edit before landing."

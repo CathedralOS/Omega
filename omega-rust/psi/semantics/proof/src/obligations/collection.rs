@@ -763,7 +763,7 @@ fn payload_field_constraints_under_case_guard(
 /// the SAME place as `receiver`, returning the matched case's variant symbol.
 /// Case membership lowers to exactly this equality shape, with the case
 /// reference a `Name` whose `.symbol` is the variant symbol (see
-/// `symbol-resolved-trees-to-typed-trees/src/domain_membership.rs`).
+/// `03_symbol-resolved-trees-to-typed-trees/src/domain_membership.rs`).
 fn case_guard_proven_variant(
     program: &TypedTrees,
     condition: ExpressionHandle,

@@ -65,7 +65,7 @@
       "owning_paths": [
         "omega-rust/psi/pipeline/01_tokens-to-syntax-trees/src/parser/machine.rs",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/signature.rs",
-        "omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees/src/state.rs",
+        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/state.rs",
         "omega-rust/omega/build/provider-planning/src/calling_policy_plans.rs",
         "omega-rust/omega/compiler/compiler/tests/calling_policy_plans.rs",
         "omega-rust/omega/compiler/compiler/tests/callback_terminal_custody.rs"

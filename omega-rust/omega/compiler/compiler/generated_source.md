@@ -21,9 +21,9 @@ limits, not a different generated-source language.
   dependency bundles retain source bytes, logical paths, and producer custody.
 - [seeded resolution](../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs)
   appends the later stratum and rebases only extension-owned selections.
-- [typed continuation](../../../psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation.rs)
+- [typed continuation](../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/seeded_continuation.rs)
   validates append cohorts and preserves the base. The
-  [continuation tests](../../../psi/pipeline/symbol-resolved-trees-to-typed-trees/src/lowerer/tests.rs)
+  [continuation tests](../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer/tests.rs)
   include extension-owned nominal static-machine binders.
 
 ## Bounded append support

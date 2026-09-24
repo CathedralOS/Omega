@@ -24,7 +24,7 @@ numerics = { path = "../../foundation/numerics" }
 source = { path = "../../foundation/source" }
 symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
 symbols = { path = "../../foundation/symbols" }
-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 typed-trees = { path = "../../representations/typed-trees" }
