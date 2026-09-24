@@ -16,6 +16,7 @@ name = "abstract-operations-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
+ "abstract-operations-to-abstract-operations",
  "checked-trees-to-lowered-psi",
  "optimization",
  "optimization-core",

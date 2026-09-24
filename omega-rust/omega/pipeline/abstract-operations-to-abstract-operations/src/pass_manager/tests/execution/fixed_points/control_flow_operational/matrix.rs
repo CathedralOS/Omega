@@ -7,11 +7,11 @@ use super::fixtures::{
     unreachable_private_machine_unit,
 };
 use crate::rules::tests::fixtures::control_flow_cleanup::adjacent_conditional_merge_unit;
-use crate::rules::{PathQualifiedEmptyBlockThreadRule, UnreachablePrivateMachinePruneRule};
-use crate::{
+use crate::rules::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,
     NonAdjacentBlockMergeRule, SharedJumpFusionRule,
 };
+use crate::rules::{PathQualifiedEmptyBlockThreadRule, UnreachablePrivateMachinePruneRule};
 
 fn validator(domain: &[u8]) -> optimization_core::OptimizationValidatorIdentity {
     optimization_core::OptimizationValidatorIdentity::from_canonical_bytes(domain)

@@ -2,35 +2,46 @@
 use semantic_vocabulary::{BlockId, MachineId};
 mod call_graph;
 mod components;
+#[cfg(any(test, feature = "test-support"))]
 mod countdown_induction;
+#[cfg(any(test, feature = "test-support"))]
 mod countdown_invariant_constant_placement;
+#[cfg(any(test, feature = "test-support"))]
 mod countdown_invariant_constants;
 mod dominance;
 mod graph;
 mod loops;
 pub(super) use call_graph::call_graph;
 pub(super) use components::block_components;
+
+#[cfg(any(test, feature = "test-support"))]
 pub use countdown_induction::{
-    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, ExactUnsignedTripCount,
-    UnsignedCountdownLoopSummary, ValidatedCountedLoopAnalysis,
+    CountedLoopAnalysisError, CountedLoopAnalysisSnapshot, UnsignedCountdownLoopSummary,
+    ValidatedCountedLoopAnalysis,
 };
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_induction::{analyze_counted_loops, validate_counted_loop_analysis};
+
+#[cfg(any(test, feature = "test-support"))]
 pub use countdown_invariant_constant_placement::{
-    CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
-    CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot,
     UnsignedCountdownInvariantConstantPlacements,
     ValidatedCountdownInvariantConstantPlacementAnalysis,
 };
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constant_placement::{
     analyze_countdown_invariant_constant_placement,
     validate_countdown_invariant_constant_placement_analysis,
 };
+
+#[cfg(any(test, feature = "test-support"))]
 pub use countdown_invariant_constants::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole, CountdownInvariantIntegerConstant,
-    UnsignedCountdownInvariantConstants, ValidatedCountdownInvariantConstantAnalysis,
+    ValidatedCountdownInvariantConstantAnalysis,
 };
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) use countdown_invariant_constants::{
     analyze_countdown_invariant_constants, validate_countdown_invariant_constant_analysis,
 };

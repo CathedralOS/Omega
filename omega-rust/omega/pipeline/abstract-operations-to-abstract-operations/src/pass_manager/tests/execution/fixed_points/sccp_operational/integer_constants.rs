@@ -7,20 +7,20 @@ use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     BinaryConstantFixtureKind as Binary, UnaryConstantFixtureKind as Unary, binary_constant_unit,
     unary_constant_unit,
 };
-use crate::{
+use crate::rules::{
     ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
-    IntegerWidenConstantsRule, PsiOptimizationRule, SaturatingIntegerAddConstantsRule,
+    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
 };
+use crate::{PsiOptimizationRule, WrappingIntegerAddConstantsRule};
 
 fn rule(rule: impl PsiOptimizationRule) -> optimization_core::OptimizationRuleIdentity {
     rule.contract().identity()

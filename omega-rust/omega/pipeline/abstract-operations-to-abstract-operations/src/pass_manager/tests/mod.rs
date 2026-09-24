@@ -32,9 +32,9 @@ use crate::rules::tests::fixtures::randomized_built_in_registries;
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     boolean_unit, wrapping_add_unit,
 };
+use crate::rules::{ExactIntegerAddConstantsRule, ExactIntegerSubtractConstantsRule};
 use crate::{
-    AnalysisManager, AnalysisProduct, ExactIntegerAddConstantsRule,
-    ExactIntegerSubtractConstantsRule, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
+    AnalysisManager, AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView,
     RuleProposalError, built_in_psi_registry,
 };
 use abstract_operations::AbstractOperation;

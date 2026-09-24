@@ -10,7 +10,7 @@ use super::{
     assert_malformed_carrier_legs, assert_measured_budget_leg, assert_negative_leg,
     assert_positive_leg,
 };
-use crate::DeadScalarLiteralEliminationRule;
+use crate::rules::DeadScalarLiteralEliminationRule;
 use crate::run_psi_pipeline;
 use optimization_core::{Optimization, OptimizationRuleIdentity};
 

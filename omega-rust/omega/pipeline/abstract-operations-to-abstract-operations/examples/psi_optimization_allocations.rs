@@ -10,7 +10,7 @@ use std::fmt::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use abstract_operations_to_abstract_operations::run_psi_pipeline;
+use abstract_operations_to_abstract_operations::test_support::run_psi_pipeline;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::recompute_psi_optimization_unit_identity;
 use terminal_psi_to_abstract_operations::{

@@ -13,20 +13,22 @@ mod use_definitions;
 mod value_liveness;
 mod value_ranges;
 
-pub use effect_summaries::{
-    EffectClass, EffectKnowledge, EffectSummaryAnalysis, FunctionEffectSummary, NodeEffectSummary,
-};
-pub use ownership_frontiers::{OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact};
-pub use place_aliases::{
-    PlaceAliasClaim, PlaceAliasFunction, PlaceAliasRelation, PlaceAliasRoot, PlaceAliasesAnalysis,
-    PlaceView,
-};
+pub use effect_summaries::{EffectClass, EffectKnowledge, EffectSummaryAnalysis};
+
+pub use ownership_frontiers::OwnershipFrontierAnalysis;
+
+pub use place_aliases::PlaceAliasesAnalysis;
+#[cfg(test)]
+pub(crate) use place_aliases::{PlaceAliasRelation, PlaceView};
 pub use sparse_conditional_constants::{
-    ExecutableEdgeAnalysis, ExecutableEdgeFact, ExecutableEdgeKnowledge, ScalarConstant,
-    ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, ValueFactRegion,
+    ExecutableEdgeAnalysis, ScalarConstant, ScalarConstantAnalysis,
 };
+#[cfg(test)]
+pub(crate) use sparse_conditional_constants::{ExecutableEdgeKnowledge, ScalarConstantSupport};
+
 pub use use_definitions::UseDefinitionAnalysis;
-pub use value_liveness::{NodeLiveness, ValueLivenessAnalysis, ValueLivenessBlock};
+pub use value_liveness::ValueLivenessAnalysis;
+
 pub use value_ranges::ValueRangeAnalysis;
 
 pub(super) use effect_summaries::effect_summaries;

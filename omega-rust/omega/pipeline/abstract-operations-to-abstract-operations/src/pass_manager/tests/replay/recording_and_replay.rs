@@ -96,7 +96,7 @@ fn external_decision_record_and_replay_preserve_self_remainder_validation() {
     };
     assert_eq!(
         point.rule(),
-        crate::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
     assert_eq!(baseline.usage().validation_steps, 1);
@@ -132,7 +132,7 @@ fn external_decision_record_and_replay_preserve_self_divide_validation() {
     };
     assert_eq!(
         point.rule(),
-        crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
     assert_eq!(baseline.usage().validation_steps, 1);
@@ -172,7 +172,7 @@ fn external_decision_record_and_replay_preserve_remainder_by_one_validation() {
     };
     assert_eq!(
         point.rule(),
-        crate::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
+        crate::rules::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
     assert_eq!(point.legal_candidates().len(), 1);
@@ -213,7 +213,7 @@ fn external_decision_replay_preserves_signed_remainder_by_negative_one_validatio
     };
     assert_eq!(
         point.rule(),
-        crate::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
+        crate::rules::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()
             .identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
@@ -255,7 +255,7 @@ fn external_decision_record_and_replay_preserve_compatible_policy_gvn() {
     };
     assert_eq!(
         point.rule(),
-        crate::SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract().identity()
+        crate::rules::SameBlockProofCertifiedCompatiblePolicyScalarCseRule::contract().identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
 
@@ -292,13 +292,15 @@ fn external_decision_record_and_replay_preserve_compatible_policy_phi_gvn() {
         .iter()
         .find(|point| {
             point.rule()
-                == crate::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract()
-                    .identity()
+                == crate::rules::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract(
+                )
+                .identity()
         })
         .expect("compatible-policy phi fixture retains its exact decision point");
     assert_eq!(
         point.rule(),
-        crate::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract().identity()
+        crate::rules::PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule::contract()
+            .identity()
     );
     assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
     assert!(points.iter().any(|point| {

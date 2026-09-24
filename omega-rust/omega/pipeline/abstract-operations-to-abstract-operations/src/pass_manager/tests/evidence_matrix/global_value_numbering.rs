@@ -7,7 +7,7 @@ use super::{
     assert_malformed_carrier_legs, assert_measured_budget_leg, assert_negative_leg,
     assert_positive_leg,
 };
-use crate::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
+use crate::rules::SameBlockProofCertifiedCompatiblePolicyScalarCseRule;
 use optimization_core::{Optimization, OptimizationRuleIdentity};
 
 fn expected_rule() -> OptimizationRuleIdentity {

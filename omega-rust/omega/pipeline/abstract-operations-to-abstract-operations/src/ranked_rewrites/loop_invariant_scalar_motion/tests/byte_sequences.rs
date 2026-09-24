@@ -2,9 +2,10 @@
 //! relocating with its root, index and length or staying inside.
 
 use crate::VerifiedPsiOptimizationSession;
+use crate::ranked_rewrites::LoopInvariantNodeResult;
 use crate::{
-    LoopInvariantNodeResult, apply_loop_invariant_scalar_motion,
-    propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
+    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
+    validate_loop_invariant_scalar_motion,
 };
 use abstract_operations::AbstractOperation;
 use optimization_unit::{

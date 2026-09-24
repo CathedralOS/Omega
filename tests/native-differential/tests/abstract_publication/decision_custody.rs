@@ -10,7 +10,7 @@ use crate::{
     AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan,
     publish_optimization_run,
 };
-use abstract_operations_to_abstract_operations::{OptimizationRun, PSI_PASS_CATALOG};
+use abstract_operations_to_abstract_operations::test_support::{OptimizationRun, PSI_PASS_CATALOG};
 use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationFactReference,

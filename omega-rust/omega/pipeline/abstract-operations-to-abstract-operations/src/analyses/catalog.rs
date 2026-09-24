@@ -36,6 +36,7 @@ pub enum AnalysisProduct {
 }
 
 impl AnalysisProduct {
+    #[cfg(any(test, feature = "test-support"))]
     pub const fn kind(&self) -> AnalysisKind {
         match self {
             Self::ControlFlowGraph(_) => AnalysisKind::ControlFlowGraph,
