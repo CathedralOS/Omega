@@ -17,13 +17,15 @@
 // exits: 71 = static read wrong; 72 = write flavor wrong; 73 = param leg wrong.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u32::U320To3 requires self <= 3;
-domain u32::U320To2 requires self <= 2;
-data Main {
+data Main
+where
+    x <= 3,
+    y <= 2,
+{
     console: Binding<Console>;
     pixels: [u8; 12];
-    x: u32 in U320To3;
-    y: u32 in U320To2;
+    x: u32;
+    y: u32;
 }
 machine Main::main(&mut self) reaches Console {
     // Leg 1: READ with statically-known operands (the original pin shape).
@@ -44,7 +46,9 @@ machine Main::main(&mut self) reaches Console {
             _ -> bad_write()
         }
     }
-    state param_leg(&mut self, y: u32 in U320To2, x: u32 in U320To3) {
+    state param_leg(&mut self, y: u32, x: u32)
+    requires y <= 2 && x <= 3
+    {
         // Leg 3: ranged PARAMS -- no assignment facts exist for y/x here, so
         // the interval product over the declared ranges is the only proof.
         transition self.pixels[y * 4 + x] == 7 {

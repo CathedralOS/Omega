@@ -10,17 +10,19 @@
 // minted an untypeable Unit temp before).
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To2 requires self <= 2;
-domain u64::U640To3 requires self <= 3;
-domain u64::U640To1 requires self <= 1;
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
-data Main {
+data Main
+where
+    i <= 2,
+    j <= 3,
+    rj <= 1,
+{
     console: Binding<Console>;
     grid: [[i32 in Wrapping; 4]; 3];
     rows: [Row; 3];
-    i: u64 in U640To2;
-    j: u64 in U640To3;
-    rj: u64 in U640To1;
+    i: u64;
+    j: u64;
+    rj: u64;
     got: i32 in Wrapping;
 }
 machine Main::main(&mut self) reaches Console {

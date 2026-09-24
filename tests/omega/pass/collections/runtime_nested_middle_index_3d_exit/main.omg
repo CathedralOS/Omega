@@ -6,11 +6,13 @@
 // const-prefix peeling; pinned by runtime_nested_deep_const_prefix_exit.)
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To1 requires self <= 1;
-data Main {
+data Main
+where
+    b <= 1,
+{
     console: Binding<Console>;
     cube: [[[i32; 2]; 2]; 2];
-    b: u64 in U640To1;
+    b: u64;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {

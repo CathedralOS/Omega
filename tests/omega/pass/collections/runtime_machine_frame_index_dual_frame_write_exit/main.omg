@@ -3,7 +3,6 @@
 // three-relocation case (frame source, machine re-load, frame index). -> 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To3 requires self <= 3;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];
@@ -11,7 +10,9 @@ data Main {
 machine Main::main(&mut self) {
     transition { _ -> self.put(1, 44) }
 }
-machine Main::put(&mut self, k: u64 in U640To3, v: i32) reaches Console {
+machine Main::put(&mut self, k: u64, v: i32) reaches Console
+requires k <= 3
+{
     self.arr[k] = v;
     transition self.arr[1] == 44 {
         true -> yes()

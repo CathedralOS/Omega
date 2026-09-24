@@ -14,22 +14,28 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To2 requires self <= 2;
-domain i64::I640To50 requires 0 <= self && self <= 50;
-domain i64::I640To100 requires 0 <= self && self <= 100;
 data Room {
     description: &[u8] in Utf8;
 }
 data Label {
     text: [u8; 8] in Utf8;
 }
-data Main {
+data Main
+where
+    index <= 2,
+    0 <= left,
+    left <= 50,
+    0 <= right,
+    right <= 50,
+    0 <= source,
+    source <= 100,
+{
     console: Binding<Console>;
-    index: u64 in U640To2;
+    index: u64;
     value: i64;
-    left: i64 in I640To50;
-    right: i64 in I640To50;
-    source: i64 in I640To100;
+    left: i64;
+    right: i64;
+    source: i64;
     prefix: [u8; 8] in Utf8;
 }
 machine Main::main(&mut self) {

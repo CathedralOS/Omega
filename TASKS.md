@@ -110,10 +110,11 @@ the complete product bar; focused successes below do not establish that baseline
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
   and `arithmetic/runtime_nested_unsigned_witness_exit` now state their
   parameter bounds as `requires` and their locals by initializer, and all
-  three run canaries pass. The rest of `f1d6e31013` and `c5688363ec` now use
-  `requires`, data or case `where`, or initializers, except where that form
-  checks worse than the domain did; those have their pre-migration brackets
-  back. Data `where` facts on a field do not reach the index proof
+  three run canaries pass. The rest of `f1d6e31013`, `c5688363ec` and
+  `9e3355b562` now use `requires`, data or case `where`, or initializers,
+  except where that form checks or runs worse than the domain did; those
+  have their pre-migration brackets back (eight of `9e3355b562`'s collection
+  run canaries among them). Data `where` facts on a field do not reach the index proof
   (`runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`), a
   call's `requires` (`runtime_mutable_call_before_transition_args_exit`), a
   literal built from another bounded field

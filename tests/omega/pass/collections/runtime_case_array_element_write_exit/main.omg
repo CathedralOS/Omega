@@ -8,12 +8,15 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
-domain i64::I640To3 requires 0 <= self && self <= 3;
 data FieldPlan {
     case At(offset: i64, width: i64);
     case Skip;
 }
-data Main { console: Binding<Console>; plans: [FieldPlan; 4]; i: i64 in I640To3; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
+data Main
+where
+    0 <= i,
+    i <= 3,
+{ console: Binding<Console>; plans: [FieldPlan; 4]; i: i64; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
 machine Main::main(&mut self) reaches Console {
     self.plans[0] = FieldPlan::At { offset: 8, width: 4 };
     self.i = 2;
