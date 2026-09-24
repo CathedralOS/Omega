@@ -411,6 +411,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
                     })
                 }
+                AbstractOperation::IndexedPrimitiveRead { .. } => {
+                    structural_fields::indexed_read_retained(abstracted, operation, targeted)
+                        && structural_fields::indexed_read_footprint_retained(operation, &selected.memory_accesses)
+                }
                 AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
                     structural_fields::write_only_indexed_store_retained(abstracted, operation, targeted)
                         && structural_fields::write_only_indexed_footprint_retained(operation, &selected.memory_accesses)

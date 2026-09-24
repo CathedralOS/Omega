@@ -790,6 +790,7 @@ fn interferes(
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::ReadElementView { .. }
+        | SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. }
         | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {

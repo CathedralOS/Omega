@@ -144,6 +144,19 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
+            SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                index,
+                extent,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(12);
+                for identity in [index.get(), obligation.get()] {
+                    bytes.extend_from_slice(&identity.to_le_bytes());
+                }
+                bytes.extend_from_slice(&extent.to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadElementView {
                 index,
                 length,

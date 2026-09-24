@@ -27,7 +27,6 @@ mod byte_output;
 mod control;
 mod ieee_comparison;
 mod integer_conversion;
-mod literal_compare;
 mod normalized_foreign;
 mod process_exit;
 mod scalar_call;
@@ -278,8 +277,18 @@ fn select_function(
             {
                 continue;
             }
-            if (literal_compare::folded_zero(source, block, operation_index + 1).is_some()
-                || literal_compare::folded_immediate(source, block, operation_index + 1).is_some())
+            if (crate::selection::literal_compare_input::folded_zero(
+                source,
+                block,
+                operation_index + 1,
+            )
+            .is_some()
+                || crate::selection::literal_compare_input::folded_immediate(
+                    source,
+                    block,
+                    operation_index + 1,
+                )
+                .is_some())
                 && control::branch_suffix(source, block, operation_index + 1)
             {
                 continue;
@@ -326,6 +335,9 @@ fn select_function(
                     LegalizedScalarInstructionKind::ElementViewRead { .. }
                     | LegalizedScalarInstructionKind::ElementViewLength { .. } => {
                         structural::element_observation(source, &mut builder, operation)?
+                    }
+                    LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. } => {
+                        structural::indexed_read(source, &mut builder, operation)?
                     }
                     LegalizedScalarInstructionKind::Compare { .. } => {
                         boolean_value::emit_branch_comparison(

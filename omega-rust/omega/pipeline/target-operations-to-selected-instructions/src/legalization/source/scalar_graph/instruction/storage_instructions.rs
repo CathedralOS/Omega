@@ -137,15 +137,7 @@ pub(super) fn project_write_only_indexed_primitive_store(
         unreachable!("dispatched project_write_only_indexed_primitive_store")
     };
     let kind = {
-        let fact = unit
-            .accepted_obligation_facts
-            .iter()
-            .find(|fact| {
-                fact.machine == optimized.machine
-                    && fact.operation == *psi_operation
-                    && fact.obligation == *obligation
-            })
-            .ok_or(Error::custody())?;
+        let accepted_fact = accepted_fact(optimized, unit, *psi_operation, *obligation)?;
         let (byte_offset, byte_size, extent) =
             crate::structural_inputs::structural_reference_input::indexed_primitive_store(
                 destination,
@@ -163,10 +155,63 @@ pub(super) fn project_write_only_indexed_primitive_store(
             byte_size,
             extent,
             obligation: *obligation,
-            accepted_fact: fact.identity,
+            accepted_fact,
         }
     };
     Ok(kind)
+}
+
+pub(super) fn project_indexed_primitive_read(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        path,
+        index,
+        obligation,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_indexed_primitive_read")
+    };
+    let (source, (byte_offset, byte_size, extent)) =
+        scalar_graph_input::structural_fields::indexed_read(
+            optimized,
+            &node.operation,
+            &unit.structural_types,
+        )
+        .ok_or(Error::custody())?;
+    Ok(LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+        source,
+        path: path.clone(),
+        index: *index,
+        byte_offset,
+        byte_size,
+        extent,
+        obligation: *obligation,
+        accepted_fact: accepted_fact(optimized, unit, *psi_operation, *obligation)?,
+    })
+}
+
+/// The verifier's accepted certificate for one runtime-bounded access: the
+/// exact obligation at the exact operation of this machine.
+fn accepted_fact(
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: semantic_vocabulary::OperationId,
+    obligation: semantic_vocabulary::ObligationId,
+) -> Result<optimization_core::AcceptedObligationFactIdentity, LegalizationError> {
+    unit.accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == obligation
+        })
+        .map(|fact| fact.identity)
+        .ok_or(Error::custody())
 }
 
 pub(super) fn project_structural_scalar_field_store(

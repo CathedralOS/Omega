@@ -152,29 +152,35 @@ pub(in crate::selection) fn read(
             ..Default::default()
         },
     )?;
-    // The exact-width load zero-extends raw bits. Restore a narrow signed
-    // value before any consumer, not only at a subsequent ABI boundary.
-    // Only the memory load carries the authored read's operation and fuel.
-    if matches!(definition.scalar_type, ScalarType::Integer(integer)
+    normalize_signed_load(builder, definition, output)
+}
+
+/// The exact-width load zero-extends raw bits. Restore a narrow signed value
+/// before any consumer, not only at a subsequent ABI boundary. Only the
+/// memory load carries the authored read's operation and fuel.
+pub(super) fn normalize_signed_load(
+    builder: &mut Builder<'_>,
+    definition: legalized_operations::LegalizedValueDefinition,
+    output: VirtualRegisterId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if !matches!(definition.scalar_type, ScalarType::Integer(integer)
         if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
     {
-        let normalized = builder.register(
-            definition.value,
-            definition.definition_site,
-            definition.scalar_type,
-        )?;
-        builder.emit(
-            crate::selection::scalar_call_abi::integer_carrier_normalization(
-                definition.scalar_type,
-            ),
-            builder.constraints.keys.copy_i64,
-            &[output, normalized],
-            SelectedInstructionProvenance {
-                values: vec![definition.value],
-                ..Default::default()
-            },
-        )?;
-        return Ok(normalized);
+        return Ok(output);
     }
-    Ok(output)
+    let normalized = builder.register(
+        definition.value,
+        definition.definition_site,
+        definition.scalar_type,
+    )?;
+    builder.emit(
+        crate::selection::scalar_call_abi::integer_carrier_normalization(definition.scalar_type),
+        builder.constraints.keys.copy_i64,
+        &[output, normalized],
+        SelectedInstructionProvenance {
+            values: vec![definition.value],
+            ..Default::default()
+        },
+    )?;
+    Ok(normalized)
 }

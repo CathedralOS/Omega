@@ -3543,6 +3543,11 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
+        | AbstractOperation::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::StructuralByteSequenceFieldLength {
             psi_operation,
             result,

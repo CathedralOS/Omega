@@ -78,6 +78,19 @@ pub enum TargetUnitOperation {
         source: StructuralArgument,
         field: StructuralFieldId,
     },
+    /// One element of a fixed-array leaf read at the exact dominating `u64`
+    /// index. `source` names the readable root and its runtime path;
+    /// `path` is the same projection in canonical form, ending at the array.
+    /// `obligation` certifies `index < extent`, so selection realizes the
+    /// read with the element-width address model the indexed store uses.
+    IndexedPrimitiveRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralArgument,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: TargetUnitScalarArgumentSource,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// One owned copy of an `Unrestricted` leaf read out of a live readable
     /// root. `source` names the root place and `path`/`byte_offset` the
     /// inspected bytes inside it; `result_home` is the fresh activation-local
