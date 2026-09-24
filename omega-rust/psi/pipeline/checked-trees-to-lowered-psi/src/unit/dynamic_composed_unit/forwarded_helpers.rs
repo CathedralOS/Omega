@@ -1,12 +1,13 @@
 //! Forwarded helper chains retain descriptor custody separately from the
 //! caller. Each helper replaces one checked machine whose call forwards the
 //! descriptor parameter to the next helper, or, for the last one, dispatches
-//! through it. The chain, its descriptor catalog and its source calls are
-//! lowered once for either result; a lane supplies only the helper's body.
-//! A scalar helper's call result is one binding in its authored sequence, not
-//! necessarily its returned value, so ordinary scalar evaluation and exit
-//! replay own the surrounding calculations and returning branches. A Unit
-//! helper's body is its one forwarding call.
+//! through it. The chain, its descriptor catalog, its source calls and each
+//! helper's body are lowered once for either result; a lane supplies only
+//! its checked helper bodies. A body is ordered pure locals around the one
+//! call, evaluated by ordinary scalar evaluation. A scalar helper's call
+//! result is one binding in that sequence, not necessarily its returned
+//! value, so exit replay owns its returning branches; a Unit helper's call
+//! binds nothing and the body returns Unit after its last local.
 
 use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, validate_empty_contract, validate_empty_service_summary,
@@ -24,7 +25,10 @@ use crate::unit::{
     lower_installation_machine_service_ceiling, machine_id, operation_id, terminal_scalar_type,
     unsupported, value_id,
 };
-use checked_trees::CheckedUnitCallCoordinate;
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitCallCoordinate, CheckedUnitScalarControlPlan,
+    CheckedUnitScalarResultBindingPlan,
+};
 use semantic_vocabulary::ScalarType;
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -34,10 +38,35 @@ use terminal_psi::{
     ValueDeclaration,
 };
 
+/// One forwarded helper's checked body, borrowed from either lane's plan:
+/// the helper's one call among its ordered pure locals, then how it returns.
+pub(crate) struct ForwardedHelperBody<'a> {
+    /// The checked machine and state the body belongs to.
+    pub(crate) machine: SymbolHandle,
+    pub(crate) state: SymbolHandle,
+    /// The statement that performs the helper's one call.
+    pub(crate) call_statement_index: u32,
+    /// Every other statement's binding and checked initializer, in order.
+    pub(crate) scalar_locals: &'a [(CheckedUnitScalarResultBindingPlan, CheckedScalarExpression)],
+    pub(crate) completion: ForwardedHelperCompletion<'a>,
+}
+
+/// How a forwarded helper's body returns.
+#[derive(Clone, Copy)]
+pub(crate) enum ForwardedHelperCompletion<'a> {
+    /// The call binds its result among the locals, and checked scalar
+    /// control over those bindings returns the helper's result.
+    Scalar {
+        call_result: &'a CheckedUnitScalarResultBindingPlan,
+        control: &'a CheckedUnitScalarControlPlan,
+    },
+    /// The call binds nothing, and the helper returns Unit after its last
+    /// statement.
+    Unit,
+}
+
 /// One forwarded helper as the chain materializes it.
 pub(crate) struct ForwardedHelperSite {
-    /// The helper's position in the chain, outermost first.
-    pub(crate) index: usize,
     pub(crate) ids: ForwardedHelperIds,
     /// The checked machine and state this helper replaces, and the
     /// coordinate of its call.
@@ -63,9 +92,7 @@ pub(crate) fn forwarded_helper_chain_ids<Call: DynamicCall>(
 ) -> Result<Vec<ForwardedHelperIds>, LoweringError> {
     let plan = call.view();
     if plan.forwarded.is_none() {
-        if !plan.forwarding_transfers.is_empty()
-            || call.helper_body_count().is_some_and(|count| count != 0)
-        {
+        if !plan.forwarding_transfers.is_empty() || call.helper_body_count() != 0 {
             return unsupported("local dynamic call retained forwarding transfers");
         }
         return Ok(Vec::new());
@@ -143,7 +170,7 @@ pub(crate) fn extend_parameter_forwarding_catalog(
 
 /// The forwarded helper machines: each validates the checked machine it
 /// replaces as contract- and service-free, publishes that machine's service
-/// ceiling and returns its lane's result from the lane's body.
+/// ceiling and returns its lane's result from its retained body.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize_forwarded_helper_chain<Call: DynamicCall>(
     checked: &CheckedTrees,
@@ -165,9 +192,7 @@ pub(crate) fn materialize_forwarded_helper_chain<Call: DynamicCall>(
         return unsupported("forwarded helper chain requires a forwarded checked origin");
     };
     if plan.forwarding_transfers.len() + 1 != helpers.len()
-        || call
-            .helper_body_count()
-            .is_some_and(|count| count != helpers.len())
+        || call.helper_body_count() != helpers.len()
     {
         return unsupported("forwarded helper chain length drifted from checked custody");
     }
@@ -187,7 +212,6 @@ pub(crate) fn materialize_forwarded_helper_chain<Call: DynamicCall>(
                     None => (origin.machine, origin.state, origin.coordinate),
                 };
             let site = ForwardedHelperSite {
-                index,
                 ids: *ids,
                 source_machine,
                 source_state,
@@ -208,8 +232,12 @@ pub(crate) fn materialize_forwarded_helper_chain<Call: DynamicCall>(
                 (None, None) => TerminalMachineResult::Unit,
                 _ => return unsupported("forwarded helper identities disagree with its result"),
             };
-            let blocks = call.materialize_helper_body(
+            let body = call.helper_body(index).ok_or(LoweringError::Unsupported(
+                "forwarded helper chain length drifted from checked custody",
+            ))?;
+            let blocks = materialize_helper_body(
                 checked,
+                &body,
                 &site,
                 next_block,
                 next_operation,
@@ -298,36 +326,15 @@ fn forwarded_helper_call(site: &ForwardedHelperSite) -> OperationKind {
     }
 }
 
-/// A Unit helper's one block: its forwarding call, then its return.
-pub(crate) fn materialize_unit_helper_body(site: &ForwardedHelperSite) -> Block {
-    Block {
-        structural_parameters: Vec::new(),
-        id: site.ids.block,
-        parameters: Vec::new(),
-        erased_scalar_formals: Vec::new(),
-        erased_proof_formals: Vec::new(),
-        operations: vec![Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: site.ids.operation,
-            result: OperationResult::Unit,
-            kind: forwarded_helper_call(site),
-        }],
-        terminator: Terminator::ReturnUnit {
-            edge: site.ids.edge,
-            trivial_affine_discards: Vec::new(),
-        },
-    }
-}
-
-/// A scalar helper's blocks: its ordered pure locals with its call's result
-/// at the checked position, then its checked scalar control.
+/// One helper's blocks: its ordered pure locals and its one call in authored
+/// order, then its completion. The call is emitted at its checked position
+/// with the values computed before it; a scalar call's result joins the
+/// bindings its control reads.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn materialize_scalar_helper_body(
+pub(crate) fn materialize_helper_body(
     checked: &CheckedTrees,
-    body: &checked_trees::CheckedDynamicScalarHelperPlan,
+    body: &ForwardedHelperBody<'_>,
     site: &ForwardedHelperSite,
-    scalar_type: semantic_vocabulary::ScalarType,
     next_block: &mut u64,
     next_operation: &mut u64,
     next_value: &mut u64,
@@ -342,20 +349,54 @@ pub(crate) fn materialize_scalar_helper_body(
 
     let ids = site.ids;
     let source_machine = site.source_machine;
-    let values_ids = ids.scalar_values.ok_or(LoweringError::Unsupported(
-        "forwarded scalar helper has no result values",
-    ))?;
-    let prefix = crate::unit::attached_unit::validate_scalar_control_tail(
-        checked,
-        source_machine,
-        body.state,
-        &body.scalar_control,
-    )?;
-    if body.scalar_locals.len().checked_add(1) != Some(prefix)
-        || body.call_result.statement_index as usize >= prefix
-        || terminal_scalar_type(body.scalar_control.primitive_type)? != scalar_type
+    if body.machine != site.source_machine
+        || body.state != site.source_state
+        || body.call_statement_index != site.source_coordinate.statement_index
     {
-        return unsupported("forwarded helper omitted or changed its scalar body");
+        return unsupported("forwarded helper body changed its source call");
+    }
+    // The completion fixes how many authored statements precede it and what
+    // the call binds.
+    let (prefix, call_value) = match body.completion {
+        ForwardedHelperCompletion::Scalar {
+            call_result,
+            control,
+        } => {
+            let prefix = crate::unit::attached_unit::validate_scalar_control_tail(
+                checked,
+                source_machine,
+                body.state,
+                control,
+            )?;
+            let (Some(scalar_type), Some(values)) = (site.result_type, ids.scalar_values) else {
+                return unsupported("forwarded scalar helper has no result values");
+            };
+            if terminal_scalar_type(call_result.primitive_type)? != scalar_type
+                || terminal_scalar_type(control.primitive_type)? != scalar_type
+            {
+                return unsupported("forwarded helper omitted or changed its scalar body");
+            }
+            let call_value = ValueDeclaration {
+                qualifications: Default::default(),
+                id: values.call,
+                scalar_type,
+            };
+            (prefix, Some((call_result, call_value)))
+        }
+        ForwardedHelperCompletion::Unit => {
+            if site.result_type.is_some() || ids.scalar_values.is_some() {
+                return unsupported("forwarded Unit helper gained a result");
+            }
+            (
+                unit_helper_statement_count(checked, source_machine, body.state)?,
+                None,
+            )
+        }
+    };
+    if body.scalar_locals.len().checked_add(1) != Some(prefix)
+        || body.call_statement_index as usize >= prefix
+    {
+        return unsupported("forwarded helper omitted or changed its body");
     }
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, body.state)?;
@@ -373,10 +414,12 @@ pub(crate) fn materialize_scalar_helper_body(
         next_obligation_identity: 1,
         obligation_limit: 1,
     };
-    for (ordinal, statement) in statements.iter().take(prefix).enumerate() {
-        let StatementNode::LocalData(local) = statement else {
-            return unsupported("forwarded helper lost an ordered scalar binding");
-        };
+    // An authored binding is an immutable local with an initializer, at its
+    // own statement and next in the scalar namespace.
+    let validate_binding = |local: &checked_trees::statement::TableLocalData,
+                            binding: &CheckedUnitScalarResultBindingPlan,
+                            ordinal: usize,
+                            position: usize| {
         if local.is_mutable
             || !local.symbol.is_valid()
             || !checked
@@ -385,90 +428,109 @@ pub(crate) fn materialize_scalar_helper_body(
         {
             return unsupported("forwarded helper cannot erase storage or an absent initializer");
         }
-        let (binding, value) = if ordinal == body.call_result.statement_index as usize {
-            (&body.call_result, None)
-        } else {
-            let (binding, value) = locals.next().ok_or(LoweringError::Unsupported(
-                "forwarded helper omitted a scalar initializer",
-            ))?;
-            (binding, Some(value))
-        };
         if binding.statement_index as usize != ordinal
-            || binding.binding_ordinal as usize != values.len()
+            || binding.binding_ordinal as usize != position
             || checked.primitive_type_reference(local.type_reference)
                 != Some(binding.primitive_type)
         {
             return unsupported("forwarded helper binding order or type drifted");
         }
-        let value = if let Some(value) = value {
-            evaluation.source_value(
-                checked,
-                source_machine,
-                body.state,
-                binding.statement_index,
-                CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: binding.binding_ordinal,
-                },
-                &checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
-                values.len(),
-                &mut values,
-                next_value,
-                next_block,
-                next_edge,
-                &mut operations,
-                &mut calls,
-            )?
-        } else {
+        Ok(())
+    };
+    for (ordinal, statement) in statements.iter().take(prefix).enumerate() {
+        if ordinal == body.call_statement_index as usize {
+            let target = match (statement, call_value) {
+                (StatementNode::LocalData(local), Some((call_result, _))) => {
+                    validate_binding(local, call_result, ordinal, values.len())?;
+                    let checked_trees::expression::ExpressionNode::Call(call) =
+                        checked.expression_table.expression(local.initial_value)
+                    else {
+                        return unsupported("forwarded helper substituted its call initializer");
+                    };
+                    call.target_symbol
+                }
+                (StatementNode::Call(call), None) => call.target_symbol,
+                _ => return unsupported("forwarded helper substituted its call"),
+            };
             let occurrence = source_calls
                 .iter_mut()
                 .find(|call| call.terminal_operation == ids.operation)
                 .ok_or(LoweringError::Unsupported(
                     "forwarded helper lost its source call occurrence",
                 ))?;
-            let checked_trees::expression::ExpressionNode::Call(call) =
-                checked.expression_table.expression(local.initial_value)
-            else {
-                return unsupported("forwarded helper substituted its call initializer");
-            };
             if occurrence.source_state != body.state
                 || occurrence.statement_index != ordinal
                 || occurrence.call_ordinal != 0
-                || occurrence.source_target != call.target_symbol
+                || occurrence.source_target != target
             {
                 return unsupported("forwarded helper call coordinate drifted");
             }
             occurrence.source_values_before_call = values.clone();
-            let result = ValueDeclaration {
-                qualifications: Default::default(),
-                id: values_ids.call,
-                scalar_type,
-            };
+            let result = call_value.map(|(_, value)| value);
             operations.push(Operation {
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: ids.operation,
-                result: OperationResult::Scalar(result),
+                result: result.map_or(OperationResult::Unit, OperationResult::Scalar),
                 kind: forwarded_helper_call(site),
             });
-            result
+            values.extend(result);
+            continue;
+        }
+        let StatementNode::LocalData(local) = statement else {
+            return unsupported("forwarded helper lost an ordered scalar binding");
         };
+        let (binding, value) = locals.next().ok_or(LoweringError::Unsupported(
+            "forwarded helper omitted a scalar initializer",
+        ))?;
+        validate_binding(local, binding, ordinal, values.len())?;
+        let value = evaluation.source_value(
+            checked,
+            source_machine,
+            body.state,
+            binding.statement_index,
+            CheckedScalarExpressionRole::LocalInitializer {
+                binding_ordinal: binding.binding_ordinal,
+            },
+            &checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
+            values.len(),
+            &mut values,
+            next_value,
+            next_block,
+            next_edge,
+            &mut operations,
+            &mut calls,
+        )?;
         if value.scalar_type != terminal_scalar_type(binding.primitive_type)? {
             return unsupported("forwarded helper changed a scalar initializer type");
         }
         values.push(value);
     }
-    let result = evaluation.scalar_control_result(
-        checked,
-        source_machine,
-        body.state,
-        &body.scalar_control,
-        &mut values,
-        next_value,
-        next_block,
-        next_edge,
-        &mut operations,
-        &mut calls,
-    )?;
+    let terminator = match body.completion {
+        ForwardedHelperCompletion::Scalar { control, .. } => {
+            let result = evaluation.scalar_control_result(
+                checked,
+                source_machine,
+                body.state,
+                control,
+                &mut values,
+                next_value,
+                next_block,
+                next_edge,
+                &mut operations,
+                &mut calls,
+            )?;
+            Terminator::Return {
+                edge: ids.edge,
+                value: result.id,
+                cleanup_actions: Vec::new(),
+            }
+        }
+        ForwardedHelperCompletion::Unit => Terminator::ReturnUnit {
+            edge: ids.edge,
+            trivial_affine_discards: Vec::new(),
+        },
+    };
     // Pure expressions may expand to branches, but must not invent additional
     // calls, selected providers or proof obligations outside this helper plan.
     if !operations.source_calls.is_empty()
@@ -485,15 +547,44 @@ pub(crate) fn materialize_scalar_helper_body(
         erased_scalar_formals: Vec::new(),
         erased_proof_formals: Vec::new(),
         operations: operations[evaluation.operation_start..].to_vec(),
-        terminator: Terminator::Return {
-            edge: ids.edge,
-            value: result.id,
-            cleanup_actions: Vec::new(),
-        },
+        terminator,
     });
     *next_operation = operations.next_identity;
     evaluation.blocks.sort_by_key(|block| block.id);
     Ok(evaluation.blocks)
+}
+
+/// A Unit helper's checked signature: its machine's one contract-free state
+/// returns Unit, so every authored statement precedes the return.
+fn unit_helper_statement_count(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Result<usize, LoweringError> {
+    use checked_trees::types::TypeReferenceNode;
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let mut result_type = state.return_type;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        checked.type_reference_table.type_reference(result_type)
+    {
+        result_type = *base_type;
+    }
+    if source.symbol != machine
+        || checked.machine_states(source).len() != 1
+        || !matches!(
+            checked.type_reference_table.type_reference(result_type),
+            TypeReferenceNode::Unit
+        )
+        || !checked.machine_contracts(source).is_empty()
+        || !checked.state_contracts(state).is_empty()
+    {
+        return unsupported("forwarded Unit helper lost its exact source signature");
+    }
+    Ok(checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .len())
 }
 
 /// The source-call occurrences of one dispatch: each caller's call into the

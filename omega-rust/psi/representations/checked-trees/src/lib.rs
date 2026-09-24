@@ -44,7 +44,7 @@ pub use checked_trees::{
     CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
     CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan, CheckedDynamicSelectionPlan,
     CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan,
-    CheckedDynamicUnitContinuationPlan, CheckedEntryResourceEnvelope,
+    CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan, CheckedEntryResourceEnvelope,
     CheckedErasedProofParameterPlan, CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,
     CheckedEvidenceRequirementIdentity, CheckedEvidenceTerm, CheckedFactCallProjection,
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,

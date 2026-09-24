@@ -42,6 +42,30 @@ pub(crate) fn dynamic_receiver_place(
     }
 }
 
+/// A statement call's receiver: its authored name path, rooted at the
+/// storage it names.
+pub(crate) fn statement_receiver_place(
+    program: &TypedTrees,
+    call: &typed_trees::statement::TableCall,
+) -> Option<DynamicReceiverPlace> {
+    let path = program
+        .statement_table
+        .name_path_members(call.receiver)
+        .to_vec();
+    if path.is_empty() {
+        return None;
+    }
+    Some(DynamicReceiverPlace {
+        root: if call.receiver_root_symbol.is_valid() {
+            call.receiver_root_symbol
+        } else {
+            call.receiver_symbol
+        },
+        leaf: call.receiver_symbol,
+        path,
+    })
+}
+
 pub(crate) fn stored_dynamic_receiver<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,

@@ -1,50 +1,188 @@
-//! Building one checked dynamic scalar call with its realization callables
-//! and source arguments.
+//! One checked dynamic call, for either result.
+//!
+//! A caller selects a descriptor from one attachment field (directly, rebound
+//! once, or stored through one aggregate field) and calls a requirement
+//! through it, in its own body or at the end of a forwarded helper chain.
+//! Everything but the result is the same for a scalar and a Unit call: the
+//! call's ordinary shape and receiver, the selection, the borrowed source
+//! argument, the selected conformance row, requirement and realization, the
+//! callable roster, both contracts and the call's service reach.
+//! [`build_checked_dynamic_call`] checks that custody once. A
+//! [`DynamicResultLane`] supplies what its result adds: the caller statement
+//! that consumes the result, the declared return, the selected body, the
+//! forwarded helper bodies, and its own publication. Checks only one lane
+//! needs stay in that lane: the Unit rung refuses a stored descriptor and any
+//! service reach, and the scalar lane owns its caller store and Unit
+//! continuation.
 
+use super::forwarded_calls::{ForwardedDynamicCall, forwarded_transfer_path_is_exact};
+use super::realization_bodies::checked_call_service_reach;
 use super::realization_callables::{
     checked_dynamic_realization_callables, dynamic_family_realization, dynamic_family_tuple,
 };
-use crate::execution::terminal_unit::dynamic_scalar_calls::forwarded_calls::{
-    ForwardedDynamicCall, forwarded_transfer_path_is_exact,
-};
-use crate::execution::terminal_unit::dynamic_scalar_calls::realization_bodies::{
-    checked_call_service_reach, checked_realization_scalar_body,
-};
-use crate::execution::terminal_unit::dynamic_scalar_calls::receivers::dynamic_receiver_place;
+use super::receivers::{DynamicReceiverPlace, dynamic_receiver_place, statement_receiver_place};
+use super::result_lanes::DynamicResultLane;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, structural_access_for_type_reference, terminal_field_identity,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedBoundaryMachinePlan, CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitScalarResultBindingPlan,
+    CheckFacts, CheckedBoundaryMachinePlan, CheckedStructuralAccess, CheckedUnitCallCoordinate,
     CheckedUnitStructuralPathSegment, ExpressionNode, MachineSupplyMode, ServiceReachSummary,
     StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
 };
-use checked_trees::CheckedDynamicBinding;
+use crate::semantic::calls::CallSite;
+use checked_trees::{CheckedDynamicBinding, CheckedDynamicDispatchPlan};
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::TypeIdentityRequest;
 
+/// The parts of one authored call a dynamic lane reads, whichever form the
+/// call's result gives it: a Unit call is a statement, a scalar call an
+/// expression that a local binds.
+pub(super) struct AuthoredCall<'program> {
+    pub(super) target_symbol: SymbolHandle,
+    pub(super) target: &'program Identifier,
+    pub(super) machine_arguments: &'program [typed_trees::expression::StaticMachineArgument],
+    pub(super) argument_count: usize,
+    /// No evidence term names one of the callee's obligations.
+    pub(super) evidence_free: bool,
+    /// The call runs its target's ordinary nominal route and keeps its result:
+    /// no static requirement dispatch, quotient or private layout request, and
+    /// no `_ =` discard.
+    pub(super) ordinary_route: bool,
+    receiver: AuthoredReceiver<'program>,
+}
+
+#[derive(Clone, Copy)]
+enum AuthoredReceiver<'program> {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Statement(&'program typed_trees::statement::TableCall),
+}
+
+impl<'program> AuthoredCall<'program> {
+    pub(super) fn of(program: &'program TypedTrees, site: &CallSite<'program>) -> Option<Self> {
+        match *site {
+            CallSite::Statement(call) => Some(Self {
+                target_symbol: call.target_symbol,
+                target: &call.target,
+                machine_arguments: &call.machine_arguments,
+                argument_count: program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .len(),
+                evidence_free: call.evidence_arguments.is_empty(),
+                ordinary_route: call.static_requirement_dispatch.is_none() && !call.discards_result,
+                receiver: AuthoredReceiver::Statement(call),
+            }),
+            CallSite::Expression { call, .. } => Some(Self {
+                target_symbol: call.target_symbol,
+                target: &call.target,
+                machine_arguments: &call.machine_arguments,
+                argument_count: program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .len(),
+                evidence_free: call.evidence_arguments.is_empty(),
+                ordinary_route: call.selects_only_nominal_route(),
+                receiver: AuthoredReceiver::Expression(call.receiver),
+            }),
+            CallSite::TransitionNamed { .. } => None,
+        }
+    }
+
+    /// The place the call dispatches through.
+    fn receiver_place(&self, program: &TypedTrees) -> Option<DynamicReceiverPlace> {
+        match self.receiver {
+            AuthoredReceiver::Expression(receiver) => dynamic_receiver_place(program, receiver),
+            AuthoredReceiver::Statement(call) => statement_receiver_place(program, call),
+        }
+    }
+}
+
+/// The final helper of a forwarded call: its machine and state, the
+/// coordinate of its dispatching call and the descriptor parameter it calls
+/// through. Both plans' origins record exactly this.
+#[derive(Clone, Copy)]
+pub(super) struct ForwardedDispatch {
+    pub(super) machine: SymbolHandle,
+    pub(super) state: SymbolHandle,
+    pub(super) coordinate: CheckedUnitCallCoordinate,
+    pub(super) parameter: SymbolHandle,
+}
+
+/// The custody both lanes' plans share, gathered once by
+/// [`build_checked_dynamic_call`]. A lane moves it into its plan.
+pub(super) struct DynamicCallCustody<HelperBody> {
+    /// The final forwarded helper; `None` for a local call.
+    pub(super) forwarded: Option<ForwardedDispatch>,
+    pub(super) forwarding_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
+    /// The forwarded helper bodies, outermost first; empty for a local call.
+    pub(super) forwarding_helpers: Vec<HelperBody>,
+    pub(super) caller_machine: SymbolHandle,
+    pub(super) caller_state: SymbolHandle,
+    pub(super) caller_attachment_type_identity: String,
+    pub(super) caller_multiplicity: language_semantics::Multiplicity,
+    pub(super) caller_parameter_access: CheckedStructuralAccess,
+    pub(super) caller_contract_report_fingerprint: u64,
+    pub(super) caller_contract_commitment: checked_trees::MachineContractCommitment,
+    pub(super) caller_service_reach: ServiceReachSummary,
+    pub(super) coordinate: CheckedUnitCallCoordinate,
+    pub(super) receiver_binding: SymbolHandle,
+    pub(super) selection: checked_trees::DynamicConformanceBindingFact,
+    pub(super) source_parameter_position: u32,
+    pub(super) source_access: CheckedStructuralAccess,
+    pub(super) source_field: SymbolHandle,
+    pub(super) source_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub(super) source_type_identity: String,
+    pub(super) source_multiplicity: language_semantics::Multiplicity,
+    pub(super) target_trait: SymbolHandle,
+    pub(super) selected_conformance: SymbolHandle,
+    pub(super) declaring_trait: SymbolHandle,
+    pub(super) requirement: SymbolHandle,
+    pub(super) requirement_identity: String,
+    pub(super) realization_machine: SymbolHandle,
+    pub(super) realization_state: SymbolHandle,
+    pub(super) realization_identity: String,
+    pub(super) family_tuple: Box<[String]>,
+    pub(super) realization_callables: Vec<checked_trees::CheckedDynamicRealizationCallablePlan>,
+    pub(super) realization_contract_report_fingerprint: u64,
+    pub(super) realization_contract_commitment: checked_trees::MachineContractCommitment,
+    pub(super) checked_call_service_reach: ServiceReachSummary,
+}
+
+/// The caller a lane publishes its plan for: what the scalar lane's caller
+/// store and Unit continuation read beyond the shared custody.
+pub(super) struct DynamicCaller<'program, 'facts> {
+    pub(super) program: &'program TypedTrees,
+    pub(super) facts: &'facts CheckFacts,
+    pub(super) boundaries: &'facts [CheckedBoundaryMachinePlan],
+    pub(super) machine: &'program typed_trees::machine::Machine,
+    pub(super) state: &'program typed_trees::state::State,
+    pub(super) statements: &'program [StatementNode],
+    pub(super) stored: Option<&'facts checked_trees::DynamicDescriptorStorageFact>,
+    pub(super) source_definition: &'program typed_trees::data::DataDefinition,
+}
+
+/// Build one checked dynamic call under its result lane. The call either
+/// dispatches in `state` itself or, when `forwarded` names a helper chain, in
+/// the chain's final helper; `stored` names the aggregate field a local call's
+/// descriptor travels through. Any fact the call cannot describe omits it.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn build_checked_dynamic_scalar_call(
-    program: &TypedTrees,
-    facts: &CheckFacts,
+pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
+    program: &'program TypedTrees,
+    facts: &'facts CheckFacts,
     binding_facts: &checked_trees::DynamicConformanceBindingFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
     flow_call: &checked_trees::FlowCallFact,
-    call_site: crate::semantic::calls::CallSite<'_>,
+    call_site: CallSite<'program>,
     shapes: &mut ShapeCollector<'_>,
-    boundaries: &[CheckedBoundaryMachinePlan],
-    forwarded: Option<ForwardedDynamicCall<'_, '_>>,
-    stored: Option<&checked_trees::DynamicDescriptorStorageFact>,
-) -> Option<CheckedDynamicBinding<checked_trees::CheckedDynamicScalarCallPlan>> {
-    let crate::semantic::calls::CallSite::Expression {
-        expression: caller_expression,
-        call: caller_call,
-    } = call_site
-    else {
+    boundaries: &'facts [CheckedBoundaryMachinePlan],
+    forwarded: Option<ForwardedDynamicCall<'program, '_, Lane::HelperBody>>,
+    stored: Option<&'facts checked_trees::DynamicDescriptorStorageFact>,
+) -> Option<CheckedDynamicDispatchPlan> {
+    if !Lane::authors(&call_site) || (stored.is_some() && !Lane::STORES_DESCRIPTORS) {
         return None;
-    };
+    }
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(flow_call.statement_index).ok()?,
         call_ordinal: u32::try_from(flow_call.call_ordinal).ok()?,
@@ -52,48 +190,57 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     let forwarded_selection = forwarded
         .as_ref()
         .and_then(|forwarded| forwarded.transfer.sole_selection().cloned());
-    let forwarding_transfers = forwarded
-        .as_ref()
-        .map(|forwarded| forwarded.prior_transfers.clone())
-        .unwrap_or_default();
-    let forwarding_helpers = forwarded
-        .as_ref()
-        .map(|forwarded| forwarded.helpers.clone())
-        .unwrap_or_default();
+    let mut forwarding_transfers = Vec::new();
+    let mut forwarding_helpers = Vec::new();
+    let mut forwarded_parameter_type = None;
+    // A forwarded call dispatches in its final helper, through the one plain
+    // parameter the last transfer fills; a local call dispatches here.
     let (
         dispatch_state,
         dispatch_flow_call,
-        dispatch_call,
+        dispatch_site,
         selection_binding,
         selection_name,
-        origin,
+        forwarded_dispatch,
     ) = match forwarded {
         Some(forwarded) => {
-            if stored.is_some() {
+            if stored.is_some()
+                || !Lane::authors(&forwarded.call_site)
+                || !forwarded_transfer_path_is_exact(&forwarded)
+            {
                 return None;
             }
-            let crate::semantic::calls::CallSite::Expression { call, .. } = forwarded.call_site
-            else {
+            let [parameter] = program.state_parameters(forwarded.state) else {
                 return None;
             };
-            if !forwarded_transfer_path_is_exact(&forwarded) {
+            let forwarded_parameter = forwarded
+                .prior_transfers
+                .last()
+                .map(|transfer| transfer.parameter)
+                .unwrap_or(forwarded.transfer.parameter);
+            if parameter.is_self || parameter.is_const || parameter.symbol != forwarded_parameter {
                 return None;
             }
+            forwarded_parameter_type = Some(parameter.type_reference);
+            let dispatch = ForwardedDispatch {
+                machine: forwarded.machine.symbol,
+                state: forwarded.state.symbol,
+                coordinate: CheckedUnitCallCoordinate {
+                    statement_index: u32::try_from(forwarded.flow_call.statement_index).ok()?,
+                    call_ordinal: u32::try_from(forwarded.flow_call.call_ordinal).ok()?,
+                },
+                parameter: forwarded.flow_call.receiver_symbol,
+            };
+            let selection_name = forwarded.transfer.sole_selection()?.binding_name.clone();
+            forwarding_transfers = forwarded.prior_transfers;
+            forwarding_helpers = forwarded.helpers;
             (
                 forwarded.state,
                 forwarded.flow_call,
-                call,
+                forwarded.call_site,
                 forwarded.transfer.source_binding,
-                forwarded.transfer.sole_selection()?.binding_name.clone(),
-                checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-                    machine: forwarded.machine.symbol,
-                    state: forwarded.state.symbol,
-                    coordinate: CheckedUnitCallCoordinate {
-                        statement_index: u32::try_from(forwarded.flow_call.statement_index).ok()?,
-                        call_ordinal: u32::try_from(forwarded.flow_call.call_ordinal).ok()?,
-                    },
-                    parameter: forwarded.flow_call.receiver_symbol,
-                },
+                selection_name,
+                Some(dispatch),
             )
         }
         None => {
@@ -108,28 +255,28 @@ pub(crate) fn build_checked_dynamic_scalar_call(
             (
                 state,
                 flow_call,
-                caller_call,
+                call_site,
                 selection_binding,
                 selection_name,
-                checked_trees::CheckedDynamicScalarCallOrigin::Local,
+                None,
             )
         }
     };
+    let dispatch_call = AuthoredCall::of(program, &dispatch_site)?;
     if coordinate.call_ordinal != 0
+        || dispatch_flow_call.call_ordinal != 0
         || !dispatch_flow_call.has_receiver
         || !dispatch_flow_call.receiver_symbol.is_valid()
         || !dispatch_flow_call.target_symbol.is_valid()
-        || !dispatch_call.selects_only_nominal_route()
-        || !program
-            .expression_table
-            .expression_handles(dispatch_call.arguments)
-            .is_empty()
-        || !dispatch_call.evidence_arguments.is_empty()
+        || dispatch_call.target_symbol != dispatch_flow_call.target_symbol
+        || !dispatch_call.ordinary_route
+        || dispatch_call.argument_count != 0
+        || !dispatch_call.evidence_free
     {
         return None;
     }
 
-    let receiver_place = dynamic_receiver_place(program, dispatch_call.receiver)?;
+    let receiver_place = dispatch_call.receiver_place(program)?;
     let receiver_name = receiver_place.path.last()?;
     let expected_selection_name = if selection_name.as_str().is_empty() {
         receiver_name
@@ -159,41 +306,12 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     }
 
     let statements = program.statement_table.statements(state.statement_nodes);
-    let StatementNode::LocalData(result_local) = statements.get(flow_call.statement_index)? else {
-        return None;
-    };
-    if result_local.is_mutable
-        || !result_local.symbol.is_valid()
-        || result_local.initial_value != caller_expression
-    {
+    let lane = Lane::caller_result(program, statements, flow_call, &call_site)?;
+    if !lane.admits_helper_bodies(&forwarding_helpers) {
         return None;
     }
-    let result_type = program.primitive_type_reference(result_local.type_reference)?;
-    if forwarding_helpers.iter().any(|helper| {
-        helper.call_result.primitive_type != result_type
-            || helper.scalar_control.primitive_type != result_type
-    }) {
-        return None;
-    }
-    let result_binding_ordinal = statements[..flow_call.statement_index]
-        .iter()
-        .filter(|statement| {
-            matches!(
-                statement,
-                StatementNode::LocalData(local)
-                    if !local.is_mutable
-                        && local.initial_value.is_valid()
-                        && program.primitive_type_reference(local.type_reference).is_some()
-            )
-        })
-        .count();
-    let result = CheckedUnitScalarResultBindingPlan {
-        statement_index: coordinate.statement_index,
-        binding_ordinal: u32::try_from(result_binding_ordinal).ok()?,
-        primitive_type: result_type,
-    };
 
-    let mut binding_selections = binding_facts
+    let mut selections = binding_facts
         .selections
         .iter()
         .filter(|selection| {
@@ -204,8 +322,14 @@ pub(crate) fn build_checked_dynamic_scalar_call(
                 && selection.statement_index < flow_call.statement_index
         })
         .collect::<Vec<_>>();
-    binding_selections.sort_by_key(|selection| selection.statement_index);
-    let (rebound_from, selection) = match binding_selections.as_slice() {
+    selections.sort_by_key(|selection| selection.statement_index);
+    if selections
+        .windows(2)
+        .any(|pair| pair[0].statement_index >= pair[1].statement_index)
+    {
+        return None;
+    }
+    let (rebound_from, selection) = match selections.as_slice() {
         [selection] => (None, *selection),
         [initial, rebound] => (Some(*initial), *rebound),
         _ => return None,
@@ -215,37 +339,34 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     {
         return None;
     }
-    if binding_selections
-        .windows(2)
-        .any(|pair| pair[0].statement_index >= pair[1].statement_index)
-    {
-        return None;
-    }
     let selection = selection.clone();
     let selected_conformance = selection.conformance.filter(|symbol| symbol.is_valid())?;
 
     let (source_parameter_position, caller_parameter_access, source_access) =
         checked_source_argument(program, facts, state, statements, &selection)?;
-    let attachments = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == machine.attached_data_symbol)
-        .collect::<Vec<_>>();
-    let [attachment] = attachments.as_slice() else {
+    // The final helper's parameter lends the descriptor with the selection's
+    // own access.
+    if forwarded_parameter_type.is_some_and(|type_reference| {
+        structural_access_for_type_reference(program, type_reference) != Some(source_access)
+    }) {
         return None;
-    };
+    }
+    let attachment = sole(
+        program
+            .data_definitions()
+            .iter()
+            .filter(|data| data.symbol == machine.attached_data_symbol),
+    )?;
     let caller_attachment_type_identity =
         shapes.add_attached_data(attachment, &machine_binders(program, machine))?;
     let (source_field, source_path, source_type_identity) =
         checked_self_attachment_source(program, machine, &selection)?;
-    let source_definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == selection.source_data)
-        .collect::<Vec<_>>();
-    let [source_definition] = source_definitions.as_slice() else {
-        return None;
-    };
+    let source_definition = sole(
+        program
+            .data_definitions()
+            .iter()
+            .filter(|data| data.symbol == selection.source_data),
+    )?;
     let rebound_from = match rebound_from {
         Some(initial) => Some(checked_rebound_dynamic_selection(
             program,
@@ -263,51 +384,30 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         )?),
         None => None,
     };
-    let caller_structural_scalar_field_store = checked_caller_structural_scalar_field_store_plan(
-        program,
-        facts,
-        machine,
-        state,
-        statements,
-        coordinate,
-        result_local.symbol,
-        &selection,
-        source_parameter_position,
-        caller_parameter_access,
-        source_field,
-        &source_path,
-        source_definition,
-    );
 
-    let target_traits = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == selection.target_trait)
-        .collect::<Vec<_>>();
-    let [target_trait] = target_traits.as_slice() else {
-        return None;
-    };
-    let conformances = program
-        .conformances()
-        .iter()
-        .filter(|conformance| conformance.symbol == selected_conformance)
-        .collect::<Vec<_>>();
-    let [conformance] = conformances.as_slice() else {
-        return None;
-    };
+    let target_trait = sole(
+        program
+            .traits()
+            .iter()
+            .filter(|definition| definition.symbol == selection.target_trait),
+    )?;
+    let conformance = sole(
+        program
+            .conformances()
+            .iter()
+            .filter(|conformance| conformance.symbol == selected_conformance),
+    )?;
     if conformance.trait_name != target_trait.name {
         return None;
     }
 
-    let selected_rows = selection
-        .rows
-        .iter()
-        .filter(|row| row.requirement == dispatch_flow_call.target_symbol)
-        .collect::<Vec<_>>();
-    let [row] = selected_rows.as_slice() else {
-        return None;
-    };
-    let row = (*row).clone();
+    let row = sole(
+        selection
+            .rows
+            .iter()
+            .filter(|row| row.requirement == dispatch_flow_call.target_symbol),
+    )?
+    .clone();
     if row.requirement_identity.is_empty()
         || row.realization_identity.is_empty()
         || program.symbols.name(row.requirement) != dispatch_call.target.as_str()
@@ -315,22 +415,18 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         return None;
     }
 
-    let declaring_traits = program
-        .traits()
-        .iter()
-        .filter(|definition| definition.symbol == row.declaring_trait)
-        .collect::<Vec<_>>();
-    let [declaring_trait] = declaring_traits.as_slice() else {
-        return None;
-    };
-    let requirements = program
-        .trait_machine_signatures(declaring_trait)
-        .iter()
-        .filter(|requirement| requirement.symbol == row.requirement)
-        .collect::<Vec<_>>();
-    let [requirement] = requirements.as_slice() else {
-        return None;
-    };
+    let declaring_trait = sole(
+        program
+            .traits()
+            .iter()
+            .filter(|definition| definition.symbol == row.declaring_trait),
+    )?;
+    let requirement = sole(
+        program
+            .trait_machine_signatures(declaring_trait)
+            .iter()
+            .filter(|requirement| requirement.symbol == row.requirement),
+    )?;
     let [requirement_self] = program.state_signature_parameters(requirement) else {
         return None;
     };
@@ -338,43 +434,38 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         .normalized_trait_requirement_overload_identity(declaring_trait, requirement)
         .identity()
         != row.requirement_identity
-        || program.primitive_type_reference(requirement.return_type) != Some(result_type)
+        || !lane.returns(program, requirement.return_type)
         || !requirement_self.is_self
         || structural_access_for_type_reference(program, requirement_self.type_reference)
             != Some(source_access)
     {
         return None;
     }
-    let family_tuple =
-        dynamic_family_tuple(program, requirement, &dispatch_call.machine_arguments)?;
+    let family_tuple = dynamic_family_tuple(program, requirement, dispatch_call.machine_arguments)?;
 
-    let closed_rows = program
-        .closed_conformance_rows(conformance)
-        .unwrap_or_default()
-        .iter()
-        .filter(|candidate| {
-            candidate.declaring_trait == row.declaring_trait
-                && candidate.requirement == row.requirement
-                && candidate.realization_machine == row.realization_machine
-                && candidate.realization_state == row.realization_state
-        })
-        .collect::<Vec<_>>();
-    let [closed_row] = closed_rows.as_slice() else {
-        return None;
-    };
+    let closed_row = sole(
+        program
+            .closed_conformance_rows(conformance)
+            .unwrap_or_default()
+            .iter()
+            .filter(|candidate| {
+                candidate.declaring_trait == row.declaring_trait
+                    && candidate.requirement == row.requirement
+                    && candidate.realization_machine == row.realization_machine
+                    && candidate.realization_state == row.realization_state
+            }),
+    )?;
     let normalized = crate::facts::normalized_dynamic_row_identities(program, closed_row).ok()?;
     if normalized.0 != row.requirement_identity || normalized.1 != row.realization_identity {
         return None;
     }
 
-    let realization_machines = program
-        .machines()
-        .iter()
-        .filter(|candidate| candidate.symbol == row.realization_machine)
-        .collect::<Vec<_>>();
-    let [row_realization_machine] = realization_machines.as_slice() else {
-        return None;
-    };
+    let row_realization_machine = sole(
+        program
+            .machines()
+            .iter()
+            .filter(|candidate| candidate.symbol == row.realization_machine),
+    )?;
     if row_realization_machine.supply_mode != MachineSupplyMode::CheckedBody
         || row_realization_machine.attached_data_symbol != selection.source_data
         || program
@@ -384,14 +475,12 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     {
         return None;
     }
-    let realization_states = program
-        .machine_states(row_realization_machine)
-        .iter()
-        .filter(|candidate| candidate.symbol == row.realization_state)
-        .collect::<Vec<_>>();
-    let [row_realization_state] = realization_states.as_slice() else {
-        return None;
-    };
+    let row_realization_state = sole(
+        program
+            .machine_states(row_realization_machine)
+            .iter()
+            .filter(|candidate| candidate.symbol == row.realization_state),
+    )?;
     let (realization_machine, realization_state, realization_identity) =
         dynamic_family_realization(
             program,
@@ -400,28 +489,20 @@ pub(crate) fn build_checked_dynamic_scalar_call(
             row.realization_identity.clone(),
             &family_tuple,
         )?;
-    if realization_machine.supply_mode != MachineSupplyMode::CheckedBody
-        || realization_machine.attached_data_symbol != selection.source_data
-    {
-        return None;
-    }
     let [realization_self] = program.state_parameters(realization_state) else {
         return None;
     };
-    if program.primitive_type_reference(realization_state.return_type) != Some(result_type)
+    if realization_machine.supply_mode != MachineSupplyMode::CheckedBody
+        || realization_machine.attached_data_symbol != selection.source_data
+        || !lane.returns(program, realization_state.return_type)
         || !realization_self.is_self
         || structural_access_for_type_reference(program, realization_self.type_reference)
             != Some(source_access)
     {
         return None;
     }
-    let realization_body = checked_realization_scalar_body(
-        program,
-        facts,
-        realization_machine,
-        realization_state,
-        result_type,
-    )?;
+    let selected_body =
+        lane.selected_body(program, facts, realization_machine, realization_state)?;
 
     let contract = facts
         .contract_plans
@@ -455,9 +536,16 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         direct: caller_reach_fact.inferred_direct,
         transitive: caller_reach_fact.inferred_transitive,
     };
+    if !Lane::admits_service_reach(
+        &facts.service_reaches.rows,
+        checked_call_service_reach,
+        caller_service_reach,
+    ) {
+        return None;
+    }
 
-    let mut plan = checked_trees::CheckedDynamicScalarCallPlan {
-        origin,
+    let custody = DynamicCallCustody {
+        forwarded: forwarded_dispatch,
         forwarding_transfers,
         forwarding_helpers,
         caller_machine: machine.symbol,
@@ -469,8 +557,6 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         caller_contract_commitment: caller_contract.commitment,
         caller_service_reach,
         coordinate,
-        result_binding: result_local.symbol,
-        result,
         receiver_binding: selection_binding,
         selection,
         source_parameter_position,
@@ -483,74 +569,75 @@ pub(crate) fn build_checked_dynamic_scalar_call(
         selected_conformance,
         declaring_trait: row.declaring_trait,
         requirement: row.requirement,
-        requirement_identity: row.requirement_identity.clone(),
+        requirement_identity: row.requirement_identity,
         realization_machine: realization_machine.symbol,
         realization_state: realization_state.symbol,
         realization_identity,
         family_tuple,
-        realization_return_expression: realization_body.return_expression,
-        realization_structural_scalar_field_stores: realization_body.structural_scalar_field_stores,
         realization_callables,
         realization_contract_report_fingerprint: contract.report_fingerprint,
         realization_contract_commitment: contract.commitment,
         checked_call_service_reach,
-        caller_structural_scalar_field_store,
-        unit_continuation: None,
     };
-    plan.unit_continuation =
-        crate::execution::terminal_unit::composed_control::build_direct_dynamic_unit_continuation(
-            program, facts, shapes, boundaries, machine, state, &plan, stored,
-        );
-    let retained_statement_count = usize::try_from(plan.coordinate.statement_index)
-        .ok()?
-        .checked_add(1)?;
-    if plan.unit_continuation.is_none()
-        && program
-            .statement_table
-            .statements(state.statement_nodes)
-            .len()
-            != retained_statement_count
-    {
-        return None;
-    }
-    if let Some(storage) = stored {
-        if rebound_from.is_some() || storage.selection != plan.selection {
-            return None;
+    let caller = DynamicCaller {
+        program,
+        facts,
+        boundaries,
+        machine,
+        state,
+        statements,
+        stored,
+        source_definition,
+    };
+    // A stored descriptor carries exactly the call's one selection. The lane
+    // publishes first so the checks run in their established order.
+    let stored_selection_matches =
+        stored.is_none_or(|storage| storage.selection == custody.selection);
+    let call = lane.publish(&caller, shapes, custody, selected_body)?;
+    let binding = match (stored, rebound_from) {
+        (Some(storage), None) if stored_selection_matches => {
+            let StatementNode::LocalData(destination) = statements.get(storage.statement_index)?
+            else {
+                return None;
+            };
+            if destination.symbol != storage.destination_binding {
+                return None;
+            }
+            let destination_type_identity = program
+                .type_identity(TypeIdentityRequest {
+                    binders: &machine_binders(program, machine),
+                    ..TypeIdentityRequest::ordinary(destination.type_reference)
+                })
+                .into_string();
+            let destination_field_identity =
+                terminal_field_identity(program, storage.destination_field)?;
+            CheckedDynamicBinding::Stored {
+                descriptor: checked_trees::CheckedDynamicStoredDescriptorPlan {
+                    storage: storage.clone(),
+                    destination_type_identity,
+                    destination_field_identity,
+                },
+                call,
+            }
         }
-        let StatementNode::LocalData(destination) = statements.get(storage.statement_index)? else {
-            return None;
-        };
-        if destination.symbol != storage.destination_binding {
-            return None;
-        }
-        let destination_type_identity = program
-            .type_identity(TypeIdentityRequest {
-                binders: &machine_binders(program, machine),
-                ..TypeIdentityRequest::ordinary(destination.type_reference)
-            })
-            .into_string();
-        let destination_field_identity =
-            terminal_field_identity(program, storage.destination_field)?;
-        return Some(CheckedDynamicBinding::Stored {
-            descriptor: checked_trees::CheckedDynamicStoredDescriptorPlan {
-                storage: storage.clone(),
-                destination_type_identity,
-                destination_field_identity,
-            },
-            call: plan,
-        });
-    }
-    Some(match rebound_from {
-        Some(initial) => CheckedDynamicBinding::Rebound {
+        (Some(_), _) => return None,
+        (None, Some(initial)) => CheckedDynamicBinding::Rebound {
             initial,
-            latest: plan,
+            latest: call,
         },
-        None => CheckedDynamicBinding::Direct(plan),
-    })
+        (None, None) => CheckedDynamicBinding::Direct(call),
+    };
+    Some(Lane::dispatch_plan(binding))
+}
+
+/// The one element an exact lookup must find.
+fn sole<T>(mut candidates: impl Iterator<Item = T>) -> Option<T> {
+    let candidate = candidates.next()?;
+    candidates.next().is_none().then_some(candidate)
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn checked_rebound_dynamic_selection(
+fn checked_rebound_dynamic_selection(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
@@ -598,145 +685,7 @@ pub(crate) fn checked_rebound_dynamic_selection(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn checked_caller_structural_scalar_field_store_plan(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statements: &[StatementNode],
-    call_coordinate: CheckedUnitCallCoordinate,
-    result_binding: SymbolHandle,
-    selection: &checked_trees::DynamicConformanceBindingFact,
-    destination_parameter_position: u32,
-    caller_parameter_access: CheckedStructuralAccess,
-    selected_carrier_field: SymbolHandle,
-    selected_carrier_path: &[CheckedUnitStructuralPathSegment],
-    source_definition: &typed_trees::data::DataDefinition,
-) -> Option<checked_trees::CheckedStructuralScalarFieldStorePlan> {
-    let [
-        StatementNode::Assignment(assignment),
-        StatementNode::LocalData(selection_local),
-        StatementNode::LocalData(result_local),
-    ] = statements.get(..3)?
-    else {
-        return None;
-    };
-    if selection.statement_index != 1
-        || call_coordinate.statement_index != 2
-        || call_coordinate.call_ordinal != 0
-        || selection_local.symbol != selection.binding
-        || result_local.symbol != result_binding
-        || caller_parameter_access != CheckedStructuralAccess::MutableBorrow
-    {
-        return None;
-    }
-
-    let destination_parameter = program
-        .state_parameters(state)
-        .get(usize::try_from(destination_parameter_position).ok()?)?;
-    let TypeReferenceNode::Reference { access, .. } = program
-        .type_reference_table
-        .type_reference(destination_parameter.type_reference)
-    else {
-        return None;
-    };
-    if !destination_parameter.is_self
-        || destination_parameter.is_const
-        || !destination_parameter.is_mutable
-        || *access != language_semantics::ReferenceAccess::Mutable
-    {
-        return None;
-    }
-
-    let destination = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        0,
-        assignment.target,
-    )?;
-    let [
-        facts::PlaceSegment::Field {
-            symbol: carrier_field,
-        },
-        facts::PlaceSegment::Field {
-            symbol: primitive_field,
-        },
-    ] = destination.segments.as_slice()
-    else {
-        return None;
-    };
-    if destination.root != facts::PlaceRoot::Symbol(destination_parameter.symbol)
-        || *carrier_field != selected_carrier_field
-        || *carrier_field != selection.source_symbol
-        || !primitive_field.is_valid()
-    {
-        return None;
-    }
-
-    let direct_fields = program
-        .data_members(source_definition)
-        .iter()
-        .filter_map(|member| {
-            let typed_trees::data::DataMember::Field(field) = member else {
-                return None;
-            };
-            (field.symbol == *primitive_field).then_some(field)
-        })
-        .collect::<Vec<_>>();
-    let [direct_field] = direct_fields.as_slice() else {
-        return None;
-    };
-    let primitive_type = program.primitive_type_reference(direct_field.type_reference)?;
-    if direct_field.relevance.is_erased() {
-        return None;
-    }
-
-    let expected_mutation_path =
-        facts::canonical_place_label_from_parts(program, destination.root, &destination.segments);
-    let mutation_paths = facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame
-        .complete_paths()?;
-    if !matches!(mutation_paths, [path] if path == &expected_mutation_path) {
-        return None;
-    }
-
-    let value = facts.values.scalar_expressions.expression_at(
-        state.symbol,
-        0,
-        CheckedScalarExpressionRole::AssignmentValue,
-    )?;
-    let direct_literal = matches!(value, CheckedScalarExpression::IntegerLiteral { .. })
-        || matches!(
-            value,
-            CheckedScalarExpression::Boolean(expression)
-                if matches!(
-                    expression.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Constant(_)
-                )
-        );
-    if !direct_literal || crate::values::scalar_expression_type(value) != Some(primitive_type) {
-        return None;
-    }
-
-    Some(checked_trees::CheckedStructuralScalarFieldStorePlan {
-        statement_index: 0,
-        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-            position: destination_parameter_position,
-        },
-        carrier_path: selected_carrier_path.to_vec(),
-        field_identity: terminal_field_identity(program, direct_field.symbol)?,
-        primitive_type,
-        value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
-    })
-}
-
-pub(crate) fn checked_source_argument(
+fn checked_source_argument(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
@@ -858,7 +807,7 @@ pub(crate) fn checked_source_argument(
     Some((source_parameter_position, root_access, cast_access))
 }
 
-pub(crate) fn checked_self_attachment_source(
+fn checked_self_attachment_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     selection: &checked_trees::DynamicConformanceBindingFact,
