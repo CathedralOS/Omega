@@ -228,6 +228,20 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Read one byte of the exact field's live storage using its dominating
+    /// length observation. `path` resolves from the root to the record
+    /// containing `field`; the certificate proves index < length against the
+    /// field's own `StructuralByteSequenceFieldLength` result, so a borrowed
+    /// view leaf reads through its view descriptor while a bounded-owned leaf
+    /// reads its stored prefix. The source place and its custody stay intact.
+    StructuralByteSequenceFieldRead {
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        field: StructuralFieldId,
+        index: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Store one already-defined scalar into one exact relevant field beneath
     /// a structural home. `path` resolves from the root to the record containing
     /// `field`; authority remains on the owned home or mutable/write-only borrowed
@@ -807,6 +821,10 @@ impl OperationKind {
                 *value = map(*value);
             }
             Self::ByteSequenceRead { index, length, .. } => {
+                *index = map(*index);
+                *length = map(*length);
+            }
+            Self::StructuralByteSequenceFieldRead { index, length, .. } => {
                 *index = map(*index);
                 *length = map(*length);
             }

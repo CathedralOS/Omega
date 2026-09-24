@@ -452,6 +452,7 @@ pub(super) fn append_operation(
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
+        | OperationKind::StructuralByteSequenceFieldRead { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::ByteSequenceLength { .. }
         | OperationKind::ByteSequenceRead { .. }

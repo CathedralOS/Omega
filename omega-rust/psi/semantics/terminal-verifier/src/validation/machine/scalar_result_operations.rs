@@ -52,6 +52,14 @@ pub(super) fn register_scalar_result_operation(
         OperationKind::StructuralByteSequenceFieldLength { .. } => {
             super::super::structural::byte_sequence_fields::validate(module, machine, operation)?;
         }
+        OperationKind::StructuralByteSequenceFieldRead { obligation, .. } => {
+            super::super::structural::byte_sequence_fields::validate(module, machine, operation)?;
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         OperationKind::ByteSequenceLength { source } => {
             super::super::byte_sequence::length::validate(module, machine, operation, source)?;
         }

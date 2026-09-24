@@ -288,6 +288,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::StoreStructuralField { .. }
         | OperationKind::ByteSequenceLength { .. }
+        | OperationKind::StructuralByteSequenceFieldRead { .. }
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }

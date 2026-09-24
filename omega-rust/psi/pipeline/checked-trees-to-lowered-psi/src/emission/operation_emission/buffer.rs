@@ -4,7 +4,7 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::operation_id;
 use lowered_psi::{LoweredSelectedIeeeFloatFmaOccurrence, LoweredSourceCallOccurrence};
-use semantic_vocabulary::{OperationId, PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, ValueDeclaration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +30,16 @@ pub(crate) struct OperationBuffer {
     /// Temporary observations available on the current emission path only.
     pub(crate) byte_lengths: Vec<(PlaceId, ValueId)>,
     pub(crate) element_lengths: Vec<(PlaceId, ValueId)>,
+    /// Field-length observations reuse their dominating value so an
+    /// index bound proven against an earlier `.len` discharges the read's
+    /// certificate. A replacement or call may change the extent, so the
+    /// verifier independently re-checks that the observation is current.
+    pub(crate) field_byte_lengths: Vec<(
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        StructuralFieldId,
+        ValueId,
+    )>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(crate) selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
@@ -44,6 +54,7 @@ impl OperationBuffer {
             operations: Vec::new(),
             byte_lengths: Vec::new(),
             element_lengths: Vec::new(),
+            field_byte_lengths: Vec::new(),
             source_calls: Vec::new(),
             selected_ieee_float_fmas: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),
@@ -58,6 +69,18 @@ impl OperationBuffer {
             .checked_add(1)
             .expect("terminal operation identities advance");
         id
+    }
+
+    /// Drop field-length observations a field subtree store or move makes
+    /// stale: every cached carrier at or under `path` on `place` loses its
+    /// dominating length (over-clears sibling fields on the same carrier).
+    pub(crate) fn invalidate_field_lengths_under(
+        &mut self,
+        place: PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) {
+        self.field_byte_lengths
+            .retain(|(root, carrier, _, _)| *root != place || !carrier.starts_with(path));
     }
 
     pub(crate) fn record_source_call(

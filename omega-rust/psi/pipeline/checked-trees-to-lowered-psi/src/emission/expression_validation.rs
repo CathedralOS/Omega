@@ -69,6 +69,7 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
         LoweredDirectExpression::ByteSequenceRead { index, .. }
+        | LoweredDirectExpression::ByteSequenceFieldRead { index, .. }
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }

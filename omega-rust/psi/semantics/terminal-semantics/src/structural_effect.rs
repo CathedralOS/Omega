@@ -72,6 +72,7 @@ pub enum StructuralEffectAction {
     StoreByteSequenceField,
     ReadByteSequenceFieldLength,
     StoreByteSequenceFieldByte,
+    ReadByteSequenceFieldByte,
     EstablishByteSequencePlace,
     ReadByteSequenceLength,
     ReadByteSequence,
@@ -196,7 +197,8 @@ const fn structural_effect_leaf(
             }
             StructuralEffectAction::ReadByteSequence
             | StructuralEffectAction::WriteByteSequence
-            | StructuralEffectAction::StoreByteSequenceFieldByte => {
+            | StructuralEffectAction::StoreByteSequenceFieldByte
+            | StructuralEffectAction::ReadByteSequenceFieldByte => {
                 StructuralEffectGoalShape::ByteIndexInBounds
             }
             StructuralEffectAction::EstablishByteSequenceSubslice => {
@@ -224,7 +226,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -311,6 +313,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectResultShape::Unit,
                 StructuralEffectCustody::ExactStructuralByteSequenceField,
                 StructuralEffectAction::StoreByteSequenceField,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::StructuralByteSequenceFieldRead,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Byte,
+                StructuralEffectCustody::ExactStructuralByteSequenceField,
+                StructuralEffectAction::ReadByteSequenceFieldByte,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
             ),
@@ -530,6 +542,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::StructuralByteSequenceFieldStore
             | OperationSemanticTag::StructuralByteSequenceFieldLength
             | OperationSemanticTag::StructuralByteSequenceFieldByteStore
+            | OperationSemanticTag::StructuralByteSequenceFieldRead
             | OperationSemanticTag::EstablishScalarCase
             | OperationSemanticTag::EstablishStructuralCase
             | OperationSemanticTag::EstablishScalarArray
@@ -599,6 +612,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::StructuralByteSequenceFieldStore,
         OperationSemanticTag::StructuralByteSequenceFieldLength,
         OperationSemanticTag::StructuralByteSequenceFieldByteStore,
+        OperationSemanticTag::StructuralByteSequenceFieldRead,
         OperationSemanticTag::EstablishScalarCase,
         OperationSemanticTag::EstablishStructuralCase,
         OperationSemanticTag::EstablishScalarArray,
@@ -666,6 +680,18 @@ pub enum StructuralEffectObservation {
         index: ValueId,
         value: ValueId,
         length: ValueId,
+        obligation: ObligationId,
+    },
+    /// Read one byte from the exact field's live storage. The result is the
+    /// read value; index < length is proven against the field's own length
+    /// observation and provenance is artifact validation, not an equation.
+    ByteSequenceFieldByteRead {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: StructuralFieldId,
+        index: ValueId,
+        length: ValueId,
+        result: ValueId,
         obligation: ObligationId,
     },
     ByteSequenceFieldStored {
@@ -815,6 +841,12 @@ impl StructuralEffectObservation {
                 length,
                 obligation,
                 ..
+            }
+            | Self::ByteSequenceFieldByteRead {
+                index,
+                length,
+                obligation,
+                ..
             } => Some((
                 *obligation,
                 Proposition::LessThan(value(*index), value(*length)),
@@ -881,6 +913,7 @@ impl StructuralEffectObservation {
             | Self::IndexedPrimitiveStored { .. }
             | Self::ByteSequenceFieldLengthRead { .. }
             | Self::ByteSequenceFieldByteStored { .. }
+            | Self::ByteSequenceFieldByteRead { .. }
             | Self::ByteSequenceFieldStored { .. }
             | Self::ScalarFieldStored { .. }
             | Self::ByteSequencePlaceEstablished { .. }
@@ -917,6 +950,9 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::StoreByteSequenceFieldByte => {
             OperationSemanticTag::StructuralByteSequenceFieldByteStore
+        }
+        StructuralEffectAction::ReadByteSequenceFieldByte => {
+            OperationSemanticTag::StructuralByteSequenceFieldRead
         }
         StructuralEffectAction::StoreByteSequenceField => {
             OperationSemanticTag::StructuralByteSequenceFieldStore
@@ -965,7 +1001,8 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::ReadByteSequence
         | StructuralEffectAction::WriteByteSequence
-        | StructuralEffectAction::StoreByteSequenceFieldByte => {
+        | StructuralEffectAction::StoreByteSequenceFieldByte
+        | StructuralEffectAction::ReadByteSequenceFieldByte => {
             StructuralEffectGoalShape::ByteIndexInBounds
         }
         StructuralEffectAction::ReadElementView => StructuralEffectGoalShape::ElementIndexInBounds,
@@ -1016,12 +1053,17 @@ fn validate_structural_effect_schema(
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
                 }
                 StructuralEffectAction::ReadByteSequenceFieldLength
-                | StructuralEffectAction::StoreByteSequenceFieldByte => {
+                | StructuralEffectAction::StoreByteSequenceFieldByte
+                | StructuralEffectAction::ReadByteSequenceFieldByte => {
                     schema.result
-                        == if schema.action == StructuralEffectAction::ReadByteSequenceFieldLength {
-                            StructuralEffectResultShape::ByteCount
-                        } else {
-                            StructuralEffectResultShape::Unit
+                        == match schema.action {
+                            StructuralEffectAction::ReadByteSequenceFieldLength => {
+                                StructuralEffectResultShape::ByteCount
+                            }
+                            StructuralEffectAction::ReadByteSequenceFieldByte => {
+                                StructuralEffectResultShape::Byte
+                            }
+                            _ => StructuralEffectResultShape::Unit,
                         }
                         && schema.custody
                             == StructuralEffectCustody::ExactStructuralByteSequenceField
@@ -1311,6 +1353,25 @@ pub fn structural_effect_leaf_observation_in(
             index: *index,
             value: *value,
             length: *length,
+            obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::ReadByteSequenceFieldByte,
+            OperationKind::StructuralByteSequenceFieldRead {
+                source,
+                path,
+                field,
+                index,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ByteSequenceFieldByteRead {
+            source: *source,
+            path: path.clone(),
+            field: *field,
+            index: *index,
+            length: *length,
+            result: operation.result.expect_scalar().id,
             obligation: *obligation,
         },
         (
@@ -2083,7 +2144,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 28);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 29);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2096,6 +2157,7 @@ mod tests {
                 OperationSemanticTag::PrimitiveScalarRead,
                 OperationSemanticTag::StructuralCaseMembership,
                 OperationSemanticTag::StructuralByteSequenceFieldLength,
+                OperationSemanticTag::StructuralByteSequenceFieldRead,
                 OperationSemanticTag::StructuralByteSequenceFieldByteStore,
                 OperationSemanticTag::StructuralByteSequenceFieldStore,
                 OperationSemanticTag::ByteSequenceSubslice,

@@ -388,6 +388,19 @@ fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
         },
+        Direct::ByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index,
+            scalar_type,
+        } => Direct::ByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index: Box::new(substitute_direct(*index, bound)),
+            scalar_type,
+        },
         Direct::IntegerBinary {
             kind,
             scalar_type,
@@ -484,9 +497,9 @@ fn direct_case_reads<'e>(
                 reads.push((*source, path));
             }
         }
-        Direct::ByteSequenceRead { index, .. } | Direct::ElementViewRead { index, .. } => {
-            direct_case_reads(index, reads)
-        }
+        Direct::ByteSequenceRead { index, .. }
+        | Direct::ElementViewRead { index, .. }
+        | Direct::ByteSequenceFieldRead { index, .. } => direct_case_reads(index, reads),
         Direct::IntegerBinary { left, right, .. } => {
             direct_case_reads(left, reads);
             direct_case_reads(right, reads);

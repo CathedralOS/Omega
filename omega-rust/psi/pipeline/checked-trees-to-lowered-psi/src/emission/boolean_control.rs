@@ -284,6 +284,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let target = match decision {
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
             when_true_target.clone()
@@ -471,6 +472,9 @@ fn emit_reserved_boolean_guard_decision_blocks(
         }
     };
     all_operations.byte_lengths.truncate(incoming_lengths);
+    all_operations
+        .field_byte_lengths
+        .truncate(incoming_field_lengths);
     target
 }
 
@@ -487,6 +491,7 @@ fn emit_reserved_boolean_value_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -607,6 +612,9 @@ fn emit_reserved_boolean_value_blocks(
         terminator,
     });
     all_operations.byte_lengths.truncate(incoming_lengths);
+    all_operations
+        .field_byte_lengths
+        .truncate(incoming_field_lengths);
     block
 }
 
@@ -705,6 +713,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
         first_block_identity
@@ -824,6 +833,9 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         terminator,
     });
     all_operations.byte_lengths.truncate(incoming_lengths);
+    all_operations
+        .field_byte_lengths
+        .truncate(incoming_field_lengths);
     block
 }
 
@@ -863,6 +875,7 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::ByteSequenceLength { .. }
             | LoweredDirectExpression::ByteSequenceFieldLength { .. }
             | LoweredDirectExpression::ByteSequenceRead { .. }
+            | LoweredDirectExpression::ByteSequenceFieldRead { .. }
             | LoweredDirectExpression::ElementViewLength { .. }
             | LoweredDirectExpression::ElementViewRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }

@@ -334,6 +334,9 @@ fn validate_operation_foundation(
             // Independent module validation reconstructs exact current length
             // provenance, scalar operand types, custody, and index bounds.
         }
+        OperationKind::StructuralByteSequenceFieldRead { .. } => {
+            storage_foundations::validate_structural_byte_sequence_field_read(operation)?
+        }
         OperationKind::ByteSequenceSubslice { .. } => {
             storage_foundations::validate_byte_sequence_subslice(module, machine, operation)?
         }

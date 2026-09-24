@@ -542,6 +542,38 @@ pub(super) fn decode_structural_byte_sequence_field_byte_store(
     })
 }
 
+pub(super) fn encode_structural_byte_sequence_field_read(
+    writer: &mut Writer,
+    source: PlaceId,
+    path: Vec<StructuralPathSegment>,
+    field: StructuralFieldId,
+    index: ValueId,
+    length: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_READ);
+    writer.id(source);
+    encode_structural_path(writer, "structural byte sequence field read path", &path)?;
+    writer.id(field);
+    writer.id(index);
+    writer.id(length);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_structural_byte_sequence_field_read(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::StructuralByteSequenceFieldRead {
+        source: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+        field: reader.id("StructuralFieldId")?,
+        index: reader.id("ValueId")?,
+        length: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
 pub(super) fn encode_structural_scalar_field_store(
     writer: &mut Writer,
     destination: PlaceId,

@@ -41,6 +41,13 @@ pub(crate) enum LoweredDirectExpression {
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
     },
+    ByteSequenceFieldRead {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: StructuralFieldId,
+        index: Box<LoweredDirectExpression>,
+        scalar_type: ScalarType,
+    },
     ElementViewLength {
         source: PlaceId,
         scalar_type: ScalarType,
@@ -135,6 +142,7 @@ impl LoweredDirectExpression {
             | Self::ByteSequenceLength { scalar_type, .. }
             | Self::ByteSequenceFieldLength { scalar_type, .. }
             | Self::ByteSequenceRead { scalar_type, .. }
+            | Self::ByteSequenceFieldRead { scalar_type, .. }
             | Self::ElementViewLength { scalar_type, .. }
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
@@ -287,7 +295,9 @@ pub(crate) fn emit_direct_expression(
         } => {
             // Field length is live storage metadata, not a whole-view extent.
             // Emit at this occurrence; replacement and calls can change it.
-            emit_scalar_leaf(
+            // Record the observation so an indexed read on the same field
+            // binds its bound against this exact dominating value identity.
+            let value = emit_scalar_leaf(
                 OperationKind::StructuralByteSequenceFieldLength {
                     source: *source,
                     path: path.clone(),
@@ -296,7 +306,11 @@ pub(crate) fn emit_direct_expression(
                 *scalar_type,
                 next_value_identity,
                 operations,
-            )
+            );
+            operations
+                .field_byte_lengths
+                .push((*source, path.clone(), *field, value));
+            value
         }
         LoweredDirectExpression::ByteSequenceRead {
             source,
@@ -322,6 +336,59 @@ pub(crate) fn emit_direct_expression(
             emit_scalar_leaf(
                 OperationKind::ByteSequenceRead {
                     source: *source,
+                    index,
+                    length,
+                    obligation,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
+        LoweredDirectExpression::ByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index,
+            scalar_type,
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            // A bound proven against an earlier field `.len` observation
+            // only discharges this read when the operand names that same
+            // dominating value; otherwise mint a current observation, whose
+            // bound the certificate must then derive from the extent itself.
+            let length = operations
+                .field_byte_lengths
+                .iter()
+                .rev()
+                .find_map(|(place, carrier, named, value)| {
+                    (*place == *source && *carrier == *path && *named == *field).then_some(*value)
+                })
+                .unwrap_or_else(|| {
+                    emit_scalar_leaf(
+                        OperationKind::StructuralByteSequenceFieldLength {
+                            source: *source,
+                            path: path.clone(),
+                            field: *field,
+                        },
+                        ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+                        ),
+                        next_value_identity,
+                        operations,
+                    )
+                });
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("read obligation follows its operation identity"),
+            );
+            emit_scalar_leaf(
+                OperationKind::StructuralByteSequenceFieldRead {
+                    source: *source,
+                    path: path.clone(),
+                    field: *field,
                     index,
                     length,
                     obligation,
