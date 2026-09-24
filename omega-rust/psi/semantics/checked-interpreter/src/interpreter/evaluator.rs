@@ -56,18 +56,8 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 // Program and values, beneath the coordinator that names them.
 mod program_values;
 
-// Execution.
-mod boundary_adapter_dispatch;
-mod boundary_console;
-mod casts_and_recasts;
-mod execution;
-mod expressions_and_value_calls;
-mod host_dispatch;
-mod numeric_landing;
-mod scalar_operations;
-mod statements_and_calls;
-mod wire_codec;
-pub mod wire_verification;
+// Execution, beneath the coordinator that names them.
+pub(super) mod execution;
 
 // Build-machine facets, beneath the coordinator that names them.
 mod build_machine;

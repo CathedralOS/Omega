@@ -1,5 +1,5 @@
-use super::super::{CheckedTrees, ExpressionHandle};
-use super::{Evaluator, Value};
+use crate::interpreter::evaluator::{CheckedTrees, ExpressionHandle};
+use crate::interpreter::evaluator::{Evaluator, Value};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
 

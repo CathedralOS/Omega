@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
     PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, Value, unsupported,
 };
@@ -6,7 +6,7 @@ impl Evaluator<'_> {
     /// Preserve aggregate destinations until each literal element reaches its
     /// own scalar type, and reference destinations until their alias is retained.
     /// A scalar observation must not replace a reference-valued field or result.
-    pub(super) fn eval_expression_at_type(
+    pub(in crate::interpreter::evaluator) fn eval_expression_at_type(
         &mut self,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
@@ -43,7 +43,7 @@ impl Evaluator<'_> {
         self.eval_expression_with_destination(expression, primitive, frame)
     }
 
-    pub(super) fn eval_array_literal_at_element_type(
+    pub(in crate::interpreter::evaluator) fn eval_array_literal_at_element_type(
         &mut self,
         expression: ExpressionHandle,
         element_type: TypeReferenceHandle,
@@ -67,7 +67,7 @@ impl Evaluator<'_> {
     /// Use the compiler's exact anonymous value at the actual destination.
     /// Typed operands, places, calls, and authored operators keep ordinary
     /// execution; a destination never changes their operation semantics.
-    pub(super) fn eval_expression_with_destination(
+    pub(in crate::interpreter::evaluator) fn eval_expression_with_destination(
         &mut self,
         expression: ExpressionHandle,
         destination: Option<PrimitiveType>,
@@ -86,7 +86,7 @@ impl Evaluator<'_> {
         self.eval_expression(expression, frame)
     }
 
-    pub(super) fn anonymous_integer_landing_value(
+    pub(in crate::interpreter::evaluator) fn anonymous_integer_landing_value(
         &mut self,
         expression: ExpressionHandle,
         destination: Option<PrimitiveType>,
@@ -136,7 +136,7 @@ impl Evaluator<'_> {
         Ok(None)
     }
 
-    pub(super) fn eval_state_arguments(
+    pub(in crate::interpreter::evaluator) fn eval_state_arguments(
         &mut self,
         state: &State,
         arguments: &[ExpressionHandle],

@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, EvalResult, Evaluator, ExpressionHandle, ExpressionNode, Frame,
     FrameLocal, Halt, Machine, MutableScalarRecast, State, StatementNode, SymbolHandle, TableCall,
     TableTransition, TransitionDecision, TransitionGuardNode, TransitionTargetNode,
@@ -14,7 +14,9 @@ use language_semantics::declaration_selection::BuildOperation;
 /// representation selection, and the wire-compatibility request marker.
 /// Provider selections and behavior exclusions are not among them: those
 /// are evaluated selections which record only when the call actually runs.
-pub(super) fn is_statically_harvested_build_declaration(call_target: &str) -> bool {
+pub(in crate::interpreter::evaluator) fn is_statically_harvested_build_declaration(
+    call_target: &str,
+) -> bool {
     matches!(
         BuildOperation::from_call_target(call_target),
         Some(
@@ -26,7 +28,7 @@ pub(super) fn is_statically_harvested_build_declaration(call_target: &str) -> bo
 }
 
 impl<'program> Evaluator<'program> {
-    pub(super) fn exec_statement(
+    pub(in crate::interpreter::evaluator) fn exec_statement(
         &mut self,
         statement: &StatementNode,
         frame: &mut Frame,
@@ -287,7 +289,7 @@ impl<'program> Evaluator<'program> {
 
     // ---- transitions --------------------------------------------------------
 
-    pub(super) fn eval_transition(
+    pub(in crate::interpreter::evaluator) fn eval_transition(
         &mut self,
         transition: &TableTransition,
         frame: &mut Frame,
@@ -426,7 +428,7 @@ impl<'program> Evaluator<'program> {
 
     // ---- calls --------------------------------------------------------------
 
-    pub(super) fn eval_call_statement(
+    pub(in crate::interpreter::evaluator) fn eval_call_statement(
         &mut self,
         statement: typed_trees::statement::StatementHandle,
         call: &TableCall,
@@ -574,7 +576,7 @@ impl<'program> Evaluator<'program> {
     /// symbol. Selected checked adapters and static-machine specialization
     /// retain this identity specifically so attached/plural realizations do
     /// not fall back to ambiguous display-name lookup.
-    pub(super) fn resolve_entry_state_symbol(
+    pub(in crate::interpreter::evaluator) fn resolve_entry_state_symbol(
         &self,
         target_symbol: SymbolHandle,
         frame: &Frame,
@@ -697,7 +699,7 @@ impl<'program> Evaluator<'program> {
     /// instance is a `Struct` whose `type_name` is the data/machine type (e.g. `Circle`); a
     /// free machine `Circle::code` lives in that type's group. Matches by machine symbol, by
     /// attached-data name, or by the `<type>::<target>` group-qualified machine name.
-    pub(super) fn machine_for_instance_state(
+    pub(in crate::interpreter::evaluator) fn machine_for_instance_state(
         &self,
         instance: &Cell,
         target: &str,
@@ -753,7 +755,10 @@ impl<'program> Evaluator<'program> {
         None
     }
 
-    pub(super) fn current_machine(&self, frame: &Frame) -> Option<&'program Machine> {
+    pub(in crate::interpreter::evaluator) fn current_machine(
+        &self,
+        frame: &Frame,
+    ) -> Option<&'program Machine> {
         if !frame.machine_symbol.is_valid() {
             return None;
         }
@@ -766,7 +771,7 @@ impl<'program> Evaluator<'program> {
     /// Find the machine invoked by a call whose `target` is a state name. A free helper
     /// machine is named `<group>::<target>` (e.g. `Main::bump`); resolve by that name, or
     /// by any machine that contains a state of that name and shares the receiver group.
-    pub(super) fn find_machine_for_call(
+    pub(in crate::interpreter::evaluator) fn find_machine_for_call(
         &self,
         target: &str,
         frame: &Frame,
@@ -813,7 +818,10 @@ impl<'program> Evaluator<'program> {
         first
     }
 
-    pub(super) fn machine_entry_state(&self, machine: &Machine) -> Option<&'program State> {
+    pub(in crate::interpreter::evaluator) fn machine_entry_state(
+        &self,
+        machine: &Machine,
+    ) -> Option<&'program State> {
         // A free helper machine `Main::bump` exposes its body as a state. Prefer a state
         // whose name matches the machine's leaf (`bump`); else the first state.
         let leaf = machine.name.as_str().rsplit("::").next().unwrap_or("");
@@ -826,7 +834,7 @@ impl<'program> Evaluator<'program> {
     /// Evaluate an argument. A `Mutable(place)` or a direct place under a `&mut` param
     /// yields a `Ref` that ALIASES the original cell; a value argument yields a fresh
     /// cell holding a copy.
-    pub(super) fn eval_argument(
+    pub(in crate::interpreter::evaluator) fn eval_argument(
         &mut self,
         argument: ExpressionHandle,
         frame: &mut Frame,

@@ -30,8 +30,10 @@
 
 use std::collections::BTreeMap;
 
-use super::wire_codec::{WireInterpField, WireInterpScalarField};
-use super::{Cell, Evaluator, Halt, Value};
+use crate::interpreter::evaluator::execution::wire_codec::{
+    WireInterpField, WireInterpScalarField,
+};
+use crate::interpreter::evaluator::{Cell, Evaluator, Halt, Value};
 use language_semantics::wire::WireScalarRange;
 use typed_trees::data::DataMember;
 use typed_trees::wire::{
