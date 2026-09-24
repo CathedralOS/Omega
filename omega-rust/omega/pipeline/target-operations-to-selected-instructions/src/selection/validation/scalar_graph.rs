@@ -348,12 +348,11 @@ pub(in crate::selection) fn validate_with_environment(
                         if actual_type != ScalarType::Integer(*source_type) {
                             return Err(invalid());
                         }
-                        let normalization =
-                            crate::selection::construction::scalar_graph::integer_conversion::normalization(
-                                &operation.kind,
-                                scalar_type,
-                            )
-                            .ok_or_else(invalid)?;
+                        let normalization = crate::selection::integer_conversion::normalization(
+                            &operation.kind,
+                            scalar_type,
+                        )
+                        .ok_or_else(invalid)?;
                         let output = replay.result_register(
                             result.value,
                             result.definition_site,
