@@ -140,12 +140,14 @@ fn seed_binary_guard_facts(
             seed_length_greater_than_fact(program, facts, binary.right, binary.left);
             seed_less_than_len_fact(program, machine, state, facts, binary.left, binary.right);
             seed_index_less_than_integer_fact(program, facts, binary.left, binary.right);
-            seed_at_most_fact(program, facts, binary.left, binary.right);
+            seed_at_most_fact(program, facts, binary.left, binary.right, true);
             // `K < right` (left a constant) floors `right` at `K + 1`.
             seed_non_negative_fact(program, facts, binary.right, binary.left, false);
         }
         BinaryOperator::Greater => {
             seed_length_greater_than_fact(program, facts, binary.left, binary.right);
+            // `left > right` is `right < left` — the mirrored strict ordering.
+            seed_at_most_fact(program, facts, binary.right, binary.left, true);
             // `left > K` (right a constant) floors `left` at `K + 1`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, false);
         }
@@ -161,7 +163,7 @@ fn seed_binary_guard_facts(
             );
             seed_at_most_len_range_bound_fact(program, facts, binary.left, binary.right);
             seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
-            seed_at_most_fact(program, facts, binary.left, binary.right);
+            seed_at_most_fact(program, facts, binary.left, binary.right, false);
             // `K <= right` (left a constant) floors `right` at `K`.
             seed_non_negative_fact(program, facts, binary.right, binary.left, true);
         }
@@ -176,6 +178,8 @@ fn seed_binary_guard_facts(
                 binary.left,
             );
             seed_at_most_len_range_bound_fact(program, facts, binary.right, binary.left);
+            // `left >= right` is `right <= left` — the mirrored ordering.
+            seed_at_most_fact(program, facts, binary.right, binary.left, false);
             // `left >= K` (right a constant) floors `left` at `K`.
             seed_non_negative_fact(program, facts, binary.left, binary.right, true);
         }
@@ -185,6 +189,16 @@ fn seed_binary_guard_facts(
         }
         BinaryOperator::Equal => {
             seed_length_equality_fact(program, facts, binary.left, binary.right);
+            // Equality is `<=` in both directions: `pos == max` gives
+            // `pos <= max` for the ordering chain and `max <= pos`, and
+            // `pos == K` unfolds to the `pos <= K` integer bound plus the
+            // `pos >= K` non-negativity floor.
+            seed_at_most_fact(program, facts, binary.left, binary.right, false);
+            seed_at_most_fact(program, facts, binary.right, binary.left, false);
+            seed_index_at_most_integer_fact(program, facts, binary.left, binary.right);
+            seed_index_at_most_integer_fact(program, facts, binary.right, binary.left);
+            seed_non_negative_fact(program, facts, binary.left, binary.right, true);
+            seed_non_negative_fact(program, facts, binary.right, binary.left, true);
             seed_boolean_equality_guard_facts(
                 program,
                 machine,

@@ -97,6 +97,9 @@ fn at_most_constant(
         return false;
     };
     let label = program.expression_table.display_name(expression);
+    // No collection is in scope here — `""` never matches a label, so only
+    // the label-keyed integer-bound arm can fire (same coverage as before,
+    // plus the strict-ordering allowance of one element).
     facts.index_upper_bound_is_proven(&label, exclusive)
-        || facts.index_upper_bound_is_proven_via_ordering(&label, exclusive)
+        || facts.index_upper_bound_is_proven_via_ordering(&label, "", exclusive)
 }
