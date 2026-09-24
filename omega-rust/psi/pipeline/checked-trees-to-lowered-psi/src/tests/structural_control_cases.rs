@@ -2215,7 +2215,12 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
             &verified_general,
             general.semantic_module.entry
         ),
-        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+        Err(
+            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+                ..
+            }
+        )
     ));
     // Safe-point segments charge single edge traversals, not the cyclic
     // component bound, so the u64 rank maximum does not overflow them.
@@ -2248,7 +2253,12 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
     .expect("natural countdown proof closes under ordinary verification");
     assert!(matches!(
         terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, lowered.semantic_module.entry),
-        Err(terminal_fixed_fuel::FixedFuelError::BoundOverflow)
+        Err(
+            terminal_fixed_fuel::FixedFuelError::UnboundedCycleComponent {
+                cause: terminal_fixed_fuel::UnboundedCycleCause::UnboundedRank,
+                ..
+            }
+        )
     ));
 }
 
