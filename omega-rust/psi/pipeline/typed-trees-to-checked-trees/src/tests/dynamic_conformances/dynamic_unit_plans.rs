@@ -304,3 +304,43 @@ fn forwarded_direct_dynamic_unit_plan_retains_the_same_two_machine_join() {
     assert_eq!(transfer.source_binding, plan.receiver_binding);
     assert_eq!(transfer.sole_selection(), Some(&plan.selection));
 }
+
+/// A Unit helper retains no body plan, so lowering would emit only its
+/// forwarding call. The shared forwarding walk accepts this helper's one
+/// parameter and one call; only the Unit body requirement rejects the local
+/// it could not retain.
+#[test]
+fn forwarded_dynamic_unit_plan_rejects_a_helper_statement_it_cannot_retain() {
+    let checked = check_dynamic_source(
+        r#"
+        trait Touch {
+            machine touch(&self);
+        }
+
+        data Item {
+            value: i32;
+        }
+
+        Primary: Item satisfies Touch {
+            machine touch(&self) {
+            }
+        }
+
+        data Main {
+            item: Item;
+        }
+
+        machine Main::run(&self) {
+            let erased: &dyn Touch = &self.item as &dyn Item::Primary;
+            forward(erased);
+        }
+
+        machine forward(erased: &dyn Touch) {
+            let marker: i32 = 1;
+            erased.touch();
+        }
+        "#,
+    );
+    let dynamic = &checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
+    assert!(dynamic.calls.is_empty(), "{dynamic:#?}");
+}

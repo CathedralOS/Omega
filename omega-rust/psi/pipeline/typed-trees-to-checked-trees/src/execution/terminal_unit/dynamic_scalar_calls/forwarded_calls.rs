@@ -1,18 +1,41 @@
-//! Forwarded dynamic scalar calls and their exact transfer paths.
+//! Forwarded dynamic calls and their exact transfer paths, for either result.
+//!
+//! A root caller passes its selected descriptor as the one argument of an
+//! ordinary call. Each helper on the path takes that descriptor as its one
+//! parameter and makes one call: forwarding it to the next helper, or, at the
+//! end, dispatching the requirement through it. The walk is the same for a
+//! scalar and a Unit call; only the helper body differs. A scalar helper
+//! binds its call's result among ordered pure locals and returns through
+//! checked scalar control, and that body is retained. A Unit helper retains
+//! no body plan, so its forwarding call must be its entire body.
 
 use crate::execution::terminal_unit::dynamic_scalar_calls::scalar_call_plans::build_checked_dynamic_scalar_call;
-use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
+use crate::execution::terminal_unit::dynamic_scalar_calls::unit::build_checked_dynamic_unit_call;
+use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, state_flow};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedUnitCallCoordinate, StatementNode, TypedTrees,
 };
+use crate::semantic::calls::CallSite;
 
-pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
+/// The result a forwarded call returns to its root caller, which fixes how
+/// every call on its path is authored: a call statement for a Unit
+/// requirement, or a call expression that a scalar local binds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ForwardedCallResult {
+    Scalar,
+    Unit,
+}
+
+/// Build every forwarded call of one result: each root call that transfers
+/// one selected descriptor into a helper chain ending in a dispatch.
+pub(crate) fn build_checked_forwarded_dynamic_calls(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     binding_facts: &checked_trees::DynamicConformanceBindingFacts,
     plans: &mut checked_trees::CheckedDynamicDispatchPlans,
+    result: ForwardedCallResult,
 ) {
     for machine in program.machines() {
         if !machine.attached_data_symbol.is_valid() {
@@ -63,54 +86,103 @@ pub(crate) fn build_checked_forwarded_dynamic_scalar_calls(
                 ) else {
                     continue;
                 };
-                let crate::semantic::calls::CallSite::Expression { call, .. } = &outer_site else {
-                    continue;
-                };
-                if program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                    .len()
-                    != 1
-                {
+                if !passes_only_the_descriptor(program, &outer_site, result) {
                     continue;
                 }
-
-                let Some(forwarded) = resolve_forwarded_dynamic_scalar_call(
+                let Some(forwarded) = resolve_forwarded_dynamic_call(
                     program,
                     facts,
                     &plans.transfers,
                     transfer,
+                    result,
                 ) else {
                     continue;
                 };
-                let Some(binding) = build_checked_dynamic_scalar_call(
-                    program,
-                    facts,
-                    binding_facts,
-                    machine,
-                    state,
-                    outer_call,
-                    outer_site,
-                    shapes,
-                    boundaries,
-                    Some(forwarded),
-                    None,
-                ) else {
-                    continue;
+                let plan = match result {
+                    ForwardedCallResult::Scalar => build_checked_dynamic_scalar_call(
+                        program,
+                        facts,
+                        binding_facts,
+                        machine,
+                        state,
+                        outer_call,
+                        outer_site,
+                        shapes,
+                        boundaries,
+                        Some(forwarded),
+                        None,
+                    )
+                    .map(checked_trees::CheckedDynamicDispatchPlan::Scalar),
+                    ForwardedCallResult::Unit => build_checked_dynamic_unit_call(
+                        program,
+                        facts,
+                        binding_facts,
+                        machine,
+                        state,
+                        outer_call,
+                        outer_site,
+                        shapes,
+                        Some(forwarded),
+                    )
+                    .map(checked_trees::CheckedDynamicDispatchPlan::Unit),
                 };
-                plans
-                    .calls
-                    .push(checked_trees::CheckedDynamicDispatchPlan::Scalar(binding));
+                plans.calls.extend(plan);
             }
         }
     }
 }
 
-fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
+/// The root call is authored in its result's form and passes the descriptor
+/// as its one argument, with no static application or evidence terms.
+fn passes_only_the_descriptor(
+    program: &TypedTrees,
+    site: &CallSite<'_>,
+    result: ForwardedCallResult,
+) -> bool {
+    match (result, site) {
+        (ForwardedCallResult::Scalar, CallSite::Expression { call, .. }) => {
+            call.selects_only_nominal_route()
+                && call.machine_arguments.is_empty()
+                && call.evidence_arguments.is_empty()
+                && call_site_argument_count(program, site) == Some(1)
+        }
+        (ForwardedCallResult::Unit, CallSite::Statement(call)) => {
+            call.static_requirement_dispatch.is_none()
+                && call.machine_arguments.is_empty()
+                && call.evidence_arguments.is_empty()
+                && !call.discards_result
+                && call_site_argument_count(program, site) == Some(1)
+        }
+        _ => false,
+    }
+}
+
+fn call_site_argument_count(program: &TypedTrees, site: &CallSite<'_>) -> Option<usize> {
+    match site {
+        CallSite::Statement(call) => Some(
+            program
+                .statement_table
+                .expression_handles(call.arguments)
+                .len(),
+        ),
+        CallSite::Expression { call, .. } => Some(
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .len(),
+        ),
+        CallSite::TransitionNamed { .. } => None,
+    }
+}
+
+/// Follow the descriptor from the root transfer through each helper's one
+/// call until a helper dispatches through its parameter.
+fn resolve_forwarded_dynamic_call<'program, 'facts>(
     program: &'program TypedTrees,
     facts: &'facts CheckFacts,
     transfers: &[checked_trees::CheckedDynamicDescriptorTransferPlan],
     root_transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
+    result: ForwardedCallResult,
 ) -> Option<ForwardedDynamicCall<'program, 'facts>> {
     let mut current = root_transfer.clone();
     let mut prior_transfers = Vec::new();
@@ -150,63 +222,6 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
         if inner_call.call_ordinal != 0 {
             return None;
         }
-        let (scalar_control, prefix_count) =
-            crate::execution::terminal_unit::control::scalar_control(
-                program,
-                facts,
-                target_machine,
-                target_state,
-            )?;
-        if inner_call.statement_index >= prefix_count {
-            return None;
-        }
-        let statements = program
-            .statement_table
-            .statements(target_state.statement_nodes);
-        let mut scalar_locals = Vec::new();
-        let mut call_result = None;
-        for (ordinal, statement) in statements.iter().take(prefix_count).enumerate() {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            if local.is_mutable || !local.symbol.is_valid() {
-                return None;
-            }
-            let coordinate = u32::try_from(ordinal).ok()?;
-            if ordinal == inner_call.statement_index {
-                let primitive_type = program.primitive_type_reference(local.type_reference)?;
-                if primitive_type != scalar_control.primitive_type {
-                    return None;
-                }
-                call_result = Some(checked_trees::CheckedUnitScalarResultBindingPlan {
-                    statement_index: coordinate,
-                    binding_ordinal: coordinate,
-                    primitive_type,
-                });
-            } else {
-                scalar_locals.push(
-                    crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at(
-                        program,
-                        facts,
-                        target_state,
-                        coordinate,
-                        coordinate,
-                        local,
-                    )?,
-                );
-            }
-        }
-        let StatementNode::LocalData(helper_result) = &statements[inner_call.statement_index]
-        else {
-            return None;
-        };
-        helpers.push(checked_trees::CheckedDynamicScalarHelperPlan {
-            machine: target_machine.symbol,
-            state: target_state.symbol,
-            call_result: call_result?,
-            scalar_locals,
-            scalar_control,
-        });
         let inner_site = crate::semantic::calls::find_call_site(
             program,
             target_machine.symbol,
@@ -214,21 +229,22 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
             inner_call.statement_index,
             inner_call.call_ordinal,
         )?;
-        let crate::semantic::calls::CallSite::Expression {
-            expression,
-            call: inner_expression_call,
-        } = &inner_site
-        else {
-            return None;
-        };
-        if helper_result.initial_value != *expression
-            || program
-                .expression_table
-                .expression_handles(inner_expression_call.arguments)
-                .len()
-                != usize::from(!inner_call.has_receiver)
+        if call_site_argument_count(program, &inner_site)? != usize::from(!inner_call.has_receiver)
         {
             return None;
+        }
+        match result {
+            ForwardedCallResult::Scalar => helpers.push(scalar_helper_body(
+                program,
+                facts,
+                target_machine,
+                target_state,
+                inner_call,
+                &inner_site,
+            )?),
+            ForwardedCallResult::Unit => {
+                unit_helper_body(program, target_state, inner_call, &inner_site)?
+            }
         }
         if inner_call.has_receiver {
             if inner_call.receiver_symbol != parameter.symbol {
@@ -269,12 +285,97 @@ fn resolve_forwarded_dynamic_scalar_call<'program, 'facts>(
     }
 }
 
+/// A scalar helper's ordered immutable locals, one of which binds its call's
+/// result, followed by checked scalar control of the call's result type.
+fn scalar_helper_body(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    inner_call: &checked_trees::FlowCallFact,
+    inner_site: &CallSite<'_>,
+) -> Option<checked_trees::CheckedDynamicScalarHelperPlan> {
+    let (scalar_control, prefix_count) =
+        crate::execution::terminal_unit::control::scalar_control(program, facts, machine, state)?;
+    if inner_call.statement_index >= prefix_count {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut scalar_locals = Vec::new();
+    let mut call_result = None;
+    for (ordinal, statement) in statements.iter().take(prefix_count).enumerate() {
+        let StatementNode::LocalData(local) = statement else {
+            return None;
+        };
+        if local.is_mutable || !local.symbol.is_valid() {
+            return None;
+        }
+        let coordinate = u32::try_from(ordinal).ok()?;
+        if ordinal == inner_call.statement_index {
+            let primitive_type = program.primitive_type_reference(local.type_reference)?;
+            if primitive_type != scalar_control.primitive_type {
+                return None;
+            }
+            call_result = Some(checked_trees::CheckedUnitScalarResultBindingPlan {
+                statement_index: coordinate,
+                binding_ordinal: coordinate,
+                primitive_type,
+            });
+        } else {
+            scalar_locals.push(
+                crate::execution::terminal_unit::scalar_locals::scalar_expression_local_at(
+                    program, facts, state, coordinate, coordinate, local,
+                )?,
+            );
+        }
+    }
+    let StatementNode::LocalData(helper_result) = &statements[inner_call.statement_index] else {
+        return None;
+    };
+    let CallSite::Expression { expression, .. } = inner_site else {
+        return None;
+    };
+    if helper_result.initial_value != *expression {
+        return None;
+    }
+    Some(checked_trees::CheckedDynamicScalarHelperPlan {
+        machine: machine.symbol,
+        state: state.symbol,
+        call_result: call_result?,
+        scalar_locals,
+        scalar_control,
+    })
+}
+
+/// A Unit helper returns Unit and retains no body plan: lowering emits only
+/// its forwarding call, so that call statement must be its entire body.
+fn unit_helper_body(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    inner_call: &checked_trees::FlowCallFact,
+    inner_site: &CallSite<'_>,
+) -> Option<()> {
+    let [StatementNode::Call(helper_call)] =
+        program.statement_table.statements(state.statement_nodes)
+    else {
+        return None;
+    };
+    let CallSite::Statement(inner_statement_call) = inner_site else {
+        return None;
+    };
+    (is_unit(program, state.return_type)
+        && inner_call.statement_index == 0
+        && std::ptr::eq(*inner_statement_call, helper_call))
+    .then_some(())
+}
+
 pub(crate) struct ForwardedDynamicCall<'program, 'facts> {
+    /// The scalar helper bodies, outermost first; empty on a Unit path.
     pub(crate) helpers: Vec<checked_trees::CheckedDynamicScalarHelperPlan>,
     pub(crate) machine: &'program typed_trees::machine::Machine,
     pub(crate) state: &'program typed_trees::state::State,
     pub(crate) flow_call: &'facts checked_trees::FlowCallFact,
-    pub(crate) call_site: crate::semantic::calls::CallSite<'program>,
+    pub(crate) call_site: CallSite<'program>,
     pub(crate) transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
     pub(crate) prior_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
 }

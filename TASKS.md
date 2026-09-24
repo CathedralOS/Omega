@@ -2225,14 +2225,19 @@ syntax and other terminal services are not prerequisites.
      single-member scalar graph, and the scalar call closure.
      `closure.len() == 1` changes the contract mode (float reflexivity) and
      content-effect admission. Start by removing that branch.
-  3. Dynamic dispatch has Scalar and Unit copies of every single-call
-     lowerer and validator (`unit/dynamic_composed_unit/dynamic_lanes.rs`
-     against `unit.rs`, forwarded-helper resolvers). The two-predecessor
-     join is already one lowering over `join.rs::JoinedDynamicCall`. The
-     checked side has the matching `forwarded_calls.rs` against `unit.rs`.
-     Its join (`composed_control/dynamic_join.rs`) still requires an
-     authored `_` fallback; other graphs accept an exact-complement pair
-     through `execution::guard_complement::complementary`.
+  3. Forwarded dynamic Unit helpers retain no body plan, so the checked
+     `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
+     a helper whose body is its one call, while scalar helpers retain
+     ordered pure locals around the call. Carry that helper plan on Unit
+     plans, materialize it through the one chain in
+     `unit/dynamic_composed_unit/forwarded_helpers.rs`, and delete the
+     recognizer. The checked call-plan builders
+     (`scalar_call_plans.rs::build_checked_dynamic_scalar_call`,
+     `unit.rs::build_checked_dynamic_unit_call`) still duplicate selection,
+     row, realization and contract custody. The checked dynamic join
+     (`composed_control/dynamic_join.rs`) still requires an authored `_`
+     fallback; other graphs accept an exact-complement pair through
+     `execution::guard_complement::complementary`.
   4. Composed-graph states re-emit operations through
      `composed_control/emission.rs`, a narrower copy of
      `attached_unit/ordinary_machine` emission.
