@@ -286,3 +286,41 @@ fn unknown_effect_before_the_guard_prevents_entry_rank_replay() {
     *program.machines_mut().get_mut(1).expect("second machine") = changed;
     assert!(admitted(&program).is_empty());
 }
+
+/// An attached machine must spell a foreign tail call with the value-call
+/// parentheses, so a ranked component meets `-> (exit(..))` where it used to
+/// meet `-> exit(..)`. Both denote the same tail arrival out of the cycle, and
+/// the component's own ranking is unaffected by either spelling. The control
+/// keeps the rejection honest: the same call nested inside an operator is not
+/// a tail arrival, so it stays an unclassified effect.
+#[test]
+fn a_parenthesized_foreign_tail_call_is_the_same_arrival_as_a_named_one() {
+    let component = |arm: &str| {
+        format!(
+            "data Main {{}}
+             machine leave(value: u64) -> u64
+             terminates;
+             {{ value }}
+             machine Main::scan_a(&mut self, remaining: u64) -> u64
+             terminates by remaining;
+             {{ transition {{ _ -> self.scan_b(remaining) }} }}
+             machine Main::scan_b(&mut self, remaining: u64) -> u64
+             terminates by remaining;
+             {{ transition remaining > 0 {{
+                 true -> self.scan_a(remaining - 1)
+                 false -> {arm}
+             }} }}"
+        )
+    };
+    let tail = typed_source(&component("(leave(remaining))"));
+    assert_eq!(
+        admitted(&tail).len(),
+        1,
+        "the parenthesized tail call admits"
+    );
+    let nested = typed_source(&component("(leave(remaining) + 1)"));
+    assert!(
+        admitted(&nested).is_empty(),
+        "a call nested inside an operator is not a tail arrival"
+    );
+}
