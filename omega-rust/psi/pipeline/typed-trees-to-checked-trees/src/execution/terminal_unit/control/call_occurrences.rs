@@ -645,6 +645,24 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             &mut consumed,
         )?;
     }
+    // Calls reached through the structural value walk (a record or case
+    // initializer holding a call node) skip the ordinal-0 loop's operand
+    // gathering. Their own structural argument calls still need the roster —
+    // union each operand call into `structural` so transitively nested calls
+    // are not reported unconsumed.
+    let mut structural_index = 0;
+    while let Some(call) = structural.get(structural_index).copied() {
+        structural_index += 1;
+        if scalar_intrinsic(call) || retired(call) {
+            continue;
+        }
+        let owner = crate::lookup::machine_by_symbol(program, machine)?;
+        for nested in structural_operands::for_call(program, facts, owner, state, call)? {
+            if !structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
+                structural.push(nested);
+            }
+        }
+    }
     for call in &structural {
         trace.phase("outer calls: structural argument calls");
         trace.statement(u32::try_from(call.statement_index).ok());
