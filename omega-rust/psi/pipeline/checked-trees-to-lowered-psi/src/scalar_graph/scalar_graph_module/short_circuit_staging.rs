@@ -526,6 +526,11 @@ impl GraphEmission<'_> {
                     frontier_lower_bound: crash.frontier_lower_bound,
                 }
             }
+            // Dispatch continuations carry their own parameter-only blocks;
+            // a staged short-circuit prefix never selects one.
+            LoweredScalarBranchTerminator::CaseDispatch { .. } => {
+                return unsupported("case dispatch does not stage through carried bindings");
+            }
         };
         self.inlined_blocks.push(Block {
             structural_parameters: Vec::new(),

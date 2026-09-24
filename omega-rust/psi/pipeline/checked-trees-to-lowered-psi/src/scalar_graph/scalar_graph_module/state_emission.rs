@@ -9,7 +9,7 @@ use super::super::{
     emit_boolean_expression, emit_direct_expression, emit_inlined_boolean_guard_blocks,
     emit_inlined_boolean_value_blocks, emit_scalar_binding, lower_boolean_control_decision,
     lower_boolean_value_decision, lower_checked_crash_predicates, scalar_source_block,
-    staged_short_circuit_bindings_terminator, unsupported,
+    staged_short_circuit_bindings_terminator, unsupported, value_id,
 };
 use super::qualifications;
 use super::{GraphEmission, StateFrame};
@@ -467,6 +467,200 @@ impl GraphEmission<'_> {
                             trivial_affine_discards: Vec::new(),
                         },
                     }
+                }
+            }
+            LoweredScalarBranchTerminator::CaseDispatch {
+                source,
+                selected,
+                cases,
+                payloads,
+                when_true_target,
+                when_true_arguments,
+                when_true_erased_arguments,
+                when_true_erased_proof_arguments,
+                when_false_target,
+                when_false_arguments,
+                when_false_erased_arguments,
+                when_false_erased_proof_arguments,
+            } => {
+                // Case edges forward no values, so both outcomes stage
+                // their arguments through parameter-only continuations
+                // beneath the dispatch; the dominating state's values stay
+                // in scope there. The selected continuation declares the
+                // case's scalar payloads as its block parameters, matching
+                // the edge's `payload_fields` roster.
+                let mut dispatch_namespace = current_values.clone();
+                let mut dispatch_value_types = current_value_types.clone();
+                let payload_parameters = payloads
+                    .iter()
+                    .map(|(_, value_type)| {
+                        let declaration = ValueDeclaration {
+                            id: value_id(self.next_value_identity),
+                            scalar_type: value_type.scalar_type,
+                            qualifications: value_type.qualifications,
+                        };
+                        self.next_value_identity = self
+                            .next_value_identity
+                            .checked_add(1)
+                            .expect("case payload parameter identities advance");
+                        dispatch_namespace.push(declaration);
+                        dispatch_value_types.push(*value_type);
+                        declaration
+                    })
+                    .collect::<Vec<_>>();
+                let selected_block = block_id(self.next_block_identity);
+                self.next_block_identity = self
+                    .next_block_identity
+                    .checked_add(1)
+                    .expect("case dispatch block identities advance");
+                // A fallback edge exists only for declared cases outside the
+                // selected one; a single-case sum leaves the source `_` arm
+                // unreachable, so its continuation block must not be emitted.
+                let has_fallback = cases.iter().any(|case| *case != *selected);
+                let fallback_block = has_fallback.then(|| {
+                    let id = block_id(self.next_block_identity);
+                    self.next_block_identity = self
+                        .next_block_identity
+                        .checked_add(1)
+                        .expect("case dispatch block identities advance");
+                    id
+                });
+                let when_true = build_scalar_conditional_target(
+                    *when_true_target,
+                    when_true_arguments,
+                    &dispatch_namespace,
+                    &dispatch_value_types,
+                    &mut self.next_block_identity,
+                    &mut self.next_value_identity,
+                    &mut self.pending_blocks,
+                    self.identity_base,
+                )?;
+                let when_false = if has_fallback {
+                    Some(build_scalar_conditional_target(
+                        *when_false_target,
+                        when_false_arguments,
+                        &current_values,
+                        &current_value_types,
+                        &mut self.next_block_identity,
+                        &mut self.next_value_identity,
+                        &mut self.pending_blocks,
+                        self.identity_base,
+                    )?)
+                } else {
+                    None
+                };
+                let fresh_edge = |identity: &mut u64| {
+                    let edge = edge_id(*identity);
+                    *identity = identity
+                        .checked_add(1)
+                        .expect("case dispatch edge identities advance");
+                    edge
+                };
+                let when_true_erased = when_true_erased_arguments
+                    .iter()
+                    .map(|argument| {
+                        lowered_direct_scalar_term(
+                            argument,
+                            &dispatch_namespace,
+                            &self.state_erased_formals[index],
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let when_true_proof = when_true_erased_proof_arguments
+                    .iter()
+                    .map(|term| {
+                        crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                            term,
+                            &dispatch_namespace,
+                            &self.state_erased_formals[index],
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let (when_false_erased, when_false_proof) = if has_fallback {
+                    (
+                        when_false_erased_arguments
+                            .iter()
+                            .map(|argument| {
+                                lowered_direct_scalar_term(
+                                    argument,
+                                    &current_values,
+                                    &self.state_erased_formals[index],
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                        when_false_erased_proof_arguments
+                            .iter()
+                            .map(|term| {
+                                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                    term,
+                                    &current_values,
+                                    &self.state_erased_formals[index],
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?,
+                    )
+                } else {
+                    (Vec::new(), Vec::new())
+                };
+                self.blocks.push(Block {
+                    id: selected_block,
+                    parameters: payload_parameters,
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
+                        edge: fresh_edge(&mut self.next_edge_identity),
+                        target: when_true.block,
+                        arguments: when_true.arguments,
+                        erased_arguments: when_true_erased,
+                        erased_proof_arguments: when_true_proof,
+                        trivial_affine_discards: Vec::new(),
+                        residual_affine_discards: Vec::new(),
+                    },
+                });
+                if let Some((fallback_block, when_false)) = fallback_block.zip(when_false) {
+                    self.blocks.push(Block {
+                        id: fallback_block,
+                        parameters: Vec::new(),
+                        erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            structural_arguments: Vec::new(),
+                            edge: fresh_edge(&mut self.next_edge_identity),
+                            target: when_false.block,
+                            arguments: when_false.arguments,
+                            erased_arguments: when_false_erased,
+                            erased_proof_arguments: when_false_proof,
+                            trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
+                        },
+                    });
+                }
+                Terminator::StructuralCase {
+                    source: *source,
+                    cases: cases
+                        .iter()
+                        .map(|case| terminal_psi::StructuralCaseSuccessorEdge {
+                            edge: fresh_edge(&mut self.next_edge_identity),
+                            target: if *case == *selected {
+                                selected_block
+                            } else {
+                                fallback_block
+                                    .expect("non-selected case edge needs a fallback block")
+                            },
+                            case: *case,
+                            payload_fields: if *case == *selected {
+                                payloads.iter().map(|(field, _)| *field).collect()
+                            } else {
+                                Vec::new()
+                            },
+                            trivial_affine_discards: Vec::new(),
+                        })
+                        .collect(),
                 }
             }
             LoweredScalarBranchTerminator::Return { expression } => {

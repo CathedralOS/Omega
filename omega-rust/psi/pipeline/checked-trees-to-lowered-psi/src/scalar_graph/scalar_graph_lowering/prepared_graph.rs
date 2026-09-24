@@ -17,7 +17,8 @@ use checked_trees::{
     CheckedBooleanExpression, ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use semantic_vocabulary::{
-    ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralFieldId, StructuralTypeId,
+    ClaimId, PlaceId, QualifiedScalarType, ScalarType, StructuralCaseId, StructuralFieldId,
+    StructuralTypeId,
 };
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralParameterDeclaration,
@@ -47,6 +48,28 @@ pub(crate) enum LoweredScalarBranchTerminator {
     },
     Conditional {
         condition: LoweredBooleanReturnExpression,
+        when_true_target: usize,
+        when_true_arguments: Vec<LoweredDirectExpression>,
+        when_true_erased_arguments: Vec<LoweredDirectExpression>,
+        when_true_erased_proof_arguments: Vec<LoweredProofTerm>,
+        when_false_target: usize,
+        when_false_arguments: Vec<LoweredDirectExpression>,
+        when_false_erased_arguments: Vec<LoweredDirectExpression>,
+        when_false_erased_proof_arguments: Vec<LoweredProofTerm>,
+    },
+    /// A case-membership dispatch on a structural operand: the selected
+    /// case's scalar payload fields bind as the selected edge's block
+    /// parameters, matching `Terminator::StructuralCase` in the emitted
+    /// module. Both outcomes stage their arguments through parameter-only
+    /// continuations because case edges forward no values.
+    CaseDispatch {
+        source: PlaceId,
+        selected: StructuralCaseId,
+        /// Every declared case of the source's shape, in declaration order.
+        cases: Vec<StructuralCaseId>,
+        /// Scalar payload fields of `selected`, in field order; these bind
+        /// positionally as the selected branch block's parameters.
+        payloads: Vec<(StructuralFieldId, QualifiedScalarType)>,
         when_true_target: usize,
         when_true_arguments: Vec<LoweredDirectExpression>,
         when_true_erased_arguments: Vec<LoweredDirectExpression>,

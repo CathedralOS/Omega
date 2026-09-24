@@ -55,7 +55,8 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     if matches!(program.expression_table.expression(assignment.target),
                                         typed_trees::expression::ExpressionNode::Member(_)))
                                 || matches!(statement, StatementNode::LocalData(local)
-                                if program.primitive_type_reference(local.type_reference).is_none())
+                                if program.primitive_type_reference(local.type_reference).is_none()
+                                    && !local.name.as_str().starts_with("__arm_destructure#"))
                         })
                         .map(|(ordinal, statement)| {
                             if let StatementNode::Assignment(assignment) = statement {

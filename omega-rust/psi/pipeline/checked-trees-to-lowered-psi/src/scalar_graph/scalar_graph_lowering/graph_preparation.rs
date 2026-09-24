@@ -380,7 +380,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     structural_types,
                     next_place,
                 )?;
-                guards::lower(
+                let lowered = guards::lower(
                     checked,
                     state.state,
                     *guard_statement_ordinal,
@@ -400,7 +400,52 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                     ),
                     when_false,
                     &mut computations,
-                )?
+                )?;
+                match lowered {
+                    LoweredScalarBranchTerminator::Conditional {
+                        condition:
+                            crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::StructuralCaseMembership {
+                                source,
+                                path,
+                                case,
+                            },
+                        when_true_target,
+                        when_true_arguments,
+                        when_true_erased_arguments,
+                        when_true_erased_proof_arguments,
+                        when_false_target,
+                        when_false_arguments,
+                        when_false_erased_arguments,
+                        when_false_erased_proof_arguments,
+                    } if path.is_empty()
+                        && crate::emission::case_payload_dispatch::direct_case_reads(
+                            &when_true_arguments,
+                            source,
+                            case,
+                        ) =>
+                    {
+                        case_dispatch_terminator(
+                            source,
+                            case,
+                            &state_namespaces[state_index],
+                            structural_types,
+                            value_types,
+                            (
+                                when_true_target,
+                                when_true_arguments,
+                                when_true_erased_arguments,
+                                when_true_erased_proof_arguments,
+                            ),
+                            (
+                                when_false_target,
+                                when_false_arguments,
+                                when_false_erased_arguments,
+                                when_false_erased_proof_arguments,
+                            ),
+                        )?
+                    }
+                    other => other,
+                }
             }
             CheckedScalarStateTerminator::Guarded { .. } => {
                 return unsupported("ordered scalar exits require an ordinary completion body");
@@ -478,6 +523,11 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             LoweredScalarBranchTerminator::Jump { target, .. }
             | LoweredScalarBranchTerminator::Qualify { target, .. } => vec![*target],
             LoweredScalarBranchTerminator::Conditional {
+                when_true_target,
+                when_false_target,
+                ..
+            }
+            | LoweredScalarBranchTerminator::CaseDispatch {
                 when_true_target,
                 when_false_target,
                 ..
@@ -849,4 +899,128 @@ fn state_successors<'a>(
         | CheckedScalarStateTerminator::Crash { .. } => {}
     }
     Ok(successors)
+}
+
+/// A union match over a structural operand reaches scalar lowering as a
+/// membership conditional whose selected arm reads bound payload fields.
+/// Deferred payload reads only resolve once the case's payloads bind as
+/// block parameters, so that conditional becomes a structural dispatch: the
+/// selected edge carries the scalar payload fields to a dedicated branch
+/// block and both outcomes stage through continuations, matching
+/// `Terminator::StructuralCase`.
+fn case_dispatch_terminator(
+    source: semantic_vocabulary::PlaceId,
+    selected: semantic_vocabulary::StructuralCaseId,
+    state_namespace: &[(u32, StructuralParameterDeclaration)],
+    structural_types: &[StructuralTypeDeclaration],
+    value_types: &[semantic_vocabulary::QualifiedScalarType],
+    when_true: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+        Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
+    ),
+    when_false: (
+        usize,
+        Vec<LoweredDirectExpression>,
+        Vec<LoweredDirectExpression>,
+        Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
+    ),
+) -> Result<LoweredScalarBranchTerminator, LoweringError> {
+    let Some((_, parameter)) = state_namespace
+        .iter()
+        .find(|(_, declaration)| declaration.place == source)
+    else {
+        return unsupported("case dispatch lost the matched operand's structural parameter");
+    };
+    let cases = match structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .map(|declaration| &declaration.shape)
+    {
+        Some(terminal_psi::StructuralTypeShape::Sum { cases })
+        | Some(terminal_psi::StructuralTypeShape::Mixed { cases, .. }) => cases.as_slice(),
+        _ => {
+            return unsupported("case dispatch lost the matched operand's declared cases");
+        }
+    };
+    let selected_case = cases
+        .iter()
+        .find(|declared| declared.id == selected)
+        .ok_or(LoweringError::Unsupported(
+            "case dispatch selects a case outside its root's sum",
+        ))?;
+    let mut payloads = Vec::new();
+    let mut bound = Vec::new();
+    for field in &selected_case.fields {
+        let scalar_type = match field.field_type {
+            terminal_psi::StructuralFieldType::Scalar(scalar) => scalar,
+            terminal_psi::StructuralFieldType::BoundedInteger(integer) => {
+                semantic_vocabulary::ScalarType::Integer(integer.integer_type())
+            }
+            _ => continue,
+        };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        // Payload slots append after the state's completed value namespace,
+        // where the emitted branch block declares them as parameters.
+        bound.push(
+            crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload {
+                source,
+                case: selected,
+                field: field.id,
+                position: value_types.len() + payloads.len(),
+            },
+        );
+        payloads.push((
+            field.id,
+            semantic_vocabulary::QualifiedScalarType::from(scalar_type),
+        ));
+    }
+    let (
+        when_true_target,
+        when_true_arguments,
+        when_true_erased_arguments,
+        when_true_erased_proof_arguments,
+    ) = when_true;
+    let (
+        when_false_target,
+        when_false_arguments,
+        when_false_erased_arguments,
+        when_false_erased_proof_arguments,
+    ) = when_false;
+    let when_true_arguments: Vec<LoweredDirectExpression> = when_true_arguments
+        .into_iter()
+        .map(|argument| crate::emission::case_payload_dispatch::substitute_direct(argument, &bound))
+        .collect();
+    // Every deferred case read must land on a bound scalar payload slot; a
+    // read into a non-scalar payload (e.g. a field of a record payload) has
+    // no slot to bind and must decline here rather than leak a deferred
+    // structural-field reference into the emitted module.
+    if crate::emission::case_payload_dispatch::direct_case_reads(
+        &when_true_arguments,
+        source,
+        selected,
+    ) || crate::emission::case_payload_dispatch::direct_case_reads(
+        &when_true_erased_arguments,
+        source,
+        selected,
+    ) {
+        return unsupported("case dispatch cannot bind a non-scalar payload observation");
+    }
+    Ok(LoweredScalarBranchTerminator::CaseDispatch {
+        source,
+        selected,
+        cases: cases.iter().map(|declared| declared.id).collect(),
+        payloads,
+        when_true_target,
+        when_true_arguments,
+        when_true_erased_arguments,
+        when_true_erased_proof_arguments,
+        when_false_target,
+        when_false_arguments,
+        when_false_erased_arguments,
+        when_false_erased_proof_arguments,
+    })
 }
