@@ -41,23 +41,22 @@
 //! declared under `local_schedule`, the in-block pair interchange, and read
 //! nothing from that parent.
 //!
-//! The scheduling families divide by granularity and by memory rule rather
-//! than by anything else: `local_schedule` interchanges two members,
-//! `member_run_interchange` a member against a run, `run_interchange` two
-//! runs, and each `commuting_*` name is the same geometry with the roster
-//! rule widened from "at most one accounted actor" to "every pair of rows
-//! that newly trades order commutes". A member is a run of one and the
-//! widened rule holds vacuously when only one side carries rows, so those
-//! six are one operation.
+//! `interchange` is the other consolidation. Six families divided by
+//! granularity — two members, a member against a run, two runs — crossed
+//! with a memory rule, where each `commuting_*` name was the same geometry
+//! with the roster rule widened from "at most one accounted actor" to "every
+//! pair of rows that newly trades order commutes". A member is a run of one,
+//! and a window whose trading pairs carry rows on at most one side satisfies
+//! the widened rule by having no pair to check, so the widest of the six is
+//! the general one: two disjoint contiguous runs of at least one member each
+//! exchange places, admitted when every newly trading row pair commutes.
 //!
 //! - `address_fold` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `arm_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `commuting_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `commuting_member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `commuting_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
+//! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -69,14 +68,11 @@
 //! - `fork_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
-//! - `local_schedule` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `scheduled_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`condition_materialization`, `copied_call_operand`,
 //!   `projected_access`, `terminator_pair`) — staged, owner row
 //!   **DECLARATIVE-PEEPHOLES**
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
 //!
 //! `commuting_accesses`, `condition_state`, `dead_path` and `place_storage`
@@ -88,10 +84,7 @@ mod arm_relocation;
 mod boundary_boolean;
 mod boundary_branch;
 mod commuting_accesses;
-mod commuting_interchange;
-mod commuting_member_run_interchange;
 mod commuting_relocation;
-mod commuting_run_interchange;
 mod commuting_run_relocation;
 mod condition_state;
 mod confluence_relocation;
@@ -104,13 +97,11 @@ mod dead_store;
 mod fork_relocation;
 mod fork_run_relocation;
 mod inflow_relocation;
+mod interchange;
 mod load_forwarding;
-mod local_schedule;
-mod member_run_interchange;
 pub mod peepholes;
 mod place_storage;
 mod relocation;
-mod run_interchange;
 mod scheduled_relocation;
 mod store_motion;
 
@@ -130,22 +121,9 @@ pub use boundary_branch::{
     BoundaryBranchError, BoundaryBranchReceipt, ValidatedBoundaryBranch,
     fold_selected_boundary_branch, validate_boundary_branch_fold,
 };
-pub use commuting_interchange::{
-    CommutingInterchangeError, CommutingInterchangeReceipt, ValidatedCommutingInterchange,
-    interchange_selected_commuting_pair, validate_commuting_interchange,
-};
-pub use commuting_member_run_interchange::{
-    CommutingMemberRunInterchangeError, CommutingMemberRunInterchangeReceipt,
-    ValidatedCommutingMemberRunInterchange, interchange_selected_commuting_member_and_run,
-    validate_commuting_member_run_interchange,
-};
 pub use commuting_relocation::{
     CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation,
     relocate_selected_commuting_member, validate_commuting_relocation,
-};
-pub use commuting_run_interchange::{
-    CommutingRunInterchangeError, CommutingRunInterchangeReceipt, ValidatedCommutingRunInterchange,
-    interchange_selected_commuting_runs, validate_commuting_run_interchange,
 };
 pub use commuting_run_relocation::{
     CommutingRunRelocationError, CommutingRunRelocationReceipt, ValidatedCommutingRunRelocation,
@@ -190,25 +168,17 @@ pub use inflow_relocation::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
     relocate_selected_instruction_onto_inflow, validate_inflow_relocation,
 };
+pub use interchange::{
+    InterchangeError, InterchangeReceipt, ValidatedInterchange, interchange_selected_runs,
+    validate_selected_interchange,
+};
 pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
     forward_selected_stored_load, validate_stored_load_forwarding,
 };
-pub use local_schedule::{
-    LocalScheduleError, LocalScheduleReceipt, ValidatedLocalSchedule, schedule_selected_pair,
-    validate_local_schedule,
-};
-pub use member_run_interchange::{
-    MemberRunInterchangeError, MemberRunInterchangeReceipt, ValidatedMemberRunInterchange,
-    interchange_selected_member_and_run, validate_member_run_interchange,
-};
 pub use relocation::{
     MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,
     relocate_selected_member_run, validate_member_run_relocation,
-};
-pub use run_interchange::{
-    RunInterchangeError, RunInterchangeReceipt, ValidatedRunInterchange, interchange_selected_runs,
-    validate_run_interchange,
 };
 pub use scheduled_relocation::{
     ScheduledRelocationError, ScheduledRelocationReceipt, ValidatedScheduledRelocation,

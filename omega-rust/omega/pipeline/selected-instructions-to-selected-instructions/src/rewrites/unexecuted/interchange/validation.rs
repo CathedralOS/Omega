@@ -13,9 +13,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{SelectedFunction, SelectedInstructionId, SelectedInstructionPlan};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
-use super::{
-    CommutingRunInterchangeError, CommutingRunInterchangeReceipt, ValidatedCommutingRunInterchange,
-};
+use super::{InterchangeError, InterchangeReceipt, ValidatedInterchange};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::unexecuted::commuting_accesses as accesses;
 use crate::rewrites::unexecuted::place_storage::structural_place_declarations;
@@ -64,15 +62,15 @@ fn reconstruct<'source>(
     later_last: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<Reconstructed<'source>, CommutingRunInterchangeError> {
+) -> Result<Reconstructed<'source>, InterchangeError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
-        return Err(CommutingRunInterchangeError::SourceMismatch);
+        return Err(InterchangeError::SourceMismatch);
     }
     let function = plan
         .functions
         .get(function_index)
-        .ok_or(CommutingRunInterchangeError::SourceMismatch)?;
+        .ok_or(InterchangeError::SourceMismatch)?;
     let (block_index, earlier_first_index) = function
         .blocks
         .iter()
@@ -84,17 +82,17 @@ fn reconstruct<'source>(
                 .position(|instruction| instruction.id == earlier_first)
                 .map(|earlier_first_index| (block_index, earlier_first_index))
         })
-        .ok_or(CommutingRunInterchangeError::SourceMismatch)?;
+        .ok_or(InterchangeError::SourceMismatch)?;
     let block = &function.blocks[block_index];
     // Each run is the contiguous span its two named members bound in this
-    // block, in the named order; a run of one member is the pair
-    // interchange's granularity and a repeated or absent id names no run.
+    // block, in the named order. Naming one member twice is the run of one,
+    // which is the member granularity; an absent or reversed id names no run.
     let earlier_last_index = block
         .instructions
         .iter()
         .position(|instruction| instruction.id == earlier_last)
-        .filter(|position| *position > earlier_first_index)
-        .ok_or(CommutingRunInterchangeError::UnsupportedPair)?;
+        .filter(|position| *position >= earlier_first_index)
+        .ok_or(InterchangeError::UnsupportedPair)?;
     // The later run follows the earlier run disjointly; the positions
     // between them form the interior, which keeps its relative order while
     // the runs trade places.
@@ -103,13 +101,13 @@ fn reconstruct<'source>(
         .iter()
         .position(|instruction| instruction.id == later_first)
         .filter(|position| *position > earlier_last_index)
-        .ok_or(CommutingRunInterchangeError::UnsupportedPair)?;
+        .ok_or(InterchangeError::UnsupportedPair)?;
     let later_last_index = block
         .instructions
         .iter()
         .position(|instruction| instruction.id == later_last)
-        .filter(|position| *position > later_first_index)
-        .ok_or(CommutingRunInterchangeError::UnsupportedPair)?;
+        .filter(|position| *position >= later_first_index)
+        .ok_or(InterchangeError::UnsupportedPair)?;
     let window = &block.instructions[earlier_first_index..=later_last_index];
     let earlier_len = earlier_last_index - earlier_first_index + 1;
     let later_len = later_last_index - later_first_index + 1;
@@ -121,8 +119,7 @@ fn reconstruct<'source>(
     // rule — a roster-carrying member may trade order with a crossed
     // position whose own rows commute with it.
     for position in window {
-        schedulable(function, position)
-            .ok_or(CommutingRunInterchangeError::UnsupportedInstruction)?;
+        schedulable(function, position).ok_or(InterchangeError::UnsupportedInstruction)?;
     }
     let rows = accesses::window_rows(function, window);
     // Every member trades order with every window position outside its own
@@ -132,9 +129,9 @@ fn reconstruct<'source>(
     // with every row the crossed position carries. Members of one run keep
     // their relative order and never face this audit against each other,
     // and interior positions keep their relative order with each other. A
-    // window in which no trading pair is rowed on both sides is the run
-    // interchange's own accounting case and stays with it.
-    let mut rowed_trade = false;
+    // window in which no trading pair carries rows on both sides satisfies
+    // this by having no pair to check, which is the at-most-one-actor case
+    // stated as the absence of a conflict rather than as its own rule.
     for (member_index, member) in window.iter().enumerate() {
         let crossed_range = if member_index < earlier_len {
             // An earlier-run member crosses the interior and the later
@@ -152,27 +149,23 @@ fn reconstruct<'source>(
         for crossed_index in crossed_range {
             let crossed = &window[crossed_index];
             if coupled(member, crossed) {
-                return Err(CommutingRunInterchangeError::UnsupportedPair);
+                return Err(InterchangeError::UnsupportedPair);
             }
-            rowed_trade |= !rows[member_index].is_empty() && !rows[crossed_index].is_empty();
             for member_row in &rows[member_index] {
                 for crossed_row in &rows[crossed_index] {
                     if !accesses::commutes(member_row, crossed_row, structural_places) {
-                        return Err(CommutingRunInterchangeError::UnsupportedPair);
+                        return Err(InterchangeError::UnsupportedPair);
                     }
                 }
             }
         }
-    }
-    if !rowed_trade {
-        return Err(CommutingRunInterchangeError::UnsupportedPair);
     }
     if interior_settlement(
         function,
         block.id,
         earlier_first_index + 1..=later_last_index,
     ) {
-        return Err(CommutingRunInterchangeError::UnsupportedPair);
+        return Err(InterchangeError::UnsupportedPair);
     }
     // The validator's own audit walks the same surfaces the family
     // publishes: one scan of the plan's body instructions, every
@@ -216,11 +209,11 @@ fn reconstruct<'source>(
                 .checked_add(function.calls.len())?
                 .checked_add(function.boundary_settlements.len())
         })
-        .ok_or(CommutingRunInterchangeError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| CommutingRunInterchangeError::IdentityOverflow)?
+        .ok_or(InterchangeError::IdentityOverflow)?;
+    if u64::try_from(steps).map_err(|_| InterchangeError::IdentityOverflow)?
         > budget.validation_steps()
     {
-        return Err(CommutingRunInterchangeError::WorkBudgetExceeded);
+        return Err(InterchangeError::WorkBudgetExceeded);
     }
     Ok(Reconstructed {
         function,
@@ -241,7 +234,7 @@ fn reconstruct<'source>(
 /// source by content: every instruction before and after the window,
 /// every other instruction, register, roster row, call, settlement, and
 /// function included.
-pub fn validate_commuting_run_interchange(
+pub fn validate_selected_interchange(
     source: &impl ValidatedSelectedAnalysis,
     function_index: usize,
     earlier_first: SelectedInstructionId,
@@ -251,7 +244,7 @@ pub fn validate_commuting_run_interchange(
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
     proposed: SelectedInstructionPlan,
-) -> Result<ValidatedCommutingRunInterchange, CommutingRunInterchangeError> {
+) -> Result<ValidatedInterchange, InterchangeError> {
     let reconstructed = reconstruct(
         source,
         function_index,
@@ -266,17 +259,17 @@ pub fn validate_commuting_run_interchange(
     let proposed_function = proposed
         .functions
         .get(function_index)
-        .ok_or(CommutingRunInterchangeError::ReplayMismatch)?;
+        .ok_or(InterchangeError::ReplayMismatch)?;
     let proposed_block = proposed_function
         .blocks
         .get(reconstructed.block_index)
-        .ok_or(CommutingRunInterchangeError::ReplayMismatch)?;
+        .ok_or(InterchangeError::ReplayMismatch)?;
     let first = reconstructed.earlier_first_index;
     let last = reconstructed.later_last_index;
     let source_window = source_block
         .instructions
         .get(first..=last)
-        .ok_or(CommutingRunInterchangeError::ReplayMismatch)?;
+        .ok_or(InterchangeError::ReplayMismatch)?;
     let earlier_len = reconstructed.earlier_last_index - first + 1;
     let later_len = last - reconstructed.later_first_index + 1;
     let interior_len = source_window.len() - earlier_len - later_len;
@@ -294,7 +287,7 @@ pub fn validate_commuting_run_interchange(
         .map(|window| window.iter().collect::<Vec<_>>())
         != Some(expected)
     {
-        return Err(CommutingRunInterchangeError::ReplayMismatch);
+        return Err(InterchangeError::ReplayMismatch);
     }
     // The roster is the family's one content change beyond the reorder:
     // the source's window rows, permuted into the new execution order and
@@ -314,14 +307,14 @@ pub fn validate_commuting_run_interchange(
         .collect();
     let ordered = accesses::rows_in_order(reconstructed.function, &new_order);
     if positions.len() != ordered.len() {
-        return Err(CommutingRunInterchangeError::ReplayMismatch);
+        return Err(InterchangeError::ReplayMismatch);
     }
     let mut expected_roster = reconstructed.function.memory_accesses.clone();
     for (position, access) in positions.iter().zip(ordered) {
         expected_roster[*position] = access;
     }
     if proposed_function.memory_accesses != expected_roster {
-        return Err(CommutingRunInterchangeError::ReplayMismatch);
+        return Err(InterchangeError::ReplayMismatch);
     }
     let mut restored = proposed.clone();
     restored.functions[function_index].blocks[reconstructed.block_index]
@@ -333,10 +326,10 @@ pub fn validate_commuting_run_interchange(
         restored_function.memory_accesses[*position] = access;
     }
     if restored != *source.selected_plan() {
-        return Err(CommutingRunInterchangeError::ReplayMismatch);
+        return Err(InterchangeError::ReplayMismatch);
     }
-    Ok(ValidatedCommutingRunInterchange {
-        receipt: CommutingRunInterchangeReceipt {
+    Ok(ValidatedInterchange {
+        receipt: InterchangeReceipt {
             source_selected: source.selected_identity(),
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),

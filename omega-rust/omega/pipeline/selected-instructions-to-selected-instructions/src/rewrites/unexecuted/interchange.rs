@@ -1,24 +1,22 @@
-//! Local scheduling of two runs under proven memory commutation on the
-//! selected CFG.
+//! In-block interchange of two runs on the selected CFG.
 //!
 //! Scheduling here means changing the order instructions execute inside one
 //! block without changing what any of them observes. The primitive this
-//! family proves is the bounded run interchange with more than one
-//! accounted memory actor: two disjoint runs of body instructions — each
-//! the contiguous span its named first and last members bound, of at least
-//! two members — exchange places while every instruction between them keeps
-//! its relative order, shifted by the difference of the runs' lengths. That
-//! is exactly `rewrites/run_interchange`'s geometry, with one admission
-//! rule widened: where the run interchange requires every position a
-//! row-carrying side trades order with to be row-less, this family lets
-//! accounted actors face each other when every pair of roster rows that
-//! newly trades order commutes — the same access-independence audit
-//! `rewrites/commuting_interchange` applies at pair granularity, shared
-//! through `rewrites/commuting_accesses`. A window whose trading pairs
-//! carry at most one rowed side is the run interchange's own accounting
-//! case and refuses here, keeping the two families disjoint; a one-member
-//! run is the commuting pair's and the member-against-run interchange's
-//! granularity and refuses here for the same reason.
+//! module proves is the bounded interchange: two disjoint runs of body
+//! instructions — each the contiguous span its named first and last members
+//! bound — exchange places while every instruction between them keeps its
+//! relative order, shifted by the difference of the runs' lengths.
+//!
+//! Naming one member as both bounds is the run of one, so a member against a
+//! run and two members against each other are granularities of this
+//! admission rather than families of their own. The memory rule is the
+//! commutation audit: every pair of roster rows that newly trades order must
+//! commute, shared through `rewrites/commuting_accesses`. A window whose
+//! trading pairs carry rows on at most one side satisfies that by having no
+//! pair to check, which is the at-most-one-accounted-actor case expressed as
+//! the absence of a conflict rather than as a separate rule. Those two facts
+//! are why the six families this replaced — two members, a member against a
+//! run, two runs, each in a plain and a commuting form — were one operation.
 //!
 //! Two recorded accesses commute when neither can observe the other's
 //! effect on the bytes it reaches — two non-writing rows never conflict,
@@ -65,20 +63,20 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::interchange_selected_commuting_runs;
-pub use validation::validate_commuting_run_interchange;
+pub use rewrite::interchange_selected_runs;
+pub use validation::validate_selected_interchange;
 
 #[cfg(test)]
 mod tests;
 
 /// An accepted commuting run interchange with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedCommutingRunInterchange {
+pub struct ValidatedInterchange {
     transformed: Arc<SelectedInstructionPlan>,
-    receipt: CommutingRunInterchangeReceipt,
+    receipt: InterchangeReceipt,
 }
 
-impl ValidatedCommutingRunInterchange {
+impl ValidatedInterchange {
     pub fn transformed(&self) -> &SelectedInstructionPlan {
         &self.transformed
     }
@@ -87,20 +85,20 @@ impl ValidatedCommutingRunInterchange {
         Arc::clone(&self.transformed)
     }
 
-    pub const fn receipt(&self) -> &CommutingRunInterchangeReceipt {
+    pub const fn receipt(&self) -> &InterchangeReceipt {
         &self.receipt
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommutingRunInterchangeReceipt {
+pub struct InterchangeReceipt {
     source_selected: SelectedInstructionPlanIdentity,
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
 }
 
-impl CommutingRunInterchangeReceipt {
+impl InterchangeReceipt {
     pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
@@ -116,7 +114,7 @@ impl CommutingRunInterchangeReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommutingRunInterchangeError {
+pub enum InterchangeError {
     SourceMismatch,
     /// A window position can never trade order: a barrier kind, a
     /// call-roster entry, or a memory-capable kind the roster does not
@@ -136,10 +134,10 @@ pub enum CommutingRunInterchangeError {
     ReplayMismatch,
 }
 
-impl std::fmt::Display for CommutingRunInterchangeError {
+impl std::fmt::Display for InterchangeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "invalid commuting run interchange: {self:?}")
     }
 }
 
-impl std::error::Error for CommutingRunInterchangeError {}
+impl std::error::Error for InterchangeError {}
