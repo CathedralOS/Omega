@@ -69,10 +69,22 @@ pub(super) fn is_record_value(
         shared_referent.is_some() && program.primitive_type_reference(reference).is_some();
     let mut record_symbol = SymbolHandle::invalid();
     if !primitive_referent {
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return false;
+        let symbol = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => symbol,
+            // A lifetime-parameterized record is a `Generic` node whose type
+            // arguments are empty — its fields bind lifetimes, not types.
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .is_empty() =>
+            {
+                base_symbol
+            }
+            _ => return false,
         };
         let Some(record) = program
             .data_definitions()
@@ -522,12 +534,24 @@ pub(super) fn is_copied_place_value(
     };
     if place.segments.is_empty() {
         // A whole owned root reads its declared contents directly: any
-        // reference carrier stays on the borrowed-leaf lane below, while an
-        // owned `[copy]` root copies into a fresh result with an empty path.
+        // non-view reference carrier stays on the borrowed-leaf lane below,
+        // while an owned `[copy]` root copies into a fresh result with an
+        // empty path. A bare `&`-view name is the degenerate copied leaf —
+        // the view itself is the `Unrestricted` leaf the copy transfers.
+        let root_is_view =
+            matches!(
+                program.type_reference_table.type_reference(root),
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                }
+            ) && (crate::execution::terminal_unit::types::borrowed_slice_view(program, root)
+                || crate::execution::terminal_unit::types::borrowed_named_view(program, root));
         if matches!(
             program.type_reference_table.type_reference(root),
             TypeReferenceNode::Reference { .. }
-        ) {
+        ) && !root_is_view
+        {
             return false;
         }
     } else if !matches!(
@@ -1439,14 +1463,29 @@ impl Builder<'_, '_> {
         if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
             && !validation::has_cleanup_owned_contents(self.program, expected)
             && !validation::reference_result_custody::is_reference_record(self.program, expected)
+            && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
+                self.program,
+                expected,
+            )
         {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            self.program.type_reference_table.type_reference(reference)
-        else {
-            return None;
+        let symbol = match self.program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbol,
+            typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if self
+                .program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .is_empty() =>
+            {
+                base_symbol
+            }
+            _ => return None,
         };
         if literal.case_name.is_some() || literal.type_symbol != *symbol {
             return None;

@@ -9,7 +9,7 @@
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[cfg(test)]
@@ -141,6 +141,83 @@ pub fn has_stable_observable_contents(
 /// obligations.
 pub fn has_service_seam_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::SeamMarshal)
+}
+
+/// Classify a record whose fields are each either plain owned contents or a
+/// shared view — a `&[T]` or `&'a V` member whose `&` shell carries the
+/// field's `Unrestricted` multiplicity while its referent's loan stays with
+/// the view's owner. The record itself remains an owned carrier: copying it
+/// copies its scalars and its view descriptors whole, the same way a stored
+/// view leaf copies out of a `&self` projection. Exclusive/`&mut` members,
+/// erased members, and genuinely generic fields keep the record on its own
+/// custody family.
+pub fn has_owned_or_shared_view_fields(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        // A lifetime-parameterized record is a `Generic` node whose type
+        // arguments are empty — its fields bind lifetimes, not types.
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .is_empty() =>
+        {
+            *base_symbol
+        }
+        _ => return false,
+    };
+    if !symbol.is_valid() {
+        return false;
+    }
+    let mut definitions = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.symbol == symbol);
+    let Some(data) = definitions.next() else {
+        return false;
+    };
+    if definitions.next().is_some() {
+        return false;
+    }
+    // A linear declaration is not plain owned storage and a `::drop` carrier
+    // belongs to the cleanup family — the shared views change neither.
+    if data.properties.multiplicity == Multiplicity::Linear
+        || program.machines().iter().any(|machine| {
+            machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
+        })
+    {
+        return false;
+    }
+    let shared_view = |field: &DataField| {
+        matches!(
+            program.type_reference_table.type_reference(field.type_reference),
+            TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                referee,
+                ..
+            } if matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
+            )
+        )
+    };
+    let mut has_view = false;
+    program.data_members(data).iter().all(|member| {
+        let field = match member {
+            DataMember::Field(field) => field,
+            _ => return false,
+        };
+        has_view |= shared_view(field);
+        !field.relevance.is_erased()
+            && (has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
+                || shared_view(field))
+    }) && has_view
 }
 
 fn check_contents_requirement(

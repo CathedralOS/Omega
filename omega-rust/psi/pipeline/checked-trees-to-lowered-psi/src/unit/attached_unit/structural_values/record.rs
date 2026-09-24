@@ -130,10 +130,39 @@ impl emission::Emission<'_, '_, '_> {
                     }
                 }
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                    let StructuralFieldType::Structural(child_type) = target.field_type else {
-                        return unsupported("nested record operand has a scalar destination");
+                    // A `&[T]` view member's declared carrier is the borrowed
+                    // byte sequence itself: the nested value's descriptor is
+                    // the shared view element type the signature registers
+                    // under the view's unwrapped carrier identity — the same
+                    // identity the leaf's shared-borrow argument plan mints.
+                    let child_type = match &target.field_type {
+                        StructuralFieldType::Structural(child_type) => *child_type,
+                        StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        ) => lookup_type_id(
+                            self.type_ids,
+                            self.checked
+                                .normalized_type_identity(
+                                    validation::unwrapped_type_reference(
+                                        &self.checked.typed,
+                                        field.type_reference,
+                                    )
+                                    .ok_or(
+                                        LoweringError::Unsupported(
+                                            "view record member lost its carrier",
+                                        ),
+                                    )?,
+                                )
+                                .as_str(),
+                        )?,
+                        _ => return unsupported("nested record operand has a scalar destination"),
                     };
-                    if lookup_type_id(
+                    if !matches!(
+                        target.field_type,
+                        StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                        )
+                    ) && lookup_type_id(
                         self.type_ids,
                         self.checked
                             .normalized_type_identity(field.type_reference)
