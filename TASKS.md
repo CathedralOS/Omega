@@ -550,6 +550,47 @@ the complete product bar; focused successes below do not establish that baseline
   read as zero). Custody verification keeps running per pass; it is the trust
   gate, not the cost.
 
+  RE-MEASURED 2026-09-24 after that day's landings, optimized binary,
+  macOS arm64: `omega --check samples/cli/basics/print_squares/main.omg`
+  takes 35.4 s, of which `--timings` still names only 3.2 s (Stage 05
+  1.59 s, build step 0.82 s, settle step 0.81 s). The double-check
+  structure above is unchanged.
+
+  WHAT DOMINATES THE REMAINING TIME IS NO LONGER A SCAN BUT AN INDEX BUILT
+  PER LEAF. `sample` over 20 s of that run, by top of stack:
+
+      ImmutableBoundLookup::new                        1476
+      DefaultHasher::write_u32 (validation)             903
+      TypedTrees::machine_states                        888
+      hashbrown RawTable reserve_rehash
+        <Handle<Symbol>, Option<&TableLocalData>>       348
+      SymbolTable::lookup_top_level                     306
+      flow::place::resolution::symbol_type_position     265
+      monomorphization::callee_proposals::
+        collect_expression_tree                         249
+      value_custody::expression_types::
+        named_value_type_reference                      230
+      TypedTrees::state_parameters                      229
+
+  `ImmutableBoundLookup::new` walks every machine, state, parameter and
+  local in the program and fills four `HashMap`s. `checks/borrows/overlap/
+  premises.rs` constructs one at each of two premise sites,
+  `checks/ranges/incoming_guards.rs` at `immutable_argument_symbol`, and
+  `checks/ranges/facts/dependencies/captures.rs` at
+  `integer_value_identity` -- so it is rebuilt per borrow-overlap premise
+  and per bound leaf, reached from `check_flow_call_borrows`. Its own
+  construction is what drives most of `machine_states` and
+  `state_parameters` above. Together with the hashing that fills it, that
+  is over half the non-idle profile.
+
+  That index is **CHECK-BOUND-LOOKUP-INDEX**'s work in flight (claimed by
+  `Devin / leaf/check-bound-lookup-index`, whose note says "one shared
+  lookup index"); the index exists but is not yet threaded through its
+  callers. Hoisting one construction per checking pass is that row's to
+  land, not this one's, and it is the largest single win available to
+  either. Re-measure here afterwards: the leaves this row can still own
+  are the symbol-table and place-resolution lookups below it.
+
   Acceptance: `omega --check` of that sample checks the library once per
   invocation, and an owner test compiles its fixture without a second
   whole-program check of the library. `--timings` already prints the
