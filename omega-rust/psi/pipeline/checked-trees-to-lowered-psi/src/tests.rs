@@ -69,6 +69,7 @@ mod suspension_call_plans;
 mod unit_cleanup;
 mod value_case_dispatch;
 mod whole_view_results;
+mod widened_operand_sums;
 
 use crate::TerminalMachineSelection;
 use crate::lower_machine;

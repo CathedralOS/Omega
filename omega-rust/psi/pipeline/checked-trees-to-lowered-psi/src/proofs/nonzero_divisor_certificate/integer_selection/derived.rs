@@ -22,6 +22,7 @@ use semantic_vocabulary::{
     ScalarType,
 };
 
+use super::super::cast_custody;
 use super::super::integer_evidence::{
     ProjectedFact, closed_integer_relation, integer_carrier_bound, projected_facts, relax,
 };
@@ -130,6 +131,12 @@ fn closure(
         for bound in range::target_bounds(context, output, semantic_axioms) {
             push_new(&mut proofs, bound);
         }
+    }
+    // An exact cast's output carries its source carrier's image: `v as i64`
+    // from an `i32` lies within the `i32` endpoints, which a later sum of
+    // widened operands needs before its own definition bound applies.
+    for bound in cast_image_bounds(context, integer_type, assumptions, semantic_axioms) {
+        push_new(&mut proofs, bound);
     }
     for _ in 0..MAX_ROUNDS {
         let mut discovered = Vec::new();
@@ -684,6 +691,73 @@ fn add_literals(
         _ => return None,
     };
     integer_type.admits(value).then_some(value)
+}
+
+/// Source-carrier endpoints of every exact-cast output of `integer_type`,
+/// each mapped from the source's own carrier bound through the cast chain.
+fn cast_image_bounds(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let mut bounds = Vec::new();
+    for axiom in semantic_axioms {
+        let Proposition::Equal(
+            output @ ScalarTerm::Value { .. },
+            ScalarTerm::IntegerExactCast { .. } | ScalarTerm::IntegerWiden { .. },
+        ) = axiom
+        else {
+            continue;
+        };
+        if output.scalar_type() != ScalarType::Integer(integer_type) {
+            continue;
+        }
+        let Some((root, _)) = cast_custody::source_root(output, semantic_axioms) else {
+            continue;
+        };
+        let ScalarType::Integer(root_type) = root.scalar_type() else {
+            continue;
+        };
+        for (root_value, lower) in [
+            (root_type.minimum_value(), true),
+            (root_type.maximum_value(), false),
+        ] {
+            let (Ok(root_literal), Some(Ok(literal))) = (
+                ScalarTerm::integer(root_type, root_value),
+                root_type
+                    .exact_cast_value_to(integer_type, root_value)
+                    .map(|value| ScalarTerm::integer(integer_type, value)),
+            ) else {
+                continue;
+            };
+            let (root_bound, goal) = if lower {
+                (
+                    Proposition::LessOrEqual(root_literal, root.clone()),
+                    Proposition::LessOrEqual(literal, output.clone()),
+                )
+            } else {
+                (
+                    Proposition::LessOrEqual(root.clone(), root_literal),
+                    Proposition::LessOrEqual(output.clone(), literal),
+                )
+            };
+            let Some(root_bound) = integer_carrier_bound(context, &root_bound) else {
+                continue;
+            };
+            if let Some(bound) = cast_custody::prove_from_root(
+                context,
+                &goal,
+                assumptions,
+                semantic_axioms,
+                &root,
+                root_bound,
+            ) {
+                push_new(&mut bounds, bound);
+            }
+        }
+    }
+    bounds
 }
 
 fn operation_expression(term: &ScalarTerm) -> bool {
