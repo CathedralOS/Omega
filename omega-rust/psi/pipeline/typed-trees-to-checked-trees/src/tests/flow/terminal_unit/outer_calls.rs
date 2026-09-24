@@ -3,7 +3,9 @@
 //! inside its own argument expressions: the outer-call roster unions those
 //! operand calls instead of reporting them unconsumed.
 use crate::tests::flow::terminal_unit::{checked, machine_named};
-use checked_trees::CheckedUnitPlanOmissionStage;
+use checked_trees::{
+    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitPlanOmissionStage,
+};
 
 const SOURCE: &str = r#"
     data Fmt { v: u64 }
@@ -274,6 +276,98 @@ const CONDITIONAL_CALL_TAIL: &str = r#"
         Text::matches(&a, "0B", 0) && Text::matches(&b, "1B", 0)
     }
 "#;
+
+const CASE_FIELD_STORE: &str = r#"
+    data F [copy] { case A; case B; }
+    data X { len: u64; fmt: F }
+    machine X::empty() -> X { X { len: 0, fmt: F::A } }
+    machine X::set_fmt(&mut self, f: F) {
+        self.fmt = f;
+    }
+    machine X::clone_fmt(&mut self, source: &X) {
+        self.fmt = source.fmt;
+    }
+    machine X::clone_from(&mut self, source: &X) {
+        self.len = source.len;
+        self.fmt = source.fmt;
+    }
+    machine X::clone(source: &X) -> X {
+        let mut copy: X = X::empty();
+        copy.clone_from(source);
+        copy
+    }
+"#;
+
+#[test]
+fn case_field_member_store_carries_the_member_read() {
+    let checked = checked(CASE_FIELD_STORE);
+    let operations = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "X::clone_fmt"))
+        .unwrap_or_else(|| {
+            panic!(
+                "clone_fmt omission: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine_named(&checked, "X::clone_fmt"))
+            )
+        })
+        .operations
+        .clone();
+    let store = operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => Some(store),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("member-read case field store: {operations:#?}"));
+    assert!(matches!(
+        store.value.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 1 }
+    ));
+    assert!(matches!(store.value.path.as_slice(),
+        [checked_trees::CheckedUnitStructuralPathSegment::Field(identity)]
+            if identity == "fmt"));
+    assert_eq!(store.value.access, CheckedStructuralAccess::SharedBorrow);
+}
+
+#[test]
+fn case_field_member_store_keeps_whole_parameter_stores() {
+    let checked = checked(CASE_FIELD_STORE);
+    let operations = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "X::set_fmt"))
+        .expect("whole-parameter case field store")
+        .operations
+        .clone();
+    let store = operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => Some(store),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("whole-parameter case field store: {operations:#?}"));
+    assert!(store.value.path.is_empty());
+    assert_eq!(store.value.access, CheckedStructuralAccess::Owned);
+}
+
+#[test]
+fn case_field_member_store_unblocks_the_clone_chain() {
+    let checked = checked(CASE_FIELD_STORE);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let clone = machine_named(&checked, "X::clone");
+    assert!(
+        plans.composed_for_machine(clone).is_some(),
+        "clone composes once clone_from plans: {:?}",
+        plans.omission_for_machine(clone)
+    );
+}
 
 const CONDITIONAL_SCALAR_TAIL: &str = r#"
     machine p(x: u64) -> bool { x == 0 }

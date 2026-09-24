@@ -577,11 +577,11 @@ fn record_literal_stores(
     (!stores.is_empty()).then_some(stores)
 }
 
-/// `place.<sum field> = <whole owned parameter>`: an initialized
-/// unrestricted-sum field overwritten by a whole place of the same declared
-/// type. The write copies whole, moves nothing, and needs no carrier borrow
-/// window -- member-read values, call results, payload sums, records and
-/// affine carriers keep declining.
+/// `place.<sum field> = <parameter path>`: an initialized unrestricted-sum
+/// field overwritten by a whole parameter or a member read below one, both of
+/// the same declared type. The write copies whole, moves nothing, and needs no
+/// carrier borrow window -- call results, payload sums, records and affine
+/// carriers keep declining.
 fn case_field_store(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -616,9 +616,6 @@ fn case_field_store(
     let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
         return None;
     };
-    if !value_place.segments.is_empty() {
-        return None;
-    }
     let source_parameters = program.state_parameters(state);
     let value_position = source_parameters
         .iter()
@@ -627,14 +624,20 @@ fn case_field_store(
     if value_state_parameter.is_self {
         return None;
     }
+    let (projected, value_path) = super::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement_index as usize,
+        &value_place,
+    )?;
+    // A member read below one structural parameter names the copied leaf; the
+    // projected type, not the parameter's own type, decides the field match.
     let same_named_type = matches!(
         (
             program
                 .type_reference_table
                 .type_reference(field.type_reference),
-            program
-                .type_reference_table
-                .type_reference(value_state_parameter.type_reference),
+            program.type_reference_table.type_reference(projected),
         ),
         (
             TypeReferenceNode::Named { symbol: field_name, .. },
@@ -648,7 +651,10 @@ fn case_field_store(
         .iter()
         .find(|parameter| parameter.position as usize == value_position)?;
     if value_plan.is_self
-        || value_plan.access != CheckedStructuralAccess::Owned
+        || !matches!(
+            value_plan.access,
+            CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
+        )
         || value_plan.multiplicity != Multiplicity::Unrestricted
         || !value_plan.qualifications.is_empty()
         || !value_plan.projected_qualifications.is_empty()
@@ -666,9 +672,9 @@ fn case_field_store(
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index: u32::try_from(value_position).ok()?,
                 },
-                path: Vec::new(),
-                type_identity: value_plan.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
+                path: value_path,
+                type_identity: super::types::base_type_identity(program, projected, &[])?,
+                access: value_plan.access,
             },
         },
     ))
