@@ -1752,7 +1752,7 @@ machine Main::main(&mut self) reaches Console {
             .expect("artifact-owned physical evidence"),
     ));
 
-    let empty = compile_package(&empty_root, 46, "physical-empty")
+    let empty = compile_package(&empty_root, 46, "physical_empty")
         .expect("package-aware empty Linux native fixture should compile");
     assert_eq!(
         exit.production_manifest()
@@ -1766,7 +1766,7 @@ machine Main::main(&mut self) reaches Console {
         compiler::FinalRealizationEvidenceError::NativeArtifactMismatch,
     );
 
-    let port_diagnostics = compile_package(&port_root, 47, "physical-port").expect_err(
+    let port_diagnostics = compile_package(&port_root, 47, "physical_port").expect_err(
         "root PortIo authority without provider custody must reject before D32 evidence derivation",
     );
     assert!(
