@@ -69,14 +69,11 @@ fn iter_mut(
     .flatten()
 }
 
-/// Resolve every edge's argument partition before any span mutates: a named
-/// cross-machine target reads its own machine's parameter partition, so the
-/// completed graph list stays immutable through resolution.
+/// Resolve every edge's argument partition before any span mutates.
 pub(super) fn resolve_arguments(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
-    graphs: &[CheckedScalarMachineGraph],
     graph: &CheckedScalarMachineGraph,
 ) -> Option<Vec<SuccessorArguments>> {
     graph
@@ -84,15 +81,7 @@ pub(super) fn resolve_arguments(
         .iter()
         .flat_map(|source| {
             iter(&source.terminator).map(move |successor| {
-                arguments(
-                    program,
-                    expressions,
-                    proof_terms,
-                    graphs,
-                    graph,
-                    source,
-                    successor,
-                )
+                arguments(program, expressions, proof_terms, graph, source, successor)
             })
         })
         .collect()
@@ -122,7 +111,6 @@ pub(super) fn commit_arguments(
 pub(super) fn validate(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    graphs: &[CheckedScalarMachineGraph],
     graph: &CheckedScalarMachineGraph,
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
@@ -131,15 +119,7 @@ pub(super) fn validate(
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
-            let expected = arguments(
-                program,
-                expressions,
-                proof_terms,
-                graphs,
-                graph,
-                source,
-                successor,
-            )?;
+            let expected = arguments(program, expressions, proof_terms, graph, source, successor)?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
@@ -156,7 +136,6 @@ fn arguments<'a>(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
-    graphs: &'a [CheckedScalarMachineGraph],
     graph: &'a CheckedScalarMachineGraph,
     source: &'a CheckedScalarStateGraph,
     successor: &'a CheckedScalarSuccessor,
@@ -172,31 +151,17 @@ fn arguments<'a>(
             Some(source_state) => (machine, source_state),
             None => crate::semantic::calls::find_state_with_machine(program, source.state)?,
         };
-    let (target_machine, target_state, target) = if let Some(target) = graph
+    // Every body a tail arm reaches is a member of this graph
+    // (`build_machine_graph`), so the target resolves inside it.
+    let target = graph
         .states
         .iter()
-        .find(|state| state.state == successor.target)
-    {
-        let (target_machine, target_state) =
-            match states.iter().find(|state| state.symbol == target.state) {
-                Some(target_state) => (machine, target_state),
-                None => crate::semantic::calls::find_state_with_machine(program, target.state)?,
-            };
-        (target_machine, target_state, target)
-    } else {
-        // A successor spelling another machine's entry names that machine's
-        // first state; read its parameter partition through that machine's
-        // own graph.
-        let (target_machine, target_state) =
-            crate::semantic::calls::find_machine_by_entry_state(program, successor.target)?;
-        let target = graphs
-            .iter()
-            .find(|candidate| candidate.machine == target_machine.symbol)?
-            .states
-            .iter()
-            .find(|state| state.state == successor.target)?;
-        (target_machine, target_state, target)
-    };
+        .find(|state| state.state == successor.target)?;
+    let (target_machine, target_state) =
+        match states.iter().find(|state| state.symbol == target.state) {
+            Some(target_state) => (machine, target_state),
+            None => crate::semantic::calls::find_state_with_machine(program, target.state)?,
+        };
     let target_states = program.machine_states(target_machine);
     let source_parameters = program.state_parameters(source_state);
     let target_parameters = program.state_parameters(target_state);
@@ -208,55 +173,29 @@ fn arguments<'a>(
             .count()
     };
     if forwarded(source) != 0 || forwarded(target) != 0 {
-        // Rosters are authored per state owner: a fused or cross-machine edge
-        // resolves each side's signature under its own machine. An attached
-        // machine carries its whole mixed signature per state, a free one its
-        // ordinary free signature; each is bound on the incoming edge by the
-        // whole-parameter or subslice transfer below. A state with a receiver
-        // forwards only within one authored state: a multi-state machine that
-        // could need its receiver belongs to the Unit state graph, which Unit
-        // callers reach (see `build_machine_graph`).
-        let admitted = |owner_machine: &typed_trees::machine::Machine,
-                        typed_state: &typed_trees::state::State| {
-            let (structural, scalar, _) = if owner_machine.attached_data.is_some()
-                && !program
-                    .state_parameters(typed_state)
-                    .iter()
-                    .any(|parameter| parameter.is_self && parameter.is_mutable)
-            {
-                super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
-                    program,
-                    owner_machine,
-                    typed_state,
-                )?
-            } else {
-                super::super::terminal_unit::structural_scalar_graph_signature(
-                    program,
-                    typed_state,
-                )?
-            };
-            Some((structural, scalar))
-        };
-        let matches = |owner_machine: &typed_trees::machine::Machine,
-                       typed_state: &typed_trees::state::State,
-                       state: &CheckedScalarStateGraph| {
-            admitted(owner_machine, typed_state).is_some_and(|(structural, scalar)| {
-                state.structural_parameters == structural && state.scalar_parameters == scalar
-            })
-        };
-        let receiver_free = |typed_state: &typed_trees::state::State| {
-            !program
-                .state_parameters(typed_state)
+        // Structural formals forward only across one body's re-entry: a
+        // multi-state machine belongs to the Unit state graph, and a fused
+        // graph carries scalar formals only (see `build_machine_graph`). The
+        // retained roster must still be exactly the admitted signature, the
+        // whole mixed one for an attached machine whose receiver is not
+        // mutably borrowed and the ordinary free one otherwise.
+        let (structural, scalar, _) = if machine.attached_data.is_some()
+            && !source_parameters
                 .iter()
-                .any(|parameter| parameter.is_self)
+                .any(|parameter| parameter.is_self && parameter.is_mutable)
+        {
+            super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                program,
+                machine,
+                source_state,
+            )?
+        } else {
+            super::super::terminal_unit::structural_scalar_graph_signature(program, source_state)?
         };
-        if !(receiver_free(source_state)
-            && receiver_free(target_state)
-            && matches(source_machine, source_state, source)
-            && matches(target_machine, target_state, target))
-            && (states.len() != 1
-                || source.state != target.state
-                || !matches(source_machine, source_state, source))
+        if graph.states.len() != 1
+            || source.state != target.state
+            || source.structural_parameters != structural
+            || source.scalar_parameters != scalar
         {
             return None;
         }

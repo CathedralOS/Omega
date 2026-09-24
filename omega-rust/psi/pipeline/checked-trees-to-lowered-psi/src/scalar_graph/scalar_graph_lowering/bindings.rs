@@ -197,12 +197,10 @@ pub(super) fn prepare(
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
-    // Each state's structural namespace is resolved by the graph preparation
-    // pass: entry formals pair with the emitted roster in authored order while
-    // non-entry formals resolve to the declaration their incoming edges
-    // forward. Only a single-state machine retains its receiver, on that one
-    // roster, so no state resolves `self` through another state's namespace
-    // and argument plans index the state's checked roster densely.
+    // Only a single-state graph carries structural formals: graph
+    // preparation pairs them with the emitted entry roster in authored order,
+    // including a retained receiver, so argument plans index the state's
+    // checked roster densely. A multi-state graph's namespaces are empty.
     // States whose prefix carries `__arm_destructure` markers destructure case
     // payloads under a membership guard: their payload reads stay deferred so
     // the guard's case dispatch can bind them at the exact case it selects.

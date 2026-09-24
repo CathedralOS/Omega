@@ -2375,26 +2375,46 @@ syntax and other terminal services are not prerequisites.
      the scalar call closure, chosen by `requires_shared_catalog`. The pure
      closure assembler drops each member module's structural types and
      refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it. Only a machine of one authored state
-     retains its receiver on a scalar graph
-     (`terminal_scalar::build_machine_graph`): a multi-state machine that
-     reads its `self` belongs to the Unit state graph, and one that never
-     reads it keeps a receiver-free graph that Unit callers reach as a pure
-     scalar call. The state graph still yields to any scalar graph (`state
-     graph: result signature: scalar owner precedence`), and
-     `scalar_targets::registered_structural_graph_target` accepts only
-     single-state graphs. So no Unit closure can call a multi-state mixed
-     graph (a free machine, or an attached one with no `self`). Let the state
-     graph own those too, then drop the graph's multi-state forwarding
-     (`terminal_scalar/successors.rs` roster,
-     `graph_preparation::structural_namespaces`). Forcing the receiver-free
-     `calls/runtime_post_entry_*` callees onto the state graph gives the same
-     results as their scalar graphs, so moving every multi-state `self`
-     machine there is the next candidate once a canary sweep shows none
-     needs a scalar-graph-only capability (natural ranks).
-     `calls/runtime_post_entry_chained_let_exit` stops at
-     `OperationProofUnavailable` on either route, as the same body on a free
-     machine does: a proof gap, not an ownership one.
+     catalog rather than widen it. Structural formals now stay with one
+     scalar-graph body (`terminal_scalar::build_machine_graph`): a
+     multi-state machine with structural formals is the Unit state graph's,
+     which Unit closures reach through the scalar call lane
+     (`tests::composed_scalar_results`). The scalar graph still owns the
+     multi-state machines whose formals are all scalar (131 in the 2034
+     pass/run fixtures), so the state graph still yields to it (`state
+     graph: result signature: scalar owner precedence`). Declining every
+     authored multi-state machine in `build_machine_graph` and dropping the
+     precedence changes no native canary: the machines the state graph
+     cannot take are all in checked-only fixtures, and the 14 run canaries
+     whose fixtures hold one keep their status and message. It fails 73 c2l
+     and ttct tests that pin capabilities only the scalar graph has:
+     - a result guarantee (`ensures`, a closed result range) on a
+       multi-state scalar result (6 tests; 110 checked-only corpus machines,
+       mostly `terminal_psi/integer_control_contract`): the state graph
+       refuses at `scalar result guarantee`, and composed emission publishes
+       no `ensures` (`composed_control/callable.rs` sets only `requires`).
+       With the guarantee published, the counts below remain;
+     - a guarded transition with a continuation arm (the combined arm form
+       `scalar_return_calls_source` replays, 26 tests):
+       `CheckedStructuralControlSuccessorPlan` has no continuation flag, so a
+       composed edge cannot name the `TransitionContinuationArgument` roles;
+     - crash predicates over a later state's values ("crash predicate value
+       position is outside the selected scalar namespace", 6), a primitive
+       store to a mutable scalar formal of a later state ("Unit graph
+       primitive store has no retained parameter destination", 6), and 10
+       more bodies with no state-graph plan (`mutable_scalar_parameters`,
+       `owned_scalar_graphs::record_stores`, `scalar_storage_source`);
+     - a debug map for a composed root (`DebugPublication::Omit`), 6
+       `owned_scalar_graphs::record_locals` tests;
+     - ttct `terminal_scalar::tests::record_locals` (8) and tests that forge
+       `CheckedScalarMachineGraph` rows (`pure_source_custody`), to re-express
+       against composed plans.
+     A tail arm entering another single-state machine (`-> self.pong(n -
+     1)`, 22 machines, `mutual_cycle_tail_admitted_exit`) has no state-graph
+     form: the fused scalar graph keeps a mutual tail cycle on constant
+     stack, so fusion of single-state scalar bodies stays. A float `let` in
+     a state prefix (`state graph: prefix initializers: bound expression`,
+     std `math::is_finite`) is a state-graph gap its callers already hit.
   3. The checked dynamic join (`composed_control/dynamic_join.rs`) still
      requires an authored `_` fallback; other graphs accept an
      exact-complement pair through
