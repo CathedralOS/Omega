@@ -91,7 +91,7 @@ the family to the admission owner.
 | `04_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
 | `05_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
-| `terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
+| `03_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
 | `selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
 | `02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
 | `02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs` | route doc + driver; per-item translation delegated |

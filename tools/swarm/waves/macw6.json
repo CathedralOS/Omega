@@ -77,7 +77,7 @@
       "item": "PLAN-LAID-VIEWS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations",
         "omega-rust/omega/compiler/native-realization/src/native_realization/optimized_fragment_projection.rs",
         "omega-rust/omega/backend/images/image-emission/src/hosted_receiver.rs",
         "omega-rust/omega/compiler/compiler/tests/access_plans/source_access_policies.rs"

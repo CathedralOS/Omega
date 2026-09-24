@@ -568,7 +568,7 @@ become mutable.
 
 A bodyless declaration without a complete row map and a bare exact-requirement
 satisfier cannot supply a dynamic table. Current source/native support is bounded;
-see the [implementation owner](../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#dynamic-dispatch)
+see the [implementation owner](../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#dynamic-dispatch)
 for supported shapes, rather than treating them as language restrictions.
 
 Each row retains the declaring trait, requirement, exact satisfier machine,

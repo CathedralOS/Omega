@@ -22,7 +22,7 @@ terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 [dev-dependencies]
 language-core = { path = "../../../psi/foundation/language-core" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }

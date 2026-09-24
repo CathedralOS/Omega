@@ -2,27 +2,27 @@ use super::super::RequiredCoordinationEntrance;
 
 pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact_admission.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_admission.rs",
         coordination_marker: "pub fn lower_artifact",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/optimization/mod.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/optimization/mod.rs",
         coordination_marker: "pub fn build_verified_psi_optimization_unit",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/provider_installation/mod.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/provider_installation/mod.rs",
         coordination_marker: "pub fn admit_provider_installation",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/mod.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/mod.rs",
         coordination_marker: "pub(crate) fn lower_decoded_verified_module",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine.rs",
         coordination_marker: "pub(super) fn lower_machine",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
+        path: "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine/operation/mod.rs",
         coordination_marker: "pub(super) fn lower_operation",
     },
     RequiredCoordinationEntrance {

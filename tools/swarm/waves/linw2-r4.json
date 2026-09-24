@@ -170,7 +170,7 @@
    "item": "BORROWED-STORAGE-RESTORATION",
    "owning_paths": [
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/retention",
-    "omega-rust/psi/pipeline/terminal-psi-to-abstract-operations/src",
+    "omega-rust/psi/pipeline/03_terminal-psi-to-abstract-operations/src",
     "omega-rust/psi/semantics/terminal-verifier/tests/borrowed_storage_windows.rs",
     "omega-rust/omega/representations/abstract-operations/src"
    ],
@@ -247,7 +247,7 @@
    "item": "WRITE-ONLY-BORROW",
    "owning_paths": [
     "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution",
-    "omega-rust/psi/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs"
+    "omega-rust/psi/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs"
    ],
    "suggested_first_slice": "Two options, pick the more tractable after tools/claims.py status: (a) let-held borrows as ordinary place aliases in checked execution planning (04_typed-trees-to-checked-trees/src/execution/ \u2014 borrows usable as call args or store roots beyond head-of-body receiver); (b) evaluate the parked computed-IEEE-stores slice \u2014 local branch swarm/linw2-write-only-borrow exists (~135 files unpublished per board note; check git log origin/main..swarm/linw2-write-only-borrow and decide whether a bounded sub-leg is rebaseable \u2014 do NOT try to land the whole branch). dev-l3-irange may still hold WRITE-ONLY-BORROW/integer-entry-ranges \u2014 check claims first. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1
