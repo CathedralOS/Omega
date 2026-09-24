@@ -8,7 +8,56 @@ use super::{
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
+use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{CheckedArrayConstructionSource, CheckedStructuralAccess};
+
+/// A `&[T]` declared result type, either view family: the shared-borrowed
+/// slice reference whose storage the caller retains, the view family's
+/// analog of `shared_borrowed_parts`' named referent. `&mut` views and whole
+/// owned slices stay with their own custody families.
+/// Borrowed-view results register under the referee's plain identity
+/// (`&[u8]` mints `slice(u8)`), so the signature's whole-result comparison
+/// also accepts the peeled spelling.
+pub(super) fn shared_borrowed_slice_referee_identity(
+    checked: &CheckedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<String> {
+    if !shared_borrowed_slice_view(checked, reference) {
+        return None;
+    }
+    loop {
+        match checked.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => {
+                return Some(
+                    checked
+                        .typed
+                        .normalized_type_identity(*referee)
+                        .into_string(),
+                );
+            }
+            _ => return None,
+        }
+    }
+}
+
+fn shared_borrowed_slice_view(checked: &CheckedTrees, mut reference: TypeReferenceHandle) -> bool {
+    loop {
+        match checked.typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                return *access == language_semantics::ReferenceAccess::Shared
+                    && matches!(
+                        checked.typed.type_reference_table.type_reference(*referee),
+                        TypeReferenceNode::Slice { .. }
+                    );
+            }
+            _ => return false,
+        }
+    }
+}
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -40,13 +89,17 @@ pub(super) fn validate(
         }
         return Ok(());
     };
+    let expected_multiplicity = if shared_borrowed_slice_view(checked, state.return_type) {
+        // A minted `&[T]` view is loan custody like every `EstablishReference`
+        // binding: the checked carrier is affine even though the shared
+        // borrow's type multiplicity spells Unrestricted.
+        Multiplicity::Affine
+    } else {
+        validation::reference_result_custody::result_multiplicity(&checked.typed, state.return_type)
+    };
     if state.symbol != machine.state
         || !source.body_is_present
-        || result.multiplicity
-            != validation::reference_result_custody::result_multiplicity(
-                &checked.typed,
-                state.return_type,
-            )
+        || result.multiplicity != expected_multiplicity
         || !(validation::reference_result_custody::parts(&checked.typed, state.return_type)
             .is_some()
             || validation::reference_result_custody::shared_borrowed_parts(
@@ -63,12 +116,15 @@ pub(super) fn validate(
                 &checked.typed,
                 state.return_type,
             )
-            || validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type))
-        || checked
+            || validation::has_owned_or_shared_view_fields(&checked.typed, state.return_type)
+            || shared_borrowed_slice_view(checked, state.return_type))
+        || !(checked
             .typed
             .normalized_type_identity(state.return_type)
             .as_str()
-            != result.type_identity
+            == result.type_identity
+            || shared_borrowed_slice_referee_identity(checked, state.return_type).as_deref()
+                == Some(result.type_identity.as_str()))
     {
         return unsupported("structural result signature changed");
     }
@@ -89,7 +145,8 @@ pub(super) fn validate(
                 &checked.typed,
                 state.return_type,
             )
-            .is_some();
+            .is_some()
+            || shared_borrowed_slice_view(checked, state.return_type);
     if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
     {
         let expected =
