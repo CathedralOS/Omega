@@ -123,6 +123,27 @@ pub(super) fn has_empty_qualification_rosters(
     qualifications.is_empty() && projected.is_empty()
 }
 
+/// A result type is a whole borrowed view — `&'a V`, `&'a [u8]`, or
+/// `&'a [T]` — when its top-level shape is a reference or a borrowed
+/// slice/element view: the loan's storage lives in its carrier, so a
+/// shared-borrowed parameter may forward it without owning fresh custody.
+pub(super) fn borrowed_view_shape(module: &TerminalModule, root: StructuralTypeId) -> bool {
+    matches!(
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root)
+            .map(|declaration| &declaration.shape),
+        Some(
+            StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                )
+                | StructuralTypeShape::ElementView { .. }
+        )
+    )
+}
+
 /// Calls establish their exact declared result independently of its aggregate
 /// syntax. Return admission must not demand artificial claims for a plain array
 /// merely because its producer was a call rather than a parameter.

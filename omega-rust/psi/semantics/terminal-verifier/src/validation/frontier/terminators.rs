@@ -662,11 +662,31 @@ fn close_return_structural(
                 && parameter.position == 0
                 && !parameter.is_self
                 && parameter.access == StructuralAccess::Owned);
+    // A `&'a`-typed parameter forwards its own borrowed storage as the
+    // result: nothing owned is consumed, so other shared parameters may
+    // coexist, and no affine obligation or claims arise.
+    let shared_view_parameter_return = source_signature.multiplicity
+        == StructuralMultiplicity::Unrestricted
+        && super::super::structural_result_contracts::has_empty_qualification_rosters(
+            source_signature.qualifications,
+            source_signature.projected_qualifications,
+        )
+        && super::super::structural_result_contracts::borrowed_view_shape(
+            module,
+            source_signature.structural_type,
+        )
+        && machine.structural_parameters.iter().any(|parameter| {
+            parameter.place == *source
+                && !parameter.is_self
+                && parameter.access == StructuralAccess::SharedBorrow
+                && parameter.qualifications.is_empty()
+        });
     // Plain copy payloads owe no disposal. Their exact producer
     // dominance/order is checked by control-flow validation, not
     // by retaining a fictitious affine obligation across joins.
     if frontier.owned_places.remove(source).is_none()
         && !exact_unrestricted_parameter_return
+        && !shared_view_parameter_return
         && !super::super::scalar_array::plain_return_source(module, machine, *source)
         && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
             && (super::super::scalar_case::plain_return_source(module, machine, *source)
@@ -782,6 +802,7 @@ fn close_return_structural(
         );
     if (returned_claims.is_empty()
         && !reference_return
+        && !shared_view_parameter_return
         && !exact_payloadless_claim_free_return
         && !exact_affine_parameter_return
         && !plain_owned_block_return

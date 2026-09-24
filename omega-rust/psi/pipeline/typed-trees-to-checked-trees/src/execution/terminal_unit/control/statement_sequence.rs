@@ -99,6 +99,27 @@ fn returned_parameter(
             }],
         });
     }
+    // A `&'a [u8]` whole-view return forwards the view parameter's own borrowed
+    // storage: the same `Parameter` result source a whole owned forward mints,
+    // carrying the shared-borrow access the view parameter was admitted with.
+    // No reference is established — the loan passes through unchanged.
+    if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
+        if parameter.access != CheckedStructuralAccess::SharedBorrow
+            || !parameter.qualifications.is_empty()
+            || program.normalized_type_identity(source.type_reference)
+                != program.normalized_type_identity(state.return_type)
+        {
+            return None;
+        }
+        return Some(CheckedUnitStructuralReturnPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            type_identity: parameter.type_identity.clone(),
+            multiplicity: parameter.multiplicity,
+            reference_sources: Vec::new(),
+        });
+    }
     if parameter.access != CheckedStructuralAccess::Owned
         || parameter.multiplicity != program.type_multiplicity(state.return_type)
         || program.normalized_type_identity(source.type_reference)

@@ -470,7 +470,7 @@ pub(super) fn validate_result_declaration(
                             .iter()
                             .find(|place| place.id == *source)
                         {
-                            return matches!(machine.structural_parameters.as_slice(), [parameter]
+                            if matches!(machine.structural_parameters.as_slice(), [parameter]
                                 if parameter.place == *source
                                     && parameter.position == *position
                                     && parameter.is_self == *is_self
@@ -479,7 +479,29 @@ pub(super) fn validate_result_declaration(
                                     && parameter.multiplicity
                                         == StructuralMultiplicity::Unrestricted
                                     && parameter.access == StructuralAccess::Owned
-                                    && parameter.qualifications.is_empty());
+                                    && parameter.qualifications.is_empty())
+                            {
+                                return true;
+                            }
+                            // A shared-borrowed view parameter (`&'a [T]`/`&'a V`)
+                            // loans its storage straight through as the result —
+                            // nothing is consumed, so sibling shared parameters
+                            // may ride alongside it.
+                            return machine.structural_parameters.iter().any(|parameter| {
+                                parameter.place == *source
+                                    && parameter.position == *position
+                                    && parameter.is_self == *is_self
+                                    && !parameter.is_self
+                                    && parameter.structural_type == result.structural_type
+                                    && parameter.multiplicity == result.multiplicity
+                                    && parameter.access
+                                        == StructuralAccess::SharedBorrow
+                                    && parameter.qualifications.is_empty()
+                                    && super::super::structural_result_contracts::borrowed_view_shape(
+                                        module,
+                                        result.structural_type,
+                                    )
+                            });
                         }
                         let Some(StructuralPlaceDeclaration {
                             kind:
