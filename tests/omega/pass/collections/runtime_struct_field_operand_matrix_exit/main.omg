@@ -13,14 +13,16 @@
 // b6: indexed target from indexed operand (cells[i].y = cells[i].x + 1)
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To100 requires 0 <= self && self <= 100;
+domain u64::U640To2 requires self <= 2;
 data Cell {
-    x: i32 [0..=100];
-    y: i32 [0..=100];
+    x: i32 in I320To100;
+    y: i32 in I320To100;
 }
 data Main {
     console: Binding<Console>;
     cells: [Cell; 3];
-    i: u64 [0..=2];
+    i: u64 in U640To2;
     r: i32;
 }
 machine Main::main(&mut self) reaches Console {
