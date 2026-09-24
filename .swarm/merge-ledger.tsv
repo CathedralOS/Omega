@@ -127,3 +127,4 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T02:16:19Z	swarm-binaries	republished omega @9317f0ec96 sha c8fb4bcf (Float fix + StructuralCaseLeafCopy + carriers + member guards)
 2026-09-24T02:23:04Z	leaf/member-whole-view-result-ownership->main	70a8100a6e z3 member-projection whole views reach leaf-copy gate 6149/6149; 2 claimed arms left for z4 channel window
 2026-09-24T02:29:06Z	leaf/transition-self-scalar-guards->main	93d6fd481d z4 index bounds mint minimum-length floors 5277/5277
+2026-09-24T02:48:09Z	leaf/self-view-element-guards->main	62e1857000 z4 strict orderings chain through bounds 5278/5278
