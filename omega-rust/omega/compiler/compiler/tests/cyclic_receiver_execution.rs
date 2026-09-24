@@ -57,7 +57,7 @@ data Main {
     counter: u64 in Wrapping;
     total: u64 in Wrapping;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Trace {
     self.counter = 0;
     self.total = 0;
     transition { _ -> work() }
@@ -73,11 +73,11 @@ machine Main::main(&mut self) {
         self.counter = self.counter + 1;
         transition { _ -> work() }
     }
-    state done(&mut self) { Trace::record(self.total); }
+    state done(&mut self) { Trace::record(self.total as u64); }
 }
-machine Main::record(&mut self) {
+machine Main::record(&mut self) reaches Trace {
     self.total = self.total + self.counter;
-    Trace::record(self.total);
+    Trace::record(self.total as u64);
 }
 "#;
     let source = if provider_field {
@@ -88,7 +88,7 @@ machine Main::record(&mut self) {
 data Main { trace: Binding<Trace>;",
             )
             .replace(
-                "Trace::record(self.total)",
+                "Trace::record(self.total as u64)",
                 "self.trace.record(self.total as u64)",
             )
     } else {
