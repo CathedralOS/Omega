@@ -2439,17 +2439,39 @@ fn case_payload_transfer(
         })
     })?;
     // Copying the payload out of the borrowed subject must not disturb
-    // the subject's custody: the field's own contents copy, its declared
-    // type and multiplicity match the target exactly, and the target
-    // takes owned custody of the copied subtree.
-    if !validation::has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
-        || program
-            .normalized_type_identity(field.type_reference)
-            .into_string()
-            != target.type_identity
-        || program.type_multiplicity(field.type_reference) != target.multiplicity
-        || target.access != CheckedStructuralAccess::Owned
-    {
+    // the subject's custody. Two admitted shapes, each exact on declared
+    // type and multiplicity: an `Owned` target copies a plain-contents
+    // subtree and compares the member's whole identity; a `SharedBorrow`
+    // target re-seats a member that is itself a shared borrow — reading
+    // the view out of borrowed storage copies only its descriptor, so the
+    // same loan transfers (loan->loan). A view parameter's declared
+    // identity is its referent's, so the referee's normalized identity is
+    // what the target compares against.
+    let normalized = |reference| program.normalized_type_identity(reference).into_string();
+    let shared_referee = {
+        let mut cursor = field.type_reference;
+        loop {
+            match program.type_reference_table.type_reference(cursor) {
+                TypeReferenceNode::Constrained { base_type, .. } => cursor = *base_type,
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    referee,
+                    ..
+                } => break Some(*referee),
+                _ => break None,
+            }
+        }
+    };
+    let admitted_shape = if target.access == CheckedStructuralAccess::Owned {
+        validation::has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
+            && normalized(field.type_reference) == target.type_identity
+    } else {
+        target.access == CheckedStructuralAccess::SharedBorrow
+            && super::types::structural_access_for_type_reference(program, field.type_reference)
+                == Some(CheckedStructuralAccess::SharedBorrow)
+            && shared_referee.is_some_and(|referee| normalized(referee) == target.type_identity)
+    };
+    if !admitted_shape || program.type_multiplicity(field.type_reference) != target.multiplicity {
         return None;
     }
     // The tested subject resolves to a retained structural parameter.

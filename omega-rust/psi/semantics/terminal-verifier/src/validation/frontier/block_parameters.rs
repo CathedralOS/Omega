@@ -187,6 +187,7 @@ fn carries_owned_frontier(
                 && super::super::element_view::subslice::borrowed_result(machine, place).is_none()
                 && super::super::primitive_storage::local_result(machine, place).is_none()
                 && !super::super::scalar::array::plain_return_source(module, machine, place)
+                && !super::super::structural::leaf_copy::copied_return_source(machine, place)
                 && !(super::super::structural::result_contracts::source_signature(machine, place)
                     .is_some_and(|source| {
                         source.multiplicity == StructuralMultiplicity::Unrestricted
