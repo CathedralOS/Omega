@@ -186,6 +186,7 @@ pub(crate) fn validate(
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
+            || validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
             || view_carrier.is_some()
             // A `&[T]` view's carrier is the borrowed slice itself: a member
             // projection copies the stored view whole while the elements'
@@ -469,9 +470,29 @@ pub(crate) fn validate(
                 };
                 let expected = validation::unwrapped_type_reference(&checked.typed, reference)
                     .ok_or(LoweringError::Unsupported("record carrier missing"))?;
+                // A lifetime-parameterized record names its carrier through a
+                // `Generic` node whose type arguments are empty — the authored
+                // record name is still the nominal carrier.
+                let nominal_carrier = match checked.type_reference_table.type_reference(expected) {
+                    checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                    checked_trees::types::TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        ..
+                    } if checked
+                        .type_reference_table
+                        .type_reference_handles(*arguments)
+                        .is_empty() =>
+                    {
+                        *base_symbol
+                    }
+                    _ => {
+                        return unsupported("record establishment substituted its nominal carrier");
+                    }
+                };
                 if literal.case_name.is_some()
                     || literal.type_symbol != data_symbol
-                    || !matches!(checked.type_reference_table.type_reference(expected), checked_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == data_symbol)
+                    || nominal_carrier != data_symbol
                 {
                     return unsupported("record establishment substituted its nominal carrier");
                 }
