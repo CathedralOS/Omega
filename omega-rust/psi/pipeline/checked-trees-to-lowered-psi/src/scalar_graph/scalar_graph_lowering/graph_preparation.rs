@@ -145,10 +145,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         "checked scalar control plan must contain an entry state",
     ))?;
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
-    // An ambient borrowed receiver is a machine-scope operand, not a
-    // forwarded argument, so it stays exempt from the state-forwarding bound.
-    // Non-entry structural formals are not exempt: they arrive on the edge
-    // transfers the checked plan recorded per state.
+    // Only a single-state machine retains its borrowed receiver, on the entry
+    // roster that is the machine signature. Non-entry structural formals
+    // arrive on the edge transfers the checked plan recorded per state.
     if entry_state.structural_parameters.len() != structural_parameters.len()
         || (!primitive_locals.is_empty() && states.len() != 1)
         || states
@@ -245,7 +244,6 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             parameter_types,
             erased_formal_types,
             &state.erased_proof_parameters,
-            structural_parameters,
             &state_namespaces[state_index],
             primitive_locals,
             structural_types,
@@ -482,14 +480,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // A non-entry state's head block declares the structural formals its
         // incoming edges forward — `finish` wraps continuation blocks beneath
         // it, so the roster lands on the returned state itself. The entry's
-        // roster and the ambient receiver live on the machine signature, not
-        // the block: an entry block with a nonempty roster is reserved for
-        // owned loop forwarding custody.
+        // roster lives on the machine signature, not the block: an entry
+        // block with a nonempty roster is reserved for owned loop forwarding
+        // custody.
         let mut lowered_state = prepared.finish(state.state, terminator, &mut computations)?;
         if state_index != 0 {
             lowered_state.structural_parameters = state_namespaces[state_index]
                 .iter()
-                .filter(|(_, declaration)| !declaration.is_self)
                 .map(|(_, declaration)| declaration.clone())
                 .collect();
         }

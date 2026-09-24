@@ -2118,17 +2118,6 @@ syntax and other terminal services are not prerequisites.
     `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
     and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
     structural call binding` on the element copy.
-  - Native legalization accepts only primitive-scalar element views:
-    `established_element_window` in
-    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/element_view.rs`
-    refuses a record element, so `runtime_subslice_range_len_exit`,
-    `runtime_subslice_bounded_range_len_exit`, `runtime_slice_len_transition_exit`
-    and `runtime_local_slice_len_comparison_value_exit` produce verified Terminal
-    Psi over `self.entries.as_slice()` and stop at native
-    `Selection(Legalization(SourceCustodyMismatch))` (`target/unit.rs` custody
-    check on `EstablishElementView`). The `i32` element counterparts
-    `runtime_slice_length_local_binding_exit` and
-    `runtime_slice_length_local_param_binding_exit` run natively.
   - An element read whose bound is only a caller's guard
     (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
     `requires i <= 3`) lowers but has no read proof
@@ -2336,15 +2325,26 @@ syntax and other terminal services are not prerequisites.
      the scalar call closure, chosen by `requires_shared_catalog`. The pure
      closure assembler drops each member module's structural types and
      refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it. A multi-state scalar machine now has two
-     possible owners: the scalar graph and the Unit state graph
-     (`CheckedControlResultPlan::Scalar`). The state graph yields to an
-     existing scalar graph (`state graph: result signature: scalar owner
-     precedence`), but `scalar_targets::registered_structural_graph_target`
-     accepts only single-state graphs as Unit-call targets. So no Unit
-     closure can call a multi-state scalar graph that has a receiver. Let the
-     state graph own that machine, then drop the scalar graph's receiver
-     path.
+     catalog rather than widen it. Only a machine of one authored state
+     retains its receiver on a scalar graph
+     (`terminal_scalar::build_machine_graph`): a multi-state machine that
+     reads its `self` belongs to the Unit state graph, and one that never
+     reads it keeps a receiver-free graph that Unit callers reach as a pure
+     scalar call. The state graph still yields to any scalar graph (`state
+     graph: result signature: scalar owner precedence`), and
+     `scalar_targets::registered_structural_graph_target` accepts only
+     single-state graphs. So no Unit closure can call a multi-state mixed
+     graph (a free machine, or an attached one with no `self`). Let the state
+     graph own those too, then drop the graph's multi-state forwarding
+     (`terminal_scalar/successors.rs` roster,
+     `graph_preparation::structural_namespaces`). Forcing the receiver-free
+     `calls/runtime_post_entry_*` callees onto the state graph gives the same
+     results as their scalar graphs, so moving every multi-state `self`
+     machine there is the next candidate once a canary sweep shows none
+     needs a scalar-graph-only capability (natural ranks).
+     `calls/runtime_post_entry_chained_let_exit` stops at
+     `OperationProofUnavailable` on either route, as the same body on a free
+     machine does: a proof gap, not an ownership one.
   3. The checked dynamic join (`composed_control/dynamic_join.rs`) still
      requires an authored `_` fallback; other graphs accept an
      exact-complement pair through
