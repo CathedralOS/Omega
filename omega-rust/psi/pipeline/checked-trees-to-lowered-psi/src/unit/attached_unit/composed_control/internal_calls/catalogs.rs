@@ -1,9 +1,8 @@
 //! Composed roots and callable Unit bodies share one selected catalog.
 use super::super::super::super::ServiceReachPlan;
 use super::super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
-    ServiceReachSummary, collect_installation_machine_contract_services, collect_service_summary,
-    lookup_machine_id, unique_unit_boundary, unsupported,
+    CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, ServiceReachSummary,
+    collect_installation_machine_contract_services, collect_service_summary, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 
@@ -102,77 +101,6 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             ..UnitClosureRequest::unit(checked, machine, &unit_roots)
         },
     )?;
-    let lowered_boundaries = shared
-        .boundary_parameters
-        .iter()
-        .map(|(source, id, _, scalar_parameters)| {
-            let boundary = unique_unit_boundary(
-                crate::unit::attached_unit::bodies::UnitPlans::published(
-                    &checked.facts.flow.terminal_unit_effects,
-                ),
-                *source,
-            )?;
-            let declaration = shared
-                .lowered
-                .semantic_module
-                .boundary_machines
-                .iter()
-                .find(|boundary| boundary.id == *id)
-                .ok_or(LoweringError::Unsupported(
-                    "shared Unit boundary declaration is absent",
-                ))?;
-            Ok(super::super::catalogs::LoweredComposedBoundary {
-                source: *source,
-                id: *id,
-                checked_structural_parameters: boundary.structural_parameters.clone(),
-                scalar_parameters: scalar_parameters.clone(),
-                result_domains: match &boundary.result {
-                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                        qualifications.clone()
-                    }
-                    CheckedBoundaryMachineResultPlan::Unit
-                    | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
-                },
-                result: declaration.result.clone(),
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let internal_targets = targets
-        .iter()
-        .map(|(target, _)| {
-            let entry = target.entry()?;
-            let id = lookup_machine_id(&shared.machine_ids, entry.machine)?;
-            let declaration = shared
-                .lowered
-                .semantic_module
-                .machines
-                .iter()
-                .find(|machine| machine.id == id)
-                .ok_or(LoweringError::Unsupported(
-                    "shared Unit target declaration is absent",
-                ))?;
-            Ok(super::super::catalogs::LoweredComposedInternalTarget {
-                result: target.result()?,
-                source: entry.machine,
-                structural_parameters: entry.structural_parameters.to_vec(),
-                id,
-                erased_scalar_formals: declaration.contract.erased_scalar_formals.clone(),
-                erased_proof_formals: declaration.contract.erased_proof_formals.clone(),
-                requires: declaration.contract.requires.clone(),
-                scalar_parameters: declaration
-                    .parameters
-                    .iter()
-                    .map(|parameter| parameter.scalar_type)
-                    .collect(),
-                lowered_parameters: declaration.structural_parameters.clone(),
-                lowered_scalar_parameters: declaration.parameters.clone(),
-                parameter_relative_crash_routes: crate::unit::effective_crash_routes(
-                    checked,
-                    entry.machine,
-                )?,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
     let scalar_calls = super::super::scalar_calls::ComposedScalarCalls::from_shared(
         shared.machine_ids,
         shared.scalar_requirement_counts,
@@ -205,8 +133,14 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             .boundary_machines
             .clone()
             .into(),
-        lowered_boundaries,
-        internal_targets,
+        lowered_boundaries: super::super::catalogs::LoweredComposedBoundary::roster(
+            &shared.boundary_parameters,
+        ),
+        boundary_parameters: shared.boundary_parameters.into(),
+        signatures: shared.signatures.into(),
+        // Direct dynamic leaves admit only boundary and Unit calls.
+        closure: &[],
+        prepared_scalar_machines: &[],
         service_ids: shared.service_ids.into(),
         next_place: shared.next_place,
         scalar_calls,

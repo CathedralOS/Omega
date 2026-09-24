@@ -1,8 +1,5 @@
 //! Publish a source local only after its exact initializer result exists.
-use super::super::{
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, PlaceId,
-    unsupported,
-};
+use super::super::{CheckedUnitEffectOperationPlan, LoweringError, PlaceId, unsupported};
 use super::CheckedTrees;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::statement::StatementNode;
@@ -12,7 +9,7 @@ use checked_trees::statement::StatementNode;
 /// must never replace its payload merely because their types happen to match.
 pub(crate) fn bind_local(
     checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
+    caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     place: PlaceId,
     locals: &mut Vec<(symbols::SymbolHandle, terminal_psi::StructuralArgument)>,
@@ -28,7 +25,7 @@ pub(crate) fn bind_local(
         } => {
             let authored = crate::emission::call_source_custody::authored::locate_source(
                 checked,
-                machine.state,
+                caller_state,
                 *coordinate,
             )?;
             let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
@@ -41,7 +38,7 @@ pub(crate) fn bind_local(
         _ => return Ok(()),
     };
     let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

@@ -34,9 +34,9 @@ operation already carries them:
   (`terminal_module/control_flow/operations.rs`). The same lane exists on
   call terminators.
 - Emission enforces roster arity
-  (`composed_control/internal_calls/emission.rs`: "erased lane disagrees
-  with its target roster") and requires each actual to lower as a pure
-  checked expression.
+  (`attached_unit/ordinary_calls.rs::prepare`, which every Unit call emits
+  through: "Unit call erased formal roster drifted from its checked target")
+  and requires each actual to lower as a pure checked expression.
 
 The dynamic lane deliberately carries none of this. `CallDynamicScalar`,
 `CallDynamicParameterScalar`, `CallDynamicUnit`, and

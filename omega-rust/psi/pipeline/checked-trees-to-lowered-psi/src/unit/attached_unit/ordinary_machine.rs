@@ -4,16 +4,22 @@
 //! seals completion, the cleanup roster, crash routes and the machine's
 //! single block.
 //!
-//! `lower_step` sends stores, scalar locals, borrowed-storage windows and
-//! continuation cleanup to `operation_frame::OperationFrame`, the emitter
-//! composed-graph states share, and keeps one method per remaining kind in
-//! `locals` (structural values and ordinary-only establishments), `calls` and
-//! `boundary_calls`.
+//! `lower_step` evaluates each operation's operands on the argument schedule,
+//! then sends stores, scalar locals, borrowed-storage windows, continuation
+//! cleanup, structural-value construction and every internal, scalar and
+//! boundary call to `operation_frame::OperationFrame`, the emitter
+//! composed-graph states share. It keeps one method per remaining
+//! ordinary-only kind in `locals` (primitive, reference, array and trivial
+//! affine establishments) and `selected_operators` (selected structural
+//! operator realizations and the selected IEEE FMA).
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
-use super::operation_frame::{OperationFrame, StructuralResults, StructuralTypeRoster};
+use super::operation_frame::{
+    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
+    StructuralResults, StructuralTypeRoster,
+};
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
 use super::provider_attachments::lower_provider_attachment_places;
@@ -23,7 +29,7 @@ use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
     parameters, primitive_locals,
 };
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
@@ -71,10 +77,9 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
 }
 
-mod boundary_calls;
-mod calls;
 mod locals;
 mod projected_moves;
+mod selected_operators;
 
 /// One ordinary machine's emission in flight: the shared catalog it resolves
 /// against, the identity counters it advances, and the places, values and
@@ -84,6 +89,9 @@ pub(super) struct MachineEmission<'a> {
     checked: &'a CheckedTrees,
     plan: &'a CheckedUnitEffectMachinePlan,
     plans: UnitPlans<'a>,
+    /// This machine's allocated formals: its erased lanes are the namespace
+    /// its calls' erased actuals lower in.
+    signature: &'a MachineSignature,
     parameters: &'a Vec<StructuralParameterDeclaration>,
     scalar_parameter_count: usize,
     /// The caller's claim bindings: the lowered entry claims plus every
@@ -133,11 +141,6 @@ pub(super) struct MachineEmission<'a> {
     retained_scalar_prefix: Option<usize>,
     staged_scalar_result: Option<ValueDeclaration>,
     scalar_calls: CallEmissionContext<'a>,
-    source_call: Option<(
-        checked_trees::CheckedUnitCallCoordinate,
-        Option<checked_trees::NominalMachineUseSite>,
-        symbols::SymbolHandle,
-    )>,
 }
 
 /// What one scheduled operation hands the lowering methods.
@@ -475,6 +478,7 @@ pub(super) fn emit(
         checked,
         plan,
         plans,
+        signature,
         parameters,
         scalar_parameter_count,
         claim_bindings: claim_bindings.clone(),
@@ -515,7 +519,6 @@ pub(super) fn emit(
             next_obligation_identity: next_call_obligation,
             obligation_limit: u64::MAX,
         },
-        source_call: None,
     };
     for step in argument_schedule::build(checked, plan)? {
         emission.lower_step(step)?;
@@ -1112,7 +1115,6 @@ impl MachineEmission<'_> {
             )?
         };
         self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        self.source_call = None;
         let step = StepInputs {
             operation_index,
             staged,
@@ -1130,11 +1132,18 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
-                self.establish_structural_value(operation)?
+            CheckedUnitEffectOperationPlan::CallUnit { .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
+                return self.emit_call_through_frame(operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. } => {
                 self.establish_primitive_local(operation, &step)?
@@ -1151,19 +1160,6 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {
                 self.establish_trivial_affine_local(operation)?
             }
-            CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                if !UnitBody::contains(self.plans, *target_machine) =>
-            {
-                self.external_structural_call(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                self.call_unit(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::ScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. } => {
-                self.scalar_call(operation, &step)?
-            }
             CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall { .. } => {
                 self.selected_operator_structural_scalar_call(operation)?
             }
@@ -1172,15 +1168,6 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => {
                 self.selected_ieee_float_fused_multiply_add(operation)?
-            }
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                self.boundary_call(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
-                self.boundary_scalar_call(operation, &step)?
-            }
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
-                self.boundary_structural_call(operation, &step)?
             }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
                 return unsupported("Unit structural case field store has no lowered operation");
@@ -1194,26 +1181,6 @@ impl MachineEmission<'_> {
             return Ok(());
         };
         let id = self.operations.allocate();
-        if let Some((coordinate, source_site, target_machine)) = self.source_call {
-            self.operations.record_source_call(
-                SourceCallCoordinate {
-                    state: plan.state,
-                    statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "boundary Unit call statement coordinate exceeds usize",
-                        )
-                    })?,
-                    call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "boundary Unit call ordinal coordinate exceeds usize",
-                        )
-                    })?,
-                },
-                source_site,
-                id,
-                target_machine,
-            )?;
-        }
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
@@ -1226,13 +1193,79 @@ impl MachineEmission<'_> {
 }
 
 impl<'a> MachineEmission<'a> {
-    /// Lower one store, scalar local, borrowed window or continuation cleanup
-    /// through the operation frame composed states share.
+    /// Lower one store, scalar local, borrowed window, continuation cleanup or
+    /// structural-value construction through the operation frame composed
+    /// states share.
     fn emit_through_frame(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
         source_value_count: usize,
     ) -> Result<(), LoweringError> {
+        self.frame(source_value_count).emit(operation)?;
+        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+        Ok(())
+    }
+
+    /// Lower one call through the frame with its scheduled operands. A staged
+    /// call's scalar result is a private temporary of its argument group,
+    /// retained until the group ends; every other result the frame publishes.
+    fn emit_call_through_frame(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+        step: StepInputs,
+    ) -> Result<(), LoweringError> {
+        // The literal roster preallocates the byte-sequence literals of Unit,
+        // structural and boundary call arguments in call order; a scalar
+        // call's structural operands never carry a lowered literal here.
+        let byte_places = match operation {
+            CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::StructuralCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                structural_arguments,
+                ..
+            } => byte_subslices::argument_places(
+                structural_arguments,
+                &self.literal_places,
+                &mut self.next_literal_argument,
+                &self.staged_subslices[step.operation_index],
+            )?,
+            _ => Vec::new(),
+        };
+        let staged_result = self.frame(step.source_value_count).emit_call(
+            operation,
+            CallInputs {
+                evaluated_scalar_arguments: step.evaluated_scalar_arguments.as_deref(),
+                byte_places: &byte_places,
+                staged: step.staged,
+            },
+        )?;
+        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+        if let Some(value) = staged_result
+            && self.staged_scalar_result.replace(value).is_some()
+        {
+            return unsupported("nested argument group produces more than one scalar binding");
+        }
+        Ok(())
+    }
+
+    /// The frame over this machine's environment: its dense result roster,
+    /// split literal and construction rosters, growable claim table, and the
+    /// closure's call targets.
+    fn frame(&mut self, source_value_count: usize) -> OperationFrame<'_, 'a> {
         let plan = self.plan;
         OperationFrame {
             checked: self.checked,
@@ -1247,7 +1280,10 @@ impl<'a> MachineEmission<'a> {
             service_ids: self.service_ids,
             primitive_locals: &self.primitive_local_places,
             results: StructuralResults::Dense(&mut self.structural_result_places),
-            literal_places: &mut self.literal_places,
+            private_places: PrivatePlaces::Split {
+                literals: &mut self.literal_places,
+                temporaries: &mut self.structural_value_temporaries,
+            },
             windows: &mut self.borrowed_windows,
             evaluation: &mut self.evaluation,
             values: &mut self.scalar_result_values,
@@ -1257,9 +1293,24 @@ impl<'a> MachineEmission<'a> {
             next_edge: &mut self.next_edge,
             calls: &mut self.scalar_calls,
             operations: &mut self.operations,
+            callees: Callees {
+                plans: self.plans,
+                signatures: self.machine_signatures,
+                boundaries: self.lowered_boundary_parameters,
+                domain_ids: self.domain_ids,
+                closure: self.closure,
+                prepared_scalar_machines: self.prepared_scalar_machines,
+            },
+            caller: CallerCustody {
+                erased_scalar_parameters: &self.signature.erased_scalar_parameters,
+                erased_proof_parameters: &self.signature.erased_proof_parameters,
+                entry_claims: &plan.entry_claims,
+                claims: ClaimBindings::Growable {
+                    bindings: &mut self.claim_bindings,
+                    next_claim: &mut self.next_claim,
+                },
+                local_places: &self.local_places,
+            },
         }
-        .emit(operation)?;
-        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        Ok(())
     }
 }

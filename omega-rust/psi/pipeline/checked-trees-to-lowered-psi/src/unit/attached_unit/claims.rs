@@ -8,6 +8,7 @@ use super::{
     CheckedTrees, LoweringError, Multiplicity, PlaceId, StructuralPlaceKind, TerminalMachineResult,
     allocate_dense, lookup_claim_id, lower_structural_path, unsupported,
 };
+#[derive(Clone)]
 pub(super) struct LoweredUnitClaims {
     pub(super) entry_claims: Vec<EntryClaim>,
     pub(super) source_claims: Vec<(PermissionClaimIdentity, ClaimId)>,

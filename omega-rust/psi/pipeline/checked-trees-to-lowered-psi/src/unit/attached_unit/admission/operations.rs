@@ -270,6 +270,7 @@ pub(super) fn validate<'a>(
                     *service_reach,
                     CheckedBoundaryMachineResultPlan::Unit,
                 )?;
+                validate_boundary_consumer(checked, plans, machine, operation, *target_machine)?;
             }
             CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate,
@@ -291,6 +292,7 @@ pub(super) fn validate<'a>(
                     *service_reach,
                     CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type),
                 )?;
+                validate_boundary_consumer(checked, plans, machine, operation, *target_machine)?;
             }
             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                 coordinate,
@@ -326,6 +328,7 @@ pub(super) fn validate<'a>(
                     *service_reach,
                     target.result.clone(),
                 )?;
+                validate_boundary_consumer(checked, plans, machine, operation, *target_machine)?;
             }
             CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall {
                 coordinate,
@@ -440,4 +443,23 @@ pub(super) fn validate<'a>(
     }
 
     Ok(())
+}
+
+/// An ordinary body's boundary call rejoins how its structural operands'
+/// producers are consumed, as its Unit calls do above. Boundary targets
+/// declare no entry claims.
+fn validate_boundary_consumer(
+    checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
+    machine: &CheckedUnitEffectMachinePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    target_machine: SymbolHandle,
+) -> Result<(), LoweringError> {
+    structural_calls::validate_consumer(
+        checked,
+        machine,
+        operation,
+        &unique_unit_boundary(plans, target_machine)?.structural_parameters,
+        &[],
+    )
 }

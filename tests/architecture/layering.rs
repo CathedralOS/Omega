@@ -1983,12 +1983,15 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
             );
         }
     }
-    for name in ["state_graph", "internal_calls"] {
+    for (name, rungs) in [
+        ("state_graph", &["admission", "emission"][..]),
+        ("internal_calls", &["admission", "catalogs"][..]),
+    ] {
         let directory = terminal.join("composed_control").join(name);
         let entrance = directory.join("mod.rs");
         let source = std::fs::read_to_string(&entrance)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", entrance.display()));
-        for rung in ["admission", "emission"] {
+        for rung in rungs {
             assert!(
                 source.contains(&format!("mod {rung};"))
                     && directory.join(format!("{rung}.rs")).is_file(),
@@ -1996,6 +1999,32 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
                 entrance.display()
             );
         }
+    }
+    // Composed states and ordinary machines emit every call through the one
+    // operation frame (`operation_frame/{calls,boundary_calls}.rs`); neither
+    // route keeps its own call emitter.
+    for retired in [
+        "composed_control/internal_calls/emission.rs",
+        "ordinary_machine/boundary_calls.rs",
+    ] {
+        assert!(
+            !terminal.join(retired).exists(),
+            "call emission belongs to the shared operation frame, not `{retired}`"
+        );
+    }
+    let state_emission = std::fs::read_to_string(terminal.join("composed_control/emission.rs"))
+        .expect("read composed state emission");
+    for call_kind in [
+        "OperationKind::CallUnit",
+        "OperationKind::Call {",
+        "OperationKind::CallStructuralScalar",
+        "OperationKind::BoundaryCall",
+        "record_source_call",
+    ] {
+        assert!(
+            !state_emission.contains(call_kind),
+            "composed state emission must hand its calls to the operation frame, not build `{call_kind}`"
+        );
     }
     for owner in [&typed, &terminal] {
         for retired in ["nested_control", "prefixed_control", "closed_sum"] {

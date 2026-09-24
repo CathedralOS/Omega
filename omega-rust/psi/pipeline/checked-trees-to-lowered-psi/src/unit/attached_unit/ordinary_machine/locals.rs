@@ -1,120 +1,18 @@
-//! Places a body establishes for itself: structural values (whose member
-//! operands are ordinary calls), primitive and trivial affine locals,
-//! references and scalar arrays. Scalar locals emit through the shared
+//! Places only an ordinary body establishes for itself: primitive and trivial
+//! affine locals, references and scalar arrays. Scalar locals and structural
+//! values (whose member operands are calls) emit through the shared
 //! `operation_frame`.
 
 use super::super::{
-    ordinary_calls, parameters, primitive_locals, reference_results, scalar_arrays, signatures,
-    structural_values,
+    parameters, primitive_locals, reference_results, scalar_arrays, structural_values,
 };
 use super::{MachineEmission, StepInputs};
-use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
-    StructuralPlaceKind, StructuralTypeShape, ValueDeclaration, lookup_machine_id, lookup_type_id,
-    terminal_scalar_type, unsupported,
+    StructuralPlaceKind, StructuralTypeShape, lookup_type_id, terminal_scalar_type, unsupported,
 };
 
 impl MachineEmission<'_> {
-    pub(super) fn establish_structural_value(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let checked = self.checked;
-        let plan = self.plan;
-        let plans = self.plans;
-        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            discard_result_on_return,
-            ..
-        } = operation
-        else {
-            unreachable!("dispatched establish_structural_value")
-        };
-        // The operand closure holds an immutable view of the caller's scalar
-        // namespace while the emitter mutates `scalar_result_values` around it.
-        let operand_scalar_values = self.scalar_result_values.clone();
-        let mut emit_operand_call = |operand: &CheckedUnitEffectOperationPlan,
-                                     evaluated: Option<&[ValueDeclaration]>,
-                                     call_context: &mut CallEmissionContext<'_>,
-                                     output: &mut OperationBuffer,
-                                     place_counter: &mut u64| {
-            let CheckedUnitEffectOperationPlan::StructuralCall {
-                target_machine,
-                result,
-                ..
-            } = operand
-            else {
-                return unsupported("record operand is not a structural call");
-            };
-            if result.binding_ordinal as usize != self.structural_result_places.len() {
-                return unsupported("structural operand result binding is not dense");
-            }
-            let prepared = ordinary_calls::prepare(
-                checked,
-                plans,
-                operand,
-                signatures::find(self.machine_signatures, *target_machine)?.call_target(),
-                evaluated,
-                &operand_scalar_values,
-                &signatures::find(self.machine_signatures, plan.machine)?.erased_scalar_parameters,
-                &signatures::find(self.machine_signatures, plan.machine)?.erased_proof_parameters,
-                self.parameters,
-                &self.local_places,
-                &self.structural_result_places,
-                &self.primitive_local_places,
-                self.type_ids,
-                self.structural_types,
-                &[],
-                &output.structural_values,
-                self.domain_ids,
-                &self.claim_bindings,
-                call_context,
-            )?;
-            let declaration = ordinary_calls::emit_structural(
-                checked,
-                plan.state,
-                operand,
-                prepared,
-                lookup_machine_id(self.machine_ids, *target_machine)?,
-                self.type_ids,
-                self.domain_ids,
-                &self.claim_bindings,
-                true,
-                place_counter,
-                output,
-            )?;
-            self.structural_result_places.push((declaration, false));
-            Ok(declaration)
-        };
-        let declaration = structural_values::emit(
-            checked,
-            plan.machine,
-            plan.state,
-            operation,
-            self.structural_types,
-            self.type_ids,
-            &mut self.next_place,
-            &mut self.structural_value_temporaries,
-            &mut emit_operand_call,
-            &mut self.scalar_calls,
-            &mut self.evaluation,
-            &mut self.scalar_result_values,
-            &mut self.next_value_identity,
-            &mut self.next_block,
-            &mut self.next_edge,
-            &mut self.operations,
-        )?;
-        self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-        if result.binding_ordinal as usize != self.structural_result_places.len() {
-            return unsupported("structural value result binding is not dense");
-        }
-        self.structural_result_places
-            .push((declaration, *discard_result_on_return));
-        Ok(None)
-    }
-
     pub(super) fn establish_primitive_local(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
@@ -289,7 +187,7 @@ impl MachineEmission<'_> {
         if *source == checked_trees::CheckedArrayConstructionSource::Statement {
             structural_values::bind_local(
                 checked,
-                plan,
+                plan.state,
                 operation,
                 declaration.id,
                 &mut self.evaluation.structural_locals,

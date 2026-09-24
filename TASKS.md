@@ -2476,20 +2476,25 @@ syntax and other terminal services are not prerequisites.
      lowering and the checked join each borrow them through their own view
      (`dynamic_lanes.rs::DynamicCallView`, `join.rs::JoinBranchView`). One
      custody struct embedded in both plans would delete all four.
-  4. Composed-graph states share `attached_unit/operation_frame.rs` with the
-     ordinary machine for stores, scalar locals, borrowed windows and
-     continuation cleanup, but still emit calls through their own copies:
-     structural-value member calls and the boundary and scalar call emitters
-     in `composed_control/emission.rs`, and
-     `composed_control/internal_calls/emission.rs`, beside
-     `ordinary_machine/{calls,boundary_calls,locals}.rs`. The composed copies
-     admit fewer shapes (no result-sourced boundary arguments, no linear
-     boundary results, no `CallUnit` claim transfers). Next: give
-     `operation_frame::StructuralResults` the dense `(declaration, discard)`
-     roster view composed calls already rebuild as `earlier_results`, route
-     composed internal calls through `ordinary_calls::prepare` (its member
-     calls already do), then the boundary and scalar calls through the
-     ordinary methods, and delete the composed call emitters.
+  4. Composed-graph states and ordinary machines emit every operation,
+     calls included, through `attached_unit/operation_frame`
+     (`calls.rs`, `boundary_calls.rs`), but call admission is still two
+     copies: `admission/operations.rs` rejoins an ordinary body's calls
+     against its `CheckedUnitEffectMachinePlan`, while
+     `composed_control/admission.rs` and `internal_calls/admission.rs`
+     re-derive the same checks per state. The state copy still refuses
+     shapes the shared emitter lowers: `BoundaryScalarCall`
+     (`retain_call_targets`), `CallUnit` claim transfers and claim-bearing
+     Unit targets (`retain_call_target_body`), and scalar-call claim
+     transfers (`retain_scalar_call`). A state also cannot yet take a linear
+     boundary result: its claim table cannot mint the caller binding
+     (`ClaimBindings::Fixed`), and `Evaluation::establish_structural_result`
+     registers a linear local only from a structural-call producer. Next:
+     give `structural_calls::validate_consumer`,
+     `scalar_structural_calls::validate_call_source` and
+     `primitive_locals::validate_argument_source` one caller view (machine,
+     state, operations, structural parameters, entry claims) that both
+     routes build, then delete the state copies.
   5. Seven return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
      Families the general route still refuses, with c2l tests only they

@@ -231,22 +231,29 @@ pub(super) fn prepare(
             Ok((formal.id, *actual))
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-    // Preserve callee requirement slots after substitution, even
-    // if reordered or equal arguments change canonical term order.
-    let target_runtime_requirements = target
-        .runtime_requirements
-        .iter()
-        .map(|requirement| {
-            let mut requirement = requirement.clone();
-            substitute_runtime_requirement_scalar_values(&mut requirement, &scalar_substitutions)?;
-            Ok(requirement)
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut crash_continuations = {
         let target_routes = crate::unit::effective_crash_routes(checked, *target_machine)?;
         if target.parameters.is_empty() {
             lower_checked_crash_route_buckets(&target_routes, &terminal_scalar_values)?
         } else {
+            // Only structural crash substitution reads the callee's runtime
+            // requirements, instantiated at this call. A callee without
+            // structural formals may keep a requirement over an erased
+            // formal, which has no runtime actual to substitute. Preserve
+            // callee requirement slots after substitution, even if reordered
+            // or equal arguments change canonical term order.
+            let target_runtime_requirements = target
+                .runtime_requirements
+                .iter()
+                .map(|requirement| {
+                    let mut requirement = requirement.clone();
+                    substitute_runtime_requirement_scalar_values(
+                        &mut requirement,
+                        &scalar_substitutions,
+                    )?;
+                    Ok(requirement)
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
             lower_structural_crash_route_buckets(
                 &target_routes,
                 &terminal_scalar_values,

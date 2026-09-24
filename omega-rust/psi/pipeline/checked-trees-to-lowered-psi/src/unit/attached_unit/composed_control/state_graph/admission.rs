@@ -86,8 +86,6 @@ pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
     pub(super) claim_transport: claims::ClaimTransport,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
         Vec<(&'a CheckedBoundaryMachinePlan, String)>,
-    pub(in crate::unit::attached_unit::composed_control) internal_targets:
-        Vec<(crate::unit::attached_unit::bodies::UnitBody<'a>, String)>,
 }
 
 pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
@@ -666,7 +664,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         .zip(&live)
         .filter_map(|(state, live)| live.then_some(state))
         .collect::<Vec<_>>();
-    let (boundaries, internal_targets) =
+    // Internal Unit targets are admitted for their call custody here; their
+    // signatures come from the closure that emits this graph.
+    let (boundaries, _) =
         super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
     if let Some(attachment) = attachment {
         for state in &states {
@@ -740,7 +740,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         source_states,
         claim_transport,
         boundaries,
-        internal_targets,
     })
 }
 

@@ -1,32 +1,20 @@
 //! Source-selected scalar helper closure for composed Unit operands.
 use super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, unsupported};
-use super::{CheckedTrees, LoweringError, catalogs};
+use super::{CheckedTrees, LoweringError};
 use checked_trees::CheckedCallScalarArgument;
 
 pub(crate) use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls as ComposedScalarCalls;
 
+/// A standalone composed catalog (one with no internal Unit target) prepares
+/// its own scalar helpers after its single composed machine.
 pub(super) fn prepare(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     states: &[checked_trees::CheckedComposedUnitControlStatePlan],
-    internal_targets: &[catalogs::LoweredComposedInternalTarget],
 ) -> Result<ComposedScalarCalls, LoweringError> {
     let targets = selected_targets(checked, machine, states)?;
-    let excluded_sources = std::iter::once(machine)
-        .chain(internal_targets.iter().map(|target| target.source))
-        .collect::<Vec<_>>();
-    ComposedScalarCalls::prepare_targets(
-        checked,
-        &targets,
-        &excluded_sources,
-        internal_targets
-            .len()
-            .checked_add(1)
-            .ok_or(LoweringError::Unsupported(
-                "composed Unit machine count overflows usize",
-            ))?,
-    )
+    ComposedScalarCalls::prepare_targets(checked, &targets, &[machine], 1)
 }
 
 fn selected_roots(

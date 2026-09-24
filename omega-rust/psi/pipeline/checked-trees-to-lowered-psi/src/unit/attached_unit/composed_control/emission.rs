@@ -1,30 +1,28 @@
 //! Operation emission for one composed-graph state or call leaf.
 //!
-//! `emit_call_operations` walks a state's checked operations in order. Stores,
-//! scalar locals, borrowed-storage windows and continuation cleanup emit
-//! through `attached_unit::operation_frame::OperationFrame`, the same
-//! per-operation emitter the ordinary machine uses; this file builds the frame
-//! over the state's environment and keeps only what is still composed-specific:
-//! structural-value construction with its member calls, and the boundary,
-//! internal Unit/structural and scalar calls resolved against the composed
-//! catalogs.
+//! `emit_call_operations` walks a state's checked operations in order and
+//! emits every one through `attached_unit::operation_frame::OperationFrame`,
+//! the per-operation emitter the ordinary machine uses. This file owns only
+//! what is composed-specific: the frame over the state's environment (its
+//! registry-backed result namespace, the machine-wide claim table and the
+//! shared temporary roster) and the state's own operand schedule, which
+//! evaluates each call's scalar operands and literals just before the call
+//! (`literal_arguments`).
 use super::super::super::{
     BlockId, ClaimId, LoweredSourceCallOccurrence, PermissionClaimIdentity,
-    StructuralParameterDeclaration, StructuralTypeDeclaration,
+    StructuralParameterDeclaration,
 };
-use super::super::operation_frame::{OperationFrame, StructuralResults, StructuralTypeRoster};
+use super::super::bodies::UnitPlans;
+use super::super::operation_frame::{
+    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
+    StructuralResults, StructuralTypeRoster,
+};
 use super::super::{
-    Block, BoundaryMachineResult, CheckedUnitEffectOperationPlan, CompletionReceipt, Operation,
-    OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
-    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, lookup_machine_id,
-    lower_checked_crash_route_buckets, lower_structural_arguments, place_id, terminal_scalar_type,
-    unsupported, validate_transfer_shape, value_id,
+    Block, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration, allocate_dense, edge_id,
+    unsupported,
 };
-use super::{CheckedTrees, LoweringError, catalogs, internal_calls, literal_arguments};
-use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
-use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
+use super::{CheckedTrees, LoweringError, catalogs, literal_arguments};
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
 use std::borrow::Cow;
 
@@ -183,767 +181,101 @@ pub(super) fn emit_call_operations(
     // blocks argument evaluation splits off in between rejoin with the one
     // frontier this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
+    let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    // A returned final expression evaluates in the `Return` role.
+    let scalar_result = match &state.terminator {
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+        } => Some(binding),
+        _ => None,
+    };
     for operation in planned_operations {
-        if matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-        ) {
-            let mut calls = catalogs.scalar_calls.emission_context();
-            // The operand closure holds an immutable view of the caller's
-            // scalar namespace while the emitter mutates `values` around it.
-            let operand_values = values.clone();
-            let mut emit_operand_call =
-                |operand: &CheckedUnitEffectOperationPlan,
-                 evaluated: Option<&[ValueDeclaration]>,
-                 call_context: &mut CallEmissionContext<'_>,
-                 output: &mut OperationBuffer,
-                 place_counter: &mut u64| {
-                    let CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } =
-                        operand
-                    else {
-                        return unsupported("record operand is not a structural call");
-                    };
-                    let callee = lookup_machine_id(call_context.machine_ids, *target_machine)?;
-                    let target = catalogs
-                        .internal_targets
-                        .iter()
-                        .find(|target| target.id == callee)
-                        .ok_or(LoweringError::Unsupported(
-                            "nested structural target is missing",
-                        ))?;
-                    let entry = super::super::bodies::UnitBody::find(
-                        super::super::bodies::UnitPlans::published(
-                            &checked.facts.flow.terminal_unit_effects,
-                        ),
-                        *target_machine,
-                    )?
-                    .entry()?;
-                    if entry.structural_parameters.len() != target.lowered_parameters.len() {
-                        return unsupported("nested target predicate roster differs");
-                    }
-                    let predicates = entry
-                        .structural_parameters
-                        .iter()
-                        .zip(&target.lowered_parameters)
-                        .map(|(source, parameter)| StructuralParameterDeclaration {
-                            position: source.position,
-                            ..parameter.clone()
-                        })
-                        .collect::<Vec<_>>();
-                    let earlier = catalogs
-                        .result_places
-                        .iter()
-                        .cloned()
-                        .map(|place| (place, false))
-                        .collect::<Vec<_>>();
-                    let prepared = super::super::ordinary_calls::prepare(
-                        checked,
-                        super::super::bodies::UnitPlans::published(
-                            &checked.facts.flow.terminal_unit_effects,
-                        ),
-                        operand,
-                        super::super::ordinary_calls::Target {
-                            parameters: &target.lowered_parameters,
-                            scalar_parameters: &target.lowered_scalar_parameters,
-                            erased_scalar_parameters: &target.erased_scalar_formals,
-                            predicate_parameters: &predicates,
-                            requires: &target.requires,
-                            runtime_requirements: &target.requires,
-                        },
-                        evaluated,
-                        &operand_values,
-                        erased_parameters,
-                        &state.erased_proof_parameters,
-                        parameters,
-                        &[],
-                        &earlier,
-                        &[],
-                        &catalogs.type_ids,
-                        &catalogs.structural_types,
-                        &[],
-                        &output.structural_values,
-                        &catalogs.domain_ids,
-                        claim_bindings,
-                        call_context,
-                    )?;
-                    let declaration = super::super::ordinary_calls::emit_structural(
-                        checked,
-                        state.state,
-                        operand,
-                        prepared,
-                        callee,
-                        &catalogs.type_ids,
-                        &catalogs.domain_ids,
-                        claim_bindings,
-                        true,
-                        place_counter,
-                        output,
-                    )?;
-                    catalogs.result_places.push(declaration);
-                    Ok(declaration)
-                };
-            let declaration = crate::unit::attached_unit::structural_values::emit(
+        // A call's operands complete just before it, on this state's own
+        // schedule; every other operation reads its operands itself.
+        let call_operands = if OperationFrame::lowers(operation) {
+            None
+        } else {
+            Some(literal_arguments::evaluate(
                 checked,
                 machine,
                 state.state,
                 operation,
-                &catalogs.structural_types,
-                &catalogs.type_ids,
-                &mut catalogs.next_place,
-                &mut catalogs.temporary_places,
-                &mut emit_operand_call,
-                &mut calls,
+                catalogs,
                 evaluation,
                 values,
                 next_value,
                 next_block,
                 next_edge,
                 operations,
-            )?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            catalogs.result_places.push(declaration);
-            continue;
-        }
-        if OperationFrame::lowers(operation) {
-            let mut calls = catalogs.scalar_calls.emission_context();
-            OperationFrame {
-                checked,
-                machine,
-                state: state.state,
-                // A returned final expression evaluates in the `Return` role.
-                scalar_result: match &state.terminator {
-                    checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
-                        completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
-                    } => Some(binding),
-                    _ => None,
-                },
-                scalar_parameter_count: state.scalar_parameters.len(),
-                source_value_count: values.len(),
-                parameters,
-                structural_types: match &mut catalogs.structural_types {
-                    Cow::Owned(types) => StructuralTypeRoster::Owned(types),
-                    Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
-                },
-                type_ids: &catalogs.type_ids,
-                service_ids: &catalogs.service_ids,
-                primitive_locals: &[],
-                results: StructuralResults::StateGraph {
-                    state,
-                    places: &mut catalogs.result_places,
-                },
-                // A composed body keeps literals in its private temporary
-                // roster, as `literal_arguments` does; ordinals count only the
-                // literals in it.
-                literal_places: &mut catalogs.temporary_places,
-                windows: &mut windows,
-                evaluation,
-                values,
-                next_place: &mut catalogs.next_place,
-                next_value,
-                next_block,
-                next_edge,
-                calls: &mut calls,
-                operations,
-            }
-            .emit(operation)?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            continue;
-        }
-        let (arguments, byte_argument_places) = literal_arguments::evaluate(
+            )?)
+        };
+        let mut calls = catalogs.scalar_calls.emission_context();
+        let frame = OperationFrame {
             checked,
             machine,
-            state.state,
-            operation,
-            catalogs,
+            state: state.state,
+            scalar_result,
+            scalar_parameter_count: state.scalar_parameters.len(),
+            source_value_count: values.len(),
+            parameters,
+            structural_types: match &mut catalogs.structural_types {
+                Cow::Owned(types) => StructuralTypeRoster::Owned(types),
+                Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
+            },
+            type_ids: &catalogs.type_ids,
+            service_ids: &catalogs.service_ids,
+            primitive_locals: &[],
+            results: StructuralResults::StateGraph {
+                state,
+                places: &mut catalogs.result_places,
+            },
+            // A composed body keeps literals, construction and join places
+            // in its one private temporary roster.
+            private_places: PrivatePlaces::Shared(&mut catalogs.temporary_places),
+            windows: &mut windows,
             evaluation,
             values,
+            next_place: &mut catalogs.next_place,
             next_value,
             next_block,
             next_edge,
+            calls: &mut calls,
             operations,
-        )?;
-        match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
-                emit_boundary_call_operation(
-                    checked,
-                    state,
-                    operation,
-                    &catalogs.lowered_boundaries,
-                    &catalogs.type_ids,
-                    &catalogs.domain_ids,
-                    &catalogs.structural_types,
-                    parameters,
-                    claim_bindings,
-                    arguments.as_deref(),
-                    &byte_argument_places,
-                    &mut catalogs.next_place,
-                    &mut catalogs.result_places,
-                    operations,
-                )?
-            }
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
-                internal_calls::emission::emit_call_operation(
-                    checked,
-                    state,
-                    operation,
-                    &catalogs.internal_targets,
-                    parameters,
-                    &catalogs.type_ids,
-                    &catalogs.domain_ids,
-                    claim_bindings,
-                    &catalogs.structural_types,
-                    arguments.as_deref(),
-                    values.as_slice(),
-                    erased_parameters,
-                    &mut catalogs.scalar_calls,
-                    &byte_argument_places,
-                    &mut catalogs.next_place,
-                    &mut catalogs.result_places,
-                    operations,
-                )?
-            }
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate, result, ..
-            } => {
-                let position = values.len();
-                emit_scalar_call_operation(
-                    checked,
-                    state,
-                    operation,
-                    parameters,
-                    &catalogs.type_ids,
-                    &catalogs.domain_ids,
-                    claim_bindings,
-                    &catalogs.structural_types,
-                    arguments.as_deref(),
-                    erased_parameters,
-                    &mut catalogs.scalar_calls,
-                    &byte_argument_places,
-                    &catalogs.result_places,
-                    values,
-                    next_value,
-                    operations,
-                )?;
-                // A retained call result is the next dense value, so it also
-                // enters the source binding namespace at its checked ordinal,
-                // exactly like an established scalar local. A discarded result
-                // occupies no source position; call leaves without a prepared
-                // namespace resolve ordinals through the dense identity map.
-                if !crate::emission::call_source_custody::initializers::discards_result(
-                    checked,
-                    state.state,
-                    *coordinate,
-                )? && let Some(bindings) = evaluation.scalar_bindings.as_mut()
+            callees: Callees {
+                plans,
+                signatures: &catalogs.signatures,
+                boundaries: &catalogs.boundary_parameters,
+                domain_ids: &catalogs.domain_ids,
+                closure: catalogs.closure,
+                prepared_scalar_machines: catalogs.prepared_scalar_machines,
+            },
+            caller: CallerCustody {
+                erased_scalar_parameters: erased_parameters,
+                erased_proof_parameters: &state.erased_proof_parameters,
+                entry_claims: &state.entry_claims,
+                claims: ClaimBindings::Fixed(claim_bindings),
+                local_places: &[],
+            },
+        };
+        match &call_operands {
+            None => frame.emit(operation)?,
+            Some((arguments, byte_places)) => {
+                if frame
+                    .emit_call(
+                        operation,
+                        CallInputs {
+                            evaluated_scalar_arguments: arguments.as_deref(),
+                            byte_places,
+                            staged: false,
+                        },
+                    )?
+                    .is_some()
                 {
-                    bindings.append(
-                        checked_trees::CheckedScalarBindingDestination::Immutable,
-                        terminal_scalar_type(result.primitive_type)?,
-                        position,
-                    )?;
+                    return unsupported("composed call staged a private scalar result");
                 }
             }
-            _ => return unsupported("composed Unit operation escaped exact call custody"),
         }
-        if let CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate, result, ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate, result, ..
-        } = operation
-        {
-            let occurrence = operations
-                .source_calls
-                .iter()
-                .find(|occurrence| {
-                    occurrence.source_state == state.state
-                        && occurrence.statement_index == coordinate.statement_index as usize
-                        && occurrence.call_ordinal == coordinate.call_ordinal as usize
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "structural call result lost its source occurrence",
-                ))?;
-            let produced = operations
-                .iter()
-                .find(|operation| operation.id == occurrence.terminal_operation)
-                .and_then(|operation| match &operation.result {
-                    OperationResult::Structural(result) => Some(result.clone()),
-                    _ => None,
-                })
-                .ok_or(LoweringError::Unsupported(
-                    "structural call did not establish its result",
-                ))?;
-            evaluation.establish_structural_result(
-                checked,
-                state.state,
-                result,
-                produced,
-                &catalogs.structural_types,
-                operations,
-            )?;
-        }
+        catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
     }
     windows.require_closed()
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn emit_boundary_call_operation(
-    checked: &CheckedTrees,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-    boundaries: &[catalogs::LoweredComposedBoundary],
-    type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
-    structural_types: &[StructuralTypeDeclaration],
-    parameters: &[StructuralParameterDeclaration],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
-    scalar_values: Option<&[ValueDeclaration]>,
-    byte_argument_places: &[PlaceId],
-    next_place: &mut u64,
-    result_places: &mut Vec<StructuralPlaceDeclaration>,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        source_site,
-        target_machine,
-        scalar_arguments,
-        structural_arguments,
-        completion_receipts,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate,
-        source_site,
-        target_machine,
-        scalar_arguments,
-        structural_arguments,
-        completion_receipts,
-        ..
-    }) = operation
-    else {
-        unreachable!("admission retained one boundary call")
-    };
-    let target = boundaries
-        .iter()
-        .find(|candidate| candidate.source == *target_machine)
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit boundary target is absent from its exact catalog",
-        ))?;
-    if scalar_arguments.len() != target.scalar_parameters.len() {
-        return unsupported("composed Unit boundary scalar arity drifted");
-    }
-    let expected_claim_arguments = structural_arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(argument_index, argument)| {
-            state
-                .entry_claims
-                .iter()
-                .filter(move |claim| {
-                    Some(claim.parameter_index) == argument.source_parameter_index()
-                        && (argument.path.is_empty() || claim.path == argument.path)
-                })
-                .map(move |_| {
-                    u32::try_from(argument_index).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "composed Unit boundary argument index exceeds u32",
-                        )
-                    })
-                })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    validate_transfer_shape(
-        structural_arguments,
-        completion_receipts,
-        parameters,
-        &[],
-        &[],
-        &target.checked_structural_parameters,
-        type_ids,
-        structural_types,
-        &expected_claim_arguments,
-        &[],
-        None,
-    )?;
-    let arguments = super::super::argument_evaluation::validated_values(
-        scalar_values,
-        &target.scalar_parameters,
-    )?
-    .into_iter()
-    .map(|value| value.id)
-    .collect();
-    let call_id = operations.allocate();
-    let result = match operation {
-        CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
-            let BoundaryMachineResult::Structural(result) = &target.result else {
-                return unsupported("composed Unit structural boundary lost its result");
-            };
-            let place = place_id(allocate_dense(next_place)?);
-            result_places.push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: call_id,
-                    structural_type: result.structural_type,
-                },
-            });
-            // The declared result domains mint their caller-side
-            // establishment through this call's CallEnsures evidence, exactly
-            // like the ordinary boundary structural emit.
-            let qualification_establishments =
-                super::super::catalog::call_result_qualification_establishments(
-                    checked,
-                    state.state,
-                    *coordinate,
-                    *target_machine,
-                    &target.result_domains,
-                    domain_ids,
-                )?;
-            OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments,
-                place,
-                structural_type: result.structural_type,
-                multiplicity: result.multiplicity,
-                qualifications: result.qualifications.clone(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            })
-        }
-        _ => OperationResult::Unit,
-    };
-    operations.record_source_call(
-        SourceCallCoordinate {
-            state: state.state,
-            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
-                LoweringError::Unsupported("composed Unit statement coordinate exceeds usize")
-            })?,
-            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
-                LoweringError::Unsupported("composed Unit call coordinate exceeds usize")
-            })?,
-        },
-        *source_site,
-        call_id,
-        *target_machine,
-    )?;
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: call_id,
-        result,
-        kind: OperationKind::BoundaryCall {
-            boundary: target.id,
-            arguments,
-            structural_arguments: lower_structural_arguments(
-                structural_arguments,
-                parameters,
-                &[],
-                &[],
-                byte_argument_places,
-                &[],
-            )?,
-            completion_receipts: completion_receipts
-                .iter()
-                .map(|receipt| {
-                    Ok(CompletionReceipt {
-                        claim: lookup_claim_id(claim_bindings, receipt.claim_identity)?,
-                        argument_index: receipt.argument_index,
-                    })
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?,
-        },
-    });
-    Ok(())
-}
-
-/// Lower one checked `ScalarCall` into the shared call lane. A store reading
-/// the produced scalar shares the call's authored statement; the dense scalar
-/// namespace still binds the result exactly like the ordinary sequencer does.
-#[allow(clippy::too_many_arguments)]
-fn emit_scalar_call_operation(
-    checked: &CheckedTrees,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    operation: &CheckedUnitEffectOperationPlan,
-    parameters: &[StructuralParameterDeclaration],
-    type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
-    structural_types: &[StructuralTypeDeclaration],
-    scalar_values: Option<&[ValueDeclaration]>,
-    caller_erased_formals: &[ValueDeclaration],
-    scalar_calls: &mut super::scalar_calls::ComposedScalarCalls,
-    byte_argument_places: &[PlaceId],
-    result_places: &[StructuralPlaceDeclaration],
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate,
-        result,
-        target_machine,
-        target_state,
-        erased_scalar_arguments,
-        erased_proof_arguments,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
-    else {
-        return unsupported("composed Unit scalar call custody drifted before emission");
-    };
-    let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
-    if target.entry_state()? != *target_state
-        || target.result_type()? != terminal_scalar_type(result.primitive_type)?
-    {
-        return unsupported(
-            "composed Unit scalar call disagrees with its checked target signature",
-        );
-    }
-    if usize::try_from(result.binding_ordinal)
-        .ok()
-        .and_then(|ordinal| ordinal.checked_add(state.scalar_parameters.len()))
-        != Some(values.len())
-    {
-        return unsupported("Unit scalar result binding ordinal drifted from source order");
-    }
-    // The plan's scalar roster carries only retained operands; the proof-only
-    // erased lane rejoins its own checked actuals.
-    let arguments = super::super::argument_evaluation::validated_values(
-        scalar_values,
-        &target
-            .parameter_types()?
-            .iter()
-            .map(|primitive| terminal_scalar_type(*primitive))
-            .collect::<Result<Vec<_>, LoweringError>>()?,
-    )?;
-    if erased_scalar_arguments.len() != target.erased_parameters().len() {
-        return unsupported(
-            "composed Unit scalar call erased lane disagrees with its target roster",
-        );
-    }
-    let erased_arguments = erased_scalar_arguments
-        .iter()
-        .map(|argument| {
-            let checked_trees::CheckedCallScalarArgument::Pure(expression) = argument else {
-                return unsupported(
-                    "composed Unit scalar call erased actual must be a pure checked expression",
-                );
-            };
-            crate::proofs::crash_routes::checked_scalar_term(
-                expression,
-                values.as_slice(),
-                caller_erased_formals,
-            )
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    if erased_proof_arguments.len() != target.erased_proof_parameters().len() {
-        return unsupported(
-            "composed Unit scalar call erased proof lane disagrees with its target roster",
-        );
-    }
-    let erased_proof_arguments = erased_proof_arguments
-        .iter()
-        .map(|term| {
-            crate::scalar_graph::scalar_contracts::checked_proof_term(
-                checked,
-                term,
-                &state.erased_proof_parameters,
-            )
-            .and_then(|term| {
-                crate::scalar_graph::scalar_contracts::lowered_proof_term(
-                    &term,
-                    values.as_slice(),
-                    caller_erased_formals,
-                )
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    if checked
-        .facts
-        .contract_plans
-        .for_machine(*target_machine)
-        .is_none()
-    {
-        return Err(LoweringError::Unsupported(
-            "composed Unit scalar call target has no checked contract",
-        ));
-    }
-    let mut calls = scalar_calls.emission_context();
-    let requirement_count = calls
-        .requirement_counts
-        .iter()
-        .find_map(|(source, count)| (*source == *target_machine).then_some(*count))
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit scalar call target has no prepared contract",
-        ))?;
-    let requirement_obligations = (0..requirement_count)
-        .map(|_| calls.allocate_requirement())
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let callee = lookup_machine_id(calls.machine_ids, *target_machine)?;
-    scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    let crash_continuations = lower_checked_crash_route_buckets(
-        &crate::unit::effective_crash_routes(checked, *target_machine)?,
-        &arguments,
-    )?;
-    let value = ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(allocate_dense(next_value)?),
-        scalar_type: terminal_scalar_type(result.primitive_type)?,
-    };
-    let operation_id = operations.allocate();
-    operations.record_source_call(
-        SourceCallCoordinate {
-            state: state.state,
-            statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
-                LoweringError::Unsupported("composed Unit statement coordinate exceeds usize")
-            })?,
-            call_ordinal: usize::try_from(coordinate.call_ordinal).map_err(|_| {
-                LoweringError::Unsupported("composed Unit call coordinate exceeds usize")
-            })?,
-        },
-        None,
-        operation_id,
-        *target_state,
-    )?;
-    let argument_ids = arguments
-        .iter()
-        .map(|argument| argument.id)
-        .collect::<Vec<_>>();
-    let kind = if !structural_arguments.is_empty()
-        || !claim_transfers.is_empty()
-        || target.requires_structural_frame()
-    {
-        if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
-            return unsupported("structural scalar call has no structural checked body");
-        }
-        // Binding ordinals belong to this source state, whereas the place
-        // catalog spans the whole emitted machine. Rejoin the current
-        // operation registry.
-        let earlier_results = if structural_arguments.iter().any(|argument| {
-            argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-        }) {
-            operations
-                .structural_values
-                .iter()
-                .enumerate()
-                .map(|(binding_position, (ordinal, result))| {
-                    if *ordinal as usize != binding_position {
-                        return unsupported(
-                            "composed scalar call result binding namespace is stale or duplicated",
-                        );
-                    }
-                    let mut declarations = result_places
-                        .iter()
-                        .filter(|place| place.id == result.place);
-                    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
-                        "composed scalar call completed result has no place declaration",
-                    ))?;
-                    if declarations.next().is_some()
-                        || !matches!(declaration.kind,
-                            StructuralPlaceKind::OperationResult { structural_type, producer }
-                                if structural_type == result.structural_type && operations.operations.iter().any(|candidate|
-                                    candidate.id == producer && candidate.result.structural() == Some(result)))
-                    {
-                        return unsupported(
-                            "composed scalar call result declaration differs from its operation",
-                        );
-                    }
-                    Ok((*declaration, false))
-                })
-                .collect::<Result<Vec<_>, LoweringError>>()?
-        } else {
-            Vec::new()
-        };
-        validate_transfer_shape(
-            structural_arguments,
-            claim_transfers,
-            parameters,
-            &[],
-            &earlier_results,
-            target.structural_parameters(),
-            type_ids,
-            structural_types,
-            // A claim-carrying `self` formal fed by a completed result consumes
-            // the moved frontier instead of publishing a transfer row; every
-            // other entry claim expects exactly one.
-            &target
-                .entry_claims()
-                .iter()
-                .filter(|claim| {
-                    target
-                        .structural_parameters()
-                        .get(claim.parameter_index as usize)
-                        .zip(structural_arguments.get(claim.parameter_index as usize))
-                        .is_none_or(|(parameter, argument)| {
-                            !parameter.is_self
-                                || argument
-                                    .source_structural_result_binding_ordinal()
-                                    .is_none()
-                        })
-                })
-                .map(|claim| claim.parameter_index)
-                .collect::<Vec<_>>(),
-            &[],
-            Some(
-                crate::unit::attached_unit::parameters::StructuralResultCustody {
-                    results: &operations.structural_values,
-                    domains: domain_ids,
-                    claims: claim_bindings,
-                    target_entry_claims: target.entry_claims(),
-                },
-            ),
-        )?;
-        OperationKind::CallStructuralScalar {
-            callee,
-            arguments: argument_ids,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments: lower_structural_arguments(
-                structural_arguments,
-                parameters,
-                &[],
-                &earlier_results,
-                byte_argument_places,
-                &[],
-            )?,
-            claim_transfers: crate::unit::attached_unit::parameters::emitted_claim_transfers(
-                structural_arguments,
-                claim_transfers,
-                target.structural_parameters(),
-                &operations.structural_values,
-                claim_bindings,
-            )?,
-            requirement_obligations,
-            crash_continuations,
-        }
-    } else {
-        OperationKind::Call {
-            callee,
-            arguments: argument_ids,
-            erased_arguments,
-            erased_proof_arguments,
-            requirement_obligations,
-            crash_continuations,
-        }
-    };
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: operation_id,
-        result: OperationResult::Scalar(value),
-        kind,
-    });
-    // A discarded call keeps its typed result without entering the caller's
-    // scalar namespace; a retained one is the next dense value.
-    if !crate::emission::call_source_custody::initializers::discards_result(
-        checked,
-        state.state,
-        *coordinate,
-    )? {
-        values.push(value);
-    }
-    Ok(())
 }

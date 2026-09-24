@@ -278,7 +278,7 @@ pub(super) fn validate(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     parameters: &[StructuralParameterDeclaration],
     evaluated: Option<&[ValueDeclaration]>,
@@ -351,7 +351,7 @@ pub(super) fn emit(
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
     operations.record_source_call(
         SourceCallCoordinate {
-            state: caller.state,
+            state: caller_state,
             statement_index: usize::try_from(coordinate.statement_index).map_err(|_| {
                 LoweringError::Unsupported("ordinary structural statement coordinate exceeds usize")
             })?,
