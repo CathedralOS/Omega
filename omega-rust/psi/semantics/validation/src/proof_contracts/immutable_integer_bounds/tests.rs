@@ -4,6 +4,7 @@ use super::{
     StatementNode, SymbolHandle, TableLocalData, TypedTrees, immutable_integer_bound_sum,
     immutable_integer_bound_symbol_offset, immutable_integer_bound_value_symbol,
     normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
+    ImmutableBoundLookup,
 };
 use typed_trees::expression::{BinaryOperator, Expression, NamePath, TableBinaryExpression};
 use typed_trees::machine::Machine;
@@ -179,24 +180,24 @@ fn computed_identity_preserves_copy_chains_without_becoming_a_static_index() {
         (distinct, distinct_symbol),
     ] {
         assert_eq!(
-            immutable_integer_bound_value_symbol(&program, expression),
+            immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), expression),
             Some(expected)
         );
-        assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
-        assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
+        assert!(normalize_immutable_integer_bound_expression(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
+        assert!(normalize_immutable_integer_bound_to_usize(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
     }
     assert_eq!(
-        normalize_immutable_integer_bound_to_usize(&program, literal),
+        normalize_immutable_integer_bound_to_usize(&program, &ImmutableBoundLookup::new(&program), literal),
         Some(1)
     );
     assert_eq!(
-        normalize_immutable_integer_bound_expression(&program, literal),
+        normalize_immutable_integer_bound_expression(&program, &ImmutableBoundLookup::new(&program), literal),
         Some(one)
     );
-    assert!(immutable_integer_bound_value_symbol(&program, literal).is_none());
-    assert!(immutable_integer_bound_value_symbol(&program, computed).is_none());
-    assert!(immutable_integer_bound_value_symbol(&program, unresolved).is_none());
-    assert!(normalize_immutable_integer_bound_expression(&program, unresolved).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), literal).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), computed).is_none());
+    assert!(immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), unresolved).is_none());
+    assert!(normalize_immutable_integer_bound_expression(&program, &ImmutableBoundLookup::new(&program), unresolved).is_none());
 }
 
 #[test]
@@ -261,11 +262,11 @@ fn immutable_copies_of_mutable_sources_are_values_not_static_indexes() {
             (later, Some(later_symbol)),
         ] {
             assert_eq!(
-                immutable_integer_bound_value_symbol(&program, expression),
+                immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), expression),
                 expected
             );
-            assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
-            assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
+            assert!(normalize_immutable_integer_bound_expression(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
+            assert!(normalize_immutable_integer_bound_to_usize(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
         }
         // Ambiguous mutable origins must not become stable snapshot fallbacks.
         let mut duplicate_machine = Machine::default();
@@ -292,9 +293,9 @@ fn immutable_copies_of_mutable_sources_are_values_not_static_indexes() {
         program.push_machine_state(&mut duplicate_machine, duplicate_state);
         program.push_machine(duplicate_machine);
         for expression in [original, cut, copy, later] {
-            assert!(immutable_integer_bound_value_symbol(&program, expression).is_none());
-            assert!(normalize_immutable_integer_bound_expression(&program, expression).is_none());
-            assert!(normalize_immutable_integer_bound_to_usize(&program, expression).is_none());
+            assert!(immutable_integer_bound_value_symbol(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
+            assert!(normalize_immutable_integer_bound_expression(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
+            assert!(normalize_immutable_integer_bound_to_usize(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
         }
     }
 }
@@ -333,17 +334,17 @@ fn immutable_integer_bound_offsets_require_exact_symbolic_bases() {
     program.push_machine(machine);
     for (expression, offset) in expressions {
         assert_eq!(
-            immutable_integer_bound_symbol_offset(&program, expression),
+            immutable_integer_bound_symbol_offset(&program, &ImmutableBoundLookup::new(&program), expression),
             Some(ImmutableIntegerBoundOffset {
                 symbol: mid_symbol,
                 offset,
             })
         );
     }
-    assert!(immutable_integer_bound_symbol_offset(&program, reverse).is_none());
+    assert!(immutable_integer_bound_symbol_offset(&program, &ImmutableBoundLookup::new(&program), reverse).is_none());
     let cut_offset = binary(&mut program, cut, BinaryOperator::Add, one);
     assert_eq!(
-        immutable_integer_bound_symbol_offset(&program, cut_offset),
+        immutable_integer_bound_symbol_offset(&program, &ImmutableBoundLookup::new(&program), cut_offset),
         Some(ImmutableIntegerBoundOffset {
             symbol: mid_symbol,
             offset: 1,
@@ -363,7 +364,7 @@ fn immutable_integer_bound_offsets_reject_wrapping_and_mutable_bases() {
         (numerics::arithmetic::ArithmeticDomain::Exact, true, true),
     ] {
         let (program, expression, _) = offset_fixture(domain, mutable, parameter);
-        assert!(immutable_integer_bound_symbol_offset(&program, expression).is_none());
+        assert!(immutable_integer_bound_symbol_offset(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
     }
 }
 
@@ -372,7 +373,7 @@ fn immutable_integer_bound_offsets_accept_exact_parameters() {
     let (program, expression, symbol) =
         offset_fixture(numerics::arithmetic::ArithmeticDomain::Exact, false, true);
     assert_eq!(
-        immutable_integer_bound_symbol_offset(&program, expression),
+        immutable_integer_bound_symbol_offset(&program, &ImmutableBoundLookup::new(&program), expression),
         Some(ImmutableIntegerBoundOffset { symbol, offset: 1 })
     );
 }
@@ -424,8 +425,8 @@ fn immutable_integer_bound_sums_normalize_two_term_orderings() {
         offset: 0,
     });
     // `i + j` and `j + i` share one canonical spelling.
-    assert_eq!(immutable_integer_bound_sum(&program, i_plus_j), expected);
-    assert_eq!(immutable_integer_bound_sum(&program, j_plus_i), expected);
+    assert_eq!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), i_plus_j), expected);
+    assert_eq!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), j_plus_i), expected);
 
     // Constants accumulate through association: `(i + 1) + (j + 2)` is
     // `i + j + 3`.
@@ -436,7 +437,7 @@ fn immutable_integer_bound_sums_normalize_two_term_orderings() {
     let j_plus_two = binary(&mut program, j, BinaryOperator::Add, two);
     let shifted = binary(&mut program, i_plus_one, BinaryOperator::Add, j_plus_two);
     assert_eq!(
-        immutable_integer_bound_sum(&program, shifted),
+        immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), shifted),
         Some(ImmutableIntegerBoundSum {
             first: SymbolHandle::from_arena_index(20),
             second: SymbolHandle::from_arena_index(30),
@@ -448,7 +449,7 @@ fn immutable_integer_bound_sums_normalize_two_term_orderings() {
     let i_minus_one = binary(&mut program, i, BinaryOperator::Subtract, one);
     let shifted_down = binary(&mut program, i_minus_one, BinaryOperator::Add, j);
     assert_eq!(
-        immutable_integer_bound_sum(&program, shifted_down),
+        immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), shifted_down),
         Some(ImmutableIntegerBoundSum {
             first: SymbolHandle::from_arena_index(20),
             second: SymbolHandle::from_arena_index(30),
@@ -462,20 +463,20 @@ fn immutable_integer_bound_sums_reject_unspelled_terms() {
     let (mut program, i, j, k, _one) = sum_fixture();
     // `x + x` carries coefficient two: no spelling.
     let doubled = binary(&mut program, i, BinaryOperator::Add, i);
-    assert!(immutable_integer_bound_sum(&program, doubled).is_none());
+    assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), doubled).is_none());
     // A third distinct symbol exceeds the two-term vocabulary.
     let i_plus_j = binary(&mut program, i, BinaryOperator::Add, j);
     let triple = binary(&mut program, i_plus_j, BinaryOperator::Add, k);
-    assert!(immutable_integer_bound_sum(&program, triple).is_none());
+    assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), triple).is_none());
     // `i - j` needs a negative coefficient on `j`.
     let difference = binary(&mut program, i, BinaryOperator::Subtract, j);
-    assert!(immutable_integer_bound_sum(&program, difference).is_none());
+    assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), difference).is_none());
     // `i * 2 + j` leaves an uninterpreted product.
     let doubled_i = binary(&mut program, i, BinaryOperator::Multiply, j);
     let product = binary(&mut program, doubled_i, BinaryOperator::Add, j);
-    assert!(immutable_integer_bound_sum(&program, product).is_none());
+    assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), product).is_none());
     // A single term is the plain `symbol + offset` vocabulary, not a sum.
-    assert!(immutable_integer_bound_sum(&program, i).is_none());
+    assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), i).is_none());
 }
 
 #[test]
@@ -515,6 +516,6 @@ fn immutable_integer_bound_sums_require_exact_immutable_terms() {
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
         let expression = binary(&mut program, i, BinaryOperator::Add, j);
-        assert!(immutable_integer_bound_sum(&program, expression).is_none());
+        assert!(immutable_integer_bound_sum(&program, &ImmutableBoundLookup::new(&program), expression).is_none());
     }
 }

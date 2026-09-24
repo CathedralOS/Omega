@@ -174,6 +174,19 @@ pub(crate) fn find_call_site<'program>(
 ) -> Option<CallSite<'program>> {
     let state = find_state_in_machine(program, machine_symbol, state_symbol)?;
     let machine = machine_by_symbol(program, machine_symbol)?;
+    find_call_site_in_state(program, machine, state, statement_index, call_ordinal)
+}
+
+/// Call-site resolution against an already-located machine/state pair, for
+/// callers that own the symbols' storage (e.g. every checked body call of one
+/// state) and must not rescan the program per call.
+pub(crate) fn find_call_site_in_state<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<CallSite<'program>> {
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -189,6 +202,37 @@ pub(crate) fn find_call_site<'program>(
         &mut current_ordinal,
     );
     find_call_site_in_statement(&mut traversal, statement)
+}
+
+/// One traversal over a statement recording every call site in ordinal order.
+/// Batching per statement keeps per-call work off quadratic re-walks when a
+/// caller (checked-body source binding) needs every site anyway.
+pub(crate) fn collect_call_sites_in_statement<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    statement_index: usize,
+) -> Vec<CallSite<'program>> {
+    let mut collected = Vec::new();
+    let Some(statement) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)
+    else {
+        return collected;
+    };
+    let mut current_ordinal = 0usize;
+    let mut traversal = CallSiteTraversal::collecting(
+        program,
+        machine,
+        state,
+        statement_index,
+        &mut current_ordinal,
+        &mut collected,
+    );
+    let _ = find_call_site_in_statement(&mut traversal, statement);
+    drop(traversal);
+    collected
 }
 
 /// Reuse call-ordinal traversal to distinguish guard evaluation from the two

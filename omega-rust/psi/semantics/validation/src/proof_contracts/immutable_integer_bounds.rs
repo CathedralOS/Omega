@@ -1,8 +1,68 @@
+use std::collections::HashMap;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::signature::StateParameter;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::types::PrimitiveType;
+
+/// One whole-program resolution index behind the bound-leaf lookups in this
+/// module. Bound evidence re-resolves the same immutable locals and state
+/// parameters once per leaf expression; a caller decomposing many bound
+/// expressions builds the index once and reuses it instead of rescanning
+/// every machine's statements and parameter lists per leaf. `None` entries
+/// preserve the scans' ambiguity verdicts: a name or symbol owned by more
+/// than one declaration has no bound identity.
+pub struct ImmutableBoundLookup<'program> {
+    locals_by_symbol: HashMap<SymbolHandle, Option<&'program TableLocalData>>,
+    locals_by_name: HashMap<&'program str, Option<&'program TableLocalData>>,
+    parameters_by_symbol: HashMap<SymbolHandle, Option<&'program StateParameter>>,
+    machine_self_parameters: HashMap<SymbolHandle, &'program StateParameter>,
+}
+
+impl<'program> ImmutableBoundLookup<'program> {
+    pub fn new(program: &'program TypedTrees) -> Self {
+        let mut lookup = ImmutableBoundLookup {
+            locals_by_symbol: HashMap::new(),
+            locals_by_name: HashMap::new(),
+            parameters_by_symbol: HashMap::new(),
+            machine_self_parameters: HashMap::new(),
+        };
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for parameter in program.state_parameters(state) {
+                    lookup
+                        .parameters_by_symbol
+                        .entry(parameter.symbol)
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(Some(parameter));
+                    if parameter.is_self {
+                        lookup
+                            .machine_self_parameters
+                            .entry(machine.symbol)
+                            .or_insert(parameter);
+                    }
+                }
+                for statement in program.statement_table.statements(state.statement_nodes) {
+                    let StatementNode::LocalData(local) = statement else {
+                        continue;
+                    };
+                    lookup
+                        .locals_by_symbol
+                        .entry(local.symbol)
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(Some(local));
+                    lookup
+                        .locals_by_name
+                        .entry(local.name.as_str())
+                        .and_modify(|entry| *entry = None)
+                        .or_insert(Some(local));
+                }
+            }
+        }
+        lookup
+    }
+}
 
 /// One immutable integer boundary shifted by a compile-time constant: the
 /// mathematical value `symbol + offset`, valid only under Exact arithmetic.
@@ -63,9 +123,10 @@ enum NormalizedBound {
 /// unique immutable local in the complete typed program.
 pub fn normalize_immutable_integer_bound_expression(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    match normalize_bound(program, expression, &mut Vec::new())? {
+    match normalize_bound(program, lookup, expression, &mut Vec::new())? {
         NormalizedBound::Expression(expression) => Some(expression),
         NormalizedBound::LocalValue(_) | NormalizedBound::MutableValue => None,
     }
@@ -78,9 +139,10 @@ pub fn normalize_immutable_integer_bound_expression(
 /// Static-index callers continue to use the expression/usize normalizers.
 pub fn immutable_integer_bound_value_symbol(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    match normalize_bound(program, expression, &mut Vec::new())? {
+    match normalize_bound(program, lookup, expression, &mut Vec::new())? {
         NormalizedBound::LocalValue(symbol) => Some(symbol),
         NormalizedBound::Expression(_) | NormalizedBound::MutableValue => None,
     }
@@ -88,6 +150,7 @@ pub fn immutable_integer_bound_value_symbol(
 
 pub fn immutable_integer_bound_symbol_offset(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundOffset> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
@@ -120,7 +183,7 @@ pub fn immutable_integer_bound_symbol_offset(
         }
         _ => return None,
     };
-    let symbol = bound_leaf_symbol(program, base)?;
+    let symbol = bound_leaf_symbol(program, lookup, base)?;
     Some(ImmutableIntegerBoundOffset { symbol, offset })
 }
 
@@ -134,10 +197,11 @@ pub fn immutable_integer_bound_symbol_offset(
 /// or term the vocabulary cannot express.
 pub fn immutable_integer_bound_sum(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ImmutableIntegerBoundSum> {
     let mut terms = BoundSumTerms::default();
-    collect_bound_terms(program, expression, &mut terms, 0)?;
+    collect_bound_terms(program, lookup, expression, &mut terms, 0)?;
     let (Some(mut first), Some(mut second)) = (terms.first, terms.second) else {
         return None;
     };
@@ -160,6 +224,7 @@ struct BoundSumTerms {
 
 fn collect_bound_terms(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
     terms: &mut BoundSumTerms,
     depth: usize,
@@ -177,11 +242,11 @@ fn collect_bound_terms(
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => match binary.operator {
             typed_trees::expression::BinaryOperator::Add => {
-                collect_bound_terms(program, binary.left, terms, depth + 1)?;
-                collect_bound_terms(program, binary.right, terms, depth + 1)
+                collect_bound_terms(program, lookup, binary.left, terms, depth + 1)?;
+                collect_bound_terms(program, lookup, binary.right, terms, depth + 1)
             }
             typed_trees::expression::BinaryOperator::Subtract => {
-                collect_bound_terms(program, binary.left, terms, depth + 1)?;
+                collect_bound_terms(program, lookup, binary.left, terms, depth + 1)?;
                 // Only a constant right side folds; `a - b` would carry a
                 // negative coefficient on `b`, which has no spelling.
                 let value = program
@@ -193,12 +258,12 @@ fn collect_bound_terms(
             _ => None,
         },
         _ => {
-            let symbol = bound_leaf_symbol(program, expression)?;
-            if let Some(initializer) = bound_leaf_initializer(program, expression) {
+            let symbol = bound_leaf_symbol(program, lookup, expression)?;
+            if let Some(initializer) = bound_leaf_initializer(program, lookup, expression) {
                 // An immutable local bound to a bound-shaped initializer
                 // contributes that initializer's terms: the local stores the
                 // expression's exact value, never a retargetable alias.
-                return collect_bound_terms(program, initializer, terms, depth + 1);
+                return collect_bound_terms(program, lookup, initializer, terms, depth + 1);
             }
             if terms.first == Some(symbol) || terms.second == Some(symbol) {
                 // `x + x` is `2x`; coefficient-one terms cannot express it.
@@ -223,6 +288,7 @@ fn collect_bound_terms(
 /// leaf's own symbol instead.
 fn bound_leaf_initializer(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -231,7 +297,7 @@ fn bound_leaf_initializer(
     if !path.symbol.is_valid() || path.head_symbol != path.symbol {
         return None;
     }
-    let LocalLookup::Found(local) = local_by_symbol(program, path.symbol) else {
+    let LocalLookup::Found(local) = local_by_symbol(lookup, path.symbol) else {
         return None;
     };
     if local.is_mutable || !local.initial_value.is_valid() {
@@ -253,7 +319,11 @@ fn bound_leaf_initializer(
 /// single-segment name whose declared type is an exact-domain integer
 /// primitive, followed through finite immutable local copies. Mutable,
 /// ambiguous, qualified, and non-integer leaves have no bound identity.
-fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<SymbolHandle> {
+fn bound_leaf_symbol(
+    program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
+    base: ExpressionHandle,
+) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(base) else {
         return None;
     };
@@ -263,13 +333,13 @@ fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<Sym
     }
 
     let type_reference = if path.symbol.is_valid() && path.head_symbol == path.symbol {
-        match local_by_symbol(program, path.symbol) {
+        match local_by_symbol(lookup, path.symbol) {
             LocalLookup::Found(local) => local.type_reference,
-            LocalLookup::Missing => parameter_by_symbol(program, path.symbol)?.type_reference,
+            LocalLookup::Missing => parameter_by_symbol(lookup, path.symbol)?.type_reference,
             LocalLookup::Invalid => return None,
         }
     } else {
-        match local_by_name(program, members[0].as_str()) {
+        match local_by_name(lookup, members[0].as_str()) {
             LocalLookup::Found(local) => local.type_reference,
             LocalLookup::Missing | LocalLookup::Invalid => return None,
         }
@@ -293,7 +363,7 @@ fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<Sym
         return None;
     }
 
-    match normalize_bound(program, base, &mut Vec::new())? {
+    match normalize_bound(program, lookup, base, &mut Vec::new())? {
         NormalizedBound::LocalValue(symbol) => Some(symbol),
         NormalizedBound::Expression(expression) => {
             let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -318,6 +388,7 @@ fn bound_leaf_symbol(program: &TypedTrees, base: ExpressionHandle) -> Option<Sym
 /// established. Immutable bindings continue through the immutable readers.
 pub fn mutable_integer_bound_storage_symbol(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -329,9 +400,9 @@ pub fn mutable_integer_bound_storage_symbol(
     }
     let (symbol, is_mutable, type_reference) =
         if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            bound_name_receiver(program, path)?
+            bound_name_receiver(lookup, path)?
         } else {
-            match local_by_name(program, members[0].as_str()) {
+            match local_by_name(lookup, members[0].as_str()) {
                 LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
                 LocalLookup::Missing | LocalLookup::Invalid => return None,
             }
@@ -373,10 +444,11 @@ pub fn mutable_integer_bound_storage_symbol(
 /// receiver the value currently stored under the projected coordinate,
 /// which stated evidence can only claim under the version-pin evidence the
 /// storage vocabulary already requires.
-fn projected_integer_bound_field(
-    program: &TypedTrees,
+fn projected_integer_bound_field<'program>(
+    program: &'program TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
-) -> Option<(SymbolHandle, &typed_trees::data::DataField, bool)> {
+) -> Option<(SymbolHandle, &'program typed_trees::data::DataField, bool)> {
     let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -392,9 +464,9 @@ fn projected_integer_bound_field(
     }
     let (symbol, is_mutable, type_reference) =
         if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            bound_name_receiver(program, path)?
+            bound_name_receiver(lookup, path)?
         } else {
-            match local_by_name(program, members[0].as_str()) {
+            match local_by_name(lookup, members[0].as_str()) {
                 LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
                 LocalLookup::Missing | LocalLookup::Invalid => return None,
             }
@@ -457,9 +529,10 @@ fn projected_integer_bound_field(
 
 pub fn projected_integer_bound_root(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, SymbolHandle, bool)> {
-    let (symbol, field, is_mutable) = projected_integer_bound_field(program, expression)?;
+    let (symbol, field, is_mutable) = projected_integer_bound_field(program, lookup, expression)?;
     let primitive = program
         .type_reference_table
         .primitive_type(field.type_reference)?;
@@ -489,6 +562,7 @@ pub fn projected_integer_bound_root(
 /// the bound vocabulary.
 pub fn indexed_integer_bound_root(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -503,9 +577,9 @@ pub fn indexed_integer_bound_root(
                 }
                 let (symbol, is_mutable, type_reference) =
                     if path.symbol.is_valid() && path.head_symbol == path.symbol {
-                        bound_name_receiver(program, path)?
+                        bound_name_receiver(lookup, path)?
                     } else {
-                        match local_by_name(program, members[0].as_str()) {
+                        match local_by_name(lookup, members[0].as_str()) {
                             LocalLookup::Found(local) => {
                                 (local.symbol, local.is_mutable, local.type_reference)
                             }
@@ -519,7 +593,7 @@ pub fn indexed_integer_bound_root(
             // resolved segment.
             ExpressionNode::Member(_) => {
                 let (symbol, field, is_mutable) =
-                    projected_integer_bound_field(program, indexed.collection)?;
+                    projected_integer_bound_field(program, lookup, indexed.collection)?;
                 (
                     symbol,
                     vec![facts::PlaceSegment::Field {
@@ -569,9 +643,10 @@ pub fn indexed_integer_bound_root(
 /// declared domain or contract type.
 pub fn projected_integer_bound_subject_type(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    projected_integer_bound_field(program, expression).map(|(_, field, _)| field.type_reference)
+    projected_integer_bound_field(program, lookup, expression).map(|(_, field, _)| field.type_reference)
 }
 
 /// Normalize an integer literal or finite immutable local-copy chain to one
@@ -579,9 +654,10 @@ pub fn projected_integer_bound_subject_type(
 /// shape remain unknown.
 pub fn normalize_immutable_integer_bound_to_usize(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    let expression = normalize_immutable_integer_bound_expression(program, expression)?;
+    let expression = normalize_immutable_integer_bound_expression(program, lookup, expression)?;
     program
         .expression_table
         .constant_integer_value(expression)
@@ -590,6 +666,7 @@ pub fn normalize_immutable_integer_bound_to_usize(
 
 fn normalize_bound(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
     seen_aliases: &mut Vec<SymbolHandle>,
 ) -> Option<NormalizedBound> {
@@ -605,20 +682,20 @@ fn normalize_bound(
                 return None;
             }
             if path.symbol.is_valid() && path.head_symbol == path.symbol {
-                match local_by_symbol(program, path.symbol) {
+                match local_by_symbol(lookup, path.symbol) {
                     LocalLookup::Missing => {
-                        if parameter_mutability(program, path.symbol)? {
+                        if parameter_mutability(lookup, path.symbol)? {
                             Some(NormalizedBound::MutableValue)
                         } else {
                             Some(NormalizedBound::Expression(expression))
                         }
                     }
-                    LocalLookup::Found(local) => normalize_local(program, local, seen_aliases),
+                    LocalLookup::Found(local) => normalize_local(program, lookup, local, seen_aliases),
                     LocalLookup::Invalid => None,
                 }
             } else {
-                match local_by_name(program, members[0].as_str()) {
-                    LocalLookup::Found(local) => normalize_local(program, local, seen_aliases),
+                match local_by_name(lookup, members[0].as_str()) {
+                    LocalLookup::Found(local) => normalize_local(program, lookup, local, seen_aliases),
                     LocalLookup::Missing | LocalLookup::Invalid => None,
                 }
             }
@@ -629,6 +706,7 @@ fn normalize_bound(
 
 fn normalize_local(
     program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     local: &TableLocalData,
     seen_aliases: &mut Vec<SymbolHandle>,
 ) -> Option<NormalizedBound> {
@@ -641,7 +719,7 @@ fn normalize_local(
     seen_aliases.push(local.symbol);
     let normalized = match program.expression_table.expression(local.initial_value) {
         ExpressionNode::Integer(_) | ExpressionNode::Name(_) => {
-            normalize_bound(program, local.initial_value, seen_aliases).map(|bound| match bound {
+            normalize_bound(program, lookup, local.initial_value, seen_aliases).map(|bound| match bound {
                 // The local stores a value, not a retargetable alias to its source.
                 NormalizedBound::MutableValue => NormalizedBound::LocalValue(local.symbol),
                 bound => bound,
@@ -658,27 +736,16 @@ fn normalize_local(
 /// local, a state parameter, or — when the name resolves to the machine
 /// itself — the machine's `self` receiver parameter.
 fn bound_name_receiver(
-    program: &TypedTrees,
+    lookup: &ImmutableBoundLookup<'_>,
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<(SymbolHandle, bool, typed_trees::types::TypeReferenceHandle)> {
-    match local_by_symbol(program, path.symbol) {
+    match local_by_symbol(lookup, path.symbol) {
         LocalLookup::Found(local) => Some((local.symbol, local.is_mutable, local.type_reference)),
         LocalLookup::Missing => {
-            if let Some(parameter) = parameter_by_symbol(program, path.symbol) {
+            if let Some(parameter) = parameter_by_symbol(lookup, path.symbol) {
                 Some((path.symbol, parameter.is_mutable, parameter.type_reference))
             } else {
-                let parameter = program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == path.symbol)
-                    .and_then(|machine| {
-                        program.machine_states(machine).iter().find_map(|state| {
-                            program
-                                .state_parameters(state)
-                                .iter()
-                                .find(|parameter| parameter.is_self)
-                        })
-                    })?;
+                let parameter = lookup.machine_self_parameters.get(&path.symbol)?;
                 Some((path.symbol, parameter.is_mutable, parameter.type_reference))
             }
         }
@@ -686,61 +753,41 @@ fn bound_name_receiver(
     }
 }
 
-fn local_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> LocalLookup<'_> {
-    unique_local(program, |local| local.symbol == symbol)
-}
-
-fn local_by_name<'program>(program: &'program TypedTrees, name: &str) -> LocalLookup<'program> {
-    unique_local(program, |local| local.name.as_str() == name)
-}
-
-fn unique_local(
-    program: &TypedTrees,
-    matches: impl Fn(&TableLocalData) -> bool,
-) -> LocalLookup<'_> {
-    let mut matching = None;
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                let StatementNode::LocalData(local) = statement else {
-                    continue;
-                };
-                if !matches(local) {
-                    continue;
-                }
-                if matching.is_some() {
-                    return LocalLookup::Invalid;
-                }
-                matching = Some(local);
-            }
-        }
-    }
-    matching.map_or(LocalLookup::Missing, LocalLookup::Found)
-}
-
-fn parameter_mutability(program: &TypedTrees, symbol: SymbolHandle) -> Option<bool> {
-    let mut matching = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .flat_map(|state| program.state_parameters(state))
-        .filter(|parameter| parameter.symbol == symbol);
-    let is_mutable = matching
-        .next()
-        .is_some_and(|parameter| parameter.is_mutable);
-    matching.next().is_none().then_some(is_mutable)
-}
-
-fn parameter_by_symbol(
-    program: &TypedTrees,
+fn local_by_symbol<'program>(
+    lookup: &ImmutableBoundLookup<'program>,
     symbol: SymbolHandle,
-) -> Option<&typed_trees::signature::StateParameter> {
-    let mut matching = program
-        .machines()
-        .iter()
-        .flat_map(|machine| program.machine_states(machine))
-        .flat_map(|state| program.state_parameters(state))
-        .filter(|parameter| parameter.symbol == symbol);
-    let parameter = matching.next()?;
-    matching.next().is_none().then_some(parameter)
+) -> LocalLookup<'program> {
+    match lookup.locals_by_symbol.get(&symbol) {
+        Some(Some(local)) => LocalLookup::Found(local),
+        Some(None) => LocalLookup::Invalid,
+        None => LocalLookup::Missing,
+    }
+}
+
+fn local_by_name<'program>(
+    lookup: &ImmutableBoundLookup<'program>,
+    name: &str,
+) -> LocalLookup<'program> {
+    match lookup.locals_by_name.get(name) {
+        Some(Some(local)) => LocalLookup::Found(local),
+        Some(None) => LocalLookup::Invalid,
+        None => LocalLookup::Missing,
+    }
+}
+
+fn parameter_mutability(lookup: &ImmutableBoundLookup<'_>, symbol: SymbolHandle) -> Option<bool> {
+    match lookup.parameters_by_symbol.get(&symbol) {
+        Some(Some(parameter)) => Some(parameter.is_mutable),
+        // An ambiguous parameter symbol has no bound identity; a symbol that
+        // never declared a parameter cannot be mutable.
+        Some(None) => None,
+        None => Some(false),
+    }
+}
+
+fn parameter_by_symbol<'program>(
+    lookup: &ImmutableBoundLookup<'program>,
+    symbol: SymbolHandle,
+) -> Option<&'program StateParameter> {
+    lookup.parameters_by_symbol.get(&symbol).copied().flatten()
 }

@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
 
 mod call_writes;
 pub(super) use call_writes::RangeCallContext;
@@ -17,6 +19,7 @@ pub(super) struct RangeFacts<'field> {
     pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
     pub(super) statement_index: usize,
     expression_dependencies: Vec<dependencies::ExpressionDependencies>,
+    recorded_expressions: HashSet<(ExpressionHandle, SymbolHandle, SymbolHandle)>,
     fields: &'field [(SymbolHandle, String, usize)],
     integer_fields: Vec<(SymbolHandle, String, i64)>,
     locals: Vec<(SymbolHandle, String, usize)>,
@@ -66,6 +69,7 @@ impl<'field> RangeFacts<'field> {
             ),
             statement_index: 0,
             expression_dependencies: Vec::new(),
+            recorded_expressions: HashSet::new(),
             fields,
             integer_fields: Vec::new(),
             locals: Vec::new(),

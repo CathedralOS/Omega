@@ -73,11 +73,10 @@ pub(super) fn find_call_site_in_expression<'program>(
                     receiver_path.as_deref(),
                 );
 
-            if is_machine_call {
-                if traversal.is_target_call_site() {
-                    return Some(CallSite::Expression { expression, call });
-                }
-                traversal.advance_call_ordinal();
+            if is_machine_call
+                && let Some(site) = traversal.visit(CallSite::Expression { expression, call })
+            {
+                return Some(site);
             }
 
             if call.receiver.is_valid()

@@ -13,6 +13,7 @@ use typed_trees::state::State;
 
 pub(super) fn append_membership_premises(
     program: &TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     machine: &Machine,
     state: &State,
     fact: Handle<ContractProofFact>,
@@ -49,8 +50,8 @@ pub(super) fn append_membership_premises(
     {
         return;
     }
-    let Some(subject) = super::normalized_bound(program, membership.value)
-        .or_else(|| super::projected_immutable_bound(program, membership.value))
+    let Some(subject) = super::normalized_bound(program, lookup, membership.value)
+        .or_else(|| super::projected_immutable_bound(program, lookup, membership.value))
     else {
         return;
     };
@@ -64,6 +65,7 @@ pub(super) fn append_membership_premises(
         };
         decompose_premise_expression(
             program,
+            lookup,
             PremiseScope::Domain {
                 definition: domain,
                 subject: subject.clone(),
