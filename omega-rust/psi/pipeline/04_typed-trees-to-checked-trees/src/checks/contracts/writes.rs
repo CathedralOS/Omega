@@ -2424,3 +2424,81 @@ mod predicate_domain_write_probes {
         );
     }
 }
+
+/// Whether a callee that writes through a domain-qualified MUTABLE parameter
+/// owes that domain. A caller may only treat such a call as re-establishing
+/// the domain on its argument if the callee cannot return having broken it.
+#[cfg(test)]
+mod mutable_parameter_domain_probes {
+    use crate::tests::front_end::checked_program_result;
+
+    fn accepted(source: &str) -> bool {
+        checked_program_result(source).is_ok()
+    }
+
+    /// The caller's side of the same rule: the mutation retires whatever the
+    /// caller knew about the place, and the callee's declared parameter domain
+    /// is what restores it. Without that an out parameter could never carry a
+    /// domain -- the first call would break every later use of the place.
+    #[test]
+    fn a_qualified_mutable_parameter_returns_its_domain_to_the_caller() {
+        let outcome = checked_program_result(
+            "domain i32::Small requires 0 <= self && self <= 30;
+                machine fill(out: &mut i32 in Small) { out = 5; }
+                machine need(value: i32 in Small) { }
+                data Main { slot: i32 in Small; }
+                machine Main::main(&mut self) {
+                    self.slot = 7;
+                    fill(&mut self.slot);
+                    need(self.slot);
+                }",
+        );
+        assert!(
+            outcome.is_ok(),
+            "the write through `out` owed `Small`, so `self.slot` holds it again on return: {:#?}",
+            outcome.err()
+        );
+    }
+
+    /// The control: publishing the postcondition must not excuse the
+    /// PRECONDITION. A place holding a value outside the domain cannot be
+    /// lent to a parameter that requires it.
+    #[test]
+    fn a_place_outside_the_domain_cannot_be_lent_to_a_qualified_mutable_parameter() {
+        assert!(
+            !accepted(
+                "domain i32::Small requires 0 <= self && self <= 30;
+                machine fill(out: &mut i32 in Small) { out = 5; }
+                data Main { raw: i32; }
+                machine Main::main(&mut self) {
+                    self.raw = 900;
+                    fill(&mut self.raw);
+                }"
+            ),
+            "`raw` holds 900, so the call's own requirement still rejects"
+        );
+    }
+
+    #[test]
+    fn a_write_through_a_qualified_mutable_parameter_owes_the_domain() {
+        let program = |value: &str| {
+            format!(
+                "domain i32::Small requires 0 <= self && self <= 30;
+                data Cell {{ v: i32 in Small; }}
+                machine fill(out: &mut Cell, given: i32 in Small) {{
+                    out.v = {value};
+                }}
+                data Main {{ cell: Cell; }}
+                machine Main::main(&mut self) {{ }}"
+            )
+        };
+        assert!(
+            accepted(&program("given")),
+            "a value declared in the domain establishes it"
+        );
+        assert!(
+            !accepted(&program("900")),
+            "a write through a qualified mutable parameter must owe the domain"
+        );
+    }
+}

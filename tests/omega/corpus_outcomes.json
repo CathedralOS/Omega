@@ -11990,7 +11990,7 @@
   "fixture": "fail/text/bounded_carrier_construction_over_capacity_rejected",
   "tier": "fail",
   "status": "rejected",
-  "millis": 66,
+  "millis": 70,
   "expected_satisfied": true,
   "diagnostics": [
    "construction of `Holder` field `label` supplies a value up to 5 byte(s), exceeding the 4-byte capacity of its `[u8; 4]` carrier; a bounded text carrier requires every write to provably fit"
@@ -12000,7 +12000,7 @@
   "fixture": "fail/text/bounded_carrier_growth_overflow_rejected",
   "tier": "fail",
   "status": "rejected",
-  "millis": 75,
+  "millis": 71,
   "expected_satisfied": true,
   "diagnostics": [
    "the value assigned to `self.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit"
@@ -12010,7 +12010,7 @@
   "fixture": "fail/text/bounded_carrier_return_over_capacity_rejected",
   "tier": "fail",
   "status": "rejected",
-  "millis": 0,
+  "millis": 2,
   "expected_satisfied": true,
   "diagnostics": [
    "machine `Main::too_long` state `too_long` terminal expression constructs 5 byte(s), exceeding the 4-byte capacity of `[u8; 4][in Utf8]`"
@@ -20187,7 +20187,7 @@
   "fixture": "pass/dungeon/runtime_boolean_helper_guard_dispatch",
   "tier": "pass",
   "status": "checked",
-  "millis": 67,
+  "millis": 72,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20195,11 +20195,9 @@
   "fixture": "pass/dungeon/runtime_clear_carve_render_string_fields_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 106,
+  "millis": 141,
   "expected_satisfied": null,
   "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8",
    "cannot use `self.level.start_cell` while `self.level` is absent from borrowed storage: the value moved out at statement 1 must be restored first",
    "cannot transfer `self.level.start_cell` out of borrowed storage while `self.level` is absent: the value moved at statement 1 has not been replaced",
    "cannot make a boundary or service call at statement 1 while `self.level` is absent: restore the value moved out of borrowed storage at statement 1 first",
@@ -20214,7 +20212,7 @@
   "fixture": "pass/dungeon/runtime_direct_boolean_conjunction_dispatch",
   "tier": "pass",
   "status": "checked",
-  "millis": 56,
+  "millis": 77,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20222,7 +20220,7 @@
   "fixture": "pass/dungeon/runtime_direct_boolean_conjunction_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 194,
+  "millis": 434,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20230,7 +20228,7 @@
   "fixture": "pass/dungeon/runtime_enemy_clear_reentry_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 170,
+  "millis": 408,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20238,7 +20236,7 @@
   "fixture": "pass/dungeon/runtime_enemy_clear_reentry_guard",
   "tier": "pass",
   "status": "checked",
-  "millis": 51,
+  "millis": 76,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20246,11 +20244,9 @@
   "fixture": "pass/dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 197,
+  "millis": 237,
   "expected_satisfied": null,
   "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8",
    "cannot make a boundary or service call at statement 11 while `self.level` is absent: restore the value moved out of borrowed storage at statement 11 first",
    "cannot make a boundary or service call at statement 12 while `self.level` is absent: restore the value moved out of borrowed storage at statement 11 first",
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 11): `self.level` must hold a value again before this state's exits consume the borrow",
@@ -20263,7 +20259,7 @@
   "fixture": "pass/dungeon/runtime_guarded_inline_leaf_arm_skip_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 183,
+  "millis": 412,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20271,7 +20267,7 @@
   "fixture": "pass/dungeon/runtime_multi_room_reentry_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 203,
+  "millis": 448,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20279,7 +20275,7 @@
   "fixture": "pass/dungeon/runtime_nested_value_call_caller_local_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 488,
+  "millis": 1114,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20287,7 +20283,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_after_call_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 188,
+  "millis": 406,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20295,7 +20291,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 176,
+  "millis": 369,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20303,7 +20299,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_game_shape_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 206,
+  "millis": 414,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20311,7 +20307,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_large_machine_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 279,
+  "millis": 553,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20319,7 +20315,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_loop_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 241,
+  "millis": 556,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20327,7 +20323,7 @@
   "fixture": "pass/dungeon/runtime_ordered_room_dispatch_real_show_states_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 290,
+  "millis": 333,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20335,7 +20331,7 @@
   "fixture": "pass/dungeon/runtime_room_use_reentry_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 171,
+  "millis": 181,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20343,7 +20339,7 @@
   "fixture": "pass/dungeon/runtime_room_use_reentry_guard",
   "tier": "pass",
   "status": "checked",
-  "millis": 63,
+  "millis": 68,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -20351,7 +20347,7 @@
   "fixture": "pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 173,
+  "millis": 201,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27670,7 +27666,7 @@
   "fixture": "pass/text/case_literal_texteq_field_store_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 171,
+  "millis": 197,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27678,7 +27674,7 @@
   "fixture": "pass/text/case_literal_texteq_terminal_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 176,
+  "millis": 202,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27686,7 +27682,7 @@
   "fixture": "pass/text/domain_forget_validate_transitions",
   "tier": "pass",
   "status": "rejected",
-  "millis": 0,
+  "millis": 1,
   "expected_satisfied": null,
   "diagnostics": [
    "argument `text` for state `validate_utf8` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding",
@@ -27697,7 +27693,7 @@
   "fixture": "pass/text/no_nul_boundary_established",
   "tier": "pass",
   "status": "rejected",
-  "millis": 1,
+  "millis": 0,
   "expected_satisfied": null,
   "diagnostics": [
    "argument `text` for state `validate_no_nul` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding"
@@ -27707,7 +27703,7 @@
   "fixture": "pass/text/runtime_alias_string_write",
   "tier": "pass",
   "status": "checked",
-  "millis": 65,
+  "millis": 70,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27715,7 +27711,7 @@
   "fixture": "pass/text/runtime_alias_text_builder_write",
   "tier": "pass",
   "status": "checked",
-  "millis": 63,
+  "millis": 57,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27723,7 +27719,7 @@
   "fixture": "pass/text/runtime_base64_encode_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 211,
+  "millis": 193,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27731,7 +27727,7 @@
   "fixture": "pass/text/runtime_binary_format_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 233,
+  "millis": 239,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call loop from Main::main::store: parameter self.out requires [u8; N]::Utf8"
@@ -27740,56 +27736,13 @@
  {
   "fixture": "pass/text/runtime_bounded_carrier_alias_concat_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 90,
+  "status": "checked",
+  "millis": 198,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_bounded_carrier_byte_index_exit",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 180,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/text/runtime_bounded_carrier_byte_widen_exit",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 164,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/text/runtime_bounded_carrier_byte_write_exit",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 178,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/text/runtime_bounded_carrier_concat_exit",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 173,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/text/runtime_bounded_carrier_length_exit",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 65,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/text/runtime_bounded_carrier_length_field_exit",
   "tier": "pass",
   "status": "checked",
   "millis": 171,
@@ -27797,21 +27750,58 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/text/runtime_bounded_carrier_byte_widen_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 174,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/text/runtime_bounded_carrier_byte_write_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 187,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/text/runtime_bounded_carrier_concat_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 174,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/text/runtime_bounded_carrier_length_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 61,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/text/runtime_bounded_carrier_length_field_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 179,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/text/runtime_bounded_carrier_local_source_concat_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 77,
+  "status": "checked",
+  "millis": 191,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_bounded_carrier_pointee_guard_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 93,
+  "millis": 88,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot make a boundary or service call at statement 2 while `self.level` is absent: restore the value moved out of borrowed storage at statement 2 first",
@@ -27823,7 +27813,7 @@
   "fixture": "pass/text/runtime_bounded_carrier_slice_field_write_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 185,
+  "millis": 171,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27841,7 +27831,7 @@
   "fixture": "pass/text/runtime_bounded_carrier_write_read_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 164,
+  "millis": 182,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27849,7 +27839,7 @@
   "fixture": "pass/text/runtime_call_argument_struct_string_field_slice_alias_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 192,
+  "millis": 208,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27857,7 +27847,7 @@
   "fixture": "pass/text/runtime_carrier_byte_write_width_coercion",
   "tier": "pass",
   "status": "checked",
-  "millis": 179,
+  "millis": 174,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27865,7 +27855,7 @@
   "fixture": "pass/text/runtime_carrier_cipher_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 185,
+  "millis": 187,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27873,7 +27863,7 @@
   "fixture": "pass/text/runtime_carrier_fnv_loop_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 507,
+  "millis": 535,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27881,7 +27871,7 @@
   "fixture": "pass/text/runtime_carrier_indexed_const_write_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 188,
+  "millis": 201,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27889,7 +27879,7 @@
   "fixture": "pass/text/runtime_carrier_indexed_read_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 174,
+  "millis": 196,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27897,7 +27887,7 @@
   "fixture": "pass/text/runtime_carrier_indexed_read_operand_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 192,
+  "millis": 161,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27905,7 +27895,7 @@
   "fixture": "pass/text/runtime_carrier_indexed_write_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 494,
+  "millis": 498,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27913,7 +27903,7 @@
   "fixture": "pass/text/runtime_carrier_itoa_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 500,
+  "millis": 533,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27921,7 +27911,7 @@
   "fixture": "pass/text/runtime_carrier_len_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 174,
+  "millis": 189,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27929,7 +27919,7 @@
   "fixture": "pass/text/runtime_case_payload_domain_forward_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 72,
+  "millis": 79,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove requires contract for call consume from Main::main: cmd::Second.text in [u8]::Utf8"
@@ -27939,7 +27929,7 @@
   "fixture": "pass/text/runtime_chained_string_append_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 169,
+  "millis": 168,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27947,7 +27937,7 @@
   "fixture": "pass/text/runtime_crc32_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 468,
+  "millis": 556,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27955,7 +27945,7 @@
   "fixture": "pass/text/runtime_decimal_to_number_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 508,
+  "millis": 533,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -27963,11 +27953,9 @@
   "fixture": "pass/text/runtime_large_lookup_struct_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 85,
+  "millis": 89,
   "expected_satisfied": null,
   "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8",
    "cannot make a boundary or service call at statement 4 while `self.level` is absent: restore the value moved out of borrowed storage at statement 4 first",
    "cannot make a boundary or service call at statement 5 while `self.level` is absent: restore the value moved out of borrowed storage at statement 4 first",
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 4): `self.level` must hold a value again before this state's exits consume the borrow",
@@ -27980,11 +27968,9 @@
   "fixture": "pass/text/runtime_large_room_lookup_struct_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 130,
+  "millis": 103,
   "expected_satisfied": null,
   "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8",
    "cannot make a boundary or service call at statement 9 while `self.level` is absent: restore the value moved out of borrowed storage at statement 9 first",
    "cannot make a boundary or service call at statement 10 while `self.level` is absent: restore the value moved out of borrowed storage at statement 9 first",
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 9): `self.level` must hold a value again before this state's exits consume the borrow",
@@ -27997,7 +27983,7 @@
   "fixture": "pass/text/runtime_local_array_indexed_string_field_concat_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 179,
+  "millis": 182,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28005,7 +27991,7 @@
   "fixture": "pass/text/runtime_local_array_indexed_string_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 175,
+  "millis": 176,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28013,7 +27999,7 @@
   "fixture": "pass/text/runtime_local_struct_string_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 94,
+  "millis": 79,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call good from Main::main::render: parameter self.source.label requires [u8]::Utf8",
@@ -28025,11 +28011,9 @@
   "fixture": "pass/text/runtime_lookup_struct_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 106,
+  "millis": 87,
   "expected_satisfied": null,
   "diagnostics": [
-   "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.line requires [u8; N]::Utf8",
-   "cannot prove default-domain field requirement for call bad from Main::main::main: parameter self.line requires [u8; N]::Utf8",
    "cannot make a boundary or service call at statement 4 while `self.level` is absent: restore the value moved out of borrowed storage at statement 4 first",
    "cannot make a boundary or service call at statement 5 while `self.level` is absent: restore the value moved out of borrowed storage at statement 4 first",
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 4): `self.level` must hold a value again before this state's exits consume the borrow",
@@ -28042,7 +28026,7 @@
   "fixture": "pass/text/runtime_machine_owned_double_indexed_bounded_carrier_literal_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 173,
+  "millis": 186,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28050,7 +28034,7 @@
   "fixture": "pass/text/runtime_machine_owned_double_indexed_string_field_concat_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 190,
+  "millis": 188,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28058,7 +28042,7 @@
   "fixture": "pass/text/runtime_machine_owned_indexed_bounded_carrier_literal_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 79,
+  "millis": 88,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.rooms[0].label requires [u8; N]::Utf8",
@@ -28069,7 +28053,7 @@
   "fixture": "pass/text/runtime_machine_owned_indexed_string_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 86,
+  "millis": 76,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.rooms[0].description requires [u8]::Utf8",
@@ -28088,7 +28072,7 @@
   "fixture": "pass/text/runtime_mandelbrot_render_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 2552,
+  "millis": 1980,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28096,7 +28080,7 @@
   "fixture": "pass/text/runtime_mutable_string_parameter_concat_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 175,
+  "millis": 184,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28104,7 +28088,7 @@
   "fixture": "pass/text/runtime_mutable_string_parameter_concat_write_line",
   "tier": "pass",
   "status": "checked",
-  "millis": 185,
+  "millis": 188,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28112,7 +28096,7 @@
   "fixture": "pass/text/runtime_mutable_string_parameter_wrapped_concat_write_line",
   "tier": "pass",
   "status": "checked",
-  "millis": 162,
+  "millis": 175,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28120,7 +28104,7 @@
   "fixture": "pass/text/runtime_mutable_struct_string_field_copy_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 79,
+  "millis": 92,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 1)"
@@ -28130,7 +28114,7 @@
   "fixture": "pass/text/runtime_mutable_struct_string_field_copy_concat_write_line",
   "tier": "pass",
   "status": "rejected",
-  "millis": 100,
+  "millis": 90,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 2)"
@@ -28140,7 +28124,7 @@
   "fixture": "pass/text/runtime_number_to_decimal_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 516,
+  "millis": 572,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28148,7 +28132,7 @@
   "fixture": "pass/text/runtime_owned_string_byte_view_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 154,
+  "millis": 179,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28156,7 +28140,7 @@
   "fixture": "pass/text/runtime_param_domain_forward_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 176,
+  "millis": 184,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28164,7 +28148,7 @@
   "fixture": "pass/text/runtime_pointee_string_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 201,
+  "millis": 194,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28172,7 +28156,7 @@
   "fixture": "pass/text/runtime_run_length_encode_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 269,
+  "millis": 307,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call post from Main::main::emit_write: parameter self.out requires [u8; N]::Utf8"
@@ -28182,7 +28166,7 @@
   "fixture": "pass/text/runtime_slice_alias_indexed_string_field_concat_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 76,
+  "millis": 86,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call good from Main::main::main: parameter self.rooms[0].description requires [u8]::Utf8",
@@ -28193,7 +28177,7 @@
   "fixture": "pass/text/runtime_slice_fixed_indexed_string_guard_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 96,
+  "millis": 80,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call fail from Main::main::main: parameter self.rooms[0].label requires [u8]::Utf8",
@@ -28206,7 +28190,7 @@
   "fixture": "pass/text/runtime_slice_indexed_string_guard_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 104,
+  "millis": 94,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call fail from Main::main::main: parameter self.rooms[0].name requires [u8]::Utf8",
@@ -28219,7 +28203,7 @@
   "fixture": "pass/text/runtime_slice_machine_indexed_string_guard_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 76,
+  "millis": 94,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call fail from Main::main::main: parameter self.rooms[0].label requires [u8]::Utf8",
@@ -28232,7 +28216,7 @@
   "fixture": "pass/text/runtime_stderr_write_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 59,
+  "millis": 75,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28240,7 +28224,7 @@
   "fixture": "pass/text/runtime_stdin_command_branch_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 193,
+  "millis": 247,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28248,7 +28232,7 @@
   "fixture": "pass/text/runtime_stdin_line_buffering_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 174,
+  "millis": 223,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28256,7 +28240,7 @@
   "fixture": "pass/text/runtime_string_append_in_place_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 166,
+  "millis": 212,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28264,7 +28248,7 @@
   "fixture": "pass/text/runtime_string_concat_membership_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 173,
+  "millis": 203,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28272,7 +28256,7 @@
   "fixture": "pass/text/runtime_string_concat_two_fields_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 170,
+  "millis": 207,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28280,7 +28264,7 @@
   "fixture": "pass/text/runtime_string_field_concat_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 180,
+  "millis": 226,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28288,7 +28272,7 @@
   "fixture": "pass/text/runtime_string_field_literal_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 165,
+  "millis": 230,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28296,7 +28280,7 @@
   "fixture": "pass/text/runtime_string_palindrome_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 88,
+  "millis": 114,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove index `self.i` is within length 5 in Main::main::compare",
@@ -28307,7 +28291,7 @@
   "fixture": "pass/text/runtime_string_stored_suffix_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 78,
+  "millis": 100,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot prove default-domain field requirement for call good from Main::main::render: parameter self.source.label requires [u8]::Utf8",
@@ -28319,7 +28303,7 @@
   "fixture": "pass/text/runtime_substring_search_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 220,
+  "millis": 244,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28327,7 +28311,7 @@
   "fixture": "pass/text/runtime_text_builder",
   "tier": "pass",
   "status": "rejected",
-  "millis": 12,
+  "millis": 14,
   "expected_satisfied": null,
   "diagnostics": [
    "argument `text` for state `write_line` expects `&[u8][in Utf8]`, got `member access`"
@@ -28337,7 +28321,7 @@
   "fixture": "pass/text/runtime_text_equals_boolean_operand_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 174,
+  "millis": 202,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28345,7 +28329,7 @@
   "fixture": "pass/text/runtime_text_equals_value_positions_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 176,
+  "millis": 166,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28353,7 +28337,7 @@
   "fixture": "pass/text/runtime_text_not_equals_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 184,
+  "millis": 185,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28361,7 +28345,7 @@
   "fixture": "pass/text/runtime_text_storage",
   "tier": "pass",
   "status": "checked",
-  "millis": 201,
+  "millis": 194,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28369,7 +28353,7 @@
   "fixture": "pass/text/runtime_utf16_literal_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 177,
+  "millis": 175,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28377,7 +28361,7 @@
   "fixture": "pass/text/runtime_value_call_slice_view_carrier_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 179,
+  "millis": 187,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28393,7 +28377,7 @@
   "fixture": "pass/text/utf8_boundary_established",
   "tier": "pass",
   "status": "rejected",
-  "millis": 1,
+  "millis": 3,
   "expected_satisfied": null,
   "diagnostics": [
    "argument `text` for state `validate_utf8` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding"
@@ -28403,7 +28387,7 @@
   "fixture": "pass/text/zii_default_string_equality_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 181,
+  "millis": 153,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28411,7 +28395,7 @@
   "fixture": "pass/text/zii_string_host_write_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 182,
+  "millis": 132,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -29448,28 +29432,18 @@
  {
   "fixture": "run/contained_health_loop_command_branch",
   "tier": "run",
-  "status": "rejected",
-  "millis": 7,
+  "status": "checked",
+  "millis": 6,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove requires contract for call resolve from Game::run: self.line in [u8]::LineUtf8 (invalidated by prior mutation of self.line; self.line is part of [u8]::LineUtf8)",
-   "cannot prove default-domain field requirement for call look from Game::run::read_command: parameter self.line requires [u8; N]::LineUtf8",
-   "cannot prove default-domain field requirement for call finished from Game::run::read_command: parameter self.line requires [u8; N]::LineUtf8",
-   "cannot prove default-domain field requirement for call invalid from Game::run::read_command: parameter self.line requires [u8; N]::LineUtf8"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "run/contained_loop_command_branch",
   "tier": "run",
-  "status": "rejected",
-  "millis": 5,
+  "status": "checked",
+  "millis": 3,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove requires contract for call resolve from Game::run: self.line in [u8]::LineUtf8 (invalidated by prior mutation of self.line; self.line is part of [u8]::LineUtf8)",
-   "cannot prove default-domain field requirement for call look from Game::run::prompt: parameter self.line requires [u8; N]::LineUtf8",
-   "cannot prove default-domain field requirement for call finished from Game::run::prompt: parameter self.line requires [u8; N]::LineUtf8",
-   "cannot prove default-domain field requirement for call invalid from Game::run::prompt: parameter self.line requires [u8; N]::LineUtf8"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "run/float/sqrt_probe",
@@ -29549,12 +29523,9 @@
  {
   "fixture": "run/value_call_entry_host_state_payload",
   "tier": "run",
-  "status": "rejected",
-  "millis": 4,
+  "status": "checked",
+  "millis": 5,
   "expected_satisfied": null,
-  "diagnostics": [
-   "cannot prove default-domain field requirement for call mk_ok from Probe::make::make: parameter self.buf requires [u8; N]::LineUtf8",
-   "cannot prove default-domain field requirement for call mk_err from Probe::make::make: parameter self.buf requires [u8; N]::LineUtf8"
-  ]
+  "diagnostics": []
  }
 ]

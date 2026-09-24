@@ -370,8 +370,14 @@ fn call_parameter_qualification_join(
         })?;
     if !crate::flow::call_parameter_qualification_identities(program, call_target)
         .iter()
-        .any(|(declared, symbol, identity)| {
-            *declared == position && *symbol == domain_symbol && *identity == semantic_domain
+        .any(|(declared, symbol, identity, from_declared_type)| {
+            // An AUTHORED `ensures` is what a content rejoin reads; a claim
+            // derived from a mutable parameter's declared type carries no
+            // routed provenance of its own.
+            !*from_declared_type
+                && *declared == position
+                && *symbol == domain_symbol
+                && *identity == semantic_domain
         })
     {
         return None;
