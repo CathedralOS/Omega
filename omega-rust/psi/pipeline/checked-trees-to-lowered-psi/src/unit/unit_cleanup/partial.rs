@@ -335,7 +335,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .map(|residual| {
             Ok(StructuralAffineDiscard {
                 place: root_place,
-                path: lower_structural_path(&residual.path),
+                path: lower_structural_path(&residual.path)?,
                 structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
             })
         })
@@ -626,7 +626,7 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         .map(|residual| {
             Ok(StructuralAffineDiscard {
                 place: root_place,
-                path: lower_structural_path(&residual.path),
+                path: lower_structural_path(&residual.path)?,
                 structural_type: lookup_type_id(&terminal_type_ids, &residual.type_identity)?,
             })
         })

@@ -856,24 +856,25 @@ fn project_inner<'a>(
 /// Resolve a leaf-copy projection that may traverse `RuntimeIndex`
 /// segments. Static segments before, between, and after the dynamic
 /// segments fold into the returned byte offset; each dynamic segment
-/// contributes `(selector, stride)` so the copy scales every runtime
-/// operand into the same address in path order. Each segment's published
-/// bound rows are replayed against its array's declared extent exactly
-/// like the terminal verifier does.
+/// contributes `(index, stride)` so the copy scales every runtime operand
+/// into the same address in path order. The segment's bound is the
+/// obligation the terminal verifier discharged; only the array shape is
+/// resolved here.
 pub(crate) fn leaf_copy_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(StructuralTypeId, u32, Vec<(u32, u32)>)> {
+) -> Option<(
+    StructuralTypeId,
+    u32,
+    Vec<(semantic_vocabulary::ValueId, u32)>,
+)> {
     let mut container = root;
     let mut byte_offset = 0u32;
     let mut indices = Vec::new();
     let mut segment_start = 0usize;
     for (position, segment) in path.iter().enumerate() {
-        let StructuralPathSegment::RuntimeIndex {
-            selector, maximum, ..
-        } = segment
-        else {
+        let StructuralPathSegment::RuntimeIndex { index, .. } = segment else {
             continue;
         };
         if position > segment_start {
@@ -882,19 +883,16 @@ pub(crate) fn leaf_copy_projection(
             container = selected;
             byte_offset = byte_offset.checked_add(run_offset)?;
         }
-        let StructuralTypeShape::FixedArray { element, length } = &declarations
+        let StructuralTypeShape::FixedArray { element, .. } = &declarations
             .iter()
             .find(|declaration| declaration.id == container)?
             .shape
         else {
             return None;
         };
-        if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) {
-            return None;
-        }
         let element_shape = shape(*element, declarations)?;
         let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
-        indices.push((*selector, stride));
+        indices.push((*index, stride));
         container = *element;
         segment_start = position + 1;
     }

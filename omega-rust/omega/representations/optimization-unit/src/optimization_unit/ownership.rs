@@ -1,7 +1,7 @@
 //! Path-sensitive ownership-frontier carriers and canonical identities.
 
 use super::super::{
-    BlockId, ClaimId, EdgeId, IntegerValue, OperationId, OwnershipFrontierFactIdentity, PlaceId,
+    BlockId, ClaimId, EdgeId, OperationId, OwnershipFrontierFactIdentity, PlaceId,
     StructuralMultiplicity, StructuralPathSegment,
 };
 use super::{MachineId, TerminalPsiIdentity};
@@ -169,25 +169,10 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.extend_from_slice(&start.to_le_bytes());
                 bytes.extend_from_slice(&end.to_le_bytes());
             }
-            StructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => {
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
                 bytes.push(5);
-                bytes.extend_from_slice(&selector.to_le_bytes());
-                for endpoint in [minimum, maximum] {
-                    match endpoint {
-                        IntegerValue::Unsigned(value) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                        IntegerValue::Signed(value) => {
-                            bytes.push(2);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                    }
-                }
+                bytes.extend_from_slice(&index.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
             }
         }
     }

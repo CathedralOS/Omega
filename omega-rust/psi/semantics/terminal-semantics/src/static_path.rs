@@ -14,34 +14,66 @@
 //! duplicates. Neither grants the place any storage, view adapter, or type
 //! identity of its own.
 
-use semantic_vocabulary::{CanonicalStructuralPathSegment, IntegerValue, StructuralTypeId};
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment, IntegerSign, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-/// The nonnegative magnitude an inclusive `RuntimeIndex` endpoint carries, or
-/// `None` when a signed endpoint is negative and so can never name an
-/// element.
-fn nonnegative_magnitude(value: IntegerValue) -> Option<u128> {
-    match value {
-        IntegerValue::Unsigned(value) => Some(value),
-        IntegerValue::Signed(value) => u128::try_from(value).ok(),
+/// The bounds relation a `RuntimeIndex` segment's obligation proves for an
+/// index of `index_type` selecting one element of a fixed array with `extent`
+/// elements: `index < extent`, and `0 <= index` for a signed carrier. When
+/// `extent` exceeds the carrier's largest value every carrier value is below
+/// it and the upper conjunct is omitted, so an unsigned carrier then proves
+/// `Truth`. Reconstruction (the verifier) and execution (the interpreter's
+/// `runtime_index_selects`) share this one definition; an address carrier or
+/// a non-integer index has no bound and is refused.
+pub fn runtime_index_bound(
+    index: ValueId,
+    index_type: ScalarType,
+    extent: u64,
+) -> Option<Proposition> {
+    let ScalarType::Integer(integer_type) = index_type else {
+        return None;
+    };
+    if integer_type.is_address() {
+        return None;
     }
+    let subject = ScalarTerm::value(index, index_type);
+    let mut conjuncts = Vec::with_capacity(2);
+    if integer_type.sign() == IntegerSign::Signed {
+        conjuncts.push(Proposition::LessOrEqual(
+            ScalarTerm::integer(integer_type, IntegerValue::Signed(0)).ok()?,
+            subject.clone(),
+        ));
+    }
+    let extent_value = match integer_type.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(i128::from(extent)),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(u128::from(extent)),
+    };
+    if integer_type.admits(extent_value) {
+        conjuncts.push(Proposition::LessThan(
+            subject,
+            ScalarTerm::integer(integer_type, extent_value).ok()?,
+        ));
+    }
+    Some(match conjuncts.len() {
+        0 => Proposition::Truth,
+        1 => conjuncts.pop().expect("one conjunct"),
+        _ => Proposition::Conjunction(conjuncts),
+    })
 }
 
-/// Whether a `RuntimeIndex` segment's inclusive minimum is nonnegative — the
-/// `0 <= index` half of the selector's bounds relation.
-pub fn runtime_index_minimum_is_nonnegative(minimum: IntegerValue) -> bool {
-    nonnegative_magnitude(minimum).is_some()
-}
-
-/// Whether a `RuntimeIndex` segment's inclusive maximum stays strictly inside
-/// a fixed array's declared `extent` — the `index < extent` half. The
-/// selector's published range row is replayed separately by caller-aware
-/// validation; this primitive answers only the extent relation the segment
-/// claims.
-pub fn runtime_index_maximum_within_extent(maximum: IntegerValue, extent: u64) -> bool {
-    nonnegative_magnitude(maximum).is_some_and(|maximum| maximum < u128::from(extent))
+/// Whether a runtime index value selects an element of a fixed array with
+/// `extent` elements: the executable reading of `runtime_index_bound`.
+pub fn runtime_index_selects(value: IntegerValue, extent: u64) -> Option<u64> {
+    let selected = match value {
+        IntegerValue::Unsigned(value) => u64::try_from(value).ok()?,
+        IntegerValue::Signed(value) => u64::try_from(value).ok()?,
+    };
+    (selected < extent).then_some(selected)
 }
 
 /// Conservative overlap of borrowed projections. Prefixes retain their whole

@@ -3,7 +3,7 @@
 //! The installation parent owns argument counts and settlement sequencing;
 //! this child owns only the place/path row and its established decode errors.
 
-use semantic_vocabulary::{IntegerValue, PlaceId};
+use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralArgument, StructuralPathSegment};
 
 use crate::installation_record::codec::structural::scalar::{access_tag, decode_access};
@@ -60,45 +60,14 @@ pub(crate) fn encode_path(
                 push_u64(bytes, *start);
                 push_u64(bytes, *end);
             }
-            StructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => {
-                bytes.extend_from_slice(&[5, 0, 0, 0]);
-                push_u32(bytes, *selector);
-                for endpoint in [minimum, maximum] {
-                    match endpoint {
-                        IntegerValue::Signed(value) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&[0; 3]);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                        IntegerValue::Unsigned(value) => {
-                            bytes.push(2);
-                            bytes.extend_from_slice(&[0; 3]);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                    }
-                }
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                bytes.extend_from_slice(&[6, 0, 0, 0]);
+                push_u64(bytes, index.get());
+                push_u64(bytes, obligation.get());
             }
         }
     }
     Ok(())
-}
-
-fn decode_integer_endpoint(reader: &mut Reader<'_>) -> Result<IntegerValue, InstallationError> {
-    let tag = reader.u8()?;
-    if reader.take(3)? != [0; 3] {
-        return Err(InstallationError::NonzeroReservedField);
-    }
-    let raw =
-        <[u8; 16]>::try_from(reader.take(16)?).map_err(|_| InstallationError::UnexpectedEnd)?;
-    match tag {
-        1 => Ok(IntegerValue::Signed(i128::from_le_bytes(raw))),
-        2 => Ok(IntegerValue::Unsigned(u128::from_le_bytes(raw))),
-        _ => Err(InstallationError::InvalidSettlementArgumentPathTag(tag)),
-    }
 }
 
 pub(crate) fn decode_path(
@@ -133,10 +102,11 @@ pub(crate) fn decode_path(
                 start: reader.u64()?,
                 end: reader.u64()?,
             },
-            5 => StructuralPathSegment::RuntimeIndex {
-                selector: reader.u32()?,
-                minimum: decode_integer_endpoint(reader)?,
-                maximum: decode_integer_endpoint(reader)?,
+            6 => StructuralPathSegment::RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroSettlementIdentity("ValueId"))?,
+                obligation: semantic_vocabulary::ObligationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroSettlementIdentity("ObligationId"))?,
             },
             _ => {
                 return Err(InstallationError::InvalidSettlementArgumentPathTag(tag));

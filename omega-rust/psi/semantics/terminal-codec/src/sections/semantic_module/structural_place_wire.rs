@@ -3,7 +3,6 @@
 //! module, contract, and dynamic-dispatch sections.
 
 use crate::codec_error::CodecError;
-use crate::sections::semantic_module::scalar_wire::{decode_integer_value, encode_integer_value};
 use crate::sections::semantic_module::structural_signature_wire;
 use crate::sections::semantic_module::wire::{
     Reader, Writer, decode_counted, decode_ids, decode_optional_id, encode_optional_id,
@@ -77,15 +76,13 @@ pub(crate) fn encode_structural_path(
                 writer.u64(*start);
                 writer.u64(*end);
             }
-            StructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => {
-                writer.u8(5);
-                writer.u32(*selector);
-                encode_integer_value(writer, *minimum);
-                encode_integer_value(writer, *maximum);
+            // Tag 5 carried the retired parameter-selector spelling with a
+            // restated interval; it is refused on decode rather than read as
+            // this value-and-obligation form.
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
+                writer.u8(6);
+                writer.id(*index);
+                writer.id(*obligation);
             }
         }
     }
@@ -210,10 +207,9 @@ pub(crate) fn decode_structural_path(
             start: reader.u64()?,
             end: reader.u64()?,
         }),
-        5 => Ok(StructuralPathSegment::RuntimeIndex {
-            selector: reader.u32()?,
-            minimum: decode_integer_value(reader)?,
-            maximum: decode_integer_value(reader)?,
+        6 => Ok(StructuralPathSegment::RuntimeIndex {
+            index: reader.id("ValueId")?,
+            obligation: reader.id("ObligationId")?,
         }),
         tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
     })
@@ -266,7 +262,10 @@ pub(crate) fn decode_structural_place_kind(
 mod structural_place_wire_tests {
     use semantic_vocabulary::{OperationId, PsiSemanticId, StructuralPlaceKind, StructuralTypeId};
 
-    use super::{CodecError, decode_structural_place_kind, encode_structural_place_kind};
+    use super::{
+        CodecError, StructuralPathSegment, decode_structural_path, decode_structural_place_kind,
+        encode_structural_path, encode_structural_place_kind,
+    };
     use crate::sections::semantic_module::wire::{Reader, Writer};
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {
@@ -317,6 +316,55 @@ mod structural_place_wire_tests {
         assert_eq!(
             decode_structural_place_kind(&mut Reader::new(&invalid)),
             Err(CodecError::InvalidTag("StructuralPlaceKind", 9))
+        );
+    }
+
+    /// A runtime element is tag 6 followed by its selector value and the
+    /// obligation its operation owns; neither identity may be zero, no bound
+    /// is spelled on the wire, and the retired tag 5 spelling is refused.
+    #[test]
+    fn runtime_index_segment_carries_its_value_and_obligation() {
+        let path = vec![
+            StructuralPathSegment::Field("rows".into()),
+            StructuralPathSegment::RuntimeIndex {
+                index: id(40),
+                obligation: id(7),
+            },
+            StructuralPathSegment::RuntimeIndex {
+                index: id(41),
+                obligation: id(8),
+            },
+        ];
+        let mut writer = Writer::default();
+        encode_structural_path(&mut writer, "path", &path).unwrap();
+        let bytes = writer.finish();
+        let runtime = [
+            &[6][..],
+            &40_u64.to_le_bytes(),
+            &7_u64.to_le_bytes(),
+            &[6],
+            &41_u64.to_le_bytes(),
+            &8_u64.to_le_bytes(),
+        ]
+        .concat();
+        assert!(bytes.ends_with(&runtime));
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_path(&mut reader), Ok(path));
+        assert_eq!(reader.remaining(), 0);
+        let prefix = bytes.len() - runtime.len();
+        for zeroed in [prefix + 1..prefix + 9, prefix + 9..prefix + 17] {
+            let mut zero = bytes.clone();
+            zero[zeroed].fill(0);
+            assert!(decode_structural_path(&mut Reader::new(&zero)).is_err());
+        }
+        for length in 0..bytes.len() {
+            assert!(decode_structural_path(&mut Reader::new(&bytes[..length])).is_err());
+        }
+        let mut retired = bytes.clone();
+        retired[prefix] = 5;
+        assert_eq!(
+            decode_structural_path(&mut Reader::new(&retired)),
+            Err(CodecError::InvalidTag("StructuralPathSegment", 5))
         );
     }
 }

@@ -25,7 +25,9 @@ mod unit_operation;
 
 pub(crate) use claim_transfers::{validate_service_reach, validate_unit_call_claim_transfers};
 pub(crate) use contract_places::validate_unit_call_contract_places;
-pub(crate) use crash_continuations::validate_unit_call_crash_continuations;
+pub(crate) use crash_continuations::{
+    caller_structural_root_type, validate_unit_call_crash_continuations,
+};
 pub(crate) use payloadless_calls::{
     exact_payloadless_case_return_exits, exact_payloadless_structural_call,
 };

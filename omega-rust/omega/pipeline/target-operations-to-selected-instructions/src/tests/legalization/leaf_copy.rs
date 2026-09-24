@@ -757,10 +757,11 @@ fn u64_type() -> ScalarType {
 }
 
 /// A leaf copy through one `RuntimeIndex` segment: the host's `leaf` field is
-/// a fixed array of records and `selector` 0 names a `u64` index parameter.
+/// a fixed array of records and value 9 is the `u64` index parameter. The
+/// segment's bound is an obligation the terminal verifier discharged; lowering
+/// reads only the array shape and the index operand.
 fn runtime_index_source(
-    selector: u32,
-    maximum: u128,
+    index: u64,
     index_scalar: ScalarType,
 ) -> abstract_operations::AbstractOperationPlan {
     let mut source = leaf_copy_source(
@@ -768,9 +769,8 @@ fn runtime_index_source(
         vec![
             StructuralPathSegment::Field("leaf".into()),
             StructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum: IntegerValue::Unsigned(0),
-                maximum: IntegerValue::Unsigned(maximum),
+                index: ValueId::new(index).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
             },
         ],
         StructuralTypeId::new(10).unwrap(),
@@ -789,7 +789,7 @@ fn runtime_index_fixture() -> (
     target_operations::TargetOperationPlan,
     optimization_unit::PsiOptimizationUnit,
 ) {
-    let source = runtime_index_source(0, 1, u64_type());
+    let source = runtime_index_source(9, u64_type());
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
         TargetLoweringRequest::new(NativeTarget::linux_x64()),
@@ -938,20 +938,6 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
 }
 
 #[test]
-fn leaf_copy_runtime_index_rejects_over_extent_maximum() {
-    // The declared maximum must stay inside the array extent — exactly the
-    // terminal verifier's bound replay.
-    let source = runtime_index_source(0, 5, u64_type());
-    assert!(
-        abstract_operations_to_target_operations::lower_to_target_operations(
-            &source,
-            TargetLoweringRequest::new(NativeTarget::linux_x64()),
-        )
-        .is_err()
-    );
-}
-
-#[test]
 fn leaf_copy_runtime_index_widens_integer_selectors() {
     // Any integer selector no wider than the address model joins it through
     // the ordinary scalar-transport normalization; its signedness decides the
@@ -962,7 +948,7 @@ fn leaf_copy_runtime_index_widens_integer_selectors() {
         (u32_type(), Some(SelectedInstructionKind::ZeroExtendU32)),
         (i32_type(), Some(SelectedInstructionKind::SignExtendI32)),
     ] {
-        let source = runtime_index_source(0, 1, scalar);
+        let source = runtime_index_source(9, scalar);
         let target = abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
             TargetLoweringRequest::new(NativeTarget::linux_x64()),
@@ -1030,7 +1016,7 @@ fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
         ScalarType::Boolean,
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
     ] {
-        let source = runtime_index_source(0, 1, scalar);
+        let source = runtime_index_source(9, scalar);
         assert!(
             abstract_operations_to_target_operations::lower_to_target_operations(
                 &source,
@@ -1040,8 +1026,8 @@ fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
             "{scalar:?} cannot feed address math"
         );
     }
-    // A selector that names no parameter slot cannot resolve an operand.
-    let source = runtime_index_source(3, 1, u64_type());
+    // An index that is no incoming parameter has no home to scale.
+    let source = runtime_index_source(12, u64_type());
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
@@ -1052,27 +1038,22 @@ fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
 }
 
 /// A leaf copy through two `RuntimeIndex` segments: the host's `leaf` field
-/// is a fixed array of fixed arrays of records and `selector`s 0 and 1 name
-/// the two `u64` index parameters.
+/// is a fixed array of fixed arrays of records and values 9 and 10 are the
+/// two `u64` index parameters.
 fn nested_runtime_index_source(
-    selectors: (u32, u32),
-    maxima: (u128, u128),
+    indexes: (u64, u64),
     index_scalar: ScalarType,
 ) -> abstract_operations::AbstractOperationPlan {
+    let runtime = |index, obligation| StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(index).unwrap(),
+        obligation: semantic_vocabulary::ObligationId::new(obligation).unwrap(),
+    };
     let mut source = leaf_copy_source(
         host(structural_field(nested_array_type())),
         vec![
             StructuralPathSegment::Field("leaf".into()),
-            StructuralPathSegment::RuntimeIndex {
-                selector: selectors.0,
-                minimum: IntegerValue::Unsigned(0),
-                maximum: IntegerValue::Unsigned(maxima.0),
-            },
-            StructuralPathSegment::RuntimeIndex {
-                selector: selectors.1,
-                minimum: IntegerValue::Unsigned(0),
-                maximum: IntegerValue::Unsigned(maxima.1),
-            },
+            runtime(indexes.0, 1),
+            runtime(indexes.1, 2),
         ],
         StructuralTypeId::new(10).unwrap(),
     );
@@ -1092,7 +1073,7 @@ fn nested_runtime_index_source(
 #[test]
 fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
     let native = NativeTarget::linux_x64();
-    let source = nested_runtime_index_source((0, 1), (1, 2), u64_type());
+    let source = nested_runtime_index_source((9, 10), u64_type());
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
         TargetLoweringRequest::new(native),
@@ -1259,26 +1240,9 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
 }
 
 #[test]
-fn leaf_copy_nested_runtime_index_rejects_an_over_extent_maximum() {
-    // Each segment replays the verifier's bound against its own array extent:
-    // the outer array admits at most 1, the inner at most 2.
-    for maxima in [(2, 2), (1, 3)] {
-        let source = nested_runtime_index_source((0, 1), maxima, u64_type());
-        assert!(
-            abstract_operations_to_target_operations::lower_to_target_operations(
-                &source,
-                TargetLoweringRequest::new(NativeTarget::linux_x64()),
-            )
-            .is_err(),
-            "maxima {maxima:?} must reject",
-        );
-    }
-}
-
-#[test]
 fn leaf_copy_nested_runtime_index_rejects_missing_or_non_integer_selectors() {
-    // A selector that names no parameter slot cannot resolve an operand.
-    let source = nested_runtime_index_source((0, 5), (1, 2), u64_type());
+    // An index that is no incoming parameter has no home to scale.
+    let source = nested_runtime_index_source((9, 14), u64_type());
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
@@ -1286,7 +1250,7 @@ fn leaf_copy_nested_runtime_index_rejects_missing_or_non_integer_selectors() {
         )
         .is_err()
     );
-    let source = nested_runtime_index_source((0, 1), (1, 2), ScalarType::Boolean);
+    let source = nested_runtime_index_source((9, 10), ScalarType::Boolean);
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &source,

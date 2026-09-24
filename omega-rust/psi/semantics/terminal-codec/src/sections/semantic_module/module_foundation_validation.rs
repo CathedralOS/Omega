@@ -233,15 +233,12 @@ pub(crate) fn validate_structural_path(
                 }
                 *element
             }
+            // A runtime index is structurally an element step; its bound is
+            // an obligation the verifier reconstructs at the owning operation.
             (
-                StructuralPathSegment::RuntimeIndex { maximum, .. },
-                StructuralTypeShape::FixedArray { element, length },
-            ) => {
-                if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) {
-                    return malformed("structural path runtime index maximum is out of bounds");
-                }
-                *element
-            }
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
+            ) => *element,
             (StructuralPathSegment::Field(_), StructuralTypeShape::FixedArray { .. }) => {
                 return malformed("structural path field requires a record type");
             }

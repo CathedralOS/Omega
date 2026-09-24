@@ -1,7 +1,7 @@
 use super::calling::{encode_placement, encode_shape};
 use super::encoding::{encode_ids, encode_len};
 use super::scalar::encode_scalar_type;
-use semantic_vocabulary::{IeeeFloatFormat, IntegerValue, StructuralPlaceKind};
+use semantic_vocabulary::{IeeeFloatFormat, StructuralPlaceKind};
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -137,25 +137,10 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
                 bytes.push(2);
                 bytes.extend_from_slice(&index.to_le_bytes());
             }
-            StructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => {
+            StructuralPathSegment::RuntimeIndex { index, obligation } => {
                 bytes.push(5);
-                bytes.extend_from_slice(&selector.to_le_bytes());
-                for endpoint in [minimum, maximum] {
-                    match endpoint {
-                        IntegerValue::Unsigned(value) => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                        IntegerValue::Signed(value) => {
-                            bytes.push(2);
-                            bytes.extend_from_slice(&value.to_le_bytes());
-                        }
-                    }
-                }
+                bytes.extend_from_slice(&index.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
             }
         }
     }

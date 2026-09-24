@@ -22,6 +22,7 @@ mod boolean_polarity;
 mod byte_extent;
 mod element_extent;
 mod record;
+mod runtime_index;
 mod scalar_case;
 mod structural_case;
 
@@ -65,6 +66,14 @@ pub(super) fn append_operation(
     // Private crash questions retain their own entry-origin discipline. A
     // current-value capture cannot manufacture an invocation-entry observation.
     let capture_snapshots = matches!(purpose, OperationFactPurpose::ProofObligations);
+    runtime_index::append(
+        module,
+        machine,
+        operation,
+        value_types,
+        axioms,
+        operation_obligations,
+    )?;
     if let OperationKind::StructuralScalarFieldStore {
         value,
         range_obligation: Some(id),

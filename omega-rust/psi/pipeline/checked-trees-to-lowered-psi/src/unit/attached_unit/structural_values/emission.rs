@@ -1884,6 +1884,7 @@ impl Emission<'_, '_, '_> {
         }
         let selected_path = projection
             .map(|projected| lower_structural_path(&projected.path))
+            .transpose()?
             .unwrap_or_default();
         structural_arguments.push(StructuralArgument {
             place: selected,
@@ -1924,7 +1925,7 @@ impl Emission<'_, '_, '_> {
                 .map(|residual| {
                     Ok(terminal_psi::StructuralAffineDiscard {
                         place: selected,
-                        path: lower_structural_path(&residual.path),
+                        path: lower_structural_path(&residual.path)?,
                         structural_type: lookup_type_id(self.type_ids, &residual.type_identity)?,
                     })
                 })

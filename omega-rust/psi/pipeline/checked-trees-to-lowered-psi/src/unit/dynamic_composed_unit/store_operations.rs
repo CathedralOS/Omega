@@ -107,7 +107,7 @@ pub(crate) fn lower_caller_store_operations(
             result: OperationResult::Unit,
             kind: OperationKind::StructuralScalarFieldStore {
                 destination: caller_self.place,
-                path: lower_structural_path(&store.carrier_path),
+                path: lower_structural_path(&store.carrier_path)?,
                 field: field.id,
                 value,
                 range_obligation: None,

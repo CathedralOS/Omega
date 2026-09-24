@@ -1313,6 +1313,13 @@ pub enum ModuleError {
         operation: OperationId,
         source: PlaceId,
     },
+    /// A `RuntimeIndex` segment whose operation does not resolve runtime
+    /// projections, whose selector is not an integer scalar, or whose prefix
+    /// does not reach a fixed array.
+    InvalidRuntimeIndex {
+        operation: OperationId,
+        index: ValueId,
+    },
     InvalidBooleanStructuralField {
         operation: OperationId,
         source: PlaceId,

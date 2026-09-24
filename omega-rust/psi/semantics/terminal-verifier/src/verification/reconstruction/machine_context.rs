@@ -57,7 +57,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::WrappingIntegerRemainder { .. }
                         | OperationKind::SaturatingIntegerDivide { .. }
                         | OperationKind::SaturatingIntegerRemainder { .. }
-                )
+                ) || !operation.kind.runtime_indexes().is_empty()
             })
         }) || (crash_facts && machine.blocks.iter().any(|block| {
             matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())

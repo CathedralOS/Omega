@@ -831,14 +831,8 @@ pub(super) fn resolve_structural_path_in_types(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
-            // A runtime index resolves to the element type only while its
-            // inclusive maximum replays strictly inside the declared extent.
-            (
-                StructuralPathSegment::RuntimeIndex { maximum, .. },
-                StructuralTypeShape::FixedArray { element, length },
-            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
-                *element
-            }
+            // Qualification rosters name static storage; a runtime index
+            // never selects a qualified subtree.
             _ => return None,
         };
     }
@@ -972,6 +966,10 @@ fn validate_machine_entry_claims(
     Ok(())
 }
 
+/// Resolve a static projection: fields and literal indexes only. Claims,
+/// qualifications, cleanup, moves and every other consumer that names one
+/// exact place use this form, so a `RuntimeIndex` segment reaching them is
+/// refused rather than read as some element.
 pub(super) fn resolve_structural_path(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
@@ -982,7 +980,33 @@ pub(super) fn resolve_structural_path(
         structural_type,
         path,
         StructuralFieldType::canonical_leaf_shape,
+        RuntimeIndexes::Refuse,
     )
+}
+
+/// Resolve a projection that may select elements through `RuntimeIndex`
+/// segments. Only operations that own each segment's obligation — the
+/// operation inventory `runtime_indexes` reconstructs — use this form; the
+/// segment resolves to the element type of any fixed array, and its bound is
+/// that obligation, not a property of the path.
+pub(in crate::validation) fn resolve_runtime_projection(
+    module: &TerminalModule,
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    resolve_structural_path_with_leaf(
+        module,
+        structural_type,
+        path,
+        StructuralFieldType::canonical_leaf_shape,
+        RuntimeIndexes::Admit,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RuntimeIndexes {
+    Refuse,
+    Admit,
 }
 
 /// The type an explicit `StructuralLeafCopy` of `path` mints. Only its final
@@ -997,12 +1021,13 @@ pub(super) fn resolve_leaf_copy_path(
     let Some((last, prefix)) = path.split_last() else {
         return resolve_structural_path(module, structural_type, path);
     };
-    let parent = resolve_structural_path(module, structural_type, prefix)?;
+    let parent = resolve_runtime_projection(module, structural_type, prefix)?;
     resolve_structural_path_with_leaf(
         module,
         parent,
         std::slice::from_ref(last),
         StructuralFieldType::leaf_copy_shape,
+        RuntimeIndexes::Admit,
     )
 }
 
@@ -1011,6 +1036,7 @@ fn resolve_structural_path_with_leaf(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
+    runtime_indexes: RuntimeIndexes,
 ) -> Option<StructuralTypeId> {
     for segment in path {
         let declaration = module
@@ -1039,11 +1065,9 @@ fn resolve_structural_path_with_leaf(
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
             (
-                StructuralPathSegment::RuntimeIndex { maximum, .. },
-                StructuralTypeShape::FixedArray { element, length },
-            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
-                *element
-            }
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
+            ) if runtime_indexes == RuntimeIndexes::Admit => *element,
             _ => return None,
         };
     }

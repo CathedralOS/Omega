@@ -1,32 +1,34 @@
+use crate::lowering_error::LoweringError;
 use checked_trees::CheckedUnitStructuralPathSegment;
 use terminal_psi::StructuralPathSegment;
 
+/// Lower a checked static projection. A `RuntimeIndex` has no context-free
+/// lowering: its Terminal segment names the evaluated index value and an
+/// obligation the carrying operation owns, so the emitter that evaluates the
+/// index lowers it. Claims, discards, qualifications and residuals are static
+/// by construction; a runtime segment reaching this function is refused.
 pub(crate) fn lower_structural_path(
     path: &[CheckedUnitStructuralPathSegment],
-) -> Vec<StructuralPathSegment> {
+) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     path.iter()
         .map(|segment| match segment {
-            CheckedUnitStructuralPathSegment::Referent => StructuralPathSegment::Referent,
+            CheckedUnitStructuralPathSegment::Referent => Ok(StructuralPathSegment::Referent),
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                StructuralPathSegment::Field(identity.clone())
+                Ok(StructuralPathSegment::Field(identity.clone()))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                StructuralPathSegment::FixedIndex(*index)
+                Ok(StructuralPathSegment::FixedIndex(*index))
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => StructuralPathSegment::RuntimeIndex {
-                selector: *selector,
-                minimum: *minimum,
-                maximum: *maximum,
-            },
+            CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => {
+                Err(LoweringError::Unsupported(
+                    "a runtime-index projection is lowered by the emitter that evaluates its index",
+                ))
+            }
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
-                StructuralPathSegment::FixedByteRange {
+                Ok(StructuralPathSegment::FixedByteRange {
                     start: *start,
                     end: *end,
-                }
+                })
             }
         })
         .collect()

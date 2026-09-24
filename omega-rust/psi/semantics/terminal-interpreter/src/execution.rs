@@ -539,6 +539,13 @@ impl TerminalExecution {
                 if let Err(error) = meter.charge_operation(operation) {
                     return meter_status(error);
                 }
+                let selected;
+                let operation = if operation.kind.runtime_indexes().is_empty() {
+                    operation
+                } else {
+                    selected = self.select_runtime_elements(operation)?;
+                    &selected
+                };
                 let flow = match operation.kind {
                     OperationKind::EstablishReference { ref source } => {
                         self.establish_reference(operation, source)?;

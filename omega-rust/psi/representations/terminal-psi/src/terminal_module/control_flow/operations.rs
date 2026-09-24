@@ -775,8 +775,16 @@ impl OperationKind {
     /// decision: result declarations, structural places, and value identities
     /// carried inside propositions (crash continuations, site guards) or other
     /// proof evidence are not uses and are never visited. Consumers replacing
-    /// a value must handle those carriers separately.
+    /// a value must handle those carriers separately. A `RuntimeIndex` selector
+    /// inside one of the operation's structural projections is a direct use.
     pub fn map_scalar_uses(&mut self, map: &mut impl FnMut(ValueId) -> ValueId) {
+        for path in self.structural_projection_paths_mut() {
+            for segment in path {
+                if let crate::StructuralPathSegment::RuntimeIndex { index, .. } = segment {
+                    *index = map(*index);
+                }
+            }
+        }
         match self {
             Self::EstablishScalarArray { elements } => {
                 for element in elements {

@@ -184,7 +184,7 @@ impl ScalarBindings {
             place,
             path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
                 &argument.path,
-            ),
+            )?,
             access: StructuralAccess::SharedBorrow,
         })
     }

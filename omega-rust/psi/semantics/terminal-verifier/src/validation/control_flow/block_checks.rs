@@ -131,6 +131,11 @@ pub(super) fn validate_block(
             },
             &defined,
         )?;
+        crate::validation::structural::runtime_indexes::validate_operands(
+            operation,
+            value_types,
+            &defined,
+        )?;
         crate::validation::scalar::array::validate_uses(
             operation,
             scalar_array_definitions,

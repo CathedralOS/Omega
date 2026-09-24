@@ -9,4 +9,5 @@ pub(crate) mod leaf_copy;
 pub(crate) mod operations;
 pub(crate) mod qualification_rosters;
 pub(crate) mod result_contracts;
+pub(crate) mod runtime_indexes;
 pub(crate) mod scalar_fields;

@@ -899,7 +899,7 @@ impl OperationFrame<'_, '_> {
             } else {
                 residuals.push(terminal_psi::StructuralAffineDiscard {
                     place,
-                    path: lower_structural_path(&discard.path),
+                    path: lower_structural_path(&discard.path)?,
                     structural_type: lookup_type_id(self.type_ids, &discard.type_identity)?,
                 });
             }
