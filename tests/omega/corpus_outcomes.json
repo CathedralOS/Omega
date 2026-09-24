@@ -27673,19 +27673,16 @@
   "millis": 1,
   "expected_satisfied": null,
   "diagnostics": [
-   "argument `text` for state `validate_utf8` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding",
    "argument `text` for state `consume_checked` expects `&[u8][in Utf8]`, got `member access`"
   ]
  },
  {
   "fixture": "pass/text/no_nul_boundary_established",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 0,
+  "status": "checked",
+  "millis": 2,
   "expected_satisfied": null,
-  "diagnostics": [
-   "argument `text` for state `validate_no_nul` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/runtime_alias_string_write",
@@ -28364,12 +28361,10 @@
  {
   "fixture": "pass/text/utf8_boundary_established",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 3,
+  "status": "checked",
+  "millis": 2,
   "expected_satisfied": null,
-  "diagnostics": [
-   "argument `text` for state `validate_utf8` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/text/zii_default_string_equality_exit",
