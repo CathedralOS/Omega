@@ -25,18 +25,19 @@ use symbols::SymbolHandle;
 
 /// Re-seed the declared field facts of every readable `&mut` referent the
 /// call hands back, on the referent's exact storage place.
-pub(in crate::flow) fn append_call_referent_field_domain_facts(
-    program: &typed_trees::TypedTrees,
+pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
+    program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    build: &mut FlowBuildContext,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(site) = crate::semantic::calls::find_call_site(
+    let Some(site) = super::super::calls::memoized_find_call_site(
         program,
+        build,
         machine.symbol,
         state.symbol,
         borrow_call.statement_index,
@@ -44,18 +45,21 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     ) else {
         return;
     };
-    let Some(parameters) =
-        crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
-    else {
+    let Some(parameters) = super::super::calls::memoized_call_target_parameters(
+        program,
+        build,
+        borrow_call.target_symbol,
+    ) else {
         return;
     };
-    let target_machine = program.machines().iter().find(|candidate| {
-        candidate.symbol == borrow_call.target_symbol
-            || program
-                .machine_states(candidate)
-                .iter()
-                .any(|target_state| target_state.symbol == borrow_call.target_symbol)
-    });
+    let target_machine = build
+        .machine_index(program, borrow_call.target_symbol)
+        .or_else(|| {
+            build
+                .state_location(program, borrow_call.target_symbol)
+                .map(|(machine_index, _)| machine_index)
+        })
+        .map(|machine_index| &program.machines()[machine_index]);
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let mut rows: Vec<(crate::flow::CanonicalPlace, Vec<PlaceSegment>, SymbolHandle)> = Vec::new();
     let mut argument_index = 0usize;
@@ -73,27 +77,62 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
         ) {
             continue;
         }
-        let paths: Vec<(Vec<PlaceSegment>, SymbolHandle)> = if parameter.is_self {
+        let paths: std::rc::Rc<Vec<(Vec<PlaceSegment>, SymbolHandle)>> = if parameter.is_self {
             // The callee re-proves its seeded machine field facts at every
             // return; the receiver gets exactly those rows back.
             let Some(target_machine) = target_machine else {
                 continue;
             };
-            machine_field_domain_rows(semantic, target_machine.symbol)
+            build
+                .machine_field_rows
+                .entry(target_machine.symbol)
+                .or_insert_with(|| {
+                    std::rc::Rc::new(
+                        machine_field_domain_rows(semantic, target_machine.symbol)
+                            .into_iter()
+                            .filter(|(_, domain_symbol)| {
+                                crate::checks::contracts::value_provable_domain(
+                                    program,
+                                    *domain_symbol,
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                })
+                .clone()
         } else {
             // The callee re-proves its parameter's declared field facts,
             // which mirror the referent type's declared paths exactly.
-            crate::facts::field_domain::declared_result_field_domain_paths(
-                program,
-                crate::checks::contracts::result_domain_type(program, parameter.type_reference),
-            )
+            let Some(paths) = build
+                .referent_type_paths
+                .entry(parameter.type_reference)
+                .or_insert_with(|| {
+                    let paths: Vec<(Vec<PlaceSegment>, SymbolHandle)> =
+                        crate::facts::field_domain::declared_result_field_domain_paths(
+                            program,
+                            crate::checks::contracts::result_domain_type(
+                                program,
+                                parameter.type_reference,
+                            ),
+                        );
+                    let paths = paths
+                        .into_iter()
+                        .filter(|(_, domain_symbol)| {
+                            crate::checks::contracts::value_provable_domain(program, *domain_symbol)
+                        })
+                        .collect::<Vec<_>>();
+                    if paths.is_empty() {
+                        None
+                    } else {
+                        Some(std::rc::Rc::new(paths))
+                    }
+                })
+                .clone()
+            else {
+                continue;
+            };
+            paths
         };
-        let paths = paths
-            .into_iter()
-            .filter(|(_, domain_symbol)| {
-                crate::checks::contracts::value_provable_domain(program, *domain_symbol)
-            })
-            .collect::<Vec<_>>();
         if paths.is_empty() {
             continue;
         }
@@ -107,7 +146,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
             )
         } else {
             argument.and_then(|argument| {
-                crate::flow::canonical_place_from_expression_in_state(
+                build.canonical_place_at(
                     program,
                     state.symbol,
                     borrow_call.statement_index,
@@ -143,17 +182,17 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
                 let PlaceRoot::Symbol(root) = actual.root else {
                     continue;
                 };
-                let Some(candidates) = crate::flow::reference_result_candidates_before_statement(
+                let Some(candidates) = build.reference_candidate_places_at(
                     program,
                     state.symbol,
                     borrow_call.statement_index,
                     root,
-                    build.call_frames,
                 ) else {
                     continue;
                 };
                 candidates
-                    .into_iter()
+                    .iter()
+                    .cloned()
                     .map(|mut candidate| {
                         candidate.segments.extend_from_slice(&actual.segments);
                         (candidate, true)
@@ -169,7 +208,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
             {
                 storage.root = PlaceRoot::Symbol(self_symbol);
             }
-            for (path, domain_symbol) in &paths {
+            for (path, domain_symbol) in paths.iter() {
                 if requires_prior_row
                     && !row_was_live(
                         program,

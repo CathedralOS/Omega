@@ -41,6 +41,15 @@ pub(in crate::flow) struct CapturedQualification {
     isolated: bool,
 }
 
+impl CapturedQualification {
+    /// An isolated claim stands on its own storage and never consults the
+    /// caller-side binding-stability verdict -- the transition caller uses
+    /// this to skip resolving stability when nothing could consume it.
+    pub(in crate::flow) fn is_isolated(&self) -> bool {
+        self.isolated
+    }
+}
+
 pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInput]) -> bool {
     let before = previous.len();
     previous.retain(|claim| incoming.iter().any(|next| claim.same_claim(next)));
