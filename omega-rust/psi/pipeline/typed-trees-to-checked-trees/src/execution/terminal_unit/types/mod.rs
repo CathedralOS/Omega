@@ -2605,7 +2605,7 @@ pub(crate) fn borrowed_named_view_referent(
             TypeReferenceNode::Reference { referee, .. } => {
                 return matches!(
                     program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Named { .. }
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                 )
                 .then_some(*referee);
             }
