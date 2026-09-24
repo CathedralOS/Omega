@@ -83,7 +83,7 @@ test-only channels are cataloged, not flagged.
 | `StagedOptimizedSelectedInstructions` | omega/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
 | `SelectedInstructionOptimizationOutput` | omega/pipeline/07_selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |
 | `RetainedAllocation` | omega/pipeline/08_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
-| `StagedOptimizedPostAllocationMachinePlan` | omega/pipeline/register-homes-to-post-allocation-machine | 0 | — | — | — |
+| `StagedOptimizedPostAllocationMachinePlan` | omega/pipeline/09_register-homes-to-post-allocation-machine | 0 | — | — | — |
 | `CanonicalTerminalArtifact` | psi/semantics/terminal-codec | 8 | 8 | 0 | 0 |
 | `ProgramEntryTerminalArtifact` | omega/pipeline/02_checked-compilation-to-terminal-artifact | 3 | 3 | 0 | 0 |
 | `CompileReport` | omega/compiler/compilation-report | 37 | 30 | 4 | 2 |

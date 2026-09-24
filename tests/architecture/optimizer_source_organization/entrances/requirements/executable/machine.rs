@@ -10,11 +10,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn analyze_pre_allocation_machine_effects",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/plan/mod.rs",
+        path: "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/plan/mod.rs",
         coordination_marker: "pub fn analyze_post_allocation_machine_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/plan/validate/mod.rs",
+        path: "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/plan/validate/mod.rs",
         coordination_marker: "pub fn validate_post_allocation_machine_plan",
     },
 ];

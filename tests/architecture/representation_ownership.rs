@@ -1228,7 +1228,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     let representation = rust_source(&owner.join("src"));
     let optimizer = rust_source(
         &repository()
-            .join("omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src"),
+            .join("omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src"),
     );
     for declaration in [
         "pub struct PostAllocationMachinePlan {",
@@ -1253,7 +1253,7 @@ fn physical_instruction_data_is_independent_of_optimizer_authority() {
     assert!(!representation.contains("pub struct ValidatedPostAllocationMachinePlan"));
     let construction = rust_source(
         &repository()
-            .join("omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src"),
+            .join("omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src"),
     );
     assert!(construction.contains("pub struct ValidatedPostAllocationMachinePlan {"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
@@ -1999,11 +1999,11 @@ fn effect_analysis_does_not_depend_on_optimizer_history() {
     // algorithms. Sharing that interface does not authorize stage ancestry.
     assert!(source.contains("ValidatedSelectedAnalysis"));
     let construction = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
+        "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/post_allocation_machine.rs",
     )).unwrap();
     assert!(construction.contains("analyze_machine_effects(selected, environment)"));
     let validation = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src/post_allocation_machine/validation.rs",
+        "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/post_allocation_machine/validation.rs",
     ))
     .unwrap();
     assert!(
@@ -2076,7 +2076,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
     assert!(!current.contains("History"));
     assert!(retained.contains("self.current.validate_against(&current)?"));
     for consumer in [
-        "register-homes-to-post-allocation-machine/src",
+        "09_register-homes-to-post-allocation-machine/src",
         "08_selected-instructions-to-register-homes/src/preservation",
     ] {
         let source = rust_source(&pipeline.join(consumer));
@@ -2347,7 +2347,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/06_target-operations-to-selected-instructions",
         "omega/pipeline/07_selected-instructions-to-selected-instructions",
         "omega/pipeline/08_selected-instructions-to-register-homes",
-        "omega/pipeline/register-homes-to-post-allocation-machine",
+        "omega/pipeline/09_register-homes-to-post-allocation-machine",
         "omega/pipeline/post-allocation-machine-to-selected-form-encoding",
         "omega/pipeline/selected-form-encoding-to-resolved-layout",
         "omega/pipeline/resolved-layout-to-resolved-layout",

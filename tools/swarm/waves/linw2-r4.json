@@ -93,7 +93,7 @@
    "item": "CUSTODY-MUTATION-COVERAGE",
    "owning_paths": [
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src",
-    "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine/src",
+    "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src",
     "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized",
     "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/structural_inputs",
     "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/tests",

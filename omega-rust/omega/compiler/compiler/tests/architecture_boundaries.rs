@@ -58,7 +58,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "register-homes-to-post-allocation-machine",
-            "../../pipeline/register-homes-to-post-allocation-machine",
+            "../../pipeline/09_register-homes-to-post-allocation-machine",
         ),
         (
             "machine-emission/Cargo.toml",
