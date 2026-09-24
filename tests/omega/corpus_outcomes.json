@@ -16117,6 +16117,14 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/calls/sum_shared_receiver_exit",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 385,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/calls/transition_arg_local_from_embedded_call_exit",
   "tier": "pass",
   "status": "checked",
