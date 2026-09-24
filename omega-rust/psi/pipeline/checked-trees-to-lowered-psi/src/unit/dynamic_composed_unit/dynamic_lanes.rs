@@ -11,12 +11,9 @@
 use crate::unit::dynamic_composed_unit::LoweredDynamicDispatch;
 use crate::unit::dynamic_composed_unit::applications::terminal_callable_result;
 use crate::unit::dynamic_composed_unit::forwarded_helpers::{
-    ForwardedHelperSite, materialize_scalar_helper_body, materialize_unit_helper_body,
+    ForwardedHelperBody, ForwardedHelperCompletion,
 };
-use crate::unit::{
-    CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, MachineId,
-    terminal_scalar_type, unsupported,
-};
+use crate::unit::{LoweredPsi, LoweringError, MachineId, terminal_scalar_type, unsupported};
 use checked_trees::{
     CheckedDynamicDescriptorTransferPlan, CheckedDynamicRealizationBodyPlan,
     CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
@@ -29,7 +26,7 @@ use checked_trees::{
 use language_semantics::{Multiplicity, ServiceReachSummary};
 use semantic_vocabulary::ScalarType;
 use symbols::SymbolHandle;
-use terminal_psi::{Block, ClosedConformanceCallableResult};
+use terminal_psi::ClosedConformanceCallableResult;
 
 #[derive(Clone)]
 pub(crate) struct LoweredDynamicRealization {
@@ -57,7 +54,8 @@ pub(crate) struct ForwardedHelperIds {
     pub(crate) block: semantic_vocabulary::BlockId,
     pub(crate) operation: semantic_vocabulary::OperationId,
     pub(crate) edge: semantic_vocabulary::EdgeId,
-    /// The values a scalar helper binds; a Unit helper binds none.
+    /// The call result and return value a scalar helper binds; a Unit
+    /// helper's call and return bind none.
     pub(crate) scalar_values: Option<ForwardedHelperValues>,
 }
 
@@ -187,9 +185,8 @@ pub(crate) trait DynamicCall {
     /// The checked Unit control the call's result immediately selects.
     fn unit_continuation(&self) -> Option<&CheckedDynamicUnitContinuationPlan>;
 
-    /// How many forwarded helper bodies the plan retains; `None` when its
-    /// helpers only forward the descriptor to their one call.
-    fn helper_body_count(&self) -> Option<usize>;
+    /// How many forwarded helper bodies the plan retains.
+    fn helper_body_count(&self) -> usize;
 
     /// Result agreement between two join branches beyond the shared caller ABI.
     fn results_match(&self, other: &Self) -> bool;
@@ -197,19 +194,8 @@ pub(crate) trait DynamicCall {
     /// Agreement between two join branches' forwarded helper bodies.
     fn helper_bodies_match(&self, other: &Self) -> bool;
 
-    /// The blocks of one forwarded helper. A helper that evaluates its own
-    /// body records the values it computes before its call.
-    #[allow(clippy::too_many_arguments)]
-    fn materialize_helper_body(
-        &self,
-        checked: &CheckedTrees,
-        site: &ForwardedHelperSite,
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-        source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<Block>, LoweringError>;
+    /// The retained body of the forwarded helper at `index`, outermost first.
+    fn helper_body(&self, index: usize) -> Option<ForwardedHelperBody<'_>>;
 
     /// How a single-call lowering retains the source machines it closed over.
     fn retain_sources(
@@ -291,8 +277,8 @@ impl DynamicCall for CheckedDynamicScalarCallPlan {
         self.unit_continuation.as_ref()
     }
 
-    fn helper_body_count(&self) -> Option<usize> {
-        Some(self.forwarding_helpers.len())
+    fn helper_body_count(&self) -> usize {
+        self.forwarding_helpers.len()
     }
 
     /// The branch results bind one scalar type, and neither branch retains a
@@ -309,40 +295,20 @@ impl DynamicCall for CheckedDynamicScalarCallPlan {
         self.forwarding_helpers == other.forwarding_helpers
     }
 
-    fn materialize_helper_body(
-        &self,
-        checked: &CheckedTrees,
-        site: &ForwardedHelperSite,
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-        source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<Block>, LoweringError> {
-        let body = self
-            .forwarding_helpers
-            .get(site.index)
-            .ok_or(LoweringError::Unsupported(
-                "forwarded helper chain length drifted from checked custody",
-            ))?;
-        if body.machine != site.source_machine
-            || body.state != site.source_state
-            || body.call_result.statement_index != site.source_coordinate.statement_index
-            || body.call_result.primitive_type != self.result.primitive_type
-        {
-            return unsupported("forwarded helper body changed its source call");
-        }
-        materialize_scalar_helper_body(
-            checked,
-            body,
-            site,
-            terminal_scalar_type(self.result.primitive_type)?,
-            next_block,
-            next_operation,
-            next_value,
-            next_edge,
-            source_calls,
-        )
+    /// A scalar helper's call binds this call's result type among its
+    /// locals, and its checked scalar control returns.
+    fn helper_body(&self, index: usize) -> Option<ForwardedHelperBody<'_>> {
+        let body = self.forwarding_helpers.get(index)?;
+        Some(ForwardedHelperBody {
+            machine: body.machine,
+            state: body.state,
+            call_statement_index: body.call_result.statement_index,
+            scalar_locals: &body.scalar_locals,
+            completion: ForwardedHelperCompletion::Scalar {
+                call_result: &body.call_result,
+                control: &body.scalar_control,
+            },
+        })
     }
 
     fn retain_sources(
@@ -399,8 +365,8 @@ impl DynamicCall for CheckedDynamicUnitCallPlan {
         None
     }
 
-    fn helper_body_count(&self) -> Option<usize> {
-        None
+    fn helper_body_count(&self) -> usize {
+        self.forwarding_helpers.len()
     }
 
     /// A Unit call binds no result.
@@ -408,22 +374,20 @@ impl DynamicCall for CheckedDynamicUnitCallPlan {
         true
     }
 
-    /// Unit helpers only forward the descriptor to the next call.
-    fn helper_bodies_match(&self, _other: &Self) -> bool {
-        true
+    fn helper_bodies_match(&self, other: &Self) -> bool {
+        self.forwarding_helpers == other.forwarding_helpers
     }
 
-    fn materialize_helper_body(
-        &self,
-        _checked: &CheckedTrees,
-        site: &ForwardedHelperSite,
-        _next_block: &mut u64,
-        _next_operation: &mut u64,
-        _next_value: &mut u64,
-        _next_edge: &mut u64,
-        _source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<Block>, LoweringError> {
-        Ok(vec![materialize_unit_helper_body(site)])
+    /// A Unit helper's call binds nothing and its body returns Unit.
+    fn helper_body(&self, index: usize) -> Option<ForwardedHelperBody<'_>> {
+        let body = self.forwarding_helpers.get(index)?;
+        Some(ForwardedHelperBody {
+            machine: body.machine,
+            state: body.state,
+            call_statement_index: body.call_statement_index,
+            scalar_locals: &body.scalar_locals,
+            completion: ForwardedHelperCompletion::Unit,
+        })
     }
 
     /// A Unit call's lowering is mapped through its entry: the caller and

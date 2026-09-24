@@ -2374,19 +2374,15 @@ syntax and other terminal services are not prerequisites.
      closure can call a multi-state scalar graph that has a receiver. Let the
      state graph own that machine, then drop the scalar graph's receiver
      path.
-  3. Forwarded dynamic Unit helpers retain no body plan, so the checked
-     `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
-     a helper whose body is its one call, while scalar helpers retain
-     ordered pure locals around the call. Carry that helper plan on Unit
-     plans, materialize it through the one chain in
-     `unit/dynamic_composed_unit/forwarded_helpers.rs`, and delete the
-     recognizer. The checked call-plan builders
-     (`scalar_call_plans.rs::build_checked_dynamic_scalar_call`,
-     `unit.rs::build_checked_dynamic_unit_call`) still duplicate selection,
-     row, realization and contract custody. The checked dynamic join
-     (`composed_control/dynamic_join.rs`) still requires an authored `_`
-     fallback; other graphs accept an exact-complement pair through
-     `execution::guard_complement::complementary`.
+  3. The checked dynamic join (`composed_control/dynamic_join.rs`) still
+     requires an authored `_` fallback; other graphs accept an
+     exact-complement pair through
+     `execution::guard_complement::complementary`. The scalar and Unit call
+     plans still spell the same 33 custody fields, so the one builder moves
+     them through `call_plans.rs::DynamicCallCustody` and a plan macro, and
+     lowering and the checked join each borrow them through their own view
+     (`dynamic_lanes.rs::DynamicCallView`, `join.rs::JoinBranchView`). One
+     custody struct embedded in both plans would delete all four.
   4. Composed-graph states share `attached_unit/operation_frame.rs` with the
      ordinary machine for stores, scalar locals, borrowed windows and
      continuation cleanup, but still emit calls through their own copies:

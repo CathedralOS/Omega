@@ -7,31 +7,31 @@
 //!
 //! This owner consumes typed coordinates and joins them to checked conformance,
 //! contract, value, and service-reach facts. It publishes source-handle-free
-//! plans without depending on Terminal Psi. Scalar and Unit builders preserve
-//! their distinct result contracts; neither may fabricate the other's result.
+//! plans without depending on Terminal Psi. One builder,
+//! `call_plans.rs::build_checked_dynamic_call`, checks every call's shared
+//! custody; its `result_lanes.rs` lane keeps the scalar and Unit result
+//! contracts distinct, so neither fabricates the other's result.
 
+mod call_plans;
 mod descriptor_transfers;
 mod forwarded_calls;
 mod join;
 mod realization_bodies;
 mod realization_callables;
 mod receivers;
-mod scalar_call_plans;
-mod unit;
+mod result_lanes;
 
 use super::{
     BTreeMap, CheckFacts, CheckedBoundaryMachinePlan, CheckedStructuralAccess,
-    CheckedUnitCallCoordinate, MachineSupplyMode, ServiceReachSummary, StatementNode, SymbolHandle,
-    TypedTrees,
+    CheckedUnitCallCoordinate, ServiceReachSummary, SymbolHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::{ShapeCollector, state_flow};
 
-use checked_trees::CheckedDynamicDispatchPlan;
+use call_plans::build_checked_dynamic_call;
 use descriptor_transfers::build_checked_dynamic_descriptor_transfers;
-use forwarded_calls::{ForwardedCallResult, build_checked_forwarded_dynamic_calls};
+use forwarded_calls::build_checked_forwarded_dynamic_calls;
 use receivers::{local_receiver_symbol, stored_dynamic_receiver};
-use scalar_call_plans::build_checked_dynamic_scalar_call;
-use typed_trees::name::Identifier;
+use result_lanes::{ScalarResultLane, UnitResultLane};
 
 pub(super) fn build_checked_dynamic_dispatch_plans(
     program: &TypedTrees,
@@ -81,25 +81,11 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                     continue;
                 }
 
-                match &call_site {
+                // A statement call returns Unit; a call expression binds a
+                // scalar result.
+                let plan = match call_site {
                     crate::semantic::calls::CallSite::Statement(_) => {
-                        let Some(binding) = unit::build_checked_dynamic_unit_call(
-                            program,
-                            facts,
-                            &binding_facts,
-                            machine,
-                            state,
-                            flow_call,
-                            call_site,
-                            shapes,
-                            None,
-                        ) else {
-                            continue;
-                        };
-                        plans.calls.push(CheckedDynamicDispatchPlan::Unit(binding));
-                    }
-                    _ => {
-                        let Some(binding) = build_checked_dynamic_scalar_call(
+                        build_checked_dynamic_call::<UnitResultLane>(
                             program,
                             facts,
                             &binding_facts,
@@ -111,36 +97,43 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                             boundaries,
                             None,
                             stored_receiver,
-                        ) else {
-                            continue;
-                        };
-                        plans
-                            .calls
-                            .push(CheckedDynamicDispatchPlan::Scalar(binding));
+                        )
                     }
-                }
+                    _ => build_checked_dynamic_call::<ScalarResultLane>(
+                        program,
+                        facts,
+                        &binding_facts,
+                        machine,
+                        state,
+                        flow_call,
+                        call_site,
+                        shapes,
+                        boundaries,
+                        None,
+                        stored_receiver,
+                    ),
+                };
+                plans.calls.extend(plan);
             }
         }
     }
 
-    build_checked_forwarded_dynamic_calls(
+    build_checked_forwarded_dynamic_calls::<ScalarResultLane>(
         program,
         facts,
         shapes,
         boundaries,
         &binding_facts,
         &mut plans,
-        ForwardedCallResult::Scalar,
     );
     join::promote_two_predecessor_dynamic_scalar_joins(program, facts, shapes, &mut plans);
-    build_checked_forwarded_dynamic_calls(
+    build_checked_forwarded_dynamic_calls::<UnitResultLane>(
         program,
         facts,
         shapes,
         boundaries,
         &binding_facts,
         &mut plans,
-        ForwardedCallResult::Unit,
     );
     join::promote_two_predecessor_dynamic_unit_joins(program, facts, shapes, &mut plans);
 

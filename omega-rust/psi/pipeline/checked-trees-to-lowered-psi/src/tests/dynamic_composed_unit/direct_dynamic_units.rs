@@ -673,6 +673,96 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     );
 }
 
+/// A Unit helper's pure locals around its call lower through the same helper
+/// body as a scalar helper's: evaluated in authored order around the helper's
+/// own call, which binds nothing. Both a dispatching helper and a forwarding
+/// helper of a two-hop chain keep their locals, and dropping one retained
+/// local from the plan is refused rather than lowered without it.
+#[test]
+fn lowers_forwarded_dynamic_unit_helper_locals_around_the_call() {
+    let fixtures = [
+        (
+            FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE,
+            "erased.touch();",
+            "let before: i32 = 3;\n        erased.touch();\n        let after: i32 = before ^ 1;",
+            1,
+        ),
+        (
+            MULTI_HOP_DYNAMIC_UNIT_SOURCE,
+            "finish(erased);",
+            "let hop: i32 = 2;\n        finish(erased);",
+            2,
+        ),
+    ];
+    for (original, call, body, helpers) in fixtures {
+        let source = original.replace(call, body);
+        assert_ne!(source, original);
+        let mut checked = crate::front_end::checked_program(&source);
+        let [Unit(Direct(plan))] = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .calls
+            .as_slice()
+        else {
+            panic!("one forwarded Unit plan expected")
+        };
+        assert_eq!(plan.forwarding_helpers.len(), helpers);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+            .expect("the Unit helper's locals lower with its call");
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the Unit helper body verifies");
+        let parameter = &lowered.semantic_module.dynamic_dispatch.parameters[0];
+        let helper = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| machine.id == parameter.owner)
+            .expect("first forwarding helper");
+        assert_eq!(helper.result, terminal_psi::TerminalMachineResult::Unit);
+        assert!(
+            helper
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(operation.result, OperationResult::Scalar(_))),
+            "the helper evaluates its locals: {helper:#?}"
+        );
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("Main::run"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("Unit helper locals encode canonically")
+        .into_artifact();
+        assert_eq!(
+            terminal_codec::decode_module(artifact.semantic_bytes())
+                .expect("Unit helper locals decode"),
+            lowered.semantic_module,
+        );
+        assert_dynamic_unit_artifact_executes(&artifact);
+
+        let [Unit(Direct(plan))] = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .dynamic_dispatch
+            .calls
+            .as_mut_slice()
+        else {
+            unreachable!("checked above")
+        };
+        plan.forwarding_helpers[0].scalar_locals.pop();
+        assert_eq!(
+            unsupported_message(&checked),
+            "forwarded helper omitted or changed its body"
+        );
+    }
+}
+
 #[test]
 fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
     let checked = crate::front_end::checked_program(DIRECT_DYNAMIC_UNIT_SOURCE);

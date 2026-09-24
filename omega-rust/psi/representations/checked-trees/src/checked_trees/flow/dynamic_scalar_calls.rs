@@ -227,11 +227,13 @@ pub struct CheckedDynamicJoinBranchPlan<Call> {
 }
 
 /// Checked custody for one terminal Unit-returning call through a local named
-/// dynamic value or an exact transparent descriptor-parameter chain. This rung
-/// admits no dynamic-call arguments, result discard, realization state
-/// contracts, service reach, or realization body operations.
+/// dynamic value or an exact descriptor-parameter chain. This rung admits no
+/// dynamic-call arguments, result discard, realization state contracts,
+/// service reach, or realization body operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedDynamicUnitCallPlan {
+    /// Complete ordered bodies of the parameter helpers, outermost first.
+    pub forwarding_helpers: Vec<CheckedDynamicUnitHelperPlan>,
     /// Exact authored route by which the selected descriptor reaches this
     /// Unit dispatch. Forwarding retains both the outer ordinary-call
     /// coordinate and the helper's parameter-slot call coordinate.
@@ -274,6 +276,19 @@ pub struct CheckedDynamicUnitCallPlan {
     pub realization_contract_report_fingerprint: u64,
     pub realization_contract_commitment: MachineContractCommitment,
     pub checked_call_service_reach: ServiceReachSummary,
+}
+
+/// Ordered pure locals around one helper's Unit call. The call binds nothing,
+/// so the locals alone occupy the helper's scalar namespace, and the helper
+/// returns Unit after its last statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedDynamicUnitHelperPlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    /// The statement that performs the helper's call.
+    pub call_statement_index: u32,
+    /// Every other statement's binding and checked initializer, in order.
+    pub scalar_locals: Vec<(CheckedUnitScalarResultBindingPlan, CheckedScalarExpression)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

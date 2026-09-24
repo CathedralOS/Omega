@@ -119,7 +119,7 @@ fn validate_stored_descriptor(
     checked: &CheckedTrees,
     plan: &DynamicCallView<'_>,
     store: Option<&CheckedStructuralScalarFieldStorePlan>,
-    helper_body_count: Option<usize>,
+    helper_body_count: usize,
     stored: &checked_trees::CheckedDynamicStoredDescriptorPlan,
 ) -> Result<(), LoweringError> {
     let machines = checked
@@ -210,7 +210,7 @@ fn validate_stored_descriptor(
         || destination_field_identity != stored.destination_field_identity
         || store.is_some()
         || !plan.forwarding_transfers.is_empty()
-        || helper_body_count.is_some_and(|count| count != 0)
+        || helper_body_count != 0
         || plan.forwarded.is_some()
     {
         return unsupported("stored dynamic descriptor drifted from checked aggregate custody");

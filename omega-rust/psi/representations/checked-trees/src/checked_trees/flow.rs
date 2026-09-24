@@ -84,7 +84,7 @@ pub use dynamic_scalar_calls::{
     CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
     CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
     CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
-    CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan,
+    CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
     CheckedStructuralCaseFieldStorePlan, CheckedStructuralScalarFieldStoreDestination,
     CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarFieldStoreValue,
 };
