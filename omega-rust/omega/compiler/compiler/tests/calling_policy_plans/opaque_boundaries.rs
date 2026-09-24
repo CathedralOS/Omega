@@ -204,7 +204,10 @@ fn source_interrupt_policy_publishes_and_selects_the_complete_entry_plan() {
         .expect("TimerRoot service schema");
     assert!(schema.methods[0].calling_plan_report_fingerprint.is_some());
     let selected = selected_plan_for_external_root(checked.selected_provider_plans(), "TimerRoot");
-    assert_eq!(selected.name, "macos_arm64::TimerProvider::satisfies::TimerRoot");
+    assert_eq!(
+        selected.name,
+        "macos_arm64::TimerProvider::satisfies::TimerRoot"
+    );
     let mask_plan =
         selected_plan_for_external_root(checked.selected_provider_plans(), "InterruptMaskControl");
     assert_eq!(
