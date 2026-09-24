@@ -99,9 +99,8 @@ enum TailBound {
 /// immutable-integer-bound machinery. Every other shape -- mutable, ambiguous,
 /// cyclic, qualified, or computed beyond a constant shift -- stays unknown.
 fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<TailBound> {
-    let bound_lookup = crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(
-        program,
-    );
+    let bound_lookup =
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
     if let Some(value) =
         crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, expression)
     {
@@ -115,11 +114,9 @@ fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<Tail
             offset: bound.offset,
         });
     }
-    if let Some(leaf) = crate::normalize_immutable_integer_bound_expression(
-        program,
-        &bound_lookup,
-        expression,
-    ) {
+    if let Some(leaf) =
+        crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
+    {
         return match program.expression_table.expression(leaf) {
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()

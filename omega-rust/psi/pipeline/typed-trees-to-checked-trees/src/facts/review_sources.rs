@@ -38,7 +38,9 @@ pub(crate) fn bind_checked_body_call_source_spans(
         .map(|(_, state)| state.clone())
         .collect::<Vec<_>>();
     for checked_state in checked_states {
-        let Some(machine) = machines_by_symbol.get(&checked_state.machine_symbol).copied()
+        let Some(machine) = machines_by_symbol
+            .get(&checked_state.machine_symbol)
+            .copied()
         else {
             return Err(vec![Diagnostic::error(format!(
                 "checked machine {:?} is absent while binding call source custody",
@@ -54,10 +56,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
                 checked_state.state_symbol, checked_state.machine_symbol,
             ))]);
         };
-        let mut call_sites_by_statement = std::collections::HashMap::<
-            usize,
-            Vec<crate::semantic::calls::CallSite<'_>>,
-        >::new();
+        let mut call_sites_by_statement =
+            std::collections::HashMap::<usize, Vec<crate::semantic::calls::CallSite<'_>>>::new();
         for checked_call in flow.control.calls.span_mut_or_empty(checked_state.calls) {
             let call_sites = call_sites_by_statement
                 .entry(checked_call.statement_index)
@@ -97,7 +97,6 @@ pub(crate) fn bind_checked_body_call_source_spans(
     }
     Ok(())
 }
-
 
 pub(crate) fn derive_checked_body_call_source_spans(
     _program: &TypedTrees,

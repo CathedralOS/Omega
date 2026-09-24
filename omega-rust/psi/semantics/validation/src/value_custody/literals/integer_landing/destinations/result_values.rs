@@ -135,7 +135,8 @@ impl WindowBound {
 fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> WindowBound {
     let bound_lookup =
         crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
-    let Some(expression) = crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
+    let Some(expression) =
+        crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
     else {
         return WindowBound::Unknown;
     };

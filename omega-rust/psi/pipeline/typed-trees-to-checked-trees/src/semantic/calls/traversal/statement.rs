@@ -38,9 +38,7 @@ pub(crate) fn find_call_site_in_statement<'program>(
                 traversal.state,
                 call,
             );
-            if is_machine_call
-                && let Some(site) = traversal.visit(CallSite::Statement(call))
-            {
+            if is_machine_call && let Some(site) = traversal.visit(CallSite::Statement(call)) {
                 return Some(site);
             }
 

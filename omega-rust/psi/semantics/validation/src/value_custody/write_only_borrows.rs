@@ -1130,8 +1130,8 @@ fn validate_write_only_fixed_array_range_assignment(
     } else {
         Some(0)
     };
-    let end =
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(|end| {
+    let end = crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end)
+        .and_then(|end| {
             if range.end_inclusive {
                 end.checked_add(1)
             } else {

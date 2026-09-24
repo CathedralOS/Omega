@@ -747,22 +747,29 @@ fn normalize_write_only_range_place(
             continue;
         };
         let start = if range.start.is_valid() {
-            validation::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
+            validation::normalize_immutable_integer_bound_to_usize(
+                program,
+                &bound_lookup,
+                range.start,
+            )
         } else {
             Some(0)
         };
         let end = if !range.end.is_valid() {
             None
         } else {
-            validation::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(
-                |end| {
-                    if range.end_inclusive {
-                        end.checked_add(1)
-                    } else {
-                        Some(end)
-                    }
-                },
+            validation::normalize_immutable_integer_bound_to_usize(
+                program,
+                &bound_lookup,
+                range.end,
             )
+            .and_then(|end| {
+                if range.end_inclusive {
+                    end.checked_add(1)
+                } else {
+                    Some(end)
+                }
+            })
         };
         if let (Some(start), Some(end)) = (start, end) {
             *segment = facts::PlaceSegment::FixedRange { start, end };

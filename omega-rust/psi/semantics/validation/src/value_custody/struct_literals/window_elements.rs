@@ -62,13 +62,14 @@ pub(crate) fn validate_array_window_elements(
         Some(0)
     };
     let end = if range.end.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(|end| {
-            if range.end_inclusive {
-                end.checked_add(1)
-            } else {
-                Some(end)
-            }
-        })
+        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end)
+            .and_then(|end| {
+                if range.end_inclusive {
+                    end.checked_add(1)
+                } else {
+                    Some(end)
+                }
+            })
     } else {
         collection_length
     };
