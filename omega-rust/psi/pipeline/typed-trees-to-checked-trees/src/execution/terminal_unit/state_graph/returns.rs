@@ -1,4 +1,6 @@
-//! Normal graph results and source-bound scalar case construction.
+//! Normal graph results and source-bound scalar case construction. A
+//! primitive scalar result completes each returning state with the same
+//! binding or exit roster an ordinary single-state body retains.
 use super::super::{
     CheckedStructuralResultPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralFieldPlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralResultBindingPlan,
@@ -33,6 +35,18 @@ pub(in crate::execution::terminal_unit) fn signature(
 ) -> Option<CheckedControlResultPlan> {
     if is_unit(program, reference) {
         return Some(CheckedControlResultPlan::Unit);
+    }
+    if let Some(primitive_type) = program.primitive_type_reference(reference) {
+        // A primitive result is one returned scalar value. An arithmetic
+        // policy changes later operation meaning, not the returned payload;
+        // any other refinement (a closed range, a domain) owes a result
+        // guarantee this route does not publish, so it stays unadmitted.
+        let unrefined = matches!(
+            program.type_reference_table.type_reference(reference),
+            TypeReferenceNode::Named { .. }
+        );
+        return (unrefined || validation::is_arithmetic_policy_only_integer(program, reference))
+            .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
@@ -95,9 +109,9 @@ pub(in crate::execution::terminal_unit) fn signature(
                 checked_trees::CheckedByteSequenceCarrier::BorrowedView,
             )
             | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
-            // By-value scalar results stay scalar-graph owned: their graph
-            // carries the computation expansion and block-invariant machinery
-            // the composed route does not model.
+            // Primitive scalars returned above as `Scalar`. Other by-value
+            // carriers (fixed arrays, owned byte buffers) have no admitted
+            // whole-result custody on this route.
             _ => false,
         };
     // Whole linear forwarding does not inspect or construct payload fields.
@@ -118,6 +132,46 @@ pub(in crate::execution::terminal_unit) fn signature(
             )?,
         },
     ))
+}
+
+/// How a returning state of a scalar-result graph completes its value: the
+/// same two completions an ordinary single-state body retains. A final
+/// expression is the sequence's own returned binding; value-only transition
+/// exits are the shared scalar exit roster, which must begin exactly at the
+/// state's terminator. A crash keeps the graph's own `Crash` terminator and a
+/// named successor keeps its edge custody plan, so neither completes here.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn scalar_completion(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    terminator_index: usize,
+    primitive_type: PrimitiveType,
+    returned_binding: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
+    trace: &control::LocalConstructionTrace,
+) -> Option<checked_trees::CheckedScalarReturnPlan> {
+    trace.phase("state graph: terminator: scalar completion");
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if let Some(binding) = returned_binding {
+        return (matches!(
+            statements.get(terminator_index..),
+            Some([StatementNode::Expression(_)])
+        ) && binding.primitive_type == primitive_type)
+            .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
+    }
+    let (exits, prefix) =
+        control::statement_sequence::scalar_control(program, facts, machine, state)?;
+    if prefix != terminator_index
+        || exits.primitive_type != primitive_type
+        || matches!(
+            exits.terminator,
+            checked_trees::CheckedScalarStateTerminator::Crash { .. }
+        )
+    {
+        return None;
+    }
+    Some(checked_trees::CheckedScalarReturnPlan::Exits(exits))
 }
 
 pub(super) fn constructor(
@@ -504,17 +558,19 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     };
     let start = Some(endpoint(range.start)?);
     let end = Some(endpoint(range.end)?);
-    let parameter_index = u32::try_from(parameter_index).ok()?;
+    let root = checked_trees::CheckedStorageRoot::Parameter {
+        index: u32::try_from(parameter_index).ok()?,
+    };
     let source = if byte_view {
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index,
+            root,
             expression,
             start,
             end,
         }
     } else {
         CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            parameter_index,
+            root,
             expression,
             start,
             end,

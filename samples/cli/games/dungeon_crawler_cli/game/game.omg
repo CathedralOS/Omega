@@ -80,35 +80,47 @@ machine Game::run_game_loop(&mut self) reaches Console {
         }
     }
 
-    state bounded_command(&mut self, count: u64 [0..=256]) {
+    state bounded_command(&mut self, count: u64) requires count <= 256 {
         transition count > 0 {
-            true -> inspect_line_end(count, count - 1)
+            true -> inspect_line_end(count)
             false -> finished()
         }
     }
 
-    state inspect_line_end(&mut self, count: u64 [1..=256], last_index: u64 [0..=255]) {
-        transition self.input[last_index] == 10 {
+    // Every command length stays within the 256-byte input, and the last
+    // written byte sits at `count - 1`. The guard's first conjunct always
+    // holds under the contract; it bounds that computed index for the read and
+    // admits it as the shorter length into the next state's contract.
+    state inspect_line_end(&mut self, count: u64) requires count > 0 requires count <= 256 {
+        let last_index: u64 = count - 1;
+        transition last_index <= 255 && self.input[last_index] == 10 {
             true -> without_line_feed(last_index)
             false -> dispatch_command(count)
         }
     }
 
-    state without_line_feed(&mut self, count: u64 [0..=255]) {
+    state without_line_feed(&mut self, count: u64) requires count <= 255 {
         transition count > 0 {
-            true -> inspect_carriage_return(count, count - 1)
+            true -> inspect_carriage_return(count)
             false -> finished()
         }
     }
 
-    state inspect_carriage_return(&mut self, count: u64 [1..=255], last_index: u64 [0..=254]) {
-        transition self.input[last_index] == 13 {
-            true -> dispatch_command(last_index)
+    state inspect_carriage_return(&mut self, count: u64) requires count > 0 requires count <= 255 {
+        let last_index: u64 = count - 1;
+        transition last_index <= 254 && self.input[last_index] == 13 {
+            true -> without_carriage_return(last_index)
             false -> dispatch_command(count)
         }
     }
 
-    state dispatch_command(&mut self, count: u64 [0..=256]) {
+    state without_carriage_return(&mut self, count: u64) requires count <= 254 {
+        transition {
+            _ -> dispatch_command(count)
+        }
+    }
+
+    state dispatch_command(&mut self, count: u64) requires count <= 256 {
         // ASCII commands compare against only the written prefix.
         let command: &[u8] = self.input[0..count];
 

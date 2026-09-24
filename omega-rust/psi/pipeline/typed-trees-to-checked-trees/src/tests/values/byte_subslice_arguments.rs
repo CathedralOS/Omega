@@ -40,9 +40,11 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
     );
     for (role, authored, expected) in [
         (
-            CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                call_ordinal: 0,
-                argument_ordinal: 1,
+            CheckedScalarExpressionRole::SubsliceStart {
+                site: checked_trees::CheckedSubsliceSite::CallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: 1,
+                },
             },
             range.start,
             CheckedScalarExpression::Local {
@@ -51,9 +53,11 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
             },
         ),
         (
-            CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                call_ordinal: 0,
-                argument_ordinal: 1,
+            CheckedScalarExpressionRole::SubsliceEnd {
+                site: checked_trees::CheckedSubsliceSite::CallArgument {
+                    call_ordinal: 0,
+                    argument_ordinal: 1,
+                },
             },
             range.end,
             CheckedScalarExpression::Parameter {
@@ -78,9 +82,11 @@ fn byte_subslice_endpoints_bind_dense_structural_roles_and_prior_locals() {
             .bound_expression_at(
                 state.symbol,
                 1,
-                CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                    call_ordinal: 0,
-                    argument_ordinal: 3,
+                CheckedScalarExpressionRole::SubsliceStart {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 3
+                    }
                 }
             )
             .is_none(),
@@ -118,16 +124,20 @@ fn byte_subslice_endpoint_retention_lands_only_exact_u64_and_keeps_omissions() {
         );
         for (role, retained) in [
             (
-                CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                    call_ordinal: 0,
-                    argument_ordinal: 0,
+                CheckedScalarExpressionRole::SubsliceStart {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 0,
+                    },
                 },
                 start,
             ),
             (
-                CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                    call_ordinal: 0,
-                    argument_ordinal: 0,
+                CheckedScalarExpressionRole::SubsliceEnd {
+                    site: checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: 0,
+                        argument_ordinal: 0,
+                    },
                 },
                 end,
             ),
@@ -183,7 +193,7 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
     assert!(matches!(
         structural_arguments[0].source,
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index: 0,
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             start: None,
             end: None,
             ..
@@ -199,8 +209,8 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
             .all(|(_, binding)| binding.state != plan.state
                 || !matches!(
                     binding.role,
-                    CheckedScalarExpressionRole::ByteSequenceSubsliceStart { .. }
-                        | CheckedScalarExpressionRole::ByteSequenceSubsliceEnd { .. }
+                    CheckedScalarExpressionRole::SubsliceStart { .. }
+                        | CheckedScalarExpressionRole::SubsliceEnd { .. }
                 ))
     );
 }

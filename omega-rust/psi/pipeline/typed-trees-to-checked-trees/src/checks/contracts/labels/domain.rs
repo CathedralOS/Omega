@@ -37,7 +37,7 @@ pub(crate) fn domain_proves_expression_label(
     })
 }
 
-fn instantiate_domain_expression_label(
+pub(crate) fn instantiate_domain_expression_label(
     program: &typed_trees::TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
     base_label: &str,

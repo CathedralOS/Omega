@@ -9,9 +9,9 @@
 //! pin retired into the fixture's active-pass claim):
 //!
 //! - `control_flow/runtime_string_literal_dispatch_exit` stops at
-//!   `structural field store: record literal field` — establishing the
-//!   `"look"`/`"quit"` input string reaches a record-literal field store the
-//!   unit plan does not admit.
+//!   `structural field store: borrowed view field` — `self.input = "look"`
+//!   stores a borrowed byte view into a `&[u8] in Utf8` field, and no Terminal
+//!   store operation relates a stored loan to the field it lands in.
 //!
 //! The refusal surfaces during checked compilation as soon as an entry binding
 //! authorizes ProgramEntry establishment, so the pin compiles to checked and
@@ -34,7 +34,7 @@ mod fixture_package_inputs;
 const STRING_DISPATCH_CANARY: &str = "control_flow/runtime_string_literal_dispatch_exit";
 const ENTRY_REJOIN_PREFIX: &str =
     "selected ProgramEntry establishment rejoins 0 Terminal attachment identities";
-const STRING_OMISSION: &str = "structural field store: record literal field";
+const STRING_OMISSION: &str = "structural field store: borrowed view field";
 
 /// The fixture's authored `omega_language_std` package closure with the exact
 /// entry schema for `target_name` accepted, so the checked compile attempts
@@ -95,6 +95,6 @@ fn assert_stops_at_omitted_unit_plan(canary_path: &str, omission: &str) {
 }
 
 #[test]
-fn string_literal_dispatch_stops_at_record_literal_field_store() {
+fn string_literal_dispatch_stops_at_borrowed_view_field_store() {
     assert_stops_at_omitted_unit_plan(STRING_DISPATCH_CANARY, STRING_OMISSION);
 }

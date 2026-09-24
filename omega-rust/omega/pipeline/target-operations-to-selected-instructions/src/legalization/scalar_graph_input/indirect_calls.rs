@@ -62,12 +62,11 @@ pub(in crate::legalization) fn parameter_call_contract(
     expected_result: Option<ScalarType>,
     target: NativeTarget,
 ) -> Result<ParameterDynamicCallContract, LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
     // The semantic join: the dispatch names this operation, one exact borrowed
     // descriptor parameter of the same owner, and a requirement slot that
     // selects exactly one closed-interface row.
     if !dynamic_dispatch.has_complete_custody(machine, psi_operation) {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     // The physical join: the consumed parameter must be one of the
     // signature-bound descriptor ABIs so the indirect call reads the exact
@@ -76,7 +75,7 @@ pub(in crate::legalization) fn parameter_call_contract(
         .iter()
         .find(|abi| abi.parameter == dynamic_dispatch.parameter)
     else {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     };
     let Some(requirement) = dynamic_dispatch
         .parameter
@@ -84,13 +83,15 @@ pub(in crate::legalization) fn parameter_call_contract(
         .iter()
         .find(|requirement| requirement.slot == dynamic_dispatch.dispatch.requirement_slot)
     else {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     };
     if closed_result_scalar(requirement.result) != expected_result {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
-    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
-    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
+    let pointer_size =
+        u16::try_from(target.pointer_size).map_err(|_| LegalizationError::custody())?;
+    let pointer_alignment =
+        u16::try_from(target.pointer_alignment).map_err(|_| LegalizationError::custody())?;
     // The erased adapter entry receives exactly the instance word and returns
     // the requirement's result shape; the selected table slot must satisfy
     // this plan without naming a concrete realization.
@@ -102,7 +103,7 @@ pub(in crate::legalization) fn parameter_call_contract(
             result: result_shape,
         },
     )
-    .map_err(|_| invalid())?;
+    .map_err(|_| LegalizationError::custody())?;
     if dispatch_call_plan.parameters.len() != 1
         || dispatch_call_plan
             .result
@@ -110,13 +111,13 @@ pub(in crate::legalization) fn parameter_call_contract(
             .map(|placement| placement.shape)
             != result_shape
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     let table_slot_byte_offset = dynamic_dispatch
         .dispatch
         .requirement_slot
         .checked_mul(u32::from(pointer_size))
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LegalizationError::custody())?;
     Ok(ParameterDynamicCallContract {
         parameter_abi: parameter_abi.clone(),
         requirement: requirement.clone(),

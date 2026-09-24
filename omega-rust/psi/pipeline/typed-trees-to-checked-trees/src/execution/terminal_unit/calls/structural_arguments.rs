@@ -9,11 +9,10 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
     fixed_byte_array_view_is_admitted,
 };
-use crate::execution::terminal_unit::calls::byte_subslice;
 use crate::execution::terminal_unit::calls::computation_arguments;
-use crate::execution::terminal_unit::calls::element_subslice;
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
+use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, attached_data_identity, base_type_identity, byte_sequence_type_identity,
     is_unit, parameter_root_symbol, structural_access_for_type_reference,
@@ -142,29 +141,11 @@ pub(crate) fn structural_call_arguments(
                 output.push(literal);
                 continue;
             }
-            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && is_unit(program, target_state.return_type)
-                && let Some(subslice) = byte_subslice::argument(
-                    program,
-                    facts,
-                    caller_machine,
-                    caller_state,
-                    caller_parameters,
-                    target.type_reference,
-                    expression,
-                    statement_index,
-                    call.call_ordinal,
-                    argument_ordinal,
-                )
-            {
-                output.push(subslice);
-                continue;
-            }
             // Borrowed element views take the same exclusive-range lane as
             // byte views, without the byte lane's unit-result restriction:
             // scalar-returning callees receive `s[a..b]` too.
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && let Some(subslice) = element_subslice::argument(
+                && let Some(subslice) = view_subslice::admit(
                     program,
                     facts,
                     caller_machine,
@@ -173,11 +154,15 @@ pub(crate) fn structural_call_arguments(
                     target.type_reference,
                     expression,
                     statement_index,
-                    call.call_ordinal,
-                    argument_ordinal,
+                    checked_trees::CheckedSubsliceSite::CallArgument {
+                        call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                    },
                 )
+                && (subslice.range.kind == view_subslice::ViewKind::Elements
+                    || is_unit(program, target_state.return_type))
             {
-                output.push(subslice);
+                output.push(subslice.argument());
                 continue;
             }
             // A fixed range projection must still name the builtin slice

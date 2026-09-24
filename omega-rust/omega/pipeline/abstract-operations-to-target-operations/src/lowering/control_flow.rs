@@ -77,9 +77,8 @@ pub(super) fn lower(
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, target_operations::TargetNativeCallbackArgument>,
 ) -> Result<TargetFunction, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if function.block_entries.is_empty() {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     // Invocation borrows keep their original places throughout the graph.
@@ -119,7 +118,7 @@ pub(super) fn lower(
         }))
         || !function.entry_claims.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let prepared =
         super::function_signature::prepare_function_signature(function, target, structural_types)?;
@@ -137,7 +136,7 @@ pub(super) fn lower(
             )
         })
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let parameters_by_place = super::function_signature::parameters_by_place(&prepared.parameters);
     let mut definitions = BTreeSet::new();
@@ -212,7 +211,7 @@ pub(super) fn lower(
         .map(|parameter| parameter.place)
         .collect::<BTreeSet<_>>();
     if places.len() != function.structural_parameters.len() {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let entry_references = references::entry(function, structural_types)?;
     for entry in &function.block_entries {
@@ -228,7 +227,7 @@ pub(super) fn lower(
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
         }
     }
@@ -251,7 +250,7 @@ pub(super) fn lower(
             _ => None,
         };
         if established.is_some_and(|place| !places.insert(place)) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     let entries = &function.block_entries;
@@ -263,7 +262,7 @@ pub(super) fn lower(
                 && entry.parameters != function.parameters
         })
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut ranges = Vec::new();
     let mut incoming = vec![Vec::new(); entries.len()];
@@ -274,7 +273,7 @@ pub(super) fn lower(
             .iter()
             .any(|earlier| earlier.block == entry.block)
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         if entry.block == function.entry {
             entry_position = Some(position);
@@ -283,7 +282,7 @@ pub(super) fn lower(
             .get(position + 1)
             .map_or(function.operations.len(), |next| next.operation_offset);
         if entry.operation_offset >= end || end > function.operations.len() {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         ranges.push(entry.operation_offset..end);
         let targets = match &function.operations[end - 1] {
@@ -318,24 +317,26 @@ pub(super) fn lower(
             AbstractOperation::StructuralCase { cases, .. } => {
                 cases.iter().map(|case| case.target).collect()
             }
-            _ => return Err(invalid()),
+            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
         for target_block in targets {
             let target_position = entries
                 .iter()
                 .position(|candidate| candidate.block == target_block)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if !outgoing[position].contains(&target_position) {
                 outgoing[position].push(target_position);
                 incoming[target_position].push(position);
             }
         }
     }
-    let entry_position = entry_position.ok_or_else(invalid)?;
+    let entry_position =
+        entry_position.ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if !incoming[entry_position].is_empty() {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let schedule = dominance::schedule(&incoming, &outgoing, entry_position).ok_or_else(invalid)?;
+    let schedule = dominance::schedule(&incoming, &outgoing, entry_position)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut live_exits: Vec<Option<LiveDefinitions>> = vec![None; entries.len()];
     let mut lowered = vec![None; entries.len()];
     let mut block_provenance = vec![TerminalPsiProvenance::default(); entries.len()];
@@ -361,7 +362,10 @@ pub(super) fn lower(
     for (position, dominator) in schedule {
         let mut live = match dominator {
             None => initial.clone(),
-            Some(dominator) => live_exits[dominator].as_ref().ok_or_else(invalid)?.clone(),
+            Some(dominator) => live_exits[dominator]
+                .as_ref()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                .clone(),
         };
         live.nonreturning = false;
         if position != entry_position {
@@ -398,7 +402,7 @@ pub(super) fn lower(
                         .insert(parameter.place, home)
                         .is_some()
                     {
-                        return Err(invalid());
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                 }
             }
@@ -465,7 +469,7 @@ pub(super) fn lower(
     let blocks = lowered
         .into_iter()
         .collect::<Option<Vec<_>>>()
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut provenance = TerminalPsiProvenance::default();
     for block in block_provenance {
         provenance.operations.extend(block.operations);

@@ -170,10 +170,17 @@ fn optimized_record(
         module.machines.retain(|machine| machine.id == module.entry);
     }
     let semantic = terminal_codec::encode_module(&module).unwrap();
+    // A proof section names the exact module it proves, so the edited module
+    // needs the original bundle re-bound to its own identity.
+    let proof = terminal_codec::encode_proof_section(
+        &module,
+        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+    )
+    .unwrap();
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
     native_realization::optimize_artifact_sections(
         &semantic,
-        artifact.proof_bytes(),
+        &proof,
         &proof_admission::AdmissionProfile::default(),
         native_realization::compiler_baseline_request_v1(&selections),
     )

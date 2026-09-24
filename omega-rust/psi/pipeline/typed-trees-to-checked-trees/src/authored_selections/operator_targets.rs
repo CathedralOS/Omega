@@ -14,7 +14,7 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionOccurrenceId,
 };
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{BuiltinFunction, SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
@@ -454,9 +454,26 @@ pub(crate) fn authored_operand_type(
             program,
             crate::flow::effective_member_symbol(program, member.receiver, member),
         ),
-        ExpressionNode::Call(call) => {
-            exact_named_operator_call(program, call).map(|operator| operator.return_type)
-        }
+        ExpressionNode::Call(call) => exact_named_operator_call(program, call)
+            .map(|operator| operator.return_type)
+            // A builtin `min`, `max` or `sqrt` returns its operands' carrier,
+            // as the checked operand typing in `operators::receiver` reads it.
+            .or_else(|| {
+                matches!(
+                    program
+                        .symbols
+                        .builtin_function_for_symbol(call.target_symbol),
+                    Some(BuiltinFunction::Min | BuiltinFunction::Max | BuiltinFunction::Sqrt)
+                )
+                .then(|| {
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .find_map(|argument| authored_operand_type(program, *argument))
+                })
+                .flatten()
+            }),
         ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol)
             .or_else(|| operator_contract_value_type(program, expression, path)),
         _ => None,

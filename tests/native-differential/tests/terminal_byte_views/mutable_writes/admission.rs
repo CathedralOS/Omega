@@ -212,6 +212,8 @@ fn mutable_write_selection_rejects_changed_address_width_value_and_proof() {
                 .iter_mut()
                 .find(|function| function.machine == lowered.semantic_module.entry)
                 .unwrap();
+            // A write through a block-parameter view is charged to its backing
+            // root as a byte span; an un-viewed place keeps its sequence row.
             let memory = function
                 .memory_accesses
                 .iter_mut()
@@ -219,6 +221,7 @@ fn mutable_write_selection_rejects_changed_address_width_value_and_proof() {
                     matches!(
                         access.role,
                         SelectedMemoryAccessRole::WriteByteSequence { .. }
+                            | SelectedMemoryAccessRole::WriteByteSpan { .. }
                     )
                 })
                 .unwrap();
@@ -246,7 +249,8 @@ fn mutable_write_selection_rejects_changed_address_width_value_and_proof() {
                 4 => memory.place = PlaceId::new(9999).unwrap(),
                 5 => memory.byte_count = 8,
                 6 => {
-                    let SelectedMemoryAccessRole::WriteByteSequence { accepted_fact, .. } =
+                    let (SelectedMemoryAccessRole::WriteByteSequence { accepted_fact, .. }
+                    | SelectedMemoryAccessRole::WriteByteSpan { accepted_fact, .. }) =
                         &mut memory.role
                     else {
                         unreachable!()

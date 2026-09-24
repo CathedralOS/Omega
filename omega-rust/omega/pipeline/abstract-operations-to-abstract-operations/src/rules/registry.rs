@@ -20,6 +20,7 @@ pub struct RuleAnalysisView<'a> {
 
 #[derive(Debug, Clone, Copy)]
 enum RuleAnalysisProducts<'a> {
+    #[cfg(any(test, feature = "test-support"))]
     Slice(&'a [AnalysisProduct]),
     Cache {
         products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
@@ -28,6 +29,7 @@ enum RuleAnalysisProducts<'a> {
 }
 
 impl<'a> RuleAnalysisView<'a> {
+    #[cfg(any(test, feature = "test-support"))]
     pub const fn new(products: &'a [AnalysisProduct]) -> Self {
         Self {
             products: RuleAnalysisProducts::Slice(products),
@@ -48,6 +50,7 @@ impl<'a> RuleAnalysisView<'a> {
 
     pub fn get(self, kind: AnalysisKind) -> Option<&'a AnalysisProduct> {
         match self.products {
+            #[cfg(any(test, feature = "test-support"))]
             RuleAnalysisProducts::Slice(products) => {
                 products.iter().find(|product| product.kind() == kind)
             }
@@ -190,6 +193,7 @@ impl OrderedRuleRegistry {
         self.rules.len()
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     pub fn is_empty(&self) -> bool {
         self.rules.is_empty()
     }

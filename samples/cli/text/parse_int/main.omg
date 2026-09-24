@@ -26,7 +26,7 @@ data Main {
     console: Binding<Console>;
     pause: [u8; 256];
     text: [u8; 8] in Utf8;
-    i: i32 [0..=8];
+    i: i32;
     b: u8;
     // Wrapping DECLARED: the accumulator multiplies-and-adds digits read out of
     // the carrier, and carrier bytes carry no range facts yet (a parse of
@@ -61,7 +61,7 @@ machine Main::main(&mut self) reaches Console {
         self.result = self.result * 10;
         self.result = self.result + self.dval;
         // Re-guard against the carrier CAPACITY (8) so the increment's direct
-        // edge proves `i + 1` back into [0..=8] -- len <= 8, so this is always true.
+        // edge proves `i + 1` lands in [1..=8] -- len <= 8, so this is always true.
         transition self.i >= 0 && self.i < 8 {
             true -> advance()
             _ -> done()

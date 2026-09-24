@@ -131,6 +131,16 @@ pub enum CheckedUnitEffectOperationPlan {
         binding_ordinal: u32,
         loan: arena::Handle<crate::BorrowLoanFact>,
     },
+    /// Bind the statement's immutable view local to an exclusive range of an
+    /// established view. `source` is the same `ByteSequenceSubslice` or
+    /// `ElementViewSubslice` argument plan a call argument carries, with its
+    /// endpoints keyed at the `LocalBinding` subslice site. The result is a
+    /// shared, unrestricted view in the structural result namespace: it owns
+    /// no storage, so its end is the end of the loan, never a disposal.
+    EstablishViewSubslice {
+        result: CheckedUnitStructuralResultBindingPlan,
+        source: CheckedUnitStructuralArgumentPlan,
+    },
     /// Establish a fresh structural expression in the shared result namespace.
     /// Selected arms transfer one new owner into the expression continuation.
     EstablishStructuralValue {

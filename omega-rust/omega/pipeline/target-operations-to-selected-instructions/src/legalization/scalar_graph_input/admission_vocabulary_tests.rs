@@ -47,6 +47,7 @@ fn function(machine: u64) -> PsiOptimizationFunction {
         evidence_contract_lanes: Vec::new(),
         entry_claims: BTreeSet::new(),
         published_service_ceiling: Vec::new(),
+        declared_service_reach: Vec::new(),
         facts: Vec::new(),
         blocks: Vec::new(),
     }

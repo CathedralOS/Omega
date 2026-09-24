@@ -32,7 +32,7 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
     assert!(matches!(
         super::structural_sequence_length(&program, parameters, length),
         Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
-            parameter_position: 0, path,
+            root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
         }) if path == [CheckedStructuralPredicatePathSegment::Field("text".into())]
     ));
     let DataMember::Field(foreign) = &program.data_members(&program.data_definitions()[1])[0]
@@ -71,7 +71,7 @@ fn byte_length_keeps_whole_views_distinct_from_field_carriers() {
         assert!(matches!(
             super::structural_sequence_length(&program, parameters, length),
             Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
-                parameter_position: 0, path,
+                root: checked_trees::CheckedStorageRoot::Parameter { index: 0 }, path,
             }) if path.is_empty()
         ));
     }

@@ -23,26 +23,29 @@
 //! is crate-private -- the phase's own leg -- and `replay_psi_registry` is the
 //! test-only single-registry replay this crate's replay tests drive.
 
+#[cfg(any(test, feature = "test-support"))]
+use optimization_core::ExternalDecisionLog;
 use optimization_core::{
-    ExternalDecisionLog, OptimizationSelections, OptimizationWorkBudget,
-    PsiOptimizationSelectionProjection,
+    OptimizationSelections, OptimizationWorkBudget, PsiOptimizationSelectionProjection,
 };
 use terminal_psi_to_abstract_operations::{
     VerifiedPsiOptimizationInput, VerifiedPsiOptimizationUnit,
     VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
 };
 
+#[cfg(any(test, feature = "test-support"))]
+use crate::pass_manager::{ExternalDecisionReplayError, run_registries_with_external_decisions};
 use crate::pass_manager::{
-    ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,
-    VerifiedPsiOptimizationSession, run_registries, run_registries_with_external_decisions,
+    OptimizationRun, OptimizationRunError, VerifiedPsiOptimizationSession, run_registries,
 };
 use crate::publication::{
     OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run,
 };
+use crate::rules::built_in_psi_registries_for_selections;
+#[cfg(any(test, feature = "test-support"))]
 use crate::rules::registry::OrderedRuleRegistry;
-use crate::rules::{
-    built_in_psi_registries, built_in_psi_registries_for_selections, built_in_psi_registry,
-};
+#[cfg(any(test, feature = "test-support"))]
+use crate::rules::{built_in_psi_registries, built_in_psi_registry};
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {
@@ -77,6 +80,7 @@ pub fn optimize_abstract_operations(
     publish_optimization_run(run).map_err(AbstractOptimizationError::Publication)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub fn run_psi_registry(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
@@ -154,6 +158,7 @@ pub(crate) fn replay_psi_registry(
 
 /// Execute every implemented named optimization as its own canonical pass
 /// group and publish one chained run over the exact selected suite.
+#[cfg(any(test, feature = "test-support"))]
 pub fn run_psi_pipeline(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,
@@ -191,6 +196,7 @@ pub(crate) fn run_psi_pipeline_for_projection(
 /// Replay a canonical external decision log through the ordinary selected Psi
 /// pipeline. Candidate construction and validation are identical to the
 /// model-free run; the log supplies only the action after validation.
+#[cfg(any(test, feature = "test-support"))]
 pub fn replay_psi_pipeline(
     verified: VerifiedPsiOptimizationUnit,
     selections: &OptimizationSelections,

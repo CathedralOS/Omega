@@ -250,7 +250,13 @@ fn scalar_return_cannot_hide_an_unwitnessed_byte_output_boundary() {
             Err(error) => error,
             Ok(_) => panic!("scalar target invented a Linux write without a builtin witness"),
         };
-        assert_eq!(error, crate::LegalizationError::SourceCustodyMismatch);
+        assert!(
+            matches!(
+                error,
+                crate::LegalizationError::SourceCustodyMismatch { .. }
+            ),
+            "{error:?}"
+        );
     }
 }
 

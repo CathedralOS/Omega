@@ -3,10 +3,13 @@
 // (`off + self.descriptor_size`, never sizeof), each entry re-viewed
 // through the §5b record recast (`&self.buf[off] as &Desc`) with member
 // reads through the view. Every proof is compiler-side:
-//   - the walk bound: the back-edge guard `next <= 32` proves the
-//     forwarded offset's declared range (R1a's co-located guard route);
+//   - the walk bound: the back-edge guard `next <= 32` admits the
+//     forwarded offset into the walk states' `requires off <= 32` contract;
+//   - the stride: the guard `0 < stride <= 16` on the stored descriptor size
+//     bounds `off + stride`;
 //   - the view footprint: `high(off) + size_of(Desc) <= len(buf)` through
-//     the offset's enforced interval (recast rung C1/C2);
+//     the interval walk's incoming edges give the offset -- the literal 0
+//     and the `next <= 32` guard (recast rung C1/C2);
 //   - no runtime bounds checks, no linear-counter workaround.
 // Three descriptors at offsets 0/16/32 carry kind tags 3, 4, 5 and page
 // counts 10, 20, 30; the walk sums the page counts of kind >= 4 entries:
@@ -20,7 +23,7 @@ data Desc { kind: u32; pages: u64; }
 data Main {
     console: Binding<Console>;
     buf: [u8; 48];
-    descriptor_size: u32 [0..=16];
+    descriptor_size: u32;
     total: u32 in Wrapping;
 }
 machine Main::main(&mut self) reaches Console {
@@ -36,23 +39,33 @@ machine Main::main(&mut self) reaches Console {
     self.descriptor_size = 16;
     transition { _ -> walk(0) }
 
-    state walk(&mut self, off: u32 [0..=32]) {
+    // The view is taken once per entry, here: this state's incoming edges are
+    // the literal 0 and the `next <= 32` back-edge guard, which is what the
+    // recast footprint check accepts (it does not read the requires clause).
+    state walk(&mut self, off: u32) requires off <= 32 {
         let d: &Desc = &self.buf[off] as &Desc;
+        let pages: u64 = d.pages;
         transition d.kind >= 4 {
-            true -> tally(off)
+            true -> tally(off, pages)
             _ -> step(off)
         }
     }
-    state tally(&mut self, off: u32 [0..=32]) {
-        let d: &Desc = &self.buf[off] as &Desc;
-        let pages: u32 in Wrapping =
-            narrow_u64_to_u32_wrapping(d.pages) as u32 in Wrapping;
-        self.total = self.total + pages;
+    state tally(&mut self, off: u32, pages: u64) requires off <= 32 {
+        let counted: u32 in Wrapping =
+            narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
+        self.total = self.total + counted;
         transition { _ -> step(off) }
     }
-    state step(&mut self, off: u32 [0..=32]) {
-        let next: u32 = off + self.descriptor_size;
-        transition next <= 32 && self.descriptor_size > 0 {
+    state step(&mut self, off: u32) requires off <= 32 {
+        let stride: u32 = self.descriptor_size;
+        transition stride > 0 && stride <= 16 {
+            true -> advance(off, stride)
+            _ -> done()
+        }
+    }
+    state advance(&mut self, off: u32, stride: u32) requires off <= 32 requires stride <= 16 {
+        let next: u32 = off + stride;
+        transition next <= 32 {
             true -> walk(next)
             _ -> done()
         }

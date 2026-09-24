@@ -382,9 +382,9 @@ data Main {
     killed: u32;
     key: u64;
     fw: u64;
-    pumped: i32 [0..=16];
-    frame: i32 [0..=16384];
-    i: i32 [0..=4096];
+    pumped: i32;
+    frame: i32;
+    i: i32;
 
     // Calculator model. Arithmetic is explicit Saturating arithmetic so this
     // sample can focus on UI/state pressure instead of proving arbitrary user
@@ -392,15 +392,15 @@ data Main {
     current: i32 in Saturating;
     accumulator: i32 in Saturating;
     memory: i32 in Saturating;
-    pending: i32 [0..=4]; // 0 none, 1 add, 2 subtract, 3 multiply, 4 divide
+    pending: i32; // 0 none, 1 add, 2 subtract, 3 multiply, 4 divide
     typing: u32;
     error: u32;
-    cooldown: i32 [0..=8];
-    last_key: i32 [0..=31];
+    cooldown: i32;
+    last_key: i32;
 
     // Render scratch.
-    row: i32 [0..=63];
-    col: i32 [0..=63];
+    row: i32;
+    col: i32;
     px: i32;
     display_value: i32 in Saturating;
     display_work: i32 in Saturating;
@@ -410,14 +410,14 @@ data Main {
     digit2: i32 in Saturating;
     digit3: i32 in Saturating;
     draw_digit: i32 in Saturating;
-    segment: i32 [0..=6];
-    local_x: i32 [-4..=11];
-    local_y: i32 [-1..=10];
-    button_row: i32 [0..=4];
-    button_col: i32 [0..=3];
-    button_code: i32 [0..=31];
-    button_lx: i32 [0..=15];
-    button_ly: i32 [0..=8];
+    segment: i32;
+    local_x: i32;
+    local_y: i32;
+    button_row: i32;
+    button_col: i32;
+    button_code: i32;
+    button_lx: i32;
+    button_ly: i32;
     shade: i32;
 }
 
@@ -962,7 +962,16 @@ machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClo
         self.px = 8421504;
         transition { _ -> write_pixel_guard() }
     }
+    // Re-assert the in-button coordinates: button_hit computed them many
+    // dispatch states back, and the label arithmetic below needs them bounded
+    // (always true: `col % 16` and `(row - 18) % 9` inside the button grid).
     state button_label(&mut self) {
+        transition self.button_lx >= 0 && self.button_lx <= 15 && self.button_ly >= 0 && self.button_ly <= 8 {
+            true -> button_label_kind()
+            _ -> write_pixel_guard()
+        }
+    }
+    state button_label_kind(&mut self) {
         transition self.button_code <= 9 { true -> button_digit_label() _ -> button_operator_label() }
     }
     state button_digit_label(&mut self) {
@@ -1144,26 +1153,31 @@ machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClo
     }
 }
 
-machine Main::accept_digit(&mut self, digit: i32 [0..=9], key_code: i32 [0..=31]) {
+machine Main::accept_digit(&mut self, digit: i32, key_code: i32)
+requires
+    digit >= 0 && digit <= 9;
+requires
+    key_code >= 0 && key_code <= 31;
+{
     self.last_key = key_code;
     self.cooldown = 6;
     transition self.error > 0 { true -> digit_after_error(digit) _ -> digit_dispatch(digit) }
 
-    state digit_after_error(&mut self, digit: i32 [0..=9]) {
+    state digit_after_error(&mut self, digit: i32) {
         self.error = 0;
         self.pending = 0;
         self.accumulator = 0;
         self.current = digit;
         self.typing = 1;
     }
-    state digit_dispatch(&mut self, digit: i32 [0..=9]) {
+    state digit_dispatch(&mut self, digit: i32) {
         transition self.typing > 0 { true -> digit_append(digit) _ -> digit_start(digit) }
     }
-    state digit_start(&mut self, digit: i32 [0..=9]) {
+    state digit_start(&mut self, digit: i32) {
         self.current = digit;
         self.typing = 1;
     }
-    state digit_append(&mut self, digit: i32 [0..=9]) {
+    state digit_append(&mut self, digit: i32) {
         // Fused Saturating mul/add in operand position lower correctly since
         // the 2026-07-09d operand-position domain lowering (the clamp happens
         // at each operation node before the modulo).
@@ -1171,52 +1185,57 @@ machine Main::accept_digit(&mut self, digit: i32 [0..=9], key_code: i32 [0..=31]
     }
 }
 
-machine Main::accept_operator(&mut self, op: i32 [0..=4], key_code: i32 [0..=31]) {
+machine Main::accept_operator(&mut self, op: i32, key_code: i32)
+requires
+    op >= 0 && op <= 4;
+requires
+    key_code >= 0 && key_code <= 31;
+{
     self.last_key = key_code;
     self.cooldown = 6;
     transition self.error > 0 { true -> done() _ -> operator_dispatch(op) }
 
-    state operator_dispatch(&mut self, op: i32 [0..=4]) {
+    state operator_dispatch(&mut self, op: i32) {
         transition self.pending == 0 { true -> store_first(op) _ -> evaluate_for_operator(op) }
     }
-    state store_first(&mut self, op: i32 [0..=4]) {
+    state store_first(&mut self, op: i32) {
         self.accumulator = self.current;
         self.current = 0;
         self.typing = 0;
         self.pending = op;
     }
-    state evaluate_for_operator(&mut self, op: i32 [0..=4]) {
+    state evaluate_for_operator(&mut self, op: i32) {
         transition self.pending == 1 { true -> eval_add(op) _ -> eval_sub_check(op) }
     }
-    state eval_sub_check(&mut self, op: i32 [0..=4]) {
+    state eval_sub_check(&mut self, op: i32) {
         transition self.pending == 2 { true -> eval_sub(op) _ -> eval_mul_check(op) }
     }
-    state eval_mul_check(&mut self, op: i32 [0..=4]) {
+    state eval_mul_check(&mut self, op: i32) {
         transition self.pending == 3 { true -> eval_mul(op) _ -> eval_div_check(op) }
     }
-    state eval_div_check(&mut self, op: i32 [0..=4]) {
+    state eval_div_check(&mut self, op: i32) {
         transition self.pending == 4 { true -> eval_div_guard(op) _ -> finish_operator(op) }
     }
-    state eval_add(&mut self, op: i32 [0..=4]) {
+    state eval_add(&mut self, op: i32) {
         self.accumulator = self.accumulator + self.current;
         transition { _ -> finish_operator(op) }
     }
-    state eval_sub(&mut self, op: i32 [0..=4]) {
+    state eval_sub(&mut self, op: i32) {
         self.accumulator = self.accumulator - self.current;
         transition { _ -> finish_operator(op) }
     }
-    state eval_mul(&mut self, op: i32 [0..=4]) {
+    state eval_mul(&mut self, op: i32) {
         self.accumulator = self.accumulator * self.current;
         transition { _ -> finish_operator(op) }
     }
-    state eval_div_guard(&mut self, op: i32 [0..=4]) {
+    state eval_div_guard(&mut self, op: i32) {
         transition self.current == 0 { true -> divide_error() _ -> eval_div(op) }
     }
-    state eval_div(&mut self, op: i32 [0..=4]) {
+    state eval_div(&mut self, op: i32) {
         self.accumulator = self.accumulator / self.current;
         transition { _ -> finish_operator(op) }
     }
-    state finish_operator(&mut self, op: i32 [0..=4]) {
+    state finish_operator(&mut self, op: i32) {
         self.current = 0;
         self.typing = 0;
         self.pending = op;
@@ -1281,7 +1300,10 @@ machine Main::accept_equals(&mut self) {
     state done(&mut self) {}
 }
 
-machine Main::clear_all(&mut self, key_code: i32 [0..=31]) {
+machine Main::clear_all(&mut self, key_code: i32)
+requires
+    key_code >= 0 && key_code <= 31;
+{
     self.last_key = key_code;
     self.cooldown = 6;
     self.current = 0;

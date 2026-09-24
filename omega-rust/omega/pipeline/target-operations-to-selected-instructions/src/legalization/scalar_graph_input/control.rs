@@ -10,7 +10,6 @@ pub(super) fn validate(
     _body: &[OptimizationNode],
     function: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     match (&node.operation, &function.result) {
         (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
@@ -42,7 +41,7 @@ pub(super) fn validate(
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 (parameter.structural_type, parameter.multiplicity)
             } else {
@@ -57,7 +56,7 @@ pub(super) fn validate(
                     } => (declaration.structural_type, declaration.multiplicity),
                     // `source_owner` never resolves a function parameter.
                     legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-                        return Err(invalid);
+                        return Err(LegalizationError::custody());
                     }
                 }
             };
@@ -69,7 +68,7 @@ pub(super) fn validate(
                 || !trivial_affine_locals.is_empty()
                 || !super::aggregate_results::cleanup(function, &cleanup_actions)
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             terminal_edge(node, *psi_edge)
         }
@@ -136,7 +135,7 @@ pub(super) fn validate(
             _,
         ) if residual_affine_discards.is_empty() => {
             let [edge] = node.successors.as_slice() else {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             };
             if edge.psi_edge != *psi_edge
                 || edge.target != *target
@@ -145,7 +144,7 @@ pub(super) fn validate(
                 || edge.trivial_affine_discards != *trivial_affine_discards
                 || !edge.residual_affine_discards.is_empty()
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             branch_edges(node, function)
         }
@@ -158,10 +157,10 @@ pub(super) fn validate(
             _,
         ) => {
             if value_type(function, *condition) != Some(ScalarType::Boolean) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             if node.successors.len() != 2 {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             for (actual, expected) in node.successors.iter().zip([when_true, when_false]) {
                 if actual.psi_edge != expected.psi_edge
@@ -170,12 +169,12 @@ pub(super) fn validate(
                     || actual.structural_bindings != expected.structural_bindings
                     || actual.trivial_affine_discards != expected.trivial_affine_discards
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             }
             branch_edges(node, function)
         }
-        _ => Err(invalid),
+        _ => Err(LegalizationError::custody()),
     }
 }
 fn terminal_edge(
@@ -190,7 +189,7 @@ fn terminal_edge(
             .iter()
             .any(|fuel| fuel.site != PsiProvenance::Edge(edge))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }
@@ -218,7 +217,7 @@ fn branch_edges(
                     .any(|fuel| fuel.site != PsiProvenance::Edge(edge.psi_edge))
         })
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

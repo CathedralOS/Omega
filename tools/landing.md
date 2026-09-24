@@ -67,14 +67,20 @@ separately while working; cancel if the queued change needs more implementation.
 
 Capture the exact candidate before running the checks required by `AGENTS.md`
 and the task. Keep the actual exits and keep the worktree clean at that commit.
-The command checks Git state, not test success. Two shape guards apply at
+The command checks Git state, not test success. Shape guards apply at
 publish: a candidate that changes no files is refused outright (an empty commit
 carries ledger noise, not a product change — record the finding on the claim
 ticket with `claims.py note` and release instead), and a candidate touching
 only coordination files (`TASKS*.md`, `OWNER_QUESTIONS.md`,
 `tools/swarm/waves/`) is refused unless `publish` receives `--board-update`,
 the coordinator's flag for batched board sweeps. A product change that carries
-its board update inside the same commit needs no flag. Compiler advancement uses the
+its board update inside the same commit needs no flag. A third guard refuses a
+candidate that changes a trusted-surface implementation site pinned in
+`terminal-verifier/src/trusted_surface/sites.rs` without re-recording its
+SHA-256: that is a verifier change nobody revalidated against the ledger
+entries citing it. Revalidate them, then run
+`python3 tools/trusted_surface_digests.py --write`. Only the candidate's own
+changes are checked, so drift already on main never blocks unrelated work. Compiler advancement uses the
 change-scoped validation policy in `AGENTS.md`; a fresh full baseline is not a
 publication prerequisite. Reuse evidence for unchanged inputs after rebasing,
 and rerun checks whose inputs changed.

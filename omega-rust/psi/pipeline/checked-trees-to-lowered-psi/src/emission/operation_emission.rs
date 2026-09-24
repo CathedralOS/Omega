@@ -8,6 +8,7 @@ pub(crate) mod buffer;
 pub(crate) mod calls;
 pub(crate) mod expressions;
 pub(crate) mod integer;
+pub(crate) mod view_subslice;
 
 use crate::emission::expression_validation::direct_expression_contains_short_circuit;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;

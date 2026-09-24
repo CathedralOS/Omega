@@ -61,8 +61,9 @@ pub(super) struct Transport {
     pub settlements: Vec<SelectedBoundarySettlement>,
 }
 
+#[track_caller]
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 pub(super) fn transport_register(
@@ -120,7 +121,7 @@ pub(super) fn place_pointer(
             .local_slots
             .iter()
             .filter(|home| home.id.structural_place() == Some(place));
-        let home = homes.next().ok_or_else(invalid)?.clone();
+        let home = homes.next().ok_or_else(|| invalid())?.clone();
         if homes.next().is_some() {
             return Err(invalid());
         }
@@ -140,7 +141,7 @@ pub(super) fn place_pointer(
                 .constraints
                 .keys
                 .address_offset
-                .ok_or_else(invalid)?
+                .ok_or_else(|| invalid())?
         },
         &[input, output],
         SelectedInstructionProvenance {
@@ -316,7 +317,7 @@ pub(super) fn operation(
             .instructions
             .len()
             .checked_sub(block_start)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         builder
             .transport
             .settlements
@@ -375,7 +376,7 @@ pub(super) fn operation(
         super::unit_call::emit(function, source, row, environment, builder)?;
         return Ok(true);
     }
-    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     if call.validate_shape().is_err()
         || call.validate_source(&row.ownership).is_err()
         || call.result_placement.is_some()
@@ -393,7 +394,7 @@ pub(super) fn operation(
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == semantic.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if semantic.access != StructuralAccess::Owned
             || !semantic.path.is_empty()
             || target.place != semantic.place
@@ -434,7 +435,7 @@ pub(super) fn operation(
             .iter()
             .find(|(place, _)| *place == semantic.place)
             .map(|(_, register)| *register)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         for byte_offset in [0, 8] {
             let value = transport_register(builder, semantic.place, byte_offset)?;
             memory(
@@ -447,7 +448,7 @@ pub(super) fn operation(
             )?;
             builder.emit(
                 SelectedInstructionKind::Load64 { byte_offset },
-                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
                 &[input, value],
                 provenance(row),
             )?;
@@ -464,7 +465,7 @@ pub(super) fn operation(
                     slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset,
                 },
-                builder.constraints.keys.store64.ok_or_else(invalid)?,
+                builder.constraints.keys.store64.ok_or_else(|| invalid())?,
                 &[value],
                 provenance(row),
             )?;
@@ -491,7 +492,11 @@ pub(super) fn operation(
                     slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
                     byte_offset: 0,
                 },
-                builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                builder
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| invalid())?,
                 &[address],
                 provenance(row),
             )?;
@@ -499,7 +504,7 @@ pub(super) fn operation(
                 address,
                 environment
                     .fixed_register_view(pointer)
-                    .ok_or_else(invalid)?,
+                    .ok_or_else(|| invalid())?,
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -509,7 +514,7 @@ pub(super) fn operation(
         .call_unit
         .get(call.arguments.len())
         .copied()
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let constraint = row_constraint(builder, key)?;
     if environment.constraint(key) != Some(constraint)
         || constraint.operands.len() != pointers.len()

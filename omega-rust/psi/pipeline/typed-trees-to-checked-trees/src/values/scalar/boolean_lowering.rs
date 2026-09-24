@@ -313,7 +313,9 @@ fn bounded_carrier_literal_equality(
         let mut equality = CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
             left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
-                parameter_position,
+                root: checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
                 path: path.clone(),
             }),
             right: Box::new(integer_literal(
@@ -323,7 +325,9 @@ fn bounded_carrier_literal_equality(
         };
         for (index, byte) in bytes.iter().enumerate() {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
-                parameter_position,
+                root: checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                },
                 path: path.clone(),
                 index: Box::new(integer_literal(
                     u64::try_from(index).ok()?,

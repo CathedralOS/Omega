@@ -11,8 +11,9 @@ use crate::selection::validation::scalar_graph::structural::provenance;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::IntegerValue;
 
+#[track_caller]
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 /// Mirror of construction `leaf_copy::copy`: the source resolves through its
@@ -76,8 +77,9 @@ pub(super) fn copy(
         return Ok(());
     };
     for index in indices {
-        let (_, index_register, _, index_type) =
-            replay.resolve(index.operand.value).ok_or_else(invalid)?;
+        let (_, index_register, _, index_type) = replay
+            .resolve(index.operand.value)
+            .ok_or_else(|| invalid())?;
         let ScalarType::Integer(integer) = index.operand.scalar_type else {
             return Err(invalid());
         };
@@ -186,7 +188,7 @@ pub(super) fn copy(
         };
         replay.check_instruction(
             kind,
-            key.ok_or_else(invalid)?,
+            key.ok_or_else(|| invalid())?,
             &[input, value],
             &provenance(row),
         )?;
@@ -203,7 +205,7 @@ pub(super) fn copy(
                 byte_offset: cursor,
                 byte_size: width,
             },
-            replay.constraints.keys.store.ok_or_else(invalid)?,
+            replay.constraints.keys.store.ok_or_else(|| invalid())?,
             &[pointer, value],
             &provenance(row),
         )?;
@@ -248,7 +250,7 @@ fn check_fragments(
                 .iter()
                 .find(|parameter| parameter.semantic.place == *place)
         })
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if !crate::selection::aggregate_result_input::inline_argument_fragments(
         &parameter.target.placement,
     ) {
@@ -256,7 +258,7 @@ fn check_fragments(
     }
     let leaf_end = byte_offset
         .checked_add(u32::from(shape.byte_size))
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     for location in &parameter.target.placement.locations {
         let (fragment_offset, width) = match location {
             calling_conventions::ValueLocation::Register {
@@ -273,7 +275,7 @@ fn check_fragments(
         };
         let fragment_end = fragment_offset
             .checked_add(u32::from(width))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if fragment_end <= byte_offset || fragment_offset >= leaf_end {
             continue;
         }
@@ -286,7 +288,7 @@ fn check_fragments(
             .iter()
             .find(|(stored, offset, _)| *stored == *place && *offset == fragment_offset)
             .map(|(_, _, value)| *value)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let offset = fragment_offset - byte_offset;
         memory(
             replay,
@@ -301,7 +303,7 @@ fn check_fragments(
                 byte_offset: offset,
                 byte_size: u8::try_from(width).map_err(|_| invalid())?,
             },
-            replay.constraints.keys.store.ok_or_else(invalid)?,
+            replay.constraints.keys.store.ok_or_else(|| invalid())?,
             &[pointer, value],
             &provenance(row),
         )?;

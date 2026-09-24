@@ -77,7 +77,12 @@ impl SelectedInstructionValidationReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionError {
-    SourceCustodyMismatch,
+    /// Selection's own replay disagrees with the legalized input or the
+    /// selected output. `site` is the check that refused
+    /// (`SelectedInstructionError::custody`).
+    SourceCustodyMismatch {
+        site: &'static std::panic::Location<'static>,
+    },
     TargetRegisterArchitectureMismatch,
     /// No selection admits this source shape. `machine` and `operation`
     /// name the legalized function and the instruction being selected when
@@ -198,3 +203,13 @@ impl std::fmt::Display for SelectedInstructionError {
 }
 
 impl std::error::Error for SelectedInstructionError {}
+
+impl SelectedInstructionError {
+    /// A custody disagreement raised at the caller's source location.
+    #[track_caller]
+    pub fn custody() -> Self {
+        Self::SourceCustodyMismatch {
+            site: std::panic::Location::caller(),
+        }
+    }
+}

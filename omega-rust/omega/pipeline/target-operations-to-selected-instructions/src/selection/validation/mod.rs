@@ -27,7 +27,7 @@ pub fn validate_selected_instructions(
         physical.model().clone(),
         catalog.catalog().clone(),
     )
-    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?;
+    .map_err(|_| SelectedInstructionError::custody())?;
     validate_with_environment(legalized, constraints, &environment, plan)
 }
 
@@ -39,7 +39,7 @@ pub(super) fn validate_with_environment(
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
     let target = legalized.plan();
     if target.target != environment.target() {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     let physical = environment.physical();
     let catalog = environment.constraints();

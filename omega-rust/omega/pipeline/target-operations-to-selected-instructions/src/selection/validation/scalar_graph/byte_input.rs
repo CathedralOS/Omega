@@ -22,12 +22,11 @@ pub(super) fn validate(
     else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     if !row.has_valid_hosted_read_byte_shape()
         || row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
@@ -38,7 +37,10 @@ pub(super) fn validate(
         byte_size: u32::from(layout.shape.byte_size),
         alignment: layout.shape.alignment,
     });
-    let instruction_index = replay.block_cursor.try_into().map_err(|_| invalid())?;
+    let instruction_index = replay
+        .block_cursor
+        .try_into()
+        .map_err(|_| SelectedInstructionError::custody())?;
     replay
         .transport
         .settlements
@@ -58,7 +60,7 @@ pub(super) fn validate(
             .constraints
             .keys
             .hosted_read_byte
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[],
         &SelectedInstructionProvenance {
             operations: vec![row.operation],

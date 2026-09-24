@@ -24,7 +24,9 @@ use crate::validation::{
 };
 use crate::{OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration};
 use abstract_operations::AbstractOperationPlan;
-pub use error::{AppliedDecisionCustodyAxis, OptimizedAbstractProjectionError};
+#[cfg(any(test, feature = "test-support"))]
+pub use error::AppliedDecisionCustodyAxis;
+pub use error::OptimizedAbstractProjectionError;
 use optimization_core::{
     BaselineDecisionLog, ExternalDecisionLog, OptimizationIdentityBundle,
     OptimizationPassManifestRecord, OptimizationSelections,

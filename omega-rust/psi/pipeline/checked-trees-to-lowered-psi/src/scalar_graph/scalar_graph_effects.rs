@@ -1,17 +1,14 @@
 //! Non-scalar graph effects consume completed operands without adding value slots.
 use super::{
-    LoweringError, Operation, OperationKind, OperationResult, PlaceId, PrimitiveType,
-    StructuralMultiplicity, ValueDeclaration, direct_expression_contains_short_circuit,
-    emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, obligation_id,
-    terminal_scalar_type, unsupported, validate_direct_parameter_types,
+    LoweringError, Operation, OperationKind, OperationResult, ValueDeclaration,
+    emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
+    validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::emission::operation_emission::expressions::{
-    LoweredDirectExpression, emit_byte_length, emit_element_length,
-};
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::view_subslice;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect;
-use semantic_vocabulary::{StructuralTypeId, ValueId};
 
 pub(crate) fn emit(
     effects: &[LoweredScalarEffect],
@@ -75,34 +72,38 @@ pub(crate) fn emit(
                 end,
                 place,
                 structural_type,
-            } => emit_subslice(
-                source,
-                start,
-                end.as_ref(),
-                *place,
-                *structural_type,
-                false,
-                values,
-                next_value,
-                operations,
-            )?,
+            } => {
+                view_subslice::emit(
+                    view_subslice::ViewFamily::Bytes,
+                    *source,
+                    Some(start),
+                    end.as_ref(),
+                    *place,
+                    *structural_type,
+                    values,
+                    next_value,
+                    operations,
+                )?;
+            }
             LoweredScalarEffect::ElementViewSubslice {
                 source,
                 start,
                 end,
                 place,
                 structural_type,
-            } => emit_subslice(
-                source,
-                start,
-                end.as_ref(),
-                *place,
-                *structural_type,
-                true,
-                values,
-                next_value,
-                operations,
-            )?,
+            } => {
+                view_subslice::emit(
+                    view_subslice::ViewFamily::Elements,
+                    *source,
+                    Some(start),
+                    end.as_ref(),
+                    *place,
+                    *structural_type,
+                    values,
+                    next_value,
+                    operations,
+                )?;
+            }
             LoweredScalarEffect::CallUnit(call) => {
                 let types = values
                     .iter()
@@ -163,111 +164,5 @@ pub(crate) fn emit(
             }
         }
     }
-    Ok(())
-}
-
-/// Derive one borrowed window inside the edge's operation stream: endpoints
-/// are completed branch-free u64 operands, the length observation must
-/// directly name the source, and the obligation identity follows the op.
-#[allow(clippy::too_many_arguments)]
-fn emit_subslice(
-    source: &PlaceId,
-    start: &LoweredDirectExpression,
-    end: Option<&LoweredDirectExpression>,
-    place: PlaceId,
-    structural_type: StructuralTypeId,
-    element: bool,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let count_type = terminal_scalar_type(PrimitiveType::U64)?;
-    let types = values
-        .iter()
-        .map(|value| value.scalar_type)
-        .collect::<Vec<_>>();
-    let mut endpoint = |expression: &LoweredDirectExpression| -> Result<ValueId, LoweringError> {
-        if expression.scalar_type() != count_type
-            || direct_expression_contains_short_circuit(expression)
-        {
-            return unsupported("scalar subslice endpoint needs a branch-free u64 value");
-        }
-        validate_direct_parameter_types(expression, &types)?;
-        Ok(emit_direct_expression(
-            expression, values, next_value, operations,
-        ))
-    };
-    let start = endpoint(start)?;
-    let end = match end {
-        Some(end) => endpoint(end)?,
-        None => {
-            if element {
-                operations
-                    .element_lengths
-                    .iter()
-                    .rev()
-                    .find_map(|(candidate, value)| (*candidate == *source).then_some(*value))
-                    .unwrap_or_else(|| emit_element_length(*source, next_value, operations))
-            } else {
-                operations
-                    .byte_lengths
-                    .iter()
-                    .rev()
-                    .find_map(|(candidate, value)| (*candidate == *source).then_some(*value))
-                    .unwrap_or_else(|| emit_byte_length(*source, next_value, operations))
-            }
-        }
-    };
-    let length = if element {
-        operations
-            .element_lengths
-            .iter()
-            .rev()
-            .find_map(|(candidate, value)| (*candidate == *source).then_some(*value))
-            .unwrap_or_else(|| emit_element_length(*source, next_value, operations))
-    } else {
-        operations
-            .byte_lengths
-            .iter()
-            .rev()
-            .find_map(|(candidate, value)| (*candidate == *source).then_some(*value))
-            .unwrap_or_else(|| emit_byte_length(*source, next_value, operations))
-    };
-    let producer = operations.allocate();
-    let obligation = obligation_id(producer.get().checked_add(1).ok_or(
-        LoweringError::Unsupported("scalar subslice obligation identity overflows"),
-    )?);
-    let kind = if element {
-        OperationKind::ElementViewSubslice {
-            source: *source,
-            start,
-            end,
-            length,
-            obligation,
-        }
-    } else {
-        OperationKind::ByteSequenceSubslice {
-            source: *source,
-            start,
-            end,
-            length,
-            obligation,
-        }
-    };
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
-        kind,
-    });
     Ok(())
 }

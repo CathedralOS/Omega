@@ -1,12 +1,12 @@
 //! Optimizer module role: stage group. Real source-produced ranked countdown admission through optimizer analyses.
 
 use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::test_support::{
+    AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession,
+};
 use abstract_operations_to_abstract_operations::validation::{
     validate_psi_cycle_component_snapshot, validate_psi_ranking_certificate_snapshot,
     validate_transformed_psi_optimization_unit, validate_verified_psi_cycle_components,
-};
-use abstract_operations_to_abstract_operations::{
-    AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_core::AnalysisKind;

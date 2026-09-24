@@ -218,8 +218,10 @@ fn establish(
         .map(|domain| super::super::lookup_domain_id(&catalogs.domain_ids, *domain))
         .collect::<Result<Vec<_>, _>>()?;
     let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
-    let declaration_ordinal = u32::try_from(catalogs.temporary_places.len())
-        .map_err(|_| LoweringError::Unsupported("literal call declaration ordinal exceeds u32"))?;
+    // The temporary roster also holds constructor and join places; only its
+    // literals share the dense literal ordinal namespace.
+    let declaration_ordinal =
+        crate::emission::next_byte_sequence_literal_ordinal(&catalogs.temporary_places)?;
     catalogs.temporary_places.push(StructuralPlaceDeclaration {
         id: destination,
         kind: StructuralPlaceKind::ByteSequenceLiteral {

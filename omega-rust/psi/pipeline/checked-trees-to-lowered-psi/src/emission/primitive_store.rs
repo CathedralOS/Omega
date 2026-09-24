@@ -597,7 +597,7 @@ pub(crate) fn lower_path(
 /// itself; the runtime index is an operand, never a path segment. The
 /// element must be a primitive scalar — a record or nested-array element
 /// keeps its own store owners.
-fn lower_indexed_path(
+pub(crate) fn lower_indexed_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],

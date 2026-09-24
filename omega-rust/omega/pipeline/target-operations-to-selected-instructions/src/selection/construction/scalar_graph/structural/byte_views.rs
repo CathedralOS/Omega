@@ -26,8 +26,8 @@ pub(super) fn write(
     else {
         return Err(invalid());
     };
-    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
-    let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(invalid)?;
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(|| invalid())?;
+    let (_, value_register, _, value_type) = builder.resolve(value).ok_or_else(|| invalid())?;
     if crate::selection::established_view_input::view_type(function, destination).is_none()
         || row.result.is_some()
         || index_type
@@ -104,7 +104,7 @@ pub(super) fn write(
             byte_offset: 0,
             byte_size: 1,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[address, value_register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -157,8 +157,8 @@ fn byte_sequence_read(
     else {
         return Err(invalid());
     };
-    let definition = row.result.ok_or_else(invalid)?;
-    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
+    let definition = row.result.ok_or_else(|| invalid())?;
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(|| invalid())?;
     if definition.scalar_type
         != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?)
         || index_type
@@ -245,7 +245,11 @@ fn byte_sequence_read(
     }
     builder.emit(
         SelectedInstructionKind::Load8Indexed,
-        builder.constraints.keys.load8_indexed.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .load8_indexed
+            .ok_or_else(|| invalid())?,
         &[pointer, physical_index, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -276,7 +280,7 @@ pub(super) fn backing_pointer(
         .iter()
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let pointer = transport_register(builder, source, 0)?;
     memory(
         builder,
@@ -288,7 +292,7 @@ pub(super) fn backing_pointer(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[descriptor, pointer],
         provenance(row),
     )?;
@@ -301,7 +305,7 @@ fn byte_sequence_length(
     source: PlaceId,
     length_byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let result = row.result.ok_or_else(invalid)?;
+    let result = row.result.ok_or_else(|| invalid())?;
     if length_byte_offset != 8
         || result.scalar_type
             != ScalarType::Integer(
@@ -337,7 +341,7 @@ fn byte_sequence_length(
         .iter()
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
     memory(
         builder,
@@ -357,7 +361,7 @@ fn byte_sequence_length(
         SelectedInstructionKind::Load64 {
             byte_offset: length_byte_offset,
         },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[input, output],
         provenance,
     )?;

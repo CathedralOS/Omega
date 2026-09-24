@@ -1905,3 +1905,102 @@ lacks") trims but doesn't eliminate tail over-flagging; run-to-run
 variance ~±0.1 on borderline flags (std_package_check 0.39-0.56);
 ~10k input tokens + ~0.4s per diff. Watch: catalog completeness is the
 recall surface — every uncovered test surface is a silent hole.
+
+## 2026-09-24 (cont.) — failure-triage: suspect-commit attribution deployed as advisory
+
+Second deployment from the same session. Worked example: three witnessed
+failures with known attributions, packets carrying failure output + a ranked
+commit window (the v1 canary-triage fix: history questions need commits).
+Results: float-wall -> 7b9dce26d7 picked out of 40 commits with the right
+layer (name_resolution, 0.93); catalog-break -> 824c66a762 out of 25
+(test_infra, 0.83); stack-overflow -> correctly chose none_in_window for a
+host platform wall (cli_host) rather than hallucinating a suspect —
+the anti-false-positive that makes triage deployable. Borderline
+recent-change noul on the infra case (0.54).
+
+Deployed as tools/triage_advisor.py: failure output + command + git window
+-> advisory stderr line (suspect | layer | confidence). Advisory only,
+key-less silent, exits 0 on its own failures. Live dogfood at current HEAD
+on a replayed historical failure correctly answered none_in_window (the bug
+is ~500 commits back).
+
+## 2026-09-24 (cont.) — corpus-diff classification: third deployment + the batch-contamination lesson
+
+Third Jev deployment: corpus_gate --jev. Worked example (4 frozen cases,
+real 7b9dce26d7 diffs + synthetic labeled sets): record_safe verdict 4/4
+(docs-only diffs -> "would pin a regression" 0.22; zero-diff -> safe 0.92).
+Two NEW failure modes worth recording for every future batch workload:
+
+1. **Batch contamination**: a dangerous diff poisons sibling labels — two
+   timing-only diffs scored `intended` at confidence 1.0 alone but
+   `accidental` inside a batch containing a rejection->checked flip.
+2. **Unexplained conflates with intended**: a solo intended/accidental
+   re-ask called the dangerous flip "intended" under a formatting commit —
+   the model resolves "this commit can't cause this" as "fine" rather than
+   "suspicious". The fix is the CAUSAL question: "could this commit
+   plausibly produce this diff?" — the flip scored 0.43 (SUSPECT).
+
+Deployed shape (tools/corpus_gate.py --jev): one batch call for the
+record_safe verdict; if low, causal-question solo calls localize suspects.
+Advisory only, silent without key, OMEGA_JEV_OFFLINE=1.
+
+## 2026-09-24 (cont.) — board-dedup: proven property, deferred deployment
+
+14-pair worked example on the current board (per-pair requests, applying the
+contamination lesson): zero false-merge flags on every pair including
+deliberately-similar ones — precision is the deployable property. Misses were
+all needs_review-labeled pairs where Jev answered `distinct`: it resolves
+ambiguity decisively rather than routing to humans. Third instance this
+campaign of Jev out-labeling frozen expectations — the same-name
+cross-board GENERAL-CYCLIC-EXECUTION IS deliberately scoped (the optimizer
+item's text says "the receiving/native half"), making `distinct` defensible.
+
+Deployment deferred: the property is proven but the board is clean by
+construction (consolidated same-day) — a standalone tool would be machinery
+without a customer. When task-board-cleanup runs next, cite this: generate
+keyword-overlap candidate pairs, per-pair merge/distinct/needs_review
+requests (~$0.0005 each), act only on `merge` picks.
+
+## 2026-09-24 (cont.) — spec-drift + claims-fence: two more advisories deployed
+
+Fence adequacy (tools/swarm/launch.py partition_hints -> jev_fence): 12-case
+worked example caught every real under-fence (7/7), runs strict toward
+flagging — the safe direction for a launch advisory. Live: fired on 5/5
+probe-manifest sessions.
+
+Spec drift (tools/spec_drift_advisor.py): worked example 9/10 — both real
+moved-file drift cases caught, plus honest unverifiable hedging on partial
+evidence (Jev refused to confirm canary-jobs-cap when the evidence excerpt
+omitted the available_parallelism call — fourth out-labeling instance).
+Deployment lesson: path claims need a crate-relative resolver (`psi/` ->
+`omega-rust/psi/`); naive root-only resolution manufactures false drift.
+Mechanical stale-path layer is the high-precision one; semantic verdicts
+stay hedged on policy prose.
+
+## 2026-09-24 (cont.) — recheck-failure attribution: sixth instrument
+
+--base X --attribute LOG on test_affected.py: classifies each failure in a
+captured log against the candidate diff (YOURS / baseline / environmental).
+Worked example 7/7 — the discriminating cases were the hard ones: a real
+regression attributed to its own commit while a real regression under an
+innocent docs commit read baseline, and the FIFO timing flake read
+environmental. Live dogfood: catalog-path failure under a tools/ diff
+flagged YOURS (defensible — the diff touched the neighboring file), Float
+wall and FIFO flake both read baseline. Parses nextest/pytest/error lines,
+skips result-summary lines, solo calls per failure.
+
+## 2026-09-24 (cont.) — commit-message accuracy: tested, NOT a fit (negative result)
+
+Worked example: 5 real commits verified accurate + 3 synthetics
+(overclaim-perf, mismatched-docs, overclaim-scope). Result: all 5 real
+commits flagged overclaims under both question wordings; all 3 synthetics
+correct. Root cause is structural, not tuning: the repo rule allows claims
+supported by "observed validation," and a commit body's validation claims
+are self-reported assertions — unverifiable from (message, diff) alone.
+Jev applies the strict reading and will not trust assertions, so every
+honest commit false-flags. The mismatched-only slice works (docs-only diff
+under a "psi fix" subject caught), but that narrow check cannot carry a
+deployment. NOT DEPLOYED. Reusable lesson: Jev-shaped surfaces need
+verifiable evidence in the packet — self-reported claims are unverifiable
+by construction. If commit-evidence receipts (e.g., a landed report-file
+artifact referenced by hash) ever exist, this surface becomes real.

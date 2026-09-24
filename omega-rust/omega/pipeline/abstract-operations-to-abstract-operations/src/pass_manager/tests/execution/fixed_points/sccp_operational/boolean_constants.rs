@@ -3,13 +3,14 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 use super::custody::{Case, assert_operational_custody};
+use crate::PsiOptimizationRule;
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     BooleanFixtureKind, ComparisonFixtureKind, boolean_constant_unit,
     integer_comparison_constant_unit,
 };
-use crate::{
+use crate::rules::{
     BooleanEqualConstantsRule, BooleanNotConstantsRule, IntegerEqualConstantsRule,
-    IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule, PsiOptimizationRule,
+    IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
 };
 
 fn rule(rule: impl PsiOptimizationRule) -> optimization_core::OptimizationRuleIdentity {

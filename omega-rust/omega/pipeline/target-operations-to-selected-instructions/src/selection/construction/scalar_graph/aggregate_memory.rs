@@ -15,7 +15,6 @@ pub(super) fn load(
     byte_offset: u32,
     byte_size: u16,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let mut operands = vec![pointer, output];
     let (kind, key) = match byte_size {
         1 => (
@@ -36,9 +35,11 @@ pub(super) fn load(
         ),
         _ => {
             let width = selected_instructions::PackedByteWidth::from_byte_size(
-                byte_size.try_into().map_err(|_| invalid())?,
+                byte_size
+                    .try_into()
+                    .map_err(|_| SelectedInstructionError::custody())?,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| SelectedInstructionError::custody())?;
             operands.push(scratch(builder)?);
             (
                 SelectedInstructionKind::LoadPacked { byte_offset, width },
@@ -48,7 +49,7 @@ pub(super) fn load(
     };
     builder.emit(
         kind,
-        key.ok_or_else(invalid)?,
+        key.ok_or_else(|| SelectedInstructionError::custody())?,
         &operands,
         Default::default(),
     )
@@ -61,8 +62,7 @@ pub(super) fn store(
     byte_offset: u32,
     byte_size: u16,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let byte_size = u8::try_from(byte_size).map_err(|_| invalid())?;
+    let byte_size = u8::try_from(byte_size).map_err(|_| SelectedInstructionError::custody())?;
     let mut operands = vec![pointer, value];
     let (kind, key) =
         if let Some(width) = selected_instructions::PackedByteWidth::from_byte_size(byte_size) {
@@ -80,31 +80,36 @@ pub(super) fn store(
                 builder.constraints.keys.store,
             )
         } else {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         };
     builder.emit(
         kind,
-        key.ok_or_else(invalid)?,
+        key.ok_or_else(|| SelectedInstructionError::custody())?,
         &operands,
         Default::default(),
     )
 }
 
 fn scratch(builder: &mut Builder<'_>) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let id = VirtualRegisterId(
+        builder
+            .registers
+            .len()
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
+    );
     let instruction = SelectedInstructionId(
         builder
             .instructions
             .len()
             .try_into()
-            .map_err(|_| invalid())?,
+            .map_err(|_| SelectedInstructionError::custody())?,
     );
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                .map_err(|_| invalid())?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         ),
         class: builder.class,
         origin: VirtualRegisterOrigin::InstructionScratch {

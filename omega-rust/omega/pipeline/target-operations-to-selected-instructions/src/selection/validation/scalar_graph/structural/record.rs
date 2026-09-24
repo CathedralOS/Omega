@@ -15,7 +15,7 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let fields = crate::selection::record_input::fields(source, row).ok_or_else(invalid)?;
+    let fields = crate::selection::record_input::fields(source, row).ok_or_else(|| invalid())?;
     let LegalizedScalarInstructionKind::EstablishRecord {
         result,
         fields: initializers,
@@ -74,7 +74,7 @@ pub(super) fn establish(
                 value,
                 range_obligation,
             } => {
-                let (_, register, _, scalar) = replay.resolve(*value).ok_or_else(invalid)?;
+                let (_, register, _, scalar) = replay.resolve(*value).ok_or_else(|| invalid())?;
                 if Some(scalar) != expected_scalar
                     || crate::selection::scalar_call_abi::scalar_shape(scalar) != Some(field_shape)
                 {
@@ -143,7 +143,7 @@ pub(super) fn establish(
                                 *place == argument.place && *byte_offset == fragment_offset
                             })
                             .map(|(_, _, value)| *value)
-                            .ok_or_else(invalid)?;
+                            .ok_or_else(|| invalid())?;
                         memory(
                             replay,
                             row,
@@ -168,7 +168,7 @@ pub(super) fn establish(
                     .iter()
                     .find(|(place, _)| *place == argument.place)
                     .map(|(_, pointer)| *pointer)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
                 let mut cursor = 0u32;
                 while cursor < u32::from(field_shape.byte_size) {
                     let width = chunk(u32::from(field_shape.byte_size) - cursor);
@@ -209,7 +209,7 @@ pub(super) fn establish(
                     };
                     replay.check_instruction(
                         kind,
-                        key.ok_or_else(invalid)?,
+                        key.ok_or_else(|| invalid())?,
                         &[input, value],
                         &provenance(row),
                     )?;
@@ -263,7 +263,7 @@ fn store(
             byte_offset: offset,
             byte_size: width,
         },
-        replay.constraints.keys.store.ok_or_else(invalid)?,
+        replay.constraints.keys.store.ok_or_else(|| invalid())?,
         &[pointer, value],
         &SelectedInstructionProvenance {
             values,
@@ -274,6 +274,7 @@ fn store(
     Ok(())
 }
 
+#[track_caller]
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }

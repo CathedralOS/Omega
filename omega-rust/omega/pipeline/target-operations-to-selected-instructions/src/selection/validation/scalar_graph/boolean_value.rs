@@ -11,10 +11,11 @@ pub(super) fn validate(
     operation: &legalized_operations::LegalizedScalarInstruction,
     state: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let result = operation.result.ok_or_else(invalid)?;
+    let result = operation
+        .result
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if result.scalar_type != ScalarType::Boolean {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let (comparison, comparison_key, operands, values, materialize) = match operation.kind {
         LegalizedScalarInstructionKind::Compare {
@@ -23,10 +24,14 @@ pub(super) fn validate(
             left,
             right,
         } => {
-            let (_, left_register, _, left_type) = state.resolve(left).ok_or_else(invalid)?;
-            let (_, right_register, _, right_type) = state.resolve(right).ok_or_else(invalid)?;
+            let (_, left_register, _, left_type) = state
+                .resolve(left)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
+            let (_, right_register, _, right_type) = state
+                .resolve(right)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             if left_type != operand_type || right_type != left_type {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             }
             let signed = match operand_type {
                 ScalarType::Boolean if predicate == LegalizedScalarComparison::Equal => false,
@@ -36,7 +41,7 @@ pub(super) fn validate(
                 {
                     integer.sign() == IntegerSign::Signed
                 }
-                _ => return Err(invalid()),
+                _ => return Err(SelectedInstructionError::custody()),
             };
             let materialize = match (predicate, signed) {
                 (LegalizedScalarComparison::Equal, _) => {
@@ -64,9 +69,11 @@ pub(super) fn validate(
             )
         }
         LegalizedScalarInstructionKind::BooleanNot { operand } => {
-            let (_, input, _, carrier) = state.resolve(operand).ok_or_else(invalid)?;
+            let (_, input, _, carrier) = state
+                .resolve(operand)
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             if carrier != ScalarType::Boolean {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             }
             (
                 SelectedInstructionKind::CompareI64Zero,
@@ -76,7 +83,7 @@ pub(super) fn validate(
                 SelectedInstructionKind::MaterializeBooleanEqual,
             )
         }
-        _ => return Err(invalid()),
+        _ => return Err(SelectedInstructionError::custody()),
     };
     // The source operation and logical fuel occur once, at the comparison.
     state.check_instruction(

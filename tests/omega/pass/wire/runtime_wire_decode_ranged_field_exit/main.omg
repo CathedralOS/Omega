@@ -1,14 +1,16 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
-// declared `u32 [0..=100]` field; a later in-range 50 must establish it.
+// declared `u32 in WireValue` field; a later in-range 50 must establish it.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Msg {
     #0 v: u32;
     #1 delta: i32;
 }
+domain u32::WireValue requires self <= 100;
+domain i32::WireDelta requires 0 - 10 <= self && self <= 10;
 data Val {
-    v: u32 [0..=100];
-    delta: i32 [-10..=10];
+    v: u32 in WireValue;
+    delta: i32 in WireDelta;
 }
 data WireVerdict {
     case Invalid;

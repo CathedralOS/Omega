@@ -26,22 +26,21 @@ pub(super) fn emit(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarInstructionKind::NormalizedForeignCall(call) = &operation.kind else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     if operation.result.is_some() != call.result_home.is_some() {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let key = crate::selection::scalar_call_abi::normalized_foreign::call_key(call, environment)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if !builder
         .constraints
         .keys
         .call_normalized_foreign
         .contains(&key)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     crate::selection::scalar_call_abi::normalized_foreign::validate(
         function,
@@ -74,7 +73,7 @@ pub(super) fn emit(
             .constraints
             .keys
             .save_floating_control
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[],
         SelectedInstructionProvenance {
             operations: vec![operation.operation],
@@ -96,12 +95,14 @@ pub(super) fn emit(
         )? {
             continue;
         }
-        let (_, input, site, scalar_type) = builder.resolve(value).ok_or_else(invalid)?;
+        let (_, input, site, scalar_type) = builder
+            .resolve(value)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         if scalar_type != argument.source.scalar_type()
             || crate::selection::scalar_call_abi::scalar_shape(scalar_type)
                 != Some(argument.placement.shape)
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         let output = builder.register(value, site, scalar_type)?;
         let (kind, transfer_key) = crate::selection::scalar_call_abi::outgoing_float_transfer(
@@ -115,7 +116,7 @@ pub(super) fn emit(
         builder.registers[output.0 as usize].class = row(builder.catalog, transfer_key)?
             .operands
             .get(1)
-            .ok_or_else(invalid)?
+            .ok_or_else(|| SelectedInstructionError::custody())?
             .class;
         builder.emit(
             kind,
@@ -155,7 +156,9 @@ pub(super) fn emit(
                 let slot = selected_instructions::OutgoingArgumentSlotId {
                     role: selected_instructions::OutgoingArgumentSlotRole::Argument,
                     operation: operation.operation,
-                    argument_index: argument_index.try_into().map_err(|_| invalid())?,
+                    argument_index: argument_index
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
                 };
                 builder
                     .transport
@@ -175,7 +178,7 @@ pub(super) fn emit(
                                 .instructions
                                 .len()
                                 .try_into()
-                                .map_err(|_| invalid())?,
+                                .map_err(|_| SelectedInstructionError::custody())?,
                         ),
                         origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(
                             operation.operation,
@@ -190,7 +193,11 @@ pub(super) fn emit(
                         slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
                         byte_offset: 0,
                     },
-                    builder.constraints.keys.store64.ok_or_else(invalid)?,
+                    builder
+                        .constraints
+                        .keys
+                        .store64
+                        .ok_or_else(|| SelectedInstructionError::custody())?,
                     &[pointer],
                     SelectedInstructionProvenance {
                         operations: vec![operation.operation],
@@ -198,7 +205,7 @@ pub(super) fn emit(
                     },
                 )?;
             }
-            _ => return Err(invalid()),
+            _ => return Err(SelectedInstructionError::custody()),
         }
     }
     // Preserve authored order within each physical bank, without changing
@@ -220,7 +227,7 @@ pub(super) fn emit(
         builder.registers[register.0 as usize].class = row(builder.catalog, key)?
             .operands
             .last()
-            .ok_or_else(invalid)?
+            .ok_or_else(|| SelectedInstructionError::custody())?
             .class;
         operands.push(register);
         Some(register)
@@ -237,7 +244,7 @@ pub(super) fn emit(
                     .instructions
                     .len()
                     .try_into()
-                    .map_err(|_| invalid())?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
             operation: operation.operation,
             call: call.clone(),
@@ -247,7 +254,9 @@ pub(super) fn emit(
     builder.emit(
         SelectedInstructionKind::NormalizedForeignCall {
             boundary: call.boundary,
-            ordinal: ordinal.try_into().map_err(|_| invalid())?,
+            ordinal: ordinal
+                .try_into()
+                .map_err(|_| SelectedInstructionError::custody())?,
         },
         key,
         &operands,
@@ -271,7 +280,7 @@ pub(super) fn emit(
             .constraints
             .keys
             .restore_floating_control
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[],
         SelectedInstructionProvenance {
             operations: vec![operation.operation],

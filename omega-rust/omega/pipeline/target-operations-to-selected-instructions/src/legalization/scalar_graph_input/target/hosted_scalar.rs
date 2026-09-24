@@ -18,7 +18,6 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
     values: &[(ValueId, TargetUnitScalarArgumentSource)],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let (
         TargetUnitOperation::BoundarySettlement {
             psi_operation,
@@ -44,10 +43,10 @@ pub(super) fn validate(
         },
     ) = (target, source)
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let ([value], [argument]) = (arguments.as_slice(), runtime_scalar_arguments.as_slice()) else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let supported = match (execution, realization) {
         // ProviderExecutionBinding is constructed only from nonzero execution
@@ -74,7 +73,7 @@ pub(super) fn validate(
         .boundary_machines
         .iter()
         .filter(|row| row.id == *boundary);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
+    let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     // Unit custody validates service catalogs and boundary reach against the
     // caller's ceiling. Rejoin that exact declaration; permissions are not ABI inputs.
     if unit
@@ -83,7 +82,7 @@ pub(super) fn validate(
         .find(|row| row.id == *boundary)
         != Some(declaration)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let expected_type = ScalarType::Integer(i32_type());
     let expected = evaluate_call_plan(
@@ -93,7 +92,7 @@ pub(super) fn validate(
             result: None,
         },
     )
-    .map_err(|_| invalid.clone())?;
+    .map_err(|_| LegalizationError::custody())?;
     if declarations.next().is_some()
         || !supported
         || psi_operation != expected_operation
@@ -119,7 +118,7 @@ pub(super) fn validate(
             .iter()
             .any(|(identity, expected)| identity == value && *expected == argument.source)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

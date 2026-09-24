@@ -301,8 +301,10 @@ machine Main::main(&mut self) reaches Agg {{
         // which stage refuses it. `9a81cd687742` decomposes a whole-record
         // replacement into ordered field stores; once lowering admitted those
         // stores through a projected place, the refusal moved to the
-        // structural result's cleanup rejoin. Either stop is accepted, and the
-        // pin still fails loudly if the program stops being refused at all.
+        // structural result's cleanup rejoin, and then again to the call
+        // result's disagreement with the field it is assigned to. Each stop is
+        // accepted, and the pin still fails loudly if the program stops being
+        // refused at all -- which is the only thing that would be news.
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 let text = diagnostic.to_string();
@@ -310,6 +312,7 @@ machine Main::main(&mut self) reaches Agg {{
                     || text.contains(
                         "Unit structural result cleanup disagrees with its final consuming use",
                     )
+                    || text.contains("structural call result disagrees with its assigned field")
             }),
             "aggregate boundary member `{member}` must currently refuse Terminal entry establishment; diagnostics: {diagnostics:?}",
         );

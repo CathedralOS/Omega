@@ -1485,3 +1485,41 @@ fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
         }
     }
 }
+
+#[test]
+fn builtin_arithmetic_on_a_min_call_finalizes_beside_a_declared_spelling() {
+    // A declared `operator -` for an unrelated type makes every `-` a
+    // late-bound authored selection. `min(x, 30) - 1` must still finalize as
+    // the builtin operator: the builtin `min` call carries its operands'
+    // carrier, and the literal is its anonymous peer.
+    for expression in [
+        "min(self.mid, 30) - 1",
+        "max(self.mid, 0) - 1",
+        "min(max(self.mid, 0), 30) - 1",
+        "1 - min(self.mid, 30)",
+        "min(self.mid, 30) + 1",
+    ] {
+        let source = format!(
+            r#"
+            data Quantity {{ value: i32; }}
+            domain Quantity::Additive
+            requires
+                self.value >= 0;
+            operator - Quantity::Additive::take(left: Quantity, right: Quantity) -> Quantity;
+
+            data Main {{ hi: i32; mid: i32 [0..=10]; }}
+            machine Main::main(&mut self) {{
+                self.mid = 5;
+                self.hi = {expression};
+            }}
+            "#
+        );
+        let unresolved = crate::tests::front_end::checked_program_result(&source)
+            .err()
+            .into_iter()
+            .flatten()
+            .filter(|diagnostic| diagnostic.message.contains("remained unresolved"))
+            .collect::<Vec<_>>();
+        assert!(unresolved.is_empty(), "{expression}: {unresolved:#?}");
+    }
+}

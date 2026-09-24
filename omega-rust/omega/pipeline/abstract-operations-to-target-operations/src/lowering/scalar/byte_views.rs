@@ -99,7 +99,7 @@ pub(in crate::lowering) fn mutable_parameter_view(
     parameters: &[TargetStructuralParameter],
     place: PlaceId,
 ) -> Result<(terminal_psi::StructuralParameterDeclaration, TargetByteView), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     if let Some((entry, semantic)) = function.block_entries.iter().find_map(|entry| {
         entry
             .structural_parameters

@@ -5,7 +5,7 @@ use super::{
     decode_proof_bundle, encode_module, encode_proof_section, interpret_terminal_artifact_measured,
     lower_artifact, lower_machine, lower_to_target_operations, source_canary, verify_module,
 };
-use abstract_operations_to_abstract_operations::{
+use abstract_operations_to_abstract_operations::test_support::{
     AnalysisProduct, compute_analysis, run_psi_pipeline,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;

@@ -17,7 +17,10 @@ data Main {
     v: i32;
 }
 
-machine Main::level(&mut self) -> i32 [0..=10] {
+machine Main::level(&mut self) -> i32
+ensures
+    0 <= result && result <= 10;
+{
     transition { _ -> (5) }
 }
 

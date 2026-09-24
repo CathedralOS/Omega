@@ -88,7 +88,6 @@ pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
             AbstractOperation::EstablishPrimitiveLocal {
@@ -101,20 +100,20 @@ pub(super) fn validate(
                     || scalar_shape(value.scalar_type).is_none()
                     || value_type(function, value.value) != Some(value.scalar_type)
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             }
             AbstractOperation::PrimitiveLocalStore {
                 destination, value, ..
             } => {
                 let (operation, result, _) =
-                    producer(function, *destination).ok_or(invalid.clone())?;
+                    producer(function, *destination).ok_or(LegalizationError::custody())?;
                 if !valid_result(function, operation, result)
                     || scalar(types, result.structural_type) != Some(value.scalar_type)
                     || scalar_shape(value.scalar_type).is_none()
                     || value_type(function, value.value) != Some(value.scalar_type)
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             }
             AbstractOperation::PrimitiveScalarRead {
@@ -125,7 +124,7 @@ pub(super) fn validate(
             } => {
                 let identity = if let Some((operation, local, _)) = producer(function, *source) {
                     if !path.is_empty() || !valid_result(function, operation, local) {
-                        return Err(invalid);
+                        return Err(LegalizationError::custody());
                     }
                     local.structural_type
                 } else {
@@ -133,7 +132,7 @@ pub(super) fn validate(
                         .structural_parameters
                         .iter()
                         .find(|parameter| parameter.place == *source)
-                        .ok_or(invalid.clone())?;
+                        .ok_or(LegalizationError::custody())?;
                     if !matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -144,7 +143,7 @@ pub(super) fn validate(
                         || !parameter.projected_qualifications.is_empty()
                         || !function.entry_claims.is_empty()
                     {
-                        return Err(invalid);
+                        return Err(LegalizationError::custody());
                     }
                     parameter.structural_type
                 };
@@ -157,7 +156,7 @@ pub(super) fn validate(
                 .is_none()
                     || scalar_shape(result.scalar_type).is_none()
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             }
             _ => {}

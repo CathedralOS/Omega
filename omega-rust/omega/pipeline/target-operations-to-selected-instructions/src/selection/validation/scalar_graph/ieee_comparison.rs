@@ -13,8 +13,9 @@ pub(super) fn validate(
     operation: &legalized_operations::LegalizedScalarInstruction,
     state: &mut Replay<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let result = operation.result.ok_or_else(invalid)?;
+    let result = operation
+        .result
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     let LegalizedScalarInstructionKind::IeeeFloatCompare {
         comparison,
         format,
@@ -22,15 +23,19 @@ pub(super) fn validate(
         right,
     } = operation.kind
     else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
-    let (_, mut left_register, _, left_type) = state.resolve(left).ok_or_else(invalid)?;
-    let (_, mut right_register, _, right_type) = state.resolve(right).ok_or_else(invalid)?;
+    let (_, mut left_register, _, left_type) = state
+        .resolve(left)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
+    let (_, mut right_register, _, right_type) = state
+        .resolve(right)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if result.scalar_type != ScalarType::Boolean
         || left_type != ScalarType::IeeeFloat(format)
         || right_type != left_type
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     if matches!(comparison, Relation::Greater | Relation::GreaterOrEqual) {
         std::mem::swap(&mut left_register, &mut right_register);
@@ -122,7 +127,7 @@ impl ComparisonReplay<'_, '_> {
             self.site,
             ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64)
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
         )?;
         let provenance = self.provenance();
@@ -269,7 +274,7 @@ impl ComparisonReplay<'_, '_> {
             self.site,
             ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 64)
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
         )?;
         let provenance = self.provenance();

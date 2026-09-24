@@ -169,7 +169,6 @@ pub(super) fn match_input(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -188,14 +187,14 @@ pub(super) fn match_input(
         && !(abstracted.result == AbstractFunctionResult::Unit
             || abstracted.result.structural().is_some())
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
         || abstracted.block_entries.len() != optimized.blocks.len()
         || abstracted.block_entries[0].operation_offset != 0
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for (position, (entry, block)) in abstracted
         .block_entries
@@ -210,7 +209,7 @@ pub(super) fn match_input(
         let operations = abstracted
             .operations
             .get(entry.operation_offset..end)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         if entry.block != block.id
             || entry.structural_parameters != block.structural_parameters
             || entry.parameters.len() != block.parameters.len()
@@ -227,7 +226,7 @@ pub(super) fn match_input(
                 .zip(&block.nodes)
                 .any(|(left, right)| left != &right.operation)
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         nodes::validate(block, optimized)?;
     }
@@ -235,9 +234,9 @@ pub(super) fn match_input(
         .blocks
         .iter()
         .find(|block| block.id == optimized.entry)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if !entry.parameters.is_empty() || !entry.structural_parameters.is_empty() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if optimized
         .parameters
@@ -254,7 +253,7 @@ pub(super) fn match_input(
                         || scalar_stack(placement)))
         })
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     // Ordered source calls execute even when their result is not returned.
     // Target expression trees witness referenced values, not execution order.
@@ -265,7 +264,7 @@ pub(super) fn match_input(
             && (!plan.structural_types.contains(structural_type)
                 || !unit.structural_types.contains(structural_type))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if let AbstractOperation::EstablishElementView {
             result, element, ..
@@ -284,7 +283,7 @@ pub(super) fn match_input(
                     .iter()
                     .any(|declaration| declaration.id == *element))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if let AbstractOperation::StructuralLeafCopy { result, .. } = &node.operation
             && (!plan
@@ -296,7 +295,7 @@ pub(super) fn match_input(
                     .iter()
                     .any(|declaration| declaration.id == result.structural_type))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if let AbstractOperation::ExactIntegerAdd {
             psi_operation,
@@ -377,7 +376,7 @@ pub(super) fn match_input(
                     optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
                     if referenced == obligation && support == psi_operation)))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if let AbstractOperation::Call {
             callee, arguments, ..
@@ -391,7 +390,7 @@ pub(super) fn match_input(
                     .iter()
                     .all(|placement| scalar_register(placement) || scalar_stack(placement))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         if let AbstractOperation::CallStructuralScalar {
@@ -414,7 +413,7 @@ pub(super) fn match_input(
                 .functions
                 .iter()
                 .find(|function| function.machine == *callee)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             if call.result.is_some()
                 != matches!(
                     node.operation,
@@ -433,7 +432,7 @@ pub(super) fn match_input(
                             || !(scalar_register(placement) || scalar_stack(placement))
                     })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             for (position, argument) in structural_arguments.iter().enumerate() {
                 // `.., Referent` spellings resolve through reference custody,
@@ -489,7 +488,7 @@ pub(super) fn callee_plan(
         abstracts.as_slice(),
         optimized.as_slice(),
     ) else {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     };
     if !aggregate_results::uses(optimized, plan)
         && (!matches!(abstracted.result, AbstractFunctionResult::Unit)
@@ -499,7 +498,7 @@ pub(super) fn callee_plan(
                 .iter()
                 .any(|parameter| scalar_shape(parameter.scalar_type).is_none()))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     let call_plan = if aggregate_results::uses(optimized, plan) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -534,7 +533,7 @@ pub(super) fn callee_plan(
                     }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment
                 )
     }) {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     Ok(call_plan)
 }

@@ -11,8 +11,14 @@ win, not a catalogue of generic model limitations or a favorable benchmark alone
 
 Read [the experiment record](references/experiment-record.md) when continuing this
 work: it preserves the conversation's decisions, measured results, and artifact
-locations. This skill supplements the general `typesafe-ai` skill; use current
-TypeSafe documentation for API details, with the saved local docs as fallback.
+locations. When a semantic judgment is being turned into a shipped tool, read
+[the deployment playbook](references/jev-deployment-playbook.md): the win pattern
+(deterministic vocabulary limit + miss-cost asymmetry + advisory shape), the
+question shapes that survived dogfooding (causal-over-classification, batch
+contamination, why escape valves go unused), and the deployment contract every
+shipped instrument shares. This skill supplements the general `typesafe-ai`
+skill; use current TypeSafe documentation for API details, with the saved local
+docs as fallback.
 
 ## Tune the actual decision
 

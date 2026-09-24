@@ -452,6 +452,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 84 | StructuralLeafCopy | source place id + structural path |
 | 85 | StructuralCaseLeafCopy | canonical structural field (source place id + canonical path whose `Case` steps name the case the authorizing edge selected) |
 | 86 | StructuralByteSequenceFieldRead | source place id + structural path + field id + index value id + length value id + obligation id |
+| 87 | IndexedPrimitiveRead | canonical structural field (source place id + canonical path) + index value id + obligation id |
 
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags

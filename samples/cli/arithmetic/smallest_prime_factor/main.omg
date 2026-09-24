@@ -12,12 +12,12 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-// FULLY EXACT -- no overflow domain: `n` and `d` carry ranges, so the guard
-// arithmetic `d * d` (<= 40000) and `n % d` are verifiably bounded, and the
+// FULLY EXACT -- no overflow domain: the `0 <= d <= 200` re-guard in `probe`
+// bounds the guard arithmetic `d * d` (<= 40000) and `n % d`, and the
 // `d = d + 1` step is guard-proven (`d < 200` on the direct edge into `advance`).
 data Trial [copy] {
-    n: i32 [0..=1000];
-    d: i32 [0..=200];
+    n: i32;
+    d: i32;
 }
 
 data Main {
@@ -35,8 +35,18 @@ machine Main::main(&mut self) reaches Console {
         _ -> probe()
     }
 
-    // If d has passed sqrt(n) with no divisor found, n is prime.
+    // Re-assert d's bounds on the edge into the square test: d starts at 2 and
+    // only grows by guarded steps below 200, so the else arm is unreachable
+    // and routes to prime() as the give-up answer.
     state probe(&mut self) {
+        transition self.trial.d >= 0 && self.trial.d <= 200 {
+            true -> probe_square()
+            _ -> prime()
+        }
+    }
+
+    // If d has passed sqrt(n) with no divisor found, n is prime.
+    state probe_square(&mut self) {
         transition self.trial.d * self.trial.d > self.trial.n {
             true -> prime()
             _ -> test_divisor()
@@ -52,7 +62,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     // Re-assert d's headroom right before the increment: the `d < 200` guard on
-    // the direct edge into `advance` is what proves `d + 1` stays in [0..=200].
+    // the direct edge into `advance` is what proves `d + 1` cannot overflow.
     // (d never nears 200 -- the probe stops at sqrt(n) -- so the else arm is
     // unreachable and routes to prime() as the give-up answer.)
     state adv_guard(&mut self) {

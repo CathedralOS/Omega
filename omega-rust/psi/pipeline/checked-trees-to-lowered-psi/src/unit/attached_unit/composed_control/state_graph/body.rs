@@ -22,6 +22,7 @@ pub(super) fn validate(
                 state.terminator,
                 CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
                     | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
+                    | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
             ) {
                 statements.len().saturating_sub(1)
             } else {
@@ -30,8 +31,16 @@ pub(super) fn validate(
         });
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
+    let returned_scalar = returned_scalar_binding(state);
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
+        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))))
+        // A scalar final expression's own producer occupies the tail statement.
+        + usize::from(returned_scalar.is_some_and(|binding| {
+            binding.statement_index as usize + 1 == statements.len()
+                && state.operations.last().is_some_and(|operation| matches!(operation,
+                    CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+                    | CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == binding))
+        }));
     // Some operations continue the authored statement an earlier operation
     // began instead of consuming a new one; see `statement_continuations`.
     let continuations = statement_continuations(&state.operations)?;
@@ -111,6 +120,9 @@ pub(super) fn validate(
             }
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            // A view-subslice local binds its narrowed view in the same
+            // namespace an `as_slice` view local's value does.
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
@@ -248,6 +260,36 @@ pub(super) fn validate(
                     }
                 }
             }
+            // A scalar-result state's final expression: the Return-role value
+            // the ordinary completion evaluates at the tail statement.
+            (
+                CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
+                StatementNode::Expression(expression),
+            ) if returned_scalar == Some(result)
+                && result.statement_index as usize == ordinal
+                && ordinal + 1 == statements.len() =>
+            {
+                validate_returned_value(checked, machine, state, result, value, *expression)?;
+            }
+            (
+                CheckedUnitEffectOperationPlan::ScalarCall {
+                    coordinate, result, ..
+                },
+                StatementNode::Expression(_),
+            ) if returned_scalar == Some(result)
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index
+                && ordinal + 1 == statements.len() =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     coordinate,
@@ -318,6 +360,27 @@ pub(super) fn validate(
                     state.state,
                     operation,
                     &state.structural_parameters,
+                )?;
+            }
+            // `place = <construction>` over the same kind of field: the
+            // establishment replaces the call as the replacing value's
+            // producer, and the rest of the roster is the same window pair.
+            (
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result,
+                    discard_result_on_return: false,
+                    ..
+                },
+                StatementNode::Assignment(assignment),
+            ) if result.statement_index as usize == ordinal => {
+                validate_displaced_field_replacement(
+                    checked, machine, source, state, ordinal, assignment,
+                )?;
+                crate::expression_preparation::source_custody::structural::validate(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
                 )?;
             }
             (
@@ -571,10 +634,90 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            (
+                CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
+                StatementNode::LocalData(_),
+            ) if result.statement_index as usize == ordinal => {
+                super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
+            }
             _ => return unsupported("Unit graph reordered a source effect"),
         }
     }
     Ok(end)
+}
+
+/// The binding a scalar-result state's final expression returns, if any.
+fn returned_scalar_binding(
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Option<&checked_trees::CheckedUnitScalarResultBindingPlan> {
+    match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+            completion: checked_trees::CheckedScalarReturnPlan::Binding(binding),
+        } => Some(binding),
+        _ => None,
+    }
+}
+
+/// Rejoin a returned final expression with the value checking recorded for
+/// it under the `Return` role: the pure expression bound to exactly this
+/// statement, or the unique computation root this machine owns there.
+fn validate_returned_value(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &CheckedComposedUnitControlStatePlan,
+    result: &checked_trees::CheckedUnitScalarResultBindingPlan,
+    value: &checked_trees::CheckedCallScalarArgument,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Result<(), LoweringError> {
+    let role = CheckedScalarExpressionRole::Return;
+    match value {
+        checked_trees::CheckedCallScalarArgument::Pure(value) => {
+            let (binding, retained) = checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(state.state, result.statement_index, role)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph scalar return has no source binding",
+                ))?;
+            if retained != value || binding.expression != expression {
+                return unsupported("Unit graph scalar return value changed");
+            }
+            crate::expression_preparation::source_custody::validate_pure(
+                checked,
+                binding,
+                terminal_scalar_type(result.primitive_type)?,
+            )
+        }
+        checked_trees::CheckedCallScalarArgument::Computation(handle) => {
+            let mut roots = checked
+                .facts
+                .values
+                .scalar_computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == state.state
+                        && root.statement_ordinal == result.statement_index
+                        && root.role == role
+                });
+            let root = roots.next().ok_or(LoweringError::Unsupported(
+                "Unit graph scalar return has no computation root",
+            ))?;
+            if roots.next().is_some() || root.machine != machine || root.root != *handle {
+                return unsupported("Unit graph scalar return computation changed");
+            }
+            crate::expression_preparation::source_custody::validate_computation_calls(
+                checked,
+                machine,
+                state.state,
+                result.statement_index,
+                *handle,
+                expression,
+            )
+        }
+    }
 }
 
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {
@@ -594,6 +737,9 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
@@ -733,13 +879,15 @@ fn call_operation(operation: &CheckedUnitEffectOperationPlan) -> bool {
     )
 }
 
-/// Rejoin `place = call(..)` where the call returns a whole structural value
-/// and `place` is a structural field beneath an exclusive borrowed parameter.
+/// Rejoin `place = value` where `value` is a whole owned structural value and
+/// `place` is a structural field beneath an exclusive borrowed parameter.
 /// The checked sequencer plans it as one statement roster, in this order:
-/// the call binding its result; `MoveStructuralField` binding the displaced
-/// old value and opening the window at `place`; `StoreStructuralField`
-/// closing that exact window with the call's whole owned result; and, for an
-/// affine field, the call continuation discarding the displaced value.
+/// the value's producer -- the statement's call, or the establishment of its
+/// authored construction -- binding the replacing value; `MoveStructuralField`
+/// binding the displaced old value and opening the window at `place`;
+/// `StoreStructuralField` closing that exact window with the whole produced
+/// value; and, for an affine field, the statement's continuation discarding
+/// the displaced value.
 /// Emission reconstructs the window through `BorrowedWindowLedger`; this
 /// check ties every member to the authored assignment so none can be
 /// substituted, reordered, or detached from its place.
@@ -758,14 +906,9 @@ fn validate_displaced_field_replacement(
             authored_statement(operation).map(|index| index as usize) == Some(ordinal)
         })
         .collect::<Vec<_>>();
-    let (produced, moved, place, destination, value, cleanup) = match roster.as_slice() {
+    let (producer, moved, place, destination, value, cleanup) = match roster.as_slice() {
         [
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result: produced,
-                discard_result_on_return: false,
-                ..
-            },
+            producer,
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: moved,
                 source: place,
@@ -774,8 +917,44 @@ fn validate_displaced_field_replacement(
                 destination, value, ..
             },
             cleanup @ ..,
-        ] if coordinate.call_ordinal == 0 => (produced, moved, place, destination, value, cleanup),
-        _ => return unsupported("Unit graph field replacement is not one call and window pair"),
+        ] => (*producer, moved, place, destination, value, cleanup),
+        _ => {
+            return unsupported("Unit graph field replacement is not one producer and window pair");
+        }
+    };
+    // The producer is the value the authored right-hand side denotes: the
+    // statement's own call, or the establishment of its rooted construction.
+    let produced = match (
+        producer,
+        checked.expression_table.expression(assignment.value),
+    ) {
+        (
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate,
+                result,
+                discard_result_on_return: false,
+                ..
+            },
+            checked_trees::expression::ExpressionNode::Call(_),
+        ) if coordinate.call_ordinal == 0 => result,
+        (
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value: established,
+                discard_result_on_return: false,
+                ..
+            },
+            _,
+        ) if checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(state.state, result.statement_index, assignment.value)
+            .is_some_and(|root| root.root == *established) =>
+        {
+            result
+        }
+        _ => return unsupported("Unit graph field replacement has no authored producer"),
     };
     let identity = &produced.type_identity;
     if place != destination
@@ -827,12 +1006,6 @@ fn validate_displaced_field_replacement(
     };
     if !disposal {
         return unsupported("Unit graph displaced field value lost its planned disposal");
-    }
-    if !matches!(
-        checked.expression_table.expression(assignment.value),
-        checked_trees::expression::ExpressionNode::Call(_)
-    ) {
-        return unsupported("Unit graph field replacement has no authored call");
     }
     let target = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,

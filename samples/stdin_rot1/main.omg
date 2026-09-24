@@ -31,7 +31,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state wr(&mut self, value: i32 [0..=255]) {
+    state wr(&mut self, value: i32) {
         self.n = self.n + 1;
         let b: i32 in Wrapping = value as i32 in Wrapping;
         let rotated: i32 in Wrapping = b + 1;

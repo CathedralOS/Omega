@@ -133,7 +133,10 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
         let mut changed = checked.clone();
         let mutate = |value: &mut CheckedScalarExpression| {
             let CheckedScalarExpression::StructuralParameterByteLength {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
             } = value
             else {

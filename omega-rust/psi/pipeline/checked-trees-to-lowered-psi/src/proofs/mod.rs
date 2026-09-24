@@ -55,8 +55,8 @@ use terminal_psi::{
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, StaticRequirementDispatch,
     StructuralContentProjection, StructuralFieldType, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalModule, Terminator, ValueDeclaration,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
+    ValueDeclaration,
 };
 use terminal_verifier::{
     EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,

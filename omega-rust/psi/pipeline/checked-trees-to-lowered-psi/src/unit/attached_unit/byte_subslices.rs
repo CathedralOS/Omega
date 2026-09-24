@@ -1,19 +1,22 @@
 //! Source-bound byte ranges are evaluated at their authored call positions.
-use super::super::{
-    IntegerValue, PrimitiveType, StructuralAccess, StructuralParameterDeclaration, ValueId,
-};
+//! The range replay and its Terminal operation are shared with every other
+//! view-narrowing site through `view_ranges`; this module only schedules the
+//! call's byte-range arguments and resolves their source places.
+use super::super::{StructuralAccess, StructuralParameterDeclaration};
+use super::view_ranges::{self, ViewRangeSite, ViewRangeSource};
 use super::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, Operation,
-    OperationKind, OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, ValueDeclaration,
-    allocate_dense, literal_argument_places, lookup_type_id, obligation_id, place_id,
-    terminal_scalar_type, unsupported,
+    CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
+    PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralTypeId,
+    ValueDeclaration, allocate_dense, literal_argument_places, lookup_type_id, place_id,
+    unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::{CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan};
+use crate::emission::operation_emission::view_subslice::ViewFamily;
+use crate::expression_preparation::bindings::view_locals;
+use checked_trees::{
+    CheckedStorageRoot, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan,
+};
 
 pub(super) fn arguments(
     operation: &CheckedUnitEffectOperationPlan,
@@ -48,6 +51,9 @@ pub(super) fn contains(operation: &CheckedUnitEffectOperationPlan) -> bool {
     })
 }
 
+/// Emit the call's `ordinal`th structural argument, an exclusive byte range
+/// over an established byte view, at its authored call position.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
@@ -55,6 +61,7 @@ pub(super) fn emit(
     ordinal: usize,
     parameters: &[StructuralParameterDeclaration],
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
+    view_locals: &[view_locals::ViewLocalBinding],
     values: &[ValueDeclaration],
     type_ids: &[(String, StructuralTypeId)],
     next_place: &mut u64,
@@ -67,7 +74,7 @@ pub(super) fn emit(
             "subslice has no checked argument",
         ))?;
     let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-        parameter_index,
+        root,
         expression,
         start,
         end,
@@ -92,188 +99,89 @@ pub(super) fn emit(
     {
         return unsupported("subslice disagrees with its authored call argument");
     }
-    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(*expression) else {
-        return unsupported("subslice has no authored indexed expression");
-    };
-    let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
-        return unsupported("subslice has no authored range");
-    };
-    if range.end_inclusive
-        || range.start.is_valid() != start.is_some()
-        || range.end.is_valid() != end.is_some()
-    {
-        return unsupported("subslice endpoint presence or inclusivity changed");
-    }
-    if checked.facts.operators.uses.iter().any(|(_, selected)| {
-        selected.expression == *expression
-            && (selected.spelling != language_core::OperatorSpelling::Range
-                || selected.selected_operator_symbol.is_valid()
-                || selected.candidate_count != 0
-                || !matches!(
-                    selected.status,
-                    checked_trees::CheckedOperatorResolutionStatus::Missing
-                        | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-                ))
-    }) {
-        return unsupported("subslice no longer selects the built-in byte range");
-    }
-    let parameter = parameters
-        .get(*parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "subslice source parameter is absent",
-        ))?;
-    let source_parameter = plan
-        .structural_parameters
-        .get(*parameter_index as usize)
-        .ok_or(LoweringError::Unsupported("subslice source plan is absent"))?;
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
-    let source_symbol = checked
-        .state_parameters(state)
-        .get(source_parameter.position as usize)
-        .ok_or(LoweringError::Unsupported(
-            "subslice source has no authored parameter",
-        ))?
-        .symbol;
-    if !matches!(checked.expression_table.expression(indexed.collection), ExpressionNode::Name(path)
-        if path.symbol == source_symbol && path.head_symbol == source_symbol)
-    {
-        return unsupported("subslice must retain its exact whole parameter source");
-    }
     let structural_type = lookup_type_id(type_ids, &argument.type_identity)?;
-    if parameter.structural_type != structural_type
-        || parameter.access != StructuralAccess::SharedBorrow
-        || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !argument.path.is_empty()
+    if !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         return unsupported("subslice source or result changed immutable byte-view custody");
     }
+    let source = match *root {
+        CheckedStorageRoot::Parameter {
+            index: parameter_index,
+        } => {
+            let parameter =
+                parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "subslice source parameter is absent",
+                    ))?;
+            let source_parameter = plan
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported("subslice source plan is absent"))?;
+            let (_, state) =
+                crate::expression_preparation::source_custody::authored_state(checked, plan.state)?;
+            let symbol = checked
+                .state_parameters(state)
+                .get(source_parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "subslice source has no authored parameter",
+                ))?
+                .symbol;
+            if parameter.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return unsupported(
+                    "subslice source or result changed immutable byte-view custody",
+                );
+            }
+            ViewRangeSource {
+                symbol,
+                place: parameter.place,
+                structural_type: parameter.structural_type,
+                family: ViewFamily::Bytes,
+            }
+        }
+        CheckedStorageRoot::ViewLocal { symbol } => {
+            let local = view_locals::resolve(view_locals, symbol)?;
+            if local.carrier != view_locals::ViewCarrier::Bytes {
+                return unsupported("byte subslice source local is not a byte view");
+            }
+            ViewRangeSource {
+                symbol,
+                place: local.place,
+                structural_type: local.structural_type,
+                family: ViewFamily::Bytes,
+            }
+        }
+    };
     let bindings = crate::expression_preparation::bindings::ScalarBindings::new(values.len())
-        .with_structural_parameters(structural_parameters);
-    let count_type = terminal_scalar_type(PrimitiveType::U64)?;
+        .with_structural_parameters(structural_parameters)
+        .with_view_locals(view_locals);
     let argument_ordinal = u32::try_from(ordinal)
         .map_err(|_| LoweringError::Unsupported("subslice argument ordinal exceeds u32"))?;
-    let mut endpoint =
-        |retained: &CheckedScalarExpression, role| -> Result<ValueId, LoweringError> {
-            let (_, selected) = checked
-                .facts
-                .values
-                .scalar_expressions
-                .bound_expression_at(plan.state, coordinate.statement_index, role)
-                .ok_or(LoweringError::Unsupported(
-                    "subslice endpoint has no source-bound scalar plan",
-                ))?;
-            if selected != retained {
-                return unsupported("subslice endpoint differs from its source-bound scalar plan");
-            }
-            let lowered =
-                bindings.expression_at(checked, plan.state, coordinate.statement_index, role)?;
-            if lowered.scalar_type() != count_type {
-                return unsupported("subslice endpoints must retain u64 values");
-            }
-            crate::emission::expression_validation::validate_direct_parameter_types(
-                &lowered,
-                &values
-                    .iter()
-                    .map(|value| value.scalar_type)
-                    .collect::<Vec<_>>(),
-            )?;
-            if let LoweredDirectExpression::ByteSequenceLength { source, .. } = lowered
-                && let Some(value) = operations
-                    .byte_lengths
-                    .iter()
-                    .rev()
-                    .find_map(|(place, value)| (*place == source).then_some(*value))
-            {
-                return Ok(value);
-            }
-            Ok(crate::emission::operation_emission::emit_direct_expression(
-                &lowered, values, next_value, operations,
-            ))
-        };
-    let start_value = start
-        .as_ref()
-        .map(|start| {
-            endpoint(
-                start,
-                CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal,
-                },
-            )
-        })
-        .transpose()?;
-    let end_value = end
-        .as_ref()
-        .map(|end| {
-            endpoint(
-                end,
-                CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                    call_ordinal: coordinate.call_ordinal,
-                    argument_ordinal,
-                },
-            )
-        })
-        .transpose()?;
-    let length = operations
-        .byte_lengths
-        .iter()
-        .rev()
-        .find_map(|(place, value)| (*place == parameter.place).then_some(*value))
-        .unwrap_or_else(|| {
-            crate::emission::operation_emission::emit_byte_length(
-                parameter.place,
-                next_value,
-                operations,
-            )
-        });
-    let start = start_value.unwrap_or_else(|| {
-        crate::emission::operation_emission::emit_direct_expression(
-            &LoweredDirectExpression::IntegerLiteral {
-                value: IntegerValue::Unsigned(0),
-                scalar_type: count_type,
+    view_ranges::emit(
+        checked,
+        ViewRangeSite {
+            state: plan.state,
+            statement: coordinate.statement_index,
+            site: CheckedSubsliceSite::CallArgument {
+                call_ordinal: coordinate.call_ordinal,
+                argument_ordinal,
             },
-            values,
-            next_value,
-            operations,
-        )
-    });
-    let end = end_value.unwrap_or(length);
-    let place = place_id(allocate_dense(next_place)?);
-    let producer = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: producer,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
-        kind: OperationKind::ByteSequenceSubslice {
-            source: parameter.place,
-            start,
-            end,
-            length,
-            obligation: obligation_id(producer.get().checked_add(1).ok_or(
-                LoweringError::Unsupported("subslice obligation identity overflows"),
-            )?),
+            expression: *expression,
+            retained: Some((start, end)),
         },
-    });
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer,
-            structural_type,
-        },
-    })
+        source,
+        structural_type,
+        place_id(allocate_dense(next_place)?),
+        &bindings,
+        values,
+        next_value,
+        operations,
+    )
 }
 
 pub(super) fn argument_places(

@@ -221,14 +221,16 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
         // custody check. This exact blocker is the remaining native obligation;
         // no other rejection establishes successful package-to-native handoff.
         assert_status(&output, 1);
-        assert_eq!(
-            stderr.trim(),
-            concat!(
+        // The refusal names the legalization check that fired; pin the
+        // stable text around that source site rather than its line.
+        let stderr = stderr.trim();
+        assert!(
+            stderr.starts_with(concat!(
                 "cannot realize accepted package production: [Diagnostic { severity: Error, ",
                 "message: \"native artifact identity physical pipeline failed: ",
-                "common physical staging failed: Selection(Legalization(SourceCustodyMismatch))\", ",
-                "source_span: None }]",
-            ),
+                "common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: ",
+            )) && stderr.ends_with("source_span: None }]"),
+            "{stderr}"
         );
         assert!(stdout.trim().is_empty(), "{stdout}");
     }

@@ -21,7 +21,7 @@ pub(super) fn validate_initial_roots(
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
     if target.scalar_functions.len() != plan.functions.len() {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     let mut expected_machines = target
         .scalar_functions
@@ -35,7 +35,7 @@ pub(super) fn validate_initial_roots(
         .map(|function| function.machine)
         .ne(expected_machines)
     {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     let expected_fixed_inputs = target
         .scalar_functions
@@ -56,7 +56,7 @@ pub(super) fn validate_initial_roots(
         })
         .sum::<usize>();
     if constraints.fixed_inputs.len() != expected_fixed_inputs {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     require_key_rows(&constraints.keys, catalog)
 }

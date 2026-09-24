@@ -134,19 +134,18 @@ fn bound_view_roots_recurse(
     extent: ValueId,
     visiting: &mut BTreeSet<PlaceId>,
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let Some(contract) = source.structural.as_ref() else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     let Some(declaration) = contract
         .structural_places
         .iter()
         .find(|declaration| declaration.id == parameter)
     else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     let bound_root = |place: PlaceId,
                       visiting: &mut BTreeSet<PlaceId>|
@@ -157,7 +156,7 @@ fn bound_view_roots_recurse(
             return bound_view
                 .root
                 .map(|root| vec![(root, bound_view.root_length)])
-                .ok_or_else(invalid);
+                .ok_or_else(|| SelectedInstructionError::custody());
         }
         let kind = contract
             .structural_places
@@ -182,7 +181,7 @@ fn bound_view_roots_recurse(
             }
             // An undeclared or otherwise dynamic place keeps the reach
             // unjustified.
-            _ => Err(invalid()),
+            _ => Err(SelectedInstructionError::custody()),
         }
     };
     let mut bound_edges = 0usize;
@@ -223,7 +222,7 @@ fn bound_view_roots_recurse(
         }
     }
     if bound_edges == 0 || unbound_edges != 0 || roots.is_empty() {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     Ok(roots)
 }

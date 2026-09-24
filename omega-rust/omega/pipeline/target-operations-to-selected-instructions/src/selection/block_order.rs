@@ -5,12 +5,11 @@ use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
 pub(super) fn derive(
     source: &LegalizedScalarFunction,
 ) -> Result<Vec<usize>, SelectedInstructionError> {
-    let invalid = SelectedInstructionError::SourceCustodyMismatch;
     let entry = source
         .blocks
         .iter()
         .position(|block| block.id == source.entry_block)
-        .ok_or(invalid.clone())?;
+        .ok_or(SelectedInstructionError::custody())?;
     let mut outgoing = Vec::new();
     for block in &source.blocks {
         let targets = match &block.terminator {
@@ -35,7 +34,7 @@ pub(super) fn derive(
                         .blocks
                         .iter()
                         .position(|candidate| candidate.id == target)
-                        .ok_or(invalid.clone())
+                        .ok_or(SelectedInstructionError::custody())
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         );
@@ -58,7 +57,7 @@ pub(super) fn derive(
         pending.extend(outgoing[block].iter().rev().map(|target| (*target, false)));
     }
     if postorder.len() != source.blocks.len() {
-        return Err(invalid);
+        return Err(SelectedInstructionError::custody());
     }
     postorder.reverse();
     let mut order = vec![entry];
@@ -78,7 +77,7 @@ pub(super) fn derive(
                     .copied()
                     .find(|index| !order.contains(index))
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(SelectedInstructionError::custody())?;
         order.push(next);
     }
     Ok(order)

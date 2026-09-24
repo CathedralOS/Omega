@@ -30,10 +30,10 @@ use crate::rules::registry::PsiOptimizationRule;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
 use crate::rules::tests::fixtures::randomized_built_in_registries;
 use crate::rules::{
-    ORDERED_PSI_PASSES, PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
+    PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
     built_in_psi_registry_for_selections,
 };
-use crate::{PsiPassTargetApplicability, RuleAnalysisView, RuleProposalError, RuleRegistryError};
+use crate::{RuleAnalysisView, RuleProposalError, RuleRegistryError};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use optimization_core::{
     AnalysisKind, Optimization, OptimizationPassIdentity, OptimizationSelections,
@@ -41,22 +41,15 @@ use optimization_core::{
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {
-    assert_eq!(
-        PSI_PASS_CATALOG.map(|entry| entry.optimization()),
-        ORDERED_PSI_PASSES,
-        "the compatibility order must be derived from the descriptor catalog",
-    );
-    assert!(PSI_PASS_CATALOG.iter().all(|entry| {
-        entry.target_applicability() == PsiPassTargetApplicability::TargetIndependent
-    }));
+    let ordered = PSI_PASS_CATALOG.map(|entry| entry.optimization());
     let mut declared = PsiOptimization::ALL.to_vec();
-    let mut catalog = ORDERED_PSI_PASSES.to_vec();
+    let mut catalog = ordered.to_vec();
     declared.sort_unstable();
     catalog.sort_unstable();
     catalog.dedup();
-    assert_eq!(catalog.len(), ORDERED_PSI_PASSES.len());
+    assert_eq!(catalog.len(), ordered.len());
     assert_eq!(catalog, declared);
-    for optimization in ORDERED_PSI_PASSES {
+    for optimization in ordered {
         let selections = OptimizationSelections::new([Optimization::from(optimization)]).unwrap();
         let scheduled = built_in_psi_registries(&selections).unwrap();
         assert_eq!(scheduled.len(), 1, "{optimization:?} must schedule once");

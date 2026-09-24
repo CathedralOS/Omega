@@ -8,8 +8,9 @@
 // target arguments see the renamed binding. The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::Step requires 0 <= self && self <= 50;
 data Msg {
-    case Move(dx: i32 [0..=50], dy: i32 [0..=50]);
+    case Move(dx: i32 in Step, dy: i32 in Step);
     case Stop(code: i32);
 }
 data Main { console: Binding<Console>; }
@@ -21,6 +22,6 @@ machine Main::apply(&mut self, m: Msg) reaches Console {
         Msg::Move { dx as step, .. } if step == 30 -> good(step)
         _ -> bad()
     }
-    state good(&mut self, step: i32 [0..=50]) { let code: i32 = step + 40; self.console.exit_process(code); }
+    state good(&mut self, step: i32 in Step) { let code: i32 = step + 40; self.console.exit_process(code); }
     state bad(&mut self) { self.console.exit_process(1); }
 }

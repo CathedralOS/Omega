@@ -48,6 +48,15 @@ pub(crate) enum LoweredDirectExpression {
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
     },
+    /// Read one primitive element of a fixed-array record field: `path`
+    /// resolves from `source` to the array itself and `index` is the runtime
+    /// `u64` selector.
+    IndexedPrimitiveRead {
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: Box<LoweredDirectExpression>,
+        scalar_type: ScalarType,
+    },
     ElementViewLength {
         source: PlaceId,
         scalar_type: ScalarType,
@@ -143,6 +152,7 @@ impl LoweredDirectExpression {
             | Self::ByteSequenceFieldLength { scalar_type, .. }
             | Self::ByteSequenceRead { scalar_type, .. }
             | Self::ByteSequenceFieldRead { scalar_type, .. }
+            | Self::IndexedPrimitiveRead { scalar_type, .. }
             | Self::ElementViewLength { scalar_type, .. }
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
@@ -391,6 +401,34 @@ pub(crate) fn emit_direct_expression(
                     field: *field,
                     index,
                     length,
+                    obligation,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
+        LoweredDirectExpression::IndexedPrimitiveRead {
+            source,
+            path,
+            index,
+            scalar_type,
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            // The certificate proves `index < declared extent` against the
+            // array's statically declared length, so no length observation is
+            // needed: the verifier resolves the extent from the path end.
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("read obligation follows its operation identity"),
+            );
+            emit_scalar_leaf(
+                OperationKind::IndexedPrimitiveRead {
+                    source: *source,
+                    path: path.clone(),
+                    index,
                     obligation,
                 },
                 *scalar_type,

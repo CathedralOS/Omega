@@ -79,7 +79,7 @@ pub(super) fn project(
         }
         AbstractOperation::Jump { .. } => {
             let [edge] = node.successors.as_slice() else {
-                return Err(Error::SourceCustodyMismatch);
+                return Err(Error::custody());
             };
             Ok(LegalizedScalarTerminator::Jump {
                 successor: successor(edge),
@@ -89,7 +89,7 @@ pub(super) fn project(
         }
         AbstractOperation::Conditional { condition, .. } => {
             let [when_true, when_false] = node.successors.as_slice() else {
-                return Err(Error::SourceCustodyMismatch);
+                return Err(Error::custody());
             };
             Ok(LegalizedScalarTerminator::Conditional {
                 condition: *condition,
@@ -99,7 +99,7 @@ pub(super) fn project(
                 ownership: node.ownership.clone(),
             })
         }
-        _ => Err(Error::SourceCustodyMismatch),
+        _ => Err(Error::custody()),
     }
 }
 fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSuccessor {

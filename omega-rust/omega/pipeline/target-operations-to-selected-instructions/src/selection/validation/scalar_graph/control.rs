@@ -417,7 +417,7 @@ fn check_successor(
     actual: &SelectedSuccessor,
 ) -> Result<(), SelectedInstructionError> {
     if actual.structural_case.is_some() {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     let matches = replay
         .selected
@@ -428,7 +428,7 @@ fn check_successor(
         })
         .collect::<Vec<_>>();
     let [block] = matches.as_slice() else {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     };
     if actual.psi_edge != source.edge
         || actual.block != block.id
@@ -437,7 +437,7 @@ fn check_successor(
         || actual.structural_bindings.len() != source.structural_bindings.len()
         || actual.fuel != source.fuel
     {
-        return Err(SelectedInstructionError::SourceCustodyMismatch);
+        return Err(SelectedInstructionError::custody());
     }
     for (actual, semantic) in actual
         .structural_bindings
@@ -450,7 +450,7 @@ fn check_successor(
             if actual.semantic != *semantic
                 || actual.transport != selected_instructions::SelectedStructuralTransport::Unused
             {
-                return Err(SelectedInstructionError::SourceCustodyMismatch);
+                return Err(SelectedInstructionError::custody());
             }
             continue;
         }
@@ -465,9 +465,9 @@ fn check_successor(
                 &replay.transport.pointers,
                 &replay.transport.local_slots,
             )
-            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            .ok_or(SelectedInstructionError::custody())?;
             if actual.semantic != *semantic || actual.transport != expected {
-                return Err(SelectedInstructionError::SourceCustodyMismatch);
+                return Err(SelectedInstructionError::custody());
             }
             continue;
         }
@@ -477,7 +477,7 @@ fn check_successor(
             .iter()
             .find(|(place, _)| *place == semantic.argument.place)
             .map(|(_, pointer)| *pointer)
-            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            .ok_or(SelectedInstructionError::custody())?;
         let destination = selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
             block: source.target,
             place: semantic.parameter,
@@ -487,15 +487,15 @@ fn check_successor(
                 .blocks
                 .iter()
                 .find(|block| block.id == source.target)
-                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?
+                .ok_or(SelectedInstructionError::custody())?
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == semantic.parameter)
-                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                .ok_or(SelectedInstructionError::custody())?;
             let shape = crate::selection::aggregate_result_input::block_parameter_shape(
                 function, parameter,
             )
-            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            .ok_or(SelectedInstructionError::custody())?;
             selected_instructions::SelectedStructuralTransport::WholeValue {
                 argument: pointer,
                 destination,
@@ -509,12 +509,12 @@ fn check_successor(
             }
         };
         if actual.semantic != *semantic || actual.transport != expected {
-            return Err(SelectedInstructionError::SourceCustodyMismatch);
+            return Err(SelectedInstructionError::custody());
         }
     }
     for (actual, semantic) in actual.bindings.iter().zip(&source.bindings) {
         if actual.semantic != *semantic {
-            return Err(SelectedInstructionError::SourceCustodyMismatch);
+            return Err(SelectedInstructionError::custody());
         }
         let destination = replay.selected.virtual_registers.iter().find(|register| {
             matches!(register.origin,
@@ -532,16 +532,16 @@ fn check_successor(
             ) => {
                 let (_, expected, _, scalar_type) = replay
                     .resolve(semantic.argument)
-                    .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+                    .ok_or(SelectedInstructionError::custody())?;
                 if argument != expected
                     || parameter != destination.id
                     || scalar_type != semantic.scalar_type
                     || destination.scalar_type != semantic.scalar_type
                 {
-                    return Err(SelectedInstructionError::SourceCustodyMismatch);
+                    return Err(SelectedInstructionError::custody());
                 }
             }
-            _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
+            _ => return Err(SelectedInstructionError::custody()),
         }
     }
     Ok(())
@@ -551,7 +551,7 @@ pub(super) fn block_order(
     source: &LegalizedScalarFunction,
     selected: &SelectedFunction,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = SelectedInstructionError::custody();
     if source.blocks.len() > selected.blocks.len() || selected.blocks.is_empty() {
         return Err(invalid);
     }

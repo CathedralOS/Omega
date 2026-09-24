@@ -62,13 +62,12 @@ pub(in crate::legalization) fn sum_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     if result.multiplicity == StructuralMultiplicity::Linear
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     sum_type_layout(result.structural_type, plan)
 }
@@ -77,19 +76,18 @@ pub(in crate::legalization) fn sum_type_layout(
     structural_type: semantic_vocabulary::StructuralTypeId,
     plan: &AbstractOperationPlan,
 ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let mut declarations = plan
         .structural_types
         .iter()
         .filter(|declaration| declaration.id == structural_type);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
+    let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     let (common, cases) = match &declaration.shape {
         StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
         StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     if declarations.next().is_some() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let shape_of = |field: &terminal_psi::StructuralFieldDeclaration| {
         crate::structural_inputs::structural_reference_input::field_shape(
@@ -97,7 +95,7 @@ pub(in crate::legalization) fn sum_type_layout(
             &plan.structural_types,
             &mut Vec::new(),
         )
-        .ok_or(invalid.clone())
+        .ok_or(LegalizationError::custody())
     };
     let common = common
         .iter()
@@ -114,7 +112,8 @@ pub(in crate::legalization) fn sum_type_layout(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).map_err(|_| invalid)
+    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+        .map_err(|_| LegalizationError::custody())
 }
 
 pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
@@ -272,7 +271,6 @@ pub(super) fn header(
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let graph = &target.graph;
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
@@ -292,7 +290,7 @@ pub(super) fn header(
         || graph.scalar_parameters.len() != abstracted.parameters.len()
         || graph.parameters.len() != abstracted.structural_parameters.len()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
@@ -302,7 +300,7 @@ pub(super) fn header(
                 ScalarType::Boolean | ScalarType::Integer(_)
             ) =>
         {
-            Some(scalar_shape(result.scalar_type).ok_or(invalid.clone())?)
+            Some(scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?)
         }
         AbstractFunctionResult::Structural(result) => Some(
             if plan.structural_types.iter().any(|declaration| {
@@ -332,21 +330,21 @@ pub(super) fn header(
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty()
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
                     &plan.structural_types,
                 )
-                .ok_or(invalid.clone())?
+                .ok_or(LegalizationError::custody())?
             },
         ),
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     let mut shapes = abstracted
         .parameters
         .iter()
-        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(invalid.clone()))
+        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(LegalizationError::custody()))
         .collect::<Result<Vec<_>, _>>()?;
     for parameter in &abstracted.structural_parameters {
         shapes.push(
@@ -354,7 +352,7 @@ pub(super) fn header(
                 parameter,
                 &plan.structural_types,
             )
-            .ok_or(invalid.clone())?,
+            .ok_or(LegalizationError::custody())?,
         );
     }
     let expected = evaluate_call_plan(
@@ -364,9 +362,9 @@ pub(super) fn header(
             result,
         },
     )
-    .map_err(|_| invalid.clone())?;
+    .map_err(|_| LegalizationError::custody())?;
     if graph.call_plan != expected {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if let AbstractFunctionResult::Scalar(result) = abstracted.result {
         let retained = match (&target.scalar_abi, &target.mixed_structural_scalar_abi) {
@@ -388,14 +386,14 @@ pub(super) fn header(
             // The graph retains the complete call plan and ordered parameters;
             // target replay independently checks each exact scalar return.
             (None, None) => None,
-            _ => return Err(invalid),
+            _ => return Err(LegalizationError::custody()),
         };
         if retained.is_some_and(|retained| {
             retained.value != result.value
                 || retained.scalar_type != result.scalar_type
                 || Some(&retained.placement) != expected.result.as_ref()
         }) {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     for (position, ((declared, actual), retained)) in abstracted
@@ -412,7 +410,7 @@ pub(super) fn header(
             || retained.scalar_type != declared.scalar_type
             || retained.placement != expected.parameters[position]
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     for (position, (declared, retained)) in abstracted
@@ -430,7 +428,7 @@ pub(super) fn header(
             || retained.shape != expected.parameters[abstracted.parameters.len() + position].shape
             || retained.placement != expected.parameters[abstracted.parameters.len() + position]
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     if optimized
@@ -443,7 +441,7 @@ pub(super) fn header(
                 && block_home_layout(parameter, plan).is_err()
         })
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(expected)
 }
@@ -470,7 +468,7 @@ pub(in crate::legalization) fn block_home_layout(
                 )
         }))
     {
-        return Err(LegalizationError::SourceCustodyMismatch);
+        return Err(LegalizationError::custody());
     }
     home_layout(
         &StructuralOperationResult {
@@ -521,11 +519,10 @@ pub(in crate::legalization) fn call_argument(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let destination = callee
         .structural_parameters
         .get(position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     // `.., Referent` spellings resolve through replayed reference custody;
     // the transported value names the referent root, never the carrier.
     if matches!(
@@ -536,16 +533,18 @@ pub(in crate::legalization) fn call_argument(
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         let ordinal = callee
             .parameters
             .len()
             .checked_add(position)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         return super::reference_custody::referent_argument(
             argument,
             destination,
-            call.parameters.get(ordinal).ok_or(invalid)?,
+            call.parameters
+                .get(ordinal)
+                .ok_or(LegalizationError::custody())?,
             caller,
             target_caller,
             custody,
@@ -612,7 +611,7 @@ pub(in crate::legalization) fn call_argument(
                 .parameters
                 .len()
                 .checked_add(position)
-                .ok_or(invalid)?,
+                .ok_or(LegalizationError::custody())?,
             native,
             plan,
         );
@@ -641,7 +640,7 @@ pub(in crate::legalization) fn call_argument(
         .functions
         .iter()
         .find(|function| function.machine == caller.machine)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let (source, binding) = if let Some(source) = caller
         .structural_parameters
         .iter()
@@ -653,7 +652,7 @@ pub(in crate::legalization) fn call_argument(
                     .iter()
                     .find(|parameter| parameter.place == argument.place)
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         (source, retained.placement.clone().into())
     } else {
         let (block, source) = caller
@@ -666,7 +665,7 @@ pub(in crate::legalization) fn call_argument(
                     .find(|parameter| parameter.place == argument.place)
                     .map(|parameter| (block.id, parameter))
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         (
             source,
             target_operations::TargetStructuralArgumentSource::BlockParameter {
@@ -682,14 +681,14 @@ pub(in crate::legalization) fn call_argument(
         || source.access != argument.access
         || argument.access != destination.access
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let placement = call
         .parameters
         .get(callee.parameters.len() + position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if placement.shape != ValueShape::borrowed_reference(16, 8) {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(target_operations::TargetStructuralArgument {
         place: argument.place,
@@ -740,7 +739,7 @@ pub(super) fn result_home(
         }
         // A function parameter is an arrival, not an activation-local home.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-            return Err(LegalizationError::SourceCustodyMismatch);
+            return Err(LegalizationError::custody());
         }
     };
     Ok(target_operations::TargetStructuralHomeRequirement { origin, layout })
@@ -765,7 +764,7 @@ pub(in crate::legalization) fn home_layout(
         // Qualifications ride the home origin verbatim as custody evidence;
         // the layout is the carrier's physical shape alone.
         if result.multiplicity == StructuralMultiplicity::Linear || !result.claims.is_empty() {
-            return Err(LegalizationError::SourceCustodyMismatch);
+            return Err(LegalizationError::custody());
         }
         return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
             crate::structural_inputs::structural_reference_input::primitive_array_shape(
@@ -778,7 +777,7 @@ pub(in crate::legalization) fn home_layout(
                     &plan.structural_types,
                 )
             })
-            .ok_or(LegalizationError::SourceCustodyMismatch)?,
+            .ok_or(LegalizationError::custody())?,
         ));
     }
     Ok(target_operations::TargetStructuralHomeLayout::Sum(

@@ -94,10 +94,10 @@ const BOUNDED_ROOT_SERVICE_REACH_SOURCE: &str = r#"
     }
 
     data Root {}
-    machine Root::enter<machine Completion>() -> bool
-    where machine Completion satisfies InterruptCompletion::complete;
+    machine Root::enter() -> bool
+    reaches InterruptCompletion + MachineControl + PortIo invokes InterruptCompletion;
     {
-        let accepted: bool = Completion();
+        let accepted: bool = InterruptCompletion::complete();
         accepted
     }
 "#;
@@ -473,7 +473,27 @@ fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
         verified.unit().root_service_reach,
         verified.input().context().module().root_service_reach
     );
-    assert!(verified.unit().root_service_reach.concrete.is_empty());
+    let service_name = |service: &semantic_vocabulary::ServiceId| {
+        verified
+            .unit()
+            .services
+            .iter()
+            .find(|declaration| declaration.id == *service)
+            .expect("reached service remains declared")
+            .identity
+            .as_str()
+    };
+    // The entry declares the requirement and its bound, so both are concrete.
+    assert_eq!(
+        verified
+            .unit()
+            .root_service_reach
+            .concrete
+            .iter()
+            .map(service_name)
+            .collect::<Vec<_>>(),
+        ["InterruptCompletion", "MachineControl", "PortIo"]
+    );
     let [dependency] = verified
         .unit()
         .root_service_reach
@@ -488,22 +508,32 @@ fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
         .iter()
         .find(|boundary| boundary.identity == dependency.requirement_identity)
         .expect("installation dependency names the retained requirement boundary");
-    assert_eq!(boundary.published_service_ceiling, dependency.upper_bound);
-    let bound_names = dependency
-        .upper_bound
-        .iter()
-        .map(|service| {
-            verified
-                .unit()
-                .services
-                .iter()
-                .find(|declaration| declaration.id == *service)
-                .expect("bounded service remains declared")
-                .identity
-                .as_str()
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(bound_names, ["MachineControl", "PortIo"]);
+    // The published ceiling is the boundary's fixed service united with the
+    // installation bound; installation substitutes only the bound.
+    assert_eq!(
+        boundary
+            .fixed_service_reach
+            .iter()
+            .map(service_name)
+            .collect::<Vec<_>>(),
+        ["InterruptCompletion"]
+    );
+    assert_eq!(
+        dependency
+            .upper_bound
+            .iter()
+            .map(service_name)
+            .collect::<Vec<_>>(),
+        ["MachineControl", "PortIo"]
+    );
+    assert_eq!(
+        boundary
+            .published_service_ceiling
+            .iter()
+            .map(service_name)
+            .collect::<Vec<_>>(),
+        ["InterruptCompletion", "MachineControl", "PortIo"]
+    );
 }
 
 #[test]

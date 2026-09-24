@@ -7,37 +7,37 @@ mod semantic;
 
 pub(crate) use catalog::analysis_dependencies;
 pub use catalog::{AnalysisProduct, compute_analysis};
+#[cfg(test)]
+pub(crate) use control_flow::ExitKind;
+pub use control_flow::{CallGraphAnalysis, StronglyConnectedComponentAnalysis};
+#[cfg(any(test, feature = "test-support"))]
 pub use control_flow::{
-    BlockControlFlow, CallGraphAnalysis, ControlFlowAnalysis,
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
-    CountdownInvariantConstantConsumer, CountdownInvariantConstantDestination,
-    CountdownInvariantConstantPlacement, CountdownInvariantConstantPlacementAnalysisError,
+    CountdownInvariantConstantPlacementAnalysisError,
     CountdownInvariantConstantPlacementAnalysisSnapshot, CountdownInvariantConstantRole,
     CountdownInvariantIntegerConstant, CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
-    DominatorAnalysis, ExactUnsignedTripCount, ExitKind, FunctionControlFlow, LoopAnalysis,
-    LoopRegion, StronglyConnectedComponentAnalysis, UnsignedCountdownInvariantConstantPlacements,
-    UnsignedCountdownInvariantConstants, UnsignedCountdownLoopSummary,
-    ValidatedCountdownInvariantConstantAnalysis,
+    UnsignedCountdownInvariantConstantPlacements, ValidatedCountdownInvariantConstantAnalysis,
     ValidatedCountdownInvariantConstantPlacementAnalysis, ValidatedCountedLoopAnalysis,
 };
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) use control_flow::{
     analyze_countdown_invariant_constant_placement, analyze_countdown_invariant_constants,
     analyze_counted_loops, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
-pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit};
+pub use manager::{AnalysisManager, AnalysisManagerError};
+#[cfg(any(test, feature = "test-support"))]
 pub use optimization_unit::{
-    ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+    ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
 };
 pub use revision::AnalysisRevision;
 pub use semantic::{
-    EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
-    ExecutableEdgeFact, ExecutableEdgeKnowledge, FunctionEffectSummary, NodeEffectSummary,
-    NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, PlaceAliasClaim,
-    PlaceAliasFunction, PlaceAliasRelation, PlaceAliasRoot, PlaceAliasesAnalysis, PlaceView,
-    ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport,
-    UseDefinitionAnalysis, ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock,
-    ValueRangeAnalysis,
+    EffectClass, EffectKnowledge, EffectSummaryAnalysis, OwnershipFrontierAnalysis, ScalarConstant,
+    ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
+};
+#[cfg(test)]
+pub(crate) use semantic::{
+    ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
 };
 
 #[cfg(test)]

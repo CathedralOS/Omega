@@ -115,7 +115,7 @@ machine Main::main(&mut self) reaches Aggregate {
         diagnostics.iter().any(|diagnostic| {
             diagnostic
                 .to_string()
-                .contains("Selection(Legalization(SourceCustodyMismatch))")
+                .contains("Selection(Legalization(SourceCustodyMismatch {")
         }),
         "an owned record actual must refuse inside the legalizer's normalized-foreign scalar-graph input, not earlier in validation or later in emission; diagnostics: {diagnostics:?}",
     );

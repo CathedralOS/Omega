@@ -2,9 +2,10 @@
 //! scalar cases, affine records and trivial affine locals, and the disposal
 //! custody a relocated establishment re-expresses.
 
+use crate::ranked_rewrites::LoopInvariantNodeResult;
 use crate::{
-    LoopInvariantNodeResult, apply_loop_invariant_scalar_motion,
-    propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
+    apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
+    validate_loop_invariant_scalar_motion,
 };
 use abstract_operations::AbstractOperation;
 use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};

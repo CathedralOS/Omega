@@ -24,6 +24,7 @@ pub struct PlaceView {
 /// Whether two views provably share storage, provably cannot, or sit outside
 /// what the declared roster establishes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(any(test, feature = "test-support"))]
 pub enum PlaceAliasRelation {
     Overlapping,
     Disjoint,
@@ -64,6 +65,7 @@ pub struct PlaceAliasesAnalysis {
 }
 
 impl PlaceAliasesAnalysis {
+    #[cfg(any(test, feature = "test-support"))]
     pub fn function(&self, machine: MachineId) -> Option<&PlaceAliasFunction> {
         self.functions
             .binary_search_by_key(&machine, |function| function.machine)
@@ -76,6 +78,7 @@ impl PlaceAliasFunction {
     /// Every declared root names a distinct storage site with a known,
     /// placeable kind — the premise memory rewrites rely on to reason about
     /// distinct `PlaceId`s without re-deriving the roster.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn declared_roots_disjoint(&self) -> bool {
         self.roots.iter().all(|root| {
             matches!(root.kind, Some(kind) if !matches!(kind, StructuralPlaceKind::ProviderAttachment { .. }))
@@ -85,6 +88,7 @@ impl PlaceAliasFunction {
     /// Provable storage relation between two views. Views reach outside their
     /// root's own extent only through `Referent`, so that crossing is the only
     /// route by which declared storage can meet another root's content.
+    #[cfg(any(test, feature = "test-support"))]
     pub fn relation(&self, a: &PlaceView, b: &PlaceView) -> PlaceAliasRelation {
         let Some(a_kind) = self.root_kind(a.root) else {
             return PlaceAliasRelation::Unknown;
@@ -108,6 +112,7 @@ impl PlaceAliasFunction {
         PlaceAliasRelation::Disjoint
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     fn root_kind(&self, place: PlaceId) -> Option<StructuralPlaceKind> {
         self.roots
             .binary_search_by_key(&place, |root| root.place)
@@ -121,6 +126,7 @@ impl PlaceAliasFunction {
 /// names disjoint extents. A prefix extends into the longer view's storage
 /// only while the continuation stays inside it, so a continuation beginning
 /// at `Referent` is disjoint rather than contained.
+#[cfg(any(test, feature = "test-support"))]
 fn view_path_relation(
     a: &[StructuralPathSegment],
     b: &[StructuralPathSegment],
@@ -140,6 +146,7 @@ fn view_path_relation(
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 fn is_referent(segment: &StructuralPathSegment) -> bool {
     matches!(segment, StructuralPathSegment::Referent)
 }

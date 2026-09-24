@@ -127,7 +127,7 @@ fn equality_selected_graph_corruption_fails_closed_on_both_isas() {
         std::mem::swap(when_nonzero, when_zero);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
         ));
 
         let mut corrupted = staged.selected().plan().clone();

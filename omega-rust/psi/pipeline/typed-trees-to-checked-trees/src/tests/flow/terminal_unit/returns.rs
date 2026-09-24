@@ -264,7 +264,7 @@ fn guarded_payloadless_identity_call_rejects_static_requirement_dispatch() {
 }
 
 #[test]
-fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
+fn exact_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     let checked = checked(
         r#"
         data Outcome [copy] {
@@ -279,21 +279,61 @@ fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
         "#,
     );
 
-    let plans = &checked.facts.flow.terminal_structural_returns;
     let machine = machine_named(&checked, "choose");
-    assert!(plans.for_machine(machine).is_none());
-    let plan = plans
-        .payloadless_case_for_machine(machine)
-        .expect("the exact zero-input payload-less case constructor is retained");
-    assert_eq!(plan.result.multiplicity, Multiplicity::Unrestricted);
-    assert!(plan.result.qualifications.is_empty());
-    assert_eq!(plan.returned_case_identity, "Success");
+    assert!(
+        checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine).is_none(),
+        "a zero-input case constructor has no return family of its own"
+    );
+    let Some(checked_trees::CheckedUnitPlan::ComposedControl(plan)) =
+        checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine)
+    else {
+        panic!("the zero-input case constructor keeps the ordinary composed Unit plan")
+    };
+    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+        panic!("the constructed case is the plan's structural result")
+    };
+    assert_eq!(result.multiplicity, Multiplicity::Unrestricted);
+    assert!(result.qualifications.is_empty());
+    let [state] = plan.states.as_slice() else {
+        panic!("one state constructs and returns the case")
+    };
+    assert!(state.structural_parameters.is_empty());
+    assert!(state.scalar_parameters.is_empty());
+    // The case is an ordinary structural value establishment followed by the
+    // structural return of that one binding.
+    let [
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result: established,
+            calls,
+            ..
+        },
+    ] = state.operations.as_slice()
+    else {
+        panic!("one ordinary structural value establishes the case")
+    };
+    assert!(calls.is_empty());
+    assert_eq!(established.type_identity, result.type_identity);
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnStructural {
+        result: returned,
+    } = &state.terminator
+    else {
+        panic!("the state returns the established case")
+    };
+    assert_eq!(
+        returned.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: established.binding_ordinal,
+        }
+    );
 
-    let result_shape = plans
+    let result_shape = checked
+        .facts
+        .flow
+        .terminal_unit_effects
         .structural_types
         .iter()
-        .find(|shape| shape.identity == plan.result.type_identity)
-        .expect("the plan retains its exact result shape");
+        .find(|shape| shape.identity == result.type_identity)
+        .expect("the Unit roster retains the exact result shape");
     let CheckedUnitStructuralTypeShape::Sum { cases } = &result_shape.shape else {
         panic!("the result must remain a sum")
     };
@@ -307,7 +347,7 @@ fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
 }
 
 #[test]
-fn retains_guarded_only_payloadless_case_return_but_not_ordinary_contracts() {
+fn guarded_payloadless_case_return_keeps_its_ordinary_unit_plan() {
     let checked = checked(
         r#"
         trait Evidence {}
@@ -319,80 +359,19 @@ fn retains_guarded_only_payloadless_case_return_but_not_ordinary_contracts() {
         machine Root::guarded() -> Outcome
         ensures Outcome::Success -> { selected: ready(); true; }
         { selected = ConcreteEvidence; Outcome::Success }
-
-        machine Root::ordinary() -> Outcome
-        ensures true;
-        { Outcome::Success }
         "#,
     );
-    let plans = &checked.facts.flow.terminal_structural_returns;
+    let machine = machine_named(&checked, "guarded");
     assert!(
-        plans
-            .payloadless_case_for_machine(machine_named(&checked, "guarded"))
-            .is_some(),
-        "guarded-only contracts preserve the exact payloadless producer plan"
+        checked_trees::CheckedReturnPlan::for_machine(&checked.facts.flow, machine).is_none(),
+        "result-case guarantees do not select a return family"
     );
     assert!(
-        plans
-            .payloadless_case_for_machine(machine_named(&checked, "ordinary"))
-            .is_none(),
-        "unconditional contracts remain outside this bounded producer rung"
-    );
-}
-
-#[test]
-fn payloadless_case_return_plan_fences_wider_result_and_body_shapes() {
-    let checked = checked(
-        r#"
-        data Outcome [copy] { case Success; case Failure; }
-        data Singleton [copy] { case Only; }
-        data Payload [copy] { case Empty; case Value(code: u8); }
-        data LinearOutcome [linear] { case Success; case Failure; }
-        data Root {}
-
-        machine Root::with_parameter(value: u8) -> Outcome { Outcome::Success }
-        machine Root::singleton() -> Singleton { Singleton::Only }
-        machine Root::payload() -> Payload { Payload::Empty }
-        machine Root::linear() -> LinearOutcome { LinearOutcome::Success }
-        machine Root::with_contract() -> Outcome
-        ensures
-            true;
-        { Outcome::Success }
-        machine Root::with_local() -> Outcome {
-            let staged: Outcome = Outcome::Failure;
-            Outcome::Success
-        }
-        machine Root::helper() -> Outcome { Outcome::Failure }
-        machine Root::through_call() -> Outcome { Root::helper() }
-        machine Root::with_reach() -> Outcome
-        reaches PortIo
-        { Outcome::Success }
-        "#,
-    );
-
-    let plans = &checked.facts.flow.terminal_structural_returns;
-    for name in [
-        "with_parameter",
-        "singleton",
-        "payload",
-        "linear",
-        "with_contract",
-        "with_local",
-        "through_call",
-        "with_reach",
-    ] {
-        assert!(
-            plans
-                .payloadless_case_for_machine(machine_named(&checked, name))
-                .is_none(),
-            "{name} must remain outside the narrow payload-less case return rung"
-        );
-    }
-    assert!(
-        plans
-            .payloadless_case_for_machine(machine_named(&checked, "helper"))
-            .is_some(),
-        "the fence fixture keeps one independent exact constructor canary"
+        matches!(
+            checked_trees::CheckedUnitPlan::for_machine(&checked.facts.flow, machine),
+            Some(checked_trees::CheckedUnitPlan::ComposedControl(_))
+        ),
+        "result-case guarantees keep the ordinary composed Unit plan"
     );
 }
 

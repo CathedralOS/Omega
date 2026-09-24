@@ -3,15 +3,16 @@
 //! The return rosters remain separate tables because each retains the
 //! structural-type roster its lowering emits and outside readers iterate them
 //! by field. This view names the family once, so a consumer asks which return
-//! plan a machine lowers instead of walking eight rosters and repeating the
-//! same admission beside each.
+//! plan a machine lowers instead of walking seven rosters and repeating the
+//! same admission beside each. A zero-input payloadless case constructor is
+//! not a return family: it is an ordinary Unit-effect body.
 
 use symbols::SymbolHandle;
 
 use crate::checked_trees::flow::FlowFacts;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedClaimFreeAffineStructuralReturnMachinePlan,
-    CheckedPayloadlessCaseReturnMachinePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
+    CheckedPayloadlessGuardedCallReturnMachinePlan,
     CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedStructuralReturnMachinePlan,
     CheckedStructuralScalarReturnMachinePlan, CheckedTerminalSignatureEligibility,
     CheckedTraitOperatorScalarReturnMachinePlan,
@@ -39,8 +40,6 @@ pub enum CheckedReturnPlan<'a> {
     /// One scalar result returned by a bodyless boundary call that consumes
     /// the structural claim frontier.
     BoundaryScalar(&'a CheckedBoundaryScalarReturnMachinePlan),
-    /// One zero-input payloadless case of a closed unrestricted sum.
-    PayloadlessCase(&'a CheckedPayloadlessCaseReturnMachinePlan),
     /// One whole linear root transferred to the result with its claim.
     Structural(&'a CheckedStructuralReturnMachinePlan),
     /// One whole claim-free owned-affine parameter returned unchanged.
@@ -77,11 +76,6 @@ impl<'a> CheckedReturnPlan<'a> {
             })
             .or_else(|| {
                 structural_returns
-                    .payloadless_case_for_machine(machine)
-                    .map(Self::PayloadlessCase)
-            })
-            .or_else(|| {
-                structural_returns
                     .for_machine(machine)
                     .map(Self::Structural)
             })
@@ -100,7 +94,6 @@ impl<'a> CheckedReturnPlan<'a> {
             Self::TraitOperator(plan) => plan.machine,
             Self::StructuralScalar(plan) => plan.machine,
             Self::BoundaryScalar(plan) => plan.machine,
-            Self::PayloadlessCase(plan) => plan.machine,
             Self::Structural(plan) => plan.machine,
             Self::ClaimFreeAffine(plan) => plan.machine,
         }
@@ -115,7 +108,6 @@ impl<'a> CheckedReturnPlan<'a> {
             Self::PayloadlessGuardedCall(plan) => Some(plan.target_machine),
             Self::StructuralScalar(_)
             | Self::BoundaryScalar(_)
-            | Self::PayloadlessCase(_)
             | Self::Structural(_)
             | Self::ClaimFreeAffine(_) => None,
         }
@@ -130,10 +122,7 @@ impl<'a> CheckedReturnPlan<'a> {
             Self::SelectedOperator(_) | Self::TraitOperator(_) => return None,
             Self::StructuralScalar(plan) => plan.attachment_type_identity.is_some(),
             Self::ClaimFreeAffine(plan) => plan.attachment_type_identity.is_some(),
-            Self::PayloadlessGuardedCall(_)
-            | Self::BoundaryScalar(_)
-            | Self::PayloadlessCase(_)
-            | Self::Structural(_) => true,
+            Self::PayloadlessGuardedCall(_) | Self::BoundaryScalar(_) | Self::Structural(_) => true,
         };
         Some(if attached {
             CheckedTerminalSignatureEligibility::Attached
@@ -151,9 +140,10 @@ mod tests {
     use super::CheckedReturnPlan;
     use crate::checked_trees::flow::FlowFacts;
     use crate::checked_trees::flow::terminal::{
-        CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedPayloadlessCaseReturnMachinePlan,
-        CheckedStructuralAccess, CheckedStructuralResultPlan, CheckedTerminalSignatureEligibility,
-        CheckedUnitStructuralParameterPlan,
+        CheckedClaimFreeAffineStructuralReturnMachinePlan,
+        CheckedPayloadlessGuardedCallReturnMachinePlan, CheckedStructuralAccess,
+        CheckedStructuralResultPlan, CheckedTerminalSignatureEligibility,
+        CheckedUnitCallCoordinate, CheckedUnitStructuralParameterPlan,
     };
 
     fn result() -> CheckedStructuralResultPlan {
@@ -195,20 +185,14 @@ mod tests {
         let free = SymbolHandle::from_arena_index(2);
         let mut flow = FlowFacts::default();
         flow.terminal_structural_returns
-            .payloadless_case_machines
-            .push(CheckedPayloadlessCaseReturnMachinePlan {
-                machine: attached,
-                state: SymbolHandle::from_arena_index(9),
-                attachment_type_identity: "Owner".to_owned(),
-                result: result(),
-                returned_case_identity: "Outcome::Done".to_owned(),
-            });
+            .claim_free_affine_machines
+            .push(claim_free_affine(attached, Some("Owner".to_owned())));
         flow.terminal_structural_returns
             .claim_free_affine_machines
             .push(claim_free_affine(free, None));
 
         let plan = CheckedReturnPlan::for_machine(&flow, attached).expect("attached plan");
-        assert!(matches!(plan, CheckedReturnPlan::PayloadlessCase(_)));
+        assert!(matches!(plan, CheckedReturnPlan::ClaimFreeAffine(_)));
         assert_eq!(plan.machine(), attached);
         assert_eq!(plan.realization_machine(), None);
         assert_eq!(
@@ -236,17 +220,27 @@ mod tests {
         flow.terminal_structural_returns
             .claim_free_affine_machines
             .push(claim_free_affine(machine, Some("Owner".to_owned())));
-        flow.terminal_structural_returns
-            .payloadless_case_machines
-            .push(CheckedPayloadlessCaseReturnMachinePlan {
+        flow.terminal_structural_call_returns
+            .payloadless_guarded_machines
+            .push(CheckedPayloadlessGuardedCallReturnMachinePlan {
                 machine,
                 state: SymbolHandle::from_arena_index(9),
                 attachment_type_identity: "Owner".to_owned(),
                 result: result(),
-                returned_case_identity: "Outcome::Done".to_owned(),
+                call: CheckedUnitCallCoordinate {
+                    statement_index: 0,
+                    call_ordinal: 0,
+                },
+                target_machine: SymbolHandle::from_arena_index(2),
+                target_state: SymbolHandle::from_arena_index(10),
+                selected_evidence: Vec::new(),
             });
 
         let plan = CheckedReturnPlan::for_machine(&flow, machine).expect("plan");
-        assert!(matches!(plan, CheckedReturnPlan::PayloadlessCase(_)));
+        assert!(matches!(plan, CheckedReturnPlan::PayloadlessGuardedCall(_)));
+        assert_eq!(
+            plan.realization_machine(),
+            Some(SymbolHandle::from_arena_index(2))
+        );
     }
 }

@@ -47,6 +47,7 @@ mod call_closure;
 pub(crate) mod catalog;
 mod claims;
 mod composed_control;
+mod field_replacement;
 mod operation_frame;
 mod ordinary_calls;
 mod ordinary_machine;
@@ -66,6 +67,7 @@ mod signatures;
 mod structural_calls;
 mod structural_completion;
 pub(crate) mod structural_values;
+mod view_ranges;
 
 use bodies::{UnitBody, UnitPlans};
 pub(crate) use parameters::validate_direct_unit_parameter_custody;
@@ -684,9 +686,9 @@ pub(crate) fn lower_unit_closure(
         .iter()
         .map(|machine| (machine.source_machine(), machine.requirement_count()))
         .chain(machine_signatures.iter().filter_map(|signature| {
-            plans
-                .for_machine(signature.source)
-                .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+            UnitBody::find(plans, signature.source)
+                .ok()
+                .filter(|body| body.scalar_result_type().is_some())
                 .map(|_| (signature.source, signature.requires.len()))
         }))
         .collect::<Vec<_>>();

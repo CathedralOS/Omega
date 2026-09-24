@@ -59,13 +59,13 @@ pub(super) fn argument_pointer(
             semantic.place,
             argument_index
                 .try_into()
-                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                .map_err(|_| SelectedInstructionError::custody())?,
             pointer,
             length,
         )?
     } else if let Some((field_offset, _)) = byte_field {
         if field_offset != target.source_byte_offset {
-            return Err(SelectedInstructionError::SourceCustodyMismatch);
+            return Err(SelectedInstructionError::custody());
         }
         structural::byte_field_argument(
             builder,
@@ -73,7 +73,7 @@ pub(super) fn argument_pointer(
             semantic.place,
             argument_index
                 .try_into()
-                .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                .map_err(|_| SelectedInstructionError::custody())?,
             pointer,
             field_offset,
         )?
@@ -87,7 +87,7 @@ pub(super) fn argument_pointer(
     else {
         return Ok(Some(pointer));
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
+    let invalid = || SelectedInstructionError::custody();
     let slot = selected_instructions::OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,

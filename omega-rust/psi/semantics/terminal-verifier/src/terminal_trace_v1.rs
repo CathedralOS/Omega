@@ -253,6 +253,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+        | OperationKind::IndexedPrimitiveRead { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }

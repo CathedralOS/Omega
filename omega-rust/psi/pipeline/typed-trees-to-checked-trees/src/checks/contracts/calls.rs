@@ -60,6 +60,43 @@ pub(super) fn check_call_requires(
         for fact in facts.semantic.context_view(context).facts() {
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
+                    if std::env::var_os("OMEGA_DEBUG_ROUTES").is_some() {
+                        eprintln!(
+                            "ROUTE target={} closed={} proves={} entry_ctx={} in_ctx={} structural={}",
+                            crate::labels::symbol_name(program, call_flow.target_symbol),
+                            closed_boolean_value(program, &facts.operators, expression)
+                                == Some(true),
+                            super::call_bounds::proves(
+                                program, facts, state_flow, call_flow, expression
+                            ),
+                            call_entry_contexts_prove_boolean_contract_expression(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                &entry_contexts,
+                                expression,
+                                call_frames
+                            ),
+                            super::call_bounds::proves_in_context(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                &entry_contexts,
+                                expression,
+                                call_frames
+                            ),
+                            super::entailment::structural_call_requirement(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                expression,
+                                call_frames
+                            ),
+                        );
+                    }
                     closed_boolean_value(program, &facts.operators, expression) == Some(true)
                         || super::call_bounds::proves(
                             program, facts, state_flow, call_flow, expression,
@@ -810,12 +847,6 @@ fn transition_guard_proves_requires(
     ) else {
         return false;
     };
-    if !matches!(
-        call_site,
-        crate::semantic::calls::CallSite::TransitionNamed { .. }
-    ) {
-        return false;
-    }
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
@@ -836,6 +867,25 @@ fn transition_guard_proves_requires(
     let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
+    // The arm this guard selects, in either spelling. A bare named target is
+    // one; so is `-> (callee(..))`, which `ac52bc4114` requires of an attached
+    // machine and which a receiver-qualified call always uses. Only the
+    // SELECTED arm's own target qualifies: a call inside the guard, nested
+    // inside the target expression, or on the continuation arm -- which holds
+    // the guard's negation -- is not this edge.
+    let selects_this_call = match &call_site {
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => true,
+        crate::semantic::calls::CallSite::Expression { expression, .. } => {
+            matches!(
+                program.statement_table.transition_target(transition.target),
+                typed_trees::statement::TransitionTargetNode::Value(value) if value == expression
+            )
+        }
+        crate::semantic::calls::CallSite::Statement(_) => false,
+    };
+    if !selects_this_call {
+        return false;
+    }
     let Some(target_parameters) =
         crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
     else {
@@ -857,7 +907,13 @@ fn transition_guard_proves_requires(
         }
         _ => return false,
     };
-    if !guard_conjunct_matches(program, guard, &required_label) {
+    let guard_establishes = guard_conjunct_matches(program, guard, &required_label)
+        || predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
+            labels
+                .iter()
+                .all(|label| guard_conjunct_matches(program, guard, label))
+        });
+    if !guard_establishes {
         return false;
     }
     // The guard was read before the arm's operands ran. An operand evaluated
@@ -1307,6 +1363,140 @@ mod transition_arm_guard_probes {
         );
     }
 
+    /// A RECEIVER-QUALIFIED callee always arrives as a value call, and its
+    /// requirement is discharged by the same taken-arm guard. This is the case
+    /// the `CallSite::TransitionNamed` gate actually blocked: `self.read(index)`
+    /// on the taken arm of `transition index <= 15` could not prove
+    /// `requires index <= 15`, while the identical edge to a FREE callee could,
+    /// because a different route reaches that one first.
+    #[test]
+    fn a_receiver_qualified_taken_arm_call_discharges_its_requirement() {
+        const READER: &str = "data Store { arr: [u64; 16]; }
+            machine Store::read(&mut self, index: u64) -> u64
+            requires
+                index <= 15;
+            { transition { _ -> (self.arr[index]) } }";
+        assert!(
+            accepted(&format!(
+                "{READER}
+                machine Store::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (self.read(index)) false -> (0) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the taken arm's guard must discharge a receiver-qualified callee's requirement"
+        );
+        assert!(
+            !accepted(&format!(
+                "{READER}
+                machine Store::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (0) false -> (self.read(index)) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the continuation arm holds the guard's negation and cannot discharge it"
+        );
+    }
+
+    /// A PREDICATE-ONLY domain is established by proving its predicates.
+    /// wiki/spec/language/domains.md: "Predicates alone establish
+    /// predicate-only membership", and a ROUTED domain is the case that
+    /// "additionally needs exact authorized provenance". Both controls are the
+    /// point: the routed twin carries the SAME predicate and the SAME guard and
+    /// must still reject, and a two-predicate domain whose guard proves only
+    /// one of them must reject, because membership is every obligation rather
+    /// than any of them.
+    #[test]
+    fn a_predicate_only_domain_is_established_by_proving_its_predicates() {
+        let program = |domain: &str| {
+            format!(
+                "{domain}
+                data Main {{}}
+                machine Main::take(&mut self, index: u64 in Slot16) -> u64 {{
+                    transition {{ _ -> (0) }}
+                }}
+                machine Main::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (self.take(index)) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("domain u64::Slot16 requires self <= 15;")),
+            "a guard proving the whole predicate must establish predicate-only membership"
+        );
+        assert!(
+            !accepted(&program(
+                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot16; }
+                 pub domain u64::Slot16 requires self <= 15 established by Granter::grant;"
+            )),
+            "a ROUTED domain still needs provenance, however well its predicate is proved"
+        );
+        assert!(
+            !accepted(&program(
+                "domain u64::Slot16 requires self <= 15 && self >= 4;"
+            )),
+            "a guard proving one of two predicates establishes neither membership"
+        );
+    }
+
+    /// The FACT route carries numeric implication -- `index < 16` discharges
+    /// `index <= 15` -- where the transition-guard route only compares
+    /// spellings. It reached a free callee but not a receiver-qualified one,
+    /// because a call whose receiver is a runtime place was not an "ordinary
+    /// call". It is: the goal is substituted THROUGH the receiver before it is
+    /// compared, which the control below is what proves.
+    #[test]
+    fn a_receiver_qualified_call_carries_numeric_implication_to_its_own_object() {
+        assert!(
+            accepted(
+                "data Store { arr: [u64; 16]; }
+                machine Store::read(&mut self, index: u64) -> u64
+                requires
+                    index <= 15;
+                { transition { _ -> (self.arr[index]) } }
+                machine Store::scan(&mut self, index: u64) -> u64 {
+                    transition index < 16 { true -> (self.read(index)) false -> (0) }
+                }
+                data Main {}
+                machine Main::main(&mut self) {}"
+            ),
+            "`index < 16` must discharge `requires index <= 15` through a receiver call"
+        );
+
+        // A requirement ABOUT THE RECEIVER is substituted to the object the
+        // call names, so a guard about a DIFFERENT object cannot discharge it
+        // even though both spell `self.limit`.
+        const PEER: &str = "data Store { limit: u64; }
+            machine Store::read(&mut self) -> u64
+            requires
+                self.limit <= 15;
+            { transition { _ -> (self.limit) } }
+            data Main { limit: u64; peer: Store; }";
+        assert!(
+            accepted(&format!(
+                "{PEER}
+                machine Main::go(&mut self) -> u64 {{
+                    transition self.peer.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "a guard naming the receiver's own field must discharge the requirement"
+        );
+        assert!(
+            !accepted(&format!(
+                "{PEER}
+                machine Main::go(&mut self) -> u64 {{
+                    transition self.limit <= 15 {{ true -> (self.peer.read()) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the caller's own `self.limit` is not the receiver's, and must not discharge it"
+        );
+    }
+
     /// An ATTACHED machine must spell a foreign tail call with the value-call
     /// parentheses, so the same taken-arm edge arrives as a value call. It is
     /// the same edge and the guard is evaluated in the same place, so it must
@@ -1326,4 +1516,69 @@ mod transition_arm_guard_probes {
             "the parenthesized taken-arm target is the same arrival as the bare one"
         );
     }
+}
+
+/// The predicates a PREDICATE-ONLY domain membership reduces to, each rendered
+/// at the subject, or `None` when the domain is not predicate-only.
+///
+/// [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
+/// the rule: "Predicates alone establish predicate-only membership", and a
+/// ROUTED domain is the case that "additionally needs exact authorized
+/// provenance". So a routed, aliased or indexed domain returns `None` here and
+/// keeps its provenance obligation; only a domain whose whole content is
+/// predicates over `self` reduces, and then EVERY predicate must be
+/// established, never a subset.
+///
+/// The rendering is `instantiate_domain_expression_label`, the same
+/// substitution `contracts::domains` already runs in the MEMBERSHIP ->
+/// PREDICATE direction. This is that rendering read the other way.
+fn predicate_only_domain_labels(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    fact: &facts::Fact,
+) -> Option<Vec<String>> {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+        return None;
+    };
+    let FactPlace::Place(place_handle) = fact.place else {
+        return None;
+    };
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
+    // The same list `domain_byte_predicate` enforces, so one definition governs
+    // both grants: an alias expands to constituent requirements, index binders
+    // carry an identity this substitution cannot supply, and `established by`
+    // routes restrict who may mint membership at all.
+    if domain.alias.is_some()
+        || !domain.index_arguments.is_empty()
+        || !domain.establishment_routes.is_empty()
+        || !typed_trees::domain::index_parameters(program, domain).is_empty()
+    {
+        return None;
+    }
+    let declared = program.proof_facts(domain);
+    if declared.is_empty() {
+        // A predicate-free domain adds no membership obligation predicates
+        // could discharge; whatever it asks for is not this.
+        return None;
+    }
+    let subject_label = facts.semantic.place_label(program, place_handle);
+    declared
+        .iter()
+        .map(|declared_fact| match declared_fact {
+            typed_trees::domain::ProofFact::Expression(expression) => {
+                Some(super::labels::instantiate_domain_expression_label(
+                    program,
+                    *expression,
+                    &subject_label,
+                ))
+            }
+            // A nested membership or a proposition needs more than this
+            // substitution gives; refuse the whole domain rather than
+            // establish a subset of its obligations.
+            _ => None,
+        })
+        .collect()
 }

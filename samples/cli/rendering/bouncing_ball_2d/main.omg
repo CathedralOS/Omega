@@ -35,9 +35,9 @@ data Main {
     vy: f64;
     ball_x: i32;         // cell coordinates of the ball; only compared, never
     ball_y: i32;         // fed to arithmetic
-    frame: i32 [0..=70]; // guard-proven Exact frame counter
-    y: i32 [0..=12];     // guard-proven Exact row counter
-    x: i32 [0..=24];     // guard-proven Exact column counter
+    frame: i32;          // guard-proven Exact frame counter
+    y: i32;              // guard-proven Exact row counter
+    x: i32;              // guard-proven Exact column counter
     pause: [u8; 256];
 }
 

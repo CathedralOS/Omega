@@ -381,21 +381,32 @@ fn named_call_closed_literal_out_of_range_still_rejects() {
 
 #[test]
 fn named_call_symbolic_operand_keeps_the_label_path() {
-    // `operand == operand` on a symbolic i32 is mathematically reflexive, but
-    // the leaf prover infers no selected-operator laws — identical to spelled
-    // `x == x`, which rejects the same clause.
+    // A symbolic operand with no evidence cannot meet `value == 1`; the
+    // diagnostic names the clause over the caller's own operand spelling.
     let diagnostics = check(
+        "boundary operator CheckedMath::offset_zero(value: i32) -> i32
+         requires value == 1;
+         machine caller(operand: i32) -> i32 { CheckedMath::offset_zero(operand) }",
+    )
+    .expect_err("a symbolic operand has no evidence for the clause");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove `operand == 1`")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn a_builtin_reflexive_clause_is_proven_for_any_operand() {
+    // `value == value` under the builtin i32 comparison holds for every
+    // value, so a symbolic operand needs no evidence for it.
+    check(
         "boundary operator CheckedMath::offset_zero(value: i32) -> i32
          requires value == value;
          machine caller(operand: i32) -> i32 { CheckedMath::offset_zero(operand) }",
     )
-    .expect_err("a symbolic reflexive clause has no literal evidence");
-    assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("cannot prove `operand == operand`")),
-        "{diagnostics:#?}"
-    );
+    .expect("a builtin reflexive clause needs no operand evidence");
 }
 
 /// A `Ns::requirement(args);` statement call selects the requirement: the

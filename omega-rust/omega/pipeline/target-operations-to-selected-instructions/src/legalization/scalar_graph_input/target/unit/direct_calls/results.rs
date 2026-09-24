@@ -19,11 +19,10 @@ pub(super) fn validate(
     caller: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
     match (retained, source) {
         (TargetCallResult::Unit, AbstractOperation::CallUnit { .. }) => {
             if call_plan.result.is_some() {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -107,10 +106,10 @@ pub(super) fn validate(
                 || !requirement_obligations.is_empty()
                 || !selected_evidence.is_empty()
             {
-                return Err(invalid());
+                return Err(LegalizationError::custody());
             }
         }
-        _ => return Err(invalid()),
+        _ => return Err(LegalizationError::custody()),
     }
     Ok(())
 }
@@ -121,8 +120,7 @@ fn scalar(
     result: AbstractResult,
     call_plan: &CallPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::SourceCustodyMismatch;
-    let shape = scalar_shape(result.scalar_type).ok_or_else(invalid)?;
+    let shape = scalar_shape(result.scalar_type).ok_or_else(|| LegalizationError::custody())?;
     let expected = TargetUnitScalarHomeRequirement {
         defining_operation: operation,
         source_value: result.value,
@@ -132,7 +130,7 @@ fn scalar(
     if retained != expected
         || call_plan.result.as_ref().map(|placement| placement.shape) != Some(shape)
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

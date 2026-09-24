@@ -4,11 +4,11 @@ use super::{
     OptimizationUnitValidationError, VerifiedPsiOptimizationSession,
     build_verified_psi_optimization_unit, countdown_unit, lower_artifact,
 };
-use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit;
-use abstract_operations_to_abstract_operations::{
+use abstract_operations_to_abstract_operations::test_support::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole,
 };
+use abstract_operations_to_abstract_operations::validation::validate_transformed_psi_optimization_unit;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId};

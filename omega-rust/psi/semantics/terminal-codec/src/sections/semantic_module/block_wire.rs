@@ -186,6 +186,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             value,
             obligation,
         )?,
+        OperationKind::IndexedPrimitiveRead {
+            source,
+            path,
+            index,
+            obligation,
+        } => storage_operations::encode_indexed_primitive_read(
+            writer, source, path, index, obligation,
+        )?,
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,
@@ -727,6 +735,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::WRITE_ONLY_INDEXED_PRIMITIVE_STORE => {
             storage_operations::decode_write_only_indexed_primitive_store(reader)?
+        }
+        operation_tags::INDEXED_PRIMITIVE_READ => {
+            storage_operations::decode_indexed_primitive_read(reader)?
         }
         operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
             storage_operations::decode_structural_byte_sequence_field_store(reader)?

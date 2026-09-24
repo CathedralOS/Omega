@@ -22,12 +22,11 @@ pub(in crate::legalization) fn row(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<Option<&TargetUnitOperation>, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let function = native
         .functions
         .iter()
         .find(|function| function.machine == machine)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let mut rows = function
         .graph
         .blocks
@@ -42,7 +41,7 @@ pub(in crate::legalization) fn row(
         });
     let row = rows.next();
     if rows.next().is_some() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(row)
 }
@@ -57,13 +56,12 @@ pub(in crate::legalization) fn row(
 pub(in crate::legalization) fn validate_native_callback_roster(
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     for (index, callback) in native.native_callback_arguments.iter().enumerate() {
         if native.native_callback_arguments[..index]
             .iter()
             .any(|prior| prior.terminal_operation == callback.terminal_operation)
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let mut rows = native
             .functions
@@ -78,7 +76,7 @@ pub(in crate::legalization) fn validate_native_callback_roster(
                 )
             });
         let Some(row) = rows.next() else {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         };
         let TargetUnitOperation::NormalizedForeignCall { binding, .. } = row else {
             unreachable!("filtered on NormalizedForeignCall")
@@ -86,7 +84,7 @@ pub(in crate::legalization) fn validate_native_callback_roster(
         if rows.next().is_some()
             || binding.boundary_entry_plan != callback.registrar_boundary_entry_plan
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     Ok(())
@@ -108,7 +106,6 @@ pub(in crate::legalization) fn native_callback_at<'a>(
     operation: OperationId,
     boundary_entry_plan: &BoundaryEntryPlan,
 ) -> Result<Option<&'a TargetNativeCallbackArgument>, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let materialized = !boundary_entry_plan
         .call
         .callback_materializations
@@ -118,13 +115,18 @@ pub(in crate::legalization) fn native_callback_at<'a>(
         .iter()
         .filter(|callback| callback.terminal_operation == operation);
     let Some(callback) = matching.next() else {
-        return if materialized { Err(invalid) } else { Ok(None) };
+        return if materialized {
+            Err(LegalizationError::custody())
+        } else {
+            Ok(None)
+        };
     };
-    let pointer_size = u16::try_from(native.target.pointer_size).map_err(|_| invalid.clone())?;
+    let pointer_size =
+        u16::try_from(native.target.pointer_size).map_err(|_| LegalizationError::custody())?;
     let pointer_alignment =
-        u16::try_from(native.target.pointer_alignment).map_err(|_| invalid.clone())?;
-    let ordinal =
-        usize::try_from(callback.application.native_ordinal).map_err(|_| invalid.clone())?;
+        u16::try_from(native.target.pointer_alignment).map_err(|_| LegalizationError::custody())?;
+    let ordinal = usize::try_from(callback.application.native_ordinal)
+        .map_err(|_| LegalizationError::custody())?;
     if !materialized
         || matching.next().is_some()
         || callback.registrar_boundary_entry_plan != *boundary_entry_plan
@@ -135,7 +137,7 @@ pub(in crate::legalization) fn native_callback_at<'a>(
         || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
         || boundary_entry_plan.call.parameters.get(ordinal) != Some(&callback.application.placement)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(Some(callback))
 }
@@ -156,12 +158,11 @@ pub(in crate::legalization) fn structural_argument_at(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let declarations = plan.structural_types.as_slice();
     let caller_parameter = parameters
         .iter()
         .find(|parameter| parameter.place == semantic.place)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let semantic_parameter = optimized
         .structural_parameters
         .iter()
@@ -172,25 +173,27 @@ pub(in crate::legalization) fn structural_argument_at(
                 .flat_map(|block| &block.structural_parameters),
         )
         .find(|parameter| parameter.place == semantic.place)
-        .ok_or(invalid.clone())?;
-    let pointer_size = u16::try_from(native.pointer_size).map_err(|_| invalid.clone())?;
-    let pointer_alignment = u16::try_from(native.pointer_alignment).map_err(|_| invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
+    let pointer_size =
+        u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
+    let pointer_alignment =
+        u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
     let (projected_type, source_byte_offset) =
         crate::structural_inputs::structural_reference_input::project(
             caller_parameter.structural_type,
             &semantic.path,
             declarations,
         )
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let root_shape = crate::structural_inputs::structural_reference_input::shape(
         caller_parameter.structural_type,
         declarations,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     let projected_shape =
         crate::structural_inputs::structural_reference_input::shape(projected_type, declarations)
-            .ok_or(invalid.clone())?;
-    let destination = plan_row.ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
+    let destination = plan_row.ok_or(LegalizationError::custody())?;
     let placed_pointer_word = match destination.locations.as_slice() {
         [
             ValueLocation::Register {
@@ -206,7 +209,7 @@ pub(in crate::legalization) fn structural_argument_at(
                 ..
             },
         ] => *byte_size,
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     if semantic.path.is_empty()
         || semantic
@@ -234,14 +237,14 @@ pub(in crate::legalization) fn structural_argument_at(
                 semantic_parameter,
                 declarations,
             )
-            .ok_or(invalid.clone())?
+            .ok_or(LegalizationError::custody())?
         || u32::from(projected_shape.byte_size)
             .checked_add(source_byte_offset)
             .is_none_or(|end| end > u32::from(root_shape.byte_size))
         || destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
         || placed_pointer_word != pointer_size
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(TargetStructuralArgument {
         place: semantic.place,

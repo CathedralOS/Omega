@@ -76,6 +76,18 @@ pub(crate) fn validate_tail(
         0,
         &checked_trees::ClosedScalarValueContractPlan::default(),
     )?;
+    validate_exits(checked, state_symbol, control)
+}
+
+/// Rejoin one state's value-only exit roster with its complete authored tail
+/// and return the prefix length the roster begins after. Shared by the
+/// ordinary single-state completion above and a state graph's `ReturnScalar`
+/// states, which own their own signature checks.
+pub(crate) fn validate_exits(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<usize, LoweringError> {
     let prefix = match &control.terminator {
         CheckedScalarStateTerminator::Return { statement_ordinal } => {
             unconditional(checked, state_symbol, control, *statement_ordinal)?

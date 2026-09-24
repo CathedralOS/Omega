@@ -32,14 +32,13 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     if function.attachment != optimized.attachment
         || graph.structural_types != plan.structural_types
         || graph.structural_types != unit.structural_types
         || graph.entry != optimized.entry
         || graph.blocks.len() != optimized.blocks.len()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     match optimized.result {
         _ if super::super::aggregate_results::uses(optimized, plan) => {
@@ -63,12 +62,12 @@ pub(super) fn validate(
             let abi = function
                 .mixed_structural_scalar_abi
                 .as_ref()
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             if graph.call_plan != expected
                 || graph.scalar_parameters != abi.scalar_parameters
                 || graph.parameters != abi.structural_parameters
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         AbstractFunctionResult::Scalar(_) => {
@@ -82,10 +81,10 @@ pub(super) fn validate(
                     || graph.scalar_parameters != abi.parameters
                     || !graph.dynamic_parameters.is_empty()
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             } else if graph.call_plan != expected || graph.dynamic_parameters.is_empty() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             if !graph.parameters.is_empty()
                 || !(super::super::primitive_locals::roster(optimized)
@@ -95,10 +94,10 @@ pub(super) fn validate(
                     .iter()
                     .any(|block| !block.structural_parameters.is_empty())
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     }
     // Reference custody is replayed independently alongside the row checks:
     // each block enters with its dominator's exit state (ingress seeding at
@@ -124,7 +123,7 @@ pub(super) fn validate(
                 .count()
                 != block.operations.len() + 1
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let source_nodes: Vec<_> = source
             .nodes
@@ -135,11 +134,11 @@ pub(super) fn validate(
         let mut custody = block_entries
             .get(&block.block)
             .cloned()
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         for (operation, node) in block.operations.iter().zip(&source_nodes) {
             // Returns belong only to the terminator, never an ordinary row.
             if matches!(operation, TargetUnitOperation::Return { .. }) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             super::unit::validate_operation(
                 function,
@@ -162,7 +161,11 @@ pub(super) fn validate(
                 unit,
             )?;
         }
-        let source_terminator = &source.nodes.last().ok_or(invalid.clone())?.operation;
+        let source_terminator = &source
+            .nodes
+            .last()
+            .ok_or(LegalizationError::custody())?
+            .operation;
         // The terminator's edge-local discards move custody after every row,
         // in the same order the lowering's cleanup pass commits them.
         super::super::reference_custody::apply_terminator(
@@ -426,7 +429,7 @@ pub(super) fn validate(
             _ => false,
         };
         if !matches {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     Ok(())

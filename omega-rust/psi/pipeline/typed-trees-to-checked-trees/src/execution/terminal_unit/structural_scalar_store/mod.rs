@@ -1,24 +1,43 @@
-//! Exact projected scalar-store admission for parameter and local storage.
+//! Projected store planning for parameter and local storage.
+//!
+//! One authored assignment `place = value` is one composition. The
+//! destination (`destination.rs`) is resolved from the target alone: its root
+//! and that root's write authority, the checked carrier path, and the leaf the
+//! path ends at. The value (`value.rs`) is resolved from the right-hand side
+//! alone: the already-checked scalar source at the value's own coordinate --
+//! a computation root, a bound pure expression, or the result of the call the
+//! statement performs. The leaf's declared type then picks the Terminal store
+//! operation that joins them:
+//!
+//! - a primitive field takes one `StructuralScalarFieldStore`;
+//! - a record place takes a record literal as one field store per member;
+//! - a payload-free sum field takes a whole owned parameter of its type;
+//! - a bounded-owned byte field or a whole borrowed byte view takes the byte
+//!   store operations of `byte_stores.rs`.
+//!
+//! What remains refused is a custody or proof condition, not an arrangement:
+//! write frames, linear or qualified roots, reference crossings, and fields
+//! whose declared domain the stored value carries no evidence for.
 use super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
-    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
+    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarFieldStorePlan,
+    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, SymbolHandle,
-    TypeReferenceNode, TypedTrees,
+    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
+    TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::terminal_field_identity;
+use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
+use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_record};
+use value::AssignmentSource;
 
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
-
+mod byte_stores;
+mod destination;
 mod frame;
 #[cfg(test)]
 mod tests;
+mod value;
 
-/// Local storage uses the same ordered scalar effect as borrowed parameters.
-/// Only the destination authority differs; the captured RHS keeps its original
-/// checked evaluation and statement identity.
+/// The scalar-graph lane's field store into one of its own record locals.
 pub(in crate::execution) fn build_local_scalar_field_store(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -27,158 +46,28 @@ pub(in crate::execution) fn build_local_scalar_field_store(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedStructuralScalarFieldStorePlan> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index as usize,
-        assignment.target,
-    )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let mut locals =
-        statements
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-                _ => None,
-            });
-    let (ordinal, local) = locals.next()?;
-    if locals.next().is_some() || ordinal >= statement_index as usize {
-        return None;
-    }
-    super::scalar_graph_record_shapes(program, local.type_reference)?;
-    validation::record_local_disposition(
+    let stores = plan_assignment(
         program,
         facts,
-        machine.symbol,
-        state.symbol,
-        u32::try_from(ordinal).ok()?,
-    )?;
-    let (leaf, carriers) = place.segments.split_last()?;
-    let facts::PlaceSegment::Field {
-        symbol: field_symbol,
-    } = leaf
-    else {
-        return None;
-    };
-    let mut carrier_type = local.type_reference;
-    let mut carrier_path = Vec::with_capacity(carriers.len());
-    for segment in carriers {
-        let facts::PlaceSegment::Field { symbol } = segment else {
-            return None;
-        };
-        let owner =
-            crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?;
-        if !plain_record(owner, program) {
-            return None;
-        }
-        let field = exact_relevant_field(program, owner, *symbol)?;
-        if crosses_reference(program, field.type_reference) {
-            return None;
-        }
-        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
-            terminal_field_identity(program, field.symbol)?,
-        ));
-        carrier_type = field.type_reference;
-    }
-    let owner = crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)?;
-    if !plain_record(owner, program) {
-        return None;
-    }
-    let field = exact_relevant_field(program, owner, *field_symbol)?;
-    // A bounded leaf needs its actual write obligation, not just the carrier.
-    let TypeReferenceNode::Named {
-        symbol: primitive_symbol,
-        name,
-    } = program
-        .type_reference_table
-        .type_reference(field.type_reference)
-    else {
-        return None;
-    };
-    let atom = program.symbols.builtin_type_atom(*primitive_symbol)?;
-    if name.as_str() != atom.symbol_name() {
-        return None;
-    }
-    let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    let exact_integer = matches!(
-        primitive_type,
-        PrimitiveType::I8
-            | PrimitiveType::I16
-            | PrimitiveType::I32
-            | PrimitiveType::I64
-            | PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-    ) && program.arithmetic_domain_for_type_reference(field.type_reference)
-        == numerics::arithmetic::ArithmeticDomain::Exact;
-    let float = matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64);
-    if !matches!(primitive_type, PrimitiveType::Bool) && !exact_integer && !float {
-        return None;
-    }
-    let role = CheckedScalarExpressionRole::AssignmentValue;
-    let computations = &facts.values.scalar_computations;
-    let value = if let Some(root) = computations.root_at(state.symbol, statement_index, role) {
-        if root.machine != machine.symbol
-            || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != assignment.value
-            || computations.nodes.get(root.root).primitive_type != primitive_type
-            || facts
-                .values
-                .scalar_expressions
-                .expression_at(state.symbol, statement_index, role)
-                .is_some()
-            // IEEE replacement forwards existing bits; a selected floating
-            // computation retains its own operation and call correspondence
-            // before a float field store admits it — the parameter lane's rule.
-            || float
-        {
-            return None;
-        }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root.root)
-    } else {
-        let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-            state.symbol,
-            statement_index,
-            role,
-        )?;
-        if binding.expression != assignment.value
-            || crate::values::scalar_expression_type(value) != Some(primitive_type)
-        {
-            return None;
-        }
-        // A float field takes only an already-defined exactly-typed source:
-        // an authored IEEE literal or a dense-namespace scalar (parameter or
-        // local), matching the parameter lane's literal-or-parameter-source
-        // restriction.
-        if float
-            && !matches!(
-                value,
-                CheckedScalarExpression::IeeeFloatLiteral { .. }
-                    | CheckedScalarExpression::Parameter { .. }
-                    | CheckedScalarExpression::Local { .. }
-            )
-        {
-            return None;
-        }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone())
-    };
-    Some(CheckedStructuralScalarFieldStorePlan {
+        machine,
+        state,
+        StoreRoots::RecordLocals,
         statement_index,
-        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol },
-        carrier_path,
-        field_identity: terminal_field_identity(program, field.symbol)?,
-        primitive_type,
-        value,
-    })
+        assignment,
+        AssignmentSource::Authored,
+        &LocalConstructionTrace::default(),
+    )?;
+    let [CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)] =
+        <[_; 1]>::try_from(stores).ok()?
+    else {
+        return None;
+    };
+    Some(store)
 }
 
-/// `build_structural_scalar_field_store_sequence` tracing which assignment
-/// (or which write-frame guard) declined the body.
+/// The ordered stores of one attached Unit body, from `statement_start` on.
+/// The state's complete write frame is replayed once here; each assignment
+/// then composes its destination and value.
 pub(super) fn build_structural_scalar_field_store_sequence_traced(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -199,32 +88,28 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         return Some(Vec::new());
     }
     trace.phase("scalar field store sequence: state write frame");
-    let frame = &match facts.mutation.for_machine(machine.symbol) {
-        Some(mutation) => match mutation
-            .state_write_frames
-            .iter()
-            .find(|frame| frame.state == state.symbol)
-        {
-            Some(plan) => &plan.frame,
-            None => {
-                return None;
-            }
-        },
-        None => {
-            return None;
-        }
-    };
+    let frame = &facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame;
     trace.phase("scalar field store sequence: write frame agreement");
     if !frame::matches(program, machine, state, frame, call_frames) {
         return None;
     }
-    trace.phase("scalar field store sequence: assignment store");
+    let roots = StoreRoots::Parameters {
+        structural: structural_parameters,
+        scalar: scalar_parameters,
+    };
     let mut stores = Vec::new();
     for (statement_index, statement) in statements.iter().enumerate().skip(statement_start) {
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
         let statement_index = u32::try_from(statement_index).ok()?;
+        trace.phase("scalar field store sequence: assignment store");
         trace.statement(Some(statement_index));
         if let Some(store) = super::primitive_store::build_primitive_store_at(
             program,
@@ -238,85 +123,578 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.push(store);
             continue;
         }
-        // Each remaining route names its own phases. A route that declines
-        // at its first precondition must not overwrite the one that reached
-        // the decisive requirement, so the trace returns to whichever route
-        // got furthest before the statement is reported.
         let baseline = trace.mark();
-        let mut furthest = None;
-        trace.phase("scalar field store sequence: structural field store");
-        if let Some(store) = build_structural_field_store_at(
+        if let Some(planned) = plan_assignment(
             program,
             facts,
             machine,
             state,
-            structural_parameters,
-            scalar_parameters,
+            roots,
             statement_index,
             assignment,
-            None,
-            false,
-            true,
-            None,
+            AssignmentSource::Authored,
             trace,
         ) {
-            stores.push(store);
+            stores.extend(planned);
             continue;
-        }
-        furthest = trace.furthest(furthest, &baseline);
-        trace.restore(&baseline);
-        trace.phase("scalar field store sequence: whole record store");
-        if let Some(record_stores) = build_whole_record_store_sequence(
-            program,
-            facts,
-            machine,
-            state,
-            structural_parameters,
-            scalar_parameters,
-            statement_index,
-            assignment,
-            trace,
-        ) {
-            stores.extend(record_stores);
-            continue;
-        }
-        furthest = trace.furthest(furthest, &baseline);
-        trace.restore(&baseline);
-        trace.phase("scalar field store sequence: record literal field store");
-        if let Some(record_stores) = build_record_literal_field_store_sequence(
-            program,
-            facts,
-            machine,
-            state,
-            structural_parameters,
-            scalar_parameters,
-            statement_index,
-            assignment,
-            trace,
-        ) {
-            stores.extend(record_stores);
-            continue;
-        }
-        if let Some(mark) = trace.furthest(furthest, &baseline) {
-            trace.restore(&mark);
-            trace.statement(Some(statement_index));
         }
         // An assignment whose source is this statement's own call has no
-        // authored scalar expression to store. Its call operation is sequenced
-        // with the other calls, and the store consuming that result is
-        // appended there; it deliberately produces no row here. A whole
-        // structural local as the source is likewise the sequence's own
-        // business: it is the repair store of a borrowed-storage window.
+        // authored value to store yet. Its call operation is sequenced with
+        // the other calls, and the store consuming that result is appended
+        // there; it deliberately produces no row here. A whole structural
+        // local as the source is likewise the sequence's own business: it is
+        // the repair store of a borrowed-storage window. A constructed
+        // structural value the stores above do not decompose is established
+        // by the sequence too, and replaces its field through the same window
+        // pair a structural call result uses.
         if matches!(
             program.expression_table.expression(assignment.value),
             ExpressionNode::Call(_)
         ) || restores_structural_local(program, state, assignment)
+            || facts
+                .values
+                .structural_values
+                .root_for_expression(state.symbol, statement_index, assignment.value)
+                .is_some()
         {
+            trace.restore(&baseline);
             continue;
         }
+        trace.statement(Some(statement_index));
         return None;
     }
     Some(stores)
+}
+
+/// The store consuming the scalar result of the call this same statement
+/// performs: the same composition, with the call's SSA result as the value.
+pub(super) fn build_structural_call_result_field_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    (position, primitive_type): (u32, PrimitiveType),
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let [store] = <[_; 1]>::try_from(plan_assignment(
+        program,
+        facts,
+        machine,
+        state,
+        StoreRoots::Parameters {
+            structural: structural_parameters,
+            scalar: scalar_parameters,
+        },
+        statement_index,
+        assignment,
+        AssignmentSource::CallResult {
+            position,
+            primitive_type,
+        },
+        trace,
+    )?)
+    .ok()?;
+    Some(store)
+}
+
+/// Test convenience: the traced builder without a trace.
+#[cfg(test)]
+pub(super) fn build_structural_scalar_field_store_sequence(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_start: usize,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    build_structural_scalar_field_store_sequence_traced(
+        program,
+        facts,
+        machine,
+        state,
+        structural_parameters,
+        scalar_parameters,
+        statement_start,
+        call_frames,
+        &LocalConstructionTrace::default(),
+    )
+}
+
+/// Compose one assignment: resolve the destination, then let the leaf's
+/// declared type select the store its value joins.
+fn plan_assignment(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    roots: StoreRoots<'_>,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+    trace: &LocalConstructionTrace,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    let destination = destination::resolve(
+        program,
+        facts,
+        machine,
+        state,
+        roots,
+        statement_index,
+        assignment,
+        trace,
+    )?;
+    // A runtime selector directly on the root indexes a whole borrowed view;
+    // that operation carries its own (read-capable) authority.
+    if destination.place.segments.is_empty() && destination.dynamic_index.is_some() {
+        return byte_stores::view_write(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|write| vec![write]);
+    }
+    destination.exclusive_authority(program, state, roots, trace)?;
+    trace.phase("structural field store: carrier path");
+    let Some((leaf, carriers)) = destination.place.segments.split_last() else {
+        // The whole root is replaced: only a record literal decomposes into
+        // stores the root's own authority covers.
+        return record_literal_stores(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        );
+    };
+    let facts::PlaceSegment::Field { symbol } = leaf else {
+        return None;
+    };
+    let carrier = destination.carrier(program, carriers)?;
+    trace.phase("structural field store: field owner record");
+    let field = exact_relevant_field(program, carrier.owner, *symbol)?;
+    trace.phase("structural field store: byte sequence carrier");
+    // An indexed store through a `&'r mut [u8]` field composes over the
+    // caller's live extent exactly as over bounded-owned backing: the mutable
+    // borrow already guarantees exclusive access. A shared view still
+    // declines; the Reference node's access is the only place that
+    // distinction survives before the carrier collapses to `BorrowedView`.
+    let byte_leaf = match byte_sequence_carrier(program, field.type_reference, &[]) {
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
+            Some(Some(capacity))
+        }
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            if byte_stores::field_view_is_mutable(program, field.type_reference) =>
+        {
+            Some(None)
+        }
+        _ => None,
+    };
+    if let Some(capacity) = byte_leaf {
+        return byte_stores::field_store(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            carrier.path,
+            field,
+            capacity,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|store| vec![store]);
+    }
+    // A borrowed view is a reference: storing one into a field would
+    // introduce a stored loan, and no store operation relates the field to
+    // the view's lifetime (structural_access.md, Store vocabulary: reference
+    // crossings reject).
+    trace.phase("structural field store: borrowed view field");
+    if destination::crosses_reference(program, field.type_reference) {
+        return None;
+    }
+    trace.phase("structural field store: scalar field type");
+    // A runtime selector below a field names an element, not this field.
+    if destination.dynamic_index.is_some() {
+        trace.phase("structural field store: scalar field type: indexed element destination");
+        return None;
+    }
+    // A declared domain needs membership evidence the stored value does not
+    // carry, and no store operation retains one.
+    if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
+        .is_empty()
+    {
+        trace.phase("structural field store: scalar field type: domain-constrained field");
+        return None;
+    }
+    if program
+        .primitive_type_reference(field.type_reference)
+        .is_some()
+    {
+        let primitive_type = scalar_leaf(program, &destination.root, field)?;
+        let value = value::assignment_value(
+            program,
+            facts,
+            machine,
+            state,
+            &destination.root,
+            statement_index,
+            assignment,
+            source,
+            primitive_type,
+            trace,
+        )?;
+        return Some(vec![
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                CheckedStructuralScalarFieldStorePlan {
+                    statement_index,
+                    destination: destination.root.destination(),
+                    carrier_path: carrier.path,
+                    field_identity: terminal_field_identity(program, field.symbol)?,
+                    primitive_type,
+                    value,
+                },
+            ),
+        ]);
+    }
+    let field_data =
+        crate::facts::field_domain::data_definition_for_field_type(program, field.type_reference)?;
+    if plain_record(field_data, program) {
+        return record_literal_stores(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        );
+    }
+    trace.phase("structural field store: case field type");
+    case_field_store(
+        program,
+        state,
+        roots,
+        &destination,
+        carrier.path,
+        field,
+        field_data,
+        statement_index,
+        assignment,
+        source,
+    )
+    .map(|store| vec![store])
+}
+
+/// The primitive type of a scalar leaf this root's lane can store.
+///
+/// A borrowed parameter's store retains the field's own declaration, so any
+/// Boolean, IEEE or integer carrier is admitted, bounded integers with their
+/// own range obligation. The scalar-graph lane replaces a local record's
+/// field only through an exact unconstrained carrier: its lowering carries
+/// no range obligation or arithmetic-domain policy for the field.
+fn scalar_leaf(
+    program: &TypedTrees,
+    root: &Root<'_>,
+    field: &typed_trees::data::DataField,
+) -> Option<PrimitiveType> {
+    let primitive_type = program.primitive_type_reference(field.type_reference)?;
+    match root {
+        Root::Parameter { .. } => (matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        ) || primitive_type.accepts_integer_literal())
+        .then_some(primitive_type),
+        Root::Local { .. } => {
+            let TypeReferenceNode::Named { symbol, name } = program
+                .type_reference_table
+                .type_reference(field.type_reference)
+            else {
+                return None;
+            };
+            let atom = program.symbols.builtin_type_atom(*symbol)?;
+            let exact_integer = matches!(
+                primitive_type,
+                PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+                    | PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+            ) && program
+                .arithmetic_domain_for_type_reference(field.type_reference)
+                == numerics::arithmetic::ArithmeticDomain::Exact;
+            (name.as_str() == atom.symbol_name()
+                && (exact_integer
+                    || matches!(
+                        primitive_type,
+                        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+                    )))
+            .then_some(primitive_type)
+        }
+    }
+}
+
+/// `place = Record { .. }` where `place` is a plain record: the literal
+/// decomposes into the ordered member stores an authored `place.member`
+/// sequence would produce. Every member supplies its scalar computation at
+/// the literal's `RecordField` coordinate, and each store carries the place's
+/// full path so the emitted shape matches a field store the source could
+/// spell directly.
+fn record_literal_stores(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    destination: &Destination<'_>,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+    trace: &LocalConstructionTrace,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    trace.phase("structural field store: record literal source");
+    // Decomposition is an attached-Unit operation sequence whose custody
+    // proof is the borrowed root's write frame. Indexed carriers belong to
+    // the borrowed-element custody family, which rejoins its own element.
+    let (AssignmentSource::Authored, Root::Parameter { .. }) = (source, &destination.root) else {
+        return None;
+    };
+    if destination
+        .place
+        .segments
+        .iter()
+        .any(|segment| !matches!(segment, facts::PlaceSegment::Field { .. }))
+    {
+        return None;
+    }
+    let carrier = destination.carrier(program, &destination.place.segments)?;
+    let value_root = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_index,
+        assignment.value,
+    )?;
+    if value_root.machine != machine.symbol {
+        return None;
+    }
+    let checked_trees::CheckedStructuralValueKind::Record {
+        data_symbol,
+        fields,
+    } = facts
+        .values
+        .structural_values
+        .nodes
+        .get(value_root.root)
+        .kind
+        .clone()
+    else {
+        return None;
+    };
+    if data_symbol != carrier.owner.symbol {
+        return None;
+    }
+    let fields = facts
+        .values
+        .structural_values
+        .record_fields
+        .span(fields)?
+        .to_vec();
+    trace.phase("structural field store: record literal frame");
+    // Sequence admission already replayed the complete frame; this
+    // statement's write must be one of its named paths -- the custody proof a
+    // field sequence earns one store at a time, applied to the literal's
+    // whole record.
+    let expected_mutation_path = destination.mutation_path(program)?;
+    let frame = &facts
+        .mutation
+        .for_machine(machine.symbol)?
+        .state_write_frames
+        .iter()
+        .find(|frame| frame.state == state.symbol)?
+        .frame;
+    if !frame
+        .complete_paths()?
+        .iter()
+        .any(|path| path == &expected_mutation_path)
+    {
+        return None;
+    }
+    let mut stores = Vec::with_capacity(fields.len());
+    for (ordinal, field) in fields.iter().enumerate() {
+        let declaration = exact_relevant_field(program, carrier.owner, field.field)?;
+        if !crate::facts::field_domain::domain_constraint_symbols(
+            program,
+            declaration.type_reference,
+        )
+        .is_empty()
+        {
+            return None;
+        }
+        let primitive_type = scalar_leaf(program, &destination.root, declaration)?;
+        let value = value::record_field_value(
+            facts,
+            machine,
+            state,
+            statement_index,
+            assignment.value,
+            u32::try_from(ordinal).ok()?,
+            field,
+            primitive_type,
+        )?;
+        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+            CheckedStructuralScalarFieldStorePlan {
+                statement_index,
+                destination: destination.root.destination(),
+                carrier_path: carrier.path.clone(),
+                field_identity: terminal_field_identity(program, declaration.symbol)?,
+                primitive_type,
+                value,
+            },
+        ));
+    }
+    // A fieldless literal writes nothing the coverage checks can name; the
+    // authored assignment must still own at least one store.
+    (!stores.is_empty()).then_some(stores)
+}
+
+/// `place.<sum field> = <whole owned parameter>`: an initialized
+/// unrestricted-sum field overwritten by a whole place of the same declared
+/// type. The write copies whole, moves nothing, and needs no carrier borrow
+/// window -- member-read values, call results, payload sums, records and
+/// affine carriers keep declining.
+fn case_field_store(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    roots: StoreRoots<'_>,
+    destination: &Destination<'_>,
+    carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    field: &typed_trees::data::DataField,
+    field_data: &typed_trees::data::DataDefinition,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let (
+        AssignmentSource::Authored,
+        StoreRoots::Parameters {
+            structural: structural_parameters,
+            ..
+        },
+    ) = (source, roots)
+    else {
+        return None;
+    };
+    if !unrestricted_sum(field_data, program) {
+        return None;
+    }
+    let value_place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index as usize,
+        assignment.value,
+    )?;
+    let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
+        return None;
+    };
+    if !value_place.segments.is_empty() {
+        return None;
+    }
+    let source_parameters = program.state_parameters(state);
+    let value_position = source_parameters
+        .iter()
+        .position(|parameter| parameter.symbol == value_root)?;
+    let value_state_parameter = source_parameters.get(value_position)?;
+    if value_state_parameter.is_self {
+        return None;
+    }
+    let same_named_type = matches!(
+        (
+            program
+                .type_reference_table
+                .type_reference(field.type_reference),
+            program
+                .type_reference_table
+                .type_reference(value_state_parameter.type_reference),
+        ),
+        (
+            TypeReferenceNode::Named { symbol: field_name, .. },
+            TypeReferenceNode::Named { symbol: value_name, .. }
+        ) if field_name == value_name
+    );
+    if !same_named_type {
+        return None;
+    }
+    let value_plan = structural_parameters
+        .iter()
+        .find(|parameter| parameter.position as usize == value_position)?;
+    if value_plan.is_self
+        || value_plan.access != CheckedStructuralAccess::Owned
+        || value_plan.multiplicity != Multiplicity::Unrestricted
+        || !value_plan.qualifications.is_empty()
+        || !value_plan.projected_qualifications.is_empty()
+        || value_plan.fused_service_erasure.is_some()
+    {
+        return None;
+    }
+    Some(CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(
+        checked_trees::CheckedStructuralCaseFieldStorePlan {
+            statement_index,
+            destination: destination.root.destination(),
+            carrier_path,
+            field_identity: terminal_field_identity(program, field.symbol)?,
+            value: checked_trees::CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(value_position).ok()?,
+                },
+                path: Vec::new(),
+                type_identity: value_plan.type_identity.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
+        },
+    ))
+}
+
+/// A closed payload-free pure-sum data declaration: CheckedShape supply, no
+/// lifetimes or type parameters, no quotient or where facts, unrestricted
+/// multiplicity, and every member a payload-free case. Copying a whole owned
+/// place into such a field moves nothing, so the store needs no carrier
+/// borrow window.
+fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && data.lifetime_parameters.is_empty()
+        && program.data_type_parameters(data).is_empty()
+        && data.quotient.is_none()
+        && data.where_facts.is_empty()
+        && !data.zero_gated
+        && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+            == DataShapeKind::Enum
+        && program.data_members(data).iter().all(|member| {
+            let DataMember::Variant(variant) = member else {
+                return false;
+            };
+            program.data_payload_fields(variant).is_empty()
+        })
 }
 
 /// `place = local` where `local` is a structural (non-primitive) local of the
@@ -348,1465 +726,4 @@ fn restores_structural_local(
                 if local.symbol == path.symbol
                     && program.primitive_type_reference(local.type_reference).is_none())
         })
-}
-
-/// Ordinary composition for `self.field = call(..)`: the statement's scalar
-/// call establishes its result and this store consumes that SSA value. Every
-/// destination check -- exclusive borrowed authority, carrier path, relevant
-/// unconstrained scalar field, and the exact state write frame -- is the one
-/// the authored-source route makes; only where the value comes from differs.
-pub(super) fn build_structural_call_result_field_store(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    call_result: (u32, PrimitiveType),
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    build_structural_field_store_at(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        scalar_parameters,
-        statement_index,
-        assignment,
-        None,
-        false,
-        true,
-        Some(call_result),
-        trace,
-    )
-}
-
-/// A whole-record assignment through an exclusive borrow decomposes into the
-/// same ordered per-field stores the equivalent field sequence would author:
-/// the rooted record literal supplies each scalar field's exact `RecordField`
-/// computation coordinate, and the write frame's complete root path is the
-/// custody proof a field sequence earns one store at a time.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn build_whole_record_store_sequence(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    trace: &LocalConstructionTrace,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    trace.phase("structural field store: whole record destination");
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
-        assignment.target,
-    )?;
-    if !place.segments.is_empty() {
-        return None;
-    }
-    let source_parameters = program.state_parameters(state);
-    let mut destinations = structural_parameters.iter().filter_map(|destination| {
-        let parameter = source_parameters.get(destination.position as usize)?;
-        (place.root == facts::PlaceRoot::Symbol(parameter.symbol))
-            .then_some((destination, parameter))
-    });
-    let (destination, parameter) = destinations.next()?;
-    if destinations.next().is_some()
-        || destination.multiplicity == Multiplicity::Linear
-        || !matches!(
-            destination.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-        || parameter.is_self != destination.is_self
-        || parameter.is_const
-        || !parameter.is_mutable
-    {
-        return None;
-    }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let expected_access = match access {
-        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-        language_semantics::ReferenceAccess::Shared => return None,
-    };
-    if destination.access != expected_access {
-        return None;
-    }
-    let owner = if destination.is_self {
-        program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == machine.attached_data_symbol)?
-    } else {
-        crate::facts::field_domain::data_definition_for_field_type(program, *referee)?
-    };
-    if !plain_record(owner, program) {
-        return None;
-    }
-    trace.phase("structural field store: whole record literal");
-    let value_root = facts.values.structural_values.root_for_expression(
-        state.symbol,
-        statement_index,
-        assignment.value,
-    )?;
-    if value_root.machine != machine.symbol {
-        return None;
-    }
-    let checked_trees::CheckedStructuralValueKind::Record {
-        data_symbol,
-        fields,
-    } = facts
-        .values
-        .structural_values
-        .nodes
-        .get(value_root.root)
-        .kind
-        .clone()
-    else {
-        return None;
-    };
-    if data_symbol != owner.symbol {
-        return None;
-    }
-    let fields = facts
-        .values
-        .structural_values
-        .record_fields
-        .span(fields)?
-        .to_vec();
-    // The frame must name the exact whole-root write: the decomposed stores
-    // together cover it, so no narrower per-field path is required.
-    let mutation_root = if destination.is_self {
-        "self".to_owned()
-    } else {
-        format!("$P{}", destination.position)
-    };
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
-    if !matches!(frame.complete_paths(), Some([path]) if path == &mutation_root) {
-        return None;
-    }
-    if crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
-        != scalar_parameters.len() + structural_parameters.len()
-    {
-        return None;
-    }
-    let mut stores = Vec::with_capacity(fields.len());
-    for (ordinal, field) in fields.iter().enumerate() {
-        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
-            return None;
-        };
-        let declaration = exact_relevant_field(program, owner, field.field)?;
-        if !crate::facts::field_domain::domain_constraint_symbols(
-            program,
-            declaration.type_reference,
-        )
-        .is_empty()
-        {
-            return None;
-        }
-        let primitive_type = program.primitive_type_reference(declaration.type_reference)?;
-        if !matches!(
-            primitive_type,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        ) && !primitive_type.accepts_integer_literal()
-        {
-            return None;
-        }
-        let field_ordinal = u32::try_from(ordinal).ok()?;
-        // The literal field's computation must exist at this statement's own
-        // `RecordField` coordinate; a root borrowed from another role would
-        // let the store consume a computation the assignment never authored.
-        facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .find(|row| {
-                row.machine == machine.symbol
-                    && row.state == state.symbol
-                    && row.statement_ordinal == statement_index
-                    && row.root == root
-                    && matches!(row.role,
-                        CheckedScalarExpressionRole::RecordField { expression, field_ordinal: ordinal }
-                            if expression == assignment.value && ordinal == field_ordinal)
-            })?;
-        let node = facts.values.scalar_computations.nodes.get(root);
-        if node.authored_root != field.expression || node.primitive_type != primitive_type {
-            return None;
-        }
-        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            CheckedStructuralScalarFieldStorePlan {
-                statement_index,
-                destination:
-                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                        position: destination.position,
-                    },
-                carrier_path: Vec::new(),
-                field_identity: terminal_field_identity(program, declaration.symbol)?,
-                primitive_type,
-                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root),
-            },
-        ));
-    }
-    // A fieldless literal writes nothing the coverage checks can name; the
-    // authored assignment must still own at least one store.
-    (!stores.is_empty()).then_some(stores)
-}
-
-/// `root.path..leaf` = `Record { .. }`: the leaf field of the target place is
-/// itself a plain record and the source is that record's own literal. The
-/// assignment decomposes into the ordered member stores an authored
-/// `root.path..leaf.member` sequence would produce — every member supplies its
-/// scalar computation at the `RecordField` coordinate, and each store carries
-/// the target's full field path so the emitted shape matches a nested field
-/// store the source could spell directly.
-#[allow(clippy::too_many_arguments)]
-fn build_record_literal_field_store_sequence(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    trace: &LocalConstructionTrace,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    trace.phase("structural field store: record literal field");
-    let source_parameters = program.state_parameters(state);
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
-        assignment.target,
-    )?;
-    // Indexed carriers belong to the borrowed-element custody family; a record
-    // literal's decomposition names field segments only.
-    if place.segments.is_empty()
-        || !place
-            .segments
-            .iter()
-            .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-    {
-        return None;
-    }
-    let mut destinations = structural_parameters.iter().filter_map(|destination| {
-        let parameter = source_parameters.get(destination.position as usize)?;
-        (place.root == facts::PlaceRoot::Symbol(parameter.symbol))
-            .then_some((destination, parameter))
-    });
-    let (destination, parameter) = destinations.next()?;
-    if destinations.next().is_some()
-        || destination.multiplicity == Multiplicity::Linear
-        || !matches!(
-            destination.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-        || parameter.is_self != destination.is_self
-        || parameter.is_const
-        || !parameter.is_mutable
-    {
-        return None;
-    }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let expected_access = match access {
-        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-        language_semantics::ReferenceAccess::Shared => return None,
-    };
-    if destination.access != expected_access
-        || crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
-            != scalar_parameters.len() + structural_parameters.len()
-    {
-        return None;
-    }
-    let mut carrier_owner = if destination.is_self {
-        Some(
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == machine.attached_data_symbol)?,
-        )
-    } else {
-        crate::facts::field_domain::data_definition_for_field_type(program, *referee)
-    };
-    // Every segment of the target path is a record-typed field; the leaf's
-    // record type is the literal's declared owner.
-    let mut carrier_path = Vec::with_capacity(place.segments.len());
-    let mut record_owner = None;
-    for (index, segment) in place.segments.iter().enumerate() {
-        let facts::PlaceSegment::Field { symbol } = segment else {
-            return None;
-        };
-        let owner = carrier_owner?;
-        if !plain_record(owner, program) {
-            return None;
-        }
-        let carrier = exact_relevant_field(program, owner, *symbol)?;
-        if !crate::facts::field_domain::domain_constraint_symbols(program, carrier.type_reference)
-            .is_empty()
-        {
-            return None;
-        }
-        if crosses_reference(program, carrier.type_reference) {
-            return None;
-        }
-        carrier_path.push(CheckedUnitStructuralPathSegment::Field(
-            terminal_field_identity(program, carrier.symbol)?,
-        ));
-        carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
-            program,
-            carrier.type_reference,
-        );
-        if index == place.segments.len() - 1 {
-            record_owner = carrier_owner;
-        }
-    }
-    let record_owner = record_owner?;
-    if !plain_record(record_owner, program) {
-        return None;
-    }
-    trace.phase("structural field store: record literal source");
-    let value_root = facts.values.structural_values.root_for_expression(
-        state.symbol,
-        statement_index,
-        assignment.value,
-    )?;
-    if value_root.machine != machine.symbol {
-        return None;
-    }
-    let checked_trees::CheckedStructuralValueKind::Record {
-        data_symbol,
-        fields,
-    } = facts
-        .values
-        .structural_values
-        .nodes
-        .get(value_root.root)
-        .kind
-        .clone()
-    else {
-        return None;
-    };
-    if data_symbol != record_owner.symbol {
-        return None;
-    }
-    let fields = facts
-        .values
-        .structural_values
-        .record_fields
-        .span(fields)?
-        .to_vec();
-    trace.phase("structural field store: record literal frame");
-    let source_path = facts::canonical_place_label_from_parts(program, place.root, &place.segments);
-    let source_root = facts::canonical_place_label_from_parts(program, place.root, &[]);
-    // Mutation summaries name the receiver separately from the ordinary
-    // parameter roster, even when it occupies structural position zero.
-    let mutation_root = if destination.is_self {
-        "self".to_owned()
-    } else {
-        format!("$P{}", destination.position)
-    };
-    let expected_mutation_path =
-        format!("{mutation_root}{}", source_path.strip_prefix(&source_root)?);
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
-    // Sequence admission already replayed the complete frame; this
-    // statement's write must be one of its named paths — the custody proof a
-    // field sequence earns one store at a time, applied to the literal's
-    // leaf record.
-    if !matches!(frame.complete_paths(), Some(paths) if paths.iter().any(|path| path == &expected_mutation_path))
-    {
-        return None;
-    }
-    let mut stores = Vec::with_capacity(fields.len());
-    for (ordinal, field) in fields.iter().enumerate() {
-        let checked_trees::CheckedStructuralRecordFieldValue::Scalar(root) = field.value else {
-            return None;
-        };
-        let declaration = exact_relevant_field(program, record_owner, field.field)?;
-        if !crate::facts::field_domain::domain_constraint_symbols(
-            program,
-            declaration.type_reference,
-        )
-        .is_empty()
-        {
-            return None;
-        }
-        let primitive_type = program.primitive_type_reference(declaration.type_reference)?;
-        if !matches!(
-            primitive_type,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        ) && !primitive_type.accepts_integer_literal()
-        {
-            return None;
-        }
-        let field_ordinal = u32::try_from(ordinal).ok()?;
-        // The literal field's computation must exist at this statement's own
-        // `RecordField` coordinate; a root borrowed from another role would
-        // let the store consume a computation the assignment never authored.
-        facts
-            .values
-            .scalar_computations
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .find(|row| {
-                row.machine == machine.symbol
-                    && row.state == state.symbol
-                    && row.statement_ordinal == statement_index
-                    && row.root == root
-                    && matches!(row.role,
-                        CheckedScalarExpressionRole::RecordField { expression, field_ordinal: ordinal }
-                            if expression == assignment.value && ordinal == field_ordinal)
-            })?;
-        let node = facts.values.scalar_computations.nodes.get(root);
-        if node.authored_root != field.expression || node.primitive_type != primitive_type {
-            return None;
-        }
-        stores.push(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            CheckedStructuralScalarFieldStorePlan {
-                statement_index,
-                destination:
-                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                        position: destination.position,
-                    },
-                carrier_path: carrier_path.clone(),
-                field_identity: terminal_field_identity(program, declaration.symbol)?,
-                primitive_type,
-                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(root),
-            },
-        ));
-    }
-    // A fieldless literal writes nothing the coverage checks can name; the
-    // authored assignment must still own at least one store.
-    (!stores.is_empty()).then_some(stores)
-}
-
-/// Test convenience: the traced builder without a trace.
-#[cfg(test)]
-pub(super) fn build_structural_scalar_field_store_sequence(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_start: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    build_structural_scalar_field_store_sequence_traced(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        scalar_parameters,
-        statement_start,
-        call_frames,
-        &LocalConstructionTrace::default(),
-    )
-}
-
-fn build_structural_field_store_at(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    result_local: Option<&CheckedUnitScalarResultBindingPlan>,
-    selected_result: bool,
-    exact_sequence_frame: bool,
-    // Dense scalar-namespace position and result type of the call this same
-    // statement performs, when the store's source is that call's SSA result
-    // rather than an authored scalar expression.
-    call_result: Option<(u32, PrimitiveType)>,
-    trace: &LocalConstructionTrace,
-) -> Option<CheckedUnitEffectOperationPlan> {
-    // Every byte-store destination lane replays the same resolved scalar
-    // source: the SSA result of the call this same statement performs, or the
-    // bound pure authored expression.
-    let byte_value = byte_store_scalar_value(
-        program,
-        facts,
-        state,
-        statement_index,
-        assignment,
-        call_result,
-    );
-    if let Some(write) = structural_parameters.iter().find_map(|destination| {
-        let parameter = program
-            .state_parameters(state)
-            .get(destination.position as usize)?;
-        build_byte_view_write(
-            program,
-            facts,
-            machine,
-            state,
-            destination,
-            parameter,
-            statement_index,
-            assignment,
-            byte_value.as_ref(),
-        )
-    }) {
-        return Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(write));
-    }
-    trace.phase("structural field store: destination parameter");
-    let source_parameters = program.state_parameters(state);
-    let target_place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
-        assignment.target,
-    )?;
-    // The assignment selects its destination; unrelated borrowed inputs do not
-    // change that root's authority or require it to occupy position zero.
-    let mut destinations = structural_parameters.iter().filter_map(|destination| {
-        let parameter = source_parameters.get(destination.position as usize)?;
-        (target_place.root == facts::PlaceRoot::Symbol(parameter.symbol))
-            .then_some((destination, parameter))
-    });
-    let (destination, parameter) = destinations.next()?;
-    if destinations.next().is_some()
-        || destination.multiplicity == Multiplicity::Linear
-        || !matches!(
-            destination.access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-    {
-        return None;
-    }
-    trace.phase("structural field store: parameter access");
-    if crate::execution::terminal_unit::types::abi_parameter_count(source_parameters)
-        != scalar_parameters.len() + structural_parameters.len()
-        || parameter.is_self != destination.is_self
-        || parameter.is_const
-        || !parameter.is_mutable
-    {
-        return None;
-    }
-    let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let expected_access = match access {
-        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
-        language_semantics::ReferenceAccess::Shared => return None,
-    };
-    if destination.access != expected_access {
-        return None;
-    }
-    trace.phase("structural field store: root owner record");
-    let mut carrier_type = *referee;
-    // A receiver's source referent is `Self`; its declaration identity comes
-    // from the machine attachment, not a global lookup of that spelling. A
-    // borrowed fixed-array root has no record owner of its own: its element
-    // record resolves through the first carrier `FixedIndex` hop below, so an
-    // unresolved root owner stays admissible only behind an index segment.
-    let root_owner = if destination.is_self {
-        Some(
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == machine.attached_data_symbol)?,
-        )
-    } else {
-        crate::facts::field_domain::data_definition_for_field_type(program, carrier_type)
-    };
-    if let Some(owner) = root_owner
-        && !plain_record(owner, program)
-    {
-        return None;
-    }
-    trace.phase("structural field store: target place");
-    let (target, byte_index) = match program.expression_table.expression(assignment.target) {
-        ExpressionNode::Indexed(indexed) => {
-            if !validation::place_has_builtin_coordinates(
-                program,
-                machine,
-                Some(state),
-                assignment.target,
-            ) || matches!(
-                program.expression_table.expression(indexed.index),
-                ExpressionNode::Range(_)
-            ) {
-                return None;
-            }
-            (indexed.collection, Some(indexed.index))
-        }
-        _ => (assignment.target, None),
-    };
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
-        target,
-    )?;
-    if place.root != facts::PlaceRoot::Symbol(parameter.symbol) {
-        return None;
-    }
-    trace.phase("structural field store: carrier path");
-    let (final_segment, carrier_segments) = place.segments.split_last()?;
-    let facts::PlaceSegment::Field {
-        symbol: field_symbol,
-    } = final_segment
-    else {
-        return None;
-    };
-    let mut carrier_path = Vec::with_capacity(carrier_segments.len());
-    let mut carrier_owner = root_owner;
-    let mut reached_array = false;
-    for segment in carrier_segments {
-        match segment {
-            facts::PlaceSegment::Field { symbol } if !reached_array => {
-                let field_owner = carrier_owner?;
-                if !plain_record(field_owner, program) {
-                    return None;
-                }
-                let carrier = exact_relevant_field(program, field_owner, *symbol)?;
-                if !crate::facts::field_domain::domain_constraint_symbols(
-                    program,
-                    carrier.type_reference,
-                )
-                .is_empty()
-                {
-                    return None;
-                }
-                if crosses_reference(program, carrier.type_reference) {
-                    return None;
-                }
-                carrier_path.push(CheckedUnitStructuralPathSegment::Field(
-                    terminal_field_identity(program, carrier.symbol)?,
-                ));
-                carrier_type = carrier.type_reference;
-                carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
-                    program,
-                    carrier_type,
-                );
-            }
-            facts::PlaceSegment::FixedIndex { index } if !reached_array => {
-                reached_array = true;
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: typed_trees::types::FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(carrier_type)
-                else {
-                    return None;
-                };
-                if *index >= *length {
-                    return None;
-                }
-                if crosses_reference(program, *element_type) {
-                    return None;
-                }
-                carrier_path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                    u64::try_from(*index).ok()?,
-                ));
-                carrier_type = *element_type;
-                carrier_owner = crate::facts::field_domain::data_definition_for_field_type(
-                    program,
-                    carrier_type,
-                );
-            }
-            _ => return None,
-        }
-    }
-    trace.phase("structural field store: field owner record");
-    let field_owner = carrier_owner?;
-    if !plain_record(field_owner, program) {
-        return None;
-    }
-    let field = exact_relevant_field(program, field_owner, *field_symbol)?;
-    trace.phase("structural field store: write frame");
-    let source_path = facts::canonical_place_label_from_parts(program, place.root, &place.segments);
-    let source_root = facts::canonical_place_label_from_parts(program, place.root, &[]);
-    // Mutation summaries name the receiver separately from the ordinary
-    // parameter roster, even when it occupies structural position zero.
-    let mutation_root = if destination.is_self {
-        "self".to_owned()
-    } else {
-        format!("$P{}", destination.position)
-    };
-    let expected_mutation_path =
-        format!("{mutation_root}{}", source_path.strip_prefix(&source_root)?,);
-    let array_collection_mutation_path = place
-        .segments
-        .iter()
-        .position(|segment| matches!(segment, facts::PlaceSegment::FixedIndex { .. }))
-        .and_then(|first_index| {
-            let collection_path = facts::canonical_place_label_from_parts(
-                program,
-                place.root,
-                &place.segments[..first_index],
-            );
-            Some(format!(
-                "{mutation_root}{}",
-                collection_path.strip_prefix(&source_root)?
-            ))
-        });
-    let frame = &facts
-        .mutation
-        .for_machine(machine.symbol)?
-        .state_write_frames
-        .iter()
-        .find(|frame| frame.state == state.symbol)?
-        .frame;
-    let exact_frame =
-        matches!(frame.complete_paths(), Some([path]) if path == &expected_mutation_path);
-    let exact_collection_frame = matches!(
-        (frame.complete_paths(), array_collection_mutation_path.as_ref()),
-        (Some([path]), Some(collection_path)) if path == collection_path
-    );
-    // Provider selection resolves the boundary initializer after ordinary
-    // mutation analysis, so that initializer leaves the pre-selection frame
-    // opaque. The exact selected result, two-statement body, and canonical
-    // projected destination are independently rejoined above and below.
-    let unresolved_selected_frame = selected_result
-        && !exact_sequence_frame
-        && frame.completeness() == facts::WriteFrameCompleteness::Opaque;
-    if !exact_frame
-        && !exact_collection_frame
-        && !unresolved_selected_frame
-        && !exact_sequence_frame
-    {
-        return None;
-    }
-    trace.phase("structural field store: byte sequence carrier");
-    let byte_sequence_carrier = byte_sequence_carrier(program, field.type_reference, &[]);
-    // An indexed store through a `&'r mut [u8]` field composes over the
-    // caller's live extent exactly as over bounded-owned backing: the mutable
-    // borrow already guarantees exclusive access. A shared `&'r` view still
-    // declines — the Reference node's access is the only place that
-    // distinction survives, so the mint gate enforces it here before the
-    // carrier collapses to a bare `BorrowedView` downstream.
-    let (indexed_byte_store_carrier, bounded_capacity) = match byte_sequence_carrier {
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
-            (true, Some(capacity))
-        }
-        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView) => {
-            (field_view_is_mutable(program, field.type_reference), None)
-        }
-        _ => (false, None),
-    };
-    if indexed_byte_store_carrier {
-        if result_local.is_some() {
-            trace.phase("structural field store: byte sequence carrier: result local");
-            return None;
-        }
-        if selected_result {
-            trace.phase("structural field store: byte sequence carrier: selected result");
-            return None;
-        }
-        if let Some(byte_index) = byte_index {
-            if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
-                .into_iter()
-                .all(|symbol| {
-                    program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == symbol)
-                        .is_some_and(|domain| {
-                            domain.establishment_routes.is_empty()
-                                && domain.semantic_roles == Default::default()
-                        })
-                })
-            {
-                return None;
-            }
-            let (index_binding, index) = facts.values.scalar_expressions.bound_expression_at(
-                state.symbol,
-                statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
-            )?;
-            if index_binding.expression != byte_index
-                || !matches!(
-                    crate::values::scalar_expression_type(index),
-                    Some(
-                        PrimitiveType::I8
-                            | PrimitiveType::I16
-                            | PrimitiveType::I32
-                            | PrimitiveType::I64
-                            | PrimitiveType::U8
-                            | PrimitiveType::U16
-                            | PrimitiveType::U32
-                            | PrimitiveType::U64
-                    )
-                )
-            {
-                return None;
-            }
-            return Some(
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
-                    checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
-                        statement_index,
-                        destination_parameter_position: destination.position,
-                        carrier_path,
-                        field_identity: terminal_field_identity(program, field.symbol)?,
-                        index: index.clone(),
-                        value: byte_value?,
-                    },
-                ),
-            );
-        }
-        // Whole-value literal replacement needs the bounded capacity the
-        // declared carrier keeps; a borrowed view cannot host a literal.
-        let capacity = bounded_capacity?;
-        let ExpressionNode::String(bytes) = program.expression_table.expression(assignment.value)
-        else {
-            return None;
-        };
-        if u64::try_from(bytes.len()).ok()? > capacity
-            || !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
-                .into_iter()
-                .all(|symbol| {
-                    program
-                        .domain_definitions()
-                        .iter()
-                        .find(|domain| domain.symbol == symbol)
-                        .is_some_and(|domain| {
-                            domain.establishment_routes.is_empty()
-                                && domain.semantic_roles == Default::default()
-                                && crate::facts::field_domain::string_literal_expression_grants_domain(
-                                    program,
-                                    assignment.value,
-                                    symbol,
-                                )
-                        })
-                })
-        {
-            return None;
-        }
-        return Some(
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(
-                checked_trees::CheckedStructuralByteSequenceFieldStorePlan {
-                    statement_index,
-                    destination_parameter_position: destination.position,
-                    carrier_path,
-                    field_identity: terminal_field_identity(program, field.symbol)?,
-                    bytes: bytes.to_vec(),
-                },
-            ),
-        );
-    }
-    trace.phase("structural field store: scalar field type");
-    if byte_index.is_some() {
-        trace.phase("structural field store: scalar field type: indexed element destination");
-        return None;
-    }
-    if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
-        .is_empty()
-    {
-        trace.phase("structural field store: scalar field type: domain-constrained field");
-        return None;
-    }
-    let Some(primitive_type) = program.primitive_type_reference(field.type_reference) else {
-        trace.phase("structural field store: case field type");
-        // `root.<sum field> = <whole owned parameter>`: an initialized
-        // unrestricted-sum field overwritten by a whole place of the same
-        // declared type. The write copies whole, moves nothing, and needs no
-        // carrier borrow window -- member-read values, call results, payload
-        // sums, records and affine carriers keep declining.
-        let refusal = if !(exact_frame || exact_sequence_frame) {
-            Some("structural field store: case field type: write frame")
-        } else if result_local.is_some() {
-            Some("structural field store: case field type: result local")
-        } else if selected_result {
-            Some("structural field store: case field type: selected result")
-        } else if call_result.is_some() {
-            Some("structural field store: case field type: call result")
-        } else {
-            None
-        };
-        if let Some(refusal) = refusal {
-            trace.phase(refusal);
-            return None;
-        }
-        let field_data = crate::facts::field_domain::data_definition_for_field_type(
-            program,
-            field.type_reference,
-        )?;
-        if !unrestricted_sum(field_data, program) {
-            return None;
-        }
-        let value_place = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            statement_index as usize,
-            assignment.value,
-        )?;
-        if !value_place.segments.is_empty() {
-            return None;
-        }
-        let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
-            return None;
-        };
-        let value_position = source_parameters
-            .iter()
-            .position(|parameter| parameter.symbol == value_root)?;
-        let value_state_parameter = source_parameters.get(value_position)?;
-        if value_state_parameter.is_self {
-            return None;
-        }
-        let same_named_type = matches!(
-            (
-                program
-                    .type_reference_table
-                    .type_reference(field.type_reference),
-                program
-                    .type_reference_table
-                    .type_reference(value_state_parameter.type_reference),
-            ),
-            (
-                TypeReferenceNode::Named { symbol: field_name, .. },
-                TypeReferenceNode::Named { symbol: value_name, .. }
-            ) if field_name == value_name
-        );
-        if !same_named_type {
-            return None;
-        }
-        let value_plan = structural_parameters
-            .iter()
-            .find(|parameter| parameter.position as usize == value_position)?;
-        if value_plan.is_self
-            || value_plan.access != CheckedStructuralAccess::Owned
-            || value_plan.multiplicity != Multiplicity::Unrestricted
-            || !value_plan.qualifications.is_empty()
-            || !value_plan.projected_qualifications.is_empty()
-            || value_plan.fused_service_erasure.is_some()
-        {
-            return None;
-        }
-        return Some(CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(
-            checked_trees::CheckedStructuralCaseFieldStorePlan {
-                statement_index,
-                destination:
-                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                        position: destination.position,
-                    },
-                carrier_path,
-                field_identity: terminal_field_identity(program, field.symbol)?,
-                value: checked_trees::CheckedUnitStructuralArgumentPlan {
-                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        parameter_index: u32::try_from(value_position).ok()?,
-                    },
-                    path: Vec::new(),
-                    type_identity: value_plan.type_identity.clone(),
-                    access: CheckedStructuralAccess::Owned,
-                },
-            },
-        ));
-    };
-    if !matches!(
-        primitive_type,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-    ) && !primitive_type.accepts_integer_literal()
-    {
-        return None;
-    }
-    trace.phase("structural field store: computation source");
-    let computations = &facts.values.scalar_computations;
-    if let Some(root) = computations.root_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
-    ) {
-        if !exact_sequence_frame {
-            trace.phase("structural field store: computation source: sequence frame");
-            return None;
-        }
-        if result_local.is_some() {
-            trace.phase("structural field store: computation source: result local");
-            return None;
-        }
-        if root.machine != machine.symbol
-            || !computations.nodes.is_valid(root.root)
-            || computations.nodes.get(root.root).authored_root != assignment.value
-            || computations.nodes.get(root.root).primitive_type != primitive_type
-            || facts
-                .values
-                .scalar_expressions
-                .expression_at(
-                    state.symbol,
-                    statement_index,
-                    CheckedScalarExpressionRole::AssignmentValue,
-                )
-                .is_some()
-        {
-            return None;
-        }
-        return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            CheckedStructuralScalarFieldStorePlan {
-                statement_index,
-                destination:
-                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                        position: destination.position,
-                    },
-                carrier_path,
-                field_identity: terminal_field_identity(program, field.symbol)?,
-                primitive_type,
-                value: checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(
-                    root.root,
-                ),
-            },
-        ));
-    }
-    trace.phase("structural field store: pure source");
-    // A store may also read the SSA result of the scalar call this same
-    // statement performs. That authored form binds no local, so no
-    // `AssignmentValue` scalar-expression row names the value; the ordered
-    // call operation established it, which is exactly the "already-defined,
-    // exactly typed SSA value" the store vocabulary asks for
-    // (wiki/spec/terminal-psi/structural_access.md, Store vocabulary).
-    if let Some((position, result_type)) = call_result {
-        let refusal = if !exact_sequence_frame {
-            Some("structural field store: pure source: call result: sequence frame")
-        } else if result_local.is_some() {
-            Some("structural field store: pure source: call result: result local")
-        } else if selected_result {
-            Some("structural field store: pure source: call result: selected result")
-        } else if result_type != primitive_type {
-            Some("structural field store: pure source: call result: result type")
-        } else if !matches!(
-            program.expression_table.expression(assignment.value),
-            ExpressionNode::Call(_)
-        ) {
-            Some("structural field store: pure source: call result: authored call")
-        } else {
-            None
-        };
-        if let Some(refusal) = refusal {
-            trace.phase(refusal);
-            return None;
-        }
-        return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-            CheckedStructuralScalarFieldStorePlan {
-                statement_index,
-                destination:
-                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                        position: destination.position,
-                    },
-                carrier_path,
-                field_identity: terminal_field_identity(program, field.symbol)?,
-                primitive_type,
-                value: checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult {
-                    position,
-                },
-            },
-        ));
-    }
-    trace.phase("structural field store: pure source: scalar expression row");
-    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
-    )?;
-    if binding.expression != assignment.value {
-        return None;
-    }
-    trace.phase("structural field store: pure source: value shape");
-    let direct_result_is_exact = matches!(
-        (result_local, value),
-        (
-            Some(result),
-            CheckedScalarExpression::Local {
-                position: 0,
-                primitive_type: source_type,
-            },
-        ) if *source_type == result.primitive_type
-            && primitive_type == result.primitive_type
-            && matches!(
-                result.primitive_type,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-            && scalar_parameters.is_empty()
-    );
-    let literal = match value {
-        CheckedScalarExpression::IeeeFloatLiteral { .. } => {
-            crate::values::scalar_expression_type(value) == Some(primitive_type)
-        }
-        CheckedScalarExpression::IntegerLiteral { .. } => primitive_type.accepts_integer_literal(),
-        CheckedScalarExpression::Boolean(boolean) => {
-            primitive_type == PrimitiveType::Bool
-                && matches!(
-                    boolean.as_ref(),
-                    checked_trees::CheckedBooleanExpression::Constant(_)
-                )
-        }
-        _ => false,
-    };
-    // IEEE replacement forwards existing bits; selected floating computation
-    // must retain its own operation and call correspondence before admission.
-    if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
-        && !literal
-        && checked_parameter_source(value).is_none()
-    {
-        return None;
-    }
-    trace.phase("structural field store: pure source: exact source");
-    let exact_source = if exact_sequence_frame || direct_result_is_exact || literal {
-        true
-    } else if scalar_parameters.is_empty() {
-        false
-    } else {
-        let (position, source_type) = checked_parameter_source(value)?;
-        scalar_parameters.get(position).is_some_and(|parameter| {
-            Some(parameter.source_position) == authored_scalar_position(position)
-                && parameter.primitive_type == primitive_type
-                && source_type == primitive_type
-        }) && scalar_parameters
-            .iter()
-            .enumerate()
-            .all(|(index, parameter)| {
-                Some(parameter.source_position) == authored_scalar_position(index)
-            })
-    };
-    if !exact_source || crate::values::scalar_expression_type(value) != Some(primitive_type) {
-        return None;
-    }
-    Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-        CheckedStructuralScalarFieldStorePlan {
-            statement_index,
-            destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                position: destination.position,
-            },
-            carrier_path,
-            field_identity: terminal_field_identity(program, field.symbol)?,
-            primitive_type,
-            value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
-        },
-    ))
-}
-
-/// The byte-store scalar source, resolved once for every destination lane: the
-/// SSA result of the scalar call this same statement performs, or the bound
-/// pure authored expression. The call-result source binds no local, so no
-/// `AssignmentValue` scalar-expression row names it; its dense position names
-/// the value the ordered call operation established.
-fn byte_store_scalar_value(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    state: &typed_trees::state::State,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    call_result: Option<(u32, PrimitiveType)>,
-) -> Option<checked_trees::CheckedByteSequenceStoreValue> {
-    if let Some((position, result_type)) = call_result {
-        if result_type != PrimitiveType::U8
-            || !matches!(
-                program.expression_table.expression(assignment.value),
-                ExpressionNode::Call(_)
-            )
-        {
-            return None;
-        }
-        return Some(checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position });
-    }
-    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
-    )?;
-    if binding.expression != assignment.value
-        || crate::values::scalar_expression_type(value) != Some(PrimitiveType::U8)
-    {
-        return None;
-    }
-    Some(checked_trees::CheckedByteSequenceStoreValue::Pure(
-        value.clone(),
-    ))
-}
-
-fn build_byte_view_write(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    destination: &CheckedUnitStructuralParameterPlan,
-    parameter: &typed_trees::signature::StateParameter,
-    statement_index: u32,
-    assignment: &typed_trees::statement::TableAssignment,
-    value: Option<&checked_trees::CheckedByteSequenceStoreValue>,
-) -> Option<checked_trees::CheckedByteSequenceWritePlan> {
-    if destination.is_self
-        || destination.access != CheckedStructuralAccess::MutableBorrow
-        || destination.multiplicity != Multiplicity::Unrestricted
-        || !destination.qualifications.is_empty()
-        || destination.fused_service_erasure.is_some()
-        || byte_sequence_carrier(program, parameter.type_reference, &[])
-            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
-        || !validation::place_has_builtin_coordinates(
-            program,
-            machine,
-            Some(state),
-            assignment.target,
-        )
-    {
-        return None;
-    }
-    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(assignment.target)
-    else {
-        return None;
-    };
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement_index as usize,
-        indexed.collection,
-    )?;
-    if place.root != facts::PlaceRoot::Symbol(parameter.symbol) || !place.segments.is_empty() {
-        return None;
-    }
-    let (index_binding, index) = facts.values.scalar_expressions.bound_expression_at(
-        state.symbol,
-        statement_index,
-        CheckedScalarExpressionRole::AssignmentIndex,
-    )?;
-    if index_binding.expression != indexed.index
-        || !matches!(
-            crate::values::scalar_expression_type(index),
-            Some(
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            )
-        )
-    {
-        return None;
-    }
-    Some(checked_trees::CheckedByteSequenceWritePlan {
-        statement_index,
-        destination_parameter_position: destination.position,
-        index: index.clone(),
-        value: value?.clone(),
-    })
-}
-
-fn authored_scalar_position(dense_position: usize) -> Option<u32> {
-    u32::try_from(dense_position).ok()?.checked_add(1)
-}
-
-fn checked_parameter_source(value: &CheckedScalarExpression) -> Option<(usize, PrimitiveType)> {
-    match value {
-        CheckedScalarExpression::Parameter {
-            position,
-            primitive_type,
-        } => Some((*position, *primitive_type)),
-        CheckedScalarExpression::Boolean(boolean) => {
-            let checked_trees::CheckedBooleanExpression::Parameter { position } = boolean.as_ref()
-            else {
-                return None;
-            };
-            Some((*position, PrimitiveType::Bool))
-        }
-        _ => None,
-    }
-}
-
-/// A record whose scalar leaves this module may store through.
-///
-/// Lifetime binders are deliberately not part of this test. A declared
-/// lifetime is an erased region, "separate from runtime generic arity, layout
-/// and monomorphization" (wiki/spec/language/lifetimes.md, Binders and source
-/// applications), and store admission retains "the complete home declaration,
-/// path, field, access, qualifications/claims, scalar type, and dominating
-/// definition" (wiki/spec/terminal-psi/structural_access.md, Store
-/// vocabulary) -- a binder changes none of them. The borrow leaves a binder
-/// names are excluded on their own terms instead: `exact_relevant_field` skips
-/// erased fields, `crosses_reference` stops every carrier hop at a reference,
-/// and a reference leaf has no primitive type. Runtime generic arity is still
-/// excluded by the type-parameter and owner-application tests below.
-fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
-    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-        && program.data_type_parameters(data).is_empty()
-        && retained_record_owner_application(data, program)
-        && data.quotient.is_none()
-        && data.where_facts.is_empty()
-        && !data.zero_gated
-        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
-            == DataShapeKind::Record
-}
-
-/// A closed payload-free pure-sum data declaration: CheckedShape supply, no
-/// lifetimes or type parameters, no quotient or where facts, unrestricted
-/// multiplicity, and every member a payload-free case. Copying a whole owned
-/// place into such a field moves nothing, so the store needs no carrier
-/// borrow window.
-fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
-    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-        && data.lifetime_parameters.is_empty()
-        && program.data_type_parameters(data).is_empty()
-        && data.quotient.is_none()
-        && data.where_facts.is_empty()
-        && !data.zero_gated
-        && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
-        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
-            == DataShapeKind::Enum
-        && program.data_members(data).iter().all(|member| {
-            let DataMember::Variant(variant) = member else {
-                return false;
-            };
-            program.data_payload_fields(variant).is_empty()
-        })
-}
-
-fn retained_record_owner_application(
-    data: &typed_trees::data::DataDefinition,
-    program: &TypedTrees,
-) -> bool {
-    let Some(application) = data.generic_instance else {
-        return true;
-    };
-    let TypeReferenceNode::Generic {
-        base_symbol,
-        lifetime_arguments,
-        arguments,
-        ..
-    } = program.type_reference_table.type_reference(application)
-    else {
-        return false;
-    };
-    let Some(template) = program
-        .data_definitions()
-        .iter()
-        .find(|template| template.symbol == *base_symbol)
-    else {
-        return false;
-    };
-    let parameters = program.data_type_parameters(template);
-    // Generated-instance arguments are checked in an empty type-parameter
-    // scope before flow planning. Retain that exact closed owner application,
-    // rather than excluding its substituted fields merely for being generated.
-    // Field shape, access, arithmetic policy, and mutation custody are still
-    // checked independently by the ordinary store route.
-    base_symbol.is_valid()
-        && *base_symbol != data.symbol
-        && template.generic_instance.is_none()
-        && template.lifetime_parameters.is_empty()
-        && lifetime_arguments.is_empty()
-        && !parameters.is_empty()
-        && parameters.len()
-            == program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .len()
-}
-
-/// Whether a declared field type names storage behind a reference.
-///
-/// A carrier path is direct storage access: its segments select record fields
-/// and fixed-array indices of one referent. Stepping through a reference-typed
-/// field would turn a pointer hop into an inline field offset, which the store
-/// vocabulary rejects -- "Cases, reference crossings and nonprimitive leaves
-/// reject. This is direct storage access, not a synthetic record field or an
-/// introduced reference lifetime" (wiki/spec/terminal-psi/structural_access.md,
-/// Store vocabulary). `data_definition_for_field_type` deliberately peels
-/// `&`/`&mut` for the entry-invariant seed, so carrier hops test this first.
-fn crosses_reference(
-    program: &TypedTrees,
-    type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { .. } => true,
-        TypeReferenceNode::Constrained { base_type, .. } => crosses_reference(program, *base_type),
-        _ => false,
-    }
-}
-
-/// Whether the field's declared type passes through an exclusive `&mut`
-/// reference. The byte-sequence carrier collapses `&'r [u8]` and `&'r mut
-/// [u8]` to the same `BorrowedView`, so the access distinction is enforced
-/// here while the Reference node still exists.
-fn field_view_is_mutable(
-    program: &TypedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                type_reference = *base_type;
-            }
-            TypeReferenceNode::Reference { access, .. } => {
-                return *access == language_semantics::ReferenceAccess::Mutable;
-            }
-            _ => return false,
-        }
-    }
-}
-
-fn exact_relevant_field<'a>(
-    program: &'a TypedTrees,
-    owner: &'a typed_trees::data::DataDefinition,
-    symbol: SymbolHandle,
-) -> Option<&'a typed_trees::data::DataField> {
-    let fields = program
-        .data_members(owner)
-        .iter()
-        .filter_map(|member| {
-            let DataMember::Field(field) = member else {
-                return None;
-            };
-            (field.symbol == symbol && !field.relevance.is_erased()).then_some(field)
-        })
-        .collect::<Vec<_>>();
-    let [field] = fields.as_slice() else {
-        return None;
-    };
-    Some(*field)
 }

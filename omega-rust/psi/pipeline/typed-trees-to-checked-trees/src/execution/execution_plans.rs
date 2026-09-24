@@ -32,7 +32,7 @@ pub(crate) fn build_execution_plans(
             program, facts,
         );
     let structural_callees =
-        crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans(
+        crate::execution::terminal_unit::returns::build_checked_scalar_callee_return_plans(
             program, facts,
         );
     let scalar_callees = crate::execution::terminal_unit::ScalarCalleePlans {

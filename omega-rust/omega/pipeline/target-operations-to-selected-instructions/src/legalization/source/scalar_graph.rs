@@ -43,14 +43,11 @@ pub(super) fn derive(
         .blocks
         .iter()
         .map(|block| {
-            let (last, body) = block
-                .nodes
-                .split_last()
-                .ok_or(Error::SourceCustodyMismatch)?;
+            let (last, body) = block.nodes.split_last().ok_or(Error::custody())?;
             let mut custody = custody_entries
                 .get(&block.id)
                 .cloned()
-                .ok_or(Error::SourceCustodyMismatch)?;
+                .ok_or(Error::custody())?;
             let mut instructions = Vec::with_capacity(body.len());
             for node in body {
                 // Signature-only descriptor declarations project no

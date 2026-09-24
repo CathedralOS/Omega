@@ -586,6 +586,38 @@ impl TerminalExecution {
     }
 
     /// The runtime index is a `u64` operand, not a path segment: once its
+    /// exact value is resolved the read proceeds through the same verified
+    /// access walk as a literal-indexed read, which re-checks the element
+    /// against the declared extent segment by segment.
+    pub(crate) fn execute_indexed_primitive_read(
+        &mut self,
+        operation: &Operation,
+        source: PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        index: ValueId,
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let TerminalScalarValue::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(raw),
+        } = self
+            .values
+            .get(&index)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
+        else {
+            return Err(invalid());
+        };
+        if scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())? {
+            return Err(invalid());
+        }
+        let index = u64::try_from(raw).map_err(|_| invalid())?;
+        let mut projected = path.to_vec();
+        projected.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
+        self.execute_primitive_read(operation, source, &projected)
+    }
+
+    /// The runtime index is a `u64` operand, not a path segment: once its
     /// exact value is resolved the store proceeds through the same verified
     /// access walk as a literal-indexed store, which re-checks the element
     /// against the declared extent segment by segment.

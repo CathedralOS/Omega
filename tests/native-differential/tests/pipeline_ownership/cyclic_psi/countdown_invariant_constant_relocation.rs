@@ -1,7 +1,7 @@
 //! Optimizer module role: test leaf. Atomic authenticated countdown zero/one relocation.
 
 use super::{VerifiedPsiOptimizationSession, countdown_unit};
-use abstract_operations_to_abstract_operations::{
+use abstract_operations_to_abstract_operations::test_support::{
     CountdownInvariantConstantRelocationError, apply_countdown_invariant_constant_relocation,
     propose_countdown_invariant_constant_relocations,
     validate_countdown_invariant_constant_relocation,

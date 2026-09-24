@@ -1,5 +1,6 @@
 //! Payloadless guarded-call evidence and outcome-specific ensures.
 
+use crate::machine_lowering::guarded_exits::exact_payloadless_return_guard;
 use crate::proofs::evidence_lowering::evidence_terms::{
     LoweredEvidenceTerms, lower_evidence_terms, lower_proposition_vocabulary,
 };
@@ -11,45 +12,9 @@ use crate::proofs::{
     ObligationEvidence, OperationKind, OutcomeSpecificCallEvidence,
     OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
     OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard, PrimitiveJudgment, Proposition, StructuralTypeShape, TerminalMachine,
-    TerminalModule, Terminator, dense_identity, machine_id, obligation_id, unsupported,
+    OutcomeSpecificGuard, PrimitiveJudgment, Proposition, StructuralTypeShape, TerminalModule,
+    dense_identity, machine_id, obligation_id, unsupported,
 };
-
-pub(crate) fn exact_payloadless_return_guard(
-    machine: &TerminalMachine,
-) -> Option<OutcomeSpecificGuard> {
-    let result = machine.result.structural()?;
-    let mut returns = machine.blocks.iter().filter_map(|block| {
-        let Terminator::ReturnStructural { source, .. } = block.terminator else {
-            return None;
-        };
-        let operation = block.operations.iter().find(|operation| {
-            operation
-                .result
-                .structural()
-                .is_some_and(|result| result.place == source)
-        })?;
-        let OperationKind::EstablishScalarCase {
-            result_case,
-            ref fields,
-        } = operation.kind
-        else {
-            return None;
-        };
-        if !fields.is_empty() {
-            return None;
-        }
-        let operation_result = operation.result.structural()?;
-        (operation_result.structural_type == result.structural_type).then_some(
-            OutcomeSpecificGuard {
-                result_type: result.structural_type,
-                result_case,
-            },
-        )
-    });
-    let guard = returns.next()?;
-    returns.next().is_none().then_some(guard)
-}
 
 pub(crate) fn lower_outcome_specific_ensures(
     checked: &CheckedTrees,
@@ -71,20 +36,16 @@ pub(crate) fn lower_outcome_specific_ensures(
     if guarantees.is_empty() {
         return Ok(Vec::new());
     }
-    let plan = checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .payloadless_case_for_machine(selected_machine)
-        .ok_or(LoweringError::Unsupported(
-            "guarded guarantees require the exact payloadless result producer",
-        ))?;
+    // The guarded rows name cases of the result the machine's entry state
+    // declares. Which case the lowered body actually returns is not decided
+    // here: the verifier replays each row against the machine's exact
+    // payloadless case exits.
     let state = checked
         .typed
         .machines()
         .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .find(|state| state.symbol == plan.state)
+        .find(|machine| machine.symbol == selected_machine)
+        .and_then(|machine| checked.typed.machine_states(machine).first())
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless producer state is absent",
         ))?;

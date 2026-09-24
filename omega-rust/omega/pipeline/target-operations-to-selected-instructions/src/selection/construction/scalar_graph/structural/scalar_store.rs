@@ -21,7 +21,7 @@ pub(super) fn emit(
             byte_offset,
             byte_size,
         } => {
-            let signature = source.structural.as_ref().ok_or_else(invalid)?;
+            let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
             if crate::structural_inputs::structural_reference_input::store(
                 destination.structural_type,
                 path,
@@ -41,7 +41,7 @@ pub(super) fn emit(
             byte_offset,
             byte_size,
         } => {
-            let signature = source.structural.as_ref().ok_or_else(invalid)?;
+            let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
             if !signature.entry_claims.is_empty()
                 || crate::structural_inputs::structural_reference_input::primitive_store(
                     destination,
@@ -56,7 +56,7 @@ pub(super) fn emit(
         }
         _ => return Err(invalid()),
     };
-    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     if row.result.is_some()
         || !signature
             .parameters
@@ -75,8 +75,8 @@ pub(super) fn emit(
         .iter()
         .find(|(place, _)| *place == destination.place)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
-    let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
+    let (_, register, _, scalar) = builder.resolve(value.value).ok_or_else(|| invalid())?;
     if scalar != value.scalar_type {
         return Err(invalid());
     }
@@ -93,7 +93,7 @@ pub(super) fn emit(
             byte_offset,
             byte_size,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[pointer, register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
