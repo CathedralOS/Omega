@@ -554,7 +554,9 @@ pub(in crate::legalization) fn call_argument(
         declaration.id == destination.structural_type
             && matches!(
                 declaration.shape,
-                StructuralTypeShape::Record { .. } | StructuralTypeShape::Sum { .. }
+                StructuralTypeShape::Record { .. }
+                    | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
             )
     }) && argument.access != terminal_psi::StructuralAccess::Owned
     {

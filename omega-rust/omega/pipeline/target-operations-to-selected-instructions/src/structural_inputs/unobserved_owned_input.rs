@@ -52,6 +52,36 @@ pub(crate) fn plain_type(
             StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
                 pending.push(*element)
             }
+            StructuralTypeShape::Sum { cases } => {
+                for field in cases
+                    .iter()
+                    .flat_map(|case| case.fields.iter())
+                    .filter(|field| !field.relevance.is_erased())
+                {
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(nested) => pending.push(nested),
+                        _ => return false,
+                    }
+                }
+            }
+            StructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                    .filter(|field| !field.relevance.is_erased())
+                {
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_) => {}
+                        StructuralFieldType::Structural(nested) => pending.push(nested),
+                        _ => return false,
+                    }
+                }
+            }
             _ => return false,
         }
     }
