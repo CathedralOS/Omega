@@ -645,8 +645,11 @@ fn qualified_record_projection_rejects_unproven_constructor_membership() {
             ),
         );
         let error = rejection(&root, super::root_inputs(&root));
+        // `requires false` can never hold, so const evaluation now settles the
+        // constraint rather than reporting it unproven. The rejection must
+        // still name the domain and say the constraint failed.
         assert!(
-            error.contains("Marked") && error.contains("not proven"),
+            error.contains("Marked") && error.contains("is false"),
             "{error}"
         );
     }
