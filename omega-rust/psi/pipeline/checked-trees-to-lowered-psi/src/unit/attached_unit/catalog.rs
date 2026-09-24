@@ -470,12 +470,22 @@ pub(crate) fn lower_unit_structural_type_roots(
                 referent_identity,
                 access,
             } => {
-                if *access != checked_trees::CheckedStructuralAccess::MutableBorrow {
-                    return unsupported("reference type has no retained mutable access");
-                }
+                let access = match *access {
+                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        StructuralAccess::MutableBorrow
+                    }
+                    // A `&'a V` shared view loans its referent the same way —
+                    // immutably.
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        StructuralAccess::SharedBorrow
+                    }
+                    _ => {
+                        return unsupported("reference type has no retained mutable access");
+                    }
+                };
                 StructuralTypeShape::Reference {
                     referent: lookup_type_id(&type_ids, referent_identity)?,
-                    access: StructuralAccess::MutableBorrow,
+                    access,
                 }
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {

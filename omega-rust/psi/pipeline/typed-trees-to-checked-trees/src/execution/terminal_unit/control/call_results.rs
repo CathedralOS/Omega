@@ -148,12 +148,25 @@ pub(crate) fn checked_structural_result_type(
             multiplicity: Multiplicity::Affine,
         });
     }
+    // A `&'a V` named view carries its reference shell in the plan and loans
+    // the referent's storage, the same custody shape a `&mut` primitive
+    // reference result carries.
+    if crate::execution::terminal_unit::types::borrowed_named_view(program, result_type) {
+        return Some(CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_named_view_type(result_type, binders)?,
+            multiplicity: Multiplicity::Affine,
+        });
+    }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
     let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
     // Borrowed slice views belong to reference custody but share none of its
     // owned-referent requirements: their contents live in the caller's frame.
+    // `&'a V` named results are the same custody kind over a record carrier.
     let view_result =
-        crate::execution::terminal_unit::types::borrowed_slice_view(program, result_type);
+        crate::execution::terminal_unit::types::borrowed_slice_view(program, result_type)
+            || crate::execution::terminal_unit::types::borrowed_named_view(program, result_type);
     if is_unit(program, result_type)
         || program.primitive_type_reference(result_type).is_some()
         || (is_reference(program, result_type) && !view_result)

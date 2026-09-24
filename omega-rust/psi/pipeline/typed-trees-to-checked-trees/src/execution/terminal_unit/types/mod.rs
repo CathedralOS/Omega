@@ -1687,6 +1687,41 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
+    /// A `&'a V` borrowed named view spells its own type reference: the
+    /// reference shell is the custody the plan carries, so unlike `add_type`
+    /// it is retained rather than peeled to the named referent.
+    pub(super) fn add_named_view_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        let referee = borrowed_named_view_referent(self.program, reference)?;
+        let referent_identity = self.add_type(referee, binders, &[])?;
+        let identity = self
+            .program
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
+            .into_string();
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access: CheckedStructuralAccess::SharedBorrow,
+            },
+        };
+        if self
+            .types
+            .get(&identity)
+            .is_some_and(|existing| existing != &plan)
+        {
+            return None;
+        }
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
+    }
+
     pub(super) fn add_type(
         &mut self,
         type_reference: TypeReferenceHandle,
@@ -2452,6 +2487,44 @@ pub(crate) fn borrowed_slice_view(
                 byte_sequence_carrier(program, type_reference, &[]),
                 Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
             ))
+}
+
+/// A `&'a V` declared result type: a shared borrow of a named record or sum —
+/// the named-carrier analog of `borrowed_slice_view`. The referent's storage
+/// lives in the caller's frame, so the owned-contents custody clause does not
+/// apply. `&mut`/`&write` named results stay with their own custody families.
+pub(crate) fn borrowed_named_view(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    borrowed_named_view_referent(program, type_reference).is_some()
+}
+
+/// The named referee beneath a `&'a V` borrowed view, with `Constrained`
+/// shells peeled exactly as `borrowed_named_view` walks them.
+pub(crate) fn borrowed_named_view_referent(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if structural_access_for_type_reference(program, type_reference)
+        != Some(CheckedStructuralAccess::SharedBorrow)
+    {
+        return None;
+    }
+    let mut type_reference = type_reference;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => {
+                return matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Named { .. }
+                )
+                .then_some(*referee);
+            }
+            _ => return None,
+        }
+    }
 }
 
 /// The view's own identity is the borrowed `[T]` carrier, with the reference

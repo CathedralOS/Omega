@@ -184,6 +184,107 @@ fn returned_reference_leaf(
     })
 }
 
+/// A `&'a V` named-result completion borrows the referent it names from one
+/// immutable structural carrier: `self` for a whole receiver borrow,
+/// `self.field` for a stored named reference. The whole stored borrow is the
+/// result — there are no subslice endpoints and no separate slice length.
+/// Unlike `returned_reference_leaf`'s `&mut` record rosters the carrier may
+/// itself be the shared-borrow receiver, so `SharedBorrow` is admitted beside
+/// `Owned`.
+fn returned_named_view(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    binders: &[(SymbolHandle, String)],
+) -> Option<CheckedUnitStructuralReturnPlan> {
+    if !crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type) {
+        return None;
+    }
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let statement_index = statements.len().checked_sub(1)?;
+    let StatementNode::Expression(expression) = statements.last()? else {
+        return None;
+    };
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        *expression,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    let position = authored.iter().position(|parameter| {
+        parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
+    })?;
+    let carrier = &authored[position];
+    if carrier.is_mutable
+        || !matches!(
+            crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                program,
+                carrier.type_reference,
+            ),
+            Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned)
+        )
+    {
+        return None;
+    }
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let (storage, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    let referee = crate::execution::terminal_unit::types::borrowed_named_view_referent(
+        program,
+        state.return_type,
+    )?;
+    // The stored value the projection bottoms out in must be exactly the
+    // result's `&'a V` — a carrier parameter already holding the named borrow
+    // — or its referent `V` — the `&'a self` receiver's own storage.
+    if program.normalized_type_identity(storage)
+        != program.normalized_type_identity(state.return_type)
+        && program.normalized_type_identity(storage) != program.normalized_type_identity(referee)
+    {
+        return None;
+    }
+    // A member projection reaches the stored `&'a V` field itself; the loaned
+    // leaf the result names is its referent, one segment deeper — the same
+    // `Referent` tail `formal_record_sources` spells for `&mut` record
+    // leaves. A whole-borrow parameter already names its referent leaf, so
+    // its source path stays empty.
+    let mut path = path;
+    if !path.is_empty() {
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    }
+    let source = CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(parameter_index).ok()?,
+        },
+        path,
+        type_identity: shapes.add_type(referee, binders, &[])?,
+        access: CheckedStructuralAccess::SharedBorrow,
+    };
+    Some(CheckedUnitStructuralReturnPlan {
+        source: source.source.clone(),
+        // The result spells its own `&'a V` type reference and loans the
+        // referent's storage affinely — the same custody a `&mut` primitive
+        // reference result carries.
+        type_identity: shapes.add_named_view_type(state.return_type, binders)?,
+        multiplicity: Multiplicity::Affine,
+        reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+            path: Vec::new(),
+            source,
+        }],
+    })
+}
+
 pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) scalar_result:
         Option<CheckedUnitScalarResultBindingPlan>,
@@ -321,6 +422,18 @@ pub(super) fn first_unsupported_statement(
                             ExpressionNode::Name(_)
                         ) || validation::reference_result_custody::source_leaf(program, state)
                             .is_some()
+                            || (crate::execution::terminal_unit::types::borrowed_named_view(
+                                program,
+                                state.return_type,
+                            ) && crate::flow::canonical_place_from_expression_in_state(
+                                program,
+                                state.symbol,
+                                *index,
+                                *expression,
+                            )
+                            .is_some_and(|place| {
+                                matches!(place.root, facts::PlaceRoot::Symbol(_))
+                            }))
                             || validation::is_closed_primitive_array_type(
                                 program,
                                 state.return_type,
@@ -1478,6 +1591,15 @@ pub(in crate::execution::terminal_unit) fn build(
         // value describes possible materialization, not a requirement to create
         // a second binding and bypass the exact parameter-return custody owner.
         Some(result)
+    } else if let Some(result) = returned_named_view(
+        program,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        &binders,
+    ) {
+        Some(result)
     } else if let Some(result) = returned_reference_leaf(program, state, structural_parameters) {
         Some(result)
     } else if let Some(root) = returned_value {
@@ -1611,7 +1733,11 @@ pub(in crate::execution::terminal_unit) fn build(
     };
     trace.phase("statement sequence: reference result");
     if let Some(result) = &mut structural_result
-        && super::super::reference_results::parts(program, state.return_type).is_some()
+        && (super::super::reference_results::parts(program, state.return_type).is_some()
+            || crate::execution::terminal_unit::types::borrowed_named_view(
+                program,
+                state.return_type,
+            ))
         && let [reference] = result.reference_sources.as_slice()
     {
         let binding = CheckedUnitStructuralResultBindingPlan {
@@ -1624,7 +1750,13 @@ pub(in crate::execution::terminal_unit) fn build(
             )
             .ok()?,
             binding_ordinal: u32::try_from(structural_count).ok()?,
-            type_identity: shapes.add_reference_type(state.return_type, &binders)?,
+            type_identity: if super::super::reference_results::parts(program, state.return_type)
+                .is_some()
+            {
+                shapes.add_reference_type(state.return_type, &binders)?
+            } else {
+                shapes.add_named_view_type(state.return_type, &binders)?
+            },
             multiplicity: Multiplicity::Affine,
         };
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {

@@ -1225,8 +1225,11 @@ pub fn structural_effect_leaf_observation_in(
             let result = operation.result.structural().ok_or(
                 OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
             )?;
-            if source.access != terminal_psi::StructuralAccess::MutableBorrow
-                || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+            if !matches!(
+                source.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::SharedBorrow
+            ) || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()

@@ -54,7 +54,10 @@ pub(super) fn validate_establishment(
         validation::reference_result_custody::source_parameter(&checked.typed, state)
     {
         parameter.position as usize == position
-            && parameter.access == CheckedStructuralAccess::MutableBorrow
+            && matches!(
+                parameter.access,
+                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
+            )
             && parameter.access == source.access
             && parameter.type_identity == source.type_identity
             && parameter.qualifications.is_empty()

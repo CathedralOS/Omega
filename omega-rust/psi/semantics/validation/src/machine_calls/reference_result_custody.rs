@@ -1180,10 +1180,37 @@ pub fn parts(
     Some((*referee, CheckedStructuralAccess::MutableBorrow))
 }
 
+/// The named referee beneath a `&'a V` shared-borrowed view, with constraint
+/// shells peeled exactly as `parts` spells its carrier. The referent's
+/// storage lives in the caller's frame like `parts`' loan — it just cannot be
+/// written through.
+pub fn shared_borrowed_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    let mut reference = reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                return (*access == language_semantics::ReferenceAccess::Shared
+                    && matches!(
+                        program.type_reference_table.type_reference(*referee),
+                        TypeReferenceNode::Named { .. }
+                    ))
+                .then_some((*referee, CheckedStructuralAccess::SharedBorrow));
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Mutable carrier custody must end exactly once.
 pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
-    if parts(program, reference).is_some() {
+    if parts(program, reference).is_some() || shared_borrowed_parts(program, reference).is_some() {
         Multiplicity::Affine
     } else {
         program.type_multiplicity(reference)
@@ -1191,7 +1218,13 @@ pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle)
 }
 
 pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State) -> Option<usize> {
-    parts(program, state.return_type)?;
+    let shared = if parts(program, state.return_type).is_some() {
+        false
+    } else if shared_borrowed_parts(program, state.return_type).is_some() {
+        true
+    } else {
+        return None;
+    };
     let StatementNode::Expression(expression) = program
         .statement_table
         .statements(state.statement_nodes)
@@ -1213,13 +1246,15 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
     }
     // Parameter `is_mutable` also describes `&mut` referent access; it is not
     // evidence of rebinding a pointer. Supported prefix operations preserve
-    // the ingress place and independently check their writes/call custody.
+    // the ingress place and independently check their writes/call custody. A
+    // shared-borrowed whole ingress may also be the `self` receiver — the
+    // `&'a self` loan and its referent storage are the same custody.
     program
         .state_parameters(state)
         .iter()
         .position(|parameter| {
-            parameter.symbol == path.symbol
-                && !parameter.is_self
+            (parameter.symbol == path.symbol || (shared && parameter.is_self))
+                && (shared || !parameter.is_self)
                 && !parameter.is_const
                 && program.normalized_type_identity(parameter.type_reference)
                     == program.normalized_type_identity(state.return_type)
