@@ -37,28 +37,29 @@ some run actually verified. The three predicates, in order:
 - **checks**: it passes checked semantics (parse, resolve, type, check, proof)
   and nothing native was attempted or succeeded.
 
-**52 of 66 core and typical language-spec sections have a fixture that runs
-on this Windows host; 5 at best compile; 5 at best check; none is without a
-verified fixture.** Across all 120 sections: 72 run, 10 compile, 13 check,
-25 have none.
+**53 of 66 core and typical language-spec sections have a fixture that runs
+on this Windows host; 7 at best compile; 2 at best check; none is without a
+verified fixture.** Across all
+120 sections: 73 run, 13 compile, 10 check,
+24 have none.
 
-Of the 2,061 pass fixtures, 154 run, 92 compile, 689 check, 925 fail some run
-and 201 are judged by neither route. On 2026-09-22 the same numbers were 5,
-90, 690, 1,073 and 201, and 4 of 66 sections ran; the difference is one wall,
-described below.
+Of the 2,030 pass fixtures, 158 run, 94 compile, 692 check, 892 fail some run
+and 194 are judged by neither route. At `e526ef3f54` on 2026-09-23 the same
+numbers were ,, 154, ,, 92 and ,; the movement since is the three
+repairs described below.
 
 | Measurement | Value | Reads as |
 | --- | --- | --- |
-| core+typical sections with a fixture that runs natively | 52/66 | the feature works end to end |
-| core+typical sections whose best fixture only compiles | 5/66 | a native artifact exists, never executed |
-| core+typical sections whose best fixture only checks | 5/66 | the language rule is understood, not realized |
-| all sections: runs / compiles / checks / none | 72 / 10 / 13 / 25 of 120 | breadth over the whole language |
-| pass fixtures: runs / compiles / checks / fails / unmeasured | 154 / 92 / 689 / 925 / 201 of 2,061 | depth: distinct fixtures |
-| elided fixtures judged by their dedicated owner: runs | 154/913 | the rooted native route with execution |
-| owner failures by stage | compile 752, other 4, run 3 | what fails, fails before execution |
+| core+typical sections with a fixture that runs natively | 53/66 | the feature works end to end |
+| core+typical sections whose best fixture only compiles | 7/66 | a native artifact exists, never executed |
+| core+typical sections whose best fixture only checks | 2/66 | the language rule is understood, not realized |
+| all sections: runs / compiles / checks / none | 73 / 13 / 10 / 24 of 120 | breadth over the whole language |
+| pass fixtures: runs / compiles / checks / fails / unmeasured | 158 / 94 / 692 / 892 / 194 of 2,030 | depth: distinct fixtures |
+| elided fixtures judged by their dedicated owner: runs | 158/913 | the rooted native route with execution |
+| owner failures by stage | compile 748, other 4, run 3 | what fails, fails before execution |
 | spec sections exercised by any pass fixture | 98/120 | the corpus's own coverage of the spec |
 | fail fixtures rejecting with their expected diagnostic | 1,158/1,158 | the compiler refuses what it should |
-| pass fixtures some roster runs | 2,031/2,061 | how much of the corpus is rostered at all |
+| pass fixtures some roster runs | 2,000/2,030 | how much of the corpus is rostered at all |
 | construct pairs that matter, covered by a fixture | 31/31 | combinations real samples spell |
 
 The distance, stated plainly: the compiler understands most of the language
@@ -96,13 +97,27 @@ fixture that exited through `Console::exit_process` stopped at "selected
 compiler intrinsic ... has no closed native catalog identity": std's Windows
 console leaves were compiler intrinsics whose only hosted realization was a
 kernel syscall, which Windows does not have. They now bind kernel32
-`ExitProcess` by DLL linkage, and two general gaps that spelling exposed
-closed with it: provider planning follows the machine filter's host fallback,
-so an unprofiled check plans the leaves it selected (`bec0f4a0c7`); and
-source-evaluated imports mint their native settlement on both compile
-routes, which no production route had done (`2268d68a02`). What remains
+`ExitProcess` by DLL linkage (`bec0f4a0c7`, `2268d68a02`). What remains
 Windows-specific: `write_byte` and `read_byte` are still intrinsics without
-a hosted realization, so the 5 fixtures that print stop there.
+a hosted realization, so the fixtures and samples that print stop there.
+
+Three host-neutral repairs followed on 2026-09-24. A scalar-result call with
+structural operands is planned and resolved by the candidate closure instead
+of refused at construction (`71687a843b`); a single-state attached machine
+with `&mut self` and a structural formal keeps its scalar graph, which a
+same-day widening had excluded as a side effect (`75decc76bc`); and the
+verifier treats a machine's shared `&[T]` input as established at entry
+(`cf7b8baa2b`). Together they move 4 owner fixtures to running and the
+remaining call-site failures onto their callees' own walls, which is why the
+state graph's result signature grew from 35 to 40.
+
+The next wall the same fixtures reach is in the Omega backend: the
+legalization replay reports `Selection(SourceCustodyMismatch)` for a
+multi-state caller that makes a scalar call with a slice operand into a
+scalar graph (`runtime_looping_value_return_exit`,
+`runtime_value_call_slice_len_guard_exit`); the console-exit-app item on
+TASKS.md records the same rejection. Its site is inside the legalization's
+scalar-graph input matching and is not yet attributed.
 
 Provenance: the owner verdicts are one release-profile run of the whole
 `canary_suite` at `e526ef3f54` (1,511 tests, 447 passed, 25 min on this
