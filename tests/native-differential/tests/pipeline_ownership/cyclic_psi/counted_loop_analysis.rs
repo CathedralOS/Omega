@@ -4,7 +4,7 @@ use super::{
     AnalysisKind, AnalysisManager, AnalysisProduct, VerifiedPsiOptimizationSession, countdown_unit,
     natural_countdown_parts,
 };
-use abstract_operations_to_abstract_operations::{
+use abstract_operations_to_abstract_operations::test_support::{
     CountedLoopAnalysisError, CountedLoopAnalysisSnapshot,
 };
 

@@ -165,7 +165,6 @@ pub(super) fn lower_terminator(
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if live.nonreturning
         && !matches!(operation, AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty())
     {
@@ -186,7 +185,7 @@ pub(super) fn lower_terminator(
             .map(TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
         if !plain_home_cleanup(function, live, structural_types, &actions)? {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok(actions)
     };
@@ -225,7 +224,10 @@ pub(super) fn lower_terminator(
             trivial_affine_locals,
             trivial_affine_discards,
         } => {
-            let result = function.result.structural().ok_or_else(invalid)?;
+            let result = function
+                .result
+                .structural()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let cleanup_actions = cleanup(live, trivial_affine_discards)?;
             let reference_bearing =
                 super::references::contains_reference(structural_types, result.structural_type);
@@ -238,8 +240,12 @@ pub(super) fn lower_terminator(
                     .parameters
                     .iter()
                     .find(|parameter| parameter.place == *source)
-                    .ok_or_else(invalid)?;
-                let placement = prepared.call_plan.result.as_ref().ok_or_else(invalid)?;
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                let placement = prepared
+                    .call_plan
+                    .result
+                    .as_ref()
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if parameter.access != StructuralAccess::Owned
                     || parameter.multiplicity == StructuralMultiplicity::Linear
                     || parameter.is_self
@@ -253,7 +259,7 @@ pub(super) fn lower_terminator(
                     || !trivial_affine_locals.is_empty()
                     || actual.shape != placement.shape
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 // The complete prepared call plan already fixes both placements.
                 // Returning the same value does not require identical input and
@@ -284,7 +290,7 @@ pub(super) fn lower_terminator(
                     || !trivial_affine_locals.is_empty()
                     || result.multiplicity != leaf.result.multiplicity
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 super::references::return_custody(
                     function,
@@ -293,7 +299,9 @@ pub(super) fn lower_terminator(
                     *source,
                     result,
                 )?;
-                let operation = leaf.operation.ok_or_else(invalid)?;
+                let operation = leaf
+                    .operation
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 let home =
                     super::aggregate_results::home(operation, &leaf.result, structural_types)?;
                 provenance.edges.push(*psi_edge);
@@ -303,7 +311,10 @@ pub(super) fn lower_terminator(
                     cleanup_actions,
                 });
             }
-            let home = live.structural_homes.get(source).ok_or_else(invalid)?;
+            let home = live
+                .structural_homes
+                .get(source)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if result.structural_type != home.structural_type()
                 || result.multiplicity != home.multiplicity()
                 || !result.qualifications.is_empty()
@@ -311,7 +322,7 @@ pub(super) fn lower_terminator(
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if reference_bearing {
                 super::references::return_custody(
@@ -336,13 +347,16 @@ pub(super) fn lower_terminator(
             scalar_type,
             cleanup_actions,
         } => {
-            let expected = function.result.scalar().ok_or_else(invalid)?;
+            let expected = function
+                .result
+                .scalar()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if *result != expected.value
                 || *scalar_type != expected.scalar_type
                 || (!cleanup_actions.is_empty()
                     && !plain_home_cleanup(function, live, structural_types, cleanup_actions)?)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let expression = if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
                 TargetScalarExpression::IeeeFloat(super::scalar_sources::source(
@@ -378,13 +392,13 @@ pub(super) fn lower_terminator(
             cleanup_actions,
         } => {
             if function.result != AbstractFunctionResult::Unit {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             // Current ownership validation owns the exact live frontier and
             // discard order. Native admission only proves each retained action
             // is a no-code discard of an available boundary result home.
             if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Return {
@@ -410,7 +424,7 @@ pub(super) fn lower_terminator(
                             || discard.path.starts_with(&binding.argument.path))
                 })
             }) {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let mut cleanup_actions = trivial_affine_discards
                 .iter()
@@ -424,7 +438,7 @@ pub(super) fn lower_terminator(
                     .map(TerminalAffineCleanupAction::DiscardResidual),
             );
             if !plain_home_cleanup(function, live, structural_types, &cleanup_actions)? {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {
@@ -474,7 +488,7 @@ pub(super) fn lower_terminator(
             {
                 TargetBooleanExpression::BlockParameter(*parameter)
             } else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             provenance
                 .edges
@@ -486,6 +500,6 @@ pub(super) fn lower_terminator(
                 when_false: successor(live, when_false)?,
             })
         }
-        _ => Err(invalid()),
+        _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }
 }

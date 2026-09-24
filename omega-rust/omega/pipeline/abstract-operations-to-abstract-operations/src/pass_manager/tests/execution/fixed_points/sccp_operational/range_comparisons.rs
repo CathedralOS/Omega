@@ -3,16 +3,17 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 use super::custody::{Case, assert_operational_custody};
+use crate::PsiOptimizationRule;
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     ProofRangeKind, range_constant_comparison_unit, range_pair_comparison_unit,
 };
-use crate::rules::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
-use crate::{
+use crate::rules::{
     IntegerEqualConstantRangeRule, IntegerEqualRangeConstantRule, IntegerEqualRangeRangeRule,
     IntegerLessOrEqualConstantRangeRule, IntegerLessOrEqualRangeConstantRule,
     IntegerLessOrEqualRangeRangeRule, IntegerLessThanConstantRangeRule,
-    IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule, PsiOptimizationRule,
+    IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule,
 };
+use crate::rules::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
 
 fn rule(rule: impl PsiOptimizationRule) -> optimization_core::OptimizationRuleIdentity {
     rule.contract().identity()

@@ -24,7 +24,7 @@ pub(in crate::selection) fn observe(
     else {
         return Err(invalid());
     };
-    let result = row.result.ok_or_else(invalid)?;
+    let result = row.result.ok_or_else(|| invalid())?;
     if result.scalar_type != ScalarType::Boolean
         || crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
             != Some((*case_tag, *tag_byte_offset))
@@ -58,7 +58,7 @@ pub(in crate::selection) fn observe(
             SelectedInstructionKind::Load32 {
                 byte_offset: *tag_byte_offset,
             },
-            builder.constraints.keys.load32.ok_or_else(invalid)?,
+            builder.constraints.keys.load32.ok_or_else(|| invalid())?,
             &[pointer, tag],
             provenance,
         )?;
@@ -77,7 +77,7 @@ pub(in crate::selection) fn observe(
             .iter()
             .find(|(stored, offset, _)| *stored == place && *offset == 0)
             .map(|(_, _, register)| *register)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         builder.emit(
             SelectedInstructionKind::ZeroExtendU32,
             builder.constraints.keys.copy_i64,

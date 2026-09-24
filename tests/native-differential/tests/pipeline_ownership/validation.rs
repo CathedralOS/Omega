@@ -86,10 +86,10 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             unreachable!()
         };
         std::mem::swap(when_nonzero, when_zero);
-        assert_eq!(
+        assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
-        );
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
+        ));
 
         let mut corrupted = staged.selected().plan().clone();
         corrupted.functions[0].virtual_registers[0].entry_fixed_view = None;
@@ -173,10 +173,10 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
             unreachable!()
         };
         when_nonzero.psi_edge = EdgeId::new(8_002).unwrap();
-        assert_eq!(
+        assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
-        );
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
+        ));
 
         let mut corrupted = staged.selected().plan().clone();
         let SelectedTerminator::ConditionalBranch { when_zero, .. } =
@@ -187,7 +187,7 @@ fn selected_cfg_validator_rejects_target_state_path_and_value_corruption() {
         when_zero.fuel[0].units += 1;
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
                 | Err(SelectedInstructionError::ProvenancePartitionMismatch { .. })
         ));
     }
@@ -424,28 +424,28 @@ fn staged_selection_custody_rejects_detached_environment_and_selected_plan() {
     // disagreement between the raw target and its abstract and optimized
     // owners. The structural replay fallback that once reported it as a
     // noncanonical proposal was removed with the whole-function forks.
-    assert_eq!(
+    assert!(matches!(
         validate_legalized_operations(
             &target,
             x86.optimized_target().optimized().plan(),
             x86.optimized_target().optimized().unit(),
             x86.legalized().plan().clone(),
         ),
-        Err(LegalizationError::SourceCustodyMismatch)
-    );
+        Err(LegalizationError::SourceCustodyMismatch { .. })
+    ));
 
     let mut unit = x86.optimized_target().optimized().unit().clone();
     unit.functions[0].blocks[0].nodes[0].effect.output += 1_000;
     unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
-    assert_eq!(
+    assert!(matches!(
         validate_legalized_operations(
             x86.optimized_target().target_operations(),
             x86.optimized_target().optimized().plan(),
             &unit,
             x86.legalized().plan().clone(),
         ),
-        Err(LegalizationError::SourceCustodyMismatch)
-    );
+        Err(LegalizationError::SourceCustodyMismatch { .. })
+    ));
 }
 
 #[test]

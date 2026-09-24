@@ -71,6 +71,11 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    twice.
 4. "Reuse your existing clone/worktree when present" — suspended workers
    resume on the same VM; a re-clone plus cold build is measured leg-time tax.
+   **At the start of EVERY leg the worker runs `git fetch origin` and merges
+   `origin/main` into its lane** (`git merge origin/main --no-edit`) before
+   touching code — a stale base hides already-landed fixes and guarantees
+   merge-check conflicts at drain; clerical conflicts get resolved, real
+   semantic conflicts get reported in the verdict instead of guessed at.
    Never `cargo clean` and never build `omega` from source for evidence:
    fetch the `swarm-binaries` release binary — a local
    `cargo build --release` is the single largest measured leg-time waste.
@@ -125,7 +130,12 @@ next settle actually wakes you.
 3. Scoped gate: `cargo check -p <touched crates>` +
    `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`; add
    `python3 tools/corpus_gate.py --filter <domain>` when the lane moved
-   e2e-visible behavior.
+   e2e-visible behavior. On a structural corpus diff, `--jev` annotates
+   each diff with a `record_safe` verdict — batch contamination and the
+   "unexplained"→"intended" conflation are the recorded failure modes, so
+   a low verdict re-asks each diff alone with the causal question before
+   you trust it (advisory only; `TYPESAFE_API_KEY` is already injected
+   org-wide, `OMEGA_JEV_OFFLINE=1` suppresses).
 4. `git push origin HEAD:main`. A rejection means main moved under you —
    re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
    checkout and never carry a wedged tree forward.

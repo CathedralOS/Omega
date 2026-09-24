@@ -720,16 +720,45 @@ impl TerminalExecution {
         else {
             return Err(invalid());
         };
+        let affine = self
+            .live_affine_frontier
+            .iter()
+            .any(|entry| entry.place == value.place && entry.path.is_empty());
+        // An established scalar case carries its tag and payload as one value
+        // rather than as runtime cells; it lands in the hole exactly as an
+        // `EstablishRecord` member of the same case type would.
+        if let Some(case) = self.scalar_case_values.get(&value.place).cloned() {
+            if case.structural_type != field_type {
+                return Err(invalid());
+            }
+            self.structural_cases.insert(
+                hole.clone(),
+                StructuralCaseContents {
+                    structural_type: case.structural_type,
+                    case: case.result_case,
+                },
+            );
+            for (payload_field, scalar) in case.fields {
+                self.structural_scalar_fields.insert(
+                    StructuralScalarRuntimeField {
+                        parent: hole.clone(),
+                        field: payload_field,
+                    },
+                    scalar,
+                );
+            }
+            self.scalar_case_values.remove(&value.place);
+            if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
+                return Err(invalid());
+            }
+            return Ok(OperationFlow::Advance);
+        }
         let child = self.structural_values.get(&value.place).cloned().ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(value.place),
         )?;
         if child.structural_type != field_type || !child.qualifications.is_empty() {
             return Err(invalid());
         }
-        let affine = self
-            .live_affine_frontier
-            .iter()
-            .any(|entry| entry.place == value.place && entry.path.is_empty());
         self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
         self.structural_values.remove(&value.place);
         if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {

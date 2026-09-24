@@ -3,13 +3,12 @@
 use arena::Arena;
 use checked_trees::{
     CheckedProofTerm, CheckedScalarBranchDestination, CheckedScalarExpressionPlans,
-    CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateGraph,
-    CheckedScalarStateTerminator, CheckedScalarSuccessor, CheckedStructuralAccess,
-    CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
-    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedScalarMachineGraph, CheckedScalarStateGraph, CheckedScalarStateTerminator,
+    CheckedScalarSuccessor, CheckedStructuralAccess, CheckedStructuralControlTransferPlan,
+    CheckedStructuralControlTransferSourcePlan, CheckedStructuralScalarArgumentPlan,
+    CheckedStructuralScalarArgumentSourcePlan,
 };
 use language_semantics::{Multiplicity, PermissionEventSource};
-use typed_trees::types::PrimitiveType;
 use typed_trees::{
     TypedTrees,
     expression::ExpressionNode,
@@ -424,96 +423,33 @@ fn arguments<'a>(
         let target_parameter_index = u32::try_from(rows.structural.len()).ok()?;
         let target_parameter = target.structural_parameters.get(rows.structural.len())?;
         if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(*actual)
-            && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+            && matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Range(_)
+            )
         {
-            // An exact builtin range over an immutable whole view parameter
-            // keeps its source and evaluated endpoints as a subslice transfer,
+            // An exact builtin range over an established immutable view keeps
+            // its source and evaluated endpoints as a subslice transfer,
             // matching the unit edge lane's admission; the replayed endpoint
             // bindings carry the range's builtin operator evidence.
-            let element_view = super::super::terminal_unit::calls::element_subslice::shape(
+            let subslice = super::super::terminal_unit::calls::view_subslice::admit_replayed(
                 program,
+                expressions,
                 source_machine,
                 source_state,
                 &source.structural_parameters,
                 formal.type_reference,
                 *actual,
                 successor.statement_ordinal as usize,
-            );
-            let is_element_view = element_view.is_some();
-            let (parameter_index, type_identity) = element_view.or_else(|| {
-                super::super::terminal_unit::calls::byte_subslice::shape(
-                    program,
-                    source_machine,
-                    source_state,
-                    &source.structural_parameters,
-                    formal.type_reference,
-                    *actual,
-                    successor.statement_ordinal as usize,
-                )
-            })?;
-            if type_identity != target_parameter.type_identity {
-                return None;
-            }
-            let source_parameter = program.state_parameters(source_state).get(
-                source
-                    .structural_parameters
-                    .get(parameter_index as usize)?
-                    .position as usize,
+                checked_trees::CheckedSubsliceSite::TransitionArgument {
+                    argument_ordinal: target_parameter.position,
+                },
             )?;
-            if !matches!(
-                program.expression_table.expression(indexed.collection),
-                ExpressionNode::Name(path)
-                    if path.symbol == source_parameter.symbol
-                        && path.head_symbol == source_parameter.symbol
-                        && program
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            == 1
-            ) {
+            if subslice.range.type_identity != target_parameter.type_identity {
                 return None;
-            }
-            for (endpoint, role) in [
-                (
-                    range.start,
-                    CheckedScalarExpressionRole::TransitionSubsliceStart {
-                        argument_ordinal: target_parameter.position,
-                    },
-                ),
-                (
-                    range.end,
-                    CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                        argument_ordinal: target_parameter.position,
-                    },
-                ),
-            ] {
-                if !endpoint.is_valid() {
-                    continue;
-                }
-                let (binding, value) = expressions.bound_expression_at(
-                    source.state,
-                    successor.statement_ordinal,
-                    role,
-                )?;
-                if binding.expression != endpoint
-                    || binding.destination.is_valid()
-                    || value.primitive_type() != Some(PrimitiveType::U64)
-                {
-                    return None;
-                }
             }
             rows.structural.push(CheckedStructuralControlTransferPlan {
-                source: if is_element_view {
-                    CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                        parameter_index,
-                        expression: *actual,
-                    }
-                } else {
-                    CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                        parameter_index,
-                        expression: *actual,
-                    }
-                },
+                source: subslice.transfer(),
                 target_parameter_index,
             });
             continue;

@@ -106,6 +106,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
+        | LoweredDirectExpression::IndexedPrimitiveRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }
         | LoweredDirectExpression::ElementViewRead { .. }

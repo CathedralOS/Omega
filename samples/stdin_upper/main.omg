@@ -33,7 +33,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state chk(&mut self, value: i32 [0..=255]) {
+    state chk(&mut self, value: i32) {
         let b: i32 in Wrapping = value as i32 in Wrapping;
         transition b == 46 {
             true -> fin()

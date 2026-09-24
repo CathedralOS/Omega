@@ -29,7 +29,7 @@ pub(in crate::selection::construction) fn block_entry(
             crate::selection::address_join_input::carrier_shape()
         } else if parameter.access == terminal_psi::StructuralAccess::Owned {
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
-                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?
+                .ok_or(SelectedInstructionError::custody())?
         } else {
             calling_conventions::ValueShape::integer(16, 8)
         };
@@ -65,7 +65,11 @@ pub(in crate::selection::construction) fn block_entry(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| invalid())?,
             &[pointer],
             SelectedInstructionProvenance::default(),
         )?;
@@ -87,7 +91,7 @@ pub(in crate::selection::construction) fn block_entry(
             });
             builder.emit(
                 SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
                 &[pointer, referent],
                 SelectedInstructionProvenance::default(),
             )?;

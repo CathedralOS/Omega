@@ -539,11 +539,20 @@ impl Context<'_> {
                 )
             }
             Scalar::StructuralParameterByteLength {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
             } => self
                 .byte_length(source, *parameter_position, path)
                 .unwrap_or(false),
+            // A view local's length is authored as `local.len` on the local's
+            // own bare name; it is observed whole, never through a path.
+            Scalar::StructuralParameterByteLength {
+                root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                path,
+            } => path.is_empty() && self.view_local_length(source, *symbol).unwrap_or(false),
             Scalar::StructuralParameterField { .. } => matches!(
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -553,6 +562,28 @@ impl Context<'_> {
             // Erased formals have no authored runtime expression to match.
             Scalar::ErasedParameter { .. } => false,
         }
+    }
+
+    fn view_local_length(
+        &self,
+        source: ExpressionHandle,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<bool> {
+        let (machine, state) = super::authored_state(self.checked, self.state).ok()?;
+        let receiver = validation::collection_length_receiver(
+            &self.checked.typed,
+            machine,
+            Some(state),
+            source,
+        )?;
+        Some(matches!(
+            self.checked.expression_table.expression(receiver),
+            ExpressionNode::Name(path)
+                if symbol.is_valid()
+                    && path.symbol == symbol
+                    && path.head_symbol == symbol
+                    && self.checked.expression_table.name_path_members(path.members).len() == 1
+        ))
     }
 
     fn byte_length(
@@ -814,7 +845,7 @@ impl Context<'_> {
                 || !matches!(
                     left.as_ref(),
                     Scalar::StructuralParameterByteLength {
-                        parameter_position,
+                        root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                         path: retained,
                     } if *parameter_position == position && paths_match(retained, &path)
                 )
@@ -843,7 +874,7 @@ impl Context<'_> {
                         && matches!(
                             left.as_ref(),
                             Scalar::StructuralParameterIndexedRead {
-                                parameter_position,
+                                root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                                 path: retained,
                                 index: retained_index,
                                 primitive_type,

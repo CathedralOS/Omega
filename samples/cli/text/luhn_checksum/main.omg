@@ -16,7 +16,7 @@ data Main {
     console: Binding<Console>;
     pause: [u8; 256];
     digits: [i32; 11];
-    r: i32 [-1..=10];
+    r: i32;
     par: i32 in Wrapping;
     d: i32 in Wrapping;
     sum: i32 in Wrapping;
@@ -54,8 +54,8 @@ machine Main::main(&mut self) reaches Console {
         self.d = self.d - 9;
         transition { _ -> accumulate() }
     }
-    // Re-guard so the decrement's direct edge proves `r - 1` back into
-    // [-1..=10] -- accumulate is only reachable with r >= 0, so always true.
+    // Re-guard so the decrement's direct edge proves `r - 1` cannot overflow
+    // -- accumulate is only reachable with r >= 0, so always true.
     state accumulate(&mut self) {
         self.sum = self.sum + self.d;
         transition self.r >= 0 {

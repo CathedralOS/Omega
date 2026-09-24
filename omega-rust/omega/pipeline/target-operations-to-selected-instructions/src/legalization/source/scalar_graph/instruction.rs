@@ -30,15 +30,14 @@ pub(super) fn project(
         call_node.operation = operation;
         let mut instruction = project(&call_node, optimized, native, plan, unit, custody)?;
         let LegalizedScalarInstructionKind::Call(call) = &mut instruction.kind else {
-            return Err(Error::SourceCustodyMismatch);
+            return Err(Error::custody());
         };
         call.source = origin;
         call.validate_source(&node.ownership)
-            .map_err(|_| Error::SourceCustodyMismatch)?;
+            .map_err(|_| Error::custody())?;
         return Ok(instruction);
     }
-    let (operation, result) =
-        scalar_graph_input::instruction(node).ok_or(Error::SourceCustodyMismatch)?;
+    let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     let kind = match &node.operation {
         AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             let (_, _, source, field) = scalar_graph_input::structural_fields::read(
@@ -46,7 +45,7 @@ pub(super) fn project(
                 &node.operation,
                 &plan.structural_types,
             )
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field }
         }
         AbstractOperation::IntegerStructuralField { .. }
@@ -56,7 +55,7 @@ pub(super) fn project(
                 &node.operation,
                 &plan.structural_types,
             )
-            .ok_or(Error::SourceCustodyMismatch)?;
+            .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field }
         }
         AbstractOperation::IntegerBitwiseAnd { left, right, .. } => {
@@ -135,7 +134,7 @@ pub(super) fn project(
                 result: result.clone(),
                 value: *value,
                 shape: scalar_graph_input::scalar_shape(value.scalar_type)
-                    .ok_or(Error::SourceCustodyMismatch)?,
+                    .ok_or(Error::custody())?,
             }
         }
         AbstractOperation::PrimitiveLocalStore {
@@ -347,7 +346,7 @@ pub(super) fn project(
         | AbstractOperation::IntegerLessOrEqual { .. } => {
             scalar_instructions::project_boolean_equal(node, optimized)?
         }
-        _ => return Err(Error::SourceCustodyMismatch),
+        _ => return Err(Error::custody()),
     };
     Ok(LegalizedScalarInstruction {
         operation,

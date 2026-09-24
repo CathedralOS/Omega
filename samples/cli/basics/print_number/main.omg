@@ -28,7 +28,7 @@ data Main {
     // one expression. The loop index stays Exact: its increment is guard-proven
     // by the `i < 5` edge into add().
     nums: [i32; 5] in Wrapping;
-    i: i32 [0..=5];
+    i: i32;
     elem: i32 in Wrapping;
     sum: i32 in Wrapping;
     out: [u8; 4] in Utf8;

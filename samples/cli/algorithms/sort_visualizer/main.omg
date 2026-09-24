@@ -23,7 +23,7 @@ requires
     valid_utf8(self);
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
-// FULLY EXACT -- no overflow domain anywhere: every counter carries a range and
+// FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 and
 // every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
 // where the loop-head guard sits several states upstream). The element values
 // (vj/vk/val) are plain i32: they are only copied and compared, never used in
@@ -34,14 +34,14 @@ data Main {
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
     line: [u8; 8] in Utf8;
-    i: i32 [0..=7];    // outer pass
-    j: i32 [0..=7];    // inner index
-    lim: i32;          // inner bound (shrinks each pass; folds bounded from i's range)
-    jp: i32 [0..=8];   // j + 1 (folds bounded from j's range)
+    i: i32;            // outer pass
+    j: i32;            // inner index
+    lim: i32;          // inner bound (shrinks each pass; folds bounded from step's guard on i)
+    jp: i32;           // j + 1 (folds bounded from the `j < lim` guard)
     vj: i32;           // arr[j]
     vk: i32;           // arr[jp]
-    ry: i32 [0..=8];   // render row
-    cx: i32 [0..=8];   // render column
+    ry: i32;           // render row
+    cx: i32;           // render column
     val: i32;          // bar length for the current row
     pause: [u8; 256];
 }
@@ -111,8 +111,10 @@ machine Main::main(&mut self) reaches Clock + Console {
     }
 
     // --- one bubble-sort pass, then loop back to re-render ---
+    // Both bounds of `i` sit on the edge into inner_init, so `7 - i` folds
+    // into [1..=7] (i only grows from 0, so the lower conjunct always holds).
     state step(&mut self) {
-        transition self.i < 7 { true -> inner_init() _ -> finish() }
+        transition self.i >= 0 && self.i < 7 { true -> inner_init() _ -> finish() }
     }
     state inner_init(&mut self) {
         self.lim = 7 - self.i;

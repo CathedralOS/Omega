@@ -19,27 +19,26 @@ pub(in crate::legalization) fn layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<ConventionalSumLayout, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let mut declarations = plan
         .structural_types
         .iter()
         .filter(|row| row.id == result.structural_type);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
+    let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let [empty, byte] = cases.as_slice() else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let [field] = byte.fields.as_slice() else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     if declarations.next().is_some()
         || !empty.fields.is_empty()
@@ -56,13 +55,13 @@ pub(in crate::legalization) fn layout(
             _ => false,
         }
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     calling_conventions::evaluate_conventional_sum_layout(
         &[],
         &[vec![], vec![ValueShape::integer(4, 4)]],
     )
-    .map_err(|_| invalid)
+    .map_err(|_| LegalizationError::custody())
 }
 
 pub(in crate::legalization) fn validate(
@@ -72,7 +71,6 @@ pub(in crate::legalization) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let (
         TargetUnitOperation::BoundarySettlement {
             psi_operation,
@@ -99,15 +97,15 @@ pub(in crate::legalization) fn validate(
         },
     ) = (target, source)
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let mut declarations = plan
         .boundary_machines
         .iter()
         .filter(|row| row.id == *boundary);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
+    let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     let terminal_psi::BoundaryMachineResult::Structural(signature) = &declaration.result else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     if declarations.next().is_some()
         || ![
@@ -146,7 +144,7 @@ pub(in crate::legalization) fn validate(
         || !expected_claims.is_empty()
         || !expected_receipts.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

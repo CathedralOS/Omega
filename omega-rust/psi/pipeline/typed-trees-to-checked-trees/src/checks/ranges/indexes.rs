@@ -4,6 +4,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 mod validation;
+pub(in crate::checks) use validation::ranges_seam_owns;
 
 use self::validation::check_indexed_access;
 pub(super) use self::validation::is_builtin_scalar_index;

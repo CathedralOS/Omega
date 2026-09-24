@@ -29,9 +29,7 @@ use crate::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::conformance_publication::publish_selected_conformance_applications;
 use crate::machine_lowering::debug_map::build_debug_map;
 use crate::machine_lowering::float_meanings::retain_float_meanings;
-use crate::machine_lowering::guarded_exits::{
-    GuardedExitAdmission, reject_unguarded_outcome_guarantees,
-};
+use crate::machine_lowering::guarded_exits::reject_unguarded_outcome_guarantees;
 use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
@@ -113,14 +111,6 @@ fn lower_terminal_selection(
     // custody); the earlier one fires first on a fully checked program only
     // when the typed frontend was dropped. terminal_psi_source pins the order.
     attached_unit::validate_direct_unit_parameter_custody(checked)?;
-    let exit_admission = GuardedExitAdmission::for_entry(checked, selection.machine);
-    reject_unguarded_outcome_guarantees(
-        checked,
-        &[selection.machine],
-        selection.machine,
-        &exit_admission,
-        false,
-    )?;
     let LoweredSelectedMachine {
         terminal: mut lowered,
         completion,
@@ -181,12 +171,14 @@ fn lower_terminal_selection(
         &source_machines,
         &mut lowered,
     )?;
+    // Guarded guarantees are admitted from the finished closure: whether the
+    // entry returns one exact payloadless case is a fact of its lowered body,
+    // whichever producer emitted it.
     reject_unguarded_outcome_guarantees(
         checked,
         &source_machines,
         selection.machine,
-        &exit_admission,
-        true,
+        &lowered.semantic_module,
     )?;
     publish_selected_conformance_applications(
         checked,

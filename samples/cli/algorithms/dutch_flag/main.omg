@@ -5,8 +5,8 @@
 //
 //   [White, Blue, Red]  ->  [Red, White, Blue]
 //
-// Written in the field-counter idiom (see bubble_sort): declared Exact
-// counter ranges + literal re-guard states dominating every runtime-indexed
+// Written in the field-counter idiom (see bubble_sort): plain Exact
+// counters + literal re-guard states dominating every runtime-indexed
 // access. The `confused(9x)` arms are the loop invariants a Dafny port would
 // write as `invariant 0 <= r <= w <= b <= 3` -- relational facts today's
 // prover doesn't carry around the loop, so they stand as honest runtime
@@ -39,10 +39,10 @@ data Color [copy] {
 data Main {
     console: Binding<Console>;
     items: [Color; 3];
-    r: u64 [0..=3];   // red prefix end: items[0..r] are Red
-    w: u64 [0..=3];   // white cursor: items[r..w] are White
-    b: u64 [0..=3];   // blue fence: items[b..3] are Blue
-    bp: u64 [0..=2];  // b - 1 lands bounded from the b > 0 guard
+    r: u64;   // red prefix end: items[0..r] are Red
+    w: u64;   // white cursor: items[r..w] are White
+    b: u64;   // blue fence: items[b..3] are Blue
+    bp: u64;  // b - 1: the b > 0 guard rules out underflow, a re-guard bounds it
     t: Color;
     pause: [u8; 256];
 }
@@ -129,11 +129,18 @@ machine Main::main(&mut self) reaches Console {
     }
 
     // Blue at the cursor: shrink the blue fence, swap the blue out to it.
-    // The decremented fence lands in `bp`, whose DECLARED range [0..=2]
-    // carries the index proof (the stored `b` reads back at its wider
-    // [0..=3] range).
+    // The decremented fence lands in `bp`; nothing bounds the stored `b`
+    // from above, so the literal re-guard `bp < 3` carries the index proof
+    // into blue_put (b <= 3 always holds, so the else arm never fires).
     state blue_swap(&mut self) {
         self.bp = self.b - 1;
+        transition self.bp < 3 {
+            true -> blue_put()
+            _ -> confused(99)
+        }
+    }
+
+    state blue_put(&mut self) {
         self.t = self.items[self.w];
         self.items[self.w] = self.items[self.bp];
         self.items[self.bp] = self.t;

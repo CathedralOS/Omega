@@ -108,7 +108,7 @@ pub use frontier::{
     VerifiedTerminalStructuralFrontiers,
 };
 use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_affine_root_type};
-pub(crate) use primitive_storage::indexed_store_shape;
+pub(crate) use primitive_storage::{indexed_read_shape, indexed_store_shape};
 use proof_recursion::validate_proof_recursive_components;
 pub(crate) use propositions::{
     proposition_observes_places, proposition_observes_unversioned_places,

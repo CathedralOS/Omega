@@ -25,13 +25,8 @@ fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
         .as_slice()
     else {
         panic!(
-            "one exact result-substituting call plan; arms={:?}; returns={:?}",
+            "one exact result-substituting call plan; arms={:?}",
             checked.facts.proof.outcome_specific_arms,
-            checked
-                .facts
-                .flow
-                .terminal_structural_returns
-                .payloadless_case_machines,
         )
     };
     let [checked_selection] = plan.selected_evidence.as_slice() else {

@@ -63,10 +63,10 @@ use optimization_core::OptimizationSelections;
 
 use crate::{OrderedRuleRegistry, RuleRegistryError};
 
-pub use catalog::{
-    ORDERED_PSI_PASSES, PSI_PASS_CATALOG, PsiPassCatalogEntry, PsiPassTargetApplicability,
-};
-pub use control_flow_cleanup::{
+pub use catalog::PSI_PASS_CATALOG;
+#[cfg(test)]
+#[cfg(test)]
+pub(crate) use control_flow_cleanup::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,
     NonAdjacentBlockMergeRule, SharedJumpFusionRule,
 };
@@ -74,8 +74,10 @@ pub use control_flow_cleanup::{
 pub(crate) use control_flow_cleanup::{
     PathQualifiedEmptyBlockThreadRule, UnreachablePrivateMachinePruneRule,
 };
-pub use copy_propagation::RedundantBlockParameterRule;
-pub use dead_scalar_elimination::{
+#[cfg(test)]
+pub(crate) use copy_propagation::RedundantBlockParameterRule;
+#[cfg(test)]
+pub(crate) use dead_scalar_elimination::{
     DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
 };
 #[cfg(test)]
@@ -85,14 +87,16 @@ pub(crate) use global_value_numbering::{
     WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
     WrappingShiftZeroCountIdentityRule,
 };
-pub use global_value_numbering::{
+#[cfg(test)]
+pub(crate) use global_value_numbering::{
     DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
     DominatorTotalScalarGvnRule, PhiTranslatedObligationFreeScalarGvnRule,
     PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
     PhiTranslatedProofCertifiedScalarGvnRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
     SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
 };
-pub use proof_check_elision::{
+#[cfg(test)]
+pub(crate) use proof_check_elision::{
     LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
@@ -106,7 +110,10 @@ pub use proof_check_elision::{
     LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
     ProofCertifiedDeadScalarEliminationRule,
 };
-pub use sparse_conditional_constant_propagation::{
+#[cfg(any(test, feature = "test-support"))]
+pub use sparse_conditional_constant_propagation::WrappingIntegerAddConstantsRule;
+#[cfg(test)]
+pub(crate) use sparse_conditional_constant_propagation::{
     BooleanEqualConstantsRule, BooleanNotConstantsRule, ExactIntegerAddConstantsRule,
     ExactIntegerCastConstantsRule, ExactIntegerDivideConstantsRule,
     ExactIntegerMultiplyConstantsRule, ExactIntegerRemainderConstantsRule,
@@ -121,12 +128,12 @@ pub use sparse_conditional_constant_propagation::{
     IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
 };
 
+#[cfg(any(test, feature = "test-support"))]
 pub fn built_in_psi_registry(
     selections: &OptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {
@@ -137,6 +144,7 @@ pub fn built_in_psi_registry(
 /// Construct at most one Psi pass registry from Psi's own target-neutral
 /// selection vocabulary. The unified-build entrance above is a migration
 /// adapter and performs only the exhaustive structural projection.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn built_in_psi_registry_for_selections(
     selections: &PsiOptimizationSelections,
 ) -> Result<OrderedRuleRegistry, RuleRegistryError> {

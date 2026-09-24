@@ -16,18 +16,18 @@ pub(super) fn emit(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     if operation.result.is_some()
         || (call.result_placement.is_some() && call.structural_result.is_none())
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     call.validate_source(&operation.ownership)
-        .map_err(|_| invalid())?;
-    let key = crate::selection::scalar_call_abi::unit_key(call, environment).ok_or_else(invalid)?;
+        .map_err(|_| SelectedInstructionError::custody())?;
+    let key = crate::selection::scalar_call_abi::unit_key(call, environment)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     crate::selection::scalar_call_abi::validate(
         function,
         source,
@@ -78,11 +78,13 @@ pub(super) fn emit(
                 )? {
                     continue;
                 }
-                let (_, input, site, scalar_type) = builder.resolve(*value).ok_or_else(invalid)?;
+                let (_, input, site, scalar_type) = builder
+                    .resolve(*value)
+                    .ok_or_else(|| SelectedInstructionError::custody())?;
                 if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
                     != Some(placement.shape)
                 {
-                    return Err(invalid());
+                    return Err(SelectedInstructionError::custody());
                 }
                 let output = if let Some((kind, key)) =
                     crate::selection::scalar_call_abi::outgoing_float_transfer(
@@ -93,7 +95,7 @@ pub(super) fn emit(
                     builder.registers[output.0 as usize].class = row(builder.catalog, key)?
                         .operands
                         .get(1)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(|| SelectedInstructionError::custody())?
                         .class;
                     builder.emit(
                         kind,
@@ -130,14 +132,14 @@ pub(super) fn emit(
         for location in &call
             .result_placement
             .as_ref()
-            .ok_or_else(invalid)?
+            .ok_or_else(|| SelectedInstructionError::custody())?
             .locations
         {
             let ValueLocation::Register {
                 value_byte_offset, ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             let register = super::structural_case::register(
                 builder,
@@ -156,7 +158,7 @@ pub(super) fn emit(
                 .instructions
                 .len()
                 .try_into()
-                .map_err(|_| invalid())?,
+                .map_err(|_| SelectedInstructionError::custody())?,
         ),
         operation: operation.operation,
         call: call.clone(),
@@ -228,7 +230,7 @@ pub(super) fn emit(
                     .iter()
                     .any(|row| row.operation == operation.operation)
             })
-            .ok_or_else(invalid)?
+            .ok_or_else(|| SelectedInstructionError::custody())?
             .id;
         let pointer = super::structural_case::register(builder, result.place, 0, 64, false)?;
         super::structural_case::memory(
@@ -244,7 +246,11 @@ pub(super) fn emit(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[pointer],
             Default::default(),
         )?;
@@ -255,7 +261,7 @@ pub(super) fn emit(
                 ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             super::structural_case::memory(
                 builder,

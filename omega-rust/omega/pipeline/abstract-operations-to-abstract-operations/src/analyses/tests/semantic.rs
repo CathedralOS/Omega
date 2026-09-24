@@ -2,10 +2,10 @@
 
 use super::fixtures::*;
 use crate::analyses::analysis_dependencies;
-use crate::{
-    AnalysisProduct, EffectClass, EffectKnowledge, ExecutableEdgeKnowledge, PlaceAliasRelation,
-    PlaceView, ScalarConstant, ScalarConstantSupport, compute_analysis,
+use crate::analyses::{
+    ExecutableEdgeKnowledge, PlaceAliasRelation, PlaceView, ScalarConstantSupport,
 };
+use crate::{AnalysisProduct, EffectClass, EffectKnowledge, ScalarConstant, compute_analysis};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
 use optimization_unit::*;

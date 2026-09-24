@@ -10,6 +10,7 @@
 // 74 = ZII array element nonzero; 75 = ZII nested field nonzero.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::Slot requires self <= 3;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
@@ -18,7 +19,7 @@ data Main {
     never: Msg;
     arr: [u32; 4];
     nested: Outer;
-    i: u64 [0..=3];
+    i: u64 in Slot;
 }
 machine Main::main(&mut self) {
     self.i = 2;

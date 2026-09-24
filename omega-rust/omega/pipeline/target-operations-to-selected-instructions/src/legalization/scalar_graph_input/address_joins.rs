@@ -63,20 +63,20 @@ pub(in crate::legalization) fn call_argument(
     parameter_ordinal: usize,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
-    let (block, parameter) = parameter(caller, semantic.place, plan).ok_or(invalid.clone())?;
-    let call_block = operation_block(caller, call_operation).ok_or(invalid.clone())?;
+    let (block, parameter) =
+        parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
+    let call_block = operation_block(caller, call_operation).ok_or(LegalizationError::custody())?;
     let referent = crate::structural_inputs::structural_reference_input::shape(
         parameter.structural_type,
         &plan.structural_types,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     let shape =
         calling_conventions::ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
         .get(parameter_ordinal)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if !semantic.path.is_empty()
         || semantic.access != StructuralAccess::SharedBorrow
         || destination.access != StructuralAccess::SharedBorrow
@@ -87,7 +87,7 @@ pub(in crate::legalization) fn call_argument(
         || !dominates(caller, block, call_block)
         || placement.shape != shape
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(target_operations::TargetStructuralArgument {
         place: semantic.place,

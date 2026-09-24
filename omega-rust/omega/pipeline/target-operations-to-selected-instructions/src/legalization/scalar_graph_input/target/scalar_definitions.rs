@@ -16,7 +16,6 @@ pub(super) fn validate(
     scalar_parameters: &[ScalarAbiValue],
     sources: &[(ValueId, Source)],
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let (
         TargetUnitOperation::ScalarDefinition {
             result_home,
@@ -40,7 +39,7 @@ pub(super) fn validate(
         },
     ) = (target, abstracted)
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     if psi_operation != expected_operation
         || source_type != expected_source_type
@@ -52,12 +51,12 @@ pub(super) fn validate(
         || result_home.scalar_type != ScalarType::Integer(*target_type)
         || result_home.shape != ValueShape::integer(target_type.bits() / 8, target_type.bits() / 8)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let mut definitions = sources.iter().filter(|(value, _)| value == source_value);
-    let definition = &definitions.next().ok_or(invalid.clone())?.1;
+    let definition = &definitions.next().ok_or(LegalizationError::custody())?.1;
     if definitions.next().is_some() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let matches = match (operand.as_ref(), definition) {
         (
@@ -115,27 +114,76 @@ pub(super) fn validate(
         _ => false,
     };
     if !matches {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }
 
 /// Scalar definitions retain ordered result homes; operands use prior homes.
+/// The scalar families a Unit body's `ScalarDefinition` replays through
+/// `observation`. The one list both the Unit operation replay and this
+/// module read, so a family the scalar graph legalizes cannot be admitted
+/// here and missed there.
+pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
+    matches!(
+        abstracted,
+        AbstractOperation::ByteSequenceLength { .. }
+            | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::ElementViewLength { .. }
+            | AbstractOperation::ElementViewRead { .. }
+            | AbstractOperation::IntegerEqual { .. }
+            | AbstractOperation::IntegerLessThan { .. }
+            | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::BooleanNot { .. }
+            | AbstractOperation::BooleanEqual { .. }
+            | AbstractOperation::SaturatingIntegerSubtract { .. }
+            | AbstractOperation::SaturatingIntegerAdd { .. }
+            | AbstractOperation::SaturatingIntegerDivide { .. }
+            | AbstractOperation::SaturatingIntegerRemainder { .. }
+            | AbstractOperation::WrappingIntegerAdd { .. }
+            | AbstractOperation::WrappingIntegerSubtract { .. }
+            | AbstractOperation::WrappingIntegerMultiply { .. }
+            | AbstractOperation::WrappingIntegerDivide { .. }
+            | AbstractOperation::WrappingIntegerRemainder { .. }
+            | AbstractOperation::WrappingIntegerShiftLeft { .. }
+            | AbstractOperation::WrappingIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerShiftLeft { .. }
+            | AbstractOperation::ExactIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerSubtract { .. }
+            | AbstractOperation::ExactIntegerMultiply { .. }
+            | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::ExactIntegerRemainder { .. }
+            | AbstractOperation::IntegerBitwiseAnd { .. }
+            | AbstractOperation::IntegerBitwiseOr { .. }
+            | AbstractOperation::IntegerBitwiseXor { .. }
+            | AbstractOperation::IntegerBitwiseNot { .. }
+            | AbstractOperation::IntegerExactCast { .. }
+    )
+}
+
 pub(super) fn observation(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
     checker: &Checker<'_>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let TargetUnitOperation::ScalarDefinition {
         result_home,
         expression,
     } = target
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let (operation, value, scalar_type) = match abstracted {
         AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerRemainder {
             psi_operation,
             result,
             scalar_type,
@@ -153,7 +201,7 @@ pub(super) fn observation(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
@@ -175,7 +223,7 @@ pub(super) fn observation(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
@@ -195,7 +243,7 @@ pub(super) fn observation(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*target_type))
         }
@@ -217,7 +265,7 @@ pub(super) fn observation(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
@@ -232,7 +280,7 @@ pub(super) fn observation(
                     value == operand && source.scalar_type() == ScalarType::Integer(*scalar_type)
                 })
             }) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
@@ -340,7 +388,7 @@ pub(super) fn observation(
                     })
                 })
             }) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
@@ -394,7 +442,7 @@ pub(super) fn observation(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             (*psi_operation, *result, ScalarType::Integer(*value_type))
         }
@@ -443,14 +491,14 @@ pub(super) fn observation(
             result,
             ..
         } => (*psi_operation, *result, ScalarType::Boolean),
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     if result_home.defining_operation != operation
         || result_home.source_value != value
         || result_home.scalar_type != scalar_type
         || Some(result_home.shape) != scalar_shape(scalar_type)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let matches = match (expression, scalar_type) {
         (
@@ -466,7 +514,7 @@ pub(super) fn observation(
         _ => false,
     };
     if !matches {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

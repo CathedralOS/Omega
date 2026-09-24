@@ -104,6 +104,19 @@ pub(crate) fn range_constraint_interval(
                         })
                     },
                 ),
+                // A DECLARED domain's predicates bound the place exactly as a
+                // bracketed range does: membership requires every predicate,
+                // and a place declared `in D` establishes D at every write. The
+                // derivation is shared with the index prover so a bound moved
+                // off the revoked suffix reaches both readers.
+                TypeConstraintNode::Domain(domain) => {
+                    super::domain_intervals::declared_domain_predicate_bounds(program, domain).map(
+                        |(minimum, maximum)| Interval {
+                            low: minimum.to_i64(),
+                            high: maximum.to_i64(),
+                        },
+                    )
+                }
                 _ => None,
             })
             .chain(range_constraint_interval(program, *base_type))

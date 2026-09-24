@@ -142,7 +142,7 @@ pub(super) fn establish_scalar_case(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishScalarCase {
         psi_operation,
         result,
@@ -208,7 +208,7 @@ pub(super) fn call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::CallStructural {
         psi_operation,
         result,

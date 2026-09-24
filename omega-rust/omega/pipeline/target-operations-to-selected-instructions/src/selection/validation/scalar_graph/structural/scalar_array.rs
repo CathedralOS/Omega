@@ -14,9 +14,8 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let (established, shape, stores) =
-        crate::selection::scalar_array_input::storage(source, row).ok_or_else(invalid)?;
+    let (established, shape, stores) = crate::selection::scalar_array_input::storage(source, row)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if shape.byte_size == 0 {
         // The semantic result remains in the exact source frontier. No address,
         // physical home or access exists; retain construction before the next
@@ -41,9 +40,11 @@ pub(super) fn establish(
     // exact operand provenance without introducing additional semantic work.
     let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
     for (element, scalar, offset, width) in stores {
-        let (_, value, _, actual) = replay.resolve(element).ok_or_else(invalid)?;
+        let (_, value, _, actual) = replay
+            .resolve(element)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         if actual != scalar {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         memory(
             replay,
@@ -58,7 +59,11 @@ pub(super) fn establish(
                 byte_offset: offset,
                 byte_size: width,
             },
-            replay.constraints.keys.store.ok_or_else(invalid)?,
+            replay
+                .constraints
+                .keys
+                .store
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[pointer, value],
             &SelectedInstructionProvenance {
                 values: vec![element],

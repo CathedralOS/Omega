@@ -55,6 +55,21 @@ pub(crate) mod boolean_control;
 pub(crate) mod case_payload_dispatch;
 pub(crate) mod selected_comparison;
 
+/// The next dense byte-sequence literal declaration ordinal in `places`.
+/// Terminal verification requires a machine's literal ordinals to be exactly
+/// `0..n`; a roster that also holds other private places (a composed body's
+/// constructor and join temporaries) must count only its literals.
+pub(crate) fn next_byte_sequence_literal_ordinal(
+    places: &[StructuralPlaceDeclaration],
+) -> Result<u32, LoweringError> {
+    let literals = places
+        .iter()
+        .filter(|place| matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }))
+        .count();
+    u32::try_from(literals)
+        .map_err(|_| LoweringError::Unsupported("literal declaration ordinal exceeds u32"))
+}
+
 /// Resolve a byte-sequence store's scalar source against the dense scalar
 /// namespace. A bound pure authored expression lowers through its
 /// `AssignmentValue` row; the SSA result of the scalar call this same

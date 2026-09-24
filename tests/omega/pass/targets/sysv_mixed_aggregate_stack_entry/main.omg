@@ -11,15 +11,18 @@ pub data Main { observed_integer: u64; observed_float: f64; }
 
 boundary machine Main::main(
     &mut self,
-    a0: u64 [0..=10],
-    a1: u64 [0..=10],
-    a2: u64 [0..=10],
-    a3: u64 [0..=10],
-    a4: u64 [0..=10],
-    a5: u64 [0..=10],
+    a0: u64,
+    a1: u64,
+    a2: u64,
+    a3: u64,
+    a4: u64,
+    a5: u64,
     pair: MixedPair,
     tail: f64
-) -> i32 {
+) -> i32
+requires
+    a0 <= 10 && a1 <= 10 && a2 <= 10 && a3 <= 10 && a4 <= 10 && a5 <= 10;
+{
     self.observed_integer = a0 + a1 + a2 + a3 + a4 + a5 + pair.integer;
     self.observed_float = pair.floating + tail;
     transition { _ -> (0) }

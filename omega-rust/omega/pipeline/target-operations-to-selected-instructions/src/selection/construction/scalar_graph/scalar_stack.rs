@@ -16,7 +16,7 @@ use semantic_vocabulary::IntegerType;
 fn address_type() -> Result<ScalarType, SelectedInstructionError> {
     IntegerType::new(IntegerSign::Unsigned, 64)
         .map(ScalarType::Integer)
-        .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)
+        .map_err(|_| SelectedInstructionError::custody())
 }
 
 fn address_register(
@@ -24,8 +24,13 @@ fn address_register(
     value: ValueId,
     site: ValueDefinitionSite,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
+    let id = VirtualRegisterId(
+        builder
+            .registers
+            .len()
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
+    );
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: address_type()?,
@@ -36,7 +41,7 @@ fn address_register(
                     .instructions
                     .len()
                     .try_into()
-                    .map_err(|_| invalid())?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
             source_value: value,
         },
@@ -50,7 +55,6 @@ pub(super) fn entry(
     source: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let accepts_stack_parameters =
         crate::selection::scalar_call_abi::accepts_stack_parameter_entry(source);
     for (parameter_index, parameter) in source.parameters.iter().enumerate() {
@@ -66,7 +70,7 @@ pub(super) fn entry(
             || scalar_shape(parameter.scalar_type) != Some(parameter.placement.shape)
             || source.call_plan.parameters.get(parameter_index) != Some(&parameter.placement)
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         let provenance = SelectedInstructionProvenance {
             values: vec![parameter.value],
@@ -76,12 +80,18 @@ pub(super) fn entry(
         builder.emit(
             SelectedInstructionKind::FrameAddress {
                 slot: FrameStorageSlotId::Incoming {
-                    parameter_index: parameter_index.try_into().map_err(|_| invalid())?,
+                    parameter_index: parameter_index
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
                     abi_stack_byte_offset,
                 },
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[address],
             provenance.clone(),
         )?;
@@ -107,11 +117,11 @@ pub(super) fn entry(
                 SelectedInstructionKind::Load64 { byte_offset: 0 },
                 builder.constraints.keys.load64,
             ),
-            _ => return Err(invalid()),
+            _ => return Err(SelectedInstructionError::custody()),
         };
         builder.emit(
             kind,
-            key.ok_or_else(invalid)?,
+            key.ok_or_else(|| SelectedInstructionError::custody())?,
             &[address, value],
             provenance.clone(),
         )?;
@@ -156,15 +166,18 @@ pub(super) fn argument(
     else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
-    let (_, input, site, scalar_type) = builder.resolve(value).ok_or_else(invalid)?;
+    let (_, input, site, scalar_type) = builder
+        .resolve(value)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if scalar_shape(scalar_type) != Some(placement.shape) {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let slot = OutgoingArgumentSlotId {
         role: selected_instructions::OutgoingArgumentSlotRole::Argument,
         operation: operation.operation,
-        argument_index: argument_index.try_into().map_err(|_| invalid())?,
+        argument_index: argument_index
+            .try_into()
+            .map_err(|_| SelectedInstructionError::custody())?,
     };
     builder.transport.slots.push(SelectedOutgoingArgumentSlot {
         id: slot,
@@ -183,7 +196,11 @@ pub(super) fn argument(
             slot: FrameStorageSlotId::Outgoing(slot),
             byte_offset: 0,
         },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[address],
         provenance.clone(),
     )?;
@@ -192,7 +209,11 @@ pub(super) fn argument(
             byte_offset: 0,
             byte_size: byte_size as u8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .store
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[address, input],
         provenance.clone(),
     )?;

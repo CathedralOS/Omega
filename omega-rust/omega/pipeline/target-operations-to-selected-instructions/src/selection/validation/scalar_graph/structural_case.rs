@@ -20,7 +20,6 @@ pub(super) fn validate(
     replay: &mut Replay<'_>,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let LegalizedScalarTerminator::StructuralCase {
         source: subject,
         layout,
@@ -28,7 +27,7 @@ pub(super) fn validate(
         ..
     } = &block.terminator
     else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     if cases.len() < 2
         || cases
@@ -38,7 +37,7 @@ pub(super) fn validate(
         || layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let slot = match subject {
         legalized_operations::LegalizedStructuralCaseSource::OperationResult {
@@ -74,7 +73,7 @@ pub(super) fn validate(
         .count()
         != 1
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let address = temporary(replay, subject.place(), 0, false)?;
     memory(
@@ -90,7 +89,11 @@ pub(super) fn validate(
             slot: FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         },
-        replay.constraints.keys.frame_address.ok_or_else(invalid)?,
+        replay
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[address],
         &Default::default(),
     )?;
@@ -105,7 +108,11 @@ pub(super) fn validate(
     )?;
     replay.check_instruction(
         SelectedInstructionKind::Load32 { byte_offset: 0 },
-        replay.constraints.keys.load32.ok_or_else(invalid)?,
+        replay
+            .constraints
+            .keys
+            .load32
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[address, tag],
         &Default::default(),
     )?;
@@ -142,7 +149,7 @@ pub(super) fn validate(
             when_nonzero,
         } = &replay.block.terminator
         else {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         };
         successor(&cases[ordinal], when_zero, slot, replay)?;
         let next = if ordinal + 2 == cases.len() {
@@ -151,14 +158,16 @@ pub(super) fn validate(
         } else {
             let expected_origin = selected_instructions::SelectedBlockOrigin::CaseDispatch {
                 source: block.id,
-                case_ordinal: (ordinal + 1).try_into().map_err(|_| invalid())?,
+                case_ordinal: (ordinal + 1)
+                    .try_into()
+                    .map_err(|_| SelectedInstructionError::custody())?,
             };
             let next = replay
                 .selected
                 .blocks
                 .iter()
                 .find(|candidate| candidate.origin == expected_origin)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             if when_nonzero.role != SelectedSuccessorRole::CaseDispatchContinuation
                 || when_nonzero.psi_edge != cases[ordinal + 1].edge
                 || when_nonzero.source_target != block.id
@@ -168,7 +177,7 @@ pub(super) fn validate(
                 || !when_nonzero.structural_bindings.is_empty()
                 || when_nonzero.structural_case.is_some()
             {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             }
             Some(next)
         };
@@ -179,7 +188,7 @@ pub(super) fn validate(
             || instruction.provenance != SelectedInstructionProvenance::default()
             || replay.block_cursor != replay.block.instructions.len()
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         if ordinal == 0 {
             original_cursor = Some(replay.block_cursor);
@@ -190,13 +199,13 @@ pub(super) fn validate(
             replay.instruction_cursor = replay
                 .instruction_cursor
                 .checked_add(1)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             replay.block = next;
             replay.block_cursor = 0;
         }
     }
     replay.block = original_block;
-    replay.block_cursor = original_cursor.ok_or_else(invalid)?;
+    replay.block_cursor = original_cursor.ok_or_else(|| SelectedInstructionError::custody())?;
     Ok(())
 }
 
@@ -206,7 +215,6 @@ fn successor(
     slot: LocalStorageSlotId,
     replay: &Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let destination = replay
         .selected
         .blocks
@@ -214,8 +222,11 @@ fn successor(
         .find(|candidate| {
             candidate.origin == selected_instructions::SelectedBlockOrigin::Source(expected.target)
         })
-        .ok_or_else(invalid)?;
-    let retained = actual.structural_case.as_ref().ok_or_else(invalid)?;
+        .ok_or_else(|| SelectedInstructionError::custody())?;
+    let retained = actual
+        .structural_case
+        .as_ref()
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if actual.role != SelectedSuccessorRole::Semantic
         || actual.psi_edge != expected.edge
         || actual.source_target != expected.target
@@ -229,11 +240,11 @@ fn successor(
         || retained.trivial_affine_discards != expected.trivial_affine_discards
         || retained.payloads.len() != expected.payloads.len()
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     for (actual, expected) in retained.payloads.iter().zip(&expected.payloads) {
         if actual.semantic != *expected {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         let parameter = replay.selected.virtual_registers.iter().find(|row| {
             matches!(row.origin, VirtualRegisterOrigin::BlockParameter {
@@ -253,7 +264,7 @@ fn successor(
             ) if parameter.id == id
                 && parameter.scalar_type == expected.parameter.scalar_type
                 && parameter.definition_site == Some(expected.parameter.definition_site) => {}
-            _ => return Err(invalid()),
+            _ => return Err(SelectedInstructionError::custody()),
         }
     }
     Ok(())

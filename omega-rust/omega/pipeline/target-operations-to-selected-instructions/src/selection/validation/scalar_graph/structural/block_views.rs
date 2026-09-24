@@ -25,7 +25,7 @@ pub(in crate::selection::validation) fn block_entry(
             crate::selection::address_join_input::carrier_shape()
         } else if parameter.access == terminal_psi::StructuralAccess::Owned {
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
-                .ok_or(SelectedInstructionError::SourceCustodyMismatch)?
+                .ok_or(SelectedInstructionError::custody())?
         } else {
             calling_conventions::ValueShape::integer(16, 8)
         };

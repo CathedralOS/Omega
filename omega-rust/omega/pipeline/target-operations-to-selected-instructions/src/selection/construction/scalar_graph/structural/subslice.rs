@@ -49,9 +49,9 @@ pub(super) fn create(
     }
     let integer =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
-    let (_, start_register, _, start_type) = builder.resolve(*start).ok_or_else(invalid)?;
-    let (_, end_register, _, end_type) = builder.resolve(*end).ok_or_else(invalid)?;
-    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
+    let (_, start_register, _, start_type) = builder.resolve(*start).ok_or_else(|| invalid())?;
+    let (_, end_register, _, end_type) = builder.resolve(*end).ok_or_else(|| invalid())?;
+    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
     if start_type != integer || end_type != integer || length_type != integer {
         return Err(invalid());
     }

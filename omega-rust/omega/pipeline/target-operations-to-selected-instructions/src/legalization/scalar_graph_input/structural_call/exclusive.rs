@@ -15,7 +15,6 @@ pub(super) fn argument(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     // An exclusive root may arrive through control flow rather than the machine
     // entrance. A non-entry block structural parameter carries the same custody
     // as an incoming parameter, and the caller's own parameter roster holds no
@@ -50,21 +49,21 @@ pub(super) fn argument(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == semantic.place)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let target_caller = native
         .functions
         .iter()
         .find(|function| function.machine == caller.machine)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let parameter = super::super::structural_parameters(target_caller)
-        .ok_or(invalid.clone())?
+        .ok_or(LegalizationError::custody())?
         .iter()
         .find(|parameter| parameter.place == semantic.place)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let types = &plan.structural_types;
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(source.structural_type, types)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
     let byte_field = crate::structural_inputs::structural_reference_input::bounded_byte_field_view(
         source,
         semantic,
@@ -100,11 +99,11 @@ pub(super) fn argument(
             }
             (Some((projected, offset)), None, None, None) => (projected, offset),
             (None, Some((offset, _)), None, None) => (destination.structural_type, offset),
-            _ => return Err(invalid),
+            _ => return Err(LegalizationError::custody()),
         };
     let referent =
         crate::structural_inputs::structural_reference_input::shape(structural_type, types)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
     let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
     let shape = if descriptor {
         ValueShape::borrowed_reference(16, 8)
@@ -147,7 +146,7 @@ pub(super) fn argument(
             .get(scalar_count)
             .is_none_or(|placement| placement.shape != shape)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(TargetStructuralArgument {
         place: semantic.place,
@@ -191,7 +190,6 @@ fn block_parameter_argument(
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use semantic_vocabulary::StructuralPlaceKind;
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let shape = ValueShape::borrowed_reference(16, 8);
     if declaration.access != StructuralAccess::MutableBorrow
         || !matches!(
@@ -229,7 +227,7 @@ fn block_parameter_argument(
             .get(scalar_count)
             .is_none_or(|placement| placement.shape != shape)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(TargetStructuralArgument {
         place: semantic.place,

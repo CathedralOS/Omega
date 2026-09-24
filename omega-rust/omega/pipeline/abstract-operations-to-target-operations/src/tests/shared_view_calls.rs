@@ -110,12 +110,10 @@ fn borrowed_scalar_call_into_a_serviceful_callee_still_refuses() {
     for function in &mut source.functions {
         function.published_service_ceiling = vec![semantic_vocabulary::ServiceId::new(1).unwrap()];
     }
-    assert_eq!(
+    assert!(matches!(
         lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-        Err(crate::LoweringError::UnsupportedControlFlow(
-            source.functions[0].machine
-        ))
-    );
+        Err(crate::LoweringError::UnsupportedControlFlow { machine, .. }) if machine == source.functions[0].machine
+    ));
 }
 
 #[test]

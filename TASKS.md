@@ -77,6 +77,62 @@ the complete product bar; focused successes below do not establish that baseline
   `in D` cannot satisfy a callee `x in D`, and stale-write invalidation
   does not reach contract admission.
 
+  Two more gaps, witnessed by the `pass/wire` + `pass/control_flow` leg:
+
+  - A parameter of a BUILD-TIME EVALUATED machine cannot carry `in D`. The
+    two `runtime_wire_policy_authored_*` policies keep `fuel: u64 [1..=128]`
+    because `fuel: u64 in Fuel128` makes it an authored `requires` premise and
+    `CompactBinary::plan -> CompactBinary::evaluate` then rejects with
+    "pre-check semantic evaluation has no checked invocation proof for that
+    premise", even though the only call passes the literal 128.
+  - A local suffix NARROWER than the field it reads has no target.
+    `copy_enum_cycle_edge_write_frame` reads `limit: u64 [0..=8]` into
+    `let index: u64 [0..=3]` and indexes a length-4 array; dropping the local
+    suffix loses the bound and the field's domain cannot supply it. That
+    field also cannot take a domain on its own: `self.output.limit = 3` does
+    not establish `u64::Limit` despite 3 satisfying the predicate.
+
+  A DOMAIN NOW CARRIES ITS BOUND, which is what the field and parameter
+  halves were waiting on. Three routes landed together: a predicate-only
+  domain is ESTABLISHED by proving its predicates at a call
+  (`400ecc0f5b`), a declared domain's predicates BOUND the place they
+  qualify so the index and exact-arithmetic readers see the interval the
+  bracketed suffix supplied (`c5a418183a`, `bdeb107345`), and a WRITE
+  establishes a predicate-only domain by satisfying it. A routed domain
+  keeps its provenance obligation in every one of them.
+
+  What migrates today, each with the corpus gate as witness: array element
+  types, case payloads, FIELDS whose bound a reader proves against
+  (`text/` and `data/record_pattern_*` moved once the interval reached
+  those readers), a signature-local parameter bound rewritten as
+  `requires`, a result suffix rewritten as `ensures` -- which carries facts
+  to the caller -- and a local nothing downstream needs.
+
+  What still does not:
+
+  - A LOCAL asserting a NARROWING its source does not guarantee.
+    `control_flow/copy_enum_cycle_edge_write_frame` reads a field bounded
+    at 8 into a local the original declared at 3 and indexes a length-4
+    array.
+  - A STATE PARAMETER, because the caller must establish membership at the
+    transition and a guard only discharges it when the guard's spelling
+    matches the predicate's. `structs/runtime_copy_sum_array_receiver_exit`
+    threads one index through six of them. The remaining asymmetry is that
+    the fact route carries numeric implication but the transition-guard
+    route compares spellings; closing that is the next lever, and it is
+    what would open the 212 parameter sites.
+  - A parameter of a BUILD-TIME EVALUATED machine: `in D` becomes an
+    authored `requires` premise and the pre-check has no checked invocation
+    proof (`wire/runtime_wire_policy_authored_*` keep `fuel`).
+  - A parameter feeding `as ... in D`: the mint route accepts only literals
+    or names whose DECLARED RANGE entails the facts, so it still reads the
+    syntax being removed.
+
+  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
+  the canary filter: the filter reported PASS for two fixtures the gate
+  showed moving checked -> rejected, because dedicated exact-native
+  coverage elides them from the canary run.
+
   Acceptance: Squalr's alignment machine returns plain `u64` with
   `ensures result >= 1 && result <= 8` or an explicit domain; its plain local
   retains those facts through calls and joins for division/remainder. An
@@ -2064,10 +2120,42 @@ syntax and other terminal services are not prerequisites.
   `ElementViewRead`, `ElementViewSubslice`, the catalog's `BorrowedSliceView`
   mapping, and `terminal-interpreter/src/element_views.rs`.
 
-  Two distinct source routes remain:
+  A view local (`as_slice` loan or `let tail = view[a..b]`) is an established
+  view place: `CheckedStorageRoot` roots its ranges, lengths and scalar-element
+  reads, every narrowing site shares `CheckedSubsliceSite`, and lowering
+  replays and emits each range through `view_ranges`/`view_subslice`. The
+  remaining routes are:
   - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
     and subslices but reports `unsupported statement kind` at local construction.
     Repair its checked producer and continue through native execution.
+  - Record-element access through a view (`entries[i].value`,
+    `let e: Entry = tail[0]`) has no Terminal operation: `ElementViewRead`
+    yields scalar elements only. `slices/runtime_subslice_dynamic_index_exit`
+    and its end/bounded/nested siblings stop at `state graph: terminator:
+    conditional successors: guard expression` in the callee state;
+    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
+    and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
+    structural call binding` on the element copy.
+  - Native legalization accepts only primitive-scalar element views:
+    `established_element_window` in
+    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/element_view.rs`
+    refuses a record element, so `runtime_subslice_range_len_exit`,
+    `runtime_subslice_bounded_range_len_exit`, `runtime_slice_len_transition_exit`
+    and `runtime_local_slice_len_comparison_value_exit` produce verified Terminal
+    Psi over `self.entries.as_slice()` and stop at native
+    `Selection(Legalization(SourceCustodyMismatch))` (`target/unit.rs` custody
+    check on `EstablishElementView`). The `i32` element counterparts
+    `runtime_slice_length_local_binding_exit` and
+    `runtime_slice_length_local_param_binding_exit` run natively.
+  - An element read whose bound is only a caller's guard
+    (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
+    `requires i <= 3`) lowers but has no read proof
+    (`OperationProofUnavailable`); a non-`u64` index
+    (`runtime_slice_indexed_read_exit`: `s[self.i]` with `i32`) is refused by
+    lowering's exact-`u64` index requirement.
+  - A range over a fixed-array field (`self.source[0..2]` in
+    `runtime_subslice_len_exit`) establishes no view to narrow and stops at
+    `statement sequence: local data: structural call binding`.
   - State forwarding passes Unit-graph admission but reports
     `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
     a reborrow place missing from the successor frontier. Complete that custody
@@ -2239,6 +2327,19 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **BORROWED-VIEW-CARRIER-ACCESS.** (new-scope) Terminal's
+  `ByteSequenceCarrier::BorrowedView` (and the checked
+  `CheckedByteSequenceCarrier::BorrowedView`) records no access, so a
+  `&'r mut [u8]` record field and a shared `&'r [u8]` one are the same
+  carrier after checking. de4ee7b382 admitted byte stores through any
+  borrowed-view field in `terminal-verifier/.../structural/byte_sequence_fields.rs`
+  on the strength of the checked planner's mint gate; the verifier cannot
+  check that, so the write admission is withdrawn and
+  `borrowed_view_member_calls::mutable_view_field_element_store_waits_for_carrier_access`
+  pins the refusal. Carry the view's access on both carriers (codec tag and
+  encoding spec included), admit the store only for a mutable view, and turn
+  that test back into `..._lowers_and_verifies`.
+
 - **LOWERING-ROUTE-CONSOLIDATION.** (new-scope) Checked-to-lowered Psi picks
   one of seven whole-module producers per machine
   (`machine_lowering/machine_dispatch.rs::lower_selected_machine`), and the
@@ -2253,7 +2354,15 @@ syntax and other terminal services are not prerequisites.
      the scalar call closure, chosen by `requires_shared_catalog`. The pure
      closure assembler drops each member module's structural types and
      refuses content effects across member calls, so fold it into the shared
-     catalog rather than widen it.
+     catalog rather than widen it. A multi-state scalar machine now has two
+     possible owners: the scalar graph and the Unit state graph
+     (`CheckedControlResultPlan::Scalar`). The state graph yields to an
+     existing scalar graph (`state graph: result signature: scalar owner
+     precedence`), but `scalar_targets::registered_structural_graph_target`
+     accepts only single-state graphs as Unit-call targets. So no Unit
+     closure can call a multi-state scalar graph that has a receiver. Let the
+     state graph own that machine, then drop the scalar graph's receiver
+     path.
   3. Forwarded dynamic Unit helpers retain no body plan, so the checked
      `dynamic_scalar_calls/forwarded_calls.rs::unit_helper_body` admits only
      a helper whose body is its one call, while scalar helpers retain
@@ -2281,18 +2390,41 @@ syntax and other terminal services are not prerequisites.
      composed internal calls through `ordinary_calls::prepare` (its member
      calls already do), then the boundary and scalar calls through the
      ordinary methods, and delete the composed call emitters.
-  5. Eight return families each have their own builder, roster and module
+  5. Seven return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
-     A dispatch probe skipped one family at a time over the c2l suite. The
-     general route already lowers every PayloadlessCase program identically,
-     including the exact-shape tests, and no test selects SelectedOperator.
-     PayloadlessCase cannot be deleted alone:
-     `payloadless_guarded_call_return.rs` lowers its callee through
-     `lower_payloadless_case_return_machine` and renumbers it by hand. Lower
-     that callee through the general route, then delete both. Families the
-     general route still refuses, with c2l tests only they lower:
-     StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall 12,
-     BoundaryScalar 8, Structural 6, TraitOperator 1.
+     Families the general route still refuses, with c2l tests only they
+     lower: StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall
+     12, BoundaryScalar 8, Structural 6, TraitOperator 1. The guarded
+     payloadless call (`returns/payloadless_guarded_call_return.rs`) lowers
+     its callee through the shared Unit closure but still owns its caller:
+     identity case arms collapsed to one call and return, the
+     selected-evidence rows on that call
+     (`proofs/evidence_lowering/guarded_call_evidence.rs`) and a proof-only
+     tail target. The callers have no general Unit plan: single-state callers
+     stop at `statement sequence: unsupported statement kind` (the transition
+     over the saved result), tail-use callers at `state graph: state
+     signature: contract shape unadmitted` (the tail's evidence `requires`).
+     Deleting it needs the composed route to dispatch over a call result whose
+     arms bind outcome-specific call evidence, at the current four fuel units
+     (`payloadless_case_return_source`).
+     The selected-operator return
+     (`returns/structural_scalar_return/selected_operator.rs`) is the only
+     lowering of a selected boundary operator returned over structural
+     operands. Its one fixture, `exercise` in
+     `providers/specialized_structural_fixed_operator_terminal_custody`, fails
+     checking on `requires Count == Count` ("unsupported selected `requires`
+     on a non-array, non-slice collection", since `dada8acc6b`), as does every
+     `structural_selected_operator` canary. Without that clause `exercise`
+     lowers through the family and verifies at four fuel units; without the
+     family it has no plan. The Unit route cannot take it:
+     `selected_operator.rs::build_selected_operator_structural_scalar_call`
+     looks up the realization in the primitive-store scalar-callee roster,
+     which never holds `IndexingProvider::index`, so the `let` form fails
+     too ("retained 0 exact Unit realization applications") since
+     `757b6f9164` dropped the roster reconciliation. Next: give Unit planning
+     the realization's structural-scalar-return row, plan a completing
+     application like the `let` form in `control/statement_sequence.rs`, then
+     delete the family and `boundary_operator_custody/structural_returns.rs`.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
      Widen state-graph admission to cover it rather than extending it. The
@@ -2304,11 +2436,53 @@ syntax and other terminal services are not prerequisites.
   8. There are nine structural-type namespaces, one `ShapeCollector` per
      plan roster, rejoined by hand (`finalize_execution.rs`,
      `attached_unit/bodies.rs::UnitPlans::with_staged`).
+  9. A composed `GuardedJumps` chain refuses a short-circuit (`&&`/`||`)
+     guard ("guarded jump chain has a short-circuit guard" in
+     `composed_control/state_graph/emission/state.rs`). A two-arm
+     `Conditional` already stages that guard through
+     `evaluation.branch_guard` and `case_payload_dispatch::plan`. Stage every
+     chain guard through that path and delete the refusal.
+     `arithmetic_and_data::enum_and_comparison_canaries::const_fold_{saturating,wrapping}_narrow_canary_runs`
+     stop there.
   The Terminal module literals already start from
   `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
   the replaced family and its recognizer are deleted; programs it lowered
   still lower and verify; the pass-canary and run-test groups show no new
   failures.
+
+- **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
+  now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
+  `ReturnScalar` with the ordinary binding or exit completion), and ordinary or
+  composed callers reach it through the scalar call lane. The 27 run canaries
+  that stopped at `state graph: result signature`, plus
+  `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
+  next missing capability. Repair the capability, not the fixture:
+  - `state graph: natural ranks` (12 run canaries, and
+    `termination/rank_range_state_call`): the ranking witness is
+    `(j, i) -> Nat::BoundedDistance`, a signed `n -> Nat::Descending`, or a
+    `remaining in 0..=9` rank range.
+    `checks/termination/ranking::proven_state_natural_ranks_with_call_frames`
+    derives only unsigned countdowns and slice lengths. The composed ranking
+    emitter has no computed (distance) rank value.
+  - `state graph: terminator: unsupported tail: single guarded transition`
+    (8, `Holder::run`, `Tally::get`): `transition true { true -> done(v) }` in a
+    returning state. No route has a checked fact that its false path is
+    unreachable.
+  - `state graph: prefix initializers: short-circuit boolean` (2,
+    `Store::check`), `guarded jump successors: receiver transfer` (1,
+    `runtime_tuple_transition_exit`), and `conditional successors` (2).
+  - A composed caller's scalar call to a projected receiver
+    (`self.store.pick(..)`) fails `composed_control/admission.rs` with "composed
+    scalar call structural actual lost its authored position" (1 run canary,
+    and the re-pinned fail canary `calls/value_call_param_effect_arm_rejected`).
+  - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
+    (`call operation: structural arguments: parameter access`).
+    `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
+    native target lowering (`UnsupportedControlFlow`, `borrowed_calls.rs`).
+  `termination/rank_range_state_call` also needs its entry's tail-call
+  transition (`_ -> self.count(5)`: statement sequence, unsupported statement
+  kind), and the Unit closure rejects its `count`/`step` recursion.
+  Acceptance: the run canaries named in the omission roster execute.
 
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
   is removed by `consume_terminal_self_receiver` before cleanup validation,
@@ -3248,16 +3422,21 @@ syntax and other terminal services are not prerequisites.
     guarantees independently of claim identity.
     `effects/structural_callback_reach/projected.omg` supplies a whole-array
     forwarding baseline, not extracted-projection or native closure.
-  - Complete aggregate field replacement: nonliteral aggregate sources,
-    nested sums, borrowed case observation and whole nominal receiver
-    replacement, including match-assigned values. The customer is
-    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`.
-    `execution/terminal_unit/structural_scalar_store/tests/record_literal_fields.rs`
-    pins rejection of nonliteral records and structural members; scalar-field
-    decomposition is not aggregate replacement. `borrowed_windows.rs`'s
-    `StoreStructuralField` repairs an opened hole, not general overwrites.
-    Coordinate **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
-    **NOMINAL-FIELD-FLOW**; do not dispose a moved value twice.
+  - Complete aggregate field replacement for nonliteral sources (whole
+    places, match-assigned values), fixed-index element holes
+    (`samples/cli/algorithms/dutch_flag`'s `self.items[0] = Color::White`)
+    and whole nominal receiver replacement. Constructions and structural call
+    results already replace a record field through `OpenWindows::replace`
+    (move-out, store, continuation discard of an affine displaced value) in
+    both ordinary and state-graph lowering. The customer is
+    `filesystem/windows_canonicalize_exit`'s stored `UnitResult`. Case-payload
+    reads of a replaced field then stop in lowering at `runtime field
+    observation requires a record-only field path`
+    (`data/runtime_case_reassignment_exit`,
+    `structs/deep_nested_write_paths_exit`): Terminal field observations admit
+    no case step. Coordinate **FILESYSTEM-RELEASE-CONTRACT**,
+    **WRITE-ONLY-BORROW** and **NOMINAL-FIELD-FLOW**; do not dispose a moved
+    value twice.
   - Complete borrowed local record calls and subsequent observations without
     the root-expression shape gate in
     `values/scalar/computations/structural_values.rs::is_record_value`.
@@ -4152,16 +4331,15 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 17 | `recast_views` | ProgramEntry/Terminal attachment |
   | 9 | `plan_laid_repeated_runtime` | claimed elsewhere |
   | 6 | `build_target_activation` | ProgramEntry/Terminal attachment |
-  | 3 | `private_joint_progress` | progress-premise propagation |
+  | 3 | `private_joint_progress` | undeclared premise retention (below) |
   | 3 | `subslice_runtime_end_bounds` | claimed elsewhere |
   | 2 | `service_operational_contracts` | OWNER_QUESTIONS.md Q6 |
-  | 2 | `source_evaluated_native_realization` | import custody, Linux dynamic leg |
+  | 2 | `source_evaluated_native_realization` | demanded-import custody no longer refuses |
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
   | 1 | `runtime_value_generics` | specialization identity |
-  | 1 | `package_compilation_inputs` | unresolved Call declaration selection |
-  | 1 | `literal_dispatch_unit_plan_stops` | omission stop moved earlier |
+  | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
   | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
 
   Read that table before picking work. 89 need a host and 23 --
@@ -4191,6 +4369,71 @@ but report the missing runtime leg explicitly; it does not close that host row.
   state-parameter conjunct shared the `&&`, and runtime ranking admission not
   recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
   attached machine, as the tail arrival its bare form was.
+
+  `private_joint_progress` keeps three, and they are ONE missing rule: a
+  private call component does not retain an UNDECLARED external requirement as
+  a premise. The four that pass do so because the caller DECLARES the
+  requirement it forwards -- `Main::b` declares `requires forwarded.scheduler
+  in WeakFair` and calls `wait`, which requires exactly that. The three that
+  fail call something whose requirement the caller does not declare, and the
+  contract checker rejects at `checks/contracts/calls.rs` before the progress
+  machinery in `checks/termination/progress/` can retain anything:
+
+  - `independent_external_premises_converge_as_a_set` calls `wait_backup`,
+    needing `forwarded.backup in WeakFair`; the test asserts the component
+    retains BOTH premises (`premises.len() == 2`).
+  - `recursively_projected_requirements_do_not_become_a_finite_promise` needs
+    a nested projection, `forwarded.next.scheduler in WeakFair`.
+  - `private_external_wrapper_can_be_solved_after_the_cycle` compiles but
+    `Main::a` retains `NoGuarantee` where the test expects the external
+    premise with the caller's parameter root.
+
+  `WeakFair` is ROUTED (`established by SchedulerAdmission::grant`), so this is
+  not the predicate-only gap; the requirement genuinely cannot be proved inside
+  the component and is meant to become the component's own published premise
+  for its caller to discharge. An independent survey of every
+  `TransitionTargetNode::Named` reader reached the same place: no
+  ProgressProfile-aware rule exists under `checks/contracts/`, and `FactOrigin`
+  has no premise-derived variant. The three tests are the acceptance
+  specification; the soundness question to settle first is who discharges a
+  retained premise at the component's boundary.
+
+  `source_evaluated_native_realization` keeps two, both NEGATIVE tests that
+  now pass their subject instead of refusing it.
+  `rejected_native_reentry_returns_the_exact_dynamic_interpreter` and
+  `retained_source_evaluated_import_realizes_exact_macho_image` each realize a
+  program whose boundary import has no supplied execution, with `imports: &[]`,
+  and each expects the refusal
+  `retained_native_product.rs`'s "demanded import `...` has no supplied
+  execution and stack custody" still spells. That guard scans `exact_plans`,
+  so an empty plan set makes it unreachable: the demand is no longer reaching
+  settlement rather than the check being wrong. Making the import actually
+  CALLED (`include_marker: true`) does not restore the refusal, so it is not
+  the fixture eliding an uncalled binding. Look upstream of the guard: the
+  question is why provider planning no longer produces an exact plan for that
+  import, not why the scan finds nothing. Owner: `native-realization` and
+  provider planning; unclaimed at the time of writing.
+
+  `package_compilation_inputs` keeps one, diagnosed: the preliminary
+  finalization allowance is keyed on SOURCE PROVENANCE, not on whether the
+  selection belongs to a dependency. `accepted_package_uefi_binding_selects_
+  exact_ordinary_schema` compiles semantic-only with std supplied as an
+  ordinary PACKAGE, and `source/library/std/targets/uefi_x86_64/handoff.omg`
+  then carries origin `User`, so `finalize_checked_authored_selections_with_
+  policy`'s `allow_unresolved_toolchain` does not cover its late-bound
+  `CheckedCall` and checking rejects with "authored Call declaration selection
+  occurrence ... remained unresolved". The same file bundled by the toolchain
+  is allowed. A targetless compile cannot resolve a UEFI handoff call either
+  way, so the test's expectation -- that a package-owned std behaves as the
+  bundled one -- is the direction the samples already take
+  (`builder.depend(Source::Path { location: ".../std" })`).
+
+  The fix needs a key that does not exist at that point: `source::SourceOrigin`
+  has only `User` and `Toolchain`, and "belongs to a dependency package" would
+  have to reach Psi's finalization. Broadening the allowance to every
+  late-bound `CheckedCall` instead would stop the gate catching an unresolved
+  call in the ROOT's own code. Owner: the selection/package-review lane, since
+  the choice is which key the allowance uses, not language surface.
 
   `module_machine_indices` keeps one: a MUTABLE RECAST TO A FOREIGN
   PACKAGE'S DOMAIN. In

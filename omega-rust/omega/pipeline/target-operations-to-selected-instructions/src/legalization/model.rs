@@ -83,8 +83,12 @@ impl LegalizationValidationReceipt {
 pub enum LegalizationError {
     /// The raw target, abstract, and optimization-unit custody disagree, or a
     /// node's own payload violates its representation. This names a producer
-    /// or consumer defect, never a missing lowering.
-    SourceCustodyMismatch,
+    /// or consumer defect, never a missing lowering. `site` is the check that
+    /// refused (`LegalizationError::custody`), since some two hundred checks
+    /// share this spelling and the variant alone cannot say which one fired.
+    SourceCustodyMismatch {
+        site: &'static std::panic::Location<'static>,
+    },
     /// The node is well formed, but this stage has no legal scalar instruction
     /// for its operation family at its scalar type (for example signed
     /// saturating arithmetic, whose only legalized kinds are u64). This is an
@@ -124,3 +128,13 @@ impl std::fmt::Display for LegalizationError {
 }
 
 impl std::error::Error for LegalizationError {}
+
+impl LegalizationError {
+    /// A custody disagreement raised at the caller's source location.
+    #[track_caller]
+    pub fn custody() -> Self {
+        Self::SourceCustodyMismatch {
+            site: std::panic::Location::caller(),
+        }
+    }
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Local Git protocol tests; no GitHub access or non-standard Python packages."""
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 import contextlib
@@ -204,6 +205,45 @@ class LandingTests(unittest.TestCase):
                                      "--board-update")
         self.assertEqual(published["state"], "published")
         self.assert_remote(board)
+
+    def test_publish_refuses_unrecorded_trusted_surface_change(self):
+        sites_path = "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface/sites.rs"
+        bound_path = "omega-rust/psi/semantics/terminal-verifier/src/validation/rule.rs"
+        def record(contents):
+            digest = hashlib.sha256(contents.encode("utf-8")).hexdigest()
+            sites = self.a / sites_path
+            sites.parent.mkdir(parents=True, exist_ok=True)
+            sites.write_text(
+                "ImplementationSite {\n"
+                f'    path: "{bound_path}",\n'
+                f'    sha256: Some("{digest}"),\n'
+                "    inventory_machinery: false,\n"
+                "},\n", encoding="utf-8")
+        def write(contents):
+            bound = self.a / bound_path
+            bound.parent.mkdir(parents=True, exist_ok=True)
+            bound.write_text(contents, encoding="utf-8")
+        claim = self.claim(self.a)
+        write("fn rule() {}\n")
+        record("fn rule() {}\n")
+        self.git(self.a, "add", "-A")
+        self.git(self.a, "commit", "-m", "pinned rule")
+        pinned = self.git(self.a, "rev-parse", "HEAD")
+        self.assertEqual(self.publish(self.a, claim, pinned)["state"], "published")
+        claim = self.claim(self.a)
+        write("fn rule() { relaxed() }\n")
+        self.git(self.a, "add", "-A")
+        self.git(self.a, "commit", "-m", "unrevalidated relaxation")
+        drifted = self.git(self.a, "rev-parse", "HEAD")
+        refusal = self.publish(self.a, claim, drifted, expected=1)
+        self.assertIn(bound_path, str(refusal))
+        self.assert_remote(pinned, claim["claim"])
+        record("fn rule() { relaxed() }\n")
+        self.git(self.a, "add", "-A")
+        self.git(self.a, "commit", "-m", "revalidated relaxation")
+        revalidated = self.git(self.a, "rev-parse", "HEAD")
+        self.assertEqual(self.publish(self.a, claim, revalidated)["state"], "published")
+        self.assert_remote(revalidated)
 
     def test_board_update_flag_is_publish_only(self):
         self.run_landing(self.a, "enqueue", "--owner", "A", "--board-update",

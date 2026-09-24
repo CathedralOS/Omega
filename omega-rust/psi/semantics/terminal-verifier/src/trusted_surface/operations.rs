@@ -289,6 +289,25 @@ static OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
         TS_PRIMITIVE_PLACE,
     ],
 );
+static OP_INDEXED_PRIMITIVE_READ: TrustedSurfaceEntry = entry(
+    "operation:indexed-primitive-read",
+    "a readable live root, a canonical path resolving to a declared fixed array of primitive scalars, a dominating u64 index, and an index-within-extent obligation",
+    "the read observation; the index-within-declared-extent obligation is reconstructed from the module's array shape",
+    &[
+        "fact:structural-effect-observation",
+        "owner:operation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_PRIMITIVE_STORAGE,
+        TS_PRIMITIVE_PLACE,
+    ],
+);
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-scalar-field-store",
     "a validated scalar field store with a range obligation exactly when its destination declaration is a bounded integer",
@@ -1070,6 +1089,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_CASE_LEAF_COPY,
     OP_WRITE_ONLY_PRIMITIVE_STORE,
     OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
+    OP_INDEXED_PRIMITIVE_READ,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
     OP_MOVE_STRUCTURAL_FIELD,
     OP_STORE_STRUCTURAL_FIELD,
@@ -1156,6 +1176,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::WriteOnlyIndexedPrimitiveStore => {
             &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE
         }
+        OperationSemanticTag::IndexedPrimitiveRead => &OP_INDEXED_PRIMITIVE_READ,
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
         OperationSemanticTag::MoveStructuralField => &OP_MOVE_STRUCTURAL_FIELD,
         OperationSemanticTag::StoreStructuralField => &OP_STORE_STRUCTURAL_FIELD,

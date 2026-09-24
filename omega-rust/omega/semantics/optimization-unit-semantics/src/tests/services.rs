@@ -327,6 +327,50 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
 }
 
 #[test]
+fn installation_dependency_keeps_fixed_and_declared_reach_concrete() {
+    // wiki/spec/terminal-psi/boundary_calls.md: a boundary's published ceiling
+    // is its fixed nominal service united with the installation bound, and the
+    // fixed service stays concrete when installation substitutes the bound.
+    // Each reachable machine's declared reach is concrete as well.
+    let root = id(701, ServiceId::new);
+    let middle = id(702, ServiceId::new);
+    let mut spec_shape = installation_root_service_unit();
+    spec_shape.boundary_machines[0].fixed_service_reach = vec![root];
+    refresh_root_service_reach(&mut spec_shape).expect("fixed service plus bound replays");
+    refresh_identity(&mut spec_shape);
+    assert_eq!(spec_shape.root_service_reach.concrete, [root]);
+    validate_psi_optimization_unit(&spec_shape).expect("fixed service stays concrete");
+
+    let mut narrow_bound = spec_shape.clone();
+    narrow_bound.root_service_reach.installation_dependencies[0].upper_bound = vec![root, middle];
+    refresh_identity(&mut narrow_bound);
+    assert_eq!(
+        validate_psi_optimization_unit(&narrow_bound),
+        Err(
+            OptimizationUnitValidationError::RootInstallationReachBoundaryMismatch(
+                narrow_bound.boundary_machines[0].id
+            )
+        ),
+        "the ceiling must be exactly the fixed service united with the bound"
+    );
+
+    let mut declared = spec_shape.clone();
+    declared.functions[0].declared_service_reach = vec![root, middle];
+    refresh_root_service_reach(&mut declared).expect("declared reach replays");
+    refresh_identity(&mut declared);
+    assert_eq!(declared.root_service_reach.concrete, [root, middle]);
+    validate_psi_optimization_unit(&declared).expect("declared reach stays concrete");
+
+    let mut erased = declared.clone();
+    erased.functions[0].declared_service_reach.clear();
+    refresh_identity(&mut erased);
+    assert!(matches!(
+        validate_psi_optimization_unit(&erased),
+        Err(OptimizationUnitValidationError::RootConcreteServiceReachMismatch { .. })
+    ));
+}
+
+#[test]
 fn replays_exact_root_service_reach_shape_and_installation_dependencies() {
     let baseline = installation_root_service_unit();
     validate_psi_optimization_unit(&baseline)

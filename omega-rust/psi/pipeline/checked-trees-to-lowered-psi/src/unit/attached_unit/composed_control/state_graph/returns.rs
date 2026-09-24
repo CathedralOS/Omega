@@ -1,4 +1,7 @@
-//! Ordinary structural graph results, with exact authored field custody.
+//! Ordinary structural graph results, with exact authored field custody, and
+//! primitive scalar results. A scalar-result state completes with the
+//! ordinary single-state completion: the binding its final expression's
+//! operation produced, or its value-only exit roster (`validate_scalar`).
 use super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralFieldType, StructuralResultDeclaration,
 };
@@ -8,7 +11,7 @@ use super::super::super::{
     StructuralPlaceKind, StructuralTypeShape, TerminalMachineResult, ValueDeclaration,
     allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
     lookup_domain_id, lookup_type_id, obligation_id, place_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types,
+    validate_direct_parameter_types, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
@@ -27,6 +30,21 @@ pub(super) fn signature_matches(
                 .type_reference(source.return_type),
             checked_trees::types::TypeReferenceNode::Unit
         ),
+        // A primitive result carries no refinement beyond an arithmetic
+        // policy: any other one would owe a result guarantee the graph does
+        // not publish.
+        CheckedControlResultPlan::Scalar { primitive_type } => {
+            checked.primitive_type_reference(source.return_type) == Some(*primitive_type)
+                && (matches!(
+                    checked
+                        .type_reference_table
+                        .type_reference(source.return_type),
+                    checked_trees::types::TypeReferenceNode::Named { .. }
+                ) || validation::is_arithmetic_policy_only_integer(
+                    &checked.typed,
+                    source.return_type,
+                ))
+        }
         CheckedControlResultPlan::Structural(result) => {
             // A borrowed `&[T]` view result names the peeled slice carrier in
             // its identity — the contents live in the caller's frame, so the
@@ -272,6 +290,79 @@ pub(super) fn validate_case(
     Ok(())
 }
 
+/// Rejoin a scalar-result state's completion with its authored tail. An exit
+/// roster is the ordinary single-state one and must begin exactly at this
+/// state's terminator. A binding completion returns the final expression
+/// through the operation that binds it (whose value `body::validate`
+/// rejoins), or a final name through the earlier immutable binding it reads.
+pub(super) fn validate_scalar(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    completion: &checked_trees::CheckedScalarReturnPlan,
+    ordinal: usize,
+) -> Result<(), LoweringError> {
+    let CheckedControlResultPlan::Scalar { primitive_type } = plan.result else {
+        return unsupported("scalar graph return has no scalar result signature");
+    };
+    let binding = match completion {
+        checked_trees::CheckedScalarReturnPlan::Exits(exits) => {
+            if exits.primitive_type != primitive_type
+                || crate::unit::attached_unit::scalar_completion::control::validate_exits(
+                    checked,
+                    state.state,
+                    exits,
+                )? != ordinal
+            {
+                return unsupported("scalar graph exits drifted from their authored tail");
+            }
+            return Ok(());
+        }
+        checked_trees::CheckedScalarReturnPlan::Binding(binding) => binding,
+    };
+    let statements = checked.statement_table.statements(source.statement_nodes);
+    let (Some([checked_trees::statement::StatementNode::Expression(expression)]), true) = (
+        statements.get(ordinal..),
+        binding.primitive_type == primitive_type,
+    ) else {
+        return unsupported("scalar graph return has no final authored expression");
+    };
+    let mut producers = state.operations.iter().filter(|operation| {
+        matches!(operation,
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == binding)
+    });
+    if producers.next().is_none() || producers.next().is_some() {
+        return unsupported("scalar graph return has no unique producer");
+    }
+    if binding.statement_index as usize == ordinal {
+        return Ok(());
+    }
+    let Some(checked_trees::statement::StatementNode::LocalData(local)) =
+        statements.get(binding.statement_index as usize)
+    else {
+        return unsupported("scalar graph return name has no immutable binding");
+    };
+    let ExpressionNode::Name(name) = checked.expression_table.expression(*expression) else {
+        return unsupported("scalar graph return reads neither its producer nor a local");
+    };
+    if local.is_mutable
+        || !local.symbol.is_valid()
+        || name.symbol != local.symbol
+        || name.head_symbol != local.symbol
+        || checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+        || checked.primitive_type_reference(local.type_reference) != Some(binding.primitive_type)
+    {
+        return unsupported("scalar graph return name differs from its exact binding");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -415,8 +506,16 @@ pub(super) fn result(
     catalogs: &mut catalogs::ComposedCatalogs,
     places: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<TerminalMachineResult, LoweringError> {
-    let CheckedControlResultPlan::Structural(result) = plan else {
-        return Ok(TerminalMachineResult::Unit);
+    let result = match plan {
+        CheckedControlResultPlan::Unit => return Ok(TerminalMachineResult::Unit),
+        CheckedControlResultPlan::Scalar { primitive_type } => {
+            return Ok(TerminalMachineResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: value_id(allocate_dense(&mut catalogs.next_value)?),
+                scalar_type: terminal_scalar_type(*primitive_type)?,
+            }));
+        }
+        CheckedControlResultPlan::Structural(result) => result,
     };
     let place = place_id(allocate_dense(&mut catalogs.next_place)?);
     places.push(StructuralPlaceDeclaration {

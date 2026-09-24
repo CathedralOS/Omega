@@ -37,7 +37,7 @@ pub(super) fn validate_tails(
                 || !matches!(&block.nodes[position + 1].operation,
                         AbstractOperation::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty()))
             {
-                return Err(LegalizationError::SourceCustodyMismatch);
+                return Err(LegalizationError::custody());
             }
         }
     }
@@ -49,14 +49,13 @@ pub(in crate::legalization) fn hosted_realization(
     machine: MachineId,
     operation: OperationId,
 ) -> Result<BoundaryRealization, LegalizationError> {
-    let invalid = LegalizationError::SourceCustodyMismatch;
     let mut functions = native
         .functions
         .iter()
         .filter(|function| function.machine == machine);
-    let function = functions.next().ok_or(invalid.clone())?;
+    let function = functions.next().ok_or(LegalizationError::custody())?;
     if functions.next().is_some() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let mut result = None;
     let mut inspect = |row: &TargetUnitOperation| -> Result<(), LegalizationError> {
@@ -68,7 +67,7 @@ pub(in crate::legalization) fn hosted_realization(
             && *psi_operation == operation
             && result.replace(*realization).is_some()
         {
-            return Err(invalid.clone());
+            return Err(LegalizationError::custody());
         }
         Ok(())
     };
@@ -77,5 +76,5 @@ pub(in crate::legalization) fn hosted_realization(
             inspect(row)?;
         }
     }
-    result.ok_or(invalid)
+    result.ok_or(LegalizationError::custody())
 }

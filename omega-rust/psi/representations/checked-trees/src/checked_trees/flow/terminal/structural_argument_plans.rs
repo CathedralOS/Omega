@@ -1,10 +1,10 @@
 //! Structural argument plans: entry claims, call coordinates, scalar
 //! arguments and structural argument sources.
 
-use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
 };
+use crate::{CheckedScalarExpression, CheckedStorageRoot};
 use language_semantics::CarryPolicy;
 use symbols::SymbolHandle;
 
@@ -57,23 +57,24 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     StructuralResult { binding_ordinal: u32 },
     /// Exact byte sequence passed directly to a bodyless boundary.
     ByteSequenceLiteral { bytes: Vec<u8> },
-    /// Exclusive range over one whole immutable byte-view parameter. Missing
-    /// endpoints mean zero and the source length, not absent runtime values.
-    /// Present endpoints copy the unique source-bound scalar facts under
-    /// ByteSequenceSubsliceStart/End at the enclosing call coordinate and
-    /// dense structural argument ordinal. Parameter indices are state-local.
+    /// Exclusive range over one established immutable byte view: a whole
+    /// byte-view parameter (dense, state-local structural index) or an
+    /// earlier byte-view local. Missing endpoints mean zero and the source
+    /// length, not absent runtime values. Present endpoints copy the unique
+    /// source-bound scalar facts under `SubsliceStart`/`SubsliceEnd` at the
+    /// enclosing statement and this range's `CheckedSubsliceSite`.
     ByteSequenceSubslice {
-        parameter_index: u32,
+        root: CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedScalarExpression>,
         end: Option<CheckedScalarExpression>,
     },
-    /// Exclusive element range over one whole immutable `&[T]` view
-    /// parameter, T != u8. Endpoints share the byte subslice's
-    /// source-bound scalar roles; the view's stored extent names its
-    /// element count, not a byte length.
+    /// Exclusive element range over one established immutable `&[T]` view,
+    /// T != u8, rooted exactly as a byte range is. Endpoints share the same
+    /// source-bound scalar roles; the view's stored extent names its element
+    /// count, not a byte length.
     ElementViewSubslice {
-        parameter_index: u32,
+        root: CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
         start: Option<CheckedScalarExpression>,
         end: Option<CheckedScalarExpression>,

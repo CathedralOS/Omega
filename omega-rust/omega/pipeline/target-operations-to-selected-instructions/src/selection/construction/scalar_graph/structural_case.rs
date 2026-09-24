@@ -16,8 +16,9 @@ use selected_instructions::{
 use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
 
+#[track_caller]
 fn invalid() -> SelectedInstructionError {
-    SelectedInstructionError::SourceCustodyMismatch
+    SelectedInstructionError::custody()
 }
 
 pub(super) fn build(
@@ -95,7 +96,11 @@ pub(super) fn build(
             slot: FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| invalid())?,
         &[pointer],
         Default::default(),
     )?;
@@ -110,7 +115,7 @@ pub(super) fn build(
     )?;
     builder.emit(
         SelectedInstructionKind::Load32 { byte_offset: 0 },
-        builder.constraints.keys.load32.ok_or_else(invalid)?,
+        builder.constraints.keys.load32.ok_or_else(|| invalid())?,
         &[pointer, tag],
         Default::default(),
     )?;
@@ -164,7 +169,11 @@ pub(super) fn build(
             Default::default(),
         )?;
         let terminator = SelectedTerminator::ConditionalBranch {
-            instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
+            instruction: builder
+                .instructions
+                .last()
+                .cloned()
+                .ok_or_else(|| invalid())?,
             when_zero,
             when_nonzero,
         };
@@ -187,7 +196,7 @@ pub(super) fn build(
             });
         }
     }
-    first.ok_or_else(invalid)
+    first.ok_or_else(|| invalid())
 }
 
 pub(super) fn register(
@@ -265,13 +274,13 @@ fn successor(
     let block = order
         .iter()
         .position(|position| source.blocks[*position].id == case.target)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let mut payloads = Vec::with_capacity(case.payloads.len());
     for payload in &case.payloads {
         let transport = if builder.required_values.contains(&payload.parameter.value) {
             let (_, parameter, site, scalar_type) = builder
                 .resolve(payload.parameter.value)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             if site != payload.parameter.definition_site
                 || scalar_type != payload.parameter.scalar_type
             {

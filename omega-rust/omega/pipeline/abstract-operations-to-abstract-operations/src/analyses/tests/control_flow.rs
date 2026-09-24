@@ -1,7 +1,8 @@
 //! CFG, dominance, SCC, loop, and call-graph coverage.
 
 use super::fixtures::*;
-use crate::{AnalysisProduct, EffectClass, EffectKnowledge, ExitKind, compute_analysis};
+use crate::analyses::ExitKind;
+use crate::{AnalysisProduct, EffectClass, EffectKnowledge, compute_analysis};
 use abstract_operations::AbstractOperation as O;
 use optimization_core::*;
 use semantic_vocabulary::*;

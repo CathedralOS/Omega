@@ -31,7 +31,7 @@ data Main {
     hi: i32;                  // in [-1, 30]; each write is clamp-proven Exact
     mid: i32;                 // in [0, 30]; guards re-prove it before each index use
     vmid: i32;                // probe value; only compared
-    x: i32 [0..=31];          // guard-proven Exact render counter
+    x: i32;                   // guard-proven Exact render counter
     kind: i32;                // 0..3 glyph selector; guard-proven before the lookup
     glyph: u8;
     pause: [u8; 256];

@@ -7,12 +7,12 @@
 use std::collections::BTreeSet;
 
 use abstract_operations::AbstractOperation;
+use abstract_operations_to_abstract_operations::test_support::{
+    built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline,
+};
 use abstract_operations_to_abstract_operations::validation::{
     OptimizedAbstractPlanProjectionError, PrePhysicalOptimizationManifestError,
     validate_optimized_abstract_plan_projection, validate_pre_physical_optimization_manifest,
-};
-use abstract_operations_to_abstract_operations::{
-    built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline,
 };
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::{

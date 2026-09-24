@@ -168,3 +168,6 @@ pub(super) const STRUCTURAL_CASE_LEAF_COPY: u8 = 85;
 
 /// `OperationKind::StructuralByteSequenceFieldRead`.
 pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: u8 = 86;
+
+/// `OperationKind::IndexedPrimitiveRead`.
+pub(super) const INDEXED_PRIMITIVE_READ: u8 = 87;

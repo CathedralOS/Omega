@@ -30,12 +30,12 @@ pub(super) fn replace(
     else {
         return Err(invalid());
     };
-    let signature = function.structural.as_ref().ok_or_else(invalid)?;
+    let signature = function.structural.as_ref().ok_or_else(|| invalid())?;
     let parameter = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == destination.place)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if row.result.is_some()
         || parameter.semantic.access != destination.access
         || !matches!(
@@ -57,9 +57,9 @@ pub(super) fn replace(
             *field,
             &signature.structural_types,
         )
-        .ok_or_else(invalid)?;
-    let byte_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
-    let (_, count, _, count_type) = builder.resolve(*length).ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
+    let byte_offset = metadata_offset.checked_add(8).ok_or_else(|| invalid())?;
+    let (_, count, _, count_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
     if count_type
         != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?)
     {
@@ -90,7 +90,7 @@ pub(super) fn replace(
         .iter()
         .find(|(place, _)| *place == destination.place)
         .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let destination_pointer = transport_register(builder, destination.place, byte_offset)?;
     builder.emit(
         SelectedInstructionKind::AddressOffset { byte_offset },
@@ -98,7 +98,7 @@ pub(super) fn replace(
             .constraints
             .keys
             .address_offset
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| invalid())?,
         &[root, destination_pointer],
         provenance(row),
     )?;
@@ -155,7 +155,11 @@ pub(super) fn replace(
     )?;
     builder.emit(
         SelectedInstructionKind::CopyBytes,
-        builder.constraints.keys.copy_bytes.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .copy_bytes
+            .ok_or_else(|| invalid())?,
         &[source_pointer, destination_pointer, count, cursor, byte],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -177,7 +181,7 @@ pub(super) fn replace(
             byte_offset: metadata_offset,
             byte_size: 8,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[root, count],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -205,12 +209,12 @@ pub(super) fn replace_byte(
     else {
         return Err(invalid());
     };
-    let signature = function.structural.as_ref().ok_or_else(invalid)?;
+    let signature = function.structural.as_ref().ok_or_else(|| invalid())?;
     let parameter = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == destination.place)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if row.result.is_some()
         || parameter.semantic.access != destination.access
         || !matches!(
@@ -230,11 +234,11 @@ pub(super) fn replace_byte(
             *field,
             &signature.structural_types,
         )
-        .ok_or_else(invalid)?;
-    let payload_offset = metadata_offset.checked_add(8).ok_or_else(invalid)?;
-    let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(invalid)?;
-    let (_, value_register, _, value_type) = builder.resolve(*value).ok_or_else(invalid)?;
-    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
+    let payload_offset = metadata_offset.checked_add(8).ok_or_else(|| invalid())?;
+    let (_, index_register, _, index_type) = builder.resolve(*index).ok_or_else(|| invalid())?;
+    let (_, value_register, _, value_type) = builder.resolve(*value).ok_or_else(|| invalid())?;
+    let (_, _, _, length_type) = builder.resolve(*length).ok_or_else(|| invalid())?;
     let count_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?);
     if index_type != count_type
@@ -252,7 +256,7 @@ pub(super) fn replace_byte(
         .iter()
         .find(|(place, _)| *place == destination.place)
         .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let payload = transport_register(builder, destination.place, payload_offset)?;
     builder.emit(
         SelectedInstructionKind::AddressOffset {
@@ -262,7 +266,7 @@ pub(super) fn replace_byte(
             .constraints
             .keys
             .address_offset
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| invalid())?,
         &[root, payload],
         provenance(row),
     )?;
@@ -299,7 +303,7 @@ pub(super) fn replace_byte(
             byte_offset: 0,
             byte_size: 1,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[address, value_register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

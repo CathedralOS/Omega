@@ -297,17 +297,14 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         erased_ordinal: u32,
     },
-    /// Present exclusive byte-subslice start, keyed by the enclosing call and
-    /// dense structural argument ordinal, not its mixed authored position.
-    ByteSequenceSubsliceStart {
-        call_ordinal: u32,
-        argument_ordinal: u32,
+    /// Present start of one exclusive `view[start..end]` range at its site.
+    /// An omitted endpoint has no expression or source-binding row.
+    SubsliceStart {
+        site: CheckedSubsliceSite,
     },
-    /// Present exclusive byte-subslice end in the same structural namespace.
-    /// An omitted end has no expression or source-binding row.
-    ByteSequenceSubsliceEnd {
-        call_ordinal: u32,
-        argument_ordinal: u32,
+    /// Present exclusive end of the same range at the same site.
+    SubsliceEnd {
+        site: CheckedSubsliceSite,
     },
     /// Right-hand side of one direct typed assignment. The coordinate remains
     /// statement-local and does not imply that every assignment is admitted
@@ -322,14 +319,6 @@ pub enum CheckedScalarExpressionRole {
     TransitionArgument {
         argument_ordinal: u32,
     },
-    /// Present exclusive byte-range endpoint at an authored transition argument
-    /// position. Omitted endpoints have no source binding or scalar fact.
-    TransitionSubsliceStart {
-        argument_ordinal: u32,
-    },
-    TransitionSubsliceEnd {
-        argument_ordinal: u32,
-    },
     /// False-arm continuation operands have distinct custody from the primary
     /// target even when their formal positions are identical.
     TransitionContinuationArgument {
@@ -337,13 +326,64 @@ pub enum CheckedScalarExpressionRole {
     },
 }
 
+/// The authored position of one exclusive `view[start..end]` range within its
+/// statement. A call argument, a transition argument and a `let` initializer
+/// all narrow a view with the same builtin range; only where the range sits
+/// differs, so their endpoints share `SubsliceStart`/`SubsliceEnd` and this
+/// one coordinate rather than a role pair per site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedSubsliceSite {
+    /// A structural argument of the statement's `call_ordinal`th call, keyed
+    /// by its dense structural argument ordinal, not its mixed authored
+    /// position.
+    CallArgument {
+        call_ordinal: u32,
+        argument_ordinal: u32,
+    },
+    /// A transition target argument at its authored parameter position.
+    TransitionArgument { argument_ordinal: u32 },
+    /// The initializer of the statement's own immutable view local.
+    LocalBinding,
+}
+
+/// The storage an observation or a view derivation starts from: a structural
+/// state parameter, or an immutable borrowed view local that an earlier
+/// statement of the same body established (an `as_slice` loan or another
+/// subslice). A view local is an established view place exactly as a whole
+/// view parameter is, so lengths, element reads and subslices take this one
+/// root instead of a parameter-only coordinate plus a local-only twin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStorageRoot {
+    /// A structural state parameter, numbered in the holder's own parameter
+    /// namespace: subslice sources count the dense structural parameter
+    /// list; scalar observations count authored state positions, like every
+    /// other scalar parameter read.
+    Parameter { index: u32 },
+    /// The `let` symbol of an immutable borrowed view local. Lowering resolves
+    /// it to the place its establishment published; it never names owned
+    /// storage and never carries a projection path.
+    ViewLocal { symbol: SymbolHandle },
+}
+
+impl CheckedStorageRoot {
+    /// The parameter number when this root is a parameter.
+    pub fn parameter(self) -> Option<u32> {
+        match self {
+            Self::Parameter { index } => Some(index),
+            Self::ViewLocal { .. } => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
-    /// Exact u64 live byte length in the authored structural namespace.
-    /// Empty paths select a whole byte-view parameter; nonempty paths select
-    /// the exact bounded-owned byte field, never its capacity.
+    /// Exact u64 live length of one borrowed view or bounded byte field. A
+    /// parameter root counts authored state positions: an empty path selects
+    /// the whole view parameter, a nonempty path the exact bounded-owned byte
+    /// field, never its capacity. A view-local root is always the whole view
+    /// with an empty path. Element views count elements, byte views bytes.
     StructuralParameterByteLength {
-        parameter_position: u32,
+        root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
     },
     /// Read the current value of exact local storage at this computation's
@@ -380,11 +420,13 @@ pub enum CheckedScalarExpression {
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
-    /// Selected builtin element read from current structural parameter storage.
-    /// An empty path selects the whole parameter, not a nominal field.
-    /// The index remains an evaluated dependency, not a fixed field projection.
+    /// Selected builtin element read from current structural storage. A
+    /// parameter root counts authored state positions and an empty path
+    /// selects the whole parameter, not a nominal field; a view-local root is
+    /// the whole view with an empty path. The index remains an evaluated
+    /// dependency, not a fixed field projection.
     StructuralParameterIndexedRead {
-        parameter_position: u32,
+        root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarExpression>,
         primitive_type: typed_trees::types::PrimitiveType,

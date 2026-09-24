@@ -15,18 +15,14 @@ pub(crate) struct LocalConstructionTrace {
     phase: Cell<&'static str>,
     state_index: Cell<Option<u32>>,
     statement_index: Cell<Option<u32>>,
-    /// Phases entered so far. A route that entered more phases before
-    /// declining got further than one that stopped at its precondition.
-    progress: Cell<u32>,
 }
 
-/// One position of the trace, so a builder trying alternative routes for
-/// the same statement can return to the route that got furthest.
+/// One position of the trace, so a builder that set a statement aside for a
+/// later owner can return to where it was.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct TraceMark {
     phase: &'static str,
     statement_index: Option<u32>,
-    progress: u32,
 }
 
 impl LocalConstructionTrace {
@@ -34,36 +30,13 @@ impl LocalConstructionTrace {
     pub(crate) fn phase(&self, phase: &'static str) {
         self.phase.set(phase);
         self.statement_index.set(None);
-        self.progress.set(self.progress.get().wrapping_add(1));
     }
 
-    /// The current position, to compare routes against or return to.
+    /// The current position, to return to.
     pub(crate) fn mark(&self) -> TraceMark {
         TraceMark {
             phase: self.phase.get(),
             statement_index: self.statement_index.get(),
-            progress: self.progress.get(),
-        }
-    }
-
-    /// Whichever of `furthest` and the current position entered more phases
-    /// since `baseline`. A later alternative that declines at its first
-    /// precondition must not replace the route that reached the decisive
-    /// requirement; on a tie the earlier route keeps its place.
-    pub(crate) fn furthest(
-        &self,
-        furthest: Option<TraceMark>,
-        baseline: &TraceMark,
-    ) -> Option<TraceMark> {
-        let current = self.mark();
-        match furthest {
-            Some(best)
-                if best.progress.wrapping_sub(baseline.progress)
-                    >= current.progress.wrapping_sub(baseline.progress) =>
-            {
-                Some(best)
-            }
-            _ => Some(current),
         }
     }
 
@@ -71,7 +44,6 @@ impl LocalConstructionTrace {
     pub(crate) fn restore(&self, mark: &TraceMark) {
         self.phase.set(mark.phase);
         self.statement_index.set(mark.statement_index);
-        self.progress.set(mark.progress);
     }
 
     /// The call statement the current phase is planning.

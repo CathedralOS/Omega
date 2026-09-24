@@ -95,14 +95,14 @@ fn element_view_read(
     else {
         return Err(invalid());
     };
-    let definition = row.result.ok_or_else(invalid)?;
-    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
+    let definition = row.result.ok_or_else(|| invalid())?;
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(|| invalid())?;
     if index_type
         != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?)
     {
         return Err(invalid());
     }
-    let stride = element_stride(function, builder, source).ok_or_else(invalid)?;
+    let stride = element_stride(function, builder, source).ok_or_else(|| invalid())?;
     let Some(signature) = function.structural.as_ref() else {
         return Err(invalid());
     };
@@ -121,7 +121,7 @@ fn element_view_read(
             StructuralTypeShape::ElementView { element } => Some(element),
             _ => None,
         })
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let element_scalar = signature
         .structural_types
         .as_slice()
@@ -131,7 +131,7 @@ fn element_view_read(
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
             _ => None,
         })
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if definition.scalar_type != element_scalar {
         return Err(invalid());
     }
@@ -225,19 +225,19 @@ fn element_view_read(
     let (kind, constraint) = match stride {
         1 => (
             SelectedInstructionKind::Load8 { byte_offset: 0 },
-            builder.constraints.keys.load8.ok_or_else(invalid)?,
+            builder.constraints.keys.load8.ok_or_else(|| invalid())?,
         ),
         2 => (
             SelectedInstructionKind::Load16 { byte_offset: 0 },
-            builder.constraints.keys.load16.ok_or_else(invalid)?,
+            builder.constraints.keys.load16.ok_or_else(|| invalid())?,
         ),
         4 => (
             SelectedInstructionKind::Load32 { byte_offset: 0 },
-            builder.constraints.keys.load32.ok_or_else(invalid)?,
+            builder.constraints.keys.load32.ok_or_else(|| invalid())?,
         ),
         8 => (
             SelectedInstructionKind::Load64 { byte_offset: 0 },
-            builder.constraints.keys.load64.ok_or_else(invalid)?,
+            builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         ),
         _ => return Err(invalid()),
     };
@@ -264,7 +264,7 @@ fn element_view_length(
     if length_byte_offset != 8 {
         return Err(invalid());
     }
-    let definition = row.result.ok_or_else(invalid)?;
+    let definition = row.result.ok_or_else(|| invalid())?;
     if definition.scalar_type
         != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?)
     {
@@ -300,7 +300,7 @@ fn element_view_length(
         .iter()
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     memory(
         builder,
         row,
@@ -311,7 +311,7 @@ fn element_view_length(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 8 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[descriptor, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -344,7 +344,7 @@ pub(super) fn element_backing_pointer(
         .iter()
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let pointer = transport_register(builder, source, 0)?;
     memory(
         builder,
@@ -356,7 +356,7 @@ pub(super) fn element_backing_pointer(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[descriptor, pointer],
         provenance(row),
     )?;

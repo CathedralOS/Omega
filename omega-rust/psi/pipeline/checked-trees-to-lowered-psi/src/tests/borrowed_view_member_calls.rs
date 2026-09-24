@@ -209,11 +209,15 @@ const MV: &str = r#"
     }
 "#;
 
+/// Checking plans a guarded store through an `&'r mut [u8]` field, but the
+/// Terminal verifier refuses it: the store reaches it on a `BorrowedView`
+/// carrier that records no access, so it cannot tell this field from a shared
+/// `&'r [u8]` one (TASKS.md BORROWED-VIEW-CARRIER-ACCESS). Once the carrier
+/// carries its access, this becomes `..._lowers_and_verifies` through `verify`.
 #[test]
-fn mutable_view_field_element_store_transition_lowers_and_verifies() {
-    verify(
-        &format!(
-            "{MV}
+fn mutable_view_field_element_store_waits_for_carrier_access() {
+    let checked = crate::front_end::checked_program(&format!(
+        "{MV}
             machine Mv::set(&mut self, i: u64, v: u8) {{
                 transition i < self.view.len {{
                     true -> hit(i, v)
@@ -226,8 +230,12 @@ fn mutable_view_field_element_store_transition_lowers_and_verifies() {
                     self.out = 1;
                 }}
             }}"
-        ),
-        "Mv::set",
+    ));
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Mv::set"))
+        .expect_err("a borrowed-view byte store has no verifiable write authority yet");
+    assert!(
+        matches!(error, crate::LoweringError::InvalidTerminalModule(_)),
+        "the refusal is the verifier's, not the planner's: {error:?}"
     );
 }
 

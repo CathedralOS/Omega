@@ -56,6 +56,9 @@ pub(super) fn validate<'a>(
                 reference_results::validate_establishment(checked, machine, operation)?;
             }
             CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
+            CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+                super::super::view_ranges::binding_local(checked, machine.state, operation)?;
+            }
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source,
                 result,
@@ -190,21 +193,22 @@ pub(super) fn validate<'a>(
                     CheckedScalarCallee::Graph(_) | CheckedScalarCallee::Structural(_) => {
                         target_reaches.as_slice() == [*service_reach]
                     }
-                    CheckedScalarCallee::Operations(plan) => {
+                    CheckedScalarCallee::Operations(body) => {
+                        let contract_service_reach = body.entry()?.contract_service_reach;
                         // The body owns its direct effects; an ordinary call
                         // contributes the published callee ceiling transitively.
                         // Rejoin each subject instead of equating their summaries;
                         // the caller still retains its exact source occurrence row.
                         source_call.service_reach == *service_reach
-                            && target_reaches.as_slice() == [plan.service_reach]
+                            && body.retains_checked_reach(checked, &target_reaches)
                             && checked
                                 .facts
                                 .service_reaches
                                 .plan_for_machine(*target_machine)
-                                == Some(plan.contract_service_reach)
+                                == Some(contract_service_reach)
                             && checked_unit_target_reach_matches(
                                 *service_reach,
-                                plan.contract_service_reach,
+                                contract_service_reach,
                             )
                     }
                     CheckedScalarCallee::Boundary(plan) => {

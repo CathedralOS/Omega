@@ -4,7 +4,7 @@ use super::{
     AbstractOperation, OptimizationUnitValidationError, VerifiedPsiOptimizationInput,
     VerifiedPsiOptimizationSession, countdown_unit, validate_transformed_psi_optimization_unit,
 };
-use abstract_operations_to_abstract_operations::{
+use abstract_operations_to_abstract_operations::test_support::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
 };
 use optimization_unit::{

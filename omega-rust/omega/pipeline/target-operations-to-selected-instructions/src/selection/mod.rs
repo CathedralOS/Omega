@@ -17,6 +17,7 @@ mod established_view_input;
 mod identity;
 mod literal_storage_input;
 mod model;
+mod parameter_use;
 pub(crate) mod primitive_local_input;
 mod read_result_input;
 mod record_input;
@@ -49,7 +50,7 @@ pub fn select_instructions(
         physical.model().clone(),
         catalog.catalog().clone(),
     )
-    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?;
+    .map_err(|_| SelectedInstructionError::custody())?;
     let plan = build_plan(legalized, constraints, &environment)?;
     validation::validate_with_environment(legalized, constraints, &environment, plan)
 }

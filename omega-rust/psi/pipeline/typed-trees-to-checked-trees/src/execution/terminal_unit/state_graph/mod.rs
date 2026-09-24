@@ -90,6 +90,52 @@ pub(super) fn build_traced(
     {
         return None;
     }
+    if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
+        // A single-state body completes its scalar through the ordinary
+        // sequence, and a machine another scalar producer already owns keeps
+        // that owner: this route takes only the multi-state bodies no other
+        // producer describes, so no callee gains two competing bodies.
+        trace.phase("state graph: result signature: scalar owner precedence");
+        if states.len() < 2
+            || facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine.symbol)
+                .is_some()
+            || scalar_callees
+                .structural_returns
+                .for_machine(machine.symbol)
+                .is_some()
+            || scalar_callees
+                .boundary_returns
+                .machines
+                .iter()
+                .any(|plan| plan.machine == machine.symbol)
+        {
+            return None;
+        }
+        // Emission publishes no result guarantee, so a body whose contract
+        // promises one about its result stays unadmitted rather than losing it.
+        trace.phase("state graph: result signature: scalar result guarantee");
+        if program
+            .machine_contracts(machine)
+            .iter()
+            .chain(
+                states
+                    .iter()
+                    .flat_map(|state| program.state_contracts(state)),
+            )
+            .any(|contract| {
+                !matches!(
+                    contract.kind,
+                    super::SignatureContractKind::Requires
+                        | super::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            return None;
+        }
+    }
     trace.phase("state graph: natural ranks");
     let natural_ranks = if machine.termination_plan.implementation_witness.is_some() {
         // Other retained witnesses belong to their existing producer until this
@@ -498,6 +544,9 @@ pub(super) fn build_traced(
                     discard_result_on_return: false,
                     ..
                 }
+                // A view-subslice local owns nothing: its shared view ends
+                // with the loan, on every selected edge alike.
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => {}
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -529,10 +578,12 @@ pub(super) fn build_traced(
                         }
                     )
                     && value.access == CheckedStructuralAccess::Owned => {}
-                // A call result may die on its producing call's continuation.
-                // The cleanup shares the call coordinate rather than consuming
-                // a new authored statement; sequenced stores may sit between
-                // the call and the discard that retires a displaced binding.
+                // A result may die on its producing statement's continuation.
+                // The cleanup shares the producer's coordinate rather than
+                // consuming a new authored statement; sequenced stores may sit
+                // between the producer -- the statement's call, or the
+                // establishment of a construction replacing a field -- and the
+                // discard that retires a displaced binding.
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                     coordinate,
                     affine_discards,
@@ -554,19 +605,28 @@ pub(super) fn build_traced(
                                     | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                                         ..
                                     }
+                                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                        ..
+                                    }
                             )
                         })
-                        .is_some_and(|producer| {
-                            matches!(
-                                producer,
-                                CheckedUnitEffectOperationPlan::StructuralCall {
-                                    coordinate: call,
-                                    ..
-                                } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                    coordinate: call,
-                                    ..
-                                } if call == coordinate
-                            )
+                        .is_some_and(|producer| match producer {
+                            CheckedUnitEffectOperationPlan::StructuralCall {
+                                coordinate: call,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                coordinate: call,
+                                ..
+                            } => call == coordinate,
+                            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result,
+                                ..
+                            } => {
+                                result.statement_index == coordinate.statement_index
+                                    && coordinate.call_ordinal == 0
+                            }
+                            _ => false,
                         }) => {}
                 _ => {
                     // Name the operation family whose custody the selected
@@ -657,6 +717,29 @@ pub(super) fn build_traced(
             trace,
         ) {
             terminator
+        } else if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = result
+            && let Some(completion) = returns::scalar_completion(
+                program,
+                facts,
+                machine,
+                state,
+                terminator_index,
+                primitive_type,
+                sequence.scalar_result.as_ref(),
+                trace,
+            )
+        {
+            trace.phase("state graph: terminator: scalar return cleanup");
+            return_cleanup_is_whole(
+                program,
+                facts,
+                machine,
+                state,
+                structural,
+                &operations,
+                shapes,
+            )?;
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
         } else if let Some(terminator) = returns::guarded(
             program,
             facts,
@@ -675,28 +758,15 @@ pub(super) fn build_traced(
             match &statements[terminator_index..] {
                 [] if result == checked_trees::CheckedControlResultPlan::Unit => {
                     trace.phase("state graph: terminator: unit tail cleanup");
-                    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
-                        event.machine_symbol == machine.symbol
-                            && event.state_symbol == state.symbol
-                            && event.kind == PermissionEventKind::AffineDrop
-                            && !event.segments.is_empty()
-                    }) {
-                        return None;
-                    }
-                    let (_, residual_affine_discards, _) = return_unit_affine_discards(
+                    return_cleanup_is_whole(
                         program,
                         facts,
-                        machine.symbol,
-                        state.symbol,
+                        machine,
+                        state,
                         structural,
-                        program.state_parameters(state),
                         &operations,
-                        &[],
-                        &shapes.types,
+                        shapes,
                     )?;
-                    if !residual_affine_discards.is_empty() {
-                        return None;
-                    }
                     CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 }
                 [StatementNode::Expression(expression)]
@@ -986,6 +1056,7 @@ pub(super) fn build_traced(
                 | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
         ) {
             crate::execution::terminal_cleanup::state_exit_result_locals(
                 program, facts, machine, state,
@@ -1050,7 +1121,8 @@ pub(super) fn build_traced(
                 CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => {
                     result.multiplicity == Multiplicity::Unrestricted
                 }
-                CheckedComposedUnitControlTerminatorPlan::ReturnUnit => {
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                     local_results::permits_disposal(program, state, result, &[], &disposable_locals)
                 }
                 CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {
@@ -1264,6 +1336,40 @@ pub(super) fn build_traced(
     plan.natural_ranks = natural_ranks;
     plan.result = result;
     Some(plan)
+}
+
+/// A returning exit disposes whole roots only: a partial affine drop or a
+/// residual discard at the return has no Terminal return-cleanup row here.
+#[allow(clippy::too_many_arguments)]
+fn return_cleanup_is_whole(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural: &[CheckedUnitStructuralParameterPlan],
+    operations: &[CheckedUnitEffectOperationPlan],
+    shapes: &ShapeCollector<'_>,
+) -> Option<()> {
+    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
+        event.machine_symbol == machine.symbol
+            && event.state_symbol == state.symbol
+            && event.kind == PermissionEventKind::AffineDrop
+            && !event.segments.is_empty()
+    }) {
+        return None;
+    }
+    let (_, residual_affine_discards, _) = return_unit_affine_discards(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        structural,
+        program.state_parameters(state),
+        operations,
+        &[],
+        &shapes.types,
+    )?;
+    residual_affine_discards.is_empty().then_some(())
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`
@@ -1908,77 +2014,42 @@ fn successor_bindings(
             mark(SuccessorGuard::StructuralArgument);
             let expression = argument_at(target.position)?;
             if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
-                && let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index)
+                && matches!(program.expression_table.expression(indexed.index), ExpressionNode::Range(_))
             {
                 mark(SuccessorGuard::SubsliceTransfer);
                 let target_parameter = target_parameters.get(target.position as usize)?;
-                let element_view = calls::element_subslice::source(
+                let subslice = calls::view_subslice::admit(
                     program, facts, machine, source, source_structural,
                     target_parameter.type_reference, expression, ordinal as usize,
-                );
-                let is_element_view = element_view.is_some();
-                let (parameter_index, type_identity) = element_view.or_else(|| {
-                    calls::byte_subslice::source(
-                        program, facts, machine, source, source_structural,
-                        target_parameter.type_reference, expression, ordinal as usize,
-                    )
-                })?;
-                if type_identity != target.type_identity {
-                    return None;
-                }
-                let source_parameter = program.state_parameters(source).get(
-                    source_structural.get(parameter_index as usize)?.position as usize,
+                    checked_trees::CheckedSubsliceSite::TransitionArgument {
+                        argument_ordinal: target.position,
+                    },
                 )?;
-                if !matches!(program.expression_table.expression(indexed.collection),
-                    ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
-                        && path.head_symbol == source_parameter.symbol
-                        && program.expression_table.name_path_members(path.members).len() == 1)
-                {
+                if subslice.range.type_identity != target.type_identity {
                     return None;
-                }
-                for (endpoint, role) in [
-                    (range.start, CheckedScalarExpressionRole::TransitionSubsliceStart {
-                        argument_ordinal: target.position,
-                    }),
-                    (range.end, CheckedScalarExpressionRole::TransitionSubsliceEnd {
-                        argument_ordinal: target.position,
-                    }),
-                ] {
-                    if !endpoint.is_valid() {
-                        continue;
-                    }
-                    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-                        source.symbol, ordinal, role,
-                    )?;
-                    if binding.expression != endpoint || binding.destination.is_valid()
-                        || value.primitive_type() != Some(PrimitiveType::U64)
-                    {
-                        return None;
-                    }
                 }
                 return Some(CheckedStructuralControlTransferPlan {
-                    source: if is_element_view {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
-                            parameter_index,
-                            expression,
-                        }
-                    } else {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
-                            parameter_index,
-                            expression,
-                        }
-                    },
+                    source: subslice.transfer(),
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
             }
-            if target.access == CheckedStructuralAccess::Owned {
+            // A whole view local forwards the view its `let` published: the
+            // target re-borrows that same shared place exactly as a forwarded
+            // view parameter does, so the edge names the local's result
+            // binding just as an owned local's move does.
+            let shared_view = target.access == CheckedStructuralAccess::SharedBorrow
+                && target_parameters.get(target.position as usize).is_some_and(|parameter| {
+                    calls::view_subslice::view_kind(program, parameter.type_reference).is_some()
+                });
+            if target.access == CheckedStructuralAccess::Owned || shared_view {
                 mark(SuccessorGuard::ResultTransfer);
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
                         CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. } => Some(result),
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
+                        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
                         _ => None,
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {

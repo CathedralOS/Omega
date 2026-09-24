@@ -18,7 +18,7 @@ pub(super) fn establish(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let (ordinal, declarations) =
-        crate::selection::aggregate_result_input::fields(source, row).ok_or_else(invalid)?;
+        crate::selection::aggregate_result_input::fields(source, row).ok_or_else(|| invalid())?;
     let LegalizedScalarInstructionKind::EstablishScalarCase {
         result,
         fields,
@@ -63,7 +63,7 @@ pub(super) fn establish(
         let width = [8, 4, 2, 1]
             .into_iter()
             .find(|width| *width <= remaining)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         store(builder, row, pointer, offset, width as u8, zero, Vec::new())?;
         offset += width;
     }
@@ -82,7 +82,7 @@ pub(super) fn establish(
         .zip(declarations)
         .zip(&layout.cases[ordinal].fields)
     {
-        let (_, value, _, scalar) = builder.resolve(field.value).ok_or_else(invalid)?;
+        let (_, value, _, scalar) = builder.resolve(field.value).ok_or_else(|| invalid())?;
         if Some(scalar) != declaration.field_type.scalar_type() {
             return Err(invalid());
         }
@@ -126,7 +126,7 @@ fn store(
             byte_offset: offset,
             byte_size: width,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[pointer, value],
         SelectedInstructionProvenance {
             values,

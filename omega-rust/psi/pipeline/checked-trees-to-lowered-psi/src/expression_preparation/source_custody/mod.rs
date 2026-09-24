@@ -148,108 +148,37 @@ pub(crate) fn locate(
             (expression, destination, primitive)
         }),
         (
-            StatementNode::Transition(transition),
-            CheckedScalarExpressionRole::TransitionSubsliceStart { argument_ordinal }
-            | CheckedScalarExpressionRole::TransitionSubsliceEnd { argument_ordinal },
-        ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
-            match program.statement_table.transition_target(transition.target) {
-                TransitionTargetNode::Named {
-                    path, arguments, ..
-                } => program
-                    .machine_states(machine)
-                    .iter()
-                    .find(|target| {
-                        successors::normalize_machine_state_target(checked, machine, path.symbol)
-                            .ok()
-                            == Some(target.symbol)
-                    })
-                    .and_then(|target| {
-                        let parameters = program.state_parameters(target);
-                        let arguments = program.statement_table.expression_handles(*arguments);
-                        if parameters.get(argument_ordinal as usize)?.is_self {
-                            return None;
-                        }
-                        let explicit = parameters[..argument_ordinal as usize]
-                            .iter()
-                            .filter(|parameter| !parameter.is_self)
-                            .count();
-                        let ExpressionNode::Indexed(indexed) = program
-                            .expression_table
-                            .expression(*arguments.get(explicit)?)
-                        else {
-                            return None;
-                        };
-                        let ExpressionNode::Range(range) =
-                            program.expression_table.expression(indexed.index)
-                        else {
-                            return None;
-                        };
-                        if range.end_inclusive {
-                            return None;
-                        }
-                        let endpoint = if matches!(
-                            role,
-                            CheckedScalarExpressionRole::TransitionSubsliceStart { .. }
-                        ) {
-                            range.start
-                        } else {
-                            range.end
-                        };
-                        endpoint
-                            .is_valid()
-                            .then_some((endpoint, absent, PrimitiveType::U64))
-                    }),
-                _ => None,
-            }
-        }
-        (
             _,
-            CheckedScalarExpressionRole::ByteSequenceSubsliceStart {
-                call_ordinal,
-                argument_ordinal,
-            }
-            | CheckedScalarExpressionRole::ByteSequenceSubsliceEnd {
-                call_ordinal,
-                argument_ordinal,
+            CheckedScalarExpressionRole::SubsliceStart { site }
+            | CheckedScalarExpressionRole::SubsliceEnd { site },
+        ) => subslice_site_range(checked, machine, state, authored, statement, site)?.and_then(
+            |expression| {
+                // Every site narrows a view with the same exclusive builtin
+                // range; only where that range sits in the statement differs.
+                let ExpressionNode::Indexed(indexed) =
+                    program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let ExpressionNode::Range(range) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                if range.end_inclusive {
+                    return None;
+                }
+                let endpoint = if matches!(role, CheckedScalarExpressionRole::SubsliceStart { .. })
+                {
+                    range.start
+                } else {
+                    range.end
+                };
+                endpoint
+                    .is_valid()
+                    .then_some((endpoint, absent, PrimitiveType::U64))
             },
-        ) => {
-            let call = crate::emission::call_source_custody::authored::locate_source(
-                checked,
-                state.symbol,
-                checked_trees::CheckedUnitCallCoordinate {
-                    statement_index: statement,
-                    call_ordinal,
-                },
-            )?;
-            call.structural_arguments
-                .get(argument_ordinal as usize)
-                .and_then(|(_, expression)| {
-                    let ExpressionNode::Indexed(indexed) =
-                        program.expression_table.expression(*expression)
-                    else {
-                        return None;
-                    };
-                    let ExpressionNode::Range(range) =
-                        program.expression_table.expression(indexed.index)
-                    else {
-                        return None;
-                    };
-                    if range.end_inclusive {
-                        return None;
-                    }
-                    let endpoint = if matches!(
-                        role,
-                        CheckedScalarExpressionRole::ByteSequenceSubsliceStart { .. }
-                    ) {
-                        range.start
-                    } else {
-                        range.end
-                    };
-                    endpoint
-                        .is_valid()
-                        .then_some((endpoint, absent, PrimitiveType::U64))
-                })
-        }
+        ),
         (
             _,
             CheckedScalarExpressionRole::BoundaryCallArgument {
@@ -653,4 +582,74 @@ pub(crate) fn validate_successor(
     successor: &CheckedScalarSuccessor,
 ) -> Result<(), LoweringError> {
     successors::validate(checked, source_state, successor)
+}
+
+/// The authored range expression one subslice site names in `authored`: a
+/// structural argument of the statement's exact call, a target argument of an
+/// ordinary transition, or the initializer of the statement's own immutable
+/// view local.
+fn subslice_site_range(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    state: &checked_trees::state::State,
+    authored: &StatementNode,
+    statement: u32,
+    site: checked_trees::CheckedSubsliceSite,
+) -> Result<Option<checked_trees::expression::ExpressionHandle>, LoweringError> {
+    let program = &checked.typed;
+    Ok(match (authored, site) {
+        (
+            _,
+            checked_trees::CheckedSubsliceSite::CallArgument {
+                call_ordinal,
+                argument_ordinal,
+            },
+        ) => crate::emission::call_source_custody::authored::locate_source(
+            checked,
+            state.symbol,
+            checked_trees::CheckedUnitCallCoordinate {
+                statement_index: statement,
+                call_ordinal,
+            },
+        )?
+        .structural_arguments
+        .get(argument_ordinal as usize)
+        .map(|(_, expression)| *expression),
+        (
+            StatementNode::Transition(transition),
+            checked_trees::CheckedSubsliceSite::TransitionArgument { argument_ordinal },
+        ) if transition.exit == TransitionExit::Ordinary && !transition.continuation.is_valid() => {
+            match program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Named {
+                    path, arguments, ..
+                } => program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|target| {
+                        successors::normalize_machine_state_target(checked, machine, path.symbol)
+                            .ok()
+                            == Some(target.symbol)
+                    })
+                    .and_then(|target| {
+                        let parameters = program.state_parameters(target);
+                        let arguments = program.statement_table.expression_handles(*arguments);
+                        if parameters.get(argument_ordinal as usize)?.is_self {
+                            return None;
+                        }
+                        let explicit = parameters[..argument_ordinal as usize]
+                            .iter()
+                            .filter(|parameter| !parameter.is_self)
+                            .count();
+                        arguments.get(explicit).copied()
+                    }),
+                _ => None,
+            }
+        }
+        (StatementNode::LocalData(local), checked_trees::CheckedSubsliceSite::LocalBinding)
+            if !local.is_mutable =>
+        {
+            Some(local.initial_value)
+        }
+        _ => None,
+    })
 }

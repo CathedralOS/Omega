@@ -77,8 +77,9 @@ impl Custody {
     }
 }
 
+#[track_caller]
 fn invalid() -> LegalizationError {
-    LegalizationError::SourceCustodyMismatch
+    LegalizationError::custody()
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.
@@ -379,7 +380,7 @@ fn normalized_source(
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         let leaf = custody
             .leaf(source.place, carrier_path)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         if custody
             .leaves
             .values()
@@ -495,8 +496,9 @@ fn call_arguments(
                 return Err(invalid());
             }
             let contract =
-                source_contract(function, custody, argument.place).ok_or_else(invalid)?;
-            let paths = leaf_paths(types, contract, custody.leaves.len()).ok_or_else(invalid)?;
+                source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
+            let paths =
+                leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
             if paths.len()
                 != custody
                     .leaves
@@ -507,7 +509,9 @@ fn call_arguments(
                 return Err(invalid());
             }
             for path in paths {
-                let leaf = custody.leaf(argument.place, &path).ok_or_else(invalid)?;
+                let leaf = custody
+                    .leaf(argument.place, &path)
+                    .ok_or_else(|| invalid())?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
                 // or a parent/child pair packed into the same incoming record.
@@ -586,7 +590,10 @@ fn call_results(
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
-    let callee_result = callee_function.result.structural().ok_or_else(invalid)?;
+    let callee_result = callee_function
+        .result
+        .structural()
+        .ok_or_else(|| invalid())?;
     if custody
         .leaves
         .keys()
@@ -606,9 +613,9 @@ fn call_results(
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
         let source =
-            call_source(callee_function, structural_arguments, mapping).ok_or_else(invalid)?;
+            call_source(callee_function, structural_arguments, mapping).ok_or_else(|| invalid())?;
         let expected =
-            leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(invalid)?;
+            leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(|| invalid())?;
         if reference_source_type(function, custody, types, &source) != Some(expected) {
             return Err(invalid());
         }
@@ -626,7 +633,7 @@ fn call_results(
             moved
                 .get(&(source.place, carrier_path.to_vec()))
                 .cloned()
-                .ok_or_else(invalid)?
+                .ok_or_else(|| invalid())?
         } else {
             let (root, parent) = normalized_source(custody, &source)?;
             Leaf {
@@ -668,10 +675,10 @@ fn discard_owned(
     if !contains_reference(types, contract) {
         return Ok(false);
     }
-    let paths = leaf_paths(types, contract, custody.leaves.len()).ok_or_else(invalid)?;
+    let paths = leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
     let mut released = BTreeSet::new();
     for path in paths.iter().rev() {
-        let leaf = custody.leaf(source, path).ok_or_else(invalid)?;
+        let leaf = custody.leaf(source, path).ok_or_else(|| invalid())?;
         if custody.leaves.values().any(|child| {
             child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
         }) {
@@ -709,7 +716,7 @@ pub(in crate::legalization) fn apply(
             result,
             source,
         } => {
-            let referent = referent(types, result.structural_type).ok_or_else(invalid)?;
+            let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
@@ -780,14 +787,16 @@ pub(in crate::legalization) fn apply(
                     continue;
                 }
                 let contract =
-                    source_contract(function, custody, argument.place).ok_or_else(invalid)?;
+                    source_contract(function, custody, argument.place).ok_or_else(|| invalid())?;
                 if contract != nested {
                     return Err(invalid());
                 }
                 let paths =
-                    leaf_paths(types, contract, custody.leaves.len()).ok_or_else(invalid)?;
+                    leaf_paths(types, contract, custody.leaves.len()).ok_or_else(|| invalid())?;
                 for path in &paths {
-                    let leaf = custody.leaf(argument.place, path).ok_or_else(invalid)?;
+                    let leaf = custody
+                        .leaf(argument.place, path)
+                        .ok_or_else(|| invalid())?;
                     if !moved.insert(leaf.identity.clone()) {
                         return Err(invalid());
                     }
@@ -829,7 +838,7 @@ pub(in crate::legalization) fn apply(
                 .functions
                 .iter()
                 .find(|function| function.machine == *callee)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             commit_argument_moves(custody, &moved);
             call_results(
                 function,
@@ -872,7 +881,7 @@ pub(in crate::legalization) fn return_custody(
     if !contains_reference(types, result.structural_type) {
         return Err(invalid());
     }
-    let contract = source_contract(function, custody, source).ok_or_else(invalid)?;
+    let contract = source_contract(function, custody, source).ok_or_else(|| invalid())?;
     if contract != result.structural_type
         || custody
             .leaves
@@ -884,7 +893,9 @@ pub(in crate::legalization) fn return_custody(
         return Err(invalid());
     }
     for mapping in &result.reference_sources {
-        let leaf = custody.leaf(source, &mapping.path).ok_or_else(invalid)?;
+        let leaf = custody
+            .leaf(source, &mapping.path)
+            .ok_or_else(|| invalid())?;
         if Some(leaf.root.clone()) != formal_origin(function, &mapping.source)
             || leaf.parent.is_some()
             || custody
@@ -988,16 +999,16 @@ pub(in crate::legalization) fn block_entry_states(
     let mut incoming = vec![Vec::new(); blocks.len()];
     let mut outgoing = vec![Vec::new(); blocks.len()];
     for (position, block) in blocks.iter().enumerate() {
-        let terminator = block.nodes.last().ok_or_else(invalid)?;
+        let terminator = block.nodes.last().ok_or_else(|| invalid())?;
         for edge in &terminator.successors {
-            let target = *positions.get(&edge.target).ok_or_else(invalid)?;
+            let target = *positions.get(&edge.target).ok_or_else(|| invalid())?;
             if !outgoing[position].contains(&target) {
                 outgoing[position].push(target);
                 incoming[target].push(position);
             }
         }
     }
-    let entry_position = *positions.get(&function.entry).ok_or_else(invalid)?;
+    let entry_position = *positions.get(&function.entry).ok_or_else(|| invalid())?;
     if !incoming[entry_position].is_empty() {
         return Err(invalid());
     }
@@ -1050,8 +1061,8 @@ pub(in crate::legalization) fn block_entry_states(
                 .copied()
                 .filter(|dominator| *dominator != position)
                 .max_by_key(|dominator| dominators[*dominator].len())
-                .ok_or_else(invalid)?;
-            states[dominator].clone().ok_or_else(invalid)?
+                .ok_or_else(|| invalid())?;
+            states[dominator].clone().ok_or_else(|| invalid())?
         };
         entries.insert(blocks[position].id, custody.clone());
         for node in &blocks[position].nodes {
@@ -1104,7 +1115,7 @@ fn entry(
             parameter.structural_type,
             4096usize.saturating_sub(custody.leaves.len()),
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
         for path in paths {
             let identity = (parameter.place, path.clone());
             custody.leaves.insert(
@@ -1124,7 +1135,7 @@ fn entry(
                         claims: Vec::new(),
                     },
                     referent: leaf_referent(types, parameter.structural_type, &path)
-                        .ok_or_else(invalid)?,
+                        .ok_or_else(|| invalid())?,
                 },
             );
         }
@@ -1198,7 +1209,7 @@ pub(in crate::legalization) fn referent_argument(
     };
     let referent_scalar = super::primitive_locals::scalar(types, declaration.structural_type)
         .and_then(super::scalar_shape)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if argument.access == StructuralAccess::Owned
         || argument.access != declaration.access
         || declaration.is_self
@@ -1215,7 +1226,7 @@ pub(in crate::legalization) fn referent_argument(
     }
     let leaf = custody
         .leaf(argument.place, carrier_path)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     if leaf.referent != declaration.structural_type {
         return Err(invalid());
     }
@@ -1229,7 +1240,7 @@ pub(in crate::legalization) fn referent_argument(
             if !super::primitive_locals::valid_result(caller, producer, result) {
                 return Err(invalid());
             }
-            let referent_shape = super::scalar_shape(value.scalar_type).ok_or_else(invalid)?;
+            let referent_shape = super::scalar_shape(value.scalar_type).ok_or_else(|| invalid())?;
             if destination.shape
                 != calling_conventions::ValueShape::borrowed_reference(
                     referent_shape.byte_size,
@@ -1247,7 +1258,7 @@ pub(in crate::legalization) fn referent_argument(
         } else {
             let source = super::structural_parameters(target_caller)
                 .and_then(|parameters| parameters.iter().find(|parameter| parameter.place == *root))
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             let allowed = match source.access {
                 StructuralAccess::MutableBorrow => true,
                 StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
@@ -1291,13 +1302,13 @@ pub(in crate::legalization) fn reference_results(
     custody: &Custody,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LegalizationError> {
-    let callee_result = callee.result.structural().ok_or_else(invalid)?;
+    let callee_result = callee.result.structural().ok_or_else(|| invalid())?;
     let mut roots = BTreeSet::new();
     let mut expected = Vec::new();
     for mapping in &callee_result.reference_sources {
-        let source = call_source(callee, arguments, mapping).ok_or_else(invalid)?;
+        let source = call_source(callee, arguments, mapping).ok_or_else(|| invalid())?;
         let expected_referent =
-            leaf_referent(types, result_type, &mapping.path).ok_or_else(invalid)?;
+            leaf_referent(types, result_type, &mapping.path).ok_or_else(|| invalid())?;
         if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
             return Err(invalid());
         }

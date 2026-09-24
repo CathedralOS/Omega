@@ -419,11 +419,27 @@ fn spell_place(
         }
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => "literal".to_owned(),
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         }
         | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
-            parameter_index, ..
+            root:
+                checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_index,
+                },
+            ..
         } => format!("parameter#{parameter_index}[..]"),
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            root: checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            ..
+        }
+        | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: checked_trees::CheckedStorageRoot::ViewLocal { .. },
+            ..
+        } => "local[..]".to_owned(),
     };
     for segment in &plan.path {
         match segment {

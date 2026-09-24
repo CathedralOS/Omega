@@ -4,6 +4,7 @@ requires
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u64::Slot2 requires self <= 1;
 data Room {
     description: &[u8] in Utf8;
 }
@@ -38,8 +39,8 @@ machine Main::main(&mut self) reaches Console {
 machine Main::fill(
     &mut self,
     rooms: &mut [[Room; 2]; 2],
-    outer: u64 [0..=1],
-    inner: u64 [0..=1]
+    outer: u64 in Slot2,
+    inner: u64 in Slot2
 ) {
     rooms[outer][inner].description = self.prefix + "omega";
 }

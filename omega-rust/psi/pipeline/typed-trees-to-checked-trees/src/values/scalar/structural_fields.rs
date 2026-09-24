@@ -33,8 +33,17 @@ pub(super) fn structural_sequence_length(
     {
         return None;
     }
-    let (parameter_position, path, selected_type) =
-        structural_parameter_place(program, parameters, member.receiver)?;
+    let Some((parameter_position, path, selected_type)) =
+        structural_parameter_place(program, parameters, member.receiver)
+    else {
+        // A view local's `.len` observes the extent its establishment stored,
+        // exactly as a whole view parameter's does.
+        let (symbol, _) = view_local_root(program, parameters, member.receiver)?;
+        return Some(CheckedScalarExpression::StructuralParameterByteLength {
+            root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+            path: Vec::new(),
+        });
+    };
     // A pure parameter-rooted array projection has a type-owned extent. Do
     // not strip a constrained carrier: its live length can differ from its
     // backing capacity. Dynamic byte views retain their runtime read below.
@@ -75,12 +84,13 @@ pub(super) fn structural_sequence_length(
         else {
             return None;
         };
-        let TypeReferenceNode::Slice { element_type } =
-            program.type_reference_table.type_reference(*referee)
+        // Any element family keeps a runtime extent on its view descriptor:
+        // byte views count bytes, element views count elements, record
+        // elements included.
+        let TypeReferenceNode::Slice { .. } = program.type_reference_table.type_reference(*referee)
         else {
             return None;
         };
-        program.primitive_type_reference(*element_type)?;
     } else if !matches!(
         path.last(),
         Some(CheckedStructuralPredicatePathSegment::Field(_))
@@ -102,9 +112,60 @@ pub(super) fn structural_sequence_length(
         return None;
     }
     Some(CheckedScalarExpression::StructuralParameterByteLength {
-        parameter_position,
+        root: checked_trees::CheckedStorageRoot::Parameter {
+            index: parameter_position,
+        },
         path,
     })
+}
+
+/// The `let` symbol and declared type of an immutable borrowed view local
+/// that `expression` names whole, when that name is not a state parameter. The observation only
+/// names the local: the plan that sequences the body decides whether the
+/// local's view was established before this use, and lowering resolves the
+/// symbol to its published place or refuses.
+pub(super) fn view_local_root(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || parameters
+            .iter()
+            .any(|parameter| parameter.symbol == path.symbol)
+    {
+        return None;
+    }
+    let mut locals = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .flat_map(|state| program.statement_table.statements(state.statement_nodes))
+        .filter_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local)
+                if local.symbol == path.symbol =>
+            {
+                Some(local)
+            }
+            _ => None,
+        });
+    let local = locals.next()?;
+    (locals.next().is_none()
+        && !local.is_mutable
+        && crate::execution::terminal_unit::types::borrowed_slice_view(
+            program,
+            local.type_reference,
+        ))
+    .then_some((path.symbol, local.type_reference))
 }
 
 /// Empty spelling resolution is builtin only when the exact operand types

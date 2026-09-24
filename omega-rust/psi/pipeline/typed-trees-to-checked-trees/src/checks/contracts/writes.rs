@@ -105,6 +105,13 @@ pub(super) fn check_domain_field_writes(
                 state,
                 assignment.target,
             ) {
+                // A write establishes a PREDICATE-ONLY domain by satisfying its
+                // predicates, the same route a `let` initializer already takes
+                // above. `domains.md`: "Predicates alone establish
+                // predicate-only membership"; a routed domain still needs its
+                // provenance and so keeps the plain rejection.
+                let requires_provenance =
+                    crate::facts::field_domain::domain_requires_provenance(program, domain_symbol);
                 if !value_proves_domain(
                     program,
                     facts,
@@ -112,7 +119,17 @@ pub(super) fn check_domain_field_writes(
                     statement_index,
                     assignment.value,
                     domain_symbol,
-                ) {
+                ) && !(!requires_provenance
+                    && initializer_satisfies_predicate_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        assignment.value,
+                        domain_symbol,
+                        &mut Vec::new(),
+                    ))
+                {
                     let target_label = program.expression_table.display_name(assignment.target);
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove the value assigned to `{target_label}` in {} is in domain `{}`; \
@@ -2241,5 +2258,47 @@ fn expression_is_self_relative(
             .first()
             .is_some_and(|member| member.is_self_receiver()),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod predicate_domain_write_probes {
+    //! A write establishes a PREDICATE-ONLY domain by satisfying its
+    //! predicates, the route a `let` initializer already took. The controls
+    //! are the point: a value that fails the predicate, and a ROUTED domain
+    //! whose predicate the value does satisfy, must both still reject.
+
+    use crate::tests::front_end::checked_program_result;
+
+    fn accepted(source: &str) -> bool {
+        checked_program_result(source).is_ok()
+    }
+
+    #[test]
+    fn a_write_establishes_a_predicate_only_domain_it_satisfies() {
+        let program = |domain: &str, written: &str| {
+            format!(
+                "{domain}
+                data Main {{ slot: u64 in Slot; }}
+                machine Main::main(&mut self) {{ self.slot = {written}; }}"
+            )
+        };
+        const PREDICATE_ONLY: &str = "domain u64::Slot requires self <= 8;";
+        assert!(
+            accepted(&program(PREDICATE_ONLY, "3")),
+            "3 satisfies `self <= 8`, so the write establishes the domain"
+        );
+        assert!(
+            !accepted(&program(PREDICATE_ONLY, "9")),
+            "9 fails the predicate and must not establish the domain"
+        );
+        assert!(
+            !accepted(&program(
+                "pub boundary trait Granter { machine grant(v: u64) -> u64 in Slot; }\n\
+                 pub domain u64::Slot requires self <= 8 established by Granter::grant;",
+                "3"
+            )),
+            "a ROUTED domain needs provenance, however well the value satisfies its predicate"
+        );
     }
 }

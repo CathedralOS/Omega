@@ -229,6 +229,7 @@ pub(super) fn validate_unit_operation_sequence(
                 }
             }
             CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
@@ -240,6 +241,10 @@ pub(super) fn validate_unit_operation_sequence(
                     Some(CheckedUnitEffectOperationPlan::CallUnit { coordinate: call, .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { coordinate: call, .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate: call, .. }) if call == coordinate)
+                    && !super::field_replacement::continues_with_cleanup(
+                        &machine.operations,
+                        operation_index,
+                    )
                 {
                     return unsupported("call cleanup has no immediately preceding completed call");
                 }
@@ -366,6 +371,32 @@ pub(super) fn validate_unit_operation_sequence(
                     structural_calls::validate_usage(checked, machine, result)?;
                 }
                 *coordinate
+            }
+            // The window pair of a field replacement continues its producer's
+            // statement: the move-out and the store share the producing
+            // call's or establishment's coordinate rather than taking one of
+            // their own. The displaced binding still takes the next dense
+            // ordinal.
+            CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
+                if super::field_replacement::continues(&machine.operations, operation_index) =>
+            {
+                if result.binding_ordinal != next_structural_binding {
+                    return unsupported(
+                        "Unit structural result is not the next dense source binding",
+                    );
+                }
+                next_structural_binding =
+                    next_structural_binding
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit structural result binding ordinal space is exhausted",
+                        ))?;
+                continue;
+            }
+            CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                if super::field_replacement::continues(&machine.operations, operation_index) =>
+            {
+                continue;
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
@@ -525,6 +556,7 @@ pub(super) fn validate_unit_operation_sequence(
         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
         | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
         {

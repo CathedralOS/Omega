@@ -12,9 +12,8 @@ pub(super) fn project(
     function: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
-    let invalid = Error::SourceCustodyMismatch;
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
-        return Err(invalid);
+        return Err(Error::custody());
     };
     let source = scalar_graph_input::structural_case::case_source(function, *source)?;
     let layout =
@@ -23,17 +22,17 @@ pub(super) fn project(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == source.structural_type())
-        .ok_or(invalid.clone())?;
+        .ok_or(Error::custody())?;
     let declared: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }
         | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return Err(invalid),
+        _ => return Err(Error::custody()),
     };
     if cases.len() != declared.len()
         || cases.len() != node.successors.len()
         || cases.len() != layout.cases.len()
     {
-        return Err(invalid);
+        return Err(Error::custody());
     }
     let mut successors = Vec::with_capacity(cases.len());
     for (case_position, ((case, edge), declared)) in
@@ -43,7 +42,7 @@ pub(super) fn project(
             .blocks
             .iter()
             .find(|block| block.id == case.target)
-            .ok_or(invalid.clone())?;
+            .ok_or(Error::custody())?;
         let fields = declared
             .fields
             .iter()
@@ -52,14 +51,14 @@ pub(super) fn project(
         if case.payloads.len() != destination.parameters.len()
             || fields.len() != layout.cases[case_position].fields.len()
         {
-            return Err(invalid);
+            return Err(Error::custody());
         }
         let mut payloads = Vec::with_capacity(case.payloads.len());
         for (payload, parameter) in case.payloads.iter().zip(&destination.parameters) {
             let field_position = fields
                 .iter()
                 .position(|field| field.id == payload.field)
-                .ok_or(invalid.clone())?;
+                .ok_or(Error::custody())?;
             payloads.push(LegalizedStructuralCasePayload {
                 field: payload.field,
                 field_byte_offset: u32::from(
@@ -76,7 +75,7 @@ pub(super) fn project(
             edge: case.psi_edge,
             target: case.target,
             case: case.case,
-            case_tag: i32::try_from(case_position).map_err(|_| invalid.clone())?,
+            case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
             payloads,
             trivial_affine_discards: case.trivial_affine_discards.clone(),
             fuel: edge.fuel.clone(),

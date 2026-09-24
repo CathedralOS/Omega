@@ -622,7 +622,7 @@ rows! {
     FORM_STRUCTURAL_BYTES => (
         "formation:structural-byte-sequence-fields",
         SharedFormation,
-        "structural byte-sequence fields, their extents, and freshness discipline",
+        "structural byte-sequence fields, their extents, and freshness discipline, including the equality of two length observations of one field when no path between them changes its extent; byte stores require a bounded-owned carrier",
         "byte-sequence fields validate before extent equations and capacity obligations are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs")]

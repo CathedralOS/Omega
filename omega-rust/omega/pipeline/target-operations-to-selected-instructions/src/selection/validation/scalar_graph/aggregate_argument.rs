@@ -17,7 +17,6 @@ pub(super) fn argument(
     target: &target_operations::TargetStructuralArgument,
     replay: &mut Replay<'_>,
 ) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let place = semantic.place;
     let slot = match target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
@@ -27,7 +26,7 @@ pub(super) fn argument(
             })
         }
         target_operations::TargetStructuralArgumentSource::Placement(_) => None,
-        _ => return Err(invalid()),
+        _ => return Err(SelectedInstructionError::custody()),
     };
     // Exact semantic call replay retains the empty value's producer and type;
     // zero ABI fragments cannot justify a fabricated physical home.
@@ -39,7 +38,7 @@ pub(super) fn argument(
     if target.shape != target.destination.shape
         || !crate::selection::aggregate_result_input::owned_argument_placement(&target.destination)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let block = source
         .blocks
@@ -50,7 +49,7 @@ pub(super) fn argument(
                 .iter()
                 .any(|row| row.operation == operation.operation)
         })
-        .ok_or_else(invalid)?
+        .ok_or_else(|| SelectedInstructionError::custody())?
         .id;
     let pointer = if let Some(slot) = slot {
         if replay
@@ -65,7 +64,7 @@ pub(super) fn argument(
             .count()
             != 1
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         let pointer = super::structural_case::temporary(replay, place, 0, false)?;
         super::structural_case::memory(
@@ -81,7 +80,11 @@ pub(super) fn argument(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            replay.constraints.keys.frame_address.ok_or_else(invalid)?,
+            replay
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[pointer],
             &Default::default(),
         )?;
@@ -107,7 +110,9 @@ pub(super) fn argument(
     let outgoing = if let Some(stack_byte_offset) = outgoing_offset {
         let slot = selected_instructions::OutgoingArgumentSlotId {
             operation: operation.operation,
-            argument_index: argument_index.try_into().map_err(|_| invalid())?,
+            argument_index: argument_index
+                .try_into()
+                .map_err(|_| SelectedInstructionError::custody())?,
             role: if indirect.is_some() {
                 selected_instructions::OutgoingArgumentSlotRole::ValueCopy
             } else {
@@ -120,7 +125,7 @@ pub(super) fn argument(
             .iter()
             .any(|existing| existing.id == slot)
         {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         let alignment = target
             .destination
@@ -164,7 +169,11 @@ pub(super) fn argument(
                 slot: FrameStorageSlotId::Outgoing(slot),
                 byte_offset: 0,
             },
-            replay.constraints.keys.frame_address.ok_or_else(invalid)?,
+            replay
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[address],
             &Default::default(),
         )?;
@@ -194,7 +203,7 @@ pub(super) fn argument(
                     byte_size,
                     ..
                 } => Ok((*value_byte_offset, *byte_size)),
-                _ => Err(invalid()),
+                _ => Err(SelectedInstructionError::custody()),
             })
             .collect::<Result<Vec<_>, _>>()?
     };
@@ -218,7 +227,7 @@ pub(super) fn argument(
                 .iter()
                 .find(|(owner, position, _)| *owner == place && *position == offset)
                 .map(|(_, _, register)| *register)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             replay.check_instruction(
                 SelectedInstructionKind::CopyI64,
                 replay.constraints.keys.copy_i64,
@@ -241,7 +250,7 @@ pub(super) fn argument(
         }
     }
     if let Some((pointer_location, _)) = indirect {
-        let (_, address) = outgoing.ok_or_else(invalid)?;
+        let (_, address) = outgoing.ok_or_else(|| SelectedInstructionError::custody())?;
         match pointer_location {
             calling_conventions::IndirectPointerLocation::Register(_) => registers.push(address),
             calling_conventions::IndirectPointerLocation::Stack {
@@ -250,7 +259,9 @@ pub(super) fn argument(
             } => {
                 let slot = selected_instructions::OutgoingArgumentSlotId {
                     operation: operation.operation,
-                    argument_index: argument_index.try_into().map_err(|_| invalid())?,
+                    argument_index: argument_index
+                        .try_into()
+                        .map_err(|_| SelectedInstructionError::custody())?,
                     role: selected_instructions::OutgoingArgumentSlotRole::Argument,
                 };
                 if replay
@@ -259,7 +270,7 @@ pub(super) fn argument(
                     .iter()
                     .any(|existing| existing.id == slot)
                 {
-                    return Err(invalid());
+                    return Err(SelectedInstructionError::custody());
                 }
                 replay
                     .transport
@@ -283,7 +294,11 @@ pub(super) fn argument(
                         slot: FrameStorageSlotId::Outgoing(slot),
                         byte_offset: 0,
                     },
-                    replay.constraints.keys.store64.ok_or_else(invalid)?,
+                    replay
+                        .constraints
+                        .keys
+                        .store64
+                        .ok_or_else(|| SelectedInstructionError::custody())?,
                     &[address],
                     &Default::default(),
                 )?;
@@ -310,7 +325,7 @@ fn outgoing_memory(
                 replay
                     .instruction_cursor
                     .try_into()
-                    .map_err(|_| SelectedInstructionError::SourceCustodyMismatch)?,
+                    .map_err(|_| SelectedInstructionError::custody())?,
             ),
             origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(operation),
             place,

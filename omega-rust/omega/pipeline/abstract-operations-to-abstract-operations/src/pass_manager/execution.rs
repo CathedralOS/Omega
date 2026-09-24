@@ -45,6 +45,7 @@ pub(crate) fn run_registries(
     )
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn run_registries_with_external_decisions(
     session: VerifiedPsiOptimizationSession,
     selections: &OptimizationSelections,

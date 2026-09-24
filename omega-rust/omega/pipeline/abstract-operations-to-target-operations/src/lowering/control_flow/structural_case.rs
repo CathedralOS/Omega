@@ -23,7 +23,7 @@ pub(super) fn observe(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StructuralCaseMembership {
         psi_operation,
         result,
@@ -84,7 +84,7 @@ fn case_source(
     structural_types: &StructuralTypeLookup<'_>,
     source: PlaceId,
 ) -> Result<TargetStructuralCaseSource, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     if let Some(home) = live.structural_homes.get(&source) {
         return Ok(TargetStructuralCaseSource::Home(home.clone()));
     }
@@ -162,7 +162,7 @@ pub(super) fn lower(
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetControlTerminator, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::StructuralCase { source, cases } = operation else {
         return Err(invalid());
     };

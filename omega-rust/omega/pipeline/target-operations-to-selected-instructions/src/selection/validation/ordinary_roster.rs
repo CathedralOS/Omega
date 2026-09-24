@@ -39,7 +39,7 @@ pub(super) fn validate(
                 }
                 super::integrity::validate_def_use(function_index, selected, catalog)?;
             }
-            _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
+            _ => return Err(SelectedInstructionError::custody()),
         }
     }
     Ok(())

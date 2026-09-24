@@ -1,5 +1,5 @@
-//! Structural return plans: claim-free affine, payloadless case and guarded
-//! call returns with their evidence.
+//! Structural return plans: whole-root transfers, claim-free affine returns
+//! and guarded payloadless call returns with their evidence.
 
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralResultPlan, CheckedStructuralScalarParameterPlan,
@@ -10,9 +10,10 @@ use crate::checked_trees::flow::terminal::{
 use symbols::SymbolHandle;
 
 /// Source-handle-free checked plans for the bounded structural-result lanes.
-/// Claim-bearing machines admit an exact whole-root linear transfer; the
-/// separate payload-less-case lane admits exact zero-input unrestricted sum
-/// construction without manufacturing claim custody.
+/// Claim-bearing machines admit an exact whole-root linear transfer. A
+/// zero-input payload-less case constructor has no lane here: it is an
+/// ordinary Unit-effect body whose structural result the general Unit closure
+/// lowers.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedStructuralReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
@@ -23,11 +24,6 @@ pub struct CheckedStructuralReturnPlans {
     /// claim-transfer family above: an absent claim is not a degenerate
     /// transferred claim.
     pub claim_free_affine_machines: Vec<CheckedClaimFreeAffineStructuralReturnMachinePlan>,
-    /// Exact zero-input constructors for one payload-less case of a closed
-    /// unrestricted sum. These remain separate from claim-bearing whole-root
-    /// transfers so downstream consumers cannot confuse construction with a
-    /// parameter claim reshuffle.
-    pub payloadless_case_machines: Vec<CheckedPayloadlessCaseReturnMachinePlan>,
 }
 
 impl CheckedStructuralReturnPlans {
@@ -36,15 +32,6 @@ impl CheckedStructuralReturnPlans {
         machine: SymbolHandle,
     ) -> Option<&CheckedStructuralReturnMachinePlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
-    }
-
-    pub fn payloadless_case_for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&CheckedPayloadlessCaseReturnMachinePlan> {
-        self.payloadless_case_machines
-            .iter()
-            .find(|plan| plan.machine == machine)
     }
 
     pub fn claim_free_affine_for_machine(
@@ -71,21 +58,6 @@ pub struct CheckedClaimFreeAffineStructuralReturnMachinePlan {
     pub return_statement_ordinal: u32,
 }
 
-/// Source-handle-free checked plan for the first exact nominal sum-case
-/// result constructor. The selected case owns no payload, and the result is a
-/// closed, qualification-free unrestricted sum, so no runtime input or
-/// ownership claim participates in construction.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedPayloadlessCaseReturnMachinePlan {
-    pub machine: SymbolHandle,
-    pub state: SymbolHandle,
-    pub attachment_type_identity: String,
-    pub result: CheckedStructuralResultPlan,
-    /// Normalized identity from the selected case declaration, not its source
-    /// spelling or arena handle.
-    pub returned_case_identity: String,
-}
-
 /// Guarded payloadless result calls retain their erased evidence selectors.
 /// Ordinary linear result calls belong to shared statement sequencing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -109,6 +81,10 @@ impl CheckedStructuralCallReturnPlans {
     }
 }
 
+/// One guarded payloadless call returned through its exhaustive identity arms.
+/// The callee is not a plan of this family: `target_machine` is a zero-input
+/// machine on the same attachment returning the same unrestricted sum, and it
+/// lowers through its own ordinary Unit-effect plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedPayloadlessGuardedCallReturnMachinePlan {
     pub machine: SymbolHandle,
@@ -117,6 +93,7 @@ pub struct CheckedPayloadlessGuardedCallReturnMachinePlan {
     pub result: CheckedStructuralResultPlan,
     pub call: CheckedUnitCallCoordinate,
     pub target_machine: SymbolHandle,
+    /// The callee's entry state, which the call names.
     pub target_state: SymbolHandle,
     /// Canonically ordered explicitly selected named rows. An empty vector
     /// retains the callee's guarded implications without minting caller terms.

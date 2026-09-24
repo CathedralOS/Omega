@@ -5,6 +5,7 @@
 #[path = "common/front_end.rs"]
 mod front_end;
 
+use abstract_operations_to_abstract_operations::test_support::*;
 use abstract_operations_to_abstract_operations::*;
 use optimization_core::OptimizationWorkUsage;
 
