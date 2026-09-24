@@ -647,6 +647,27 @@ pub(in crate::execution) fn build_call_operation(
                         .as_str()
                         != expected.type_identity
             }
+            Some(ExpectedCallValueResult::Structural(expected))
+                if crate::execution::terminal_unit::types::borrowed_slice_view(
+                    program,
+                    target_state.return_type,
+                ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                    program,
+                    target_state.return_type,
+                ) =>
+            {
+                // A `&[u8]`/`&'a V` result is a shared loan against the
+                // callee's storage: the anonymous result carries its
+                // declared identity with affine custody, exactly as the
+                // reference-record arm above compares it.
+                expected.multiplicity != Multiplicity::Affine
+                    || crate::execution::terminal_unit::types::borrowed_view_result_identity(
+                        program,
+                        target_state.return_type,
+                    )
+                    .as_deref()
+                        != Some(expected.type_identity.as_str())
+            }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected, &[])
             }
@@ -1001,7 +1022,19 @@ pub(in crate::execution) fn build_call_operation(
                     && validation::is_closed_primitive_array_type(
                         program,
                         target_state.return_type,
-                    )))
+                    ))
+                // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
+                // storage through the caller frame: its anonymous plan is
+                // affine like the reference-record family above, and the
+                // result-shape arm already proved the identity.
+                || (result.multiplicity == Multiplicity::Affine
+                    && (crate::execution::terminal_unit::types::borrowed_slice_view(
+                        program,
+                        target_state.return_type,
+                    ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                        program,
+                        target_state.return_type,
+                    ))))
             && program
                 .machine_states(target_machine)
                 .first()

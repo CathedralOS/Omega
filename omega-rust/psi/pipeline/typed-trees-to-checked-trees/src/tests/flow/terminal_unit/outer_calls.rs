@@ -426,6 +426,37 @@ fn conditional_tail_calls_compose_their_literal_arguments() {
     );
 }
 
+const EXPRESSION_STATEMENT_VIEW_CALL: &str = r#"
+    machine suffix(place: u64, text: &[u8]) -> &[u8] {
+        text
+    }
+
+    machine format(rounded: u64, suffix: &[u8]) {
+    }
+
+    machine render() {
+        format(0, suffix(1, "B"));
+    }
+"#;
+
+#[test]
+fn expression_statement_borrowed_view_calls_consume_the_nested_call() {
+    // `format(rounded, suffix(place))` as an expression statement nests a
+    // callee whose `&[u8]` result is the borrowed-view family: the
+    // outer-call roster must plan the anonymous result so the nested call
+    // counts as consumed rather than reading as an unconsumed nested call.
+    let checked = checked(EXPRESSION_STATEMENT_VIEW_CALL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let render = machine_named(&checked, "render");
+    assert!(
+        plans.for_machine(render).is_some(),
+        "expression-statement nested `&[u8]` call declined: {:?}\n  suffix: {:?}\n  format: {:?}",
+        plans.omission_for_machine(render),
+        plans.omission_for_machine(machine_named(&checked, "suffix")),
+        plans.omission_for_machine(machine_named(&checked, "format"))
+    );
+}
+
 #[test]
 fn transition_arm_runtime_index_reads_remain_declined() {
     // `self.collections[collection_index]` is a runtime-indexed read the

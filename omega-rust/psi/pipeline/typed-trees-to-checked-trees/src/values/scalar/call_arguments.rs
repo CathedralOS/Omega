@@ -340,6 +340,18 @@ pub(crate) fn nested_structural_call_return_type(
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && validation::has_plain_owned_contents(program, return_type))))
+                && (validation::has_plain_owned_contents(program, return_type)
+                    // A checked-body `&[u8]`/`&'a V` borrowed-view result
+                    // lends caller-frame storage through a shared loan;
+                    // the caller's operand scheduling replays that custody
+                    // exactly as it does for reference-record results.
+                    || crate::execution::terminal_unit::types::borrowed_slice_view(
+                        program,
+                        return_type,
+                    )
+                    || crate::execution::terminal_unit::types::borrowed_named_view(
+                        program,
+                        return_type,
+                    )))))
     .then_some(return_type)
 }
