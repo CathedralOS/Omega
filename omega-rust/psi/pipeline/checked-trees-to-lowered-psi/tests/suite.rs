@@ -26,6 +26,7 @@ mod call_operand_source_custody;
 mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
 mod case_payload_guard_observation;
+mod case_payload_path_boundaries;
 mod composed_call_arguments_source;
 mod composed_internal_call_arguments_source;
 mod composed_unit_scalar_crashes_source;
@@ -101,4 +102,5 @@ mod unit_scalar_result_source;
 mod unit_state_graph;
 mod unit_tail_calls_source;
 mod value_dispatch;
+
 mod view_locals;
