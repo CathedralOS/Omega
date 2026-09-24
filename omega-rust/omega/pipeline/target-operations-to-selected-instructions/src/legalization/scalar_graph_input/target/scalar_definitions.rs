@@ -120,6 +120,48 @@ pub(super) fn validate(
 }
 
 /// Scalar definitions retain ordered result homes; operands use prior homes.
+/// The scalar families a Unit body's `ScalarDefinition` replays through
+/// `observation`. The one list both the Unit operation replay and this
+/// module read, so a family the scalar graph legalizes cannot be admitted
+/// here and missed there.
+pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
+    matches!(
+        abstracted,
+        AbstractOperation::ByteSequenceLength { .. }
+            | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::ElementViewLength { .. }
+            | AbstractOperation::ElementViewRead { .. }
+            | AbstractOperation::IntegerEqual { .. }
+            | AbstractOperation::IntegerLessThan { .. }
+            | AbstractOperation::IntegerLessOrEqual { .. }
+            | AbstractOperation::BooleanNot { .. }
+            | AbstractOperation::BooleanEqual { .. }
+            | AbstractOperation::SaturatingIntegerSubtract { .. }
+            | AbstractOperation::SaturatingIntegerAdd { .. }
+            | AbstractOperation::SaturatingIntegerDivide { .. }
+            | AbstractOperation::SaturatingIntegerRemainder { .. }
+            | AbstractOperation::WrappingIntegerAdd { .. }
+            | AbstractOperation::WrappingIntegerSubtract { .. }
+            | AbstractOperation::WrappingIntegerMultiply { .. }
+            | AbstractOperation::WrappingIntegerDivide { .. }
+            | AbstractOperation::WrappingIntegerRemainder { .. }
+            | AbstractOperation::WrappingIntegerShiftLeft { .. }
+            | AbstractOperation::WrappingIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerShiftLeft { .. }
+            | AbstractOperation::ExactIntegerShiftRight { .. }
+            | AbstractOperation::ExactIntegerAdd { .. }
+            | AbstractOperation::ExactIntegerSubtract { .. }
+            | AbstractOperation::ExactIntegerMultiply { .. }
+            | AbstractOperation::ExactIntegerDivide { .. }
+            | AbstractOperation::ExactIntegerRemainder { .. }
+            | AbstractOperation::IntegerBitwiseAnd { .. }
+            | AbstractOperation::IntegerBitwiseOr { .. }
+            | AbstractOperation::IntegerBitwiseXor { .. }
+            | AbstractOperation::IntegerBitwiseNot { .. }
+            | AbstractOperation::IntegerExactCast { .. }
+    )
+}
+
 pub(super) fn observation(
     target: &TargetUnitOperation,
     abstracted: &AbstractOperation,
@@ -134,6 +176,14 @@ pub(super) fn observation(
     };
     let (operation, value, scalar_type) = match abstracted {
         AbstractOperation::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        }
+        | AbstractOperation::SaturatingIntegerRemainder {
             psi_operation,
             result,
             scalar_type,
