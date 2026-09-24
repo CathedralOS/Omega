@@ -337,9 +337,12 @@ fn plan_assignment(
         return None;
     }
     // A declared domain needs membership evidence the stored value does not
-    // carry, and no store operation retains one.
+    // carry, and no store operation retains one -- unless membership is
+    // exactly an interval: the field's bounded carrier then states it, and
+    // the store's range obligation is the whole evidence.
     if !crate::facts::field_domain::domain_constraint_symbols(program, field.type_reference)
         .is_empty()
+        && !crate::facts::field_domain::domains_are_exact_intervals(program, field.type_reference)
     {
         trace.phase("structural field store: scalar field type: domain-constrained field");
         return None;

@@ -29,6 +29,10 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                     source: argument,
                     ..
+                }
+                | LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+                    source: argument,
+                    ..
                 } => argument.place == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                     destination,

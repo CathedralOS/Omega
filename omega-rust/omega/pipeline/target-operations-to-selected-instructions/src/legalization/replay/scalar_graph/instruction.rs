@@ -405,6 +405,12 @@ pub(super) fn validate(
             AbstractOperation::WriteOnlyPrimitiveStore { .. },
         ) => storage_instructions::validate_write_only_primitive_store(actual, node, unit)?,
         (
+            LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. },
+            AbstractOperation::IndexedPrimitiveRead { .. },
+        ) => storage_instructions::validate_indexed_primitive_read(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. },
             AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
         ) => storage_instructions::validate_write_only_indexed_primitive_store(

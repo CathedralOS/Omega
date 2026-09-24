@@ -140,12 +140,27 @@ pub(crate) fn indexed_primitive_store(
         )
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
-        || matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
     {
         return None;
     }
+    indexed_array_layout(destination.structural_type, path, scalar, declarations)
+}
+
+/// The fixed array of `scalar` elements at `path` beneath `root`: its base
+/// offset within the referent, the element width that is also the stride,
+/// and the declared extent. Indexed reads and stores address one element of
+/// this layout at a proven runtime position.
+pub(crate) fn indexed_array_layout(
+    root: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8, u64)> {
+    if matches!(scalar, ScalarType::Integer(integer) if integer.is_address()) {
+        return None;
+    }
     let (carrier, offset) = project_inner(
-        destination.structural_type,
+        root,
         path.iter().map(|segment| match segment {
             CanonicalStructuralPathSegment::Field(field) => Projection::FieldId(*field),
             CanonicalStructuralPathSegment::FixedIndex(position) => {
@@ -174,7 +189,7 @@ pub(crate) fn indexed_primitive_store(
     }
     let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
     (u64::from(offset).checked_add(u64::from(bytes).checked_mul(length)?)?
-        <= u64::from(shape(destination.structural_type, declarations)?.byte_size))
+        <= u64::from(shape(root, declarations)?.byte_size))
     .then_some((offset, bytes, length))
 }
 

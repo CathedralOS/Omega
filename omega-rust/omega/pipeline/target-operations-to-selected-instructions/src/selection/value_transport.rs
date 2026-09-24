@@ -4,8 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use legalized_operations::{
-    LegalizedScalarFunction, LegalizedScalarInstructionKind as Instruction,
-    LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
+    LegalizedScalarFunction, LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
 };
 use semantic_vocabulary::ValueId;
 
@@ -17,117 +16,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
     let mut incoming = BTreeMap::<ValueId, Vec<ValueId>>::new();
     for block in &function.blocks {
         for instruction in &block.instructions {
-            match &instruction.kind {
-                Instruction::EstablishScalarArray { elements, .. } => pending.extend(elements),
-                Instruction::EstablishRecord { fields, .. } => {
-                    pending.extend(fields.iter().filter_map(|field| match &field.value {
-                        terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(*value),
-                        terminal_psi::RecordFieldValue::Structural(_) => None,
-                    }))
-                }
-                Instruction::EstablishScalarCase { fields, .. } => {
-                    pending.extend(fields.iter().map(|field| field.value))
-                }
-                Instruction::HostedWriteByteI32 { source, .. }
-                | Instruction::HostedExitProcessI32 { source, .. } => pending.push(*source),
-                Instruction::StructuralScalarFieldStore { value, .. }
-                | Instruction::EstablishPrimitiveLocal { value, .. }
-                | Instruction::PrimitiveLocalStore { value, .. }
-                | Instruction::WriteOnlyPrimitiveStore { value, .. } => pending.push(value.value),
-                Instruction::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
-                    pending.extend([index.value, value.value])
-                }
-                Instruction::ByteSequenceSubslice {
-                    start, end, length, ..
-                }
-                | Instruction::ElementViewSubslice {
-                    start, end, length, ..
-                } => pending.extend([*start, *end, *length]),
-                Instruction::StructuralByteSequenceFieldStore { length, .. } => {
-                    pending.push(*length)
-                }
-                Instruction::StructuralByteSequenceFieldByteStore {
-                    index,
-                    value,
-                    length,
-                    ..
-                }
-                | Instruction::ByteSequenceWrite {
-                    index,
-                    value,
-                    length,
-                    ..
-                } => pending.extend([*index, *value, *length]),
-                Instruction::ByteSequenceRead { index, length, .. }
-                | Instruction::ElementViewRead { index, length, .. } => {
-                    pending.extend([*index, *length])
-                }
-                Instruction::StructuralLeafCopy { indices, .. } => {
-                    pending.extend(indices.iter().map(|index| index.operand.value))
-                }
-                Instruction::BooleanNot { operand }
-                | Instruction::IntegerWiden { operand, .. }
-                | Instruction::IntegerExactCast { operand, .. }
-                | Instruction::BitwiseNot { operand } => pending.push(*operand),
-                Instruction::Call(call) => pending.extend(
-                    call.arguments
-                        .iter()
-                        .filter_map(|argument| argument.scalar_source()),
-                ),
-                Instruction::NormalizedForeignCall(call) => pending.extend(
-                    call.scalar_arguments
-                        .iter()
-                        .map(|argument| argument.source.source_value()),
-                ),
-                Instruction::SaturatingAdd { left, right, .. }
-                | Instruction::SaturatingSubtract { left, right, .. }
-                | Instruction::SaturatingDivide { left, right, .. }
-                | Instruction::SaturatingRemainder { left, right, .. }
-                | Instruction::SaturatingMultiply { left, right, .. }
-                | Instruction::ExactBinary { left, right, .. }
-                | Instruction::WrappingRemainder { left, right, .. }
-                | Instruction::WrappingDivide { left, right, .. }
-                | Instruction::WrappingAdd { left, right }
-                | Instruction::WrappingSubtract { left, right }
-                | Instruction::WrappingMultiply { left, right }
-                | Instruction::WrappingShiftLeft {
-                    value: left,
-                    count: right,
-                }
-                | Instruction::WrappingShiftRight {
-                    value: left,
-                    count: right,
-                }
-                | Instruction::ExactShiftLeft {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Instruction::ExactShiftRight {
-                    value: left,
-                    count: right,
-                    ..
-                }
-                | Instruction::BitwiseAnd { left, right }
-                | Instruction::BitwiseOr { left, right }
-                | Instruction::BitwiseXor { left, right }
-                | Instruction::IeeeFloatCompare { left, right, .. }
-                | Instruction::Compare { left, right, .. } => pending.extend([*left, *right]),
-                Instruction::Constant(_)
-                | Instruction::EstablishReference { .. }
-                | Instruction::ReleaseReference { .. }
-                | Instruction::HostedReadByte { .. }
-                | Instruction::PrimitiveScalarRead { .. }
-                | Instruction::StructuralScalarFieldRead { .. }
-                | Instruction::StructuralByteSequenceFieldLength { .. }
-                | Instruction::StructuralCaseMembership { .. }
-                | Instruction::EstablishByteSequenceLiteral { .. }
-                | Instruction::ByteSequenceLength { .. }
-                | Instruction::EstablishElementView { .. }
-                | Instruction::ElementViewLength { .. }
-                | Instruction::BoundarySettlement(_)
-                | Instruction::DynamicParameterCall(_) => {}
-            }
+            instruction.visit_scalar_operands(|value| pending.push(value));
         }
         let mut bind = |successor: &legalized_operations::LegalizedScalarSuccessor| {
             for binding in &successor.bindings {

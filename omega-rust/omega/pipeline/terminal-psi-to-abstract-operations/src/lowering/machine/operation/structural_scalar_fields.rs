@@ -45,6 +45,21 @@ pub(super) fn lower(
             path,
             field,
         } => lower_integer_read(operation, machine, structural_types, *source, path, *field),
+        OperationKind::IndexedPrimitiveRead {
+            source,
+            path,
+            index,
+            obligation,
+        } => lower_indexed_read(
+            operation,
+            block,
+            machine,
+            structural_types,
+            *source,
+            path,
+            *index,
+            *obligation,
+        ),
         _ => unreachable!("structural scalar-field router is exhaustive"),
     }
 }
@@ -144,6 +159,50 @@ fn lower_integer_read(
         source,
         path: path.to_vec(),
         field,
+    })
+}
+
+/// One element of a fixed-array leaf read at a verified runtime position: the
+/// path ends at the array, the result is its element type, and the dominating
+/// index is the `u64` position the bounds obligation constrains.
+#[allow(clippy::too_many_arguments)]
+fn lower_indexed_read(
+    operation: &Operation,
+    block: &Block,
+    machine: &TerminalMachine,
+    structural_types: &[StructuralTypeDeclaration],
+    source: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    index: semantic_vocabulary::ValueId,
+    obligation: semantic_vocabulary::ObligationId,
+) -> Result<AbstractOperation, LoweringError> {
+    let invalid = || LoweringError::InvalidIndexedPrimitiveRead(operation.id);
+    let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
+    let (element, _extent) =
+        terminal_semantics::fixed_array_place_shape(structural_types.iter(), structural_type, path)
+            .ok_or_else(invalid)?;
+    let result = operation.result.scalar().ok_or_else(invalid)?;
+    let index_type =
+        dominating_scalar_type(machine, block, operation.id, index).ok_or_else(invalid)?;
+    let unsigned_64 =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .map_err(|_| invalid())?;
+    if result.scalar_type != element || index_type != ScalarType::Integer(unsigned_64) {
+        return Err(invalid());
+    }
+    Ok(AbstractOperation::IndexedPrimitiveRead {
+        psi_operation: operation.id,
+        result: AbstractResult {
+            value: result.id,
+            scalar_type: result.scalar_type,
+        },
+        source,
+        path: path.to_vec(),
+        index: AbstractResult {
+            value: index,
+            scalar_type: index_type,
+        },
+        obligation,
     })
 }
 

@@ -276,6 +276,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
+        | O::IndexedPrimitiveRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }

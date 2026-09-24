@@ -19,6 +19,8 @@ pub(crate) const RUNTIME_RANGED_BITWISE_AND_MASK_EXIT: &str =
     "arithmetic/runtime_ranged_bitwise_and_mask_exit";
 pub(crate) const RUNTIME_DECLARED_RANGE_INDEX_READ_EXIT: &str =
     "collections/runtime_declared_range_index_read_exit";
+pub(crate) const RUNTIME_SIGNED_ELEMENT_OFFSET_READ_EXIT: &str =
+    "collections/runtime_signed_element_offset_read_exit";
 pub(crate) const RUNTIME_DECLARED_RANGE_INDEX_WRITE_EXIT: &str =
     "collections/runtime_declared_range_index_write_exit";
 pub(crate) const RUNTIME_EXPRESSION_RANGE_BOUND_EXIT: &str =
@@ -250,6 +252,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_RANGED_DIVIDE_MODULO_CHAIN_EXIT,
     RUNTIME_RANGED_BITWISE_AND_MASK_EXIT,
     RUNTIME_DECLARED_RANGE_INDEX_READ_EXIT,
+    RUNTIME_SIGNED_ELEMENT_OFFSET_READ_EXIT,
     RUNTIME_DECLARED_RANGE_INDEX_WRITE_EXIT,
     RUNTIME_EXPRESSION_RANGE_BOUND_EXIT,
     RUNTIME_INDEXED_STRUCT_FIELD_RMW_EXIT,

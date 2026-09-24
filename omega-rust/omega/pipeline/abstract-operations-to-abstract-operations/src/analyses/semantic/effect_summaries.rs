@@ -408,6 +408,7 @@ fn operation_effect(
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
+        | O::IndexedPrimitiveRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }

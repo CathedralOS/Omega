@@ -135,6 +135,22 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*length);
             bytes.id(*obligation);
         }
+        O::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            index,
+            obligation,
+        } => {
+            bytes.u8(89);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+            encode_canonical_path(bytes, path);
+            encode_abstract_result(bytes, *index);
+            bytes.id(*obligation);
+        }
         O::IntegerConstant {
             psi_operation,
             result,

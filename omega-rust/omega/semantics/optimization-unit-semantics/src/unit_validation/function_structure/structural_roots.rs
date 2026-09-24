@@ -367,6 +367,32 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
+                // The path ends at a fixed array whose element type is the
+                // result's scalar; the root is readable storage.
+                O::IndexedPrimitiveRead {
+                    result,
+                    source,
+                    path,
+                    ..
+                } => {
+                    let valid = readable_field_type(function, *source).is_some_and(|root| {
+                        terminal_semantics::fixed_array_place_shape(
+                            structural_types.values().copied(),
+                            root,
+                            path,
+                        )
+                        .is_some_and(|(element, _extent)| element == result.scalar_type)
+                    });
+                    if !valid {
+                        return Err(
+                            OptimizationUnitValidationError::InvalidIndexedPrimitiveRead {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                        );
+                    }
+                }
                 O::EstablishReference {
                     psi_operation,
                     result,

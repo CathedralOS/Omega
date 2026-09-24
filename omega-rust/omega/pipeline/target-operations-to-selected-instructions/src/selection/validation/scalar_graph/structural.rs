@@ -39,7 +39,9 @@ mod record;
 mod scalar_array;
 mod scalar_case;
 pub(super) use primitive_locals::read;
+mod indexed_read;
 mod indexed_store;
+pub(super) use indexed_read::read as indexed_read;
 mod scalar_store;
 mod subslice;
 
