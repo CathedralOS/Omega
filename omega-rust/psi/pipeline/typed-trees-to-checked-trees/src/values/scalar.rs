@@ -61,4 +61,6 @@ pub(crate) use result_contract::{
 pub(crate) use scalar_lowering::{
     lower_state_scalar_expression, lower_unit_scalar_argument, retag_exact_integer_literal,
 };
-pub(crate) use structural_fields::{exclusive_reference, resolve_structural_parameter_path};
+pub(crate) use structural_fields::{
+    exclusive_reference, resolve_structural_parameter_path, structural_data,
+};

@@ -903,3 +903,68 @@ fn attached_short_circuit_transition_guards_lower_and_execute_on_each_leaf() {
         );
     }
 }
+
+const PARITY_GETTER: &str = "
+    data Parity [copy] { case Even; case Odd; }
+    machine Parity::bit(&self) -> u64 {
+        transition self {
+            Parity::Even -> (1)
+            Parity::Odd -> (2)
+        }
+    }
+";
+
+/// Neither tail authors a fallback: each second guard is the exact complement
+/// of the first, so the scalar graph lowers one conditional and the inverse
+/// arm executes wherever the first guard fails.
+#[test]
+fn exact_complement_guard_pairs_lower_as_one_scalar_conditional() {
+    let getter = checked_source(PARITY_GETTER, BranchForm::Separate);
+    let bit = getter
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Parity::bit")
+        .expect("two-case getter")
+        .symbol;
+    let graph = getter
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(bit)
+        .expect("the two-case pair composes as a scalar graph");
+    assert!(matches!(
+        graph.states.first().map(|state| &state.terminator),
+        Some(checked_trees::CheckedScalarStateTerminator::Conditional { .. })
+    ));
+    for (case, expected) in [("Even", 1), ("Odd", 2)] {
+        let source = format!(
+            "{PARITY_GETTER} machine value() -> u64 {{
+                 let parity: Parity = Parity::{case};
+                 let bit: u64 = parity.bit();
+                 bit
+             }}"
+        );
+        let (semantics, proof) = encoded(&source, BranchForm::Separate);
+        assert_eq!(
+            interpret_terminal_artifact(&semantics, &proof, &AdmissionProfile::default(), &[])
+                .unwrap_or_else(|error| panic!("{case}: {error:#?}")),
+            TerminalExecutionResult::Scalar(unsigned(64, expected)),
+        );
+    }
+    let (semantics, proof) = encoded(
+        "machine value(input: u64) -> u64 { transition { input == 3 -> (1) input != 3 -> (2) } }",
+        BranchForm::Separate,
+    );
+    for (input, expected) in [(3, 1), (4, 2), (u64::MAX, 2)] {
+        assert_eq!(
+            interpret_terminal_artifact(
+                &semantics,
+                &proof,
+                &AdmissionProfile::default(),
+                &[unsigned(64, u128::from(input))],
+            )
+            .unwrap(),
+            TerminalExecutionResult::Scalar(unsigned(64, expected)),
+        );
+    }
+}

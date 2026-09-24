@@ -190,18 +190,16 @@ fn conditional(
         [
             StatementNode::Transition(_),
             StatementNode::Transition(fallback),
-        ] => {
-            !*is_continuation
-                && !guard.continuation.is_valid()
-                && !fallback.continuation.is_valid()
-                && fallback.exit == TransitionExit::Ordinary
-                && (fallback.guard == TransitionGuardNode::Always
-                    || crate::expression_preparation::source_custody::guarded_exits::complementary(
-                        checked,
-                        state_symbol,
-                        *guard_statement_ordinal,
-                    )?)
-        }
+        ] => !*is_continuation
+            && !guard.continuation.is_valid()
+            && !fallback.continuation.is_valid()
+            && fallback.exit == TransitionExit::Ordinary
+            && (fallback.guard == TransitionGuardNode::Always
+                || crate::expression_preparation::source_custody::guard_complement::complementary(
+                    checked,
+                    state_symbol,
+                    *guard_statement_ordinal,
+                )?),
         _ => false,
     };
     if !shape_matches {

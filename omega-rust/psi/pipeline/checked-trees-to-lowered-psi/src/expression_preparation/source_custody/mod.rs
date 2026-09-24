@@ -16,6 +16,7 @@ use checked_trees::statement::{
 
 pub(crate) mod computation_calls;
 pub(crate) mod direct_calls;
+pub(crate) mod guard_complement;
 pub(crate) mod guarded_exits;
 mod parameters;
 pub(crate) mod primitive_references;

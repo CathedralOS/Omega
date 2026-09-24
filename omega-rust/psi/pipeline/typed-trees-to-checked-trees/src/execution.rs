@@ -10,10 +10,12 @@
 //! control, state graphs, cleanup, returns), `terminal_scalar` the scalar
 //! machine graphs and selections, `terminal_cleanup` the structural control
 //! cleanup plans over edges and projections, and `terminal_debug` the debug
-//! metadata plans.
+//! metadata plans. `guard_complement` is the one judgment both graph
+//! builders use to accept a two-guard tail without an authored fallback.
 
 pub(crate) mod execution_plans;
 pub(crate) mod finalize_execution;
+pub(crate) mod guard_complement;
 pub(crate) mod selected_execution;
 pub(crate) mod terminal_cleanup;
 pub(crate) mod terminal_debug;
