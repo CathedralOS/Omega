@@ -216,9 +216,8 @@ const MV: &str = r#"
 /// carries its access, this becomes `..._lowers_and_verifies` through `verify`.
 #[test]
 fn mutable_view_field_element_store_waits_for_carrier_access() {
-    let checked = crate::front_end::checked_program(
-        &format!(
-            "{MV}
+    let checked = crate::front_end::checked_program(&format!(
+        "{MV}
             machine Mv::set(&mut self, i: u64, v: u8) {{
                 transition i < self.view.len {{
                     true -> hit(i, v)
@@ -231,8 +230,7 @@ fn mutable_view_field_element_store_waits_for_carrier_access() {
                     self.out = 1;
                 }}
             }}"
-        ),
-    );
+    ));
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Mv::set"))
         .expect_err("a borrowed-view byte store has no verifiable write authority yet");
     assert!(
