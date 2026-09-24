@@ -369,14 +369,6 @@ fn validate_operation_foundation(
         OperationKind::WriteOnlyPrimitiveStore { .. } => {
             storage_foundations::validate_write_only_primitive_store(module, machine, operation)?
         }
-        OperationKind::WriteOnlyIndexedPrimitiveStore { .. } => {
-            storage_foundations::validate_write_only_indexed_primitive_store(
-                module, machine, operation,
-            )?
-        }
-        OperationKind::IndexedPrimitiveRead { .. } => {
-            storage_foundations::validate_indexed_primitive_read(module, machine, operation)?
-        }
         OperationKind::StructuralScalarFieldStore { .. } => {
             storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
         }

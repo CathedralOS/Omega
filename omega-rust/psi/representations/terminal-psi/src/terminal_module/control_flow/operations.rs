@@ -169,12 +169,16 @@ pub enum OperationKind {
     EstablishPrimitiveLocal {
         value: ValueId,
     },
-    /// Observe an initialized primitive leaf through an exact static field/index
-    /// path. An empty path observes the whole primitive root. Root authority is
-    /// retained; write-only custody cannot authorize this observation.
+    /// Observe an initialized primitive leaf. The structural path walks record
+    /// fields and fixed-array elements to a primitive-scalar place; an element
+    /// may be literal or runtime-selected (`RuntimeIndex`, whose obligation
+    /// this operation owns), and fields or further indexes may follow a
+    /// runtime element. An empty path observes the whole primitive root. Root
+    /// authority is retained; write-only custody cannot authorize this
+    /// observation.
     PrimitiveScalarRead {
         source: PlaceId,
-        path: Vec<CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
     },
     /// Observe current live byte length, not capacity or stored byte content.
     StructuralByteSequenceFieldLength {
@@ -193,40 +197,15 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
-    /// Replace one primitive leaf selected by a canonical static field/index
-    /// path without observing old contents. Empty paths retain whole primitive
-    /// parameter/local behavior; nonempty paths retain the original root's
-    /// writable access, whole-value custody and initialization obligations.
+    /// Replace one primitive leaf without observing old contents. The path is
+    /// the same projection `PrimitiveScalarRead` walks, runtime-selected
+    /// elements included. Empty paths retain whole primitive parameter/local
+    /// behavior; nonempty paths retain the original root's writable access,
+    /// whole-value custody and initialization obligations.
     WriteOnlyPrimitiveStore {
         destination: PlaceId,
-        path: Vec<CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
         value: ValueId,
-    },
-    /// Replace one primitive element of a declared fixed array through a
-    /// runtime index without observing old contents. `path` resolves from the
-    /// destination root to the fixed array itself; `index` is the exact `u64`
-    /// runtime selector and `obligation` certifies `index < declared extent`.
-    /// The same exclusive write authority and custody rules as
-    /// `WriteOnlyPrimitiveStore` apply; the dynamic index is a runtime operand,
-    /// not a path segment, so a stored field or a second index cannot follow it.
-    WriteOnlyIndexedPrimitiveStore {
-        destination: PlaceId,
-        path: Vec<CanonicalStructuralPathSegment>,
-        index: ValueId,
-        value: ValueId,
-        obligation: ObligationId,
-    },
-    /// Read one primitive element of a declared fixed array through a runtime
-    /// index. `path` resolves from the source root to the fixed array itself;
-    /// `index` is the exact `u64` runtime selector and `obligation` certifies
-    /// `index < declared extent`. The dynamic index is a runtime operand, not
-    /// a path segment, so a stored field or a second index cannot follow it.
-    /// The source place and its custody stay intact.
-    IndexedPrimitiveRead {
-        source: PlaceId,
-        path: Vec<CanonicalStructuralPathSegment>,
-        index: ValueId,
-        obligation: ObligationId,
     },
     /// Replace a bounded byte field's live prefix and live length from an
     /// immutable view. The exact source's length observation must satisfy
@@ -835,13 +814,6 @@ impl OperationKind {
                 *index = map(*index);
                 *value = map(*value);
                 *length = map(*length);
-            }
-            Self::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
-                *index = map(*index);
-                *value = map(*value);
-            }
-            Self::IndexedPrimitiveRead { index, .. } => {
-                *index = map(*index);
             }
             Self::ByteSequenceRead { index, length, .. } => {
                 *index = map(*index);

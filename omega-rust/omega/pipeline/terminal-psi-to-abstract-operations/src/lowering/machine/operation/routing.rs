@@ -60,9 +60,13 @@ pub(super) fn lower(
             })
         }
         OperationKind::EstablishPrimitiveLocal { .. }
-        | OperationKind::PrimitiveScalarRead { .. } => {
-            super::primitive_storage::lower(operation, machine, structural_types, value_types)
-        }
+        | OperationKind::PrimitiveScalarRead { .. } => super::primitive_storage::lower(
+            operation,
+            block,
+            machine,
+            structural_types,
+            value_types,
+        ),
         OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
@@ -90,9 +94,6 @@ pub(super) fn lower(
         OperationKind::StructuralByteSequenceFieldRead { .. } => Err(
             LoweringError::UnsupportedStructuralByteSequenceFieldRead(operation.id),
         ),
-        OperationKind::IndexedPrimitiveRead { .. } => {
-            structural_scalar_fields::lower(operation, block, machine, structural_types)
-        }
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,
@@ -351,9 +352,7 @@ pub(super) fn lower(
             dynamic_dispatch,
             closed_conformance_applications,
         ),
-        OperationKind::PortWrite { .. }
-        | OperationKind::WriteOnlyPrimitiveStore { .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { .. } => {
+        OperationKind::PortWrite { .. } | OperationKind::WriteOnlyPrimitiveStore { .. } => {
             effects::lower(operation, machine, structural_types, value_types)
         }
         OperationKind::StructuralScalarFieldStore { .. }

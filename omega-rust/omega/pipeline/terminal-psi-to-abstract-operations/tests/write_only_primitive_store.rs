@@ -287,8 +287,9 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
             .flat_map(|machine| machine.blocks.iter())
             .flat_map(|block| block.operations.iter())
             .any(|operation| matches!(
-                operation.kind,
-                terminal_psi::OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
+                &operation.kind,
+                terminal_psi::OperationKind::WriteOnlyPrimitiveStore { path, .. }
+                    if !terminal_psi::is_static_structural_path(path)
             )),
         "Terminal Psi retains the runtime-indexed store"
     );

@@ -33,11 +33,12 @@ pub(crate) struct RuntimeIndexSite {
     pub(crate) extent: u64,
 }
 
-/// Operations whose validation resolves their projections with
-/// `resolve_runtime_projection` (calls through their structural arguments,
-/// leaf copies through their source path). Extending this set is a claim that
-/// the operation's own checks, interpretation and lowering treat a runtime
-/// segment as "some element of this array".
+/// Operations whose validation resolves their projections through a runtime
+/// projection resolver: calls through their structural arguments, leaf copies
+/// through their source path, and primitive-leaf reads and stores through
+/// `terminal_semantics::primitive_projection_type`. Extending this set is a
+/// claim that the operation's own checks, interpretation and lowering treat a
+/// runtime segment as "some element of this array".
 fn admits_runtime_indexes(kind: &OperationKind) -> bool {
     matches!(
         kind,
@@ -46,6 +47,8 @@ fn admits_runtime_indexes(kind: &OperationKind) -> bool {
             | OperationKind::CallStructural { .. }
             | OperationKind::CallStructuralWithScalarArguments { .. }
             | OperationKind::StructuralLeafCopy { .. }
+            | OperationKind::PrimitiveScalarRead { .. }
+            | OperationKind::WriteOnlyPrimitiveStore { .. }
     )
 }
 

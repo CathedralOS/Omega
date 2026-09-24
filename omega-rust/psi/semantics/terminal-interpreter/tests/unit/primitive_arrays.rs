@@ -21,11 +21,9 @@ fn direct_array_module(nested: bool) -> (TerminalModule, Vec<StructuralPathSegme
     let initializer = module.machines[1].blocks[0].operations[0].clone();
     let mut path = Vec::new();
     if nested {
-        path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-            structural_field_id(1),
-        ));
+        path.push(StructuralPathSegment::Field("bytes".into()));
     }
-    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1));
+    path.push(StructuralPathSegment::FixedIndex(1));
     let mut read = module.machines[0].blocks[0].operations[1].clone();
     read.kind = OperationKind::PrimitiveScalarRead {
         source: place_id(91),
@@ -170,7 +168,7 @@ fn direct_primitive_array_paths_update_constructed_scalar_payload_without_shadow
         else {
             panic!("read");
         };
-        *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(selected)];
+        *path = vec![StructuralPathSegment::FixedIndex(selected)];
         let bytes = encode_module(&module).unwrap();
         assert_eq!(decode_module(&bytes).unwrap(), module);
         let mut execution = TerminalExecution::start_artifact(
@@ -211,17 +209,15 @@ fn direct_primitive_array_paths_reject_wrong_bounds_access_and_leaf() {
         assert!(validate_module(&changed).is_err());
     }
     for wrong in [
-        vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)],
-        vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-            structural_field_id(1),
-        )],
+        vec![StructuralPathSegment::FixedIndex(1)],
+        vec![StructuralPathSegment::Field("bytes".into())],
         vec![
-            semantic_vocabulary::CanonicalStructuralPathSegment::Field(structural_field_id(1)),
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(3),
+            StructuralPathSegment::Field("bytes".into()),
+            StructuralPathSegment::FixedIndex(3),
         ],
         vec![
-            semantic_vocabulary::CanonicalStructuralPathSegment::Field(structural_field_id(99)),
-            semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1),
+            StructuralPathSegment::Field("missing".into()),
+            StructuralPathSegment::FixedIndex(1),
         ],
     ] {
         let mut changed = module.clone();

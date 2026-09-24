@@ -177,12 +177,27 @@ fn touched_regions(
         region.push(CanonicalStructuralPathSegment::Field(field));
         (*place, region)
     };
+    // A primitive leaf's region is its canonical path; a runtime-selected
+    // element touches the whole array it selects in.
+    let primitive_region = |place: &PlaceId, path: &[StructuralPathSegment]| {
+        let static_prefix = path
+            .iter()
+            .position(|segment| segment.runtime_index().is_some())
+            .unwrap_or(path.len());
+        (
+            *place,
+            canonical_field_path(module, machine, *place, &path[..static_prefix])
+                .unwrap_or_default(),
+        )
+    };
     match &operation.kind {
         OperationKind::EstablishReference { source } => {
             vec![argument_region(module, machine, source)]
         }
         OperationKind::ReleaseReference { source } => vec![(*source, Vec::new())],
-        OperationKind::PrimitiveScalarRead { source, path } => vec![(*source, path.clone())],
+        OperationKind::PrimitiveScalarRead { source, path } => {
+            vec![primitive_region(source, path)]
+        }
         OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
@@ -213,10 +228,7 @@ fn touched_regions(
         ],
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..
-        }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore {
-            destination, path, ..
-        } => vec![(*destination, path.clone())],
+        } => vec![primitive_region(destination, path)],
         OperationKind::StructuralCaseMembership { source, path, .. } => {
             vec![(
                 *source,
@@ -224,8 +236,7 @@ fn touched_regions(
             )]
         }
         OperationKind::BooleanStructuralField { source, path, .. }
-        | OperationKind::IntegerStructuralField { source, path, .. }
-        | OperationKind::IndexedPrimitiveRead { source, path, .. } => {
+        | OperationKind::IntegerStructuralField { source, path, .. } => {
             vec![(*source, path.clone())]
         }
         OperationKind::ByteSequenceSubslice { source, .. }

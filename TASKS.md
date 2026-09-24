@@ -1360,6 +1360,12 @@ syntax and other terminal services are not prerequisites.
   `RuntimeIndex` obligation the verifier reconstructs
   (`terminal_semantics::runtime_index_bound`), native `indexed_stores.rs`, and
   the controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
+  Terminal `PrimitiveScalarRead`/`WriteOnlyPrimitiveStore` take runtime
+  elements at any depth of their path; t2a's `primitive_projection::split`
+  still feeds only a static path or one trailing runtime element to the
+  abstract indexed read/store and refuses a field or second index after it
+  (`UnsupportedRuntimeIndexProjection`) until lowering composes
+  `(index, stride)` runs for primitive leaves as leaf copies do.
   The dynamic shared receiver `cells[i].get()` still needs CML4's checked
   argument-path admission, DOMAIN-ISSUER-ROUTES' scalar-wrapper path, and call
   emission that evaluates the selector and allocates its obligation (c2l's

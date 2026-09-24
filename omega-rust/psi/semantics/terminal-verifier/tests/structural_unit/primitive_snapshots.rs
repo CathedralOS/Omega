@@ -120,7 +120,7 @@ fn has_snapshot(module: &TerminalModule) -> bool {
 
 #[test]
 fn projected_primitive_snapshots_require_the_exact_array_element() {
-    use semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex;
+    use terminal_psi::StructuralPathSegment::FixedIndex;
     let mut module = snapshot_module();
     let primitive = module.machines[0].structural_parameters[0].structural_type;
     let array = structural_type_id(80);

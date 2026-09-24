@@ -209,9 +209,13 @@ static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
     "operation:primitive-scalar-read",
-    "a readable live root and exact canonical relevant-field/fixed-index path to initialized primitive storage",
-    "the read observation's local equation where the schema declares one",
-    EFFECT_DEPS,
+    "a readable live root and a relevant-field/fixed-array path to initialized primitive storage whose elements may be runtime-selected",
+    "the read observation's local equation where the schema declares one and the path is static; each runtime element's bound is the operation's own obligation",
+    &[
+        "fact:structural-effect-observation",
+        "fact:runtime-index-bound",
+        "formation:operation-validation",
+    ],
     &[
         VOCAB,
         TS_ROWS,
@@ -252,50 +256,12 @@ static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
-    "a writable live root, canonical relevant-field/fixed-index primitive path, and exactly typed dominating scalar value",
-    "the store observation; every proposition observing the destination is invalidated",
+    "a writable live root, a relevant-field/fixed-array path to a primitive leaf whose elements may be runtime-selected, and exactly typed dominating scalar value",
+    "the store observation; every proposition observing the destination is invalidated, and each runtime element's bound is the operation's own obligation",
     &[
         "fact:structural-effect-observation",
+        "fact:runtime-index-bound",
         "invalidation:write-only-primitive-store",
-        "formation:operation-validation",
-    ],
-    &[
-        VOCAB,
-        TS_ROWS,
-        TS_SE,
-        OP_FACTS,
-        VAL_OPS,
-        VAL_PRIMITIVE_STORAGE,
-        TS_PRIMITIVE_PLACE,
-    ],
-);
-static OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
-    "operation:write-only-indexed-primitive-store",
-    "a writable live root, canonical path resolving to a declared fixed array of primitive scalars, a dominating u64 index and exactly typed scalar value, and an index-within-extent obligation",
-    "the store observation; the index-within-declared-extent obligation is reconstructed and every proposition observing the destination root is invalidated",
-    &[
-        "fact:structural-effect-observation",
-        "invalidation:write-only-primitive-store",
-        "owner:operation",
-        "formation:operation-validation",
-    ],
-    &[
-        VOCAB,
-        TS_ROWS,
-        TS_SE,
-        OP_FACTS,
-        VAL_OPS,
-        VAL_PRIMITIVE_STORAGE,
-        TS_PRIMITIVE_PLACE,
-    ],
-);
-static OP_INDEXED_PRIMITIVE_READ: TrustedSurfaceEntry = entry(
-    "operation:indexed-primitive-read",
-    "a readable live root, a canonical path resolving to a declared fixed array of primitive scalars, a dominating u64 index, and an index-within-extent obligation",
-    "the read observation; the index-within-declared-extent obligation is reconstructed from the module's array shape",
-    &[
-        "fact:structural-effect-observation",
-        "owner:operation",
         "formation:operation-validation",
     ],
     &[
@@ -1088,8 +1054,6 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_LEAF_COPY,
     OP_STRUCTURAL_CASE_LEAF_COPY,
     OP_WRITE_ONLY_PRIMITIVE_STORE,
-    OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
-    OP_INDEXED_PRIMITIVE_READ,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
     OP_MOVE_STRUCTURAL_FIELD,
     OP_STORE_STRUCTURAL_FIELD,
@@ -1173,10 +1137,6 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::StructuralLeafCopy => &OP_STRUCTURAL_LEAF_COPY,
         OperationSemanticTag::StructuralCaseLeafCopy => &OP_STRUCTURAL_CASE_LEAF_COPY,
         OperationSemanticTag::WriteOnlyPrimitiveStore => &OP_WRITE_ONLY_PRIMITIVE_STORE,
-        OperationSemanticTag::WriteOnlyIndexedPrimitiveStore => {
-            &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE
-        }
-        OperationSemanticTag::IndexedPrimitiveRead => &OP_INDEXED_PRIMITIVE_READ,
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
         OperationSemanticTag::MoveStructuralField => &OP_MOVE_STRUCTURAL_FIELD,
         OperationSemanticTag::StoreStructuralField => &OP_STORE_STRUCTURAL_FIELD,

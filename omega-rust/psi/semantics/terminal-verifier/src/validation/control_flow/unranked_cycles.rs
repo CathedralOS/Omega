@@ -163,7 +163,6 @@ fn operation_leaves_custody(
         OperationKind::EstablishReference { source } => clears(source.place),
         OperationKind::ReleaseReference { source }
         | OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::IndexedPrimitiveRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. }
         | OperationKind::ByteSequenceLength { source }
@@ -181,7 +180,6 @@ fn operation_leaves_custody(
         } => clears(*destination) && clears(source.place),
         OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::EstablishByteSequenceLiteral { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. }
@@ -466,13 +464,6 @@ fn cycle_operation_eligible(
                     == Ok(result.scalar_type)
             })
         }
-        OperationKind::IndexedPrimitiveRead { source, path, .. } => {
-            operation.result.scalar().is_some_and(|result| {
-                primitive_storage::indexed_read_shape(module, machine, operation.id, *source, path)
-                    .map(|(element, _)| element)
-                    == Ok(result.scalar_type)
-            })
-        }
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => {
@@ -481,21 +472,6 @@ fn cycle_operation_eligible(
                     || !path.is_empty())
                 && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
-        }
-        OperationKind::WriteOnlyIndexedPrimitiveStore {
-            destination, path, ..
-        } => {
-            operation.result == OperationResult::Unit
-                && (primitive_storage::local_result(machine, *destination).is_some()
-                    || !path.is_empty())
-                && primitive_storage::indexed_store_shape(
-                    module,
-                    machine,
-                    operation.id,
-                    *destination,
-                    path,
-                )
-                .is_ok()
         }
         // Requirement obligations and crash continuations carry no custody:
         // ordinary call validation still checks their arity, substitution and

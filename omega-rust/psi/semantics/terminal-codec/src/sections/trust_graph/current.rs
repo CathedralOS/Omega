@@ -583,9 +583,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 ));
             }
             if matches!(row.tag(), terminal_semantics::OperationSemanticTag::PrimitiveScalarRead
-                | terminal_semantics::OperationSemanticTag::WriteOnlyPrimitiveStore
-                | terminal_semantics::OperationSemanticTag::WriteOnlyIndexedPrimitiveStore
-                | terminal_semantics::OperationSemanticTag::IndexedPrimitiveRead) {
+                | terminal_semantics::OperationSemanticTag::WriteOnlyPrimitiveStore) {
                 exact_sources.push(("terminal-semantics/primitive_place.rs", include_bytes!("../../../../terminal-semantics/src/primitive_place.rs")));
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::PrimitiveScalarRead {

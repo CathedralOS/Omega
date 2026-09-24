@@ -438,10 +438,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 68 | EstablishRecord | counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
 | 69 | EstablishReference | structural argument |
 | 70 | ReleaseReference | place id |
-| 73 | PrimitiveScalarRead | canonical structural field; projected form requires a nonempty path |
-| 74 | WriteOnlyPrimitiveStore | canonical structural field + value id; projected form requires a nonempty path |
 | 75 | StructuralScalarFieldStore | destination place id + structural path + field id + value id + obligation id; range-checked form |
-| 76 | WriteOnlyIndexedPrimitiveStore | canonical structural field + index value id + value id + obligation id |
 | 77 | MoveStructuralField | source place id + structural path + field id |
 | 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
 | 79 | EstablishElementView | destination place id + source place id + element type id |
@@ -452,11 +449,14 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 84 | StructuralLeafCopy | source place id + structural path |
 | 85 | StructuralCaseLeafCopy | canonical structural field (source place id + canonical path whose `Case` steps name the case the authorizing edge selected) |
 | 86 | StructuralByteSequenceFieldRead | source place id + structural path + field id + index value id + length value id + obligation id |
-| 87 | IndexedPrimitiveRead | canonical structural field (source place id + canonical path) + index value id + obligation id |
+| 89 | PrimitiveScalarRead | source place id + structural path; projected form requires a nonempty path, whose elements may be `RuntimeIndex` |
+| 90 | WriteOnlyPrimitiveStore | destination place id + structural path + value id; projected form requires a nonempty path, whose elements may be `RuntimeIndex` |
 
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags
-71 and 72 are unassigned. Every other tag absent from the table rejects as an
+73, 74, 76 and 87 (retired canonical-path primitive read and store and the
+runtime-indexed store and read, now tags 89 and 90 with a `RuntimeIndex`
+path segment) reject the same way. Tags 71 and 72 are unassigned. Every other tag absent from the table rejects as an
 unknown operation tag. The tag-41 selected evidence binding is: result type
 id + result case id + `u32` guarded position + callee obligation id + callee
 term id + output field string + callee proposition id + instantiated

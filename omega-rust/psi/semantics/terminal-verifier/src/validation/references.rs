@@ -1250,12 +1250,10 @@ pub(super) fn apply_operation(
             return establish_structural_case(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source, .. }
-        | OperationKind::IndexedPrimitiveRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {
             check_root_access(machine, live, *source)?
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. } => {
             check_root_access(machine, live, *destination)?
         }

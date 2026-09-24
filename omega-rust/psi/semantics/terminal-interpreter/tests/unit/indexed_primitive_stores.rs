@@ -1,6 +1,6 @@
 //! Runtime-indexed `&write`/`&mut` element stores execute through the same
-//! verified primitive-access walk as literal-indexed stores once the u64
-//! operand is resolved.
+//! verified primitive-access walk as literal-indexed stores once the path's
+//! `RuntimeIndex` segment is replaced by the element its value selects.
 
 use super::{
     AcceptTerminalEffects, AdmissionProfile, CertificateEnvelope, EvidenceRoute, IntegerSign,
@@ -100,12 +100,13 @@ fn indexed_store_module(
             suspension_crossing: None,
             id: operation_id(3),
             result: OperationResult::Unit,
-            kind: OperationKind::WriteOnlyIndexedPrimitiveStore {
+            kind: OperationKind::WriteOnlyPrimitiveStore {
                 destination: place_id(92),
-                path: Vec::new(),
-                index: value_id(10),
+                path: vec![terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    index: value_id(10),
+                    obligation: obligation_id(1),
+                }],
                 value: value_id(11),
-                obligation: obligation_id(1),
             },
         },
     ];

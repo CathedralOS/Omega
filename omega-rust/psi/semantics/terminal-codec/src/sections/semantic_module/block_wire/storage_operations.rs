@@ -58,19 +58,15 @@ pub(super) fn decode_release_reference(
 pub(super) fn encode_primitive_scalar_read(
     writer: &mut Writer,
     source: PlaceId,
-    path: Vec<CanonicalStructuralPathSegment>,
+    path: Vec<StructuralPathSegment>,
 ) -> Result<(), CodecError> {
     if path.is_empty() {
         writer.u8(operation_tags::PRIMITIVE_SCALAR_READ);
         writer.id(source);
     } else {
         writer.u8(operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ);
-        super::super::structural_field_wire::encode_canonical_structural_field(
-            writer,
-            source,
-            &path,
-            "primitive source path",
-        )?;
+        writer.id(source);
+        encode_structural_path(writer, "primitive source path", &path)?;
     }
     Ok(())
 }
@@ -87,8 +83,8 @@ pub(super) fn decode_primitive_scalar_read(
 pub(super) fn decode_projected_primitive_scalar_read(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
-    let (source, path) =
-        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    let source = reader.id("PlaceId")?;
+    let path = decode_structural_path(reader)?;
     if path.is_empty() {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty projected primitive path",
@@ -368,19 +364,15 @@ pub(super) fn encode_write_only_primitive_store(
     writer: &mut Writer,
     destination: PlaceId,
     value: ValueId,
-    path: Vec<CanonicalStructuralPathSegment>,
+    path: Vec<StructuralPathSegment>,
 ) -> Result<(), CodecError> {
     if path.is_empty() {
         writer.u8(operation_tags::WRITE_ONLY_PRIMITIVE_STORE);
         writer.id(destination);
     } else {
         writer.u8(operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE);
-        super::super::structural_field_wire::encode_canonical_structural_field(
-            writer,
-            destination,
-            &path,
-            "primitive destination path",
-        )?;
+        writer.id(destination);
+        encode_structural_path(writer, "primitive destination path", &path)?;
     }
     writer.id(value);
     Ok(())
@@ -389,8 +381,8 @@ pub(super) fn encode_write_only_primitive_store(
 pub(super) fn decode_projected_write_only_primitive_store(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
-    let (destination, path) =
-        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    let destination = reader.id("PlaceId")?;
+    let path = decode_structural_path(reader)?;
     if path.is_empty() {
         return Err(CodecError::MalformedStructuralFoundation(
             "empty projected primitive path",
@@ -410,73 +402,6 @@ pub(super) fn decode_write_only_primitive_store(
         path: Vec::new(),
         destination: reader.id("PlaceId")?,
         value: reader.id("ValueId")?,
-    })
-}
-
-pub(super) fn encode_write_only_indexed_primitive_store(
-    writer: &mut Writer,
-    destination: PlaceId,
-    path: Vec<CanonicalStructuralPathSegment>,
-    index: ValueId,
-    value: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::WRITE_ONLY_INDEXED_PRIMITIVE_STORE);
-    super::super::structural_field_wire::encode_canonical_structural_field(
-        writer,
-        destination,
-        &path,
-        "indexed primitive destination path",
-    )?;
-    writer.id(index);
-    writer.id(value);
-    writer.id(obligation);
-    Ok(())
-}
-
-pub(super) fn decode_write_only_indexed_primitive_store(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    let (destination, path) =
-        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
-    Ok(OperationKind::WriteOnlyIndexedPrimitiveStore {
-        destination,
-        path,
-        index: reader.id("ValueId")?,
-        value: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
-    })
-}
-
-pub(super) fn encode_indexed_primitive_read(
-    writer: &mut Writer,
-    source: PlaceId,
-    path: Vec<CanonicalStructuralPathSegment>,
-    index: ValueId,
-    obligation: ObligationId,
-) -> Result<(), CodecError> {
-    writer.u8(operation_tags::INDEXED_PRIMITIVE_READ);
-    super::super::structural_field_wire::encode_canonical_structural_field(
-        writer,
-        source,
-        &path,
-        "indexed primitive source path",
-    )?;
-    writer.id(index);
-    writer.id(obligation);
-    Ok(())
-}
-
-pub(super) fn decode_indexed_primitive_read(
-    reader: &mut Reader<'_>,
-) -> Result<OperationKind, CodecError> {
-    let (source, path) =
-        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
-    Ok(OperationKind::IndexedPrimitiveRead {
-        source,
-        path,
-        index: reader.id("ValueId")?,
-        obligation: reader.id("ObligationId")?,
     })
 }
 

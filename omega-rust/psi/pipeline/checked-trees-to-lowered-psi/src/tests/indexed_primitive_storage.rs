@@ -83,8 +83,8 @@ fn source_indexed_primitive_storage_retains_canonical_leaf_paths() {
         assert!(matches!(
             paths[0].as_slice(),
             [
-                semantic_vocabulary::CanonicalStructuralPathSegment::Field(_),
-                semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(255)
+                terminal_psi::StructuralPathSegment::Field(_),
+                terminal_psi::StructuralPathSegment::FixedIndex(255)
             ]
         ));
     }

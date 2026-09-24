@@ -63,17 +63,6 @@ pub(crate) fn validate_unit_operation_static(
                 path,
             )?;
         }
-        OperationKind::WriteOnlyIndexedPrimitiveStore {
-            destination, path, ..
-        } => {
-            crate::validation::primitive_storage::indexed_store_shape(
-                module,
-                machine,
-                operation.id,
-                *destination,
-                path,
-            )?;
-        }
         OperationKind::EstablishPrimitiveLocal { .. } => {
             crate::validation::primitive_storage::validate_establishment(
                 module, machine, operation,

@@ -172,28 +172,6 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => {
             storage_operations::encode_write_only_primitive_store(writer, destination, value, path)?
         }
-        OperationKind::WriteOnlyIndexedPrimitiveStore {
-            destination,
-            path,
-            index,
-            value,
-            obligation,
-        } => storage_operations::encode_write_only_indexed_primitive_store(
-            writer,
-            destination,
-            path,
-            index,
-            value,
-            obligation,
-        )?,
-        OperationKind::IndexedPrimitiveRead {
-            source,
-            path,
-            index,
-            obligation,
-        } => storage_operations::encode_indexed_primitive_read(
-            writer, source, path, index, obligation,
-        )?,
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,
@@ -732,12 +710,6 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::WRITE_ONLY_PRIMITIVE_STORE => {
             storage_operations::decode_write_only_primitive_store(reader)?
-        }
-        operation_tags::WRITE_ONLY_INDEXED_PRIMITIVE_STORE => {
-            storage_operations::decode_write_only_indexed_primitive_store(reader)?
-        }
-        operation_tags::INDEXED_PRIMITIVE_READ => {
-            storage_operations::decode_indexed_primitive_read(reader)?
         }
         operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
             storage_operations::decode_structural_byte_sequence_field_store(reader)?
@@ -1398,10 +1370,14 @@ mod tests {
     }
 
     #[test]
-    fn projected_primitive_wire_preserves_canonical_subject_and_rejects_truncation() {
+    fn projected_primitive_wire_preserves_its_structural_path_and_rejects_truncation() {
         let path = vec![
-            CanonicalStructuralPathSegment::Field(id(7)),
-            CanonicalStructuralPathSegment::FixedIndex(255),
+            terminal_psi::StructuralPathSegment::Field("#7".into()),
+            terminal_psi::StructuralPathSegment::FixedIndex(255),
+            terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: id(5),
+                obligation: id(6),
+            },
         ];
         let block = Block {
             erased_scalar_formals: Vec::new(),
@@ -1453,7 +1429,7 @@ mod tests {
         else {
             panic!("read");
         };
-        path[1] = CanonicalStructuralPathSegment::FixedIndex(254);
+        path[1] = terminal_psi::StructuralPathSegment::FixedIndex(254);
         let mut writer = Writer::default();
         encode_block(&mut writer, &changed).unwrap();
         assert_ne!(

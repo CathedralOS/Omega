@@ -128,7 +128,7 @@ pub(super) fn store_type(
     machine: &TerminalMachine,
     operation: OperationId,
     place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<ScalarType, ModuleError> {
     if !path.is_empty() {
         return projected_type(module, machine, place, path, true)
@@ -150,7 +150,7 @@ pub(super) fn read_type(
     machine: &TerminalMachine,
     operation: OperationId,
     place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<ScalarType, ModuleError> {
     let invalid = || ModuleError::InvalidPrimitiveScalarRead { operation, place };
     if !path.is_empty() {
@@ -233,62 +233,23 @@ fn writable_signature<'a>(
     Some(signature)
 }
 
+/// A projected primitive leaf: record fields and fixed-array elements, the
+/// latter literal or runtime-selected. A runtime element resolves to any
+/// element of its array; its bound is the obligation the operation owns
+/// (`structural::runtime_indexes`), never a property of the path.
 fn projected_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
     place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    path: &[terminal_psi::StructuralPathSegment],
     writing: bool,
 ) -> Option<ScalarType> {
     let signature = writable_signature(module, machine, place, writing)?;
-    terminal_semantics::primitive_place_type(
+    terminal_semantics::primitive_projection_type(
         module.structural_types.iter(),
         signature.structural_type,
         path,
     )
-}
-
-/// Resolve a runtime-indexed store destination to the array's declared
-/// element scalar type and extent. `path` reaches the fixed array itself;
-/// `index` is a runtime operand certified `index < extent`, so it never
-/// appears as a path segment here.
-pub(crate) fn indexed_store_shape(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: OperationId,
-    place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-) -> Result<(ScalarType, u64), ModuleError> {
-    let signature = writable_signature(module, machine, place, true).ok_or(
-        ModuleError::WriteOnlyIndexedPrimitiveStoreDestinationMismatch { operation, place },
-    )?;
-    terminal_semantics::fixed_array_place_shape(
-        module.structural_types.iter(),
-        signature.structural_type,
-        path,
-    )
-    .ok_or(ModuleError::WriteOnlyIndexedPrimitiveStoreDestinationMismatch { operation, place })
-}
-
-/// Resolve a runtime-indexed read source to the array's declared element
-/// scalar type and extent. `path` reaches the fixed array itself; `index` is a
-/// runtime operand certified `index < extent`, so it never appears as a path
-/// segment here.
-pub(crate) fn indexed_read_shape(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: OperationId,
-    place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-) -> Result<(ScalarType, u64), ModuleError> {
-    let signature = writable_signature(module, machine, place, false)
-        .ok_or(ModuleError::IndexedPrimitiveReadSourceMismatch { operation, place })?;
-    terminal_semantics::fixed_array_place_shape(
-        module.structural_types.iter(),
-        signature.structural_type,
-        path,
-    )
-    .ok_or(ModuleError::IndexedPrimitiveReadSourceMismatch { operation, place })
 }
 
 pub(super) fn validate_uses(
@@ -308,8 +269,7 @@ pub(super) fn validate_uses(
     };
     match &operation.kind {
         OperationKind::PrimitiveScalarRead { source, .. } => require_available(*source)?,
-        OperationKind::WriteOnlyPrimitiveStore { destination, .. }
-        | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => {
+        OperationKind::WriteOnlyPrimitiveStore { destination, .. } => {
             require_available(*destination)?
         }
         OperationKind::CallUnit {

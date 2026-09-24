@@ -144,7 +144,8 @@ impl OperationKind {
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
                 projections.push(argument_projection(source));
             }
-            Self::StructuralByteSequenceFieldLength { source, path, .. }
+            Self::PrimitiveScalarRead { source, path }
+            | Self::StructuralByteSequenceFieldLength { source, path, .. }
             | Self::StructuralByteSequenceFieldRead { source, path, .. }
             | Self::StructuralCaseMembership { source, path, .. }
             | Self::StructuralLeafCopy { source, path }
@@ -154,7 +155,10 @@ impl OperationKind {
                     path,
                 });
             }
-            Self::StructuralByteSequenceFieldByteStore {
+            Self::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            }
+            | Self::StructuralByteSequenceFieldByteStore {
                 destination, path, ..
             }
             | Self::StructuralByteSequenceFieldStore {
@@ -210,10 +214,6 @@ impl OperationKind {
             Self::ReleaseReference { .. }
             | Self::EstablishScalarArray { .. }
             | Self::EstablishPrimitiveLocal { .. }
-            | Self::PrimitiveScalarRead { .. }
-            | Self::WriteOnlyPrimitiveStore { .. }
-            | Self::WriteOnlyIndexedPrimitiveStore { .. }
-            | Self::IndexedPrimitiveRead { .. }
             | Self::EstablishScalarCase { .. }
             | Self::StructuralCaseLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
@@ -282,7 +282,9 @@ impl OperationKind {
             Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
                 paths.push(&mut source.path);
             }
-            Self::StructuralByteSequenceFieldLength { path, .. }
+            Self::PrimitiveScalarRead { path, .. }
+            | Self::WriteOnlyPrimitiveStore { path, .. }
+            | Self::StructuralByteSequenceFieldLength { path, .. }
             | Self::StructuralByteSequenceFieldRead { path, .. }
             | Self::StructuralCaseMembership { path, .. }
             | Self::StructuralLeafCopy { path, .. }

@@ -37,7 +37,10 @@ pub use call_composition::{
     validate_call_composition_semantic_rows,
 };
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
-pub use primitive_place::{fixed_array_place_shape, primitive_place_type};
+pub use primitive_place::{
+    canonical_primitive_path, canonical_static_projection, fixed_array_place_shape,
+    primitive_place_type, primitive_projection_type,
+};
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
     ProofBearingScalarLeafSchema, ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,

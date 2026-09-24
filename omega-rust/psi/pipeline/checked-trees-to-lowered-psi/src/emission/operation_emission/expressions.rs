@@ -17,7 +17,7 @@ use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 pub(crate) enum LoweredDirectExpression {
     PrimitiveRead {
         source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
     },
     StructuralField {
@@ -50,10 +50,11 @@ pub(crate) enum LoweredDirectExpression {
     },
     /// Read one primitive element of a fixed-array record field: `path`
     /// resolves from `source` to the array itself and `index` is the runtime
-    /// `u64` selector.
+    /// `u64` selector, evaluated first and then spelled as the read's
+    /// `RuntimeIndex` segment.
     IndexedPrimitiveRead {
         source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
     },
@@ -417,19 +418,19 @@ pub(crate) fn emit_direct_expression(
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             // The certificate proves `index < declared extent` against the
             // array's statically declared length, so no length observation is
-            // needed: the verifier resolves the extent from the path end.
+            // needed: the verifier resolves the extent from the prefix.
             let obligation = obligation_id(
                 operations
                     .next_identity
                     .checked_add(1)
                     .expect("read obligation follows its operation identity"),
             );
+            let mut path = path.clone();
+            path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             emit_scalar_leaf(
-                OperationKind::IndexedPrimitiveRead {
+                OperationKind::PrimitiveScalarRead {
                     source: *source,
-                    path: path.clone(),
-                    index,
-                    obligation,
+                    path,
                 },
                 *scalar_type,
                 next_value_identity,
