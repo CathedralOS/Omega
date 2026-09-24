@@ -442,9 +442,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             element_views,
                             view_locals,
                         )?;
-                        if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
-                            return unsupported("indexed field reads require an exact u64 index");
-                        }
+                        let index = exact_u64_index(index)?;
                         // A path ending at a fixed array declares its extent
                         // on the type, so the element read needs no length
                         // observation.
@@ -523,9 +521,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
             )?;
-            if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
-                return unsupported("view indexed reads require an exact u64 index");
-            }
+            let index = exact_u64_index(index)?;
             match element_scalar {
                 Some(scalar_type) => {
                     if scalar_type != terminal_scalar_type(*primitive_type)? {
@@ -922,4 +918,30 @@ fn lower_checked_boolean_expression_with_parameters(
             )?),
         },
     })
+}
+
+/// Terminal element reads take a `u64` position. Any integer carrier may index
+/// once its bounds are proven: a narrower unsigned index widens totally, and a
+/// signed index lands through an exact cast whose Terminal obligation proves it
+/// nonnegative, so it never silently becomes unsigned.
+fn exact_u64_index(
+    index: LoweredDirectExpression,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let u64_type = terminal_scalar_type(PrimitiveType::U64)?;
+    match index.scalar_type() {
+        scalar_type if scalar_type == u64_type => Ok(index),
+        ScalarType::Integer(integer)
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned =>
+        {
+            Ok(LoweredDirectExpression::IntegerWiden {
+                scalar_type: u64_type,
+                operand: Box::new(index),
+            })
+        }
+        ScalarType::Integer(_) => Ok(LoweredDirectExpression::IntegerExactCast {
+            scalar_type: u64_type,
+            operand: Box::new(index),
+        }),
+        _ => unsupported("indexed reads require an integer index"),
+    }
 }
