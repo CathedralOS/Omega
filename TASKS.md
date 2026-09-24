@@ -2174,6 +2174,54 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **LOWERING-ROUTE-CONSOLIDATION.** (new-scope) Checked-to-lowered Psi picks
+  one of seven whole-module producers per machine
+  (`machine_lowering/machine_dispatch.rs::lower_selected_machine`), and the
+  checked stage mirrors that with parallel plan rosters chosen by `or_else`
+  precedence and a `CompetingCandidates` omission stage. Each family
+  re-implements the same operation for one arrangement, so a feature
+  combination works in one family and not in another. Do not add new
+  arrangements to a family below. Widen the general route and delete the
+  family instead. Ranked targets, measured 2026-09-24 against `3f797950ea`:
+
+  1. The guard-complement check exists in six places and the two graph
+     families admit different pairs. Unit graphs take `x==true/x==false`,
+     builtin `==`/`!=` operand pairs and two-variant case pairs. Scalar
+     graphs take only Boolean polarity. The producers are
+     `terminal_unit/composed_control/topology.rs::exact_false_fallback` and
+     `terminal_scalar/guards/mod.rs::complementary`; the lowering mirrors are
+     `state_graph/edges.rs::validate_fallback` and
+     `source_custody/guarded_exits.rs::complementary`. The Unit side compares
+     authored trees and the scalar side compares checked Boolean rows, so
+     unify on checked rows first.
+  2. Scalar machines take three routes: the shared-catalog Unit closure, a
+     single-member scalar graph, and the scalar call closure.
+     `closure.len() == 1` changes the contract mode (float reflexivity) and
+     content-effect admission. Start by removing that branch.
+  3. Dynamic dispatch has Scalar and Unit copies of every lowerer and
+     validator (`unit/dynamic_composed_unit/{join,unit_join}.rs`,
+     `dynamic_lanes.rs` against `unit.rs`, forwarded-helper resolvers). The
+     checked side has the matching `forwarded_calls.rs` against `unit.rs`.
+  4. Composed-graph states re-emit operations through
+     `composed_control/emission.rs`, a narrower copy of
+     `attached_unit/ordinary_machine` emission.
+  5. Eight return families each have their own builder, roster and module
+     assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
+  6. Structural Unit Control is a second multi-state control-graph family
+     with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
+     Widen state-graph admission to cover it rather than extending it.
+  7. Nominal cleanup has a one-root route and a separate multi-root route
+     (`unit/unit_cleanup.rs`, `unit_cleanup/ordered.rs`), and the checked
+     stage builds the nominal plan twice.
+  8. There are nine structural-type namespaces, one `ShapeCollector` per
+     plan roster, rejoined by hand (`finalize_execution.rs`,
+     `attached_unit/bodies.rs::UnitPlans::with_staged`).
+  The Terminal module literals already start from
+  `TerminalModule::for_entry` (`c62baba3ca`). Acceptance for each target:
+  the replaced family and its recognizer are deleted; programs it lowered
+  still lower and verify; the pass-canary and run-test groups show no new
+  failures.
+
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
   is removed by `consume_terminal_self_receiver` before cleanup validation,
   regardless of multiplicity. Resolve
