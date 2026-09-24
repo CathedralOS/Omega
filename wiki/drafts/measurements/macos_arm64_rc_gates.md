@@ -33,7 +33,21 @@ Dominant failure classes visible in the diagnostics:
 - `cannot prove default-domain field requirement` and `in domain`
   admission gaps — the bracketed-range migration frontier.
 
-## Failed tests by target binary (1215 unique names)
+## Failed tests by target binary (1215 unique names at the base)
+
+Sections are removed as their target goes green; the count above is the
+original reading, not a running total. `layout_plans` is cleared: it now
+runs 63 of 63. Sixteen of its seventeen were the package-name and
+undeclared-reach classes recorded elsewhere in this file; the last two,
+`callback_slots::c_layout_policy_plans_a_uefi_ish_schema` and
+`callback_slots::plan_laid_value_types_are_placed_by_their_plan`, were a
+range-checker defect, not a test defect: a selected transition arm's
+machine-storage conjunct was discarded whenever a state-parameter
+conjunct (`fuel > 1 && self.index < 32`) shared the `&&`. Repaired in
+`seed_incoming_guard_facts`; the corpus outcome gate moved
+`pass/layouts/runtime_plan_laid_value_field_exit` and
+`runtime_plan_laid_value_by_value_param_exit` from rejected to checked
+with no rejection lost.
 
 ### access_plans — 1 failed
 
@@ -1105,26 +1119,6 @@ Dominant failure classes visible in the diagnostics:
 ### joint_call_rankings — 1 failed
 
 - `assignments_and_borrows_invalidate_entry_rank_lineage`
-
-### layout_plans — 17 failed
-
-- `callback_slots::c_layout_policy_plans_a_uefi_ish_schema`
-- `callback_slots::plan_laid_value_types_are_placed_by_their_plan`
-- `interrupt_descriptor_tables::authored_descriptor_table_materializes_through_checked_writer`
-- `plan_validation_and_bit_placements::effectful_policies_are_rejected_at_the_gate`
-- `writer_lowering::deeply_nested_symbolic_materialization_preserves_the_exact_path`
-- `writer_lowering::direct_sum_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::empty_array_children_preserve_live_sibling_writes_and_reject_every_index`
-- `writer_lowering::generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::indexed_symbolic_materialization_preserves_the_exact_element_path`
-- `writer_lowering::mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::nested_array_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::nested_indexed_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::nested_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::nested_symbolic_materialization_preserves_the_exact_member_path`
-- `writer_lowering::record_array_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::recursive_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
-- `writer_lowering::recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`
 
 ### literal_dispatch_unit_plan_stops — 1 failed
 
