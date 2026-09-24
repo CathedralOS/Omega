@@ -62,11 +62,16 @@ impl Execution<'_, '_, '_> {
         }
         // Owned values have already been captured. Reference-backed claims
         // still depend on live storage and independently stable bindings.
-        let bindings_stable = self.context.call_frames.is_some_and(|frames| {
-            operands.iter().all(|(argument, _)| {
-                frames.expression_reference_bindings_are_stable(self.machine, *argument)
-            })
-        });
+        // An all-isolated (or empty) capture list never consults the verdict,
+        // so the resolver walk only runs when a non-isolated claim needs it.
+        let bindings_stable = captured_qualifications
+            .iter()
+            .any(|captured| !captured.is_isolated())
+            && self.context.call_frames.is_some_and(|frames| {
+                operands.iter().all(|(argument, _)| {
+                    frames.expression_reference_bindings_are_stable(self.machine, *argument)
+                })
+            });
         let argument_qualifications = qualifications::finish(
             self.context,
             *contexts,
