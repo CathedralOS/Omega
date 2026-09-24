@@ -760,6 +760,30 @@ fn member_index_guards_meet_guard_and_state_bounds() {
             }",
             true,
         ),
+        // A selected arm establishes each conjunct on its own, so a fuel
+        // conjunct naming a state parameter beside `self.pos < 64` keeps the
+        // field bound (the fuel-bounded layout-policy loop shape).
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self, fuel: u64) -> u64 {
+                transition fuel > 1 && self.pos < 64 { true -> read() false -> out() }
+                state read(&mut self) -> u64 { self.control[self.pos] }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            true,
+        ),
+        // The control: the CONTINUATION arm of that same transition holds
+        // only `!(fuel > 1 && self.pos < 64)`, which establishes neither
+        // conjunct, so the field index stays unproven there.
+        (
+            "control: [u8; 64]; pos: u64;",
+            "machine Queryer::probe(&mut self, fuel: u64) -> u64 {
+                transition fuel > 1 && self.pos < 64 { true -> out() false -> read() }
+                state read(&mut self) -> u64 { self.control[self.pos] }
+                state out(&mut self) -> u64 { 0 }
+            }",
+            false,
+        ),
     ] {
         let source = format!("data Queryer {{ {fields} }} {machine}");
         match (check_source(&source), accepted) {

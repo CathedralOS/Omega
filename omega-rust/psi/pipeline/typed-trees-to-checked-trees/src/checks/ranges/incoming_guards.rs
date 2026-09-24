@@ -968,24 +968,67 @@ pub(super) fn seed_incoming_guard_facts(
         // foreign state parameter with the same spelling is not the same
         // value. Parameter facts cross named edges through state_arguments;
         // only shared machine storage may use this raw-expression shortcut.
-        if !guard_uses_machine_storage_only(program, machine, entry.guard) {
+        if entry.negated {
+            // `!(a && b)` establishes NEITHER conjunct, so the continuation
+            // arm can only read a guard that is machine storage throughout.
+            if guard_uses_machine_storage_only(program, machine, entry.guard) {
+                seed_negated_guard_facts(program, machine, state, facts, entry.guard);
+            }
             continue;
         }
-        if entry.negated {
-            seed_negated_guard_facts(program, machine, state, facts, entry.guard);
-        } else {
-            seed_guard_facts(program, machine, state, facts, entry.guard);
+        // The selected arm establishes EVERY top-level conjunct
+        // independently, so a conjunct naming a state parameter
+        // (`fuel > 1 && self.index < 32`) must not discard the machine
+        // storage conjunct standing beside it.
+        for conjunct in machine_storage_conjuncts(program, machine, entry.guard) {
+            seed_guard_facts(program, machine, state, facts, conjunct);
             // R1 endpoint mints ride the positive incoming guards too
             // (fields resolve machine-wide; a source-scope name that does
             // not resolve here simply yields no fact).
-            super::guards::seed_value_vs_value_endpoints(
-                program,
-                machine,
-                state,
-                facts,
-                entry.guard,
-            );
+            super::guards::seed_value_vs_value_endpoints(program, machine, state, facts, conjunct);
         }
+    }
+}
+
+/// The top-level `&&` conjuncts of a selected guard that name machine storage
+/// only. The whole guard when it already qualifies; otherwise each qualifying
+/// side, so a mixed conjunction still contributes its shared-storage half.
+fn machine_storage_conjuncts(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    guard: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    if guard_uses_machine_storage_only(program, machine, guard) {
+        return vec![guard];
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return Vec::new();
+    };
+    match binary.operator {
+        typed_trees::expression::BinaryOperator::And => {
+            let mut conjuncts = machine_storage_conjuncts(program, machine, binary.left);
+            conjuncts.extend(machine_storage_conjuncts(program, machine, binary.right));
+            conjuncts
+        }
+        // A dispatch arm reaches here as `<predicate> == true`: the arm's
+        // selection is spelled against the literal. The conjuncts of the
+        // predicate are the conjuncts of the comparison.
+        typed_trees::expression::BinaryOperator::Equal => {
+            let is_true = |side| {
+                matches!(
+                    program.expression_table.expression(side),
+                    ExpressionNode::Boolean(true)
+                )
+            };
+            if is_true(binary.right) {
+                machine_storage_conjuncts(program, machine, binary.left)
+            } else if is_true(binary.left) {
+                machine_storage_conjuncts(program, machine, binary.right)
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
     }
 }
 
