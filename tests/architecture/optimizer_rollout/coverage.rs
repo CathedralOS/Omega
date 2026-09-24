@@ -1368,15 +1368,15 @@ const COVERAGE: &[RuleCoverage] = &[
     RuleCoverage {
         rule: "X86RelaxConditionalBranchesToRel8V1",
         positive: covered(
-            "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
+            "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
             "eligible_near_branch_shrinks_and_both_reflow_implementations_agree",
         ),
         negative: covered(
-            "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
+            "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
             "out_of_range_near_branch_is_a_verified_no_change_attempt",
         ),
         boundary: covered(
-            "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
+            "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/tests.rs",
             "backward_branch_at_the_i8_floor_relaxes_and_both_reflow_implementations_agree",
         ),
         disabled: covered(

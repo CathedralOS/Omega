@@ -2411,7 +2411,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     let physical_catalog_entrances = [
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs",
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
-        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
+        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs",
     ]
     .map(|relative| {
         let path = root.join(relative);

@@ -108,7 +108,7 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase",
         "omega-rust/omega/backend/layout"
       ],
       "suggested_first_slice": "One of red-zone policy, unwind information, stable-address loans, or dynamic-allocation constraints. machine-emission/frame_layout, representations/machine-code, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z \u2014 prefer a layout-planning slice in owned paths; if nothing bounds there, report blocked."
