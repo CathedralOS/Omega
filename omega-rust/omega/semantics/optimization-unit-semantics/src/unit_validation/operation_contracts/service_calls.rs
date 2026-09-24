@@ -329,6 +329,7 @@ fn reference_call_matches(
         claim_transfers,
         returned_claim_transfers,
         requirement_obligations,
+        crash_continuations,
         ..
     } = operation
     else {
@@ -368,6 +369,7 @@ fn reference_call_matches(
         && callee.content_entry_claims.is_empty()
         && arguments.len() == callee.parameters.len()
         && requirement_obligations.len() == contract.requires.len()
+        && *crash_continuations == contract.crash_routes
         && structural_arguments_match(
             caller,
             structural_arguments,
