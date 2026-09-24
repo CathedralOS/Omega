@@ -50,7 +50,7 @@ machine Lookup::search(&mut self, wanted: i32, out_room: &mut Room) {
 
     state find_at(&mut self, view: &[Room], wanted: i32, out_room: &mut Room, index: u64) {
         let matched: bool = view[index].id == wanted;
-        let next_index: u64 = index + 1;
+        let next_index: u64 = (index as u64 in Wrapping) + 1;
         let has_next: bool = next_index < 4;
         transition {
             matched -> apply(view[index], out_room)

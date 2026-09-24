@@ -20,9 +20,9 @@ machine Main::main(&mut self) reaches Console {
     self.grid[0][1] = 2;
     self.grid[1][0] = 3;
     self.grid[1][1] = 4;
-    self.s = self.grid[0][0] + self.grid[0][1];
-    self.s = self.s + self.grid[1][0];
-    self.s = self.s + self.grid[1][1];
+    self.s = (self.grid[0][0] as i32 in Wrapping) + (self.grid[0][1] as i32 in Wrapping);
+    self.s = (self.s as i32 in Wrapping) + (self.grid[1][0] as i32 in Wrapping);
+    self.s = (self.s as i32 in Wrapping) + (self.grid[1][1] as i32 in Wrapping);
     transition self.s == 10 {
         true -> good()
         _ -> bad()

@@ -25,7 +25,7 @@ machine base() -> u64 {
 
 machine table_size() -> u64 {
     transition {
-        _ -> (base() * 3 + 1)
+        _ -> ((base() as u64 in Wrapping) * 3 + 1)
     }
 }
 

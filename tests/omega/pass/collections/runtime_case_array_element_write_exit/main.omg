@@ -19,13 +19,13 @@ machine Main::main(&mut self) reaches Console {
     self.i = 2;
     self.plans[self.i] = FieldPlan::At { offset: 16, width: 8 };
     transition self.plans[0] {
-        FieldPlan::At { offset, width } -> first(offset + width)
+        FieldPlan::At { offset, width } -> first((offset as i64 in Wrapping) + (width as i64 in Wrapping))
         FieldPlan::Skip -> bad()
     }
     state first(&mut self, v: i64) {
         self.a = v;
         transition self.plans[2] {
-            FieldPlan::At { offset, width } -> second(offset + width)
+            FieldPlan::At { offset, width } -> second((offset as i64 in Wrapping) + (width as i64 in Wrapping))
             FieldPlan::Skip -> bad()
         }
     }

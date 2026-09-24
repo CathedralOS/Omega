@@ -13,7 +13,7 @@ machine Main::main(&mut self) reaches Console {
     let rooms: [Room; 1] = [Room { exit_count: 0 }];
     let index: u64 = 0;
 
-    rooms[index].exit_count = rooms[index].exit_count + 1;
+    rooms[index].exit_count = (rooms[index].exit_count as u32 in Wrapping) + 1;
 
     transition rooms[0].exit_count == 1 {
         true -> good()

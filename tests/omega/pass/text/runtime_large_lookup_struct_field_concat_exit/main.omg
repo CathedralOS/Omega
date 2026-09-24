@@ -97,7 +97,7 @@ ensures
         index: u64
     ) {
         let found: bool = rooms[index].cell == cell;
-        let next_index: u64 = index + 1;
+        let next_index: u64 = (index as u64 in Wrapping) + 1;
         let has_next: bool = next_index < room_count;
 
         transition {

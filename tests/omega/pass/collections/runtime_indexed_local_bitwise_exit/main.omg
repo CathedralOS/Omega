@@ -18,7 +18,8 @@ machine Main::main(&mut self) reaches Console {
     let a: i32 = t & 6;
     let o: i32 = t | 1;
     let x: i32 = t ^ 4;
-    let sum: i32 in Wrapping = a + o + x + 29;
+    let sum: i32 in Wrapping = (a as i32 in Wrapping) + (o as i32 in Wrapping)
+        + (x as i32 in Wrapping) + 29;
     transition sum == 70 {
         true -> ok()
         false -> bad()

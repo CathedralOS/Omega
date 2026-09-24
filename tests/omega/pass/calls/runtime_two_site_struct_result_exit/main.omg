@@ -8,7 +8,7 @@ data Pair [copy] { a: u64; b: u64; }
 data Wrapper { seed: u64; }
 
 machine Wrapper::make_pair(&mut self) -> Pair {
-    let v: u64 = self.seed + 41;
+    let v: u64 = (self.seed as u64 in Wrapping) + 41;
     Pair { a: v, b: v }
 }
 
