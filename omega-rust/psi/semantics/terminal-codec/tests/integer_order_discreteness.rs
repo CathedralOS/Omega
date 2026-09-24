@@ -89,10 +89,10 @@ fn order_discreteness_roundtrips_exact_child_and_replays_acceptance_trace() {
             );
         }
         let mut unknown = bytes.clone();
-        unknown[*tag] = 24;
+        unknown[*tag] = 26;
         assert_eq!(
             decode_proof_bundle(&unknown),
-            Err(ProofCodecError::InvalidTag("ProofRule", 24))
+            Err(ProofCodecError::InvalidTag("ProofRule", 26))
         );
         let mut changed_rule = bytes.clone();
         changed_rule[*tag] = 18;

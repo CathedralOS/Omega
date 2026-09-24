@@ -1480,6 +1480,8 @@ rejects nesting deeper than 256.
 | 21 | IntegerStrictOrderTransitivity | 2 | — |
 | 22 | PredicateDenotation | 1 | — |
 | 23 | ValueEqualityTransport | 1 + counted | — |
+| 24 | IntegerAddOrder | 2 (sum, positive) | — |
+| 25 | IntegerSubtractAntitone | 3 (smaller, larger, order) | — |
 
 ## Obligation ledger
 

@@ -181,6 +181,19 @@ fn validate_proof_node(node: &ProofNode) -> Result<(), ProofCodecError> {
                         pending.push(Step::Node(positive, depth + 1));
                         pending.push(Step::Node(difference, depth + 1));
                     }
+                    ProofRule::IntegerAddOrder { sum, positive } => {
+                        pending.push(Step::Node(positive, depth + 1));
+                        pending.push(Step::Node(sum, depth + 1));
+                    }
+                    ProofRule::IntegerSubtractAntitone {
+                        smaller,
+                        larger,
+                        order,
+                    } => {
+                        pending.push(Step::Node(order, depth + 1));
+                        pending.push(Step::Node(larger, depth + 1));
+                        pending.push(Step::Node(smaller, depth + 1));
+                    }
                     ProofRule::ImplicationElimination {
                         implication,
                         premise,

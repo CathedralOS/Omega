@@ -50,6 +50,8 @@ pub enum AcceptedProofRule {
     IntegerOrderWeakening,
     IntegerOrderDiscreteness,
     IntegerSubtractOrder,
+    IntegerAddOrder,
+    IntegerSubtractAntitone,
     IntegerLessOrEqualTransitivity,
     IntegerStrictOrderTransitivity,
     IntegerOrderSubstitution,
@@ -340,6 +342,7 @@ fn re_decide_in_mathematical_core(
     }
 }
 
+pub(crate) mod add_order;
 pub(crate) mod equality_rules;
 pub(crate) mod integer_bound_rules;
 pub(crate) mod integer_math_normalization;
@@ -347,6 +350,7 @@ pub(crate) mod integer_order_rules;
 pub(crate) mod order_discreteness;
 mod propositional_rules;
 pub(crate) mod strict_order_transitivity;
+pub(crate) mod subtract_antitone;
 pub(crate) mod subtract_order;
 mod traversal;
 
@@ -419,6 +423,12 @@ fn check_node_locally(
         }
         ProofRule::IntegerSubtractOrder { .. } => {
             integer_order_rules::check_integer_subtract_order(proof, acceptance)
+        }
+        ProofRule::IntegerAddOrder { .. } => {
+            integer_order_rules::check_integer_add_order(proof, acceptance)
+        }
+        ProofRule::IntegerSubtractAntitone { .. } => {
+            integer_order_rules::check_integer_subtract_antitone(proof, acceptance)
         }
         ProofRule::IntegerOrderDiscreteness { .. } => {
             integer_order_rules::check_integer_order_discreteness(proof, acceptance)

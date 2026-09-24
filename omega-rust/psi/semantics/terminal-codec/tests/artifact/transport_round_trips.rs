@@ -264,10 +264,10 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut corrupt_tag = bytes.clone();
-    corrupt_tag[40] = 24;
+    corrupt_tag[40] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 
     let mut corrupt_index = bytes.clone();
@@ -329,10 +329,10 @@ fn proof_format_assigns_tag_ten_to_integer_order_transitivity() {
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 }
 
@@ -371,10 +371,10 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     assert_eq!(decode_proof_bundle(&bytes), Ok(wire_bundle));
 
     let mut corrupt_tag = bytes.clone();
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 
     let mut stale = bytes;
@@ -504,10 +504,10 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     );
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 }
 
@@ -549,10 +549,10 @@ fn proof_format_assigns_tag_thirteen_to_integer_cast_chain_bound() {
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 }
 
@@ -622,10 +622,10 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     );
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
 }
 

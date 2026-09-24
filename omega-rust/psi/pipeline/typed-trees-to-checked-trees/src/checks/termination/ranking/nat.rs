@@ -41,40 +41,76 @@ pub(super) fn direct_countdown_edge(
     })
 }
 
-/// The countdown measure `edge_decrease_proven` reads, stated over one
-/// state's own parameters: the subject integer itself, signed or unsigned.
-/// Edge proofs locate a target's subject by name, so every state of a cyclic
-/// component carries a parameter of that name.
+/// The measure `edge_decrease_proven` reads, stated over one state's own
+/// parameters: the countdown subject itself (signed or unsigned), or the
+/// distance's two plain unsigned parameters of one type. Edge proofs locate a
+/// target's subjects by name, so every state of a cyclic component carries
+/// parameters of these names.
 pub(super) fn state_rank(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
-    subject: ExpressionHandle,
+    measure: DecreaseMeasure,
 ) -> Option<checked_trees::CheckedStateNaturalRank> {
+    use checked_trees::CheckedNaturalRankMeasure;
     use typed_trees::types::PrimitiveType;
-    let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
-        return None;
-    };
-    let (position, parameter) =
+    let plain = |subject: ExpressionHandle| {
+        let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
+            return None;
+        };
         program
             .state_parameters(state)
             .iter()
             .enumerate()
             .find(|(_, parameter)| {
                 !parameter.is_self && patterns::expression_is_parameter(program, subject, parameter)
-            })?;
-    let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
-    if matches!(
-        primitive_type,
-        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr
-    ) {
-        return None;
+            })
+            .and_then(|(position, parameter)| Some((u32::try_from(position).ok()?, parameter)))
+    };
+    match measure {
+        DecreaseMeasure::Single(subject) => {
+            let (position, parameter) = plain(subject)?;
+            let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
+            if matches!(
+                primitive_type,
+                PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr
+            ) {
+                return None;
+            }
+            Some(checked_trees::CheckedStateNaturalRank {
+                state: state.symbol,
+                parameter: parameter.symbol,
+                parameter_position: position,
+                measure: CheckedNaturalRankMeasure::IntegerParameter { primitive_type },
+            })
+        }
+        DecreaseMeasure::Distance { lower, upper } => {
+            let (lower_position, lower) = plain(lower)?;
+            let (upper_position, upper) = plain(upper)?;
+            let primitive_type = program.primitive_type_reference(lower.type_reference)?;
+            if lower.symbol == upper.symbol
+                || program.primitive_type_reference(upper.type_reference) != Some(primitive_type)
+                || !matches!(
+                    primitive_type,
+                    PrimitiveType::U8
+                        | PrimitiveType::U16
+                        | PrimitiveType::U32
+                        | PrimitiveType::U64
+                )
+            {
+                return None;
+            }
+            Some(checked_trees::CheckedStateNaturalRank {
+                state: state.symbol,
+                parameter: lower.symbol,
+                parameter_position: lower_position,
+                measure: CheckedNaturalRankMeasure::UnsignedDistance {
+                    primitive_type,
+                    upper: upper.symbol,
+                    upper_position,
+                },
+            })
+        }
     }
-    Some(checked_trees::CheckedStateNaturalRank {
-        state: state.symbol,
-        parameter: parameter.symbol,
-        parameter_position: u32::try_from(position).ok()?,
-        measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter { primitive_type },
-    })
 }
 
 pub(super) fn state_has_proven_self_loop(

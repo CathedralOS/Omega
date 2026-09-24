@@ -80,10 +80,10 @@ fn order_weakening_roundtrips_and_rejects_missing_or_changed_child_evidence() {
             .is_err()
         );
         let mut unknown = bytes.clone();
-        unknown[60] = 24;
+        unknown[60] = 26;
         assert_eq!(
             decode_proof_bundle(&unknown),
-            Err(ProofCodecError::InvalidTag("ProofRule", 24))
+            Err(ProofCodecError::InvalidTag("ProofRule", 26))
         );
         for length in 0..bytes.len() {
             assert!(

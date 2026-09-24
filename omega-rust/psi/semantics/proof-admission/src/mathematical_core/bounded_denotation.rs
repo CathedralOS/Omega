@@ -173,8 +173,8 @@ use crate::proof::integer_math_normalization::{
 };
 use crate::proof::{
     AcceptedPremise, AcceptedProofRule, MathematicalJudgmentReceipt, PremiseRoster, ProofError,
-    ProofNode, ProofRule, equality_rules, integer_bound_rules, integer_order_rules,
-    order_discreteness, strict_order_transitivity, subtract_order,
+    ProofNode, ProofRule, add_order, equality_rules, integer_bound_rules, integer_order_rules,
+    order_discreteness, strict_order_transitivity, subtract_antitone, subtract_order,
 };
 
 /// A bound on the proof nodes one denotation walks — a resource refusal,
@@ -2342,6 +2342,63 @@ impl<'a> Elaboration<'a> {
                     positive_evidence,
                     &proof.conclusion,
                 )
+            }
+            ProofRule::IntegerAddOrder { sum, positive } => {
+                let sum_evidence = self.node(sum)?;
+                let positive_evidence = self.node(positive)?;
+                add_order::check(&sum.conclusion, &positive.conclusion, &proof.conclusion)
+                    .map_err(BoundedDenotationError::Certificate)?;
+                self.rules.insert(AcceptedProofRule::IntegerAddOrder);
+                match self.denotation.addition_order_evidence(
+                    &sum.conclusion,
+                    sum_evidence,
+                    positive_evidence,
+                )? {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerAddOrder,
+                        vec![sum.conclusion.clone(), positive.conclusion.clone()],
+                        vec![sum_evidence, positive_evidence],
+                        &proof.conclusion,
+                    ),
+                }
+            }
+            ProofRule::IntegerSubtractAntitone {
+                smaller,
+                larger,
+                order,
+            } => {
+                let smaller_evidence = self.node(smaller)?;
+                let larger_evidence = self.node(larger)?;
+                let order_evidence = self.node(order)?;
+                subtract_antitone::check(
+                    &smaller.conclusion,
+                    &larger.conclusion,
+                    &order.conclusion,
+                    &proof.conclusion,
+                )
+                .map_err(BoundedDenotationError::Certificate)?;
+                self.rules
+                    .insert(AcceptedProofRule::IntegerSubtractAntitone);
+                match self.denotation.subtraction_antitone_evidence(
+                    &smaller.conclusion,
+                    smaller_evidence,
+                    &larger.conclusion,
+                    larger_evidence,
+                    order_evidence,
+                )? {
+                    Some(term) => Ok(term),
+                    None => self.rule_instance(
+                        AcceptedProofRule::IntegerSubtractAntitone,
+                        vec![
+                            smaller.conclusion.clone(),
+                            larger.conclusion.clone(),
+                            order.conclusion.clone(),
+                        ],
+                        vec![smaller_evidence, larger_evidence, order_evidence],
+                        &proof.conclusion,
+                    ),
+                }
             }
             ProofRule::IntegerOrderDiscreteness { relation } => {
                 let evidence = self.node(relation)?;
