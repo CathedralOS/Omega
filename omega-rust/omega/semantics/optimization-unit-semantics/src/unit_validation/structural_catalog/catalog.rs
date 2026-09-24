@@ -120,12 +120,15 @@ pub(super) fn index_structural_types(
         }
     }
     validate_structural_type_graph(&types)?;
-    // Only record construction currently transfers stored reference custody.
-    // Reject other containers recursively, including a record hidden in them.
+    // Only record and case-payload carriers currently transfer stored
+    // reference custody. Reject other containers recursively, including a
+    // carrier hidden in them.
     for declaration in &unit.structural_types {
         if matches!(
             declaration.shape,
             terminal_psi::StructuralTypeShape::Record { .. }
+                | terminal_psi::StructuralTypeShape::Sum { .. }
+                | terminal_psi::StructuralTypeShape::Mixed { .. }
         ) {
             continue;
         }
