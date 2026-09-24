@@ -586,16 +586,8 @@ the complete product bar; focused successes below do not establish that baseline
         (5 discovered bindings)        print_squares       1.98 s
       candidate_compilation  36.60 s
 
-  The 27.5k-line library is checked once per pass at 16.3 s, so 32.6 s of the
-  36.6 s is one package checked twice with the same consumer-scoped bindings.
-  A fixture without std checks in 14 ms.
-
-  Correcting the earlier evidence: the claim that each pass ran
-  `typed_trees_to_checked_trees` twice (build continuation, then settlement)
-  no longer matches the tree. `assembled-syntax-to-checked-compilation` has
-  ONE call site, in `execution_settlement::check_selected_execution`;
-  `build_continuation::lower_checked_frontend` stops at typed trees. Do not
-  re-derive a settlement skip from that paragraph.
+  The 27.5k-line library costs 16.3 s per pass. A fixture without std checks
+  in 14 ms.
 
   Owner: `packages/manager` `review/candidate/compilation.rs::compile_candidate`,
   which runs `compile_pass` with `&[]` bindings and
@@ -603,33 +595,46 @@ the complete product bar; focused successes below do not establish that baseline
   drops that result and runs `compile_pass` again with them and
   `TargetEntryDiscovery::Disabled`.
 
-  WHY REUSE IS NOT A PLAIN CACHE, and the condition that makes it sound. The
-  two passes are not the same check: pass one sets
-  `permit_unsettled_fused_service_fields`, so its verdict is strictly weaker.
-  That relaxation is reachable only inside
-  `execution_settlement`'s `if let Some(entry) = selected_program_entry`, at
-  `derive_fused_program_entry_establishments`. A package whose compilation
-  selected NO program entry therefore cannot have relied on it, and its pass-one
-  verdict is exactly what pass two would produce -- which is the case for
-  `omega_language_std` and every other library dependency. Reuse gated on
-  "same (package, purpose), equal consumer-scoped bindings, equal build
-  snapshot and inputs, and no selected program entry in the retained result"
-  does not weaken review evidence; reuse gated only on the bindings does.
+  WHERE STD'S TIME GOES (sampled 2026-09-24 on macOS arm64, optimized binary,
+  7.4k samples over 10 s of std's first compile): each `compile_to_checked`
+  checks std TWICE. `build_continuation::evaluate_build_and_continue` calls
+  `declaration_admission::validate_authored_declaration_selections_before_build`,
+  which runs a full `CheckingRequest::preliminary()` check of the frozen source
+  graph as the authority gate before the build executes (2.5k samples); the
+  settled check in `execution_settlement::check_selected_execution` follows
+  (4.4k). A `--check` of `print_squares` therefore checks std four times. The
+  hottest leaves are linear arena scans (`Handle<Symbol>` equality,
+  `valid_span_range` on machine/state/data arenas, `find_data_definition`).
 
-  Three obstacles remain for whoever implements it, none addressed here: the
-  compile in `package_pass.rs` also writes back `prepared_source_output` for
-  the preparation slots, fills `IndependentComponentDiscovery`, and consumes
-  sponsored build evaluation that `ReviewBuildSession::dispose` reconciles --
-  so skipping it must still account for the build it did not run. Custody
-  verification must keep running per pass; it is the trust gate, not the cost.
+  WHY PASS-LEVEL REUSE DOES NOT APPLY TO STD. The bound pass gives
+  `omega_language_std` three bindings of its own -- `FilesystemHostService`,
+  `TimeHostService` and `ConsoleExitProcessI32`, proposed by its provider
+  defaults -- beside the root's two, so std's pass-two compile request
+  differs from pass one's. Reusing a pass-one check is sound only for an
+  unchanged request whose compilation selected no program entry (pass one's
+  `permit_unsettled_fused_service_fields` is read only while establishing a
+  selected entry). An implementation gated on exactly that (equal entry,
+  target, build profile, complete package inputs and build snapshot) passed
+  the candidate-review suite but never fired for std: `print_squares` measured
+  58.4 s before and 59.0 s after, std 25.8 s in both passes, so it was not
+  landed. Routes that would reach std: propose a package's self-consumed
+  bindings before its first check so pass one already checks it with them;
+  re-settle only the binding-dependent execution settlement against pass
+  one's checked program; let the pre-build authority gate reuse a verdict for
+  an unchanged frozen source graph; or cut the checker's per-lookup scans.
+
+  Skipping any compile must still account for what it did: the compile in
+  `package_pass.rs` writes back `prepared_source_output` for the preparation
+  slots, fills `IndependentComponentDiscovery`, and consumes sponsored build
+  evaluation that `ReviewBuildSession::dispose` reconciles, so a reused result
+  leaves the next session's accounting (whose empty session peak must then
+  read as zero). Custody verification keeps running per pass; it is the trust
+  gate, not the cost.
 
   Acceptance: `omega --check` of that sample checks the library once per
   invocation, `--timings` reaches the per-pass and per-package attribution
   that `OMEGA_REVIEW_TIMINGS` already prints, and an owner test compiles its
-  fixture without a second whole-program check of the library. Note the bound
-  before promising the original 12 s: deduplication removes about 16.2 s of
-  36.6 s, leaving roughly 20 s, so 12 s additionally requires the library's own
-  16.3 s check to come down and is not reachable by deduplication alone.
+  fixture without a second whole-program check of the library.
 
 ## Automatic service reach
 
