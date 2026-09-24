@@ -2614,6 +2614,24 @@ pub(crate) fn borrowed_named_view_referent(
     }
 }
 
+/// The `type_identity` an anonymous-result plan mints for a borrowed-view
+/// result — the carrier's own identity with borrow and constraint shells
+/// peeled, exactly as `ShapeCollector::add_type` registers it.
+pub(crate) fn borrowed_view_result_identity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    if let Some(referee) = borrowed_named_view_referent(program, type_reference) {
+        return Some(
+            program
+                .type_identity(TypeIdentityRequest::ordinary(referee))
+                .into_string(),
+        );
+    }
+    borrowed_slice_view(program, type_reference)
+        .then(|| borrowed_slice_view_type_identity(program, type_reference, &[], &[]))
+}
+
 /// A named record whose fields are each either plain owned contents or a
 /// shared borrowed view — the record owns its scalars while each `&` field
 /// keeps its own statically named loan.
