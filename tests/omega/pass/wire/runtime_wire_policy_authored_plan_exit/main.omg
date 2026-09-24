@@ -96,8 +96,11 @@ machine Main::main(&mut self) reaches Console {
 
 // --- The grammar policy (std layout vocabulary, inlined) -----------------
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { size: u64 [0..=4096]; align: u64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+domain u64::FieldSize requires self <= 4096;
+domain u64::FieldAlign requires 1 <= self && self <= 16;
+domain u64::FieldCount requires self <= 32;
+data SchemaField { size: u64 in FieldSize; align: u64 in FieldAlign; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: u64 in FieldCount; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);

@@ -10,8 +10,9 @@ data Samples {
     #0 values: [i32; 2];
 }
 
+domain i32::Sample requires 0 - 2 <= self && self <= 2;
 data RangedSamples {
-    values: [i32 [-2..=2]; 2];
+    values: [i32 in Sample; 2];
 }
 
 data WireVerdict {
