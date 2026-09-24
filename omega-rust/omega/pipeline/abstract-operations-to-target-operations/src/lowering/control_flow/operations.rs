@@ -77,7 +77,7 @@ pub(super) fn lower_operation(
         _ => None,
     };
     if accessed_root.is_some_and(|place| super::references::check_root_access(live, place)) {
-        return Err(LoweringError::UnsupportedControlFlow(function.machine));
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // Call paths that do not lower reference-aware arguments reject any
     // structural argument that touches live custody outright.
@@ -106,7 +106,7 @@ pub(super) fn lower_operation(
         .iter()
         .any(|argument| super::references::touches(function, structural_types, live, argument))
     {
-        return Err(LoweringError::UnsupportedControlFlow(function.machine));
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let first_output = operations.len();
     match operation {
@@ -454,7 +454,6 @@ pub(super) fn lower_operation(
             bytes,
             qualifications,
         } => {
-            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
             if !matches!(
                 place.kind,
                 semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
@@ -466,14 +465,14 @@ pub(super) fn lower_operation(
                 StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
             ) || structural_types.get(&structural_type.id).copied() != Some(structural_type)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if live
                 .views
                 .insert(place.id, (*psi_operation, structural_type.id))
                 .is_some()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             operations.push(TargetUnitOperation::EstablishByteSequenceLiteral {
                 psi_operation: *psi_operation,
@@ -491,7 +490,6 @@ pub(super) fn lower_operation(
             destination,
             ..
         } => {
-            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
             let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
             let (view, _) = super::super::scalar::element_views::element_view_for_place(
                 function,
@@ -507,7 +505,7 @@ pub(super) fn lower_operation(
                 .insert(*destination, (*psi_operation, result.structural_type))
                 .is_some()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             operations.push(TargetUnitOperation::EstablishElementView {
                 result: result.clone(),
@@ -599,7 +597,7 @@ pub(super) fn lower_operation(
                     .insert(home.place(), home.clone())
                     .is_some()
             {
-                return Err(LoweringError::UnsupportedControlFlow(function.machine));
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             Ok(())
         }
@@ -766,7 +764,7 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
-        _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),
+        _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }?;
     if let (Some(installed), Some((_, origin))) = (installed, resolved) {
         super::installed_calls::retain_origin(&mut operations[first_output..], installed, origin)?;

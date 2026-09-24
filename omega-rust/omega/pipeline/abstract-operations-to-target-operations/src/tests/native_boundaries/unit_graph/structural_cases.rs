@@ -385,7 +385,7 @@ fn structural_case_graph_rejects_changed_payload_telescope_source_and_cleanup() 
             _ => cases[1].target = block(30),
         }
         assert!(
-            matches!(lower(&plan), Err(crate::LoweringError::UnsupportedControlFlow(machine))
+            matches!(lower(&plan), Err(crate::LoweringError::UnsupportedControlFlow { machine, .. })
                 if machine == valid.entry),
             "case corruption {mutation} must fail graph checking, not boundary admission",
         );

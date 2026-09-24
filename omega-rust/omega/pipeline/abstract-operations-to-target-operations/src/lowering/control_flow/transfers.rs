@@ -132,17 +132,16 @@ pub(super) fn validate_successors(
         |target: BlockId,
          bindings: &[ValueBinding],
          structural: &[abstract_operations::AbstractStructuralBinding]| {
-            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
             let block = function
                 .block_entries
                 .iter()
                 .find(|block| block.block == target)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if bindings.len() != block.parameters.len() {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if structural.len() != block.structural_parameters.len() {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for (binding, parameter) in structural.iter().zip(&block.structural_parameters) {
                 if is_address_join(parameter, structural_types) {
@@ -155,7 +154,7 @@ pub(super) fn validate_successors(
                             parameter,
                         )
                     {
-                        return Err(invalid());
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     continue;
                 }
@@ -163,7 +162,7 @@ pub(super) fn validate_successors(
                 // custody across an edge; the verified contract rejects it and
                 // this layer keeps the same boundary.
                 if references::contains_reference(structural_types, parameter.structural_type) {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 let place = binding.argument.place;
                 let source_type = function
@@ -243,7 +242,7 @@ pub(super) fn validate_successors(
                             | terminal_psi::StructuralAccess::Owned
                     )
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
             // Every source is read from the predecessor environment. Destination
@@ -284,7 +283,7 @@ pub(super) fn validate_successors(
                     || binding.scalar_type != parameter.scalar_type
                     || scalar_type != Some(parameter.scalar_type)
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
             Ok(())
@@ -317,6 +316,6 @@ pub(super) fn validate_successors(
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::StructuralCase { .. } => Ok(()),
-        _ => Err(LoweringError::UnsupportedControlFlow(function.machine)),
+        _ => Err(LoweringError::unsupported_control_flow(function.machine)),
     }
 }

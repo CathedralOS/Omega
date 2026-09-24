@@ -84,7 +84,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let scalar_matches = |identity, scalar_type| {
         types.get(&identity).is_some_and(|declaration|
             matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(expected) if expected == scalar_type))
@@ -101,7 +100,7 @@ pub(super) fn lower(
                 .structural_parameters
                 .iter()
                 .find(|parameter| parameter.place == *source)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if !matches!(
                 parameter.access,
                 StructuralAccess::SharedBorrow
@@ -112,7 +111,9 @@ pub(super) fn lower(
                 || !parameter.projected_qualifications.is_empty()
                 || result.scalar_type
                     != ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?,
+                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
+                            LoweringError::unsupported_control_flow(function.machine)
+                        })?,
                     )
                 || !terminal_psi::is_bounded_structural_scalar_store_path(path)
                 || function
@@ -120,7 +121,7 @@ pub(super) fn lower(
                     .iter()
                     .any(|claim| claim.input == *source)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let carrier = if path.is_empty() {
                 parameter.structural_type
@@ -134,13 +135,17 @@ pub(super) fn lower(
                 )?
                 .0
             };
-            let StructuralTypeShape::Record { fields } =
-                &types.get(&carrier).ok_or_else(invalid)?.shape
+            let StructuralTypeShape::Record { fields } = &types
+                .get(&carrier)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                .shape
             else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
-            let selected = matching.next().ok_or_else(invalid)?;
+            let selected = matching
+                .next()
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if matching.next().is_some()
                 || selected.relevance.is_erased()
                 || !matches!(
@@ -150,7 +155,7 @@ pub(super) fn lower(
                     )
                 )
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             // Metadata keeps the original parameter and static projection. It
             // does not establish a borrowed view or grant byte-content access.
@@ -195,7 +200,7 @@ pub(super) fn lower(
                     path,
                     *field,
                 ),
-                _ => return Err(invalid()),
+                _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
             };
             let (structural_type, access) = if let Some(home) = live.structural_homes.get(&place) {
                 if home.has_claims()
@@ -203,7 +208,7 @@ pub(super) fn lower(
                     || !home.qualifications().is_empty()
                     || !home.projected_qualifications().is_empty()
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (home.structural_type(), StructuralAccess::Owned)
             } else {
@@ -211,7 +216,7 @@ pub(super) fn lower(
                     .structural_parameters
                     .iter()
                     .find(|parameter| parameter.place == place)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 if !matches!(
                     source.access,
                     StructuralAccess::Owned
@@ -221,7 +226,7 @@ pub(super) fn lower(
                     || !source.qualifications.is_empty()
                     || !source.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (source.structural_type, source.access)
             };
@@ -230,19 +235,25 @@ pub(super) fn lower(
             for (position, segment) in path.iter().enumerate() {
                 match segment {
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
-                        let StructuralTypeShape::Record { fields } =
-                            &types.get(&carrier).ok_or_else(invalid)?.shape
+                        let StructuralTypeShape::Record { fields } = &types
+                            .get(&carrier)
+                            .ok_or_else(|| {
+                                LoweringError::unsupported_control_flow(function.machine)
+                            })?
+                            .shape
                         else {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         };
                         let selected = fields
                             .iter()
                             .find(|candidate| {
                                 candidate.id == *field && !candidate.relevance.is_erased()
                             })
-                            .ok_or_else(invalid)?;
+                            .ok_or_else(|| {
+                                LoweringError::unsupported_control_flow(function.machine)
+                            })?;
                         let StructuralFieldType::Structural(child) = selected.field_type else {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         };
                         runtime_path.push(terminal_psi::StructuralPathSegment::Field(
                             selected.identity.clone(),
@@ -257,18 +268,22 @@ pub(super) fn lower(
                     semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
                         if position + 1 == path.len() =>
                     {
-                        let StructuralTypeShape::FixedArray { element, length } =
-                            &types.get(&carrier).ok_or_else(invalid)?.shape
+                        let StructuralTypeShape::FixedArray { element, length } = &types
+                            .get(&carrier)
+                            .ok_or_else(|| {
+                                LoweringError::unsupported_control_flow(function.machine)
+                            })?
+                            .shape
                         else {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         };
                         if index >= length {
-                            return Err(invalid());
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
                         }
                         runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                         carrier = *element;
                     }
-                    _ => return Err(invalid()),
+                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 }
             }
             if !types.get(&carrier).is_some_and(|declaration|
@@ -276,7 +291,7 @@ pub(super) fn lower(
                     if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
                         && candidate.field_type.scalar_type() == Some(result.scalar_type))))
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             retain_result(psi_operation, result, live)?;
             (
@@ -306,7 +321,7 @@ pub(super) fn lower(
                 || super::scalar_sources::source(value.value, function, live)?.scalar_type()
                     != value.scalar_type
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let shape = shape(*value)?;
             if live
@@ -323,7 +338,7 @@ pub(super) fn lower(
                 )
                 .is_some()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             (
                 *psi_operation,
@@ -340,12 +355,15 @@ pub(super) fn lower(
             destination,
             value,
         } => {
-            let home = live.structural_homes.get(destination).ok_or_else(invalid)?;
+            let home = live
+                .structural_homes
+                .get(destination)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if !scalar_matches(home.structural_type(), value.scalar_type)
                 || super::scalar_sources::source(value.value, function, live)?.scalar_type()
                     != value.scalar_type
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             (
                 *psi_operation,
@@ -364,7 +382,7 @@ pub(super) fn lower(
         } => {
             let identity = if let Some(home) = live.structural_homes.get(source) {
                 if !path.is_empty() {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 home.structural_type()
             } else {
@@ -382,13 +400,13 @@ pub(super) fn lower(
                                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                             )
                     })
-                    .ok_or_else(invalid)?
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                     .structural_type
             };
             if crate::lowering::structural_layout::primitive_projection_type(identity, path, types)
                 != Some(result.scalar_type)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             retain_result(*psi_operation, *result, live)?;
             (
@@ -401,7 +419,7 @@ pub(super) fn lower(
                 },
             )
         }
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     operations.push(lowered);
     provenance.operations.push(identity);

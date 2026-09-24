@@ -17,34 +17,33 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::EstablishRecord {
         psi_operation,
         result,
         fields,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     let StructuralTypeShape::Record {
         fields: declarations,
     } = &types
         .get(&result.structural_type)
-        .ok_or_else(invalid)?
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         .shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let mut consumed = BTreeSet::new();
     let mut relocations = Vec::new();
     let mut moved_leaves = BTreeSet::new();
     for (field, declaration) in fields.iter().zip(declarations) {
         if field.field != declaration.id || declaration.relevance.is_erased() {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         match &field.value {
             terminal_psi::RecordFieldValue::Scalar {
@@ -58,12 +57,12 @@ pub(super) fn establish(
                         StructuralFieldType::BoundedInteger(_)
                     ) != range_obligation.is_some()
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
             terminal_psi::RecordFieldValue::Structural(argument) => {
                 let StructuralFieldType::Structural(nested) = declaration.field_type else {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 };
                 let reference_bearing = super::references::contains_reference(types, nested);
                 if !matches!(
@@ -71,7 +70,7 @@ pub(super) fn establish(
                     Some(StructuralTypeShape::Record { .. })
                 ) && !reference_bearing
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 // A bare carrier field contributes custody, not storage: its
                 // operand contract comes from the live reference map, not a
@@ -85,7 +84,7 @@ pub(super) fn establish(
                     live.references
                         .get(&(argument.place, Vec::new()))
                         .filter(|leaf| leaf.result.structural_type == nested)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                         .result
                         .multiplicity
                 } else if let Some(home) = live.structural_homes.get(&argument.place) {
@@ -94,7 +93,7 @@ pub(super) fn establish(
                         || !home.qualifications().is_empty()
                         || !home.projected_qualifications().is_empty()
                     {
-                        return Err(invalid());
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     home.multiplicity()
                 } else {
@@ -102,14 +101,16 @@ pub(super) fn establish(
                         .structural_parameters
                         .iter()
                         .filter(|parameter| parameter.place == argument.place);
-                    let parameter = parameters.next().ok_or_else(invalid)?;
+                    let parameter = parameters
+                        .next()
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                     if parameters.next().is_some()
                         || parameter.structural_type != nested
                         || parameter.access != StructuralAccess::Owned
                         || !parameter.qualifications.is_empty()
                         || !parameter.projected_qualifications.is_empty()
                     {
-                        return Err(invalid());
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
                     }
                     parameter.multiplicity
                 };
@@ -119,7 +120,7 @@ pub(super) fn establish(
                     || (multiplicity == StructuralMultiplicity::Affine
                         && !consumed.insert(argument.place))
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 if reference_bearing {
                     super::references::record_field_leaves(
@@ -145,7 +146,7 @@ pub(super) fn establish(
             .values()
             .any(|leaf| leaf.identity.0 == result.place)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     for place in consumed {
         live.structural_homes.remove(&place);

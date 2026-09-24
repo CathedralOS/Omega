@@ -1656,12 +1656,10 @@ fn borrowed_unit_call_into_a_serviceful_callee_keeps_its_row_and_replay() {
                 input,
                 path: Vec::new(),
             });
-        assert_eq!(
+        assert!(matches!(
             crate::lower_to_target_operations(&claimed, crate::TargetLoweringRequest::new(native)),
-            Err(crate::LoweringError::UnsupportedControlFlow(
-                source.functions[0].machine
-            ))
-        );
+            Err(crate::LoweringError::UnsupportedControlFlow { machine, .. }) if machine == source.functions[0].machine
+        ));
     }
 }
 

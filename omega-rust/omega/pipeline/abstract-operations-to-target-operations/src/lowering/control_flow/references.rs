@@ -300,18 +300,17 @@ fn normalized_source(
     live: &LiveDefinitions,
     source: &StructuralArgument,
 ) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
         let leaf = live
             .references
             .get(&(source.place, carrier_path.to_vec()))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if live
             .references
             .values()
             .any(|child| child.parent.as_ref() == Some(&leaf.identity))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((leaf.root.clone(), Some(leaf.identity.clone())))
     } else if source.path.is_empty() {
@@ -320,11 +319,11 @@ fn normalized_source(
             .values()
             .any(|reference| reference.root == ReferenceRoot::Place(source.place))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         Ok((ReferenceRoot::Place(source.place), None))
     } else {
-        Err(invalid())
+        Err(LoweringError::unsupported_control_flow(function.machine))
     }
 }
 
@@ -423,17 +422,17 @@ pub(super) fn call_arguments(
     live: &LiveDefinitions,
     arguments: &[StructuralArgument],
 ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let mut normalized = Vec::new();
     let mut moved = BTreeMap::new();
     for argument in arguments {
         if argument_owns_references(function, live, types, argument) {
             if !argument.path.is_empty() {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let (contract, _) =
-                source_contract(function, live, argument.place).ok_or_else(invalid)?;
-            let paths = leaf_paths(types, contract, live.references.len()).ok_or_else(invalid)?;
+            let (contract, _) = source_contract(function, live, argument.place)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let paths = leaf_paths(types, contract, live.references.len())
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             if paths.len()
                 != live
                     .references
@@ -441,13 +440,13 @@ pub(super) fn call_arguments(
                     .filter(|(carrier, _)| *carrier == argument.place)
                     .count()
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             for path in paths {
                 let leaf = live
                     .references
                     .get(&(argument.place, path.clone()))
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
                 // Abstract callee ingress promises independently available
                 // leaves. A type cannot describe an unknown suspended parent
                 // or a parent/child pair packed into the same incoming record.
@@ -459,7 +458,7 @@ pub(super) fn call_arguments(
                         .insert((argument.place, path.clone()), leaf.clone())
                         .is_some()
                 {
-                    return Err(invalid());
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 normalized.push((leaf.root.clone(), argument.access, true));
             }
@@ -473,7 +472,7 @@ pub(super) fn call_arguments(
                 .any(|reference| reference.root == ReferenceRoot::Place(argument.place))
         {
             if !is_reference_projection(function, live, types, argument) {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             let (root, _) = normalized_source(function, live, argument)?;
             normalized.push((root, argument.access, true));
@@ -491,7 +490,7 @@ pub(super) fn call_arguments(
                         || *other_access != StructuralAccess::SharedBorrow)
             })
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     Ok(moved)
@@ -543,16 +542,16 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::EstablishReference {
         psi_operation,
         result,
         source,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let referent = referent(types, result.structural_type).ok_or_else(invalid)?;
+    let referent = referent(types, result.structural_type)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
@@ -567,10 +566,10 @@ pub(super) fn establish(
             .values()
             .any(|leaf| leaf.identity.0 == result.place)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     if reference_source_type(function, live, types, source) != Some(referent) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (root, parent) = normalized_source(function, live, source)?;
     let identity = (result.place, Vec::new());
@@ -602,25 +601,24 @@ pub(super) fn release(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::ReleaseReference {
         psi_operation,
         source,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let leaf = live
         .references
         .remove(&(*source, Vec::new()))
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if live
         .references
         .values()
         .any(|child| child.parent.as_ref() == Some(&leaf.identity))
     {
         live.references.insert(leaf.identity.clone(), leaf);
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::ReleaseReference {
         psi_operation: *psi_operation,
@@ -639,24 +637,24 @@ pub(super) fn discard_owned(
     live: &mut LiveDefinitions,
     source: PlaceId,
 ) -> Result<bool, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let Some((contract, _)) = source_contract(function, live, source) else {
         return Ok(false);
     };
     if !contains_reference(types, contract) {
         return Ok(false);
     }
-    let paths = leaf_paths(types, contract, live.references.len()).ok_or_else(invalid)?;
+    let paths = leaf_paths(types, contract, live.references.len())
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut released = BTreeSet::new();
     for path in paths.iter().rev() {
         let leaf = live
             .references
             .get(&(source, path.clone()))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if live.references.values().any(|child| {
             child.parent.as_ref() == Some(&leaf.identity) && !released.contains(&child.identity)
         }) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         released.insert(leaf.identity.clone());
     }
@@ -665,7 +663,7 @@ pub(super) fn discard_owned(
         .iter()
         .any(|((carrier, _), leaf)| *carrier == source && !released.contains(&leaf.identity))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     live.references
         .retain(|_, leaf| !released.contains(&leaf.identity));
@@ -689,19 +687,20 @@ pub(super) fn record_field_leaves(
     )>,
     moved: &mut BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
-    let (contract, _) = source_contract(function, live, argument.place).ok_or_else(invalid)?;
+    let (contract, _) = source_contract(function, live, argument.place)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if contract != nested {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let paths = leaf_paths(types, contract, live.references.len()).ok_or_else(invalid)?;
+    let paths = leaf_paths(types, contract, live.references.len())
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     for path in &paths {
         let leaf = live
             .references
             .get(&(argument.place, path.clone()))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !moved.insert(leaf.identity.clone()) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let mut destination = vec![StructuralPathSegment::Field(field_identity.to_owned())];
         destination.extend(path.iter().cloned());
@@ -714,7 +713,7 @@ pub(super) fn record_field_leaves(
         .keys()
         .any(|(carrier, path)| *carrier == argument.place && !paths.contains(path))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(())
 }
@@ -749,11 +748,13 @@ pub(super) fn call_results(
     live: &mut LiveDefinitions,
     moved: &BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>,
 ) -> Result<Vec<target_operations::TargetReferenceResult>, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if !contains_reference(types, result.structural_type) {
         return Ok(Vec::new());
     }
-    let callee_result = callee_function.result.structural().ok_or_else(invalid)?;
+    let callee_result = callee_function
+        .result
+        .structural()
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if live
         .references
         .keys()
@@ -763,7 +764,7 @@ pub(super) fn call_results(
             .values()
             .any(|leaf| leaf.identity.0 == result.place)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // Stage the complete result before publication. Independent leaves cannot
     // duplicate an exclusive origin, even through distinct actual argument
@@ -772,12 +773,12 @@ pub(super) fn call_results(
     let mut roots = BTreeSet::new();
     let mut reference_results = Vec::new();
     for mapping in &callee_result.reference_sources {
-        let source =
-            call_source(callee_function, structural_arguments, mapping).ok_or_else(invalid)?;
-        let expected =
-            leaf_referent(types, result.structural_type, &mapping.path).ok_or_else(invalid)?;
+        let source = call_source(callee_function, structural_arguments, mapping)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let expected = leaf_referent(types, result.structural_type, &mapping.path)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if reference_source_type(function, live, types, &source) != Some(expected) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let leaf = if matches!(
             formal_origin(callee_function, &mapping.source),
@@ -788,12 +789,12 @@ pub(super) fn call_results(
             // root and parent, and lands at the declared result path.
             let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last()
             else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             moved
                 .get(&(source.place, carrier_path.to_vec()))
                 .cloned()
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         } else {
             let (root, parent) = normalized_source(function, live, &source)?;
             ReferenceCustody {
@@ -806,7 +807,7 @@ pub(super) fn call_results(
             }
         };
         if !roots.insert(leaf.root.clone()) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
@@ -834,7 +835,6 @@ pub(super) fn referent_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<TargetStructuralArgument>, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let Some((StructuralPathSegment::Referent, carrier_path)) = argument.path.split_last() else {
         return Ok(None);
     };
@@ -842,28 +842,30 @@ pub(super) fn referent_argument(
         || argument.access != declaration.access
         || !super::primitive_storage::is_primitive_reference(declaration, types)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let leaf = live
         .references
         .get(&(argument.place, carrier_path.to_vec()))
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if leaf.referent != declaration.structural_type {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let ReferenceRoot::Place(root) = &leaf.root else {
         // An ingress leaf's referent storage belongs to the caller; no local
         // pointer exists to transport.
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let (root_type, source) = if let Some(home) = live.structural_homes.get(root) {
-        let (defining_operation, home_result) = home.operation_result().ok_or_else(invalid)?;
+        let (defining_operation, home_result) = home
+            .operation_result()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !function.operations.iter().any(|operation| {
             matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
             if *psi_operation == defining_operation && result == home_result)
         }) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (
             home.structural_type(),
@@ -876,7 +878,7 @@ pub(super) fn referent_argument(
             .parameters
             .iter()
             .find(|source| source.place == *root)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let allowed = match source.access {
             StructuralAccess::MutableBorrow => true,
             StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
@@ -886,12 +888,12 @@ pub(super) fn referent_argument(
             StructuralAccess::Owned => false,
         };
         if !allowed {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (source.structural_type, source.placement.clone().into())
     };
     if root_type != declaration.structural_type {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(Some(TargetStructuralArgument {
         place: *root,
@@ -919,11 +921,11 @@ pub(super) fn return_custody(
     source: PlaceId,
     result: &terminal_psi::StructuralResultDeclaration,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if !contains_reference(types, result.structural_type) {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (contract, _) = source_contract(function, live, source).ok_or_else(invalid)?;
+    let (contract, _) = source_contract(function, live, source)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if contract != result.structural_type
         || live
             .references
@@ -932,13 +934,13 @@ pub(super) fn return_custody(
             .count()
             != result.reference_sources.len()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     for mapping in &result.reference_sources {
         let leaf = live
             .references
             .get(&(source, mapping.path.clone()))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if Some(leaf.root.clone()) != formal_origin(function, &mapping.source)
             || leaf.parent.is_some()
             || live
@@ -946,7 +948,7 @@ pub(super) fn return_custody(
                 .values()
                 .any(|child| child.parent.as_ref() == Some(&leaf.identity))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     Ok(())
@@ -1001,7 +1003,6 @@ pub(super) fn entry(
     function: &AbstractFunction,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<BTreeMap<(PlaceId, Vec<StructuralPathSegment>), ReferenceCustody>, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let mut references = BTreeMap::new();
     for parameter in &function.structural_parameters {
         if !contains_reference(types, parameter.structural_type) {
@@ -1019,14 +1020,14 @@ pub(super) fn entry(
                 .iter()
                 .any(|claim| claim.input == parameter.place)
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let paths = leaf_paths(
             types,
             parameter.structural_type,
             4096usize.saturating_sub(references.len()),
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         for path in paths {
             let identity = (parameter.place, path.clone());
             references.insert(
@@ -1046,7 +1047,7 @@ pub(super) fn entry(
                         claims: Vec::new(),
                     },
                     referent: leaf_referent(types, parameter.structural_type, &path)
-                        .ok_or_else(invalid)?,
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?,
                 },
             );
         }

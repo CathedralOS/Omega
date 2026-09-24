@@ -28,7 +28,7 @@ fn unit_functions_require_explicit_graph_blocks() {
     source.functions[0].block_entries.clear();
     assert!(matches!(
         lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-        Err(LoweringError::UnsupportedControlFlow(_))
+        Err(LoweringError::UnsupportedControlFlow { .. })
     ));
 }
 
@@ -172,7 +172,7 @@ fn scalar_graph_rejects_missing_block_ownership() {
             &source,
             TargetLoweringRequest::new(NativeTarget::linux_x64())
         ),
-        Err(LoweringError::UnsupportedControlFlow(_))
+        Err(LoweringError::UnsupportedControlFlow { .. })
     ));
 }
 

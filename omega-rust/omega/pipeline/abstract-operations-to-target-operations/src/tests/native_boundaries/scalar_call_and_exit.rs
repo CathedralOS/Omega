@@ -94,12 +94,12 @@ fn checked_scalar_call_and_literal_exit_compose_in_one_shared_unit_body() {
             parameters: Vec::new(),
             operation_offset: 3,
         });
-    assert_eq!(
+    assert!(matches!(
         lower_to_target_operations_with_settlements(
             &multi_block,
             NativeTarget::linux_x64(),
             std::slice::from_ref(&settlement),
         ),
-        Err(LoweringError::UnsupportedControlFlow(multi_block.entry)),
-    );
+        Err(LoweringError::UnsupportedControlFlow { machine, .. }) if machine == multi_block.entry
+    ));
 }

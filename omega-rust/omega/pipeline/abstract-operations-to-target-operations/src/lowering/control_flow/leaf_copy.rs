@@ -21,7 +21,6 @@ pub(super) fn copy(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::StructuralLeafCopy {
         psi_operation,
         result,
@@ -29,19 +28,19 @@ pub(super) fn copy(
         path,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let root_type = if let Some(home) = live.structural_homes.get(source) {
         if home.has_claims()
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         home.structural_type()
     } else {
         super::structural_case::parameter_root(prepared, *source)
-            .ok_or_else(invalid)?
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
             .structural_type
     };
     let (endpoint, shape, byte_offset, indices) = if path.is_empty() {
@@ -66,7 +65,7 @@ pub(super) fn copy(
         )?
     };
     if endpoint != result.structural_type {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let indices = indices
         .into_iter()
@@ -74,12 +73,12 @@ pub(super) fn copy(
             let parameter = usize::try_from(selector)
                 .ok()
                 .and_then(|position| function.parameters.get(position).copied())
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let ScalarType::Integer(index_type) = parameter.scalar_type else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             if index_type.bits() > 64 {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             Ok(target_operations::TargetStructuralRuntimeIndex {
                 operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
@@ -93,14 +92,14 @@ pub(super) fn copy(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if result_home.layout.shape() != shape {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     if live
         .structural_homes
         .insert(result.place, result_home.clone())
         .is_some()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::StructuralLeafCopy {
         psi_operation: *psi_operation,
