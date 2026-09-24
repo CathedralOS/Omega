@@ -2386,18 +2386,41 @@ syntax and other terminal services are not prerequisites.
      composed internal calls through `ordinary_calls::prepare` (its member
      calls already do), then the boundary and scalar calls through the
      ordinary methods, and delete the composed call emitters.
-  5. Eight return families each have their own builder, roster and module
+  5. Seven return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
-     A dispatch probe skipped one family at a time over the c2l suite. The
-     general route already lowers every PayloadlessCase program identically,
-     including the exact-shape tests, and no test selects SelectedOperator.
-     PayloadlessCase cannot be deleted alone:
-     `payloadless_guarded_call_return.rs` lowers its callee through
-     `lower_payloadless_case_return_machine` and renumbers it by hand. Lower
-     that callee through the general route, then delete both. Families the
-     general route still refuses, with c2l tests only they lower:
-     StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall 12,
-     BoundaryScalar 8, Structural 6, TraitOperator 1.
+     Families the general route still refuses, with c2l tests only they
+     lower: StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall
+     12, BoundaryScalar 8, Structural 6, TraitOperator 1. The guarded
+     payloadless call (`returns/payloadless_guarded_call_return.rs`) lowers
+     its callee through the shared Unit closure but still owns its caller:
+     identity case arms collapsed to one call and return, the
+     selected-evidence rows on that call
+     (`proofs/evidence_lowering/guarded_call_evidence.rs`) and a proof-only
+     tail target. The callers have no general Unit plan: single-state callers
+     stop at `statement sequence: unsupported statement kind` (the transition
+     over the saved result), tail-use callers at `state graph: state
+     signature: contract shape unadmitted` (the tail's evidence `requires`).
+     Deleting it needs the composed route to dispatch over a call result whose
+     arms bind outcome-specific call evidence, at the current four fuel units
+     (`payloadless_case_return_source`).
+     The selected-operator return
+     (`returns/structural_scalar_return/selected_operator.rs`) is the only
+     lowering of a selected boundary operator returned over structural
+     operands. Its one fixture, `exercise` in
+     `providers/specialized_structural_fixed_operator_terminal_custody`, fails
+     checking on `requires Count == Count` ("unsupported selected `requires`
+     on a non-array, non-slice collection", since `dada8acc6b`), as does every
+     `structural_selected_operator` canary. Without that clause `exercise`
+     lowers through the family and verifies at four fuel units; without the
+     family it has no plan. The Unit route cannot take it:
+     `selected_operator.rs::build_selected_operator_structural_scalar_call`
+     looks up the realization in the primitive-store scalar-callee roster,
+     which never holds `IndexingProvider::index`, so the `let` form fails
+     too ("retained 0 exact Unit realization applications") since
+     `757b6f9164` dropped the roster reconciliation. Next: give Unit planning
+     the realization's structural-scalar-return row, plan a completing
+     application like the `let` form in `control/statement_sequence.rs`, then
+     delete the family and `boundary_operator_custody/structural_returns.rs`.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
      Widen state-graph admission to cover it rather than extending it. The

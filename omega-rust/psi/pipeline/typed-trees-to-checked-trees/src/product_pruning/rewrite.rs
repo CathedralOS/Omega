@@ -330,11 +330,6 @@ pub(super) fn apply_pruning(
         .retain(|row| retained.contains(&row.machine));
     facts
         .flow
-        .terminal_structural_returns
-        .payloadless_case_machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .flow
         .terminal_structural_call_returns
         .payloadless_guarded_machines
         .retain(|row| retained.contains(&row.machine));

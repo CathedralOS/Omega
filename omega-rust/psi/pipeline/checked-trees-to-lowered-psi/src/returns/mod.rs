@@ -2,10 +2,11 @@
 //!
 //! `lower_return_machine` lowers the one checked return plan a selected
 //! machine carries: it dispatches on the plan's result kind to the body that
-//! owns it — owned-affine identity returns, boundary scalar results,
-//! payloadless structural cases and guarded calls, general structural results,
-//! structural scalar returns and their operator-realized forms — and publishes
-//! what every kind shares. Structural-type retention shared by the result and
+//! owns it — owned-affine identity returns, boundary scalar results, guarded
+//! payloadless calls, general structural results, structural scalar returns
+//! and their operator-realized forms — and publishes what every kind shares.
+//! A payloadless case constructor is not a kind here: it is an ordinary
+//! Unit-effect body, and the guarded call lowers it through the Unit closure. Structural-type retention shared by the result and
 //! control lanes lives here.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -68,7 +69,6 @@ use crate::proofs::crash_routes::{lower_boundary_crash_routes, lower_checked_cra
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::returns::affine_return::lower_affine_return_machine;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
-use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use crate::returns::structural_return::lower_structural_return_machine;
 use crate::returns::structural_scalar_return::{
@@ -100,7 +100,6 @@ use crate::unit::unit_cleanup::lower_nominal_affine_unit_cleanup_machine;
 
 pub(crate) mod affine_return;
 pub(crate) mod boundary_scalar_return;
-pub(crate) mod payloadless_case_return;
 pub(crate) mod payloadless_guarded_call_return;
 pub(crate) mod structural_return;
 pub(crate) mod structural_scalar_return;
@@ -135,9 +134,6 @@ pub(crate) fn lower_return_machine(
                 lower_boundary_scalar_return_machine(checked, plan)?,
                 completion,
             ));
-        }
-        CheckedReturnPlan::PayloadlessCase(plan) => {
-            lower_payloadless_case_return_machine(checked, plan)?
         }
         CheckedReturnPlan::Structural(plan) => lower_structural_return_machine(checked, plan)?,
         CheckedReturnPlan::ClaimFreeAffine(plan) => {
