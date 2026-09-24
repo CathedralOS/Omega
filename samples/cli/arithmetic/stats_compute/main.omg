@@ -26,9 +26,9 @@ data Stats [copy] {
     // Running accumulator for sum and sum-of-squares.
     sum: f64;
     sum_sq_dev: f64;
-    // Ranged + the modular-counter idiom at the increment: Exact-provable, no
-    // overflow domain.
-    count: i32 [0..=100];
+    // The modular-counter idiom at the increment: reducing `% 101` before the
+    // `+ 1` bounds the operand, so it is Exact-provable with no overflow domain.
+    count: i32;
     mean: f64;
     variance: f64;
     weighted_sum: f64;
@@ -43,7 +43,7 @@ data Main {
 // Add one value to the running sum.
 machine Main::add(&mut self, x: f64) {
     self.s.sum = self.s.sum + x;
-    self.s.count = (self.s.count + 1) % 101;
+    self.s.count = (self.s.count % 101 + 1) % 101;
 }
 
 // Finalize mean = sum / count.

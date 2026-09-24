@@ -3,10 +3,10 @@
 // real little bytecode VM. Each token is either a number (push it) or an operator
 // that pops two operands and pushes the result. Demonstrates TWO bounded mutable
 // indices cooperating: a program counter `pc` walking the program and a stack
-// pointer `sp` driving the operand stack, both fully-Exact `i32 [0..=16]` -- the
+// pointer `sp` driving the operand stack, both plain fully-Exact `i32` -- the
 // explicit `0 <= idx < CAP` guards on the direct edges into every state that moves
-// an index both discharge the bounds obligations and prove the +1/-1 steps stay in
-// range (Omega's proof model). The token VALUES round-trip through array elements,
+// an index both discharge the bounds obligations and prove the +1/-1 steps exact
+// (Omega's proof model). The token VALUES round-trip through array elements,
 // which carry no range facts yet, so the value plumbing is declared Wrapping.
 //
 // Encoding: program[k] >= 0 pushes that value; negative codes are operators:
@@ -25,8 +25,8 @@ data Main {
     program: [i32; 16] in Wrapping;
     nprog: i32;
     stack: [i32; 16] in Wrapping;
-    sp: i32 [0..=16];
-    pc: i32 [0..=16];
+    sp: i32;
+    pc: i32;
     tok: i32 in Wrapping;
     a: i32 in Wrapping;
     b: i32 in Wrapping;

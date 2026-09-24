@@ -28,10 +28,10 @@ data Main {
     row: [u8; 48] in Utf8;
     palette: [u8; 8] in Utf8;
     home: [u8; 3] in Utf8;
-    frame: i32 [0..=12];
+    frame: i32;
     span: f64;
-    x: i32 [0..=48];
-    y: i32 [0..=22];
+    x: i32;
+    y: i32;
     cr: f64;
     ci: f64;
     zr: f64;
@@ -39,7 +39,7 @@ data Main {
     zr2: f64;
     zi2: f64;
     mag: f64;
-    k: i32 [0..=40];
+    k: i32;
     idx: i32;
     ch: u8 in Wrapping;
     pause: [u8; 256];
@@ -89,7 +89,7 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.mag = self.zr2 + self.zi2;
         transition self.mag > 4.0 { true -> pixel_done() _ -> iter_step() }
     }
-    // Re-guard so the increment's direct edge proves `k + 1` back into [0..=40].
+    // Re-guard so the increment's direct edge proves `k + 1` lands in [1..=40].
     state iter_step(&mut self) {
         self.zi = 2.0 * self.zr * self.zi + self.ci;
         self.zr = self.zr2 - self.zi2 + self.cr;
@@ -99,7 +99,12 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.k = self.k + 1;
         transition { _ -> iter_loop() }
     }
+    // Re-guard `0 <= k <= 40` so the shade arithmetic `k * 7 / 40` is exact --
+    // k only counts up to the 40-step cap, so always true.
     state pixel_done(&mut self) {
+        transition self.k >= 0 && self.k <= 40 { true -> pixel_shade() _ -> bad() }
+    }
+    state pixel_shade(&mut self) {
         self.idx = self.k * 7 / 40;
         transition self.idx >= 0 && self.idx < 8 && self.x >= 0 && self.x < 48 {
             true -> write_pixel()
@@ -112,8 +117,8 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
-    // Re-guard so the increment's direct edge proves `y + 1` back into
-    // [0..=22] (the write_line call severs the row_loop guard anyway).
+    // Re-guard so the increment's direct edge proves `y + 1` lands in
+    // [1..=22] (the write_line call severs the row_loop guard anyway).
     state emit_row(&mut self) {
         self.console.write_line(self.row);
         transition self.y >= 0 && self.y < 22 { true -> row_advance() _ -> frame_end() }
@@ -122,8 +127,8 @@ machine Main::main(&mut self) reaches Clock + Console {
         self.y = self.y + 1;
         transition { _ -> row_loop() }
     }
-    // Re-guard so the increment's direct edge proves `frame + 1` back into
-    // [0..=12] (the sleep call severs the frame_loop guard anyway).
+    // Re-guard so the increment's direct edge proves `frame + 1` lands in
+    // [1..=12] (the sleep call severs the frame_loop guard anyway).
     state frame_end(&mut self) {
         self.clock.sleep(70);
         self.span = self.span * 0.62;
