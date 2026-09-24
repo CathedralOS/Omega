@@ -5,9 +5,17 @@
 //! requirement only gates the whole-parameter case; a field-path read is
 //! classified by the leaf's own byte-sequence carrier.
 //!
+//! A byte store `self.view[i] = v` composes through the same read shape on an
+//! `&'r mut [u8]` field: the checked-plan mint gate enforces `&mut` access
+//! before the carrier collapses to a bare `BorrowedView`, and the verifier's
+//! dominating-observation equation ties a successor's fresh `.len` to the
+//! guard's bound. A store through a shared `&'r` field still declines.
+//!
 //! Residual: a scalar contract `requires i < self.view.len` cannot be retained
 //! — `ScalarTerm` has no byte-length term, so the clause has no proposition
-//! spelling (and a byte store through a shared `&'r [u8]` view has none).
+//! spelling; authored-bound subslice results have no floor spelling either
+//! (`-> T` states die at the result-signature wall and tails cannot carry the
+//! `self.view.len >= k` premise).
 use crate::{TerminalMachineSelection, lower_machine};
 
 fn verify(source: &str, machine: &'static str) {
@@ -190,5 +198,195 @@ fn bounded_owned_field_element_read_lowers_and_verifies() {
             }}"
         ),
         "D::probe",
+    );
+}
+
+const MV: &str = r#"
+    data Mv<'r> { view: &'r mut [u8]; out: u8; }
+
+    machine Mv::build<'a>(x: &'a mut [u8]) -> Mv<'a> {
+        Mv { view: x, out: 0 }
+    }
+"#;
+
+#[test]
+fn mutable_view_field_element_store_transition_lowers_and_verifies() {
+    verify(
+        &format!(
+            "{MV}
+            machine Mv::set(&mut self, i: u64, v: u8) {{
+                transition i < self.view.len {{
+                    true -> hit(i, v)
+                    _ -> done()
+                }}
+                state hit(&mut self, i: u64, v: u8) {{
+                    self.view[i] = v;
+                }}
+                state done(&mut self) {{
+                    self.out = 1;
+                }}
+            }}"
+        ),
+        "Mv::set",
+    );
+}
+
+#[test]
+fn mutable_view_field_element_store_unguarded_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            machine Mv::set(&mut self, i: u64, v: u8) {{
+                self.view[i] = v;
+            }}"
+        ),
+        "Mv::set",
+    );
+}
+
+#[test]
+fn shared_view_field_element_store_transition_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::set(&mut self, i: u64, v: u8) {{
+                transition i < self.view.len {{
+                    true -> hit(i, v)
+                    _ -> done()
+                }}
+                state hit(&mut self, i: u64, v: u8) {{
+                    self.view[i] = v;
+                }}
+                state done(&mut self) {{
+                    self.out = 1;
+                }}
+            }}"
+        ),
+        "Wv::set",
+    );
+}
+
+#[test]
+fn mutable_view_field_subslice_result_unguarded_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            machine Mv::head(&self) -> &'r mut [u8] {{
+                self.view[0..3]
+            }}"
+        ),
+        "Mv::head",
+    );
+}
+
+#[test]
+fn mutable_view_field_subslice_field_bound_result_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            data Nv<'r> {{ view: &'r mut [u8]; n: u64; }}
+
+            machine Nv::build<'a>(x: &'a mut [u8], n: u64) -> Nv<'a> {{
+                Nv {{ view: x, n: n }}
+            }}
+
+            machine Nv::head(&self) -> &'r mut [u8] {{
+                self.view[0..self.n]
+            }}"
+        ),
+        "Nv::head",
+    );
+}
+
+#[test]
+fn mutable_view_field_subslice_local_binding_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            machine Mv::head(&mut self) {{
+                transition self.view.len >= 3 {{
+                    true -> emit()
+                    _ -> done()
+                }}
+                state emit(&mut self) {{
+                    let w: &'r mut [u8] = self.view[0..3];
+                    self.out = 1;
+                }}
+                state done(&mut self) {{
+                    self.out = 0;
+                }}
+            }}"
+        ),
+        "Mv::head",
+    );
+}
+
+#[test]
+fn mutable_view_field_subslice_shared_result_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            machine Mv::head(&self) -> &'r [u8] {{
+                transition self.view.len >= 3 {{
+                    true -> emit()
+                    _ -> done()
+                }}
+                state emit(&self) -> &'r [u8] {{
+                    self.view[0..3]
+                }}
+                state done(&self) -> &'r [u8] {{
+                    self.view
+                }}
+            }}"
+        ),
+        "Mv::head",
+    );
+}
+
+#[test]
+fn mutable_view_field_subslice_mut_call_argument_rejects() {
+    rejected(
+        &format!(
+            "{MV}
+            machine Mv::sink(&mut self, w: &'r mut [u8]) {{
+                self.out = 1;
+            }}
+
+            machine Mv::head(&mut self) {{
+                transition self.view.len >= 3 {{
+                    true -> emit()
+                    _ -> done()
+                }}
+                state emit(&mut self) {{
+                    self.sink(&mut self.view[0..3]);
+                }}
+                state done(&mut self) {{
+                    self.out = 1;
+                }}
+            }}"
+        ),
+        "Mv::head",
+    );
+}
+
+#[test]
+fn shared_view_field_subslice_mutable_result_rejects() {
+    rejected(
+        &format!(
+            "{WV}
+            machine Wv::head(&self) -> &'r mut [u8] {{
+                transition self.view.len >= 3 {{
+                    true -> emit()
+                    _ -> done()
+                }}
+                state emit(&self) -> &'r mut [u8] {{
+                    self.view[0..3]
+                }}
+                state done(&self) -> &'r mut [u8] {{
+                    self.view
+                }}
+            }}"
+        ),
+        "Wv::head",
     );
 }
