@@ -10,9 +10,9 @@
 //! stable canonical roster. Failed expansion can restore the initial proposals
 //! once; restoration reruns proof checking and cannot confer authority itself.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{ObligationId, Proposition};
+use semantic_vocabulary::{ObligationId, Proposition, ScalarTerm};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
@@ -165,6 +165,9 @@ fn retain_provable_roster(
         let questions = terminal_verifier::reconstruct_terminal_obligations(module)
             .map_err(LoweringError::InvalidTerminalModule)?;
         let mut rejected = BTreeSet::new();
+        // Members of a rejected header's conjunction that fail on their own at
+        // some arrival, by position, with the conjunction's arity at that arrival.
+        let mut refuted = BTreeMap::<_, (usize, BTreeSet<usize>)>::new();
         for site in questions.obligations() {
             let ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
                 machine, header, ..
@@ -183,33 +186,55 @@ fn retain_provable_roster(
                 .value_context(owner)
                 .map_err(LoweringError::InvalidTerminalModule)?;
             let parameters = owner.parameters.iter().map(|value| value.id).collect();
-            if produce_checked_canonical_integer_proof(
-                &context,
-                &site.obligation.proposition,
-                &site.requirements,
-                &site.semantic_axioms,
-                &parameters,
-            )
-            // Arrival obligations can outgrow the canonical custody envelope
-            // the same way operation obligations do: an endpoint that meets
-            // cited facts only through equality/definition chains. The relaxed
-            // search is the named last resort here too — canonical producers
-            // first, the bounded derived closure only at unproven leaves, and
-            // the kernel re-checks the certificate before the candidate is
-            // retained. Guarded `Implication` premises keep their scope.
-            .or_else(|| {
-                produce_relaxed_integer_proof(
+            let proves = |goal: &Proposition| {
+                produce_checked_canonical_integer_proof(
                     &context,
-                    &site.obligation.proposition,
+                    goal,
                     &site.requirements,
                     &site.semantic_axioms,
                     &parameters,
                 )
-            })
-            .is_none()
-            {
+                // Arrival obligations can outgrow the canonical custody envelope
+                // the same way operation obligations do: an endpoint that meets
+                // cited facts only through equality/definition chains. The relaxed
+                // search is the named last resort here too — canonical producers
+                // first, the bounded derived closure only at unproven leaves, and
+                // the kernel re-checks the certificate before the candidate is
+                // retained. Guarded `Implication` premises keep their scope.
+                .or_else(|| {
+                    produce_relaxed_integer_proof(
+                        &context,
+                        goal,
+                        &site.requirements,
+                        &site.semantic_axioms,
+                        &parameters,
+                    )
+                })
+                .is_some()
+            };
+            if !proves(&site.obligation.proposition) {
                 rejected.insert((machine, header));
+                if let Proposition::Conjunction(members) = &site.obligation.proposition {
+                    let (arity, failing) = refuted
+                        .entry((machine, header))
+                        .or_insert_with(|| (members.len(), BTreeSet::new()));
+                    if *arity == members.len() {
+                        failing.extend(
+                            members
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, member)| !proves(member))
+                                .map(|(index, _)| index),
+                        );
+                    }
+                }
             }
+        }
+        if prune_refuted_members(&mut module.scalar_block_invariants, &refuted, &mut rejected)
+            && rejected.is_empty()
+        {
+            // The surviving members are new proposals: prove every arrival again.
+            continue;
         }
         if rejected.is_empty() {
             // Previously supplied source certificates can carry exact axiom
@@ -245,6 +270,74 @@ fn retain_provable_roster(
         // A surviving proof may have used a removed candidate. Reconstruct and
         // prove again under only the remaining hypotheses before retaining it.
     }
+}
+
+/// A header's proposals are conjoined, so one non-inductive guess would
+/// discard every useful member beside it. Drop exactly the members that fail
+/// alone at some arrival and keep the header; a later round proves the
+/// surviving conjunction again, since a survivor may have leaned on a dropped
+/// member. A header whose every member fails, or whose failure is only joint,
+/// stays rejected. Returns whether any header was narrowed.
+fn prune_refuted_members(
+    roster: &mut [terminal_psi::ScalarBlockInvariant],
+    refuted: &BTreeMap<
+        (semantic_vocabulary::MachineId, semantic_vocabulary::BlockId),
+        (usize, BTreeSet<usize>),
+    >,
+    rejected: &mut BTreeSet<(semantic_vocabulary::MachineId, semantic_vocabulary::BlockId)>,
+) -> bool {
+    let mut pruned = false;
+    for candidate in roster {
+        let key = (candidate.machine, candidate.header);
+        let Some((arity, failing)) = refuted.get(&key) else {
+            continue;
+        };
+        let Proposition::Conjunction(members) = &candidate.predicate else {
+            continue;
+        };
+        if members.len() != *arity || failing.is_empty() {
+            continue;
+        }
+        let mut surviving = members
+            .iter()
+            .enumerate()
+            .filter(|(index, member)| !failing.contains(index) && !carrier_bound(member))
+            .map(|(_, member)| member.clone())
+            .collect::<Vec<_>>();
+        if surviving.is_empty() {
+            continue;
+        }
+        candidate.predicate = if surviving.len() == 1 {
+            surviving.pop().expect("one surviving member")
+        } else {
+            Proposition::Conjunction(surviving)
+        };
+        rejected.remove(&key);
+        pruned = true;
+    }
+    pruned
+}
+
+/// A member restating its value's own carrier bound (`0 <= x` over `u64`)
+/// holds on every arrival and informs no question; a header whose other
+/// members all failed keeps nothing worth proving again.
+fn carrier_bound(member: &Proposition) -> bool {
+    let Proposition::LessOrEqual(left, right) = member else {
+        return false;
+    };
+    let bound = |literal: &ScalarTerm, maximum: bool| {
+        literal
+            .integer_value()
+            .is_some_and(|(integer_type, value)| {
+                value
+                    == if maximum {
+                        integer_type.maximum_value()
+                    } else {
+                        integer_type.minimum_value()
+                    }
+            })
+    };
+    bound(left, false) || bound(right, true)
 }
 
 /// Every actual edge into `header`, in canonical order: one arrival

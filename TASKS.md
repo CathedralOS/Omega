@@ -115,13 +115,11 @@ the complete product bar; focused successes below do not establish that baseline
   it. A runtime pass obtained by introducing an interval-only domain diagnoses
   missing proposition transport; it does not justify that source model. The
   sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
-  fields have their bracketed spelling back, and the four index fields are
-  unbounded again. reverse_sum then stops at OperationProofUnavailable. Its
-  `data Main where i >= -1, i <= 4` form is refused by the cross-state
+  fields have their bracketed spelling back, and the four index fields run
+  unbounded because Terminal infers their loop-header bounds. Their
+  `data Main where i >= -1, i <= 4` form is still refused by the cross-state
   invariant-window check in `validation/src/proof_contracts/default_domains/
-  assignment_windows.rs`. Terminal header inference never proposes `i < 5`:
-  `field_bounds` does not read through the `as u64` index cast, and a header
-  conjunction is discarded whole when its non-inductive `0 <= i` member fails.
+  assignment_windows.rs`.
 
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,
