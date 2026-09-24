@@ -585,6 +585,18 @@ pub fn reviewed_repository_fixture_package_inputs(
     root_path: &Path,
     target_name: Option<&str>,
 ) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
+    reviewed_repository_fixture_package_inputs_with(
+        root_path,
+        target_name,
+        FixtureReviewCache::Reuse,
+    )
+}
+
+pub fn reviewed_repository_fixture_package_inputs_with(
+    root_path: &Path,
+    target_name: Option<&str>,
+    cache: FixtureReviewCache,
+) -> Result<Option<PackageCompilationInputs>, Vec<Diagnostic>> {
     let Some(mut package_inputs) = repository_fixture_package_inputs(root_path) else {
         return Ok(None);
     };
@@ -601,7 +613,7 @@ pub fn reviewed_repository_fixture_package_inputs(
     let mut bindings = Vec::new();
     // Entry acceptance is decided by the target profile, not by spelling.
     if declares_standard_library && let Some(target_name) = target_name {
-        bindings.extend(candidate_program_entry_binding(
+        bindings.extend(memoized_program_entry_binding(
             target_name,
             &standard_library_root,
             standard_library_identity,
@@ -627,22 +639,103 @@ pub fn reviewed_repository_fixture_package_inputs(
     if !declares_standard_library {
         return Ok(Some(package_inputs));
     }
-    // Like consumer review's discovery pass, the preliminary compile admits
-    // entry `Binding<R>` fields whose Fused selection does not exist yet:
-    // accepting the canonical host bindings below is what lets settlement
-    // mint those selections for the real compile.
-    let preliminary = compile_to_checked(CheckedCompileRequest {
-        package_inputs: Some(package_inputs.clone()),
-        permit_unsettled_fused_service_fields: true,
-        ..CheckedCompileRequest::new(root_path, target_name)
-    })?;
-    let required = dangerous_service_acceptance::required_dangerous_services(
-        &preliminary,
-        standard_library_identity,
-    );
+    // The verdict depends only on the fixture's and the library's sources for
+    // one target, and the bindings only on the target and that verdict, so
+    // both are reused: the verdict from a file keyed by those sources'
+    // digest, the bindings from this process. The product compile still
+    // replays every accepted row against its own checked graph and rejects a
+    // row that is stale or unconsumed; `production_compile` then discards the
+    // entry and recomputes once. `OMEGA_FIXTURE_REVIEW_CACHE=off` bypasses it.
+    let cache_key = fixture_review_cache_key(root_path, target_name);
+    let cached = match (cache, cache_key) {
+        (FixtureReviewCache::Reuse, Some(key)) => {
+            read_cached_dangerous_services(key).and_then(|required| {
+                cached_dangerous_service_bindings(target_name, &required)
+                    .map(|service_bindings| (required, service_bindings))
+            })
+        }
+        _ => None,
+    };
+    let (required, service_bindings) = match cached {
+        Some(cached) => cached,
+        None => {
+            // Like consumer review's discovery pass, the preliminary compile
+            // admits entry `Binding<R>` fields whose Fused selection does not
+            // exist yet: accepting the canonical host bindings below is what
+            // lets settlement mint those selections for the real compile.
+            let preliminary = compile_to_checked(CheckedCompileRequest {
+                package_inputs: Some(package_inputs.clone()),
+                permit_unsettled_fused_service_fields: true,
+                ..CheckedCompileRequest::new(root_path, target_name)
+            })?;
+            let required = dangerous_service_acceptance::required_dangerous_services(
+                &preliminary,
+                standard_library_identity,
+            );
+            let service_bindings =
+                dangerous_service_bindings(&preliminary, standard_library_identity, &required)?;
+            if let Some(key) = cache_key {
+                write_cached_dangerous_services(key, &required);
+            }
+            remember_dangerous_service_bindings(target_name, &required, &service_bindings);
+            (required, service_bindings)
+        }
+    };
     if !required.any() {
         return Ok(Some(package_inputs));
     }
+    bindings.extend(service_bindings);
+    package_inputs
+        .with_accepted_semantic_bindings(bindings)
+        .map(Some)
+        .map_err(|errors| {
+            vec![Diagnostic::error(format!(
+                "cannot admit repository fixture semantic binding: {errors:?}"
+            ))]
+        })
+}
+
+/// The entry binding depends only on the target and the bundled library, and
+/// deriving it reads the library's declarations (1.9 s per fixture on the
+/// measured host), so one process derives it once per target.
+fn memoized_program_entry_binding(
+    target_name: &str,
+    standard_library_root: &Path,
+    standard_library: PackageKeyIdentity,
+) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    static MEMO: std::sync::OnceLock<
+        std::sync::Mutex<HashMap<String, Option<AcceptedSemanticBinding>>>,
+    > = std::sync::OnceLock::new();
+    let memo = MEMO.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
+    if let Ok(memo) = memo.lock()
+        && let Some(binding) = memo.get(target_name)
+    {
+        return Ok(binding.clone());
+    }
+    let binding =
+        candidate_program_entry_binding(target_name, standard_library_root, standard_library)?;
+    if let Ok(mut memo) = memo.lock() {
+        memo.insert(target_name.to_owned(), binding.clone());
+    }
+    Ok(binding)
+}
+
+/// Whether `reviewed_repository_fixture_package_inputs` may reuse an earlier
+/// preliminary verdict for the same sources.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixtureReviewCache {
+    Reuse,
+    Bypass,
+}
+
+/// The dangerous-service rows the preliminary checked graph admits, every one
+/// derived from and replayed against that graph.
+fn dangerous_service_bindings(
+    preliminary: &compiler::CheckedCompilation,
+    standard_library_identity: PackageKeyIdentity,
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+) -> Result<Vec<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    let mut bindings = Vec::new();
     if required.filesystem {
         bindings.push(
             preliminary
@@ -667,7 +760,7 @@ pub fn reviewed_repository_fixture_package_inputs(
     }
     if let Some(console) = required.console {
         bindings.push(console_acceptance::candidate_console_exit_binding(
-            &preliminary,
+            preliminary,
             standard_library_identity,
             console.output,
             console.input,
@@ -675,24 +768,187 @@ pub fn reviewed_repository_fixture_package_inputs(
     }
     if required.process_exit {
         bindings.push(process_exit_acceptance::candidate_process_exit_binding(
-            &preliminary,
+            preliminary,
             standard_library_identity,
         )?);
     }
-    package_inputs
-        .with_accepted_semantic_bindings(bindings)
-        .map(Some)
-        .map_err(|errors| {
-            vec![Diagnostic::error(format!(
-                "cannot admit repository fixture semantic binding: {errors:?}"
-            ))]
-        })
+    Ok(bindings)
 }
 
-/// The hosted ProgramEntry build for a fixture copied into a scratch project:
-/// the copy restates whatever dependencies the fixture authored, through
-/// absolute paths, so module resolution finds those packages instead of
-/// probing a sibling directory of the copied source.
+/// The verdict as seven flags: filesystem, time, process exit, whether the
+/// console was used, and the console's exit, output and input operations.
+fn dangerous_service_flags(
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+) -> [bool; 7] {
+    let console = required.console.unwrap_or_default();
+    [
+        required.filesystem,
+        required.time,
+        required.process_exit,
+        required.console.is_some(),
+        console.exit,
+        console.output,
+        console.input,
+    ]
+}
+
+fn dangerous_services_from_flags(
+    flags: [bool; 7],
+) -> dangerous_service_acceptance::RequiredDangerousServices {
+    dangerous_service_acceptance::RequiredDangerousServices {
+        filesystem: flags[0],
+        time: flags[1],
+        process_exit: flags[2],
+        console: flags[3].then_some(dangerous_service_acceptance::ConsoleUse {
+            exit: flags[4],
+            output: flags[5],
+            input: flags[6],
+        }),
+    }
+}
+
+type DangerousServiceBindingMemo =
+    std::sync::Mutex<std::collections::HashMap<(String, [bool; 7]), Vec<AcceptedSemanticBinding>>>;
+
+fn dangerous_service_binding_memo() -> &'static DangerousServiceBindingMemo {
+    static MEMO: std::sync::OnceLock<DangerousServiceBindingMemo> = std::sync::OnceLock::new();
+    MEMO.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+fn cached_dangerous_service_bindings(
+    target_name: Option<&str>,
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+) -> Option<Vec<AcceptedSemanticBinding>> {
+    if !required.any() {
+        return Some(Vec::new());
+    }
+    let memo = dangerous_service_binding_memo().lock().ok()?;
+    memo.get(&(
+        target_name.unwrap_or_default().to_owned(),
+        dangerous_service_flags(required),
+    ))
+    .cloned()
+}
+
+fn remember_dangerous_service_bindings(
+    target_name: Option<&str>,
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+    bindings: &[AcceptedSemanticBinding],
+) {
+    if let Ok(mut memo) = dangerous_service_binding_memo().lock() {
+        memo.insert(
+            (
+                target_name.unwrap_or_default().to_owned(),
+                dangerous_service_flags(required),
+            ),
+            bindings.to_vec(),
+        );
+    }
+}
+
+/// Every `.omg` file under `root`, in path order, hashed by relative path and
+/// content. `None` when the tree cannot be read.
+fn hash_omega_sources(root: &Path, hasher: &mut impl std::hash::Hasher) -> Option<()> {
+    use std::hash::Hash;
+    let mut files = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).ok()? {
+            let path = entry.ok()?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "omg") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    for path in files {
+        path.strip_prefix(root)
+            .ok()?
+            .to_string_lossy()
+            .replace('\\', "/")
+            .hash(hasher);
+        fs::read(&path).ok()?.hash(hasher);
+    }
+    Some(())
+}
+
+/// The library sources' digest, computed once per process.
+fn bundled_library_sources_hash() -> Option<u64> {
+    static HASH: std::sync::OnceLock<Option<u64>> = std::sync::OnceLock::new();
+    *HASH.get_or_init(|| {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let library = bundled_standard_library_root();
+        hash_omega_sources(library.parent()?, &mut hasher)?;
+        Some(std::hash::Hasher::finish(&hasher))
+    })
+}
+
+/// A digest of everything the preliminary verdict depends on: the fixture's
+/// sources, the bundled library's sources, the target and this format.
+fn fixture_review_cache_key(root_path: &Path, target_name: Option<&str>) -> Option<u64> {
+    use std::hash::{Hash, Hasher};
+    if std::env::var_os("OMEGA_FIXTURE_REVIEW_CACHE").is_some_and(|value| value == "off") {
+        return None;
+    }
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    "fixture-review-verdict-v1".hash(&mut hasher);
+    target_name.hash(&mut hasher);
+    bundled_library_sources_hash()?.hash(&mut hasher);
+    hash_omega_sources(root_path.parent()?, &mut hasher)?;
+    Some(hasher.finish())
+}
+
+fn fixture_review_cache_path(key: u64) -> PathBuf {
+    repo_root()
+        .join("target")
+        .join("fixture-review-cache")
+        .join(format!("{key:016x}.txt"))
+}
+
+fn read_cached_dangerous_services(
+    key: u64,
+) -> Option<dangerous_service_acceptance::RequiredDangerousServices> {
+    let text = fs::read_to_string(fixture_review_cache_path(key)).ok()?;
+    let mut flags = [false; 7];
+    let values = text.split_whitespace().collect::<Vec<_>>();
+    if values.len() != flags.len() {
+        return None;
+    }
+    for (flag, value) in flags.iter_mut().zip(values) {
+        *flag = match value {
+            "1" => true,
+            "0" => false,
+            _ => return None,
+        };
+    }
+    Some(dangerous_services_from_flags(flags))
+}
+
+fn write_cached_dangerous_services(
+    key: u64,
+    required: &dangerous_service_acceptance::RequiredDangerousServices,
+) {
+    let path = fixture_review_cache_path(key);
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let text = dangerous_service_flags(required)
+        .iter()
+        .map(|flag| if *flag { "1" } else { "0" })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let _ = fs::write(path, text);
+}
+
+/// Forget a cached verdict whose accepted rows the product compile rejected.
+pub fn discard_fixture_review_cache(root_path: &Path, target_name: Option<&str>) {
+    if let Some(key) = fixture_review_cache_key(root_path, target_name) {
+        let _ = fs::remove_file(fixture_review_cache_path(key));
+    }
+}
+
 pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
