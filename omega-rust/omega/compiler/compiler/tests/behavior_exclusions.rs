@@ -34,6 +34,22 @@ fn identity(seed: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([seed; 32]).expect("nonzero package identity")
 }
 
+/// The package identity each fixture DIRECTORY declares in its own
+/// `build.omg`. A directory may be spelled with hyphens; a package identity
+/// is snake_case, so a source binding must carry the declared name and not
+/// the folder it happens to live in.
+fn declared_name(directory: &str) -> &'static str {
+    match directory {
+        "assert-kit" => "assert_kit",
+        "checking-app" => "checking_assert_app",
+        "no-op-app" => "no_op_assert_app",
+        "logger-kit" => "logger_kit",
+        "quiet-logger-app" => "quiet_logger_app",
+        "sink-app" => "sink_app",
+        other => panic!("behavior-exclusions fixture directory `{other}` has no declared name"),
+    }
+}
+
 /// The application `app` composed with its one library dependency under the
 /// alias its source imports (`assert_kit` / `logger_kit`).
 fn inputs(root: &Path, app: &str) -> PackageCompilationInputs {
@@ -44,8 +60,8 @@ fn inputs(root: &Path, app: &str) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
         identity(0x61),
         vec![
-            PackageSourceBinding::new(identity(0x61), app, root.join(app)),
-            PackageSourceBinding::new(identity(0x62), library, root.join(library)),
+            PackageSourceBinding::new(identity(0x61), declared_name(app), root.join(app)),
+            PackageSourceBinding::new(identity(0x62), declared_name(library), root.join(library)),
         ],
         vec![PackageDependencyBinding::new(
             identity(0x61),
