@@ -4,7 +4,6 @@
 // The string arguments below are bootstrap syntax. The destination
 // `ForeignBinding::CompilerIntrinsic` is payload-free and keys lowering by this exact
 // realization symbol, normalized signature, and target.
-use omega::language::core::external_binding;
 windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
     via ForeignBinding::CompilerIntrinsic
@@ -13,20 +12,9 @@ windows_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
 windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
     satisfies Console::write_byte
     via ForeignBinding::CompilerIntrinsic;
-// Windows has no stable syscall ABI: process termination is kernel32's
-// `ExitProcess`, reached through DLL linkage like every other Windows
-// boundary leaf. It never returns.
-windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "ExitProcess",
-        },
-    }
-}
 windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
-    via exit_process_binding();
+    via ForeignBinding::CompilerIntrinsic;
 
 windows_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     defaults.select_provider<Console, ConsoleNativeProvider>();
