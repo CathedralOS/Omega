@@ -814,6 +814,62 @@ pub(super) fn retain_exact_flow_call(
     Ok(())
 }
 
+/// Whether an authored actual names exactly the planned parameter place, path
+/// and loan. A dotted name spells the path in its members; any other place
+/// spelling -- a receiver the call was made on, a member chain, a literal
+/// index -- resolves through the shared structural source path, where whole
+/// `self` may spell the machine namespace. An authored `&x` / `&mut x` must
+/// spell exactly the planned loan, so a shared spelling cannot stand in for a
+/// mutable one or back.
+fn parameter_actual_names_its_source(
+    checked: &CheckedTrees,
+    caller: &checked_trees::machine::Machine,
+    parameter: &checked_trees::signature::StateParameter,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Result<bool, LoweringError> {
+    let (named, spelled) = match checked.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) => (
+            borrow.target,
+            Some(match borrow.access {
+                language_core::ReferenceAccess::Shared => {
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                }
+                language_core::ReferenceAccess::Mutable => {
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                }
+                language_core::ReferenceAccess::WriteOnly => {
+                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                }
+            }),
+        ),
+        _ => (expression, None),
+    };
+    if let ExpressionNode::Name(name) = checked.expression_table.expression(named) {
+        let members = checked.expression_table.name_path_members(name.members);
+        if members.len() > 1 {
+            return Ok(spelled.is_none_or(|access| access == argument.access)
+                && name.symbol == parameter.symbol
+                && name.head_symbol == parameter.symbol
+                && members.len() == argument.path.len() + 1
+                && members.first() == Some(&parameter.name)
+                && members.iter().skip(1).zip(&argument.path).all(|(spelling, segment)| {
+                    matches!(segment, checked_trees::CheckedUnitStructuralPathSegment::Field(field) if field == spelling.as_str())
+                }));
+        }
+    }
+    let (root, path, spelled) = crate::unit::attached_unit::parameters::source_path(
+        checked,
+        caller,
+        parameter.type_reference,
+        expression,
+    )?;
+    Ok(parameter.symbol.is_valid()
+        && (root == parameter.symbol || (parameter.is_self && root == caller.symbol))
+        && path == argument.path
+        && spelled.is_none_or(|access| access == argument.access))
+}
+
 /// Structural actuals on a composed scalar call rejoin the same checked
 /// custody the state-graph edge lane already proves: a completed result names
 /// its immutable authored local, a whole parameter names the ambient formal,
@@ -831,7 +887,7 @@ fn retain_scalar_call_structural_arguments(
     if structural_arguments.is_empty() {
         return Ok(());
     }
-    let (_, authored) =
+    let (caller, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     let call = crate::emission::call_source_custody::authored::locate(
         checked,
@@ -852,13 +908,15 @@ fn retain_scalar_call_structural_arguments(
         structural_arguments.len(),
     )?;
     for (argument, position) in structural_arguments.iter().zip(positions.iter().copied()) {
-        let expression = call
-            .structural_arguments
-            .iter()
-            .find_map(|(formal, expression)| (*formal == position).then_some(*expression))
-            .ok_or(LoweringError::Unsupported(
+        let is_self = signature
+            .parameters
+            .get(position as usize)
+            .is_some_and(|parameter| parameter.is_self);
+        let expression = call.structural_argument(checked, position, is_self).ok_or(
+            LoweringError::Unsupported(
                 "composed scalar call structural actual lost its authored position",
-            ))?;
+            ),
+        )?;
         match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
@@ -926,44 +984,12 @@ fn retain_scalar_call_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "composed scalar call has no authored parameter",
                     ))?;
-                // An authored `&x` / `&mut x` names the same parameter place;
-                // its spelled access must be exactly the planned loan, so a
-                // shared spelling cannot stand in for a mutable one or back.
-                let named = match checked.expression_table.expression(expression) {
-                    ExpressionNode::Borrow(borrow) => {
-                        let spelled = match borrow.access {
-                            language_core::ReferenceAccess::Shared => {
-                                checked_trees::CheckedStructuralAccess::SharedBorrow
-                            }
-                            language_core::ReferenceAccess::Mutable => {
-                                checked_trees::CheckedStructuralAccess::MutableBorrow
-                            }
-                            language_core::ReferenceAccess::WriteOnly => {
-                                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                            }
-                        };
-                        if spelled != argument.access {
-                            return unsupported(
-                                "composed scalar call borrow spells a different access",
-                            );
-                        }
-                        borrow.target
-                    }
-                    _ => expression,
-                };
-                let ExpressionNode::Name(name) = checked.expression_table.expression(named) else {
-                    return unsupported("composed scalar call parameter actual is not a name");
-                };
-                let members = checked.expression_table.name_path_members(name.members);
-                if name.symbol != parameter.symbol
-                    || name.head_symbol != parameter.symbol
-                    || members.len() != argument.path.len() + 1
-                    || members.first() != Some(&parameter.name)
-                    || members.iter().skip(1).zip(&argument.path).any(|(spelling, segment)| {
-                        !matches!(segment, checked_trees::CheckedUnitStructuralPathSegment::Field(field) if field == spelling.as_str())
-                    })
-                {
-                    return unsupported("composed scalar call parameter actual changed its root or path");
+                if !parameter_actual_names_its_source(
+                    checked, caller, parameter, argument, expression,
+                )? {
+                    return unsupported(
+                        "composed scalar call parameter actual changed its root or path",
+                    );
                 }
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {

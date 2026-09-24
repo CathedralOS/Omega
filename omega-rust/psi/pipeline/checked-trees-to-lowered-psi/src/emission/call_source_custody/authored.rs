@@ -25,6 +25,34 @@ pub(crate) struct AuthoredCall {
     pub target_state: SymbolHandle,
 }
 
+impl AuthoredCall {
+    /// The authored expression passed at formal `position`: the explicit
+    /// argument, or for the receiver formal of a call spelled on a place
+    /// (`self.element(2)`, `self.samples.element(2)`) that receiver
+    /// expression. An explicit receiver argument already sits at its position.
+    pub(crate) fn structural_argument(
+        &self,
+        checked: &CheckedTrees,
+        position: u32,
+        is_self: bool,
+    ) -> Option<ExpressionHandle> {
+        self.structural_arguments
+            .iter()
+            .find_map(|(formal, expression)| (*formal == position).then_some(*expression))
+            .or_else(|| {
+                let Some(NominalMachineUseSite::Expression(expression)) = self.source_site else {
+                    return None;
+                };
+                match checked.expression_table.expression(expression) {
+                    ExpressionNode::Call(call) if is_self && call.receiver.is_valid() => {
+                        Some(call.receiver)
+                    }
+                    _ => None,
+                }
+            })
+    }
+}
+
 pub(crate) fn locate(
     checked: &CheckedTrees,
     caller_machine: SymbolHandle,
