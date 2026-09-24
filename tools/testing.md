@@ -76,6 +76,26 @@ environment, and external inputs. Follow [validation scope](../AGENTS.md#validat
 when that evidence is unavailable; do not describe scoped checks as a verified
 full baseline.
 
+## Jev semantic augment
+
+When a TypeSafe API key is configured (`TYPESAFE_API_KEY`, or
+`build/typesafe.env.txt`, or `~/.config/typesafe/typesafe.env.txt`), the plan
+additionally asks a System One model which entries of
+[test_select_candidates.json](test_select_candidates.json) the diff could break
+*beyond what the deterministic baseline already covers*, and appends commands
+for flagged candidates the baseline lacks. The augment is union-only: it can
+add checks (e.g., a standard-library compile for a name-resolution change, or
+a path-catalog architecture test for a file move) but never removes baseline
+coverage, so every failure mode degrades to deterministic selection. The
+`jev` plan field reports `augmented` with `flagged`/`added`/`covered`/
+`suggested` lists. With no key configured the plan reports `unconfigured` and
+behaves exactly as before; a configured-but-unreachable API prints one stderr
+warning and reports `unavailable`. Suppress it with `--no-jev` or
+`OMEGA_JEV_OFFLINE=1`. Responses are cached per request payload under
+`build/test-select-cache/`. The candidate catalog is the maintenance surface:
+descriptions state what each test observes and what breaks it — keep them
+current or recall silently degrades.
+
 For an explicitly scoped manual library check, a nextest filter can select a
 crate and its reverse dependencies while retaining workspace features:
 
