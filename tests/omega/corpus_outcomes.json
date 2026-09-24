@@ -14580,22 +14580,18 @@
  {
   "fixture": "pass/build/uefi_os_handoff_invocation",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 17731,
+  "status": "checked",
+  "millis": 2137,
   "expected_satisfied": null,
-  "diagnostics": [
-   "authored Call declaration selection occurrence 1685 remained unresolved after successful checking (CheckedCall)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/build/uefi_program_entry_storage_roots",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 17866,
+  "status": "checked",
+  "millis": 2127,
   "expected_satisfied": null,
-  "diagnostics": [
-   "authored Call declaration selection occurrence 1690 remained unresolved after successful checking (CheckedCall)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/calls/bool_value_call_return_exit",
@@ -21792,32 +21788,26 @@
  {
   "fixture": "pass/float/build_runtime_semantics_twins",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 23943,
+  "status": "checked",
+  "millis": 7220,
   "expected_satisfied": null,
-  "diagnostics": [
-   "authored Operator declaration selection occurrence 178 remained unresolved after successful checking (CheckedOperator)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/float/build_runtime_semantics_twins_windows_x64",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 23483,
+  "status": "checked",
+  "millis": 7058,
   "expected_satisfied": null,
-  "diagnostics": [
-   "authored Operator declaration selection occurrence 160 remained unresolved after successful checking (CheckedOperator)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/float/build_runtime_semantics_twins_x86_baseline",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 23412,
+  "status": "checked",
+  "millis": 6982,
   "expected_satisfied": null,
-  "diagnostics": [
-   "authored Operator declaration selection occurrence 160 remained unresolved after successful checking (CheckedOperator)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/float/exclusive_float_range_below_endpoint",
