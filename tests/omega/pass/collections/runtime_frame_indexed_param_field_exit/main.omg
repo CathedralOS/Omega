@@ -3,7 +3,6 @@
 // points[1].y=42, k=1 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To2 requires self <= 2;
 data Point {
     x: i32;
     y: i32;
@@ -17,7 +16,9 @@ machine Main::main(&mut self) {
     self.points[1].y = 42;
     transition { _ -> self.pick(self.points, 1) }
 }
-machine Main::pick(&mut self, points: [Point; 3], k: u64 in U640To2) reaches Console {
+machine Main::pick(&mut self, points: [Point; 3], k: u64) reaches Console
+requires k <= 2
+{
     let v: i32 = points[k].y;
     transition v == 42 {
         true -> yes()

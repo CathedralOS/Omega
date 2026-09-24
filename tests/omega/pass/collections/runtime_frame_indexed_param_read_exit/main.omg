@@ -5,7 +5,6 @@
 // frame-base-indexed address computation. arr=[10,20,30], k=1 -> 20 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To2 requires self <= 2;
 data Main {
     console: Binding<Console>;
     arr: [i32; 3];
@@ -16,7 +15,9 @@ machine Main::main(&mut self) {
     self.arr[2] = 30;
     transition { _ -> self.pick(self.arr, 1) }
 }
-machine Main::pick(&mut self, arr: [i32; 3], k: u64 in U640To2) reaches Console {
+machine Main::pick(&mut self, arr: [i32; 3], k: u64) reaches Console
+requires k <= 2
+{
     let v: i32 = arr[k];
     transition v == 20 {
         true -> yes()

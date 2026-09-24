@@ -12,9 +12,11 @@
 // always lowered (probed); this pins the runtime-RHS shape.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u32::U320To2 requires self <= 2;
-domain u32::U320To3 requires self <= 3;
-data Main { console: Binding<Console>; cells: [u8; 12]; rows: u32 in U320To2; cols: u32 in U320To3; j: u32; k: u32; out: i32; }
+data Main
+where
+    rows <= 2,
+    cols <= 3,
+{ console: Binding<Console>; cells: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.rows = 2;
     self.cols = 3;

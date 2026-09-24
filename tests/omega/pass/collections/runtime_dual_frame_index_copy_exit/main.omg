@@ -8,19 +8,23 @@
 // storage and its exact second root.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To3 requires self <= 3;
 data Triple { first: i32; second: i32; third: i32; }
-data Main {
+data Main
+where
+    index <= 3,
+{
     console: Binding<Console>;
     arr: [i32; 4];
-    index: u64 in U640To3;
+    index: u64;
 }
 machine Main::main(&mut self) {
     self.arr[1] = 77;
     self.index = 2;
     transition { _ -> self.copy_elem(3, 1) }
 }
-machine Main::copy_elem(&mut self, k: u64 in U640To3, j: u64 in U640To3) reaches Console {
+machine Main::copy_elem(&mut self, k: u64, j: u64) reaches Console
+requires k <= 3 && j <= 3
+{
     let local: [Triple; 4] = [
         Triple { first: 1, second: 2, third: 3 },
         Triple { first: 10, second: 20, third: 30 },
