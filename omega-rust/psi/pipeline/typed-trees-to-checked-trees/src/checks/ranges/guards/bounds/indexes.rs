@@ -3,9 +3,12 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
+use super::super::super::types::expression_is_unsigned_integer;
 
 pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     index: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -19,14 +22,41 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
         return;
     }
 
+    let collection_label = program.expression_table.display_name(member.receiver);
     facts.prove_index(
-        program.expression_table.display_name(member.receiver),
+        collection_label.clone(),
         program.expression_table.display_name(index),
     );
     facts.prove_range_bound(
-        program.expression_table.display_name(member.receiver),
+        collection_label.clone(),
         program.expression_table.display_name(index),
     );
+    seed_index_length_floor(program, machine, state, facts, index, &collection_label);
+}
+
+/// A proven `index < len` floors the collection at the index's own lower
+/// bound plus one: a literal index pins it exactly (`3 < len` ⇒ `len >= 4`),
+/// an unsigned or proven-non-negative index gives `len >= 1`. The floor is
+/// what a later literal-`0` element read (`self.slice[0]` as a comparison
+/// side) consults through `index_value_is_proven`.
+fn seed_index_length_floor(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    index: ExpressionHandle,
+    collection_label: &str,
+) {
+    let lower = expression_integer_value(program, facts, index)
+        .filter(|value| *value >= 0)
+        .or_else(|| {
+            (expression_is_unsigned_integer(program, machine, state, index)
+                || facts.non_negative_is_proven(&program.expression_table.display_name(index)))
+            .then_some(0)
+        });
+    if let Some(lower) = lower {
+        facts.prove_minimum_length(collection_label.to_owned(), lower + 1);
+    }
 }
 
 /// Seeds the end-window fact for `bound <= coll.len`: an exclusive subslice
@@ -57,6 +87,8 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
 
 pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     possible_successor: ExpressionHandle,
     upper_bound: ExpressionHandle,
@@ -74,14 +106,16 @@ pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(
         return;
     }
 
+    let collection_label = program.expression_table.display_name(member.receiver);
     facts.prove_index(
-        program.expression_table.display_name(member.receiver),
+        collection_label.clone(),
         program.expression_table.display_name(index),
     );
     facts.prove_range_bound(
-        program.expression_table.display_name(member.receiver),
+        collection_label.clone(),
         program.expression_table.display_name(index),
     );
+    seed_index_length_floor(program, machine, state, facts, index, &collection_label);
 }
 
 pub(in crate::checks::ranges::guards) fn seed_index_less_than_integer_fact(

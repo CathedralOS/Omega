@@ -987,3 +987,106 @@ fn const_generic_extent_range_discharge() {
         );
     }
 }
+
+/// Guards whose scalar reads bottom out in a borrowed/member root rather
+/// than a parameter — borrowed member slices (`data<'a> { &'a mut [u8] }`),
+/// member arrays, nested member paths, and member `.len` comparisons —
+/// discharge through the same bound lanes as parameter-rooted guards:
+/// `index < self.slice.len` mints the proven-index pair and floors the
+/// slice length at the index's own lower bound, so a later literal-`0`
+/// element read or a transported state's member read validates.
+#[test]
+fn borrowed_root_guards_meet_member_slice_bounds() {
+    for (source, accepted) in [
+        // Member-slice field, param index, `i < self.table.len` conjunct.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, i: u64) -> u8 {
+            transition i < self.table.len && self.table[i] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Member-slice field, param index, requires-bound.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, i: u64) -> u8
+            requires i < self.table.len {
+            transition self.table[i] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Member-slice field, field index, `self.pos < self.table.len` conjunct.
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len && self.table[self.pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Member-slice read inside a named state (transported param index).
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, i: u64) -> u8 {
+            transition i < self.table.len { true -> read(i) false -> (0) }
+            state read(&mut self, i: u64) -> u8 { self.table[i] }
+        }", true),
+        // Comparison side = member read (non-param) vs literal.
+        ("data Main { count: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.count >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Nested member path read.
+        ("data Inner { count: u64; } data Main { inner: Inner; } machine Main::run(&mut self) -> u8 {
+            transition self.inner.count >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Member-array index through `&&` conjunct on param index.
+        ("data Main { items: [u8; 64]; } machine Main::run(&mut self, i: u64) -> u8 {
+            transition i < self.items.len && self.items[i] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Borrowed member-slice read inside a state, index = self field.
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len { true -> read() false -> (0) }
+            state read(&mut self) -> u8 { self.table[self.pos] }
+        }", true),
+        // Member-slice `.len` itself as the guard.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self) -> u8 {
+            transition self.table.len >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos < len` floors the slice at len >= 1: literal-0 element read.
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len && self.table[0] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Element-vs-element, param indexes both bounded.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, i: u64, j: u64) -> u8 {
+            transition i < self.table.len && j < self.table.len && self.table[i] >= self.table[j] { true -> (1) false -> (0) }
+        }", true),
+        // The floor rides the state-edge pair transport (self.field side).
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len { true -> read() false -> (0) }
+            state read(&mut self) -> u8 { self.table[0] }
+        }", true),
+        // Member-slice element vs member-array element.
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; items: [u8; 64]; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len && self.table[self.pos] >= self.items[0] { true -> (1) false -> (0) }
+        }", true),
+        // Member-slice element vs element where one index is `self.pos`.
+        ("data Main<'a> { table: &'a mut [u8]; pos: u64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len && self.table[self.pos] >= self.table[0] { true -> (1) false -> (0) }
+        }", true),
+        // A bare literal-0 read on an unbounded member slice still rejects.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self) -> u8 {
+            transition self.table[0] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // A signed unproven index does not floor the slice: `pos` could be
+        // negative, so `pos < len` cannot pin len >= 1.
+        ("data Main<'a> { table: &'a mut [u8]; pos: i64; } machine Main::run(&mut self) -> u8 {
+            transition self.pos < self.table.len && self.table[0] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // A literal index pins the floor exactly: `3 < len` ⇒ `len >= 4`,
+        // so element reads below the floor validate.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self) -> u8 {
+            transition 3 < self.table.len && self.table[2] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `3 < len` floors the length at 4 exactly: `table[4]` still
+        // out-of-reach — the bound is exclusive.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self) -> u8 {
+            transition 3 < self.table.len && self.table[4] >= 48 { true -> (1) false -> (0) }
+        }", false),
+    ] {
+        match (check_source(source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{source}: {messages:?}"
+            ),
+            (result, _) => panic!("{source}: {result:?}"),
+        }
+    }
+}
