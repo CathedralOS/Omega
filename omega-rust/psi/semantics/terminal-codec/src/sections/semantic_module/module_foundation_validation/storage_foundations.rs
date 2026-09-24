@@ -450,7 +450,9 @@ pub(super) fn validate_structural_case_membership(operation: &Operation) -> Resu
 }
 
 pub(super) fn validate_structural_leaf_copy(operation: &Operation) -> Result<(), CodecError> {
-    let OperationKind::StructuralLeafCopy { .. } = &operation.kind else {
+    let (OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }) =
+        &operation.kind
+    else {
         unreachable!("dispatched validate_structural_leaf_copy")
     };
     if operation.result.structural().is_none_or(|result| {

@@ -248,20 +248,115 @@ fn case_payload_edge_rejects_target_drift() {
 }
 
 #[test]
-fn case_payload_pair_admits_and_stops_at_the_payload_channel() {
+fn case_payload_pair_mints_the_case_leaf_copy_channel() {
     // The pair's second arm is `self.result == OpenResult::Failed`, the
     // exhaustive complement of the first over a two-variant sum, and
     // lowering rejoins that fallback independently of the producer. The
     // `__arm_destructure` locals are accounted by the body walk under a
-    // Conditional terminator. So the plan admits; what remains is emitting
-    // the `[copy]` record payload `info` as a Terminal transfer out of the
-    // tested case. Naming that wall explicitly.
+    // Conditional terminator. The channel: the selected edge stages one
+    // `StructuralCaseLeafCopy` whose canonical path walks
+    // `self.result.Opened.info`, and the successor argument names the owned
+    // copy place the op produces.
     let (checked, plan) = fixture();
     admission::admit(&checked, &plan).expect("the payload-bearing pair admits");
-    let error = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Root::run"))
-        .expect_err("the case-payload channel residual stands");
+    let lowered =
+        crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Root::run"))
+            .expect("the case-payload channel emits");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("the entry machine");
+    let copy = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::StructuralCaseLeafCopy { .. }
+            )
+        })
+        .expect("the payload edge mints a case leaf copy");
+    let terminal_psi::OperationKind::StructuralCaseLeafCopy { source, path } = &copy.kind else {
+        unreachable!()
+    };
+    let self_place = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .expect("the machine keeps its receiver")
+        .place;
+    assert_eq!(*source, self_place, "the copy reads the receiver root");
+    let [
+        semantic_vocabulary::CanonicalStructuralPathSegment::Field(subject_field),
+        semantic_vocabulary::CanonicalStructuralPathSegment::Case(selected_case),
+        semantic_vocabulary::CanonicalStructuralPathSegment::Field(payload_field),
+    ] = path.as_slice()
+    else {
+        panic!("the canonical path is subject-field + case + payload: {path:?}")
+    };
+    let result = copy
+        .result
+        .structural()
+        .expect("the copy mints a structural result");
+    assert_eq!(
+        result.multiplicity,
+        terminal_psi::StructuralMultiplicity::Unrestricted
+    );
     assert!(
-        format!("{error:?}").contains("case-payload transfer has no Terminal channel"),
-        "the case-payload channel is the residual: {error:?}"
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty(),
+        "the copy result stays unqualified and unclaimed"
+    );
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == result.place)
+        .expect("the copy place is declared");
+    let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = &declaration.kind
+    else {
+        panic!("the copy place is an operation result")
+    };
+    assert_eq!(*producer, copy.id);
+    assert_eq!(*structural_type, result.structural_type);
+    // The copy is the edge's structural argument outright — the argument
+    // names the fresh place with an empty projection and owned custody.
+    let _ = (subject_field, selected_case, payload_field);
+    let edge_argument = machine
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            let (first, second): (
+                &[terminal_psi::StructuralArgument],
+                &[terminal_psi::StructuralArgument],
+            ) = match &block.terminator {
+                terminal_psi::Terminator::Jump {
+                    structural_arguments,
+                    ..
+                } => (structural_arguments.as_slice(), &[][..]),
+                terminal_psi::Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => (
+                    &when_true.structural_arguments[..],
+                    &when_false.structural_arguments[..],
+                ),
+                _ => (&[][..], &[][..]),
+            };
+            first.iter().chain(second)
+        })
+        .find(|argument| argument.place == result.place)
+        .expect("the successor argument names the copy place");
+    assert!(
+        edge_argument.path.is_empty()
+            && edge_argument.access == terminal_psi::StructuralAccess::Owned,
+        "the copy arrives as a whole owned argument: {edge_argument:?}"
     );
 }

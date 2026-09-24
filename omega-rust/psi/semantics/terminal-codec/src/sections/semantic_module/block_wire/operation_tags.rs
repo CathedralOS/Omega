@@ -162,3 +162,6 @@ pub(super) const ELEMENT_VIEW_SUBSLICE: u8 = 82;
 pub(super) const ESTABLISH_STRUCTURAL_CASE: u8 = 83;
 /// `OperationKind::StructuralLeafCopy`.
 pub(super) const STRUCTURAL_LEAF_COPY: u8 = 84;
+
+/// `OperationKind::StructuralCaseLeafCopy`.
+pub(super) const STRUCTURAL_CASE_LEAF_COPY: u8 = 85;

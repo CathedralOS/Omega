@@ -251,7 +251,11 @@ pub(super) fn validate_successor(
             // A trivial affine local is that constructor for its declared
             // empty-record place: it binds no result row, so the declaration
             // carries the exact type and the establishment carries custody.
+            // A copied case-payload leaf is the same fresh owned constructor:
+            // the op publishes its exact unqualified type the way a record or
+            // scalar-case constructor does.
             (super::scalar_case::plain_return_source(module, machine, argument.place)
+                || super::structural_leaf_copy::copied_return_source(machine, argument.place)
                 || super::record::plain_return_source(module, machine, argument.place))
                 && machine.blocks.iter().any(|block| {
                     dominators.dominates(block.id, source_block)

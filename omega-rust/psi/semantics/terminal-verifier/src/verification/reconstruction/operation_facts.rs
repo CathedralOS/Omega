@@ -118,7 +118,10 @@ pub(super) fn append_operation(
         // No scalar equality or extra proof authority is asserted here.
         return Ok(());
     }
-    if matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }) {
+    if matches!(
+        operation.kind,
+        OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }
+    ) {
         // A leaf copy publishes no scalar fact: freshness of the result and
         // the exact selected leaf type are total validation judgments.
         return Ok(());
@@ -469,6 +472,7 @@ pub(super) fn append_operation(
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }
+        | OperationKind::StructuralCaseLeafCopy { .. }
         | OperationKind::IntegerStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")
         }
