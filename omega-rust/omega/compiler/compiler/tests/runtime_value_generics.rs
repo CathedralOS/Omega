@@ -1053,32 +1053,44 @@ machine Main::main(&mut self) reaches Trace {
     assert_eq!(
         entry_calls.len(),
         4,
-        "entry interleaves the two writes and two reads; Trace::record stays a boundary call"
+        "entry performs two writes and two reads; Trace::record stays a boundary call"
     );
-    let put_callee = entry_calls[0].0;
-    let at_callee = entry_calls[1].0;
+    // Block order is not execution order, so the four calls are read as a
+    // multiset: each receiver method contributes ONE dynamic body used by both
+    // of its call sites. `replay` below is what pins the order they run in.
+    let write_calls = entry_calls
+        .iter()
+        .filter(|(_, scalars, _, _)| *scalars == 2)
+        .collect::<Vec<_>>();
+    let read_calls = entry_calls
+        .iter()
+        .filter(|(_, scalars, _, _)| *scalars == 1)
+        .collect::<Vec<_>>();
+    let [first_write, second_write] = write_calls.as_slice() else {
+        panic!("entry performs exactly two writes, each appending its captured subject after `v`");
+    };
+    let [first_read, second_read] = read_calls.as_slice() else {
+        panic!("entry performs exactly two reads, each carrying only its captured subject");
+    };
+    let put_callee = first_write.0;
+    let at_callee = first_read.0;
     assert_eq!(
-        entry_calls[2].0, put_callee,
+        second_write.0, put_callee,
         "the second write's distinct runtime subject reuses the same dynamic body"
     );
     assert_eq!(
-        entry_calls[3].0, at_callee,
+        second_read.0, at_callee,
         "the second read's distinct runtime subject reuses the same dynamic body"
     );
     assert_ne!(
         at_callee, put_callee,
         "the read body is its own specialization, not the write body"
     );
-    for (index, (_, scalars, structurals, obligations)) in entry_calls.iter().enumerate() {
+    for (index, (_, _, structurals, obligations)) in entry_calls.iter().enumerate() {
         assert_eq!(
             (*structurals, *obligations),
             (1, 1),
             "call {index} carries the receiver and owes the bound on its own subject"
-        );
-        assert_eq!(
-            *scalars,
-            if index % 2 == 0 { 2 } else { 1 },
-            "call {index} appends its exact captured subject after any authored scalar"
         );
     }
     assert_eq!(

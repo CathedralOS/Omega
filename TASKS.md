@@ -4422,7 +4422,6 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 2 | `callback_terminal_custody` | calling plans, fragment import custody |
   | 2 | `optimizer_opt_in` | claimed elsewhere |
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
-  | 1 | `runtime_value_generics` | specialization identity |
   | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
   | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
 
@@ -4441,7 +4440,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `guarded_operator_execution`, `layout_plans`, `machine_type_equations`,
   `native_crash_execution`, `no_selection_golden`, `object_artifact_custody`,
   `object_container_custody`, `owned_case_state_transport`,
-  `pcc_publication`, `terminal_authority`.
+  `pcc_publication`, `runtime_value_generics`, `terminal_authority`.
 
   Four causes accounted for nearly all of it, and each recurs: a fixture that
   does not declare what it reaches or invokes; the snake_case package-name
