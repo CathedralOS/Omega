@@ -13,14 +13,15 @@
 // fail/recast/record_view_footprint_rejected.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u32::U320To8 requires self <= 8;
 data Desc { a: u32; b: u64; }
-data Main { console: Binding<Console>; buf: [u8; 24]; k: u32 [0..=8]; out: i32; }
+data Main { console: Binding<Console>; buf: [u8; 24]; k: u32 in U320To8; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.buf[8] = 7;
     self.buf[16] = 9;
     self.k = 8;
     transition self.k == 8 { true -> read(self.k) _ -> bad() }
-    state read(&mut self, off: u32 [0..=8]) {
+    state read(&mut self, off: u32 in U320To8) {
         let d: &Desc = &self.buf[off] as &Desc;
         transition d.a == 7 && d.b == 9 {
             true -> good()

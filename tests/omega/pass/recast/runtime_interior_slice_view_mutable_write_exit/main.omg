@@ -7,6 +7,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u32::U320To4 requires self <= 4;
 data Pair {
     low: u16;
     high: u16;
@@ -16,7 +17,7 @@ data Main {
     console: Binding<Console>;
     tail_bytes: [u8; 8];
     pair_bytes: [u8; 12];
-    k: u32 [0..=4];
+    k: u32 in U320To4;
 }
 
 machine Main::main(&mut self) reaches Console {
