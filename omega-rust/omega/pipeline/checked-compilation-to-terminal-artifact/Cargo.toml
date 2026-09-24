@@ -21,7 +21,7 @@ compilation-report = { path = "../../compiler/compilation-report" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 effects = { path = "../../representations/effects" }
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
+lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
 optimization-core = { path = "../../representations/optimization-core" }
 package-compilation = { path = "../../build/package-compilation" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }

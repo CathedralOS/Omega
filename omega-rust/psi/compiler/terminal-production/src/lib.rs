@@ -5,7 +5,7 @@
 //! The one operation is `TerminalProductionRequest::produce`
 //! (`terminal_production.rs`). It lowers the selected machine
 //! (05_checked-trees-to-lowered-psi), runs the selected Psi optimization, and
-//! publishes the canonical artifact (lowered-psi-to-terminal-psi).
+//! publishes the canonical artifact (07_lowered-psi-to-terminal-psi).
 //! Checked-source receipts stay beside the portable artifact, not inside it.
 
 mod checked_ledger;

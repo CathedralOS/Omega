@@ -13,7 +13,7 @@ producer-private shortcut.
 
 [Optimization ownership](../../pipeline/06_lowered-psi-to-lowered-psi/README.md)
 keeps shared retention policy separate from pass execution.
-[Publication ownership](../../pipeline/lowered-psi-to-terminal-psi/README.md)
+[Publication ownership](../../pipeline/07_lowered-psi-to-terminal-psi/README.md)
 separates canonical sealing from checked boundary-operator occurrence replay.
 
 `TerminalProductionRequest` carries the checked trees, the

@@ -11,7 +11,7 @@ checked-trees = { path = "../../representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../../pipeline/05_checked-trees-to-lowered-psi" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../pipeline/06_lowered-psi-to-lowered-psi" }
-lowered-psi-to-terminal-psi = { path = "../../pipeline/lowered-psi-to-terminal-psi" }
+lowered-psi-to-terminal-psi = { path = "../../pipeline/07_lowered-psi-to-terminal-psi" }
 optimization = { path = "../../representations/optimization" }
 symbols = { path = "../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }

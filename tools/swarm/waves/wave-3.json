@@ -131,7 +131,7 @@
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts",
         "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
         "omega-rust/psi/representations/terminal-psi/src",
-        "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src",
+        "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src",
         "tests/native-differential/tests/terminal_psi_source/locals_calls_and_short_circuit.rs"
       ],
       "suggested_first_slice": "wave 2 found Terminal Psi has no carrier for a selected-operator crash site (MachineContract carries only crash_routes/requires/ensures); design the smallest Terminal row that carries it, and land it only if codec, verifier, and architecture tests stay one bounded change"

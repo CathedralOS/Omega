@@ -2168,7 +2168,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         );
     }
     let publication = std::fs::read_to_string(
-        root.join("omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/publish_artifact.rs"),
+        root.join("omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/publish_artifact.rs"),
     )
     .expect("read Terminal publication");
     assert!(publication.contains("optimized: &PsiOptimizationStageResult"));

@@ -30,7 +30,7 @@ members = [
     "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees",
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi",
     "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi",
-    "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi",
+    "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi",
     "omega-rust/psi/compiler/terminal-production",
     "omega-rust/psi/semantics/proof-admission",
     "omega-rust/psi/semantics/terminal-verifier",
