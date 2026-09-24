@@ -701,10 +701,9 @@ fn append_unevidenced_establishment_diagnostics(
 }
 
 /// A semantic-domain cast whose introduced family is a predicate-free,
-/// route-free domain declared over a custody-marked carrier mints managed
-/// state the caller never produced. Tag-style minting on carriers whose
-/// domains are all vacuous keeps the staged `as` surface; on a carrier with
-/// any predicate-bearing or routed domain the vacuous member's qualification
+/// route-free domain declared over a custody-managed carrier mints state the
+/// caller never produced. Tag-style minting elsewhere keeps the staged `as`
+/// surface; on a custody-managed carrier the vacuous member's qualification
 /// names custody state, so the write must refuse the value the cast minted.
 fn append_unevidenced_cast_mint_diagnostic(
     program: &TypedTrees,
@@ -747,7 +746,7 @@ fn append_unevidenced_cast_mint_diagnostic(
         "declared instance `{}` has no establishment: `as` mints an instance of \
          domain family `{}` on custody-marked carrier `{}` -- the family \
          declares no predicate body and no `establishment` route, and a \
-         carrier that already route-manages a domain does not admit a minted \
+         linear carrier that route-manages a domain does not admit a minted \
          member; the instance must come from an establishing call, an \
          `established by` route, or the family's declared qualification-carrier \
          route (at {})",
@@ -758,11 +757,28 @@ fn append_unevidenced_cast_mint_diagnostic(
     )));
 }
 
-/// Whether the type a domain is declared over already carries a
-/// predicate-bearing or `established by`-routed domain: such a carrier's
-/// qualifications are route-managed custody state, so a predicate-free,
-/// route-free member cannot be introduced by `as`. Constrained or borrowed
-/// spellings of the carrier unwrap to the named root the domains attach to.
+/// Whether the type a domain is declared over is a custody-managed carrier: it
+/// is linear, and some domain over it carries a predicate or an `established
+/// by` route. A qualification on such a carrier travels with the one live
+/// value and is what a provider view's parameter reads as held authority, so
+/// `as` minting a vacuous member of it fabricates custody the caller never
+/// received.
+///
+/// Both conjuncts are load-bearing, and each is pinned by a case the other
+/// would decide wrongly. Linearity alone would refuse
+/// `restating_let_keeps_a_cast_mint_on_an_all_vacuous_domain_carrier`, whose
+/// `[linear] data Region` carries only the vacuous `Left` and `Right`: with no
+/// route-managed domain over it there is no custody to fabricate, and
+/// retagging is an ordinary linear move. The route-management scan alone
+/// decided `5 as i32::Km` by whether an unrelated `domain i32::Positive`
+/// happened to be declared elsewhere in the program, which
+/// [domains](../../../../../../wiki/spec/language/domains.md) admits with no
+/// obligation beyond carrier compatibility; `i32` is unrestricted, so
+/// linearity excludes it whatever its siblings declare.
+///
+/// Whether a linear carrier's vacuous qualification should depend on its
+/// siblings at all is [`linear-carrier-vacuous-qualification`](../../../../../../OWNER_QUESTIONS.md) (Q8).
+/// Constrained or borrowed spellings unwrap to the named root.
 fn domain_target_is_custody_marked(program: &TypedTrees, target_type: TypeReferenceHandle) -> bool {
     let mut type_reference = target_type;
     loop {
@@ -770,7 +786,10 @@ fn domain_target_is_custody_marked(program: &TypedTrees, target_type: TypeRefere
             TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
             TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
             TypeReferenceNode::Named { symbol, .. } => {
-                if !symbol.is_valid() {
+                if !symbol.is_valid()
+                    || program.type_multiplicity(type_reference)
+                        != language_semantics::Multiplicity::Linear
+                {
                     return false;
                 }
                 return program.domain_definitions().iter().any(|domain| {

@@ -7322,20 +7322,20 @@
   "fixture": "fail/memory/bump_allocator_cast_minted_resident",
   "tier": "fail",
   "status": "rejected",
-  "millis": 62,
+  "millis": 45,
   "expected_satisfied": true,
   "diagnostics": [
-   "declared instance `Resident<SlotPlacement, Slot>` has no establishment: `as` mints an instance of domain family `Resident` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a carrier that already route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-2)"
+   "declared instance `Resident<SlotPlacement, Slot>` has no establishment: `as` mints an instance of domain family `Resident` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-2)"
   ]
  },
  {
   "fixture": "fail/memory/bump_allocator_cast_minted_vacant",
   "tier": "fail",
   "status": "rejected",
-  "millis": 45,
+  "millis": 44,
   "expected_satisfied": true,
   "diagnostics": [
-   "declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a carrier that already route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)"
+   "declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)"
   ]
  },
  {
@@ -19808,12 +19808,10 @@
  {
   "fixture": "pass/domains/explicit_domain_erasure",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 2,
+  "status": "checked",
+  "millis": 12,
   "expected_satisfied": null,
-  "diagnostics": [
-   "declared instance `Degrees` has no establishment: `as` mints an instance of domain family `Degrees` on custody-marked carrier `i32` -- the family declares no predicate body and no `establishment` route, and a carrier that already route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at Main::main::main:statement-2)"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/domains/if_domain_membership_check",
