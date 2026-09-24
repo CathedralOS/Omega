@@ -112,6 +112,22 @@ the complete product bar; focused successes below do not establish that baseline
   nothing downstream needed it (`storage/runtime_dispatch_helper_local_alias_
   add_compile` drops; `control_flow/copy_enum_cycle_edge_write_frame` cannot).
 
+  A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP, which is why the 212
+  parameter sites are the hard half. `structs/runtime_copy_sum_array_receiver_
+  exit` threads `index: u64 [0..=15]` through six state parameters to index a
+  16-element array; as `u64 in Slot16` the guarded caller rejects with "cannot
+  prove requires contract for call classify from Main::main: index in
+  u64::Slot16". The same guard satisfied the suffix. A state parameter whose
+  argument is a library-owned case payload is blocked the same way until the
+  library leg lands (`host/runtime_console_byte_branch_return` takes
+  `ByteRead::Byte { value }` from std console).
+
+  `ensures` is the exception that does carry facts: `expressions/arithmetic_
+  domain_return_range_proven_exact_exit` moves `-> i32 [0..=10]` to
+  `ensures 0 <= result && result <= 10` and its caller's `a + b + 60` stays
+  exact. Result suffixes are therefore the reliable parameter-side route;
+  argument-side membership is not.
+
   A THIRD GAP, and the sharpest: the domain-mint route itself depends on the
   syntax being removed. `domains/semantic_cast_range_mint` rejects with
   "`as ... in Km` mints LITERAL values, or names whose DECLARED RANGE entails
