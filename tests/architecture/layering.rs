@@ -4878,18 +4878,17 @@ fn resolved_layout_validation_cannot_reenter_its_producer() {
 #[test]
 fn frame_application_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
-    let stage = root
-        .join("omega-rust/omega/backend/machine-emission/src/fragment_emission/frame_application");
+    let stage = root.join("omega-rust/omega/backend/machine-emission/src/frame_application");
     let entrance = std::fs::read_to_string(stage.join("mod.rs"))
         .expect("read function-fragment frame-application entrance");
     assert!(
         entrance.contains("validation::validate(staged)"),
         "frame application must send candidate artifacts into independent validation",
     );
-    let backend = root.join("omega-rust/omega/backend/machine-emission/src/frame_application");
+    let backend = stage.join("insertion");
     let source_admission = std::fs::read_to_string(stage.join("validation.rs")).unwrap();
     assert!(source_admission.contains("validate_optimized_function_fragment_emission"));
-    assert!(source_admission.contains("crate::validate_frame_protocol_application"));
+    assert!(source_admission.contains("insertion::validate_frame_protocol_application"));
     let validation = ["validation.rs", "validation_branch.rs"]
         .into_iter()
         .map(|leaf| {

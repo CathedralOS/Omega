@@ -1,13 +1,18 @@
-//! Optimizer module role: executable entrance. Resolved machine data to unplaced fragments.
+//! Projection of resolved machine data into unplaced function fragments.
 //!
-//! These functions construct and check the fragment projection only. The caller
-//! must independently admit the selected program, layout, and realization before
-//! publication. Neither raw input nor a successful projection grants that authority.
+//! [`emit_resolved_function_fragments`] builds each function's fragment bytes,
+//! spans, provenance and unresolved fixups from the resolved layout
+//! (`production`) and returns only after the independent checker
+//! (`validation`) accepts them; `statistics` counts the result. The
+//! fragment-emission stage above admits the selected program, layout and
+//! realization; neither raw input nor a successful projection grants that
+//! authority.
 
 mod production;
 mod statistics;
-pub use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
 mod validation;
+
+pub use statistics::{FunctionFragmentStatisticsOverflow, function_fragment_emission_statistics};
 
 use machine_code::{FunctionFragmentEmissionPlan, ResolvedMachineProgram};
 

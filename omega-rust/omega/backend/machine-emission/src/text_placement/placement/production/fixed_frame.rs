@@ -24,7 +24,7 @@ use super::{
     relocation_free::{alignment, block_spans},
 };
 
-pub(in crate::text_placement) fn place(
+pub(in crate::text_placement::placement) fn place(
     fragments: &FunctionFragmentEmissionPlan,
 ) -> Result<RelocationFreeTextSectionPlacement, TextPlacementError> {
     let section_alignment = match fragments.target.architecture {

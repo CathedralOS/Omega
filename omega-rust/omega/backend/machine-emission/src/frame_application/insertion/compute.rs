@@ -6,7 +6,9 @@ use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
 use target::Architecture;
 
-use crate::TargetFrameProtocolEncodingPlan;
+use crate::frame_protocol::{
+    TargetFrameProtocolEncodingPlan, target_frame_protocol_encoding_identity,
+};
 
 use super::{
     FrameApplicationError, FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol,
@@ -78,7 +80,7 @@ pub(super) fn apply(
         identity: FunctionFragmentFrameApplicationIdentity::from_bytes([0; 32]),
         source_fragment_manifest: source_manifest,
         source_fragments: source.identity,
-        frame_protocol: crate::target_frame_protocol_encoding_identity(protocol),
+        frame_protocol: target_frame_protocol_encoding_identity(protocol),
         functions: applications,
         fragments,
     };
@@ -381,7 +383,7 @@ mod tests {
     use target_operations::TerminalPsiProvenance;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-    use crate::{
+    use crate::frame_protocol::{
         FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
         TargetFrameProtocolEncodingPolicy,
     };

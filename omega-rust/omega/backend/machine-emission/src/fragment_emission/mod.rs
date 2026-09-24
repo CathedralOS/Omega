@@ -1,16 +1,22 @@
-//! Optimizer module role: executable entrance.
+//! Fragment emission: the second machine-emission stage.
+//!
+//! [`stage_optimized_function_fragment_emission`] admits one function-relative
+//! realization by replaying its custody (`custody`), projects the realized
+//! machine layout into unplaced function fragments and seals their manifest
+//! (`compute`), and returns only after
+//! [`validate_optimized_function_fragment_emission`] replays the join: the
+//! independent fragment checker, then the manifest fields (`validation`).
+//!
+//! `source` is the stage input: the current program (`current`) beside the
+//! producer-stage objects only replay reads (`replay`). `projection` owns the
+//! byte projection and its checker over current data; this level owns source
+//! admission and custody.
+
 mod compute;
-mod frame_application;
-pub use frame_application::{
-    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
-    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
-    FunctionFragmentFrameApplicationReceipt, StagedFunctionFragmentFrameApplication,
-    function_fragment_frame_application_identity, stage_function_fragment_frame_application,
-    validate_function_fragment_frame_application,
-};
 mod current;
 mod custody;
 mod error;
+pub(crate) mod projection;
 mod replay;
 mod source;
 mod validation;
@@ -20,6 +26,7 @@ pub use error::{FunctionFragmentEmissionError, FunctionFragmentEmissionManifestD
 pub use replay::FunctionFragmentReplayInputs;
 pub use source::StagedOptimizedFunctionFragmentEmissionSource;
 
+use crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest;
 use compute::compute;
 use custody::{receipt, validate_source};
 use machine_code::FunctionFragmentEmissionPlan;
@@ -55,7 +62,7 @@ pub fn validate_optimized_function_fragment_emission(
     staged: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<StagedFunctionFragmentEmissionCustodyReceipt, FunctionFragmentEmissionError> {
     validate_source(&staged.source)?;
-    crate::validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
+    projection::validate_resolved_function_fragments(staged.source.program(), &staged.fragments)?;
     validation::manifest(staged)?;
     let expected = receipt(&staged.manifest, &staged.fragments);
     if staged.custody != expected {
@@ -118,7 +125,7 @@ impl StagedOptimizedFunctionFragmentEmission {
 
     pub const fn function_relative_manifest(
         &self,
-    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+    ) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
         self.source.function_relative_manifest()
     }
 

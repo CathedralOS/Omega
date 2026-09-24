@@ -55,12 +55,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     pub fn frame_layout(&self) -> &machine_code::TargetFrameLayoutPlan {
         &self.current.program.frame
     }
-    pub const fn exit_contract(&self) -> &crate::ValidatedWholeFunctionExitContract {
+    pub const fn exit_contract(&self) -> &crate::exit_contract::ValidatedWholeFunctionExitContract {
         &self.current.exit
     }
     pub const fn function_relative_manifest(
         &self,
-    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+    ) -> &crate::function_realization::ValidatedFunctionRelativeOptimizationRealizationManifest
+    {
         &self.current.manifest
     }
     pub fn post_allocation_manifest(
@@ -113,10 +114,12 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     }
 }
 
-impl From<crate::StagedFixedFrameFunctionRelativeRealization>
+impl From<crate::function_realization::StagedFixedFrameFunctionRelativeRealization>
     for StagedOptimizedFunctionFragmentEmissionSource
 {
-    fn from(realization: crate::StagedFixedFrameFunctionRelativeRealization) -> Self {
+    fn from(
+        realization: crate::function_realization::StagedFixedFrameFunctionRelativeRealization,
+    ) -> Self {
         FunctionFragmentReplayInputs::from(realization).into()
     }
 }

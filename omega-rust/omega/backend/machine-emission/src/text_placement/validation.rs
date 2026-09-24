@@ -2,12 +2,12 @@
 
 mod manifest_fields;
 
-use crate::validate_function_fragment_frame_application;
+use crate::frame_application::validate_function_fragment_frame_application;
 
 use super::{
     FunctionFragmentTextSectionStage as Stage, RelocationFreeTextSectionPlacementError,
     StagedFixedFrameTextSectionCustodyReceipt, StagedOptimizedFixedFrameTextSection,
-    assembly::fixed_frame_receipt,
+    assembly::fixed_frame_receipt, placement,
 };
 
 pub fn validate_optimized_fixed_frame_text_section(
@@ -15,8 +15,8 @@ pub fn validate_optimized_fixed_frame_text_section(
 ) -> Result<StagedFixedFrameTextSectionCustodyReceipt, RelocationFreeTextSectionPlacementError> {
     validate_function_fragment_frame_application(&staged.source)
         .map_err(RelocationFreeTextSectionPlacementError::FrameSource)?;
-    crate::validate_fragment_text_section(
-        crate::TextPlacementInput::InternalCalls(staged.source.fragments()),
+    placement::validate_fragment_text_section(
+        placement::TextPlacementInput::InternalCalls(staged.source.fragments()),
         &staged.text_section,
     )?;
     manifest_fields::check(

@@ -1,7 +1,7 @@
 //! Check publication claims against admitted inputs and the independently checked section.
 use super::super::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError,
+    FunctionFragmentTextSectionUnavailableData, RelocationFreeTextSectionPlacementError, placement,
 };
 use machine_code::{
     FunctionFragmentEmissionManifest, FunctionFragmentEmissionPlan,
@@ -37,7 +37,7 @@ pub(super) fn check(
         || candidate.fragments != fragments.identity
         || candidate.placement_policy != section.policy
         || candidate.text_section != section.identity
-        || candidate.statistics != crate::text_section_statistics(section, fragments)?
+        || candidate.statistics != placement::text_section_statistics(section, fragments)?
         || candidate.symbols != FunctionFragmentTextSectionUnavailableData::Unavailable
         || candidate.object_container != FunctionFragmentTextSectionUnavailableData::Unavailable
         || candidate.external_entry_bridge

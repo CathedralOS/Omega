@@ -92,9 +92,10 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
         source.identity = source.recomputed_identity();
         let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
         let protocol = protocol(source.entry);
-        let application =
-            crate::apply_frame_protocol_to_fragments(&source, manifest, &protocol, &physical)
-                .unwrap();
+        let application = super::super::apply_frame_protocol_to_fragments(
+            &source, manifest, &protocol, &physical,
+        )
+        .unwrap();
         let branch = &application.fragments.functions[0].blocks[0].instructions[0];
         assert_eq!(branch.bytes.len(), expected_width);
         let growth = expected_width as u64 - 2;
@@ -123,7 +124,7 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
                 .byte_displacement,
             padding + 2
         );
-        crate::validate_frame_protocol_application(
+        super::super::validate_frame_protocol_application(
             &source,
             manifest,
             &protocol,
@@ -137,7 +138,7 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
         corrupted.fragments.identity = corrupted.fragments.recomputed_identity();
         corrupted.identity = corrupted.recomputed_identity();
         assert!(
-            crate::validate_frame_protocol_application(
+            super::super::validate_frame_protocol_application(
                 &source, manifest, &protocol, &physical, &corrupted,
             )
             .is_err()

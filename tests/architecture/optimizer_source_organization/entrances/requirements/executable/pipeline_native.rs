@@ -106,31 +106,35 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_function_fragment_emission",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/text_placement/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/text_placement/placement/mod.rs",
         coordination_marker: "place_fragment_text_section",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/text_placement/production/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/text_placement/placement/production/mod.rs",
         coordination_marker: "mod fixed_frame",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/text_placement/validation/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/text_placement/placement/validation/mod.rs",
         coordination_marker: "pub(super) fn check",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/fragments/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/fragment_emission/projection/mod.rs",
         coordination_marker: "emit_resolved_function_fragments",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/frame_application/mod.rs",
+        coordination_marker: "pub fn stage_function_fragment_frame_application",
+    },
+    RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/machine-emission/src/frame_application/insertion/mod.rs",
         coordination_marker: "apply_frame_protocol_to_fragments",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/fragments/validation/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/fragment_emission/projection/validation/mod.rs",
         coordination_marker: "pub(super) fn check",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/fragments/production/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/fragment_emission/projection/production/mod.rs",
         coordination_marker: "pub(super) fn emit",
     },
     RequiredCoordinationEntrance {
@@ -138,12 +142,12 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn compute",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/text_placement/custody/mod.rs",
+        path: "omega-rust/omega/backend/machine-emission/src/text_placement/mod.rs",
         coordination_marker: "stage_optimized_fixed_frame_text_section",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/backend/machine-emission/src/text_placement/custody/placement/mod.rs",
-        coordination_marker: "pub(super) fn place_fixed_frame_fragments",
+        path: "omega-rust/omega/backend/machine-emission/src/text_placement/assembly.rs",
+        coordination_marker: "pub(super) fn compute_fixed_frame",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/object/object-file/src/fragment_container/mod.rs",

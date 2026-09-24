@@ -682,7 +682,6 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "entry_exit_stub",
             "exit_contract",
             "fragment_emission",
-            "fragments",
             "frame_application",
             "frame_layout",
             "frame_protocol",

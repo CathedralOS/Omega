@@ -1,13 +1,13 @@
 use machine_code::FunctionFragmentEmissionPlan;
 use optimization_core::FunctionFragmentEmissionManifestIdentity;
 
-use crate::FunctionRelativeOptimizationRealizationManifest;
+use crate::function_realization::FunctionRelativeOptimizationRealizationManifest;
 
 use super::super::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionManifest, FunctionFragmentEmissionStage,
     FunctionFragmentEmissionUnavailableData, ValidatedFunctionFragmentEmissionManifest,
+    projection::function_fragment_emission_statistics,
 };
-use crate::function_fragment_emission_statistics;
 
 pub(super) fn seal(
     fragments: FunctionFragmentEmissionPlan,
