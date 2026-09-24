@@ -1,4 +1,11 @@
 //! Payloadless guarded call return machines.
+//!
+//! The caller saves one zero-input call and returns it unchanged from every
+//! arm of an exhaustive case dispatch; an arm may bind the callee's selected
+//! guarded evidence and hand it to a proof-only tail state. This roster owns
+//! only that caller. The callee is an ordinary machine on the same attachment
+//! that returns the caller's own result sum: it keeps its general Unit-effect
+//! plan, and lowering builds it through the shared Unit closure.
 
 use crate::execution::terminal_unit::calls::structural_signature;
 use crate::execution::terminal_unit::cleanup::{
@@ -10,15 +17,14 @@ use crate::execution::terminal_unit::types::{
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedPayloadlessGuardedCallEvidencePlan,
     CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
-    CheckedStructuralResultPlan, CheckedStructuralReturnPlans, CheckedUnitCallCoordinate,
-    DataMember, ExpressionNode, Multiplicity, SignatureContractKind, StatementNode, TransitionExit,
-    TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
+    CheckedStructuralResultPlan, CheckedUnitCallCoordinate, DataMember, ExpressionNode,
+    Multiplicity, SignatureContractKind, StatementNode, TransitionExit, TransitionGuardNode,
+    TransitionTargetNode, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn build_payloadless_guarded_call_return_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
-    structural_returns: &CheckedStructuralReturnPlans,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Option<CheckedPayloadlessGuardedCallReturnMachinePlan> {
@@ -117,8 +123,15 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
             .find(|target_state| target_state.symbol == call.target_symbol)
             .map(|target_state| (target_machine, target_state))
     })?;
-    let target_plan = structural_returns.payloadless_case_for_machine(target_machine.symbol)?;
-    if target_plan.state != target_state.symbol
+    // The call names the callee's entry state with no inputs; its attachment
+    // and result are joined to the caller's below.
+    if target_machine.symbol == machine.symbol
+        || program
+            .machine_states(target_machine)
+            .first()
+            .map(|entry| entry.symbol)
+            != Some(target_state.symbol)
+        || !program.state_parameters(target_state).is_empty()
         || flow_call.receiver_symbol != target_machine.attached_data_symbol
     {
         return None;
@@ -148,8 +161,18 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders, false)?;
+    let target_binders = machine_binders(program, target_machine);
+    let (target_attachment_type_identity, target_structural_parameters) = structural_signature(
+        program,
+        shapes,
+        target_machine,
+        target_state,
+        &target_binders,
+        false,
+    )?;
     if !structural_parameters.is_empty()
-        || attachment_type_identity != target_plan.attachment_type_identity
+        || !target_structural_parameters.is_empty()
+        || attachment_type_identity != target_attachment_type_identity
     {
         return None;
     }
@@ -171,7 +194,7 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
         return None;
     }
     let result_type_identity = shapes.add_type(state.return_type, &binders, &[])?;
-    if result_type_identity != target_plan.result.type_identity {
+    if result_type_identity != shapes.add_type(target_state.return_type, &target_binders, &[])? {
         return None;
     }
     let result_data = program

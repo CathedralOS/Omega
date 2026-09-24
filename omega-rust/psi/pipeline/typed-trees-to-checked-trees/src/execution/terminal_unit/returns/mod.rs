@@ -1,8 +1,8 @@
 //! Structural Unit and scalar return analysis.
 //!
-//! This file builds the four return plan sets. `affine_and_case_returns.rs`
-//! builds claim-free affine and payloadless case return machines,
-//! `guarded_call_returns.rs` payloadless guarded call returns,
+//! This file builds the four return plan sets. `affine_returns.rs` builds
+//! claim-free affine return machines, `guarded_call_returns.rs` payloadless
+//! guarded call returns,
 //! `structural_return_machine.rs` the structural return machine,
 //! `structural_scalar_returns.rs` structural and trait-operator scalar
 //! returns, `boundary_scalar_returns.rs` boundary scalar returns and
@@ -10,7 +10,7 @@
 //! `primitive_effects.rs` and `selected_operator.rs` carry effects and
 //! selected operators.
 
-mod affine_and_case_returns;
+mod affine_returns;
 mod boundary_scalar_returns;
 mod guarded_call_returns;
 pub(super) mod primitive_effects;
@@ -37,16 +37,14 @@ use crate::execution::terminal_unit::types::ShapeCollector;
 
 use crate::execution::terminal_unit::control::build_boundary_machine;
 use crate::execution::terminal_unit::control::build_static_boundary_requirements;
-use crate::execution::terminal_unit::returns::affine_and_case_returns::{
-    build_claim_free_affine_structural_return_machine, build_payloadless_case_return_machine,
-};
+use crate::execution::terminal_unit::returns::affine_returns::build_claim_free_affine_structural_return_machine;
 use crate::execution::terminal_unit::returns::guarded_call_returns::build_payloadless_guarded_call_return_machine;
 use crate::execution::terminal_unit::returns::structural_scalar_returns::build_trait_operator_scalar_return_machine;
 use selected_operator::build_selected_operator_structural_scalar_return_machine;
 
 /// Build the exact checked carriers for `T in D -> T in D` whole-root
-/// passthrough and the separate zero-input payload-less sum-case constructor.
-/// Every wider ownership or control shape is omitted atomically.
+/// passthrough and claim-free affine identity returns. Every wider ownership
+/// or control shape is omitted atomically.
 pub(crate) fn build_checked_structural_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -57,14 +55,6 @@ pub(crate) fn build_checked_structural_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| build_structural_return_machine(program, facts, &mut shapes, machine))
-        .collect::<Vec<_>>();
-    let payloadless_case_machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_payloadless_case_return_machine(program, facts, &mut shapes, machine)
-        })
         .collect::<Vec<_>>();
     let claim_free_affine_machines = program
         .machines()
@@ -90,12 +80,6 @@ pub(crate) fn build_checked_structural_return_plans(
                 )
                 .chain(std::iter::once(plan.result.type_identity.as_str()))
         })
-        .chain(payloadless_case_machines.iter().flat_map(|plan| {
-            [
-                plan.attachment_type_identity.as_str(),
-                plan.result.type_identity.as_str(),
-            ]
-        }))
         .chain(claim_free_affine_machines.iter().flat_map(|plan| {
             plan.attachment_type_identity.as_deref().into_iter().chain([
                 plan.structural_parameter.type_identity.as_str(),
@@ -123,19 +107,16 @@ pub(crate) fn build_checked_structural_return_plans(
         structural_domains: shapes.domains,
         machines,
         claim_free_affine_machines,
-        payloadless_case_machines,
     }
 }
 
-/// Build the bounded internal structural-result call slice. The caller has
-/// one linear whole-root input, performs one final direct call to an already
-/// admitted structural-return machine, and returns that result immediately.
-/// Bodyless calls, projections, staged locals, and wider result maps remain
-/// deliberately outside this carrier.
+/// Build the guarded payloadless call returns: a zero-input call saved once
+/// and returned unchanged through exhaustive case arms that may bind the
+/// callee's selected guarded evidence. The callee is an ordinary Unit-effect
+/// machine, not a plan of this roster.
 pub(crate) fn build_checked_structural_call_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
-    structural_returns: &CheckedStructuralReturnPlans,
 ) -> CheckedStructuralCallReturnPlans {
     let mut shapes = ShapeCollector::new(program);
     let payloadless_guarded_machines = program
@@ -143,13 +124,7 @@ pub(crate) fn build_checked_structural_call_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
         .filter_map(|machine| {
-            build_payloadless_guarded_call_return_machine(
-                program,
-                facts,
-                structural_returns,
-                &mut shapes,
-                machine,
-            )
+            build_payloadless_guarded_call_return_machine(program, facts, &mut shapes, machine)
         })
         .collect::<Vec<_>>();
     let retained = payloadless_guarded_machines

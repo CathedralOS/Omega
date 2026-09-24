@@ -18,13 +18,13 @@ use super::{
     CheckedTrees, EvidenceRoute, LoweredPsi, LoweringError, ObligationEvidence, PrimitiveJudgment,
     Proposition, unsupported,
 };
+use crate::machine_lowering::guarded_exits::exact_payloadless_return_guard;
 use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
     lower_proposition_vocabulary,
 };
 use crate::proofs::evidence_lowering::guarded_call_evidence::{
-    exact_payloadless_return_guard, lower_and_install_payloadless_guarded_call_evidence,
-    lower_outcome_specific_ensures,
+    lower_and_install_payloadless_guarded_call_evidence, lower_outcome_specific_ensures,
 };
 use crate::proofs::evidence_lowering::producer_provenance::{
     hex_bytes, lower_evidence_producer_provenance,

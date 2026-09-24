@@ -53,9 +53,7 @@ pub(crate) fn finalize_execution(
         );
     facts.flow.terminal_structural_call_returns =
         crate::execution::terminal_unit::returns::build_checked_structural_call_return_plans(
-            program,
-            &facts,
-            &facts.flow.terminal_structural_returns,
+            program, &facts,
         );
     let crate::execution::execution_plans::ExecutionPlans {
         boundary_returns,
