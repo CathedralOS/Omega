@@ -30,7 +30,7 @@ data Main {
     title: [u8; 11];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + Gui {
     self.win = self.gui.window_create(self.cls, self.title, 0, 0, 0, 200, 150);
     self.dc = self.gui.get_dc(self.win);
     self.alive = self.gui.is_window(self.win);

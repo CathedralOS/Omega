@@ -13,7 +13,7 @@
 // fast iterations proves the pump is repeatably non-blocking. Headless-safe: a
 // fresh process has no events, so each pump returns nil and the loop completes.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -45,7 +45,7 @@ data Main {
     n: i32 in I320To8;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.app_cls = self.objc.get_class("NSApplication");
     self.sel = self.objc.register_selector("sharedApplication");
     self.app = self.objc.send(self.app_cls, self.sel);

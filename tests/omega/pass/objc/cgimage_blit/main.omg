@@ -34,7 +34,7 @@ data Main {
     width: i64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + CoreGraphics {
     self.space = self.cg.color_space_rgb();
     self.ctx = self.cg.bitmap_context(&mut self.pixels, 4, 4, 8, 16, self.space, 8198);
     self.img = self.cg.bitmap_context_image(self.ctx);

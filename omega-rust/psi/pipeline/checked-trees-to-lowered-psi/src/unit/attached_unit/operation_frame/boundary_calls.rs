@@ -4,9 +4,8 @@
 //! A boundary owns no entry-claim roster, so each call pairs the caller's
 //! claims on its parameter arguments, and the completed claim frontier of each
 //! result argument, with one receipt apiece (`expected_claim_arguments`).
-//! Which boundary shapes a route may call is its admission's decision
-//! (`admission/operations.rs` for an ordinary body, `composed_control/admission.rs`
-//! for a composed state); every shape either admits emits here the same way.
+//! Every boundary call shape is admitted once, by `admission/calls.rs`, for an
+//! ordinary body and a composed state alike, and emits here the same way.
 
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;

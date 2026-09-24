@@ -664,10 +664,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         .zip(&live)
         .filter_map(|(state, live)| live.then_some(state))
         .collect::<Vec<_>>();
-    // Internal Unit targets are admitted for their call custody here; their
-    // signatures come from the closure that emits this graph.
-    let (boundaries, _) =
-        super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
+    // Every live state's calls take the one call admission; internal Unit
+    // targets' signatures come from the closure that emits this graph.
+    let boundaries = super::super::admission::admit_calls(checked, plan.machine, &states)?;
     if let Some(attachment) = attachment {
         for state in &states {
             for operation in &state.operations {
@@ -720,14 +719,16 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
         // Domain requirements on borrowed inputs lower into the emitted
         // boundary's `requires` rows; qualified affine results mint their
-        // caller-side establishments at emission.
+        // caller-side establishments at emission. A scalar result owns no
+        // custody: it binds the state's next scalar value.
         if !(boundary.result.is_unit()
             || matches!(
                 &boundary.result,
-                CheckedBoundaryMachineResultPlan::Structural {
-                    multiplicity: Multiplicity::Affine,
-                    ..
-                }
+                CheckedBoundaryMachineResultPlan::Scalar(_)
+                    | CheckedBoundaryMachineResultPlan::Structural {
+                        multiplicity: Multiplicity::Affine,
+                        ..
+                    }
             ))
         {
             return unsupported(

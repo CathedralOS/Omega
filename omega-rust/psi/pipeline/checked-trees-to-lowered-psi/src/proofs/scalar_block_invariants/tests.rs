@@ -204,6 +204,15 @@ fn a_field_counter_bounds_its_index_through_the_loop_header() {
 }
 
 #[test]
+fn a_wrapping_field_counter_bounds_its_index_through_the_loop_header() {
+    // `self.i + 1` in Wrapping is a signed wrapping sum: the header's
+    // `0 <= i` survives the backedge only with the guard's no-wrap headroom.
+    let source = FIELD_COUNTER.replace("i: i32;", "i: i32 in Wrapping;");
+    let lowered = lower_field_loop(&source, "Poly::run");
+    restart_field_loop(&lowered, 2, -3);
+}
+
+#[test]
 fn a_guarded_field_divisor_discharges_the_remainder_it_feeds() {
     // The remainder asks `d <= -2 || 1 <= d || (d <= -1 && ...)`; the header
     // guard `0 <= d` refutes all but `1 <= d`, which only value transport

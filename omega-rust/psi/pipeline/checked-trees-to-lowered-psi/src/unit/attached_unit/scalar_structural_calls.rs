@@ -1,11 +1,11 @@
 //! Exact source and transfer custody for scalar calls with structural operands.
 
 use super::super::PermissionClaimIdentity;
+use super::admission::CallerView;
 use super::parameters::source_path;
 use super::{
-    CheckedScalarCallee, CheckedTrees, CheckedUnitEffectMachinePlan,
-    CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, primitive_locals,
-    structural_calls, unsupported,
+    CheckedScalarCallee, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Multiplicity,
+    primitive_locals, structural_calls, unsupported,
 };
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::types::TypeReferenceNode;
@@ -14,7 +14,7 @@ use checked_trees::types::TypeReferenceNode;
 /// and permission identities as Unit calls; scalar production does not erase them.
 pub(super) fn validate_call_source(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     target: &CheckedScalarCallee<'_>,
 ) -> Result<(), LoweringError> {
@@ -90,6 +90,25 @@ pub(super) fn validate_call_source(
             argument,
             expression,
         )? {
+            continue;
+        }
+        // A byte-sequence literal lends a shared view of its own bytes;
+        // `call_source_custody::validate_operation` already rejoined them to
+        // the authored literal at this formal.
+        if argument.byte_sequence_literal().is_some() {
+            continue;
+        }
+        // An established structural local, such as a view local, lends
+        // itself: the authored operand names exactly that local.
+        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            argument.source
+        {
+            if !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
+                if name.symbol == symbol && name.head_symbol == symbol
+                    && checked.expression_table.name_path_members(name.members).len() == 1)
+            {
+                return unsupported("scalar wrapper local argument substituted its authored local");
+            }
             continue;
         }
         let source_index = argument
@@ -180,7 +199,7 @@ pub(super) fn validate_call_source(
 /// namespace. Rejoin the exact declaration before accepting its consuming use.
 fn validate_constructed_local(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     source_target: symbols::SymbolHandle,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,

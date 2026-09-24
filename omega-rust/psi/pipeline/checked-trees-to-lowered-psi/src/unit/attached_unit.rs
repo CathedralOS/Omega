@@ -136,15 +136,6 @@ fn lower_boundary_result(
     })
 }
 
-fn retain_exact_checked_flow_call(
-    checked: &CheckedTrees,
-    machine: &CheckedUnitEffectMachinePlan,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    target: symbols::SymbolHandle,
-) -> Result<(), LoweringError> {
-    retain_exact_flow_call(checked, machine.machine, machine.state, coordinate, target).map(|_| ())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn retain_exact_unit_boundary<'plans>(
     checked: &CheckedTrees,

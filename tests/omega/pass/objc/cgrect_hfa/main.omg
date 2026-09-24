@@ -39,7 +39,7 @@ data Main {
     m: i64;
 }
 
-machine Main::main(&mut self) reaches Console + Math {
+machine Main::main(&mut self) reaches Console + Math + CoreGraphics {
     self.x = 10.0;
     self.y = 20.0;
     self.w = 30.0;

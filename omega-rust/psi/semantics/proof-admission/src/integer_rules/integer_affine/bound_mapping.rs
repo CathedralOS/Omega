@@ -144,12 +144,14 @@ pub fn map_integer_affine_bound(
             CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
                 Some(if current_is_lower { 0 } else { *mask })
             }
-            // `v = (x + c) mod 2^w` never exceeds `x + c`, so an upper bound on
-            // `x` maps unconditionally. A lower bound survives only when the
-            // same definition proves `x <= maximum - c`, so the sum cannot
-            // reduce modulo the width.
+            // For `c > 0`, `v = (x + c) mod 2^w` never exceeds `x + c`, so an
+            // upper bound on `x` maps unconditionally; a lower bound survives
+            // only when the same definition proves `x <= maximum - c`, so the
+            // sum cannot reduce modulo the width. A negative `c` on a signed
+            // carrier mirrors this: `v` is never below `x + c`, and an upper
+            // bound needs `minimum - c <= x`.
             CheckedIntegerEndpointStep::WrappingAdd { operand, literal } => {
-                if current_is_lower && *literal != 0 {
+                if wrapping_side_needs_evidence(current_is_lower, *literal) {
                     push_wrapping_evidence(
                         &mut required_evidence,
                         form.integer_type(),
@@ -159,11 +161,12 @@ pub fn map_integer_affine_bound(
                 }
                 mapped.checked_add(*literal)
             }
-            // `x = v - c (mod 2^w)` is never below `v - c`, so a lower bound
-            // on `v` maps unconditionally. An upper bound `v < k` yields
-            // `x <= k - c - 1` only when `x + c` cannot wrap.
+            // For `c > 0`, `x = v - c (mod 2^w)` is never below `v - c`, so a
+            // lower bound on `v` maps unconditionally. An upper bound `v < k`
+            // yields `x <= k - c - 1` only when `x + c` cannot wrap. A
+            // negative `c` mirrors both sides.
             CheckedIntegerEndpointStep::WrappingAddBackward { operand, literal } => {
-                if !current_is_lower && *literal != 0 {
+                if wrapping_side_needs_evidence(!current_is_lower, *literal) {
                     push_wrapping_evidence(
                         &mut required_evidence,
                         form.integer_type(),
@@ -288,7 +291,7 @@ pub fn integer_affine_wrapping_evidence(
                 reverses_order = !reverses_order;
             }
             CheckedIntegerEndpointStep::WrappingAdd { operand, literal }
-                if current_is_lower && *literal != 0 =>
+                if wrapping_side_needs_evidence(current_is_lower, *literal) =>
             {
                 push_wrapping_evidence(
                     &mut required_evidence,
@@ -298,7 +301,7 @@ pub fn integer_affine_wrapping_evidence(
                 )?;
             }
             CheckedIntegerEndpointStep::WrappingAddBackward { operand, literal }
-                if !current_is_lower && *literal != 0 =>
+                if wrapping_side_needs_evidence(!current_is_lower, *literal) =>
             {
                 push_wrapping_evidence(
                     &mut required_evidence,
@@ -313,25 +316,59 @@ pub fn integer_affine_wrapping_evidence(
     Ok(required_evidence)
 }
 
+/// Whether mapping the lower (`current_is_lower`) or upper bound through a
+/// wrapping-add step depends on the sum not wrapping. A positive addend can
+/// only cross the carrier maximum, which breaks a lower bound; a negative
+/// addend can only cross the minimum, which breaks an upper bound.
+fn wrapping_side_needs_evidence(current_is_lower: bool, literal: i128) -> bool {
+    (literal > 0 && current_is_lower) || (literal < 0 && !current_is_lower)
+}
+
 /// The required evidence shape for a wrapping-add step on `operand` with
-/// addend `literal`: the operand stays inside the headroom
-/// `operand <= maximum - literal`, so `operand + literal` cannot reduce
-/// modulo the carrier width. Deduplicated so repeated steps cite one conjunct.
+/// addend `literal`: the operand stays inside the headroom the addend's sign
+/// faces, `operand <= maximum - literal` for a positive addend and
+/// `minimum - literal <= operand` for a negative one, so `operand + literal`
+/// cannot reduce modulo the carrier width. Deduplicated so repeated steps
+/// cite one conjunct.
 fn push_wrapping_evidence(
     required_evidence: &mut Vec<Proposition>,
     integer_type: IntegerType,
     operand: &ScalarTerm,
     literal: i128,
 ) -> Result<(), IntegerAffineBoundConversionError> {
-    let IntegerValue::Unsigned(maximum) = integer_type.maximum_value() else {
-        return Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier);
+    let evidence = match integer_type.maximum_value() {
+        IntegerValue::Unsigned(maximum) => {
+            let headroom = maximum
+                .checked_sub(u128::try_from(literal).unwrap_or(u128::MAX))
+                .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+            let bound = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(headroom))
+                .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
+            Proposition::LessOrEqual(operand.clone(), bound)
+        }
+        IntegerValue::Signed(maximum) => {
+            let IntegerValue::Signed(minimum) = integer_type.minimum_value() else {
+                return Err(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier);
+            };
+            let signed_bound = |value: Option<i128>| {
+                value
+                    .and_then(|value| {
+                        ScalarTerm::integer(integer_type, IntegerValue::Signed(value)).ok()
+                    })
+                    .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)
+            };
+            if literal > 0 {
+                Proposition::LessOrEqual(
+                    operand.clone(),
+                    signed_bound(maximum.checked_sub(literal))?,
+                )
+            } else {
+                Proposition::LessOrEqual(
+                    signed_bound(minimum.checked_sub(literal))?,
+                    operand.clone(),
+                )
+            }
+        }
     };
-    let headroom = maximum
-        .checked_sub(u128::try_from(literal).unwrap_or(u128::MAX))
-        .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-    let bound = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(headroom))
-        .map_err(|_| IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-    let evidence = Proposition::LessOrEqual(operand.clone(), bound);
     if !required_evidence.contains(&evidence) {
         required_evidence.push(evidence);
     }

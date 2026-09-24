@@ -1985,7 +1985,7 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
     }
     for (name, rungs) in [
         ("state_graph", &["admission", "emission"][..]),
-        ("internal_calls", &["admission", "catalogs"][..]),
+        ("internal_calls", &["catalogs"][..]),
     ] {
         let directory = terminal.join("composed_control").join(name);
         let entrance = directory.join("mod.rs");
@@ -2010,6 +2010,28 @@ fn composed_unit_lowering_exposes_its_semantic_owners() {
         assert!(
             !terminal.join(retired).exists(),
             "call emission belongs to the shared operation frame, not `{retired}`"
+        );
+    }
+    // Both routes admit every call through the one call admission
+    // (`admission/calls.rs`) over a caller view of the body or the state;
+    // a composed state keeps no admission copy of its own.
+    assert!(
+        terminal.join("admission/calls.rs").is_file()
+            && !terminal
+                .join("composed_control/internal_calls/admission.rs")
+                .exists(),
+        "call admission belongs to `admission/calls.rs`, not a composed copy"
+    );
+    let state_admission = std::fs::read_to_string(terminal.join("composed_control/admission.rs"))
+        .expect("read composed state admission");
+    for copy in [
+        "CheckedScalarCallee",
+        "retain_exact_unit_boundary",
+        "validate_consumer",
+    ] {
+        assert!(
+            !state_admission.contains(copy),
+            "composed state admission must hand its calls to `admission::calls`, not use `{copy}`"
         );
     }
     let state_emission = std::fs::read_to_string(terminal.join("composed_control/emission.rs"))

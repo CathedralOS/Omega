@@ -44,7 +44,10 @@ fn forward_sibling<'a>(
         | ScalarTerm::IntegerBitwiseAnd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } if unsigned => {
+        // The kernel traverses a wrapping add on either carrier sign and
+        // demands no-wrap evidence on the side the addend faces; wrapping
+        // division stays unsigned there.
+        ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
         ScalarTerm::ExactIntegerDivide { left, right, .. }
@@ -71,15 +74,9 @@ fn forward_sibling<'a>(
 
 fn add_operands(expression: &ScalarTerm, expected: ScalarType) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     let mut readings = Vec::new();
-    let unsigned = matches!(
-        expected,
-        ScalarType::Integer(integer_type) if integer_type.sign() == IntegerSign::Unsigned
-    );
     let (left, right) = match expression {
-        ScalarTerm::WrappingIntegerAdd { left, right, .. } if unsigned => {
-            (left.as_ref(), right.as_ref())
-        }
-        ScalarTerm::ExactIntegerAdd { left, right, .. } => (left.as_ref(), right.as_ref()),
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::ExactIntegerAdd { left, right, .. } => (left.as_ref(), right.as_ref()),
         _ => return readings,
     };
     if expression.scalar_type() != expected {
