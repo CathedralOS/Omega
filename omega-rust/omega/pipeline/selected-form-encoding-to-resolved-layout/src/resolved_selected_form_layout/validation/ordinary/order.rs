@@ -80,9 +80,7 @@ fn fallthrough(block: &SelectedBlock) -> Option<SelectedBlockId> {
     }
 }
 
-// Exercise independent reconstruction against the same raw graph expectations,
-// never against the producer's answer.
+// Exercise independent reconstruction against the same raw graph expectations
+// as the producer (`order_suite`), never against the producer's answer.
 #[cfg(test)]
-#[allow(clippy::duplicate_mod)] // The suite binds `super::derive` to this independent checker.
-#[path = "../../ordinary/order/tests.rs"]
 mod tests;
