@@ -76,8 +76,8 @@ pub(super) fn lower(
 /// mirroring the verifier's `resolve_structural_path`: field segments select
 /// a non-erased record member whose structural or canonical leaf shape joins
 /// the declaration roster, fixed indices step into in-bounds array elements,
-/// and a runtime index resolves only while its inclusive maximum replays
-/// strictly inside the declared extent.
+/// and a runtime index steps into any fixed array's element: its bound is the
+/// obligation the verifier discharged.
 fn resolve_copyable_path(
     structural_types: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,
@@ -108,11 +108,9 @@ fn resolve_copyable_path(
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
             (
-                StructuralPathSegment::RuntimeIndex { maximum, .. },
-                StructuralTypeShape::FixedArray { element, length },
-            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
-                *element
-            }
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::FixedArray { element, .. },
+            ) => *element,
             _ => return None,
         };
     }

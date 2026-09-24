@@ -69,11 +69,17 @@ pub(super) fn copy(
     }
     let indices = indices
         .into_iter()
-        .map(|(selector, stride)| {
-            let parameter = usize::try_from(selector)
-                .ok()
-                .and_then(|position| function.parameters.get(position).copied())
+        .map(|(index, stride)| {
+            // Only an incoming parameter's value has a home this copy can
+            // scale before its first load.
+            let (parameter_index, parameter) = function
+                .parameters
+                .iter()
+                .enumerate()
+                .find(|(_, parameter)| parameter.value == index)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let parameter_index = u32::try_from(parameter_index)
+                .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?;
             let ScalarType::Integer(index_type) = parameter.scalar_type else {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             };
@@ -82,7 +88,7 @@ pub(super) fn copy(
             }
             Ok(target_operations::TargetStructuralRuntimeIndex {
                 operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index: selector,
+                    parameter_index,
                     source_value: parameter.value,
                     scalar_type: parameter.scalar_type,
                 },

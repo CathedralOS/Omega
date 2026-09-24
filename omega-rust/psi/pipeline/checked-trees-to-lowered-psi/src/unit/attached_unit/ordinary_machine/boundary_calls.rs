@@ -499,7 +499,7 @@ impl MachineEmission<'_> {
                             .span_or_empty(event.segments),
                     )
                     .map_err(LoweringError::Unsupported)?,
-                );
+                )?;
                 self.boundary_result_claim(machine, state.symbol, result, event)
                     .map(|claim| terminal_psi::StructuralResultClaimBinding { claim, path })
             })

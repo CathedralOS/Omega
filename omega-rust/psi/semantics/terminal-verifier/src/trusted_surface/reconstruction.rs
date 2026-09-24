@@ -79,13 +79,14 @@ static OWNER_OPERATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "owner:operation",
     family: LedgerFamily::ObligationOwner,
     binding: owner(),
-    premises: "one operation whose schema declares a canonical obligation: proof-bearing scalar rows, structural-effect rows with a canonical obligation, or the byte-sequence capacity bound",
+    premises: "one operation whose schema declares a canonical obligation: proof-bearing scalar rows, structural-effect rows with a canonical obligation, the byte-sequence capacity bound, or a runtime-index segment in one of its structural projections",
     conclusion: "a derivable obligation whose proposition is exactly the schema's canonical goal, cited by the producer's declared obligation identity",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "fact:proof-bearing-scalar-goal",
         "fact:structural-effect-observation",
         "fact:byte-extent-length",
+        "fact:runtime-index-bound",
     ],
     implementation: &[
         OPERATION_FACTS,
@@ -458,6 +459,26 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
     },
 };
 
+static FACT_RUNTIME_INDEX_BOUND: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:runtime-index-bound",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "an operation that resolves runtime projections, whose projection carries a RuntimeIndex segment over a defined integer selector and whose segment prefix resolves to a fixed array",
+    conclusion: "one derivable obligation per segment, identified by the segment's own obligation, whose proposition is `runtime_index_bound(selector, extent)` over the facts that hold before the operation; no bound is read from the segment",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+    ],
+    implementation: &[
+        "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/runtime_index.rs",
+        OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/runtime_indexes.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/foundation.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/static_path.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:field-store-leaf-equation",
     family: LedgerFamily::ReconstructedFactKind,
@@ -687,6 +708,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,
+    FACT_RUNTIME_INDEX_BOUND,
     FACT_FIELD_STORE_LEAF_EQUATION,
     FACT_BORROWED_STORAGE_RESTORATION_DEBT,
     FACT_PROOF_BEARING_SCALAR_GOAL,

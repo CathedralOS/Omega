@@ -405,33 +405,28 @@ fn verify_source(
             );
         }
     };
+    // A dynamic descriptor lives at one exact place: its selection source is
+    // a static projection, so a runtime-selected element never matches.
     let expected_path = path
         .iter()
         .map(|segment| match segment {
             CheckedUnitStructuralPathSegment::Field(identity) => {
-                StructuralPathSegment::Field(identity.clone())
+                Some(StructuralPathSegment::Field(identity.clone()))
             }
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                StructuralPathSegment::FixedIndex(*index)
+                Some(StructuralPathSegment::FixedIndex(*index))
             }
             CheckedUnitStructuralPathSegment::FixedByteRange { start, end } => {
-                StructuralPathSegment::FixedByteRange {
+                Some(StructuralPathSegment::FixedByteRange {
                     start: *start,
                     end: *end,
-                }
+                })
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex {
-                selector,
-                minimum,
-                maximum,
-            } => StructuralPathSegment::RuntimeIndex {
-                selector: *selector,
-                minimum: *minimum,
-                maximum: *maximum,
-            },
-            CheckedUnitStructuralPathSegment::Referent => StructuralPathSegment::Referent,
+            CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => None,
+            CheckedUnitStructuralPathSegment::Referent => Some(StructuralPathSegment::Referent),
         })
-        .collect::<Vec<_>>();
+        .collect::<Option<Vec<_>>>()
+        .ok_or("rebound dynamic descriptor source drifted from its checked selection")?;
     let self_parameters = owner
         .structural_parameters
         .iter()

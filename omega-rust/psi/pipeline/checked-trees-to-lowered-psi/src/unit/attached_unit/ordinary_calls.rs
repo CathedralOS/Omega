@@ -396,7 +396,7 @@ pub(super) fn emit_structural(
             .map(|transfer| {
                 Ok(terminal_psi::StructuralResultClaimBinding {
                     claim: lookup_claim_id(claim_bindings, transfer.caller_claim)?,
-                    path: lower_structural_path(&transfer.path),
+                    path: lower_structural_path(&transfer.path)?,
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?,

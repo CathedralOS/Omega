@@ -71,7 +71,7 @@ pub(crate) fn validate_and_lower_dynamic_source(
     }
     Ok(StructuralArgument {
         place: caller_self.place,
-        path: lower_structural_path(source_path),
+        path: lower_structural_path(source_path)?,
         access: match source_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,

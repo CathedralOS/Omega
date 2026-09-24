@@ -98,9 +98,10 @@ pub use types::{
     StructuralPathQualification, StructuralTypeDeclaration, StructuralTypeShape,
 };
 pub use values::{
-    ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralReferenceResultSource, StructuralResultDeclaration,
-    TerminalMachineResult, ValueDeclaration, is_bounded_structural_scalar_store_path,
+    ErasedProofFormal, OperationProjection, StructuralArgument, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralReferenceResultSource,
+    StructuralResultDeclaration, TerminalMachineResult, ValueDeclaration,
+    is_bounded_structural_scalar_store_path, is_static_structural_path,
 };
 
 use semantic_vocabulary::MachineId;

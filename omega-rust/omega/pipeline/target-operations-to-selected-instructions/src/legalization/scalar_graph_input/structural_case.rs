@@ -228,9 +228,9 @@ pub(in crate::legalization) fn membership_layout(
 /// Resolve the copied leaf's byte offset inside the readable root and its
 /// canonical shape. The path's endpoint type must be the declared result type
 /// and the result must keep the copy's unrestricted empty custody.
-/// `RuntimeIndex` segments additionally yield `(selector, stride)` pairs in
-/// path order: each named dense parameter must exist and carry an integer
-/// index no wider than the address model, mirroring the indexed-store
+/// `RuntimeIndex` segments additionally yield `(index, stride)` pairs in
+/// path order: each index must be an incoming parameter's value carrying an
+/// integer no wider than the address model, mirroring the indexed-store
 /// operand contract.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
@@ -238,7 +238,14 @@ pub(in crate::legalization) fn leaf_copy_layout(
     path: &[terminal_psi::StructuralPathSegment],
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
-) -> Result<(u32, calling_conventions::ValueShape, Vec<(u32, u32)>), LegalizationError> {
+) -> Result<
+    (
+        u32,
+        calling_conventions::ValueShape,
+        Vec<(semantic_vocabulary::ValueId, u32)>,
+    ),
+    LegalizationError,
+> {
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
@@ -262,10 +269,11 @@ pub(in crate::legalization) fn leaf_copy_layout(
     {
         return Err(LegalizationError::custody());
     }
-    for (selector, _) in &indices {
-        let parameter = usize::try_from(*selector)
-            .ok()
-            .and_then(|position| function.parameters.get(position))
+    for (index, _) in &indices {
+        let parameter = function
+            .parameters
+            .iter()
+            .find(|parameter| parameter.value == *index)
             .ok_or(LegalizationError::custody())?;
         let semantic_vocabulary::ScalarType::Integer(index_type) = parameter.scalar_type else {
             return Err(LegalizationError::custody());

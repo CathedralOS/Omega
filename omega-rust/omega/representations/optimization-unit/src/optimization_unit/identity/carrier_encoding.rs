@@ -134,15 +134,10 @@ pub(super) fn encode_structural_path_segment(
             bytes.u64(*start);
             bytes.u64(*end);
         }
-        StructuralPathSegment::RuntimeIndex {
-            selector,
-            minimum,
-            maximum,
-        } => {
+        StructuralPathSegment::RuntimeIndex { index, obligation } => {
             bytes.u8(5);
-            bytes.u32(*selector);
-            encode_integer_value(bytes, *minimum);
-            encode_integer_value(bytes, *maximum);
+            bytes.u64(index.get());
+            bytes.u64(obligation.get());
         }
     }
 }

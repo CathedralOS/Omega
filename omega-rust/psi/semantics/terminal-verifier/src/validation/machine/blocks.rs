@@ -40,6 +40,15 @@ pub(super) fn register_block<'m>(
             operation.id,
             ModuleError::DuplicateOperation,
         )?;
+        // Each runtime index an operation's projections carry is an
+        // obligation that operation owns, whatever the operation's kind.
+        for (_, obligation) in operation.kind.runtime_indexes() {
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         if custody_operations::register_custody_operation(
             module,
             machine,

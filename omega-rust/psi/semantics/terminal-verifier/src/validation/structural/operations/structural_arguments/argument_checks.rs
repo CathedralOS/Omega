@@ -11,7 +11,7 @@ use crate::validation::{
     ModuleError, OperationId, OperationKind, StructuralAccess, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceKind, TerminalMachine, TerminalModule, is_nonempty_field_path,
-    is_partial_affine_path, partial_affine_root_type, resolve_structural_path,
+    is_partial_affine_path, partial_affine_root_type,
 };
 
 /// One structural argument against its parameter: a reference projection
@@ -358,61 +358,10 @@ pub(in crate::validation) fn validate_structural_argument(
             argument_index: index as u32,
         });
     }
-    // A `RuntimeIndex` segment carries no authority of its own. Its selector
-    // must name one direct scalar parameter of this caller at the dense
-    // position the segment claims, that parameter must be a fixed-width
-    // integer, and the inclusive bounds the segment spells must be exactly
-    // what the caller's published evidence proves: either the catalog's
-    // integer entry range row or, for callers that publish their contract
-    // facts only as propositions, the `requires` conjuncts folded into the
-    // same closed interval — with a nonnegative minimum. The
-    // `maximum < extent` relation is replayed separately by
-    // `resolve_structural_path` against the resolved fixed array.
-    for segment in &argument.path {
-        let StructuralPathSegment::RuntimeIndex {
-            selector,
-            minimum,
-            maximum,
-        } = segment
-        else {
-            continue;
-        };
-        let selector_bounded =
-            caller
-                .parameters
-                .get(*selector as usize)
-                .is_some_and(|declaration| {
-                    let semantic_vocabulary::ScalarType::Integer(integer_type) =
-                        declaration.scalar_type
-                    else {
-                        return false;
-                    };
-                    let roster_bounded = module
-                        .scalar_qualifications
-                        .integer_entry_ranges
-                        .iter()
-                        .any(|range| {
-                            range.machine == caller.id
-                                && range.parameter == declaration.id
-                                && range.integer_type == integer_type
-                                && range.minimum == *minimum
-                                && range.maximum == *maximum
-                        });
-                    roster_bounded
-                        || requires_bound_interval(caller, declaration, integer_type).is_some_and(
-                            |(derived_minimum, derived_maximum)| {
-                                derived_minimum == *minimum && derived_maximum == *maximum
-                            },
-                        )
-                })
-                && terminal_semantics::runtime_index_minimum_is_nonnegative(*minimum);
-        if !selector_bounded {
-            return Err(ModuleError::InvalidStructuralArgumentPath {
-                operation,
-                argument_index: index as u32,
-            });
-        }
-    }
+    // A `RuntimeIndex` segment carries no authority of its own: its selector
+    // is an operand of this call and its bound is the obligation the call
+    // owns, reconstructed with every other runtime index of the operation
+    // (`runtime_indexes`). Only the projection's type is resolved here.
     let root_type = actual_type;
     if crate::validation::scalar::array::owned_payload_source(module, caller, argument.place)
         && (expected.multiplicity != StructuralMultiplicity::Unrestricted
@@ -481,7 +430,11 @@ pub(in crate::validation) fn validate_structural_argument(
                     .any(|claim| claim.input.root == argument.place)
         });
     if !buffer_presentation && !shared_buffer_presentation && !fixed_array_presentation {
-        let Some(actual_type) = resolve_structural_path(module, root_type, &argument.path) else {
+        let Some(actual_type) = crate::validation::foundation::resolve_runtime_projection(
+            module,
+            root_type,
+            &argument.path,
+        ) else {
             return Err(ModuleError::InvalidStructuralArgumentPath {
                 operation,
                 argument_index: index as u32,
@@ -598,152 +551,4 @@ pub(in crate::validation) fn validate_structural_argument(
         }
     }
     Ok(())
-}
-
-/// The contract-fact evidence for a `RuntimeIndex` selector whose caller
-/// publishes no integer entry-range row: the caller's `requires`
-/// propositions fold into the closed inclusive interval they prove on this
-/// parameter. Authored clauses publish merged into that proposition roster —
-/// an `i <= K` conjunct is the same caller-discharged entry obligation the
-/// checked admission folded — so the literal endpoints bound the selector
-/// with exactly the strength a retained range row carries. An unsigned
-/// carrier supplies its own `0 <=` half; a signed carrier owes an explicit
-/// lower conjunct. Propositions this fold cannot read stay outside the
-/// interval rather than declining it; a missing half or an interval that
-/// cannot name a nonnegative element declines.
-fn requires_bound_interval(
-    caller: &TerminalMachine,
-    declaration: &terminal_psi::ValueDeclaration,
-    integer_type: semantic_vocabulary::IntegerType,
-) -> Option<(
-    semantic_vocabulary::IntegerValue,
-    semantic_vocabulary::IntegerValue,
-)> {
-    let mut minimum: Option<i128> = match integer_type.sign() {
-        semantic_vocabulary::IntegerSign::Unsigned => Some(0),
-        semantic_vocabulary::IntegerSign::Signed => None,
-    };
-    let mut maximum = None;
-    for proposition in &caller.contract.requires {
-        fold_requires_bound(
-            proposition,
-            declaration,
-            integer_type,
-            &mut minimum,
-            &mut maximum,
-        );
-    }
-    let (minimum, maximum) = minimum.zip(maximum)?;
-    if !(0 <= minimum && minimum <= maximum) {
-        return None;
-    }
-    Some((
-        integer_bound_value(integer_type, minimum)?,
-        integer_bound_value(integer_type, maximum)?,
-    ))
-}
-
-/// Spell one folded endpoint back in the selector's declared carrier so the
-/// segment's `IntegerValue` bounds compare by exact identity, the same way
-/// the retained range row's endpoints do.
-fn integer_bound_value(
-    integer_type: semantic_vocabulary::IntegerType,
-    value: i128,
-) -> Option<semantic_vocabulary::IntegerValue> {
-    match integer_type.sign() {
-        semantic_vocabulary::IntegerSign::Signed => {
-            Some(semantic_vocabulary::IntegerValue::Signed(value))
-        }
-        semantic_vocabulary::IntegerSign::Unsigned => u128::try_from(value)
-            .ok()
-            .map(semantic_vocabulary::IntegerValue::Unsigned),
-    }
-}
-
-/// Meet one `requires` proposition's literal bound on the subject into the
-/// running interval. Published requires rows hold `Equal`, `LessThan` and
-/// `LessOrEqual` scalar comparisons under `Conjunction` nesting: `p <= k`
-/// with the subject on the left is the upper half and `k <= p` the lower.
-/// Propositions over other parameters, composed terms, or non-literal
-/// endpoints are contract facts this fold does not read, not a reason to
-/// decline.
-fn fold_requires_bound(
-    proposition: &semantic_vocabulary::Proposition,
-    declaration: &terminal_psi::ValueDeclaration,
-    integer_type: semantic_vocabulary::IntegerType,
-    minimum: &mut Option<i128>,
-    maximum: &mut Option<i128>,
-) {
-    let (endpoint, subject_is_left) = match proposition {
-        semantic_vocabulary::Proposition::Conjunction(conjuncts) => {
-            for conjunct in conjuncts {
-                fold_requires_bound(conjunct, declaration, integer_type, minimum, maximum);
-            }
-            return;
-        }
-        semantic_vocabulary::Proposition::Equal(left, right)
-        | semantic_vocabulary::Proposition::LessOrEqual(left, right)
-        | semantic_vocabulary::Proposition::LessThan(left, right) => {
-            if conjunct_subject(left, declaration, integer_type) {
-                (conjunct_literal(right, integer_type), true)
-            } else if conjunct_subject(right, declaration, integer_type) {
-                (conjunct_literal(left, integer_type), false)
-            } else {
-                return;
-            }
-        }
-        _ => return,
-    };
-    let Some(endpoint) = endpoint else {
-        return;
-    };
-    let (lower, upper) = match (proposition, subject_is_left) {
-        (semantic_vocabulary::Proposition::Equal(..), _) => (Some(endpoint), Some(endpoint)),
-        (semantic_vocabulary::Proposition::LessOrEqual(..), true) => (None, Some(endpoint)),
-        (semantic_vocabulary::Proposition::LessOrEqual(..), false) => (Some(endpoint), None),
-        (semantic_vocabulary::Proposition::LessThan(..), true) => (None, endpoint.checked_sub(1)),
-        (semantic_vocabulary::Proposition::LessThan(..), false) => (endpoint.checked_add(1), None),
-        _ => return,
-    };
-    if let Some(lower) = lower {
-        *minimum = Some(minimum.map_or(lower, |bound| bound.max(lower)));
-    }
-    if let Some(upper) = upper {
-        *maximum = Some(maximum.map_or(upper, |bound| bound.min(upper)));
-    }
-}
-
-/// The conjunct subject is exactly the selector's own declared scalar
-/// parameter: the `Value` term naming it carries the same fixed integer
-/// carrier the parameter declares.
-fn conjunct_subject(
-    term: &semantic_vocabulary::ScalarTerm,
-    declaration: &terminal_psi::ValueDeclaration,
-    integer_type: semantic_vocabulary::IntegerType,
-) -> bool {
-    matches!(
-        term,
-        semantic_vocabulary::ScalarTerm::Value { id, scalar_type }
-            if *id == declaration.id
-                && *scalar_type == semantic_vocabulary::ScalarType::Integer(integer_type)
-    )
-}
-
-/// A conjunct endpoint lands as a bound only when it is an integer literal
-/// carried in the selector's own declared carrier — the same type identity
-/// the retained range row checks on its endpoints.
-fn conjunct_literal(
-    term: &semantic_vocabulary::ScalarTerm,
-    integer_type: semantic_vocabulary::IntegerType,
-) -> Option<i128> {
-    let semantic_vocabulary::ScalarTerm::Integer { scalar_type, value } = term else {
-        return None;
-    };
-    if *scalar_type != integer_type {
-        return None;
-    }
-    match value {
-        semantic_vocabulary::IntegerValue::Signed(value) => Some(*value),
-        semantic_vocabulary::IntegerValue::Unsigned(value) => i128::try_from(*value).ok(),
-    }
 }

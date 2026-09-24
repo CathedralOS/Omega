@@ -28,6 +28,7 @@ mod primitive_storage;
 mod record;
 mod reference;
 mod results;
+mod runtime_indexes;
 mod scalar_array;
 mod scalar_operations;
 mod semantic_value_comparison;

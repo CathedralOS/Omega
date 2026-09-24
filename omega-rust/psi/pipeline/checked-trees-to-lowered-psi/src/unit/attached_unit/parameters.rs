@@ -703,7 +703,7 @@ pub(crate) fn validate_transfer_shape(
                         && expected.len() == 1
                         && result.claims.len() == 1
                         && expected.iter().zip(&result.claims).all(|(expected, binding)| {
-                            binding.path == lower_structural_path(&expected.path)
+                            lower_structural_path(&expected.path).is_ok_and(|path| binding.path == path)
                                 && custody.claims.iter().any(|(identity, claim)| {
                                     *claim == binding.claim
                                         && matches!(
@@ -739,8 +739,8 @@ pub(crate) fn validate_transfer_shape(
                                         .iter()
                                         .filter(|result| {
                                             result.claim == *claim
-                                                && result.path
-                                                    == lower_structural_path(&expected.path)
+                                                && lower_structural_path(&expected.path)
+                                                    .is_ok_and(|path| result.path == path)
                                         })
                                         .count()
                                         == 1
@@ -1024,7 +1024,10 @@ fn fixed_byte_array_view_transfer(
         source,
         &StructuralArgument {
             place: source.place,
-            path: lower_structural_path(&argument.path),
+            path: match lower_structural_path(&argument.path) {
+                Ok(path) => path,
+                Err(_) => return false,
+            },
             access,
         },
         &expected,
@@ -1157,7 +1160,7 @@ pub(crate) fn lower_structural_arguments(
                 let source = structural_result_source(structural_results, binding_ordinal, argument)?;
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: lower_structural_path(&argument.path),
+                    path: lower_structural_path(&argument.path)?,
                     access: match argument.access {
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
@@ -1181,7 +1184,7 @@ pub(crate) fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
-                path: lower_structural_path(&argument.path),
+                path: lower_structural_path(&argument.path)?,
                 access: match argument.access {
                     checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                     checked_trees::CheckedStructuralAccess::SharedBorrow => {
@@ -1242,7 +1245,7 @@ pub(crate) fn lower_projected_qualifications(
                 return unsupported("projected qualification has an empty path");
             }
             Ok(terminal_psi::StructuralPathQualification {
-                path: lower_structural_path(&row.path),
+                path: lower_structural_path(&row.path)?,
                 domain: lookup_domain_id(domain_ids, row.domain)?,
             })
         })

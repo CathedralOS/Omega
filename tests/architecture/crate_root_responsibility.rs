@@ -400,6 +400,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "record",
             "reference",
             "results",
+            "runtime_indexes",
             "scalar_array",
             "scalar_operations",
             "semantic_value_comparison",

@@ -619,10 +619,9 @@ pub(super) fn resolve_structural_projection_path(
 /// Resolve a leaf-copy projection that may traverse `RuntimeIndex`
 /// segments. Static segments before, between, and after the dynamic
 /// segments fold into the returned `byte_offset`; each dynamic segment
-/// contributes `(selector, stride)` so the copy can scale every runtime
-/// operand into the same address in path order. The caller's published
-/// bound rows are replayed against each array's declared extent exactly
-/// like the terminal verifier does.
+/// contributes `(index, stride)` so the copy can scale every runtime operand
+/// into the same address in path order. Each segment's bound is the
+/// obligation the terminal verifier discharged; only array shape is read.
 #[allow(clippy::type_complexity)]
 pub(super) fn leaf_copy_projection(
     structural_type: StructuralTypeId,
@@ -630,16 +629,21 @@ pub(super) fn leaf_copy_projection(
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-) -> Result<(StructuralTypeId, ValueShape, u32, Vec<(u32, u32)>), LoweringError> {
+) -> Result<
+    (
+        StructuralTypeId,
+        ValueShape,
+        u32,
+        Vec<(semantic_vocabulary::ValueId, u32)>,
+    ),
+    LoweringError,
+> {
     let mut structural_type = structural_type;
     let mut byte_offset = 0u32;
     let mut indices = Vec::new();
     let mut segment_start = 0usize;
     for (position, segment) in path.iter().enumerate() {
-        let StructuralPathSegment::RuntimeIndex {
-            selector, maximum, ..
-        } = segment
-        else {
+        let StructuralPathSegment::RuntimeIndex { index, .. } = segment else {
             continue;
         };
         if position > segment_start {
@@ -659,23 +663,18 @@ pub(super) fn leaf_copy_projection(
             .get(&structural_type)
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
             return Err(LoweringError::UnsupportedStructuralReference(
                 structural_type,
             ));
         };
-        if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, length) {
-            return Err(LoweringError::UnsupportedStructuralReference(
-                structural_type,
-            ));
-        }
         let element_shape = structural_shape(element, declarations, cache, active)?;
         let stride = checked_align_up_u32(
             u32::from(element_shape.byte_size),
             u32::from(element_shape.alignment),
         )
         .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-        indices.push((*selector, stride));
+        indices.push((*index, stride));
         structural_type = element;
         segment_start = position + 1;
     }

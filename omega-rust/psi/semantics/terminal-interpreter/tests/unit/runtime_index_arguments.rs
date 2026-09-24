@@ -1,350 +1,594 @@
-//! Runtime-index structural argument bounds replay the caller's published
-//! contract facts, not only the scalar qualification catalog's retained
-//! integer entry-range rows.
+//! Runtime-selected elements inside a structural call argument.
 //!
-//! A `RuntimeIndex` segment carries no authority of its own: the selector
-//! names one direct scalar parameter of the calling machine and the spelled
-//! `minimum`/`maximum` must equal what the caller's published evidence
-//! proves. Machines whose contract facts publish only as `requires`
-//! propositions — the Unit-effect lane emits no scalar qualification rows —
-//! fold the same conjuncts the checked admission read into the same closed
-//! interval. These tests pin both channels and the exact-equality rule the
-//! verifier applies to the segment's spelled bounds.
+//! A `RuntimeIndex { index, obligation }` segment names a runtime scalar and
+//! an obligation the carrying call owns; nothing in the segment states a
+//! bound. The verifier reconstructs `index < extent` from the array the
+//! prefix resolves to and a certificate must discharge it from the facts at
+//! the call — here the caller's published `requires`. These tests run the
+//! serialized artifact: a field may follow the runtime element
+//! (`self.rows[i].item`) and a second runtime index may follow the first
+//! (`self.grid[i][j]`). A bound the facts do not prove, a missing
+//! certificate, a selector that is not an integer operand, and a runtime
+//! element in an operation that does not resolve runtime projections all
+//! reject.
 
-use super::call_modules::structural_scalar_field_call_module;
-use super::{machine_id, operation_id, structural_type_id, value_id, verify_module};
-use proof_admission::AdmissionProfile;
-use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+use super::{
+    AcceptTerminalEffects, AdmissionProfile, BindingRelevance, Block, CertificateEnvelope,
+    EvidenceIdentity, EvidenceRoute, IntegerSign, IntegerType, IntegerValue, ModuleError,
+    ObligationEvidence, Operation, OperationKind, OperationResult, ProofBundle, ProofNode,
+    ProofRule, ProofSystemMarker, Proposition, ScalarTerm, ScalarType, StructuralAccess,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalExecution, TerminalExecutionResult,
+    TerminalExecutionStatus, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalScalarValue, TerminalStructuralInputs, TerminalStructuralValue, Terminator,
+    ValueDeclaration, VerificationError, block_id, contract_id, decode_module, edge_id,
+    empty_contract, encode_module, encode_proof_section, machine_id, obligation_id, operation_id,
+    place_id, structural_field_id, structural_type_id, unit_module, value_id, verify_module,
 };
-use terminal_psi::{
-    OperationKind, ScalarIntegerRange, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalModule, ValueDeclaration,
-};
-use terminal_verifier::{ModuleError, ProofBundle, VerificationError};
+use terminal_fuel::TerminalFuelMeter;
+use terminal_interpreter::TerminalStructuralScalarFieldValue;
 
-/// A two-element fixed array hangs off the owner record's `item` field; the
-/// shared-borrow call argument selects one element at runtime through the
-/// caller's own scalar parameter. `requires` is the machine's published
-/// contract proposition roster — authored clauses merge into it — and
-/// `minimum`/`maximum` are the segment's spelled bounds under test.
-fn runtime_index_argument_module(
-    integer: IntegerType,
+const ITEM: u64 = 90;
+const PAIR: u64 = 91;
+const ROW: u64 = 92;
+const ROWS: u64 = 93;
+const GRID: u64 = 94;
+const OWNER: u64 = 95;
+const CALLER_ROOT: u64 = 95;
+const CALLEE_ROOT: u64 = 96;
+const ROW_SELECTOR: u64 = 40;
+const COLUMN_SELECTOR: u64 = 41;
+
+fn u64_type() -> IntegerType {
+    IntegerType::new(IntegerSign::Unsigned, 64).unwrap()
+}
+
+fn i32_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+}
+
+fn field(id: u64, identity: &str, field_type: StructuralFieldType) -> StructuralFieldDeclaration {
+    StructuralFieldDeclaration {
+        id: structural_field_id(id),
+        identity: identity.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    }
+}
+
+fn selector(raw: u64) -> ScalarTerm {
+    ScalarTerm::value(value_id(raw), ScalarType::Integer(u64_type()))
+}
+
+fn literal(value: u128) -> ScalarTerm {
+    ScalarTerm::integer(u64_type(), IntegerValue::Unsigned(value)).unwrap()
+}
+
+/// `selector <= maximum`, the published requirement a proof cites.
+fn at_most(raw: u64, maximum: u128) -> Proposition {
+    Proposition::LessOrEqual(selector(raw), literal(maximum))
+}
+
+fn runtime(raw: u64, obligation: u64) -> StructuralPathSegment {
+    StructuralPathSegment::RuntimeIndex {
+        index: value_id(raw),
+        obligation: obligation_id(obligation),
+    }
+}
+
+/// `Owner { rows: [Row; 3], grid: [[Item; 2]; 3] }` with `Row { item: Item }`
+/// and `Item { value: i32 }`. The entry caller receives the owner and two u64
+/// selectors, lends `path` to a callee as a shared `Item`, and returns the
+/// callee's read of `value`.
+fn runtime_index_module(
+    path: Vec<StructuralPathSegment>,
     requires: Vec<Proposition>,
-    minimum: IntegerValue,
-    maximum: IntegerValue,
 ) -> TerminalModule {
-    let mut module = structural_scalar_field_call_module();
-    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
-        unreachable!()
+    let parameter = |place, structural_type, access| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: true,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     };
-    fields[0].field_type = StructuralFieldType::Structural(structural_type_id(97));
-    module.structural_types.push(StructuralTypeDeclaration {
-        id: structural_type_id(97),
-        identity: "test::Cells".into(),
-        shape: StructuralTypeShape::FixedArray {
-            element: structural_type_id(96),
-            length: 2,
+    let place = |id| StructuralPlaceDeclaration {
+        id,
+        kind: semantic_vocabulary::StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: true,
         },
-    });
-    let caller = &mut module.machines[0];
-    // The scalar store wrote into `item`; with `item` a cell array the call
-    // is the caller's only remaining operation.
-    caller.blocks[0].operations.drain(..2);
-    caller.parameters = vec![ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(40),
-        scalar_type: ScalarType::Integer(integer),
-    }];
-    caller.contract.requires = requires;
-    let operation = caller.blocks[0]
-        .operations
-        .iter_mut()
-        .find(|operation| operation.id == operation_id(3))
-        .expect("the structural scalar call stays");
-    let OperationKind::CallStructuralScalar {
-        structural_arguments,
-        ..
-    } = &mut operation.kind
-    else {
-        unreachable!()
     };
-    structural_arguments[0]
-        .path
-        .push(StructuralPathSegment::RuntimeIndex {
-            selector: 0,
-            minimum,
-            maximum,
-        });
+    let array = |element, length| StructuralTypeShape::FixedArray {
+        element: structural_type_id(element),
+        length,
+    };
+    let mut module = unit_module();
+    module.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: structural_type_id(ITEM),
+            identity: "test::Item".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(1, "value", StructuralFieldType::Scalar(i32_type()))],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(PAIR),
+            identity: "test::Pair".into(),
+            shape: array(ITEM, 2),
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(ROW),
+            identity: "test::Row".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field(
+                    1,
+                    "item",
+                    StructuralFieldType::Structural(structural_type_id(ITEM)),
+                )],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(ROWS),
+            identity: "test::Rows".into(),
+            shape: array(ROW, 3),
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(GRID),
+            identity: "test::Grid".into(),
+            shape: array(PAIR, 3),
+        },
+        StructuralTypeDeclaration {
+            id: structural_type_id(OWNER),
+            identity: "test::Owner".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    field(
+                        1,
+                        "rows",
+                        StructuralFieldType::Structural(structural_type_id(ROWS)),
+                    ),
+                    field(
+                        2,
+                        "grid",
+                        StructuralFieldType::Structural(structural_type_id(GRID)),
+                    ),
+                ],
+            },
+        },
+    ];
+    let caller = &mut module.machines[0];
+    caller.attachment = Some(structural_type_id(OWNER));
+    caller.parameters = [ROW_SELECTOR, COLUMN_SELECTOR]
+        .into_iter()
+        .map(|raw| ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(raw),
+            scalar_type: ScalarType::Integer(u64_type()),
+        })
+        .collect();
+    caller.structural_parameters = vec![parameter(
+        place_id(CALLER_ROOT),
+        structural_type_id(OWNER),
+        StructuralAccess::SharedBorrow,
+    )];
+    caller.structural_places = vec![place(place_id(CALLER_ROOT))];
+    caller.contract.requires = requires;
+    caller.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id: value_id(3),
+        scalar_type: i32_type(),
+    });
+    caller.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation_id(1),
+        result: OperationResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(2),
+            scalar_type: i32_type(),
+        }),
+        kind: OperationKind::CallStructuralScalar {
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            callee: machine_id(CALLEE_ROOT),
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: place_id(CALLER_ROOT),
+                path,
+                access: StructuralAccess::SharedBorrow,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    caller.blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(2),
+        cleanup_actions: Vec::new(),
+    };
+    module.machines.push(TerminalMachine {
+        closed_reach_application: None,
+        declared_service_reach: Vec::new(),
+        id: machine_id(CALLEE_ROOT),
+        attachment: Some(structural_type_id(ITEM)),
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(
+            place_id(CALLEE_ROOT),
+            structural_type_id(ITEM),
+            StructuralAccess::SharedBorrow,
+        )],
+        ranked_scc: None,
+        result: TerminalMachineResult::Scalar(ValueDeclaration {
+            qualifications: Default::default(),
+            id: value_id(5),
+            scalar_type: i32_type(),
+        }),
+        structural_places: vec![place(place_id(CALLEE_ROOT))],
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: block_id(CALLEE_ROOT),
+        blocks: vec![Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: block_id(CALLEE_ROOT),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(4),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: value_id(4),
+                    scalar_type: i32_type(),
+                }),
+                kind: OperationKind::IntegerStructuralField {
+                    path: Vec::new(),
+                    source: place_id(CALLEE_ROOT),
+                    field: structural_field_id(1),
+                },
+            }],
+            terminator: Terminator::Return {
+                edge: edge_id(CALLEE_ROOT),
+                value: value_id(4),
+                cleanup_actions: Vec::new(),
+            },
+        }],
+        contract: empty_contract(contract_id(CALLEE_ROOT)),
+    });
     module
 }
 
-fn selector(integer: IntegerType) -> ScalarTerm {
-    ScalarTerm::value(value_id(40), ScalarType::Integer(integer))
+/// `self.rows[i].item`: a field follows the runtime element.
+fn row_item_module(requires: Vec<Proposition>) -> TerminalModule {
+    runtime_index_module(
+        vec![
+            StructuralPathSegment::Field("rows".into()),
+            runtime(ROW_SELECTOR, 1),
+            StructuralPathSegment::Field("item".into()),
+        ],
+        requires,
+    )
 }
 
-fn endpoint(integer: IntegerType, value: IntegerValue) -> ScalarTerm {
-    ScalarTerm::integer(integer, value).expect("the endpoint lands in its carrier")
+/// `self.grid[i][j]`: a second runtime element follows the first.
+fn grid_cell_module(requires: Vec<Proposition>) -> TerminalModule {
+    runtime_index_module(
+        vec![
+            StructuralPathSegment::Field("grid".into()),
+            runtime(ROW_SELECTOR, 1),
+            runtime(COLUMN_SELECTOR, 2),
+        ],
+        requires,
+    )
 }
 
-fn lte(left: ScalarTerm, right: ScalarTerm) -> Proposition {
-    Proposition::LessOrEqual(left, right)
+/// Discharge every reconstructed runtime-index obligation `selector < extent`
+/// from the published requirement `selector <= extent - 1`.
+fn certificates(module: &TerminalModule) -> ProofBundle {
+    let sites = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
+    let evidence = sites
+        .obligations()
+        .iter()
+        .map(|site| {
+            assert!(site.canonical_certificate);
+            let Proposition::LessThan(subject, _) = &site.obligation.proposition else {
+                panic!(
+                    "an unsigned selector's bound is index < extent: {:?}",
+                    site.obligation.proposition
+                )
+            };
+            let requirement = site
+                .requirements
+                .iter()
+                .position(|requirement| {
+                    matches!(requirement, Proposition::LessOrEqual(left, _) if left == subject)
+                })
+                .expect("the selector's published requirement");
+            ObligationEvidence {
+                obligation: site.obligation.id,
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(site.obligation.id.get()).unwrap(),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion: site.obligation.proposition.clone(),
+                        rule: ProofRule::IntegerOrderDiscreteness {
+                            relation: Box::new(ProofNode {
+                                conclusion: site.requirements[requirement].clone(),
+                                rule: ProofRule::Assumption { index: requirement },
+                            }),
+                        },
+                    },
+                }),
+            }
+        })
+        .collect();
+    ProofBundle {
+        evidence,
+        ..ProofBundle::default()
+    }
 }
 
-fn invalid_path(module: &TerminalModule) -> ModuleError {
-    match verify_module(
+/// Seed `rows[k].item.value = 10 + k` and `grid[a][b].value = 100 + 10a + b`.
+fn seeded_fields() -> Vec<TerminalStructuralScalarFieldValue> {
+    let value = |value: i128| TerminalScalarValue::Integer {
+        scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        value: IntegerValue::Signed(value),
+    };
+    let mut fields = (0..3)
+        .map(|row| TerminalStructuralScalarFieldValue {
+            argument_index: 0,
+            path: vec![
+                StructuralPathSegment::Field("rows".into()),
+                StructuralPathSegment::FixedIndex(row),
+                StructuralPathSegment::Field("item".into()),
+            ],
+            field: structural_field_id(1),
+            value: value(10 + i128::from(row)),
+        })
+        .collect::<Vec<_>>();
+    for row in 0..3 {
+        for column in 0..2 {
+            fields.push(TerminalStructuralScalarFieldValue {
+                argument_index: 0,
+                path: vec![
+                    StructuralPathSegment::Field("grid".into()),
+                    StructuralPathSegment::FixedIndex(row),
+                    StructuralPathSegment::FixedIndex(column),
+                ],
+                field: structural_field_id(1),
+                value: value(100 + 10 * i128::from(row) + i128::from(column)),
+            });
+        }
+    }
+    fields
+}
+
+/// Encode, decode and verify the artifact, then run it with the selectors.
+fn run(module: &TerminalModule, bundle: &ProofBundle, row: u64, column: u64) -> i128 {
+    let semantic = encode_module(module).unwrap();
+    assert_eq!(decode_module(&semantic).unwrap(), *module);
+    let proof = encode_proof_section(module, bundle).unwrap();
+    let selectors = [row, column].map(|value| TerminalScalarValue::Integer {
+        scalar_type: u64_type(),
+        value: IntegerValue::Unsigned(u128::from(value)),
+    });
+    let fields = seeded_fields();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &selectors,
+        TerminalStructuralInputs {
+            arguments: &[TerminalStructuralValue {
+                opaque_identity: 700,
+                structural_type: structural_type_id(OWNER),
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            scalar_fields: &fields,
+            ..Default::default()
+        },
+    )
+    .expect("the verified artifact starts");
+    match execution
+        .resume(
+            &mut TerminalFuelMeter::unbounded(),
+            &mut AcceptTerminalEffects,
+        )
+        .unwrap()
+    {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+            TerminalScalarValue::Integer {
+                value: IntegerValue::Signed(value),
+                ..
+            },
+        )) => value,
+        other => panic!("the call returns the selected element's value: {other:?}"),
+    }
+}
+
+fn rejection(module: &TerminalModule, bundle: &ProofBundle) -> VerificationError {
+    verify_module(module, bundle, &AdmissionProfile::default())
+        .expect_err("the runtime-index module rejects")
+}
+
+#[test]
+fn a_field_follows_a_runtime_element() {
+    let module = row_item_module(vec![at_most(ROW_SELECTOR, 2)]);
+    let bundle = certificates(&module);
+    verify_module(&module, &bundle, &AdmissionProfile::default()).unwrap();
+    for row in 0..3 {
+        assert_eq!(run(&module, &bundle, row, 0), 10 + i128::from(row));
+    }
+}
+
+#[test]
+fn a_runtime_element_follows_a_runtime_element() {
+    let module = grid_cell_module(vec![Proposition::Conjunction(vec![
+        at_most(ROW_SELECTOR, 2),
+        at_most(COLUMN_SELECTOR, 1),
+    ])]);
+    // One obligation per segment, each bounding its own array's extent.
+    let sites = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let mut bounds = sites
+        .obligations()
+        .iter()
+        .map(|site| (site.obligation.id, site.obligation.proposition.clone()))
+        .collect::<Vec<_>>();
+    bounds.sort_by_key(|(id, _)| *id);
+    assert_eq!(
+        bounds,
+        vec![
+            (
+                obligation_id(1),
+                Proposition::LessThan(selector(ROW_SELECTOR), literal(3))
+            ),
+            (
+                obligation_id(2),
+                Proposition::LessThan(selector(COLUMN_SELECTOR), literal(2))
+            ),
+        ]
+    );
+}
+
+#[test]
+fn nested_runtime_elements_execute_from_the_serialized_artifact() {
+    let mut module = grid_cell_module(vec![at_most(ROW_SELECTOR, 2), at_most(COLUMN_SELECTOR, 1)]);
+    module.machines[0].contract.requires.sort();
+    let bundle = certificates(&module);
+    for row in 0..3 {
+        for column in 0..2 {
+            assert_eq!(
+                run(&module, &bundle, row, column),
+                100 + 10 * i128::from(row) + i128::from(column)
+            );
+        }
+    }
+}
+
+#[test]
+fn a_bound_the_facts_do_not_prove_rejects() {
+    // `i <= 3` admits a fourth row that does not exist: the only certificate
+    // the facts support concludes `i < 4`, not the reconstructed `i < 3`.
+    let module = row_item_module(vec![at_most(ROW_SELECTOR, 3)]);
+    let sites = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    let [site] = sites.obligations() else {
+        panic!("one runtime-index obligation")
+    };
+    let overstated = ProofBundle {
+        evidence: vec![ObligationEvidence {
+            obligation: site.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(1).unwrap(),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof: ProofNode {
+                    conclusion: Proposition::LessThan(selector(ROW_SELECTOR), literal(4)),
+                    rule: ProofRule::IntegerOrderDiscreteness {
+                        relation: Box::new(ProofNode {
+                            conclusion: site.requirements[0].clone(),
+                            rule: ProofRule::Assumption { index: 0 },
+                        }),
+                    },
+                },
+            }),
+        }],
+        ..ProofBundle::default()
+    };
+    rejection(&module, &overstated);
+}
+
+#[test]
+fn a_runtime_element_without_evidence_rejects() {
+    let module = row_item_module(vec![at_most(ROW_SELECTOR, 2)]);
+    rejection(&module, &ProofBundle::default());
+}
+
+#[test]
+fn bounds_on_another_value_never_transfer() {
+    // The contract bounds the column selector; the row selector owes its own.
+    let module = row_item_module(vec![at_most(COLUMN_SELECTOR, 1)]);
+    let sites = terminal_verifier::reconstruct_terminal_obligations(&module).unwrap();
+    assert!(sites.obligations().iter().all(|site| site
+        .requirements
+        .iter()
+        .all(|requirement| !matches!(requirement, Proposition::LessOrEqual(left, _) if *left == selector(ROW_SELECTOR)))));
+    rejection(&module, &ProofBundle::default());
+}
+
+#[test]
+fn a_selector_must_be_a_defined_integer_operand() {
+    let invalid = |module: &TerminalModule| match verify_module(
         module,
         &ProofBundle::default(),
         &AdmissionProfile::default(),
     ) {
         Err(VerificationError::Module(error)) => error,
-        other => panic!("a runtime-index segment without proven bounds rejects: {other:?}"),
-    }
-}
-
-#[test]
-fn requires_conjuncts_bound_a_runtime_indexed_shared_argument() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let module = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            selector(integer),
-            endpoint(integer, IntegerValue::Unsigned(1)),
-        )],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-    );
-    assert!(
-        module.scalar_qualifications.integer_entry_ranges.is_empty(),
-        "the contract-fact channel is the only bound evidence this caller publishes"
-    );
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("a requires-bound selector verifies");
-}
-
-#[test]
-fn merged_conjunctions_fold_to_the_same_closed_interval() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    // Two authored clauses publish as one merged proposition; the fold walks
-    // the conjunction exactly like the scalar-qualification replay does.
-    let module = runtime_index_argument_module(
-        integer,
-        vec![Proposition::Conjunction(vec![
-            lte(
-                endpoint(integer, IntegerValue::Unsigned(0)),
-                selector(integer),
-            ),
-            lte(
-                selector(integer),
-                endpoint(integer, IntegerValue::Unsigned(1)),
-            ),
-        ])],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-    );
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("conjoined requires propositions bound the selector");
-}
-
-#[test]
-fn selectors_without_contract_evidence_reject() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let module = runtime_index_argument_module(
-        integer,
+        other => panic!("the selector rejects before evidence: {other:?}"),
+    };
+    // Not defined anywhere in the caller.
+    let undefined = runtime_index_module(
+        vec![
+            StructuralPathSegment::Field("rows".into()),
+            runtime(77, 1),
+            StructuralPathSegment::Field("item".into()),
+        ],
         Vec::new(),
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
     );
     assert!(matches!(
-        invalid_path(&module),
-        ModuleError::InvalidStructuralArgumentPath { .. }
+        invalid(&undefined),
+        ModuleError::ValueUsedBeforeDefinition(_)
+    ));
+    // A Boolean selects no element.
+    let mut boolean = row_item_module(Vec::new());
+    boolean.machines[0].parameters[0].scalar_type = ScalarType::Boolean;
+    assert!(matches!(
+        invalid(&boolean),
+        ModuleError::InvalidRuntimeIndex { .. }
     ));
 }
 
 #[test]
-fn bounds_on_another_parameter_never_transfer() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    // The contract bounds a second caller parameter, not the selector.
-    let mut module = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            ScalarTerm::value(value_id(41), ScalarType::Integer(integer)),
-            endpoint(integer, IntegerValue::Unsigned(1)),
-        )],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-    );
-    module.machines[0].parameters.push(ValueDeclaration {
-        qualifications: Default::default(),
-        id: value_id(41),
-        scalar_type: ScalarType::Integer(integer),
-    });
-    assert!(matches!(
-        invalid_path(&module),
-        ModuleError::InvalidStructuralArgumentPath { .. }
-    ));
-}
-
-#[test]
-fn spelled_bounds_must_equal_the_proven_interval() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    // `i <= 0` proves [0, 0]; a segment spelling [0, 1] overstates it.
-    let overstated = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            selector(integer),
-            endpoint(integer, IntegerValue::Unsigned(0)),
-        )],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
+fn only_runtime_projecting_operations_carry_a_runtime_element() {
+    // A static field store names one exact place; a runtime element in its
+    // carrier path rejects instead of being read as some element.
+    let mut module = row_item_module(vec![at_most(ROW_SELECTOR, 2)]);
+    let caller = &mut module.machines[0];
+    caller.structural_parameters[0].access = StructuralAccess::MutableBorrow;
+    caller.blocks[0].operations.insert(
+        0,
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation_id(9),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: place_id(CALLER_ROOT),
+                path: vec![
+                    StructuralPathSegment::Field("rows".into()),
+                    runtime(ROW_SELECTOR, 9),
+                    StructuralPathSegment::Field("item".into()),
+                ],
+                field: structural_field_id(1),
+                value: value_id(ROW_SELECTOR),
+                range_obligation: None,
+            },
+        },
     );
     assert!(matches!(
-        invalid_path(&overstated),
-        ModuleError::InvalidStructuralArgumentPath { .. }
-    ));
-    // `i <= 3` proves [0, 3]; a segment spelling [0, 1] understates it. The
-    // equality rule is the same one the retained roster applies.
-    let understated = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            selector(integer),
-            endpoint(integer, IntegerValue::Unsigned(3)),
-        )],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-    );
-    assert!(matches!(
-        invalid_path(&understated),
-        ModuleError::InvalidStructuralArgumentPath { .. }
-    ));
-}
-
-#[test]
-fn signed_selectors_owe_an_explicit_lower_bound() {
-    let integer = IntegerType::new(IntegerSign::Signed, 64).unwrap();
-    // A signed carrier supplies no implicit `0 <=` half: `i <= 1` alone
-    // proves no nonnegative interval.
-    let missing_lower = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            selector(integer),
-            endpoint(integer, IntegerValue::Signed(1)),
-        )],
-        IntegerValue::Signed(0),
-        IntegerValue::Signed(1),
-    );
-    assert!(matches!(
-        invalid_path(&missing_lower),
-        ModuleError::InvalidStructuralArgumentPath { .. }
-    ));
-    // With the explicit lower conjunct the same spelled bounds verify.
-    let bounded = runtime_index_argument_module(
-        integer,
-        vec![Proposition::Conjunction(vec![
-            lte(
-                endpoint(integer, IntegerValue::Signed(0)),
-                selector(integer),
-            ),
-            lte(
-                selector(integer),
-                endpoint(integer, IntegerValue::Signed(1)),
-            ),
-        ])],
-        IntegerValue::Signed(0),
-        IntegerValue::Signed(1),
-    );
-    verify_module(
-        &bounded,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("a signed selector with both conjuncts verifies");
-}
-
-#[test]
-fn retained_range_rows_still_satisfy_the_segment() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    // The roster channel keeps its own evidence rule: `0 <= i` and `i <= 3`
-    // publish as requires conjuncts backing the retained row, and an extra
-    // authored `i <= 1` narrows the folded interval below what the segment
-    // spells. The roster row remains valid evidence on its own.
-    let mut module = runtime_index_argument_module(
-        integer,
-        vec![Proposition::Conjunction(vec![
-            lte(
-                endpoint(integer, IntegerValue::Unsigned(0)),
-                selector(integer),
-            ),
-            lte(
-                selector(integer),
-                endpoint(integer, IntegerValue::Unsigned(3)),
-            ),
-            lte(
-                selector(integer),
-                endpoint(integer, IntegerValue::Unsigned(1)),
-            ),
-        ])],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(3),
-    );
-    module.scalar_qualifications.integer_entry_ranges = vec![ScalarIntegerRange {
-        machine: machine_id(1),
-        parameter: value_id(40),
-        integer_type: integer,
-        minimum: IntegerValue::Unsigned(0),
-        maximum: IntegerValue::Unsigned(3),
-    }];
-    // The maximum the segment spells must still fit the declared extent.
-    let StructuralTypeShape::FixedArray { length, .. } = &mut module.structural_types[2].shape
-    else {
-        unreachable!()
-    };
-    *length = 4;
-    verify_module(
-        &module,
-        &ProofBundle::default(),
-        &AdmissionProfile::default(),
-    )
-    .expect("a retained range row remains sufficient evidence");
-}
-
-#[test]
-fn a_runtime_index_grants_no_access_authority() {
-    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-    let mut module = runtime_index_argument_module(
-        integer,
-        vec![lte(
-            selector(integer),
-            endpoint(integer, IntegerValue::Unsigned(1)),
-        )],
-        IntegerValue::Unsigned(0),
-        IntegerValue::Unsigned(1),
-    );
-    // The segment proves bounds only; upgrading the loan still requires the
-    // caller's own mutable authority, which a shared borrow cannot supply.
-    let OperationKind::CallStructuralScalar {
-        structural_arguments,
-        ..
-    } = &mut module.machines[0].blocks[0].operations[0].kind
-    else {
-        unreachable!()
-    };
-    structural_arguments[0].access = terminal_psi::StructuralAccess::MutableBorrow;
-    assert!(
         verify_module(
             &module,
             &ProofBundle::default(),
             &AdmissionProfile::default()
-        )
-        .is_err(),
-        "a shared source cannot supply a mutable loan through a runtime index"
-    );
+        ),
+        Err(VerificationError::Module(_))
+    ));
 }

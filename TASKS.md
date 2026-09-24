@@ -1356,11 +1356,14 @@ syntax and other terminal services are not prerequisites.
 
 - **PLACED-ACCESS-NATIVE-OPS.** Extend contract-fact index derivation to remaining
   placed-access operations. Reuse
-  `ClosedScalarValueContractPlan::requires_bound_interval`, verifier
-  `selector_bounded`, native `indexed_stores.rs`, and substitution/authority
-  controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
+  `ClosedScalarValueContractPlan::requires_bound_interval`, the per-segment
+  `RuntimeIndex` obligation the verifier reconstructs
+  (`terminal_semantics::runtime_index_bound`), native `indexed_stores.rs`, and
+  the controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
   The dynamic shared receiver `cells[i].get()` still needs CML4's checked
-  argument-path admission and DOMAIN-ISSUER-ROUTES' scalar-wrapper path; follow
+  argument-path admission, DOMAIN-ISSUER-ROUTES' scalar-wrapper path, and call
+  emission that evaluates the selector and allocates its obligation (c2l's
+  `lower_structural_path` refuses a runtime segment); follow
   `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs`.
   Coordinate source fixtures with **REMOVE-BRACKETED-RANGE-ANNOTATIONS**:
   use contract/domain facts, not the revoked annotation syntax.
@@ -1959,7 +1962,8 @@ syntax and other terminal services are not prerequisites.
   and `calls/computation_arguments`, lowered structural calls, target
   `structural_call_arguments` and image `argument_custody`.
 
-  Reuse static `Field`/`FixedIndex` and bounded `RuntimeIndex` path transport.
+  Reuse static `Field`/`FixedIndex` and `RuntimeIndex { index, obligation }`
+  path transport.
   Remaining `src/tests/borrow/receiver_access.rs` pins cover local-rooted
   indexed receivers and runtime-indexed parameter receivers/explicit shared
   arguments. An unverified candidate for explicit shared dynamic-indexed arguments

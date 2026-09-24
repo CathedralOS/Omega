@@ -139,7 +139,7 @@ pub(super) fn lower_unit_entry_claims(
         entry_claims.push(EntryClaim {
             claim: id,
             input: parameter.place,
-            path: lower_structural_path(&claim.path),
+            path: lower_structural_path(&claim.path)?,
         });
         source_claims.push((claim.claim_identity, id));
     }

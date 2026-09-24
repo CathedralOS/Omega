@@ -181,6 +181,14 @@ fn drop_removed(arguments: &mut Vec<ValueId>, removed: Option<&Vec<usize>>) {
 /// False means the operand inventory is indirect and the machine is retained.
 /// The exhaustive match forces new operation variants to declare that fact.
 fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
+    // A runtime-selected element in any of the operation's projections reads
+    // its selector exactly like an operand.
+    values.extend(
+        operation
+            .runtime_indexes()
+            .into_iter()
+            .map(|(index, _)| index),
+    );
     match operation {
         // This pass never removes structural storage. A primitive read has no
         // scalar operand, but remains an observation even when its result dies.

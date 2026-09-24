@@ -72,10 +72,11 @@ pub(super) fn validate(
                 )?;
             let expected_indices = expected_indices
                 .into_iter()
-                .map(|(selector, stride)| {
-                    let parameter = usize::try_from(selector)
-                        .ok()
-                        .and_then(|position| optimized.parameters.get(position))
+                .map(|(index, stride)| {
+                    let parameter = optimized
+                        .parameters
+                        .iter()
+                        .find(|parameter| parameter.value == index)
                         .ok_or(LegalizationError::custody())?;
                     Ok::<_, LegalizationError>(legalized_operations::LegalizedRuntimeIndexOperand {
                         operand: abstract_operations::AbstractResult {

@@ -125,7 +125,7 @@ pub(crate) fn emit_boundary_scalar_return(
         entry_claims.push(EntryClaim {
             claim: id,
             input: parameter.place,
-            path: lower_structural_path(&claim.path),
+            path: lower_structural_path(&claim.path)?,
         });
         claim_bindings.push((claim.claim_identity, id));
     }

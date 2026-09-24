@@ -130,25 +130,10 @@ pub fn suspension_frontier_commitment(plan: &TerminalSuspensionCallPlan) -> [u8;
                             hash.update(start.to_le_bytes());
                             hash.update(end.to_le_bytes());
                         }
-                        StructuralPathSegment::RuntimeIndex {
-                            selector,
-                            minimum,
-                            maximum,
-                        } => {
+                        StructuralPathSegment::RuntimeIndex { index, obligation } => {
                             hash.update([5]);
-                            hash.update(selector.to_le_bytes());
-                            for endpoint in [minimum, maximum] {
-                                match endpoint {
-                                    semantic_vocabulary::IntegerValue::Signed(value) => {
-                                        hash.update([1]);
-                                        hash.update(value.to_le_bytes());
-                                    }
-                                    semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                                        hash.update([2]);
-                                        hash.update(value.to_le_bytes());
-                                    }
-                                }
-                            }
+                            hash.update(index.get().to_le_bytes());
+                            hash.update(obligation.get().to_le_bytes());
                         }
                     }
                 }

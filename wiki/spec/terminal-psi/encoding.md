@@ -802,7 +802,14 @@ bound strictly ordered.
 | 2 | FixedIndex | `u64` index |
 | 3 | Referent | none |
 | 4 | FixedByteRange | `u64` start + `u64` end |
-| 5 | RuntimeIndex | `u32` selector + integer value minimum + integer value maximum |
+| 6 | RuntimeIndex | selector value id + obligation id |
+
+`RuntimeIndex` selects one element of the fixed array its prefix resolves to
+by the runtime integer the selector value holds. The operation carrying the
+path owns the obligation; the verifier reconstructs `selector < extent` (and
+`0 <= selector` for a signed carrier) from the declared extent, so no bound is
+encoded. Tag 5 carried the retired parameter-position spelling with a restated
+interval and is refused.
 
 `FixedByteRange` retains the exact half-open byte window `[start, end)` of
 initialized fixed-array backing for one borrowed call argument. Both endpoints
