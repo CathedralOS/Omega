@@ -4340,7 +4340,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 2 | `optimizer_opt_in` | claimed elsewhere |
   | 1 | `module_machine_indices` | foreign-domain mutable recast |
   | 1 | `runtime_value_generics` | specialization identity |
-  | 1 | `package_compilation_inputs` | unresolved Call declaration selection |
+  | 1 | `package_compilation_inputs` | late-bound selection keyed on provenance |
   | 1 | `literal_dispatch_unit_plan_stops` | omission stop moved earlier |
   | 1 | `rank_remainder_endpoints` | ranked-cycle evidence mismatch |
 
@@ -4371,6 +4371,27 @@ but report the missing runtime leg explicitly; it does not close that host row.
   state-parameter conjunct shared the `&&`, and runtime ranking admission not
   recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
   attached machine, as the tail arrival its bare form was.
+
+  `package_compilation_inputs` keeps one, diagnosed: the preliminary
+  finalization allowance is keyed on SOURCE PROVENANCE, not on whether the
+  selection belongs to a dependency. `accepted_package_uefi_binding_selects_
+  exact_ordinary_schema` compiles semantic-only with std supplied as an
+  ordinary PACKAGE, and `source/library/std/targets/uefi_x86_64/handoff.omg`
+  then carries origin `User`, so `finalize_checked_authored_selections_with_
+  policy`'s `allow_unresolved_toolchain` does not cover its late-bound
+  `CheckedCall` and checking rejects with "authored Call declaration selection
+  occurrence ... remained unresolved". The same file bundled by the toolchain
+  is allowed. A targetless compile cannot resolve a UEFI handoff call either
+  way, so the test's expectation -- that a package-owned std behaves as the
+  bundled one -- is the direction the samples already take
+  (`builder.depend(Source::Path { location: ".../std" })`).
+
+  The fix needs a key that does not exist at that point: `source::SourceOrigin`
+  has only `User` and `Toolchain`, and "belongs to a dependency package" would
+  have to reach Psi's finalization. Broadening the allowance to every
+  late-bound `CheckedCall` instead would stop the gate catching an unresolved
+  call in the ROOT's own code. Owner: the selection/package-review lane, since
+  the choice is which key the allowance uses, not language surface.
 
   `module_machine_indices` keeps one: a MUTABLE RECAST TO A FOREIGN
   PACKAGE'S DOMAIN. In
