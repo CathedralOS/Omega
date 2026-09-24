@@ -21,25 +21,7 @@ use checked_trees::{
 pub(super) fn arguments(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> &[CheckedUnitStructuralArgumentPlan] {
-    match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => &[],
-    }
+    operation.call_structural_arguments()
 }
 
 pub(super) fn contains(operation: &CheckedUnitEffectOperationPlan) -> bool {

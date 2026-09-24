@@ -311,40 +311,16 @@ pub(super) fn emit(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut literal_arguments = Vec::new();
     for operation in &plan.operations {
-        let (target_machine, structural_arguments) = match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                target_machine,
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                target_machine,
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                target_machine,
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::CallUnit {
-                target_machine,
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                target_machine,
-                structural_arguments,
-                ..
-            } => (target_machine, structural_arguments),
-            _ => continue,
+        let structural_arguments = operation.call_structural_arguments();
+        let Some(target_machine) = call_target_machine(operation) else {
+            continue;
         };
         literal_arguments.extend(
             structural_arguments
                 .iter()
                 .enumerate()
                 .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
-                .map(|(index, argument)| (argument, *target_machine, index)),
+                .map(|(index, argument)| (argument, target_machine, index)),
         );
     }
     let mut literal_qualifications = Vec::new();
@@ -366,9 +342,27 @@ pub(super) fn emit(
                     ))?
                     .qualifications
                     .clone(),
-                None => UnitBody::find(plans, *target_machine)?
-                    .entry()?
-                    .structural_parameters
+                // A Unit body or a scalar callee: the same entry roster
+                // `CheckedScalarCallee` resolves for every scalar target.
+                None if UnitBody::contains(plans, *target_machine) => {
+                    UnitBody::find(plans, *target_machine)?
+                        .entry()?
+                        .structural_parameters
+                        .get(*argument_index)
+                        .ok_or(LoweringError::Unsupported(
+                            "literal call target parameter is absent",
+                        ))?
+                        .qualifications
+                        .iter()
+                        .map(|domain| lookup_domain_id(domain_ids, *domain))
+                        .collect::<Result<Vec<_>, _>>()?
+                }
+                None => {
+                    crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                        checked,
+                        *target_machine,
+                    )?
+                    .structural_parameters()
                     .get(*argument_index)
                     .ok_or(LoweringError::Unsupported(
                         "literal call target parameter is absent",
@@ -376,7 +370,8 @@ pub(super) fn emit(
                     .qualifications
                     .iter()
                     .map(|domain| lookup_domain_id(domain_ids, *domain))
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Result<Vec<_>, _>>()?
+                }
             };
             literal_qualifications.push(qualifications);
             Ok(StructuralPlaceDeclaration {
@@ -1213,37 +1208,14 @@ impl<'a> MachineEmission<'a> {
         operation: &CheckedUnitEffectOperationPlan,
         step: StepInputs,
     ) -> Result<(), LoweringError> {
-        // The literal roster preallocates the byte-sequence literals of Unit,
-        // structural and boundary call arguments in call order; a scalar
-        // call's structural operands never carry a lowered literal here.
-        let byte_places = match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            } => byte_subslices::argument_places(
-                structural_arguments,
-                &self.literal_places,
-                &mut self.next_literal_argument,
-                &self.staged_subslices[step.operation_index],
-            )?,
-            _ => Vec::new(),
-        };
+        // The literal roster preallocates the byte-sequence literals of every
+        // call's structural arguments in call order.
+        let byte_places = byte_subslices::argument_places(
+            operation.call_structural_arguments(),
+            &self.literal_places,
+            &mut self.next_literal_argument,
+            &self.staged_subslices[step.operation_index],
+        )?;
         let staged_result = self.frame(step.source_value_count).emit_call(
             operation,
             CallInputs {
@@ -1311,5 +1283,22 @@ impl<'a> MachineEmission<'a> {
                 local_places: &self.local_places,
             },
         }
+    }
+}
+
+/// The callee of an ordinary call that may carry structural arguments.
+fn call_target_machine(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<symbols::SymbolHandle> {
+    match operation {
+        CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
+            Some(*target_machine)
+        }
+        _ => None,
     }
 }
