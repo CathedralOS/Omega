@@ -1,10 +1,10 @@
-use super::{
+use crate::interpreter::evaluator::{
     Cell, EvalResult, Evaluator, FixedArrayLength, Frame, Halt, HashSet, MutableRecordProjection,
     MutableRecordProjectionStep, PrimitiveType, TypeReferenceHandle, TypeReferenceNode, Value,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
-    pub(super) fn assemble_scalar_byte_region(
+    pub(in crate::interpreter::evaluator) fn assemble_scalar_byte_region(
         &self,
         cells: &[Cell],
         offset: usize,
@@ -32,7 +32,7 @@ impl<'program> Evaluator<'program> {
         Ok(assembled)
     }
 
-    pub(super) fn write_scalar_byte_region(
+    pub(in crate::interpreter::evaluator) fn write_scalar_byte_region(
         &self,
         cells: &[Cell],
         offset: usize,
@@ -69,7 +69,7 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(super) fn write_stored_integer_byte_region(
+    pub(in crate::interpreter::evaluator) fn write_stored_integer_byte_region(
         &self,
         cells: &[Cell],
         offset: usize,
@@ -242,7 +242,7 @@ impl<'program> Evaluator<'program> {
         }))
     }
 
-    pub(super) fn assemble_record_view_type(
+    pub(in crate::interpreter::evaluator) fn assemble_record_view_type(
         &self,
         type_reference: TypeReferenceHandle,
         cells: &[Cell],
@@ -261,7 +261,7 @@ impl<'program> Evaluator<'program> {
     /// extend it into the portable semantic carrier. The layout validator has
     /// already established a positive whole-byte width through 64 bits and a
     /// total decode range; the interpreter mirrors native projection here.
-    pub(super) fn assemble_stored_integer_byte_region(
+    pub(in crate::interpreter::evaluator) fn assemble_stored_integer_byte_region(
         &self,
         cells: &[Cell],
         offset: usize,
@@ -394,7 +394,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn record_view_type_layout(
+    pub(in crate::interpreter::evaluator) fn record_view_type_layout(
         &self,
         type_reference: TypeReferenceHandle,
         visiting: &mut HashSet<String>,
@@ -589,7 +589,7 @@ impl<'program> Evaluator<'program> {
         )
     }
 
-    pub(super) fn record_view_type_projection(
+    pub(in crate::interpreter::evaluator) fn record_view_type_projection(
         &mut self,
         type_reference: TypeReferenceHandle,
         path: &[MutableRecordProjectionStep],
@@ -730,7 +730,10 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(super) fn declared_type_is_slice(&self, type_reference: TypeReferenceHandle) -> bool {
+    pub(in crate::interpreter::evaluator) fn declared_type_is_slice(
+        &self,
+        type_reference: TypeReferenceHandle,
+    ) -> bool {
         if !type_reference.is_valid() {
             return false;
         }
@@ -754,7 +757,7 @@ impl<'program> Evaluator<'program> {
     /// through its own layout, operate on those bytes through the target
     /// layout, then decode writes back through the source layout. Validation
     /// has already proved identical geometry and leaf representation sets.
-    pub(super) fn snapshot_typed_value_bytes(
+    pub(in crate::interpreter::evaluator) fn snapshot_typed_value_bytes(
         &self,
         source: &Cell,
         source_type: TypeReferenceHandle,
@@ -774,7 +777,7 @@ impl<'program> Evaluator<'program> {
         Ok(cells)
     }
 
-    pub(super) fn commit_typed_value_bytes(
+    pub(in crate::interpreter::evaluator) fn commit_typed_value_bytes(
         &self,
         source: &Cell,
         source_type: TypeReferenceHandle,
@@ -792,7 +795,7 @@ impl<'program> Evaluator<'program> {
         Ok(())
     }
 
-    pub(super) fn write_record_view_type(
+    pub(in crate::interpreter::evaluator) fn write_record_view_type(
         &self,
         type_reference: TypeReferenceHandle,
         cells: &[Cell],
@@ -927,7 +930,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn eval_recast(
+    pub(in crate::interpreter::evaluator) fn eval_recast(
         &self,
         value: Value,
         target: Option<PrimitiveType>,

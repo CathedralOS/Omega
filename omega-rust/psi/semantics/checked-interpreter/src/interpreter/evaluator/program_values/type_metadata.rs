@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, DataMember, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
     ExpressionNode, FixedArrayLength, Frame, PrimitiveType, SymbolHandle, TypeReferenceHandle,
     TypeReferenceNode, Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
@@ -8,7 +8,7 @@ impl<'program> Evaluator<'program> {
     /// any sealed mutable recast view. The target parameter receives the same
     /// view metadata under its own name instead of degrading to the source
     /// byte-array reference at the state edge.
-    pub(super) fn eval_state_argument(
+    pub(in crate::interpreter::evaluator) fn eval_state_argument(
         &mut self,
         argument: ExpressionHandle,
         destination: TypeReferenceHandle,
@@ -50,7 +50,7 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    pub(super) fn expression_type_reference(
+    pub(in crate::interpreter::evaluator) fn expression_type_reference(
         &self,
         expression: ExpressionHandle,
         frame: &Frame,
@@ -168,7 +168,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn collection_element_type(
+    pub(in crate::interpreter::evaluator) fn collection_element_type(
         &self,
         mut type_reference: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
@@ -187,7 +187,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn eval_recast_to_type(
+    pub(in crate::interpreter::evaluator) fn eval_recast_to_type(
         &self,
         value: Value,
         target_type: TypeReferenceHandle,
@@ -253,7 +253,7 @@ impl<'program> Evaluator<'program> {
     /// any doubt: a false negative keeps the signed compare (today's
     /// behavior); only DECLARED types answer true, so signed compares can
     /// never be corrupted.
-    pub(super) fn expression_is_unsigned64(
+    pub(in crate::interpreter::evaluator) fn expression_is_unsigned64(
         &self,
         expression: checked_trees::expression::ExpressionHandle,
         frame: &Frame,
@@ -276,7 +276,7 @@ impl<'program> Evaluator<'program> {
     /// landing-seam coercions alone cannot represent an expression whose own
     /// domain differs from its landing slot's (native emits the saturating
     /// ADD itself).
-    pub(super) fn expression_scalar_type(
+    pub(in crate::interpreter::evaluator) fn expression_scalar_type(
         &self,
         expression: checked_trees::expression::ExpressionHandle,
         frame: &Frame,

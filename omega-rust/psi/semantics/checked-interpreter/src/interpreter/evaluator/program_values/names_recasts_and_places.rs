@@ -1,4 +1,4 @@
-use super::{
+use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
     ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet,
     MutableRecordProjectionStep, MutableScalarRecast, PrimitiveType, SemanticFloatFormat,
@@ -9,7 +9,11 @@ use language_core::is_self_receiver;
 use language_semantics::const_value::boolean_literal_spelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 impl<'program> Evaluator<'program> {
-    pub(super) fn field_cell(&self, container: &Cell, field: &str) -> EvalResult<Cell> {
+    pub(in crate::interpreter::evaluator) fn field_cell(
+        &self,
+        container: &Cell,
+        field: &str,
+    ) -> EvalResult<Cell> {
         let container = self.deref_cell(container.clone());
         let borrowed = container.borrow();
         match &*borrowed {
@@ -53,7 +57,11 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn eval_name(&mut self, path: &TableNamePath, frame: &Frame) -> EvalResult<Value> {
+    pub(in crate::interpreter::evaluator) fn eval_name(
+        &mut self,
+        path: &TableNamePath,
+        frame: &Frame,
+    ) -> EvalResult<Value> {
         // The boolean keywords `true`/`false` can arrive as single-member name paths in
         // value/transition position (the parser does not always fold them to a literal).
         let members = self
@@ -121,7 +129,7 @@ impl<'program> Evaluator<'program> {
     /// Recognize the parser's `Mutable(Cast(RecastMutable))` initializer and
     /// retain either one equal-width scalar cell or the complete indexed byte
     /// region behind the stated scalar view.
-    pub(super) fn mutable_scalar_recast_initializer(
+    pub(in crate::interpreter::evaluator) fn mutable_scalar_recast_initializer(
         &mut self,
         initializer: ExpressionHandle,
         frame: &mut Frame,
@@ -224,7 +232,7 @@ impl<'program> Evaluator<'program> {
         )))
     }
 
-    pub(super) fn mutable_scalar_recast_target(
+    pub(in crate::interpreter::evaluator) fn mutable_scalar_recast_target(
         &self,
         target: ExpressionHandle,
         frame: &Frame,
@@ -249,7 +257,7 @@ impl<'program> Evaluator<'program> {
     /// Recover a mutable recast local and any record-field path projected from
     /// it. Typed expressions use both `Name([view, field])` and nested Member
     /// nodes, so normalize both spellings here.
-    pub(super) fn mutable_recast_path(
+    pub(in crate::interpreter::evaluator) fn mutable_recast_path(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -308,7 +316,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    pub(super) fn read_mutable_record_recast_target(
+    pub(in crate::interpreter::evaluator) fn read_mutable_record_recast_target(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -378,7 +386,7 @@ impl<'program> Evaluator<'program> {
         self.assemble_record_view_type(projection.type_reference, &cells, projection.offset)
     }
 
-    pub(super) fn write_mutable_record_recast_target(
+    pub(in crate::interpreter::evaluator) fn write_mutable_record_recast_target(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -461,7 +469,10 @@ impl<'program> Evaluator<'program> {
     }
 
     /// `Type::Variant` paths whose head is an enum/data symbol with a matching variant.
-    pub(super) fn enum_value_from_path(&self, path: &TableNamePath) -> EvalResult<Option<Value>> {
+    pub(in crate::interpreter::evaluator) fn enum_value_from_path(
+        &self,
+        path: &TableNamePath,
+    ) -> EvalResult<Option<Value>> {
         // Resolution has already selected the declaration. Display names may
         // include an importing package's alias, and same-leaf data declarations
         // are not interchangeable during evaluation.
@@ -522,7 +533,7 @@ impl<'program> Evaluator<'program> {
     // ---- place resolution ---------------------------------------------------
 
     /// Resolve an lvalue expression to its storage cell (for assignment / `&mut`).
-    pub(super) fn resolve_place(
+    pub(in crate::interpreter::evaluator) fn resolve_place(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -594,7 +605,7 @@ impl<'program> Evaluator<'program> {
     /// `Constrained` wrapper (`[i32; N] in Wrapping`) -- as opposed to a slice `&[T]`. Drives
     /// the value-copy gate: a whole-array assignment/`let` into a FixedArray place is a deep
     /// copy, while a slice is a shared view that must NOT be deep-cloned.
-    pub(super) fn declared_type_is_fixed_array(
+    pub(in crate::interpreter::evaluator) fn declared_type_is_fixed_array(
         &self,
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
@@ -617,7 +628,7 @@ impl<'program> Evaluator<'program> {
     /// True for the owned variable-fill text carrier `[u8; N] in <domain>`.
     /// This mirrors `layout`'s `BoundedByteBuffer` classification rather
     /// than treating the carrier as an always-full `[u8; N]` array.
-    pub(super) fn declared_type_is_bounded_byte_buffer(
+    pub(in crate::interpreter::evaluator) fn declared_type_is_bounded_byte_buffer(
         &self,
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
@@ -690,7 +701,7 @@ impl<'program> Evaluator<'program> {
     /// is the element's PRIMITIVE with the ARRAY's DOMAIN (`[u8;N] in Saturating`
     /// clamps its elements). `None` for a non-scalar / unresolved target, which
     /// is then left un-coerced.
-    pub(super) fn assignment_target_coercion(
+    pub(in crate::interpreter::evaluator) fn assignment_target_coercion(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -721,7 +732,7 @@ impl<'program> Evaluator<'program> {
     /// that typed slot -- the decision-17 truncate/clamp/trap for an integer, f32
     /// rounding for a float. A non-scalar value (Struct, Array, Ref, ...) passes
     /// through unchanged. Every interpreter value-landing seam funnels here.
-    pub(super) fn coerce_scalar_with(
+    pub(in crate::interpreter::evaluator) fn coerce_scalar_with(
         &self,
         value: Value,
         primitive: typed_trees::types::PrimitiveType,
@@ -751,7 +762,7 @@ impl<'program> Evaluator<'program> {
     /// and domain, then [`coerce_scalar_with`]). A non-primitive type passes through.
     /// Used where a value lands in a typed slot with the type in hand: struct/case
     /// literal FIELD init + the LocalData store (the type carries its own domain).
-    pub(super) fn coerce_scalar_value(
+    pub(in crate::interpreter::evaluator) fn coerce_scalar_value(
         &self,
         value: Value,
         type_reference: typed_trees::types::TypeReferenceHandle,
@@ -772,7 +783,7 @@ impl<'program> Evaluator<'program> {
     /// name path). Used to wrap an assigned integer to the field's declared width,
     /// matching the native backend's truncating store. Returns `None` for bare locals
     /// (whose cells carry no declared type) and non-field places.
-    pub(super) fn assignment_target_type_reference(
+    pub(in crate::interpreter::evaluator) fn assignment_target_type_reference(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
@@ -862,7 +873,7 @@ impl<'program> Evaluator<'program> {
     /// MACHINE's symbol while its fields come from the attached data (plus the
     /// machine-owned cells), so both field sources are searched. The caller
     /// derives the primitive type and arithmetic domain from the reference.
-    pub(super) fn field_type_reference(
+    pub(in crate::interpreter::evaluator) fn field_type_reference(
         &self,
         type_symbol: SymbolHandle,
         field_name: &str,
@@ -915,7 +926,7 @@ impl<'program> Evaluator<'program> {
 
     /// If a cell holds a `Ref`, return the referenced cell (so field access on a `&mut`
     /// parameter reaches the aliased place). Otherwise the cell itself.
-    pub(super) fn deref_cell(&self, cell: Cell) -> Cell {
+    pub(in crate::interpreter::evaluator) fn deref_cell(&self, cell: Cell) -> Cell {
         let inner = match &*cell.borrow() {
             Value::Ref(target) => Some(target.clone()),
             _ => None,
@@ -924,7 +935,7 @@ impl<'program> Evaluator<'program> {
     }
 
     /// Evaluate an index expression to a `usize` element index.
-    pub(super) fn eval_index(
+    pub(in crate::interpreter::evaluator) fn eval_index(
         &mut self,
         index: ExpressionHandle,
         frame: &mut Frame,
@@ -938,7 +949,11 @@ impl<'program> Evaluator<'program> {
 
     /// Resolve one element CELL of an `Array` place (sharing the same allocation, so a write
     /// through the returned cell aliases the array element).
-    pub(super) fn element_cell(&self, container: &Cell, index: usize) -> EvalResult<Cell> {
+    pub(in crate::interpreter::evaluator) fn element_cell(
+        &self,
+        container: &Cell,
+        index: usize,
+    ) -> EvalResult<Cell> {
         let container = self.deref_cell(container.clone());
         let borrowed = container.borrow();
         match &*borrowed {
@@ -954,7 +969,7 @@ impl<'program> Evaluator<'program> {
     /// collection's element cells or packed bytes. A
     /// missing start defaults to 0; a missing end to the length; `end_inclusive` extends by
     /// one.
-    pub(super) fn eval_subslice(
+    pub(in crate::interpreter::evaluator) fn eval_subslice(
         &mut self,
         collection: ExpressionHandle,
         range: &typed_trees::expression::TableRangeExpression,
