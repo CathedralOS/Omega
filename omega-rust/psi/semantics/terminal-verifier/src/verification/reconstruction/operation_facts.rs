@@ -113,7 +113,7 @@ pub(super) fn append_operation(
         return structural_case::append(module, machine, operation, axioms, operation_obligations);
     }
     if matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
-        crate::validation::scalar_array::shape(module, machine, operation)?;
+        crate::validation::scalar::array::shape(module, machine, operation)?;
         // Type and complete initialization are total validation judgments.
         // No scalar equality or extra proof authority is asserted here.
         return Ok(());

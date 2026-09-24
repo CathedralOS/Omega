@@ -67,28 +67,28 @@ pub(super) fn validate_block(
         available_structural.extend(mutable.iter().copied());
     }
     for operation in &block.operations {
-        super::super::structural_case_membership::validate_available(
+        super::super::structural::case_membership::validate_available(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::structural_leaf_copy::validate_available(
+        super::super::structural::leaf_copy::validate_available(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::byte_sequence_subslice::validate_uses(
+        super::super::byte_sequence::subslice::validate_uses(
             module,
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::element_view_establishment::validate_uses(
+        super::super::element_view::establishment::validate_uses(
             machine,
             operation,
             &available_structural,
         )?;
-        super::super::element_view_subslice::validate_uses(
+        super::super::element_view::subslice::validate_uses(
             module,
             machine,
             operation,
@@ -96,7 +96,7 @@ pub(super) fn validate_block(
         )?;
         super::super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
         super::super::record::validate_uses(module, machine, operation, &available_structural)?;
-        super::super::scalar_case::validate_uses(
+        super::super::scalar::case::validate_uses(
             module,
             machine,
             operation,
@@ -122,7 +122,7 @@ pub(super) fn validate_block(
             },
             &defined,
         )?;
-        super::super::scalar_array::validate_uses(
+        super::super::scalar::array::validate_uses(
             operation,
             scalar_array_definitions,
             &available_arrays,
@@ -234,7 +234,7 @@ pub(super) fn validate_block(
                 )?;
             }
             let source_signature =
-                super::super::structural_result_contracts::source_signature(machine, *source)
+                super::super::structural::result_contracts::source_signature(machine, *source)
                     .ok_or(ModuleError::StructuralCaseSourceUnknown {
                         machine: machine.id,
                         block: block.id,
@@ -327,8 +327,8 @@ pub(super) fn validate_block(
                     place: *source,
                 });
             }
-            if super::super::byte_sequence_subslice::borrowed_result(machine, *source).is_some()
-                || super::super::element_view_subslice::borrowed_result(machine, *source).is_some()
+            if super::super::byte_sequence::subslice::borrowed_result(machine, *source).is_some()
+                || super::super::element_view::subslice::borrowed_result(machine, *source).is_some()
                 || block_parameter
                     .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
             {

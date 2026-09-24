@@ -187,12 +187,12 @@ pub(super) fn apply_operation(
     // not retained as disposal obligations. Claim-bearing results must
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
-        && super::super::byte_sequence_subslice::borrowed_result(machine, result.place).is_none()
-        && super::super::element_view_subslice::borrowed_result(machine, result.place).is_none()
+        && super::super::byte_sequence::subslice::borrowed_result(machine, result.place).is_none()
+        && super::super::element_view::subslice::borrowed_result(machine, result.place).is_none()
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
-        && !super::super::scalar_array::plain_return_source(module, machine, result.place)
+        && !super::super::scalar::array::plain_return_source(module, machine, result.place)
         && !(result.multiplicity == StructuralMultiplicity::Unrestricted
-            && (super::super::scalar_case::plain_return_source(module, machine, result.place)
+            && (super::super::scalar::case::plain_return_source(module, machine, result.place)
                 || super::super::record::plain_return_source(module, machine, result.place)))
     {
         if frontier
@@ -251,9 +251,12 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
                 let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
                     return None;
                 };
-                super::super::structural_result_contracts::source_signature(machine, argument.place)
-                    .filter(|source| source.multiplicity != StructuralMultiplicity::Unrestricted)
-                    .map(|_| argument.place)
+                super::super::structural::result_contracts::source_signature(
+                    machine,
+                    argument.place,
+                )
+                .filter(|source| source.multiplicity != StructuralMultiplicity::Unrestricted)
+                .map(|_| argument.place)
             })
             .collect(),
 
@@ -310,7 +313,7 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
         // The repair value is consumed exactly once, like an owned call
         // argument; an unrestricted source stays live by its own rule.
         OperationKind::StoreStructuralField { value, .. } => {
-            super::super::structural_result_contracts::source_signature(machine, value.place)
+            super::super::structural::result_contracts::source_signature(machine, value.place)
                 .filter(|source| source.multiplicity != StructuralMultiplicity::Unrestricted)
                 .map(|_| value.place)
                 .into_iter()

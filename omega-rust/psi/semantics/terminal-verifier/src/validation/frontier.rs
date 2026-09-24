@@ -410,13 +410,13 @@ fn validate_owned_reads(
                 continue;
             };
             let source =
-                super::structural_result_contracts::source_signature(machine, argument.place)
+                super::structural::result_contracts::source_signature(machine, argument.place)
                     .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
             let unrestricted_parameter = source.multiplicity
                 == StructuralMultiplicity::Unrestricted
                 && (super::record::completed_source(module, machine, argument.place).is_some()
-                    || super::scalar_case::plain_return_source(module, machine, argument.place)
-                    || super::scalar_array::plain_return_source(module, machine, argument.place)
+                    || super::scalar::case::plain_return_source(module, machine, argument.place)
+                    || super::scalar::array::plain_return_source(module, machine, argument.place)
                     || machine.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
                             && parameter.access == StructuralAccess::Owned
@@ -475,7 +475,7 @@ fn validate_owned_reads(
             });
         if !borrowed
             && let Some(signature) =
-                super::structural_result_contracts::source_signature(machine, source)
+                super::structural::result_contracts::source_signature(machine, source)
             && signature.multiplicity != StructuralMultiplicity::Unrestricted
         {
             if frontier.owned_places.get(&source) != Some(&signature.multiplicity) {
@@ -545,15 +545,15 @@ fn validate_owned_reads(
         .map(|argument| argument.place)
         .chain(observation);
     for place in reads.filter(|place| {
-        super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
-            && super::element_view_subslice::borrowed_result(machine, *place).is_none()
+        super::byte_sequence::subslice::borrowed_result(machine, *place).is_none()
+            && super::element_view::subslice::borrowed_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
             // Copyable case results have no affine frontier entry. Their exact
-            // producer and dominance are checked by scalar_case::validate_uses;
+            // producer and dominance are checked by crate::validation::scalar::case::validate_uses;
             // Shared observations can accompany owned copies of the same
             // unrestricted value; neither grants mutable or projected access.
-            && !(super::scalar_case::plain_return_source(module, machine, *place)
-                && super::structural_result_contracts::source_signature(machine, *place)
+            && !(super::scalar::case::plain_return_source(module, machine, *place)
+                && super::structural::result_contracts::source_signature(machine, *place)
                     .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted)
                 && arguments.iter().any(|argument| argument.place == *place)
                 && arguments.iter().filter(|argument| argument.place == *place).all(|argument|
@@ -566,8 +566,8 @@ fn validate_owned_reads(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             })
-            && !(super::scalar_array::plain_return_source(module, machine, *place)
-                && super::structural_result_contracts::source_signature(machine, *place)
+            && !(super::scalar::array::plain_return_source(module, machine, *place)
+                && super::structural::result_contracts::source_signature(machine, *place)
                     .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted))
             && (machine.structural_places.iter().any(|declaration| {
                 declaration.id == *place
@@ -731,7 +731,7 @@ fn validate_scalar_cleanup_actions(
     // Scalar-case temporaries follow the same reverse producer order as
     // ordinary edge and Unit-return disposal, before older named roots.
     for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
-        if !super::scalar_case::plain_return_source(module, machine, place)
+        if !super::scalar::case::plain_return_source(module, machine, place)
             && super::record::completed_source(module, machine, place).is_none()
             && super::references::carrier_type(module, machine, place).is_none()
             && !frontier

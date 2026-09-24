@@ -60,10 +60,7 @@ use crate::verification::{
 mod affine_cleanup;
 mod block_views;
 mod borrowed_windows;
-mod byte_sequence_length;
-mod byte_sequence_read;
-mod byte_sequence_subslice;
-mod byte_sequence_write;
+pub(crate) mod byte_sequence;
 mod call_graph;
 mod conformance_applications;
 mod content;
@@ -71,10 +68,7 @@ mod contracts;
 mod control_flow;
 pub(crate) mod crash;
 mod dynamic_dispatch;
-mod element_view_establishment;
-mod element_view_length;
-mod element_view_read;
-mod element_view_subslice;
+pub(crate) mod element_view;
 mod error;
 mod evidence;
 mod float_meaning;
@@ -87,6 +81,8 @@ mod primitive_storage;
 mod proof_recursion;
 mod propositions;
 mod quotient_correspondence;
+pub(crate) mod scalar;
+pub(crate) mod structural;
 
 mod reach_applications;
 mod references;
@@ -94,19 +90,6 @@ pub use reach_applications::has_schema_application_in_call_closure;
 mod qualification_establishments;
 pub(crate) mod record;
 mod root_service_reach;
-pub(crate) mod scalar_array;
-mod scalar_block_invariants;
-pub(crate) mod scalar_case;
-mod scalar_qualifications;
-mod structural_byte_sequence_fields;
-mod structural_byte_sequence_store;
-pub(crate) mod structural_case;
-mod structural_case_membership;
-mod structural_leaf_copy;
-mod structural_operations;
-mod structural_qualification_rosters;
-mod structural_result_contracts;
-mod structural_scalar_fields;
 mod suspension_call_plan;
 
 use call_graph::validate_call_graph;
@@ -132,15 +115,15 @@ pub(crate) use propositions::{
     proposition_observes_write,
 };
 pub(crate) use references::{argument_owns_references, is_reference_projection};
-pub use scalar_block_invariants::scalar_block_invariant_scope;
-pub(crate) use structural_byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
-pub(crate) use structural_byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
-pub(crate) use structural_operations::{
+pub use scalar::block_invariants::scalar_block_invariant_scope;
+pub(crate) use structural::byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
+pub(crate) use structural::byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
+pub(crate) use structural::operations::{
     exact_payloadless_case_return_exits, is_runtime_indexed_borrow_path,
     structural_argument_canonical_prefix, structural_field_store_write_path,
 };
-pub(crate) use structural_scalar_fields::integer_structural_field_read_range;
-pub(crate) use structural_scalar_fields::structural_scalar_field_store_range;
+pub(crate) use structural::scalar_fields::integer_structural_field_read_range;
+pub(crate) use structural::scalar_fields::structural_scalar_field_store_range;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ValidatedTerminalModule<'module> {
@@ -966,8 +949,8 @@ fn validate_module_with_policy(
         machine::validate_machine(module, machine, &machines, &mut registry)?;
     }
     crash::validate_operation_crash_contracts(module, &machines)?;
-    scalar_qualifications::validate(module)?;
-    scalar_block_invariants::validate(module, &machines, &mut registry)?;
+    scalar::qualifications::validate(module)?;
+    scalar::block_invariants::validate(module, &machines, &mut registry)?;
     suspension_call_plan::validate_suspension_call_plans(module)?;
     validate_call_graph(module)?;
     if !registry.machines.contains(&module.entry) {
@@ -1014,7 +997,7 @@ fn validate_boolean_structural_field(
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Result<(), ModuleError> {
-    structural_scalar_fields::validate_boolean_structural_field(
+    structural::scalar_fields::validate_boolean_structural_field(
         module, machine, operation, source, path, field,
     )
 }
@@ -1225,4 +1208,4 @@ fn insert_unique<T: Ord + Copy>(
     Ok(())
 }
 
-pub(crate) use structural_byte_sequence_fields::view_length_is_current;
+pub(crate) use structural::byte_sequence_fields::view_length_is_current;

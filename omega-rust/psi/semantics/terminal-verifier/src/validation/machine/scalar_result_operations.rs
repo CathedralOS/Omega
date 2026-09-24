@@ -2,7 +2,7 @@
 //! the operand types its kind requires.
 
 use super::super::crash::substitute_crash_routes;
-use super::super::structural_operations::validate_service_reach;
+use super::super::structural::operations::validate_service_reach;
 use super::super::{
     BTreeMap, IdRegistry, MachineId, ModuleError, OperationKind, ScalarTerm, ScalarType,
     TerminalMachine, TerminalModule, insert_unique, insert_value, propositions,
@@ -50,10 +50,10 @@ pub(super) fn register_scalar_result_operation(
             }
         }
         OperationKind::StructuralByteSequenceFieldLength { .. } => {
-            super::super::structural_byte_sequence_fields::validate(module, machine, operation)?;
+            super::super::structural::byte_sequence_fields::validate(module, machine, operation)?;
         }
         OperationKind::ByteSequenceLength { source } => {
-            super::super::byte_sequence_length::validate(module, machine, operation, source)?;
+            super::super::byte_sequence::length::validate(module, machine, operation, source)?;
         }
         OperationKind::ByteSequenceRead {
             source,
@@ -61,7 +61,9 @@ pub(super) fn register_scalar_result_operation(
             obligation,
             ..
         } => {
-            super::super::byte_sequence_read::validate(module, machine, operation, source, length)?;
+            super::super::byte_sequence::read::validate(
+                module, machine, operation, source, length,
+            )?;
             insert_unique(
                 &mut registry.obligations,
                 obligation,
@@ -69,7 +71,7 @@ pub(super) fn register_scalar_result_operation(
             )?;
         }
         OperationKind::ElementViewLength { source } => {
-            super::super::element_view_length::validate(module, machine, operation, source)?;
+            super::super::element_view::length::validate(module, machine, operation, source)?;
         }
         OperationKind::ElementViewRead {
             source,
@@ -77,7 +79,7 @@ pub(super) fn register_scalar_result_operation(
             obligation,
             ..
         } => {
-            super::super::element_view_read::validate(module, machine, operation, source, length)?;
+            super::super::element_view::read::validate(module, machine, operation, source, length)?;
             insert_unique(
                 &mut registry.obligations,
                 obligation,
@@ -316,7 +318,7 @@ pub(super) fn register_scalar_result_operation(
             ref path,
             case,
         } => {
-            super::super::structural_case_membership::validate(
+            super::super::structural::case_membership::validate(
                 module, machine, operation, source, path, case,
             )?;
         }
@@ -337,7 +339,7 @@ pub(super) fn register_scalar_result_operation(
             ref path,
             field,
         } => {
-            super::super::structural_scalar_fields::validate_integer_structural_field(
+            super::super::structural::scalar_fields::validate_integer_structural_field(
                 module,
                 machine,
                 operation.id,

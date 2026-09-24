@@ -647,13 +647,13 @@ fn close_return_structural(
         .structural()
         .expect("control validation requires a structural result");
     let source_signature =
-        super::super::structural_result_contracts::source_signature(machine, *source)
+        super::super::structural::result_contracts::source_signature(machine, *source)
             .expect("control validation requires a structural source declaration");
     let plain_owned_block_return =
         super::super::block_views::plain_owned_return_source(module, machine, *source);
     let exact_unrestricted_parameter_return = source_signature.multiplicity
         == StructuralMultiplicity::Unrestricted
-        && super::super::structural_result_contracts::has_empty_qualification_rosters(
+        && super::super::structural::result_contracts::has_empty_qualification_rosters(
             source_signature.qualifications,
             source_signature.projected_qualifications,
         )
@@ -667,11 +667,11 @@ fn close_return_structural(
     // coexist, and no affine obligation or claims arise.
     let shared_view_parameter_return = source_signature.multiplicity
         == StructuralMultiplicity::Unrestricted
-        && super::super::structural_result_contracts::has_empty_qualification_rosters(
+        && super::super::structural::result_contracts::has_empty_qualification_rosters(
             source_signature.qualifications,
             source_signature.projected_qualifications,
         )
-        && super::super::structural_result_contracts::borrowed_view_shape(
+        && super::super::structural::result_contracts::borrowed_view_shape(
             module,
             source_signature.structural_type,
         )
@@ -687,10 +687,10 @@ fn close_return_structural(
     if frontier.owned_places.remove(source).is_none()
         && !exact_unrestricted_parameter_return
         && !shared_view_parameter_return
-        && !super::super::scalar_array::plain_return_source(module, machine, *source)
+        && !super::super::scalar::array::plain_return_source(module, machine, *source)
         && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
-            && (super::super::scalar_case::plain_return_source(module, machine, *source)
-                || super::super::structural_case::plain_return_source(module, machine, *source)
+            && (super::super::scalar::case::plain_return_source(module, machine, *source)
+                || super::super::structural::case::plain_return_source(module, machine, *source)
                 || super::super::record::plain_return_source(module, machine, *source)))
         && !(plain_owned_block_return
             && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
@@ -705,11 +705,11 @@ fn close_return_structural(
     // qualification establishment rows are body-internal evidence: they
     // shed at the contract edge rather than widening the declared result.
     let minted_domains =
-        super::super::structural_result_contracts::minted_source_qualification_domains(
+        super::super::structural::result_contracts::minted_source_qualification_domains(
             machine, *source,
         );
     let source_matches_result = if minted_domains.is_empty() {
-        super::super::structural_result_contracts::matches_return_source(source_signature, result)
+        super::super::structural::result_contracts::matches_return_source(source_signature, result)
     } else {
         let qualifications = source_signature
             .qualifications
@@ -723,8 +723,8 @@ fn close_return_structural(
             .filter(|projection| !minted_domains.contains(&projection.domain))
             .cloned()
             .collect::<Vec<_>>();
-        super::super::structural_result_contracts::matches_return_source(
-            super::super::structural_result_contracts::StructuralResultSignature {
+        super::super::structural::result_contracts::matches_return_source(
+            super::super::structural::result_contracts::StructuralResultSignature {
                 structural_type: source_signature.structural_type,
                 multiplicity: source_signature.multiplicity,
                 qualifications: &qualifications,
@@ -741,7 +741,7 @@ fn close_return_structural(
     }
     let exact_payloadless_claim_free_return = returned_claims.is_empty()
         && source_signature.multiplicity == StructuralMultiplicity::Unrestricted
-        && super::super::structural_result_contracts::has_empty_qualification_rosters(
+        && super::super::structural::result_contracts::has_empty_qualification_rosters(
             source_signature.qualifications,
             source_signature.projected_qualifications,
         )
@@ -761,7 +761,7 @@ fn close_return_structural(
                 (matches!(
                     &operation.kind,
                     OperationKind::EstablishScalarCase { fields, .. } if fields.is_empty()
-                ) || super::super::structural_operations::exact_payloadless_structural_call(
+                ) || super::super::structural::operations::exact_payloadless_structural_call(
                     module, operation, machines,
                 )) && operation.result.structural().is_some_and(|result| {
                     result.place == *source
@@ -774,7 +774,7 @@ fn close_return_structural(
         || exact_unrestricted_parameter_return;
     let exact_affine_parameter_return = returned_claims.is_empty()
         && source_signature.multiplicity == StructuralMultiplicity::Affine
-        && super::super::structural_result_contracts::has_empty_qualification_rosters(
+        && super::super::structural::result_contracts::has_empty_qualification_rosters(
             source_signature.qualifications,
             source_signature.projected_qualifications,
         )
@@ -796,7 +796,7 @@ fn close_return_structural(
         && machine.contract.requires.is_empty()
         && machine.contract.ensures.is_empty()
         && machine.contract.outcome_specific_ensures.is_empty()
-        && super::super::structural_result_contracts::has_plain_owned_shape(
+        && super::super::structural::result_contracts::has_plain_owned_shape(
             module,
             result.structural_type,
         );
@@ -806,13 +806,13 @@ fn close_return_structural(
         && !exact_payloadless_claim_free_return
         && !exact_affine_parameter_return
         && !plain_owned_block_return
-        && !super::super::structural_result_contracts::plain_owned_call_result(
+        && !super::super::structural::result_contracts::plain_owned_call_result(
             module, machine, *source,
         )
-        && !super::super::scalar_array::plain_return_source(module, machine, *source)
-        && !super::super::scalar_case::plain_return_source(module, machine, *source)
-        && !super::super::structural_case::plain_return_source(module, machine, *source)
-        && !super::super::structural_leaf_copy::copied_return_source(machine, *source)
+        && !super::super::scalar::array::plain_return_source(module, machine, *source)
+        && !super::super::scalar::case::plain_return_source(module, machine, *source)
+        && !super::super::structural::case::plain_return_source(module, machine, *source)
+        && !super::super::structural::leaf_copy::copied_return_source(machine, *source)
         && !super::super::record::plain_return_source(module, machine, *source))
         || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
     {

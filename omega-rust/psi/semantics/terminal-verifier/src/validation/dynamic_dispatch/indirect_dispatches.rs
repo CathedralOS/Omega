@@ -1,7 +1,7 @@
 //! The indirect dynamic dispatches and the descriptors they consume.
 
 use super::super::ModuleError;
-use super::super::structural_operations::validate_structural_arguments;
+use super::super::structural::operations::validate_structural_arguments;
 use super::{dynamic_source_type_identity, invalid_indirect_dispatch};
 use semantic_vocabulary::{MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -181,7 +181,7 @@ pub(super) fn validate_indirect_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
+            super::super::structural::operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         validate_structural_arguments(
             module,
@@ -190,7 +190,7 @@ pub(super) fn validate_indirect_dispatches(
             &realization.structural_parameters,
             dispatch.operation,
             true,
-            super::super::structural_operations::StructuralArgumentSourcePolicy::OnlyParameters,
+            super::super::structural::operations::StructuralArgumentSourcePolicy::OnlyParameters,
         )?;
         if !exact_call
             || rows != 1

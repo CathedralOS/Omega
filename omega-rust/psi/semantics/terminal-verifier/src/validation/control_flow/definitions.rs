@@ -43,10 +43,10 @@ pub(super) fn definition_sites(
     // consume bare carriers. Reuse their complete operand checks with a bare
     // namespace; direct calls instead transport their full checked signature.
     // Build this projection once per machine, not once per operation.
-    let bare_value_types = super::super::scalar_qualifications::declarations(machine)
+    let bare_value_types = super::super::scalar::qualifications::declarations(machine)
         .any(|value| !value.qualifications.is_empty())
         .then(|| {
-            super::super::scalar_qualifications::declarations(machine)
+            super::super::scalar::qualifications::declarations(machine)
                 .filter(|value| value.qualifications.is_empty())
                 .map(|value| (value.id, value.scalar_type))
                 .collect::<BTreeMap<_, _>>()
@@ -75,7 +75,7 @@ pub(super) fn definition_sites(
                 structural_definitions.insert(result.place, block.id);
             }
             if let Some(result) = operation.result.structural()
-                && super::super::scalar_array::plain_return_source(module, machine, result.place)
+                && super::super::scalar::array::plain_return_source(module, machine, result.place)
             {
                 scalar_array_definitions.insert(result.place, block.id);
             }

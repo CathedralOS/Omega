@@ -161,7 +161,7 @@ pub(crate) fn fields<'a>(
         match (&declaration.field_type, &binding.value) {
             (StructuralFieldType::Structural(expected), RecordFieldValue::Structural(argument)) => {
                 let source =
-                    super::structural_result_contracts::source_signature(machine, argument.place)
+                    super::structural::result_contracts::source_signature(machine, argument.place)
                         .ok_or_else(failure)?;
                 if argument.access != StructuralAccess::Owned
                     || !argument.path.is_empty()
