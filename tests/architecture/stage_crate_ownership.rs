@@ -502,13 +502,11 @@ fn stage_root_public_modules_have_external_consumers() {
 /// their `pub fn`s are the only root-reachable functions this audit excuses
 /// as a group. A family that gains a production caller must leave both
 /// rosters; a family the board retires must be deleted, not kept here.
-const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 37] = [
+const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 29] = [
     ("address_fold", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("arm_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("boundary_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("boundary_branch", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("bypass_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("bypass_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("commuting_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
     (
         "commuting_member_run_interchange",
@@ -523,16 +521,11 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 37] = [
     ("constant_branch", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("dead_compare", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("dead_store", "ALIAS-AWARE-MEMORY"),
-    ("diamond_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("diamond_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("edge_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("edge_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("fork_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("fork_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("inflow_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("join_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("load_forwarding", "ALIAS-AWARE-MEMORY"),
-    ("local_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("local_schedule", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("member_run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("peepholes", "DECLARATIVE-PEEPHOLES"),
@@ -543,7 +536,6 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 37] = [
     ),
     ("relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("store_motion", "ALIAS-AWARE-MEMORY"),
     ("triangle_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
 ];

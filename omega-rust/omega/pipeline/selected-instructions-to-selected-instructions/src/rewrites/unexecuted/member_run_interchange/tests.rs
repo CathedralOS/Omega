@@ -433,7 +433,7 @@ fn interchange_is_not_the_rotation_relocation_proves() {
     let environment = baseline_target_register_environment(target).unwrap();
     let source = fixture(target);
     let interchanged = interchange(&source, &environment, HEAD, MAT_C, DIFF).unwrap();
-    let relocated = crate::rewrites::unexecuted::relocate_selected_run(
+    let relocated = crate::rewrites::unexecuted::relocate_selected_member_run(
         &source,
         0,
         MAT_C,
