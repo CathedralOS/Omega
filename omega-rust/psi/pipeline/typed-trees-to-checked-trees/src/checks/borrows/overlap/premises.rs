@@ -105,6 +105,7 @@ impl PremiseScope<'_> {
     fn bound(
         &self,
         program: &typed_trees::TypedTrees,
+        lookup: &validation::ImmutableBoundLookup<'_>,
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
         match self {
@@ -182,7 +183,7 @@ impl PremiseScope<'_> {
                 } else {
                     let (actual, remaining) = guarantee.actual_projection(program, expression)?;
                     match remaining.as_slice() {
-                        [] => normalized_bound(program, actual).or_else(|| {
+                        [] => normalized_bound(program, lookup, actual).or_else(|| {
                             // An exclusive-borrow actual hands the callee the
                             // caller's storage: the operand resolves to that
                             // place's post-call contents, not an immutable
@@ -233,7 +234,7 @@ impl PremiseScope<'_> {
                                 )
                             }) =>
                         {
-                            match normalized_bound(program, actual)? {
+                            match normalized_bound(program, lookup, actual)? {
                                 // `value.first` (and deeper projections)
                                 // bind the actual's projected place;
                                 // non-identity bases stay unboundable.
@@ -250,8 +251,8 @@ impl PremiseScope<'_> {
                     }
                 }
             }
-            Self::State { .. } => normalized_bound(program, expression)
-                .or_else(|| projected_immutable_bound(program, expression)),
+            Self::State { .. } => normalized_bound(program, lookup, expression)
+                .or_else(|| projected_immutable_bound(program, lookup, expression)),
             Self::Domain {
                 definition,
                 subject,
@@ -283,12 +284,12 @@ impl PremiseScope<'_> {
                         .iter()
                         .position(|parameter| parameter.symbol == path.symbol)
                 {
-                    return normalized_bound(program, arguments[index]);
+                    return normalized_bound(program, lookup, arguments[index]);
                 }
-                normalized_bound(program, expression)
-                    .or_else(|| projected_immutable_bound(program, expression))
+                normalized_bound(program, lookup, expression)
+                    .or_else(|| projected_immutable_bound(program, lookup, expression))
                     .and_then(|bound| {
-                        propositions::substitute_bound(program, bound, parameters, arguments)
+                        propositions::substitute_bound(program, lookup, bound, parameters, arguments)
                     })
             }
         }
@@ -303,9 +304,10 @@ impl PremiseScope<'_> {
 /// applies to whole mutable names.
 fn projected_immutable_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    match super::indexes::projected_bound(program, expression)? {
+    match super::indexes::projected_bound(program, lookup, expression)? {
         bound @ NormalizedBound::Projected { .. } => Some(bound),
         _ => None,
     }
@@ -348,6 +350,7 @@ pub fn stated_ordering_premises(
     state: &State,
     incoming_guards: &IncomingGuardIndex,
 ) -> Vec<StatedOrderingPremise> {
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     let mut premises = Vec::new();
     for (fact, row) in facts.proof.contract_facts.iter() {
         if row.kind != ContractProofFactKind::Requires || row.inherited_scope.is_some() {
@@ -360,6 +363,7 @@ pub fn stated_ordering_premises(
             typed_trees::domain::ProofFact::Expression(expression) => {
                 decompose_premise_expression(
                     program,
+                    &bound_lookup,
                     PremiseScope::State { machine, state },
                     *expression,
                     false,
@@ -371,6 +375,7 @@ pub fn stated_ordering_premises(
             typed_trees::domain::ProofFact::Membership(membership) => {
                 domains::append_membership_premises(
                     program,
+                    &bound_lookup,
                     machine,
                     state,
                     fact,
@@ -381,6 +386,7 @@ pub fn stated_ordering_premises(
             typed_trees::domain::ProofFact::Proposition(application) => {
                 propositions::append_proposition_premises(
                     program,
+                    &bound_lookup,
                     machine,
                     state,
                     fact,
@@ -415,6 +421,7 @@ pub fn stated_ordering_premises(
         );
         decompose_premise_expression(
             program,
+            &bound_lookup,
             PremiseScope::State {
                 machine,
                 state: evaluation_state,
@@ -462,6 +469,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
     else {
         return;
     };
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     let contexts: Vec<_> = facts
         .flow
         .semantic_constraint_contexts(statement_flow.entry_constraints)
@@ -475,6 +483,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
         let (statement_index, call_ordinal) = guarantee.coordinates();
         decompose_premise_expression(
             program,
+            &bound_lookup,
             PremiseScope::Call {
                 guarantee: &guarantee,
                 result,
@@ -502,6 +511,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
 /// comparison cannot masquerade as integer ordering.
 fn decompose_premise_expression(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     scope: PremiseScope<'_>,
     expression: ExpressionHandle,
     negated: bool,
@@ -518,6 +528,7 @@ fn decompose_premise_expression(
     {
         decompose_premise_expression(
             program,
+            lookup,
             scope,
             unary.operand,
             !negated,
@@ -547,6 +558,7 @@ fn decompose_premise_expression(
             let equality_negated = negated ^ (binary.operator == BinaryOperator::NotEqual);
             decompose_premise_expression(
                 program,
+                lookup,
                 scope,
                 operand,
                 equality_negated == value,
@@ -561,6 +573,7 @@ fn decompose_premise_expression(
         (BinaryOperator::And, false) | (BinaryOperator::Or, true) => {
             decompose_premise_expression(
                 program,
+                lookup,
                 scope.clone(),
                 binary.left,
                 negated,
@@ -570,6 +583,7 @@ fn decompose_premise_expression(
             );
             decompose_premise_expression(
                 program,
+                lookup,
                 scope,
                 binary.right,
                 negated,
@@ -599,7 +613,7 @@ fn decompose_premise_expression(
         }
         _ => return,
     };
-    let (Some(left), Some(right)) = (scope.bound(program, left), scope.bound(program, right))
+    let (Some(left), Some(right)) = (scope.bound(program, lookup, left), scope.bound(program, lookup, right))
     else {
         return;
     };

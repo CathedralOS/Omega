@@ -674,6 +674,7 @@ fn immutable_argument_symbol(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -688,14 +689,14 @@ fn immutable_argument_symbol(
         return None;
     }
     let symbol = if let Some(normalized) =
-        validation::normalize_immutable_integer_bound_expression(program, expression)
+        validation::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
     {
         let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
             return None;
         };
         path.symbol
     } else {
-        validation::immutable_integer_bound_value_symbol(program, expression)?
+        validation::immutable_integer_bound_value_symbol(program, &bound_lookup, expression)?
     };
     immutable_integer_binding(program, state, symbol).then_some(symbol)
 }

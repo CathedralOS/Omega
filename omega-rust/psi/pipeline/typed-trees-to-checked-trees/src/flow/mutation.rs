@@ -699,6 +699,7 @@ fn normalize_write_only_range_place(
     state_symbol: SymbolHandle,
     place: &mut CanonicalPlace,
 ) {
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     // Keep ordinary borrow selectors expression-backed for certificate replay.
     // Only an admitted write-only mutation may collapse immutable copy bounds
     // into the exact caller-visible range footprint.
@@ -746,14 +747,14 @@ fn normalize_write_only_range_place(
             continue;
         };
         let start = if range.start.is_valid() {
-            validation::normalize_immutable_integer_bound_to_usize(program, range.start)
+            validation::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
         } else {
             Some(0)
         };
         let end = if !range.end.is_valid() {
             None
         } else {
-            validation::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(
+            validation::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(
                 |end| {
                     if range.end_inclusive {
                         end.checked_add(1)

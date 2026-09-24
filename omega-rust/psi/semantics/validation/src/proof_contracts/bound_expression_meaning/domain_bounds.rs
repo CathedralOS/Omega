@@ -25,6 +25,7 @@ pub fn has_exact_integer_domain_subject(
     if !has_exact_domain_definition(program, domain) {
         return false;
     }
+    let bound_lookup = crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
     let subject_type = match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             if !path.symbol.is_valid()
@@ -54,6 +55,7 @@ pub fn has_exact_integer_domain_subject(
             let Some(subject_type) =
                 crate::proof_contracts::immutable_integer_bounds::projected_integer_bound_subject_type(
                     program,
+                    &bound_lookup,
                     expression,
                 )
             else {

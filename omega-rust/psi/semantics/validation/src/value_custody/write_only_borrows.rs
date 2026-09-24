@@ -1106,6 +1106,8 @@ fn validate_write_only_fixed_array_range_assignment(
     else {
         return false;
     };
+    let bound_lookup =
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return false;
     };
@@ -1124,12 +1126,12 @@ fn validate_write_only_fixed_array_range_assignment(
     }
 
     let start = if range.start.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, range.start)
+        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
     } else {
         Some(0)
     };
     let end =
-        crate::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(|end| {
+        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(|end| {
             if range.end_inclusive {
                 end.checked_add(1)
             } else {
