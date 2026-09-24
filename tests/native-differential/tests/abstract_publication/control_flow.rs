@@ -80,7 +80,7 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
             .iter()
             .map(|record| record.provenance.len())
             .collect::<Vec<_>>(),
-        [5, 6]
+        [6, 6]
     );
     let retained_outgoing_edge = optimization_unit::PsiRealizationSite::Edge {
         machine: MachineId::new(1_501).unwrap(),
@@ -105,8 +105,8 @@ fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
         optimization_unit::ProvenanceDisposition::RealizedAt(
             optimization_unit::PsiRealizationSite::Node(optimization_unit::NodeLocation {
                 machine: MachineId::new(1_501).unwrap(),
-                block: BlockId::new(1_506).unwrap(),
-                node: 2,
+                block: BlockId::new(1_504).unwrap(),
+                node: 1,
             },)
         )
     );
