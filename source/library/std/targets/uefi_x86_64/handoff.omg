@@ -193,7 +193,7 @@ pub data UefiOsHandoffLegs {
 // `descriptor_size`/`descriptor_version` evidence or the required size. The
 // boundary lane owns the scalar-returning firmware call; the result lands on
 // `status` for the enclosing cycle's dispatch.
-uefi_x86_64 boundary machine UefiOsHandoffLegs::acquire(&mut self)
+boundary machine UefiOsHandoffLegs::acquire(&mut self)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -213,7 +213,7 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::acquire(&mut self)
 
 // Allocate the staged replacement buffer. A rejected grow leaves the retained
 // `map`/`map_pages` storage live and untouched.
-uefi_x86_64 boundary machine UefiOsHandoffLegs::grow(&mut self)
+boundary machine UefiOsHandoffLegs::grow(&mut self)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -230,7 +230,7 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::grow(&mut self)
 }
 
 // Release the superseded map storage before the grown buffer is adopted.
-uefi_x86_64 boundary machine UefiOsHandoffLegs::free_map(&mut self)
+boundary machine UefiOsHandoffLegs::free_map(&mut self)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
@@ -243,7 +243,7 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::free_map(&mut self)
 
 // The successful leg transfers custody out of Boot Services entirely; a
 // rejected exit leaves the retained evidence live for the cycle's retry.
-uefi_x86_64 boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
+boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
