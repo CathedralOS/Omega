@@ -57,7 +57,7 @@ pub(super) fn prove_contradiction(
     })
 }
 
-pub(super) fn prove_conjunction(
+pub(in super::super) fn prove_conjunction(
     goal: &Proposition,
     conjuncts: &[Proposition],
     mut prove: impl FnMut(&Proposition) -> Option<ProofNode>,
@@ -73,7 +73,7 @@ pub(super) fn prove_conjunction(
     })
 }
 
-pub(super) fn prove_disjunction(
+pub(in super::super) fn prove_disjunction(
     goal: &Proposition,
     disjuncts: &[Proposition],
     mut prove: impl FnMut(&Proposition) -> Option<ProofNode>,

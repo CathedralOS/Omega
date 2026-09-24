@@ -20,5 +20,5 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.buffer.items[3] = 70;
-    self.console.exit_process(self.buffer.items[3]);
+    self.console.exit_process(self.buffer.items[3] as i32);
 }
