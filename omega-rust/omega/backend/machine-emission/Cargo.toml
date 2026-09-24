@@ -11,15 +11,15 @@ path = "src/lib.rs"
 [dependencies]
 abstract-operations = { path = "../../representations/abstract-operations" }
 sha2 = "0.10.9"
-abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
-abstract-operations-to-abstract-operations = { path = "../../pipeline/04_abstract-operations-to-abstract-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
+abstract-operations-to-abstract-operations = { path = "../../pipeline/01_abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }
-post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/10_post-allocation-machine-to-selected-form-encoding" }
-register-homes-to-post-allocation-machine = { path = "../../pipeline/09_register-homes-to-post-allocation-machine" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/11_selected-form-encoding-to-resolved-layout" }
-resolved-layout-to-resolved-layout = { path = "../../pipeline/12_resolved-layout-to-resolved-layout" }
-selected-instructions-to-register-homes = { path = "../../pipeline/08_selected-instructions-to-register-homes" }
+post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/07_post-allocation-machine-to-selected-form-encoding" }
+register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register-homes-to-post-allocation-machine" }
+selected-form-encoding-to-resolved-layout = { path = "../../pipeline/08_selected-form-encoding-to-resolved-layout" }
+resolved-layout-to-resolved-layout = { path = "../../pipeline/09_resolved-layout-to-resolved-layout" }
+selected-instructions-to-register-homes = { path = "../../pipeline/05_selected-instructions-to-register-homes" }
 register-model = { path = "../../representations/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 optimization-core = { path = "../../representations/optimization-core" }

@@ -110,11 +110,12 @@ the complete product bar; focused successes below do not establish that baseline
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
   and `arithmetic/runtime_nested_unsigned_witness_exit` now state their
   parameter bounds as `requires` and their locals by initializer, and all
-  three run canaries pass. The rest of `f1d6e31013`, `c5688363ec` and
-  `9e3355b562` now use `requires`, data or case `where`, or initializers,
+  three run canaries pass. The rest of `f1d6e31013`, `c5688363ec`,
+  `9e3355b562`, `db4f9f9140`, `2858366bdb`, `c4d2776b1f`, `c5621e66ac` and
+  `fc0fc2dcab` now use `requires`, data or case `where`, or initializers,
   except where that form checks or runs worse than the domain did; those
-  have their pre-migration brackets back (eight of `9e3355b562`'s collection
-  run canaries among them). Data `where` facts on a field do not reach the index proof
+  have their pre-migration brackets back (8 of the 32 collection fixtures
+  and 14 of the 27 recast, layout, objc, text and struct fixtures). Data `where` facts on a field do not reach the index proof
   (`runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`), a
   call's `requires` (`runtime_mutable_call_before_transition_args_exit`), a
   literal built from another bounded field
@@ -899,7 +900,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   public ceilings are not absence proofs.
 
   Owners: `build-evaluation/src/admission/behavior_exclusions.rs`,
-  `02_checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  `compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
 
@@ -922,7 +923,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
 
   Carry exclusion envelopes through ordinary custody in
-  `06_target-operations-to-selected-instructions/src/legalization`, image emission,
+  `03_target-operations-to-selected-instructions/src/legalization`, image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
   Preserve `compiler --test build_behavior_exclusions -E 'test(sink_composition)'`:
   it covers retained native artifacts, host execution, source-free replay, and
@@ -1202,7 +1203,7 @@ syntax and other terminal services are not prerequisites.
   under [content conservation](wiki/spec/resources/content_custody.md).
   Reuse `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs`,
   Terminal frontier verification and
-  `03_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
+  `00_terminal-psi-to-abstract-operations/src/provider_installation/replay.rs`;
   normalized equations and partition lowering already exist.
 
   Replace the empty entries in `core/content_conservation_contract` and
@@ -1677,7 +1678,7 @@ syntax and other terminal services are not prerequisites.
     `narrow_i16_to_i8_exact`, whose sub-64-bit signed-to-signed
     `IntegerExactCast` lies outside `exact_cast_has_native_carriers`
     (`Selection(Legalization(SourceCustodyMismatch))` in
-    `06_target-operations-to-selected-instructions/.../nodes.rs`);
+    `03_target-operations-to-selected-instructions/.../nodes.rs`);
     `runtime_numeric_cross_signed_conversion_surface` stops at "direct scalar
     call has no matching checked crash-refinement row" (the `clamp` call
     inside the cross-signed saturating narrowings); `runtime_addr_field_exit`
@@ -2104,7 +2105,7 @@ syntax and other terminal services are not prerequisites.
   proposal validation, native lowering and image replay. Psi's
   `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
   lowering. The remaining exact single-`u64` identity/Unit recognizer is in
-  `02_checked-compilation-to-terminal-artifact/src/native_proposal/mod.rs`;
+  `compiler/terminal-artifact/src/native_proposal/mod.rs`;
   native thunk/image consumers also reject call-bearing bodies. Replace those
   shape restrictions with requirement, ABI and call-custody checking, not more
   admitted body families. Close hosted private-stack callback occupancy and
@@ -2458,13 +2459,13 @@ syntax and other terminal services are not prerequisites.
      precedence changes no native canary: the machines the state graph
      cannot take are all in checked-only fixtures, and the 14 run canaries
      whose fixtures hold one keep their status and message. It fails 73 c2l
-     and ttct tests that pin capabilities only the scalar graph has:
-     - a result guarantee (`ensures`, a closed result range) on a
-       multi-state scalar result (6 tests; 110 checked-only corpus machines,
-       mostly `terminal_psi/integer_control_contract`): the state graph
-       refuses at `scalar result guarantee`, and composed emission publishes
-       no `ensures` (`composed_control/callable.rs` sets only `requires`).
-       With the guarantee published, the counts below remain;
+     and ttct tests. The state graph now publishes a result guarantee
+     (`ensures`, a closed result range; `callable::scalar_guarantees`),
+     which 6 of them and 110 checked-only corpus machines need. Terminal
+     proves one only from facts every exit shares (`guaranteed_exit_facts`),
+     so `ensures result >= 20` over `(20)` and `(30)` exits stops lowering
+     (`a_guarantee_no_shared_exit_fact_proves_stops_lowering`). The other 67
+     pin capabilities only the scalar graph has:
      - a guarded transition with a continuation arm (the combined arm form
        `scalar_return_calls_source` replays, 26 tests):
        `CheckedStructuralControlSuccessorPlan` has no continuation flag, so a
@@ -2581,7 +2582,7 @@ syntax and other terminal services are not prerequisites.
     natural-ranks canaries run. The other four stop later:
     `runtime_dispatch_float_terminal_exit` in native legalization (the mixed
     structural-scalar ABI admits only Boolean and integer results,
-    `06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
+    `03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
     `runtime_dispatch_result_enum_case_exit` at c2l
     `expression_preparation/bindings/structural_fields` ("runtime field
     observation requires a record-only field path", a `Verdict` case result
@@ -3410,7 +3411,7 @@ syntax and other terminal services are not prerequisites.
   Crash/abort/process-exit abandonment has no cleanup successor.
   Owners: `04_typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
   and `execution/terminal_unit/cleanup/`, `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
-  and Omega's `05_abstract-operations-to-target-operations/src/lowering/`.
+  and Omega's `02_abstract-operations-to-target-operations/src/lowering/`.
 
   Bounded parameter/local/result partial moves already reach encoded Terminal
   execution. Multiple ordinary or boundary-produced projected temporaries can
@@ -3568,7 +3569,7 @@ syntax and other terminal services are not prerequisites.
     `OpenWindows::replace` (move-out, store, continuation discard of an
     affine displaced value) in both ordinary and state-graph lowering, and
     native target lowering realizes that window pair as two extent copies
-    (`05_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
+    (`02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
     It still refuses a reference-bearing field, a field of a `Mixed` parent,
     and a store whose value has no activation home (an owned parameter or
     block arrival stored directly). An empty-record local reaches native
@@ -3633,7 +3634,7 @@ syntax and other terminal services are not prerequisites.
   Remaining work:
 
   - Realize executable cleanup in the common native graph:
-    `05_abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
+    `02_abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
     rejects `InvokeNominal`. Preserve the exact receiver, hook contract,
     action order, result homes and continuation across the real call;
     no-code disposal is not a substitute. **CML4** owns residual partitions

@@ -291,18 +291,16 @@ fn psi_pipeline_directories_follow_route_order() {
 #[test]
 fn omega_pipeline_directories_follow_route_order() {
     const EXPECTED_DIRECTORIES: &[&str] = &[
-        "01_assembled-syntax-to-checked-compilation",
-        "02_checked-compilation-to-terminal-artifact",
-        "03_terminal-psi-to-abstract-operations",
-        "04_abstract-operations-to-abstract-operations",
-        "05_abstract-operations-to-target-operations",
-        "06_target-operations-to-selected-instructions",
-        "07_selected-instructions-to-selected-instructions",
-        "08_selected-instructions-to-register-homes",
-        "09_register-homes-to-post-allocation-machine",
-        "10_post-allocation-machine-to-selected-form-encoding",
-        "11_selected-form-encoding-to-resolved-layout",
-        "12_resolved-layout-to-resolved-layout",
+        "00_terminal-psi-to-abstract-operations",
+        "01_abstract-operations-to-abstract-operations",
+        "02_abstract-operations-to-target-operations",
+        "03_target-operations-to-selected-instructions",
+        "04_selected-instructions-to-selected-instructions",
+        "05_selected-instructions-to-register-homes",
+        "06_register-homes-to-post-allocation-machine",
+        "07_post-allocation-machine-to-selected-form-encoding",
+        "08_selected-form-encoding-to-resolved-layout",
+        "09_resolved-layout-to-resolved-layout",
     ];
     let mut directory_names: Vec<String> = pipeline_crates()
         .into_iter()

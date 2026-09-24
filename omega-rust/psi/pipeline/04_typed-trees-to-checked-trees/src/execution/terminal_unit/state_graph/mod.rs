@@ -114,24 +114,35 @@ pub(super) fn build_traced(
         {
             return None;
         }
-        // Emission publishes no result guarantee, so a body whose contract
-        // promises one about its result stays unadmitted rather than losing it.
+        // A result guarantee (`ensures`, a closed result range) is the
+        // machine's normal-return obligation, published on its contract and
+        // proved at its exits, exactly as for an ordinary single-state body.
+        // Only the machine signature may promise one; a later state's
+        // contract admits entry facts only. A bound guarantee
+        // (`ensures ... as name`) has no publication here.
         trace.phase("state graph: result signature: scalar result guarantee");
         if program
             .machine_contracts(machine)
             .iter()
-            .chain(
-                states
-                    .iter()
-                    .flat_map(|state| program.state_contracts(state)),
-            )
+            .chain(program.state_contracts(&states[0]))
             .any(|contract| {
                 !matches!(
                     contract.kind,
                     super::SignatureContractKind::Requires
                         | super::SignatureContractKind::Crashes { .. }
-                )
+                        | super::SignatureContractKind::Ensures
+                ) || contract.binding.is_some()
             })
+            || states[1..]
+                .iter()
+                .flat_map(|state| program.state_contracts(state))
+                .any(|contract| {
+                    !matches!(
+                        contract.kind,
+                        super::SignatureContractKind::Requires
+                            | super::SignatureContractKind::Crashes { .. }
+                    )
+                })
         {
             return None;
         }

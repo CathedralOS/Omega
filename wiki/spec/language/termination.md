@@ -141,7 +141,7 @@ callee ranking, return/cleanup, and composed resources. An ordinary outer call
 may have a frame; iterations add no frames. A standalone ranked entry or widened
 parameter count does not prove composed call support. Preserve exact projection,
 callee identity, referent, and caller-visible writes through verification and
-native replay. The [native implementation note](../../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#ranked-native-admission)
+native replay. The [native implementation note](../../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission)
 tracks that bounded entrance.
 
 ## Opaque progress profiles

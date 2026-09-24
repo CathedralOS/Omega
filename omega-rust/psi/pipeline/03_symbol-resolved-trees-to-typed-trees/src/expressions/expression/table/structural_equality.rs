@@ -83,10 +83,23 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let [argument] = self.source.expression_handles(call.arguments) else {
             return Ok(None);
         };
+        // `other: &Self` lends its operand: `a.equals(&b)` compares the same
+        // values `a == b` does, so the comparison reads the loan's referent.
+        // Comparing against the loan itself would leave the operands' types
+        // unequal, and ownership would then see the receiver as a moved value
+        // rather than an observed one.
+        let right = match self.source.expression(*argument) {
+            resolved::expression::ExpressionNode::Borrow(borrow)
+                if borrow.access == language_semantics::ReferenceAccess::Shared =>
+            {
+                borrow.target
+            }
+            _ => *argument,
+        };
         let equality = resolved::expression::TableBinaryExpression {
             left: call.receiver,
             operator: resolved::expression::BinaryOperator::Equal,
-            right: *argument,
+            right,
         };
         if let Some(lowered) = self.try_lower_structural_equality(&equality)? {
             return Ok(Some(lowered));

@@ -53,7 +53,7 @@ index → validate → per-function `lower_function` dispatch →
 post-validation. Original finding text retained below for the audit
 trail.
 
-`omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination.rs`
+`omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/coordination.rs`
 (166 lines) inlines ~100 lines of fail-closed roster validation over
 `settlements_by_boundary`, `installed_by_call`, and `boundary_calls`:
 Duplicate/Unknown/OverlapsInstalledProvider/PartialInstalledProvider/
@@ -87,13 +87,13 @@ the family to the admission owner.
 | `pass_manager/{mod,entry,execution,model,accounting}.rs` | entry owns 4 run/replay APIs; execution owns dispatch; accounting owns convergence; model owns carriers — exemplary split |
 | `native_pipeline/{mod,report}.rs` + `physical_pipeline/mod.rs` | pure sequence: selections → instruction selection → optimization → allocation → machine → realization |
 | `abstract_operation_optimization/mod.rs` | entrance + re-exports only |
-| `01_assembled-syntax-to-checked-compilation/src/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
+| `compiler/checked-compilation/src/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
 | `04_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
 | `05_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
-| `03_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
-| `08_selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
-| `02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
+| `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
+| `05_selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
+| `compiler/terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
 | `02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs` | route doc + driver; per-item translation delegated |
 | `00_source-files-to-tokens/src/lexer.rs`, `symbol-resolved-.../lowerer.rs` | the file IS the stage's mechanism (lexer state machine / per-kind lowering dispatch); not coordinators |
 | `tools/coordination.py`, `claims.py`, `landing.py` | claim/landing fence machinery; sequence-only |

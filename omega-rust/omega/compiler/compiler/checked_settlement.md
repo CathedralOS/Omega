@@ -3,7 +3,7 @@
 Psi owns [source checking](../../../../wiki/spec/language/state_contracts.md).
 This coordinator closes build/target inputs around that phase; it does not add
 target policy to the portable Terminal module. Enter
-[phase_transitions.rs](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs).
+[phase_transitions.rs](../checked-compilation/src/checking/phase_transitions.rs).
 
 [Provider selection](../../build/provider-planning/src/provider_planning/selection.rs) closes the final typed
 target roster before checking: target defaults and via bindings, candidate

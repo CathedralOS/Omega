@@ -49,7 +49,7 @@
       "item": "GENERAL-LICM",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
         "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
         "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc"
@@ -106,7 +106,7 @@
       "item": "PLAN-LAID-VIEWS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations",
+        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations",
         "omega-rust/omega/compiler/native-realization/src/native_realization/optimized_fragment_projection.rs",
         "omega-rust/omega/backend/images/image-emission/src/hosted_receiver.rs",
         "omega-rust/omega/compiler/compiler/tests/access_plans/source_access_policies.rs"
@@ -125,7 +125,7 @@
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering"
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering"
       ],
       "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",
       "host_gates": ["which mbx || which cargo"],

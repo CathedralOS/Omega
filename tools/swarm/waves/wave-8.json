@@ -55,8 +55,8 @@
       "item": "DECLARATIVE-PEEPHOLES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_folds"
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/literal_folds"
       ],
       "suggested_first_slice": "Extend the landed pair descriptors (selected_lowering/literal_fold/pair_rule.rs) to one further role \u2014 a memory-, trap-, stack-, or control-flow-carrying form is the named gap. Keep the independent validator; do not add a new rewrites/mod.rs module (owned by exact-machine-simplifications this wave)."
     },
@@ -66,13 +66,13 @@
       "item": "EXACT-MACHINE-SIMPLIFICATIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/copy_removal",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/address_folding",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_compare",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/redundant_extension",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/redundant_extension.rs"
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/copy_removal",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/address_folding",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/literal_compare",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/literal_compare.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/redundant_extension",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/redundant_extension.rs"
       ],
       "suggested_first_slice": "One new independently-verifiable family: copy removal or address folding (new dirs are yours), or left-operand literal folding inside literal_compare. You own rewrites/mod.rs this wave for family registration."
     },
@@ -82,10 +82,10 @@
       "item": "ALIAS-AWARE-MEMORY",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding.rs",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store.rs"
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store.rs"
       ],
       "suggested_first_slice": "Cross-block coverage or killers beyond the exact Store/WritePlace pair, inside the existing load_forwarding/dead_store families. rewrites/mod.rs is owned by exact-machine-simplifications this wave \u2014 if the slice needs a new top-level module, report blocked."
     },
@@ -95,10 +95,10 @@
       "item": "GENERAL-CALL-CLOBBERS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs",
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation",
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/rewrites"
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill.rs",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation",
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/rewrites"
       ],
       "suggested_first_slice": "Reload intervals that survive an intervening call, or structural-argument calls \u2014 the board names rewrites/runtime_spill.rs as the excluding seam. register-homes/src/assignment is claimed by SPILL-REALIZATION until ~06:23Z; keep writes in your owned paths."
     },
@@ -108,7 +108,7 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/phase",
         "omega-rust/omega/backend/layout"
       ],
       "suggested_first_slice": "One of red-zone policy, unwind information, stable-address loans, or dynamic-allocation constraints. machine-emission/frame_layout, representations/machine-code, and isa-* are claimed by SPILL-REALIZATION until ~06:23Z \u2014 prefer a layout-planning slice in owned paths; if nothing bounds there, report blocked."
@@ -167,7 +167,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input"
       ],
       "suggested_first_slice": "Backfill for the landed TPR6 slot. Board names the seam: extend ordinary reference preparation/receiving replay in legalization/scalar_graph_input \u2014 remaining work includes early loan closure / restored-parent uses. tests/omega/{pass,fail}/borrow(s) and tests/native-differential receiver fixtures are claimed by STRUCTURAL-BORROW-IDENTITY until ~06:16Z \u2014 prove via existing replay/crate tests in owned paths or report blocked.",
       "backfill_for": "tpr6"
@@ -334,7 +334,7 @@
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow.rs",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit",
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/control_flow"
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow"
       ],
       "suggested_first_slice": "Backfill for the blocked sample-corpus slot \u2014 its probe evidence names this item directly: print_squares' Terminal production stops at Lowering(OperationProofUnavailable(ObligationId(25))) \u2014 the guarded-exit lockstep invariant for nonzero divisor '1 <= self.place' at digit_div. Extend bounded safety/proof admission for guarded exits (qualified/partial owned custody or effectful calls) in terminal-verifier validation/control_flow so that proof class admits; preserve dominance, exact successor transfers, current-iteration guards, test-fuel suspension. flow/terminal_unit is owned by wave sibling callback-private-retry \u2014 do not touch it.",
       "backfill_for": "sample-corpus"
@@ -345,8 +345,8 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
       ],
       "suggested_first_slice": "Extend executable spill recovery: admitted uses now include body and terminator operands plus register-transport arguments on outgoing successor edges \u2014 extend recovery to one more exact class (e.g. cyclic-function block parameters or broader fixed-use composition with selected recovery rules), or extend final spill-inclusive frame demand into stack provisioning reusing the existing final-local-frame demand path. Keep WRITE-ONLY-BORROW's three-call regression as the hosted execution control; slot reuse must not double-count; stale demand must invalidate.",
       "backfill_for": "write-only-borrow",

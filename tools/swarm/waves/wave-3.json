@@ -102,7 +102,7 @@
       "item": "EXACT-MACHINE-SIMPLIFICATIONS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src",
         "omega-rust/omega/compiler/compiler/tests/optimizer_opt_in.rs"
       ],
       "suggested_first_slice": "exactly one of the five listed transformations (copy removal is the smallest), independently verifiable with its own opt-in test"

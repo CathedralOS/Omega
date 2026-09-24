@@ -69,7 +69,7 @@ artifacts (`include_str!`/`include_bytes!`).
 ## Findings
 
 - **F1 — x86 opcode detail resident in a pipeline transform.**
-  `omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
+  `omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
   pattern-matches literal x86 encoding bytes (`0x75`, `0x0F 0x85`, `0x72`,
   `0x0F 0x82`, `0x7C`, `0x0F 0x8C`) and hard-codes the rel8 window
   (`-128..=127`). The relaxation transform itself is correctly placed — the
@@ -94,7 +94,7 @@ artifacts (`include_str!`/`include_bytes!`).
   existing `DURABLE-CODEC-RELOCATION` item.
 
 - **F3 — a whole representation surface re-exported through a stage module.**
-  `omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src/plan/mod.rs:9`
+  `omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src/plan/mod.rs:9`
   carries `pub use ::physical_instructions::*` — a glob re-export that
   republishes the entire `physical-instructions` representation surface
   under the stage's `plan` namespace, against the "not public program
@@ -121,19 +121,19 @@ artifacts (`include_str!`/`include_bytes!`).
 
 ## Cataloged, not flagged
 
-- `08_selected-instructions-to-register-homes/unsequenced_spill_stages`
+- `05_selected-instructions-to-register-homes/unsequenced_spill_stages`
   (26.7k lines): honestly labeled "validated but not yet sequenced by
   register allocation" — staged transforms awaiting sequencing under the
   `SPILL-REALIZATION` board item, not misplaced ownership. The replay codecs
   inside it (`logical_spill_operations/codec`, `stack_slot_coloring/codec`)
   are transform-owned replay evidence, distinct from F2's durable manifest.
-- `04_abstract-operations-to-abstract-operations/representation_specialization`:
+- `01_abstract-operations-to-abstract-operations/representation_specialization`:
   an X-to-X pass family — correctly placed transform; the
   `REPRESENTATION-SPECIALIZATION` board item owns its remaining gaps.
 - `compiler/source-assembly/source_assembly.rs` constructor blocks
   and `build_vocabulary` (~300 lines): coordinator-scope audit F1/F2 already
   recorded them; `source/` and `frontend/` are private working state.
-- `01_assembled-syntax-to-checked-compilation/checking/compile_thread.rs`:
+- `compiler/checked-compilation/checking/compile_thread.rs`:
   the 256 MiB-stack spawn helper cataloged by the over-ownership audit —
   host infrastructure in a stage crate, relocation optional.
 - Replay-evidence codecs (`sis2sis/rewrites/allocation_recovery/fixed_view_copy/codec`,

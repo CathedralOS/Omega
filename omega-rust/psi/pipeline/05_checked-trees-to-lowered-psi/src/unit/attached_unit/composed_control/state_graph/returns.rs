@@ -31,8 +31,8 @@ pub(super) fn signature_matches(
             checked_trees::types::TypeReferenceNode::Unit
         ),
         // A primitive result carries no refinement beyond an arithmetic
-        // policy: any other one would owe a result guarantee the graph does
-        // not publish.
+        // policy or one closed integer range, which the contract publishes
+        // as a normal-return guarantee (`callable::scalar_guarantees`).
         CheckedControlResultPlan::Scalar { primitive_type } => {
             checked.primitive_type_reference(source.return_type) == Some(*primitive_type)
                 && (matches!(
@@ -43,7 +43,8 @@ pub(super) fn signature_matches(
                 ) || validation::is_arithmetic_policy_only_integer(
                     &checked.typed,
                     source.return_type,
-                ))
+                ) || validation::closed_scalar_result_range(&checked.typed, source.return_type)
+                    .is_some())
         }
         CheckedControlResultPlan::Structural(result) => {
             // A borrowed `&[T]` view result names the peeled slice carrier in

@@ -36,10 +36,10 @@ binding the exact build observation, logical paths, lengths and byte digests.
 Existing sets are checked against retained bytes, not trusted by directory name.
 Scratch never publishes, and a failed compilation returns no successful set. See
 [scoped build inputs](../../../../wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
-The [checked entrance](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs) shows the lifecycle:
-[admit and execute the build, then continue generated source](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs),
-[check selected execution](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs),
-then [seal the result against current source custody](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs).
+The [checked entrance](../checked-compilation/src/checking.rs) shows the lifecycle:
+[admit and execute the build, then continue generated source](../checked-compilation/src/checking/build_continuation.rs),
+[check selected execution](../checked-compilation/src/checking/execution_settlement.rs),
+then [seal the result against current source custody](../checked-compilation/src/checking/checked_compilation.rs).
 The result retains the selected-execution settlement intact. Clones share program
 storage until mutation; review instantiation borrow-projects table rows rather
 than clone-rebuilding scratch. Any mutation does not reseal evidence, and
@@ -91,7 +91,7 @@ Compilation produces the requested product and diagnostics. It does not construc
 or write optional JSON, HTML, text or Markdown debug dumps, disassembly reports,
 or timing files. There is no full/output-only observation policy.
 
-[Checked admission](../../pipeline/01_assembled-syntax-to-checked-compilation/src/admission/mod.rs)
+[Checked admission](../checked-compilation/src/admission/mod.rs)
 still reconstructs trust obligations, settles exact owner admissions and validates
 target/report consistency. Wire compatibility, capability validation, package
 locks and required product evidence remain mandatory. A check or retained-artifact

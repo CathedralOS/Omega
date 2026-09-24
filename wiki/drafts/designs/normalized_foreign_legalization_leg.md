@@ -17,7 +17,7 @@ and descriptor argument classes with their mirrored witnesses.
 
 The a2t admission contract is complete and witnessed. A normalized foreign
 call's structural formal is classified at
-`05_abstract-operations-to-target-operations/src/validation/structural_call_arguments.rs::normalized_foreign_call`
+`02_abstract-operations-to-target-operations/src/validation/structural_call_arguments.rs::normalized_foreign_call`
 (~:1101) against the calling policy using
 `validation/structural_shapes.rs::boundary_formal_shape` (:372):
 
@@ -39,7 +39,7 @@ call's structural formal is classified at
   already carry).
 
 a2t witnesses, all in
-`05_abstract-operations-to-target-operations/src/tests/normalized_foreign_calls.rs`:
+`02_abstract-operations-to-target-operations/src/tests/normalized_foreign_calls.rs`:
 `normalized_foreign_owned_aggregate_arguments_replay_across_native_targets`
 (:1885), `normalized_foreign_borrowed_view_descriptors_replay_whole_place_and_stored_field`
 (:1931), `normalized_foreign_owned_and_descriptor_arguments_reject_substituted_rows`
@@ -52,13 +52,13 @@ A source-produced scalar+record foreign call reaches
 `Selection(Legalization(SourceCustodyMismatch))`. Both mirrors admit only
 the borrowed single-pointer class:
 
-- `06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
+- `03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/normalized_foreign.rs::structural_argument_at`
   (:148) — requires a non-empty all-`Field` path, borrowed access,
   `Unrestricted` multiplicity, empty qualifications, and a destination of
   exactly one pointer-width integer word; `source` is always the caller
   parameter `Placement`. Owned whole-place, owned-from-call-result, and
   `BorrowedView` descriptor arguments all fail closed here.
-- `06_target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
+- `03_target-operations-to-selected-instructions/src/selection/scalar_call_abi/normalized_foreign.rs`
   — `plan_operand_views` (:43) accepts only single-word register/stack
   placements (`byte_size == shape.byte_size`), so a multi-word by-value
   aggregate or two-word descriptor destination yields no catalog row;
@@ -99,7 +99,7 @@ the borrowed single-pointer class:
    `structural_parameter_positions` stays: operand count must still equal
    plan parameters minus scalars minus the callback slot.
 4. Witnesses. Mirror the four a2t tests in
-   `06_target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`
+   `03_target-operations-to-selected-instructions/src/tests/legalization/normalized_foreign.rs`
    (borrowed flat-record precedent: `flat_record_lane_projects_source_rooted_borrow_and_replays`,
    :363) — owned whole-place replay across native targets, stored view and
    stored descriptor field replay, owned-from-call-result affine home, and

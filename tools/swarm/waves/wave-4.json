@@ -77,8 +77,8 @@
       "item": "SPILL-REALIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
       ],
       "suggested_first_slice": "Extend one returning-block runtime-spill recovery case from nonaddress u64 results through selected rewrite validation and register-home replay."
     },
@@ -88,7 +88,7 @@
       "item": "DECLARATIVE-PEEPHOLES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs",
         "omega-rust/omega/representations/optimization-core/src/selection.rs"
       ],
       "suggested_first_slice": "Extend the landed selected-lowering catalog descriptor with one symbolic instruction-pair rule while retaining its independent validator and optimization-core identity."
@@ -109,8 +109,8 @@
       "item": "STRUCTURAL-BORROW-IDENTITY",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/validation",
-        "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/tests"
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation",
+        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/tests"
       ],
       "suggested_first_slice": "Extend target signature validation and its focused tests for one projected borrowed argument/home identity while preserving BorrowedReference and rejecting substituted access shape."
     },
@@ -120,7 +120,7 @@
       "item": "WRITE-ONLY-BORROW",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input",
         "tests/native-differential/tests/terminal_psi_indexed_receivers"
       ],
       "suggested_first_slice": "Carry one projected write-only scalar receiver through scalar-graph legalization and the existing indexed-receiver native fixture, checking caller-visible mutation and read rejection."
@@ -142,7 +142,7 @@
       "item": "GENERAL-CALL-CLOBBERS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/preservation"
+        "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/preservation"
       ],
       "suggested_first_slice": "Extend the landed call-preservation witness from attached-Unit fork/join to one general scalar call while keeping clobber replay in the preservation owner."
     },

@@ -125,9 +125,15 @@ pub(in crate::unit::attached_unit) fn emit(
     )?;
     // `requires` already carries the merged closed clause proposition ahead
     // of the runtime requirements in published contract order.
-    machine.contract.requires = signatures::find(shared.signatures, plan.machine)?
-        .requires
-        .clone();
+    let signature = signatures::find(shared.signatures, plan.machine)?;
+    machine.contract.requires = signature.requires.clone();
+    machine.contract.ensures = scalar_guarantees(
+        checked,
+        plan,
+        &machine,
+        &signature.erased_scalar_parameters,
+        &mut catalogs.scalar_calls.next_call_obligation,
+    )?;
     *counters.place = catalogs.next_place;
     *counters.value = catalogs.next_value;
     *counters.block = catalogs.next_block;
@@ -135,4 +141,58 @@ pub(in crate::unit::attached_unit) fn emit(
     *counters.edge = catalogs.next_edge;
     *counters.call_obligation = catalogs.scalar_calls.next_call_obligation;
     Ok((machine, occurrences, scalar_block_invariants))
+}
+
+/// A scalar result's normal-return guarantees: the authored `ensures` and a
+/// closed result range, stated over the entry parameters and the result
+/// exactly as an ordinary single-state body publishes them
+/// (`ordinary_machine`). Publication is not proof: the closure's operation
+/// proof finalization proves each clause from the facts every exit of the
+/// graph shares (Terminal intersects the exit paths), so a guarantee that
+/// holds only per returning state stops lowering at its undischarged
+/// obligation rather than being dropped. A crash supplies neither a result
+/// nor its guarantees.
+fn scalar_guarantees(
+    checked: &CheckedTrees,
+    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
+    machine: &TerminalMachine,
+    erased: &[ValueDeclaration],
+    next_obligation: &mut u64,
+) -> Result<Vec<terminal_psi::ContractClause>, LoweringError> {
+    let terminal_psi::TerminalMachineResult::Scalar(result) = &machine.result else {
+        return Ok(Vec::new());
+    };
+    let entry = plan
+        .states
+        .first()
+        .ok_or(LoweringError::Unsupported("Unit graph has no entry state"))?;
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, entry.state)?;
+    crate::scalar_graph::scalar_contracts::validate_guarantees(checked, source, state)?;
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(plan.machine)
+        .ok_or(LoweringError::Unsupported(
+            "scalar graph result has no checked contract",
+        ))?;
+    let refined = crate::scalar_graph::scalar_contracts::with_result_range(
+        checked,
+        entry.state,
+        machine.parameters.len(),
+        &contract.closed_scalar_values,
+    )?;
+    let mut namespace = machine.parameters.clone();
+    namespace.push(*result);
+    crate::scalar_graph::scalar_contracts::clauses(refined.ensures(), &namespace, erased)?
+        .into_iter()
+        .map(|proposition| {
+            Ok(terminal_psi::ContractClause {
+                obligation: crate::terminal_identities::obligation_id(
+                    crate::terminal_identities::allocate_dense(next_obligation)?,
+                ),
+                proposition,
+            })
+        })
+        .collect()
 }

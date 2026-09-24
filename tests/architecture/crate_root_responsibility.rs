@@ -453,7 +453,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     // Omega pipeline.
     (
-        "omega/pipeline/04_abstract-operations-to-abstract-operations",
+        "omega/pipeline/01_abstract-operations-to-abstract-operations",
         &[
             "abstract_optimization",
             "analyses",
@@ -468,26 +468,11 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/05_abstract-operations-to-target-operations",
+        "omega/pipeline/02_abstract-operations-to-target-operations",
         &["lowering", "validation"],
     ),
     (
-        "omega/pipeline/01_assembled-syntax-to-checked-compilation",
-        &["admission", "checking", "optimization", "package"],
-    ),
-    (
-        "omega/pipeline/02_checked-compilation-to-terminal-artifact",
-        &[
-            "application_coverage",
-            "float_comparisons",
-            "float_fma",
-            "integer_comparisons",
-            "native_proposal",
-            "terminal_artifact",
-        ],
-    ),
-    (
-        "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
+        "omega/pipeline/07_post-allocation-machine-to-selected-form-encoding",
         &[
             "frame_address",
             "row_encoding",
@@ -496,19 +481,19 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/09_register-homes-to-post-allocation-machine",
+        "omega/pipeline/06_register-homes-to-post-allocation-machine",
         &["plan", "post_allocation_machine"],
     ),
     (
-        "omega/pipeline/12_resolved-layout-to-resolved-layout",
+        "omega/pipeline/09_resolved-layout-to-resolved-layout",
         &["phase", "x86_branch_relaxation"],
     ),
     (
-        "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/08_selected-form-encoding-to-resolved-layout",
         &["resolved_selected_form_layout"],
     ),
     (
-        "omega/pipeline/08_selected-instructions-to-register-homes",
+        "omega/pipeline/05_selected-instructions-to-register-homes",
         &[
             "assignment",
             "output",
@@ -519,11 +504,11 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/07_selected-instructions-to-selected-instructions",
+        "omega/pipeline/04_selected-instructions-to-selected-instructions",
         &["analyses", "rewrites", "selected_optimization"],
     ),
     (
-        "omega/pipeline/06_target-operations-to-selected-instructions",
+        "omega/pipeline/03_target-operations-to-selected-instructions",
         &[
             "legalization",
             "optimized",
@@ -532,7 +517,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/03_terminal-psi-to-abstract-operations",
+        "omega/pipeline/00_terminal-psi-to-abstract-operations",
         &[
             "artifact_admission",
             "lowering",

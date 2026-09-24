@@ -15,7 +15,7 @@
     "omega-rust/psi/representations/syntax-trees/src/syntax_trees/inspection/snapshot",
     "omega-rust/psi/foundation/language-semantics/src/external_bindings"
    ],
-   "suggested_first_slice": "Branch carries unpublished 47dca27142 (normalized foreign calls select through per-plan ABI constraint rosters, 181 files) on current origin/main: validate and land it via tools/landing.py BEFORE new work. Then next frontier: foreign call inside a ranked machine stops at legalization source-custody replay \u2014 06_target-operations-to-selected-instructions/src/legalization is claim-fenced this round (dev-l3-corp4, ~16:17Z); if still held, take the port_effects production-writer leg wherever it lives on the omega route, or report blocked after landing. Never git stash. cargo."
+   "suggested_first_slice": "Branch carries unpublished 47dca27142 (normalized foreign calls select through per-plan ABI constraint rosters, 181 files) on current origin/main: validate and land it via tools/landing.py BEFORE new work. Then next frontier: foreign call inside a ranked machine stops at legalization source-custody replay \u2014 03_target-operations-to-selected-instructions/src/legalization is claim-fenced this round (dev-l3-corp4, ~16:17Z); if still held, take the port_effects production-writer leg wherever it lives on the omega route, or report blocked after landing. Never git stash. cargo."
   },
   {
    "name": "crash-contract",
@@ -34,8 +34,8 @@
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_graph_lowering",
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/qualifications.rs",
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody",
-    "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/control_flow",
-    "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src",
+    "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow",
+    "omega-rust/omega/compiler/terminal-artifact/src",
     "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody",
     "omega-rust/psi/semantics/terminal-verifier/src/validation/crash",
     "omega-rust/omega/build/selected-dispatch/src",
@@ -92,14 +92,14 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "CUSTODY-MUTATION-COVERAGE",
    "owning_paths": [
-    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src",
-    "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine/src",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/optimized",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/structural_inputs",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/tests",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses",
+    "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src",
+    "omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/optimized",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/structural_inputs",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/tests",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses",
     "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests",
     "omega-rust/omega/compiler/compiler/tests/realization_custody.rs"
    ],
@@ -170,7 +170,7 @@
    "item": "BORROWED-STORAGE-RESTORATION",
    "owning_paths": [
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/retention",
-    "omega-rust/psi/pipeline/03_terminal-psi-to-abstract-operations/src",
+    "omega-rust/psi/pipeline/00_terminal-psi-to-abstract-operations/src",
     "omega-rust/psi/semantics/terminal-verifier/tests/borrowed_storage_windows.rs",
     "omega-rust/omega/representations/abstract-operations/src"
    ],
@@ -223,8 +223,8 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "EXACT-MACHINE-SIMPLIFICATIONS",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/address_fold",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/address_fold",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/literal_minuend"
    ],
    "suggested_first_slice": "Validation-independence leg: separate validation from proposal in one rewrite family \u2014 copy_removal and redundant_extension already re-derive the legality contract without the producer's admission routine; every other module's validation.rs still calls its own rewrite's admission::admit. Take ONE family (address_fold or literal_minuend): make its validation.rs reconstruct the preconditions independently, add a forged-proposal rejection to independence_tests. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/allocation_recovery, tests/ancestry_contract.rs. The Optimization-member catalog work is handoff-gated (WORKSPACE-ROLLOUT) \u2014 do not attempt it. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
@@ -234,9 +234,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
    ],
    "suggested_first_slice": "Validation-independence leg: all three modules' validation.rs call their own rewrite's admission::admit \u2014 take ONE module (load_forwarding first) and make its validator reconstruct the legality preconditions independently (the interferes/memory_accesses roster checks re-derived, not the producer's admit), with a forged-proposal rejection in independence_tests. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/allocation_recovery. The non-aliasing-premise-evidence and catalog legs are design/handoff-gated \u2014 skip them. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
@@ -247,7 +247,7 @@
    "item": "WRITE-ONLY-BORROW",
    "owning_paths": [
     "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution",
-    "omega-rust/psi/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs"
+    "omega-rust/psi/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/effects.rs"
    ],
    "suggested_first_slice": "Two options, pick the more tractable after tools/claims.py status: (a) let-held borrows as ordinary place aliases in checked execution planning (04_typed-trees-to-checked-trees/src/execution/ \u2014 borrows usable as call args or store roots beyond head-of-body receiver); (b) evaluate the parked computed-IEEE-stores slice \u2014 local branch swarm/linw2-write-only-borrow exists (~135 files unpublished per board note; check git log origin/main..swarm/linw2-write-only-borrow and decide whether a bounded sub-leg is rebaseable \u2014 do NOT try to land the whole branch). dev-l3-irange may still hold WRITE-ONLY-BORROW/integer-entry-ranges \u2014 check claims first. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1
@@ -258,7 +258,7 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "STATE-SPECIALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/state_specialization"
+    "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/state_specialization"
    ],
    "suggested_first_slice": "The wired Boolean state-argument specialization declines cyclic components, non-Boolean state arguments, conditional incoming edges, and result specialization. Take ONE bounded extension: admit a conditional incoming edge (non-unanimous dispatch) or a non-Boolean state argument family \u2014 the pass already selects by exact name and replays independently, so extend the admission + keep forged/stale edge-provenance and disabled-selection controls honest. Coordinator holds only licm/validation dirs in this crate \u2014 disjoint. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1
@@ -281,8 +281,8 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "SPILL-REALIZATION",
    "owning_paths": [
-    "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Logical-to-physical join leg: assignment/runtime_spill/recovery.rs calls sequenced_logical_operations to choose logical victims and plans operations, but the actual candidate loop still selects and rewrites victims independently \u2014 connect the retained plan to the emitted spill/reload ops (or prove the plan redundant and remove it) such that a mismatch between plan and emitted operations rejects. Preserve executable recovery + independent checking. Fenced: s2rh/src/unsequenced_spill_stages (POC-SPILL), s2rh/src/assignment (DURABLE-CODEC claims a subdir \u2014 check), s2s/rewrites/{mod.rs,module_catalog.rs,allocation_recovery}. Check tools/claims.py status and narrow to touched files. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo.",
    "layer": 1

@@ -351,7 +351,7 @@ parent access is unavailable while the loan is live. A changing traversal
 cursor can instead be an ordinary loop-carried reference parameter.
 
 This needs no receiver-rebinding syntax. General ranked-callee native composition
-remains an [implementation gap](../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#ranked-native-admission),
+remains an [implementation gap](../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission),
 not permission to copy the referent or omit the callee's ranking check.
 
 ### Stack demand

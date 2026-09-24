@@ -12,10 +12,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "compiler optimization vocabulary and checked handoff",
         paths: &[
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/mod.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/optimization/mod.rs",
             "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs",
             "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/fragments.rs",
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/optimization/checked_handoff/mod.rs",
         ],
     },
     SemanticLadder {
@@ -25,9 +25,9 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/native_product/prepared.rs",
             "omega-rust/omega/compiler/native-realization/src/native_product/admission.rs",
             "omega-rust/omega/compiler/native-realization/src/native_product/realization.rs",
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/request.rs",
-            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/tests.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/request.rs",
+            "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/tests.rs",
         ],
     },
 ];

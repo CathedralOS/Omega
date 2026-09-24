@@ -22,16 +22,16 @@ setup are not additional public program stages.
 | Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/05_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
-| Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/03_terminal-psi-to-abstract-operations/README.md) |
-| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/04_abstract-operations-to-abstract-operations/src/lib.rs) |
-| Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/05_abstract-operations-to-target-operations/README.md) |
-| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/06_target-operations-to-selected-instructions/README.md) |
-| Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/07_selected-instructions-to-selected-instructions/src/lib.rs) |
-| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/08_selected-instructions-to-register-homes/README.md) |
-| Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/09_register-homes-to-post-allocation-machine/src/lib.rs) |
-| Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
-| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/lib.rs) |
-| Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/pipeline/12_resolved-layout-to-resolved-layout/src/lib.rs) |
+| Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
+| Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/02_abstract-operations-to-target-operations/README.md) |
+| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/03_target-operations-to-selected-instructions/README.md) |
+| Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/04_selected-instructions-to-selected-instructions/src/lib.rs) |
+| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/05_selected-instructions-to-register-homes/README.md) |
+| Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) |
+| Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
+| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) |
+| Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) |
 | Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
 
@@ -46,8 +46,8 @@ typing against the retained base.
 | Input → output | Owner |
 | --- | --- |
 | Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/source-assembly/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs) |
-| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/checked-compilation/src/checking.rs) |
+| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/terminal-artifact/src/terminal_artifact.rs) |
 
 All three consume build-layer crates and are compiler preparation rather than
 Omega program stages. The layering test ranks them with the compiler that

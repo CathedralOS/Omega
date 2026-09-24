@@ -38,52 +38,52 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "abstract-operations-to-target-operations",
-            "../../pipeline/05_abstract-operations-to-target-operations",
+            "../../pipeline/02_abstract-operations-to-target-operations",
         ),
         (
             "machine-emission/Cargo.toml",
             "terminal-psi-to-abstract-operations",
-            "../../pipeline/03_terminal-psi-to-abstract-operations",
+            "../../pipeline/00_terminal-psi-to-abstract-operations",
         ),
         (
             "machine-emission/Cargo.toml",
             "abstract-operations-to-abstract-operations",
-            "../../pipeline/04_abstract-operations-to-abstract-operations",
+            "../../pipeline/01_abstract-operations-to-abstract-operations",
         ),
         (
             "machine-emission/Cargo.toml",
             "post-allocation-machine-to-selected-form-encoding",
-            "../../pipeline/10_post-allocation-machine-to-selected-form-encoding",
+            "../../pipeline/07_post-allocation-machine-to-selected-form-encoding",
         ),
         (
             "machine-emission/Cargo.toml",
             "register-homes-to-post-allocation-machine",
-            "../../pipeline/09_register-homes-to-post-allocation-machine",
+            "../../pipeline/06_register-homes-to-post-allocation-machine",
         ),
         (
             "machine-emission/Cargo.toml",
             "selected-form-encoding-to-resolved-layout",
-            "../../pipeline/11_selected-form-encoding-to-resolved-layout",
+            "../../pipeline/08_selected-form-encoding-to-resolved-layout",
         ),
         (
             "machine-emission/Cargo.toml",
             "selected-instructions-to-register-homes",
-            "../../pipeline/08_selected-instructions-to-register-homes",
+            "../../pipeline/05_selected-instructions-to-register-homes",
         ),
         (
             "machine-emission/Cargo.toml",
             "resolved-layout-to-resolved-layout",
-            "../../pipeline/12_resolved-layout-to-resolved-layout",
+            "../../pipeline/09_resolved-layout-to-resolved-layout",
         ),
         (
             "object/object-file/Cargo.toml",
             "terminal-psi-to-abstract-operations",
-            "../../../pipeline/03_terminal-psi-to-abstract-operations",
+            "../../../pipeline/00_terminal-psi-to-abstract-operations",
         ),
         (
             "artifacts/native-artifact/Cargo.toml",
             "selected-instructions-to-register-homes",
-            "../../../pipeline/08_selected-instructions-to-register-homes",
+            "../../../pipeline/05_selected-instructions-to-register-homes",
         ),
     ]);
 
@@ -312,7 +312,7 @@ fn canonical_terminal_native_route_uses_one_composition_edge() {
 fn compiler_driver_delegates_terminal_product_semantics_to_one_owner() {
     let repo_root = repo_root();
     let driver_path = repo_root.join("omega-rust/omega/compiler/compiler/src/compiler.rs");
-    let owner_path = repo_root.join("omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs");
+    let owner_path = repo_root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let owner = fs::read_to_string(&owner_path)
@@ -513,7 +513,7 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     assert!(
@@ -521,7 +521,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
         "typed-derived contract stand-downs must be captured at the ownership-moving phase boundary"
     );
 
-    let driver_path = repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs");
+    let driver_path = repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     assert!(
@@ -551,7 +551,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
 #[test]
 fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
     let repo_root = repo_root();
-    let checked_entry_path = repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs");
+    let checked_entry_path = repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/build_continuation.rs");
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
     let checked_entry = without_ascii_whitespace(&checked_entry);
@@ -616,7 +616,7 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
 fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     let transition = without_ascii_whitespace(&transition);
@@ -695,10 +695,10 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
 
     for driver_relative_path in [
         "omega-rust/omega/compiler/compiler/src/compiler.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/build_continuation.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/checked_compilation.rs",
     ] {
         let driver_path = repo_root.join(driver_relative_path);
         let driver = fs::read_to_string(&driver_path)
@@ -711,7 +711,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     }
 
     let checked_entry_path = repo_root.join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs",
     );
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));

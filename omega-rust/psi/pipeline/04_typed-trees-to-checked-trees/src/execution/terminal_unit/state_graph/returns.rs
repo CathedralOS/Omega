@@ -39,14 +39,17 @@ pub(in crate::execution::terminal_unit) fn signature(
     if let Some(primitive_type) = program.primitive_type_reference(reference) {
         // A primitive result is one returned scalar value. An arithmetic
         // policy changes later operation meaning, not the returned payload;
-        // any other refinement (a closed range, a domain) owes a result
-        // guarantee this route does not publish, so it stays unadmitted.
+        // a closed integer range is a normal-return guarantee the machine
+        // contract publishes and its exits prove. Any other refinement (a
+        // domain) owes a guarantee this route cannot state.
         let unrefined = matches!(
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. }
         );
-        return (unrefined || validation::is_arithmetic_policy_only_integer(program, reference))
-            .then_some(CheckedControlResultPlan::Scalar { primitive_type });
+        return (unrefined
+            || validation::is_arithmetic_policy_only_integer(program, reference)
+            || validation::closed_scalar_result_range(program, reference).is_some())
+        .then_some(CheckedControlResultPlan::Scalar { primitive_type });
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     let qualifications = parameter_qualifications(program, shapes, reference, &[])?;

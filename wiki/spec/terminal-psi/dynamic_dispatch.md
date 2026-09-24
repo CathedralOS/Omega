@@ -198,7 +198,7 @@ access and write visibility. Store emission followed by a successful dynamic
 call is insufficient unless the caller's original referent reflects the writes.
 
 Current source and native subsets are described beside
-[Terminal-to-abstract lowering](../../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#dynamic-dispatch).
+[Terminal-to-abstract lowering](../../../omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/README.md#dynamic-dispatch).
 They are implementation limits, not additional source semantics.
 
 ## Resource and component boundary
