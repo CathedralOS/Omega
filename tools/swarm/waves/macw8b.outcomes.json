@@ -1,0 +1,73 @@
+{
+  "wave": "macw8b",
+  "host": "local",
+  "drained": "2026-09-23",
+  "base_at_launch": "04d2099ae1",
+  "slots": [
+    {
+      "slot": "coordinator",
+      "item": "RC-NATIVE-MATRIX-MACOS-ARM64",
+      "result": "landed",
+      "commits": ["d639d1fc5a", "b69876fe55"],
+      "item_closed": false,
+      "note": "all three gates now measured on the matching host: native-differential 1140/18 (@0e64720850, prior), source-semantics 2014/1267 and samples_compile 11/22 (@04d2099ae1, this slot, 6.3h); 1215-name failure list + dominant classes in wiki/drafts/measurements/macos_arm64_rc_gates.md; second commit is the wave board sweep; row stays open — no lane record without a passing native-execution observation"
+    },
+    {
+      "slot": "rep-specialization",
+      "item": "REPRESENTATION-SPECIALIZATION",
+      "result": "landed",
+      "commits": ["92856482da", "ca85e84578"],
+      "item_closed": false,
+      "note": "two legs: field-value proofs descend through stored-whole structural children, then producer-less places reseat through uniform bound_place block-parameter bindings with mirrored replay; a real completeness gap closed (dynamic-call/descriptor selection sources now scanned); frontier is array-element descent plus the discovered EstablishRecord reachability bound (no sum/array children transitively)"
+    },
+    {
+      "slot": "benchmarks",
+      "item": "BENCHMARKS",
+      "result": "landed",
+      "commits": ["1faad72412", "58283cc937"],
+      "item_closed": false,
+      "note": "two legs: standalone x4 bound targets + prime_counter macos_arm64 run row and linux_x86_64 compile leg, then structural_proofs x3 + non-applicable rows + wrapping_square_sum refresh; dependent subjects now blocked on the source/library/std carrier-qualified case migration (272 diagnostics from 7b9dce26d7), not the harness; settle_package_review multi-target review-line gap recorded on notes"
+    },
+    {
+      "slot": "terminal-authority",
+      "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+      "result": "wip",
+      "commits": [],
+      "wip_branch": "swarm/macw8b-terminal-authority@7f856f6d43",
+      "item_closed": false,
+      "note": "leg 1 produced a complete direct-syscall-transport blueprint (LinuxSyscallX86_64/Aarch64 reuse, demand-driven settlement, per-arity constraint rows, DirectSyscallRealization, ToolchainSettled); leg 2 began implementing provider settlement + boundary lowering — 20 files +496/-60 checkpointed unvalidated when the rate limiter killed the handle"
+    },
+    {
+      "slot": "arithmetic-policy",
+      "item": "ARITHMETIC-POLICY-REALIZATION",
+      "result": "landed",
+      "commits": ["9085ca9132"],
+      "item_closed": false,
+      "note": "wrapping conversions realized from masked halves for every fixed-integer sign/width pair (wrapping_cast.rs, serialized-Terminal execution coverage); coordinated around zergling-z5's crate-wide claim via notes + documented --allow-overlap exception; saturating conversions and trapping sites remain"
+    },
+    {
+      "slot": "psiir-fuel",
+      "item": "PSIIR",
+      "result": "landed",
+      "commits": ["310b1ca4ba", "3f797950ea"],
+      "item_closed": false,
+      "note": "two legs: unbounded-rank cycles report UnboundedCycleComponent{component, UnboundedRank} with Unranked/InvalidRankedScc revisit precision, then parameter_requires_bound derives ceilings through conjunctive requires relation graphs (relaxation + deterministic justification path binding relevant_preconditions); disjunctive ceilings, IntegerMath clauses, guard/path-fact bounds and wait/foreign causes remain"
+    },
+    {
+      "slot": "range-annotations",
+      "item": "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
+      "result": "landed",
+      "commits": ["b9b68383c9"],
+      "item_closed": false,
+      "note": "35-fixture corpus leg migrated off the suffix across pass/fail range/ranges/borrow/borrows with probe-verified replacement routes and a ~172-site Range consumer inventory on notes; ~1300 suffix sites remain across other groups/source-library/samples/bootstrap before the parser arm deletes; three requires-admission gaps recorded"
+    }
+  ],
+  "friction": [
+    "shared model rate limiter mass-killed all six handles mid-wave — but every 'death' was a post-completion report failure; resuming the same handles collected real landed outcomes instead of lost work, and the three dirty worktrees were WIP-committed (b479c0b3d0, 68f36016cd, 36a665151b) and folded into the lands",
+    "two phantom coordinator episodes: a dead local session left six macw8-* claims (released, no artifacts), then an off-machine coordinator re-claimed macw8-* items mid-launch — macw8b partitioned on disjoint items rather than racing the fence",
+    "claims tickets (240-min leases) expired mid-run — agents' fences lapsed while they still worked; zergling-z5 claimed checked-trees-to-lowered-psi wholesale under arithmetic-policy's live slot; improvement candidate: renew leases on checkpoint or use longer leases for long-running slots",
+    "host disk hit 100% mid-validation (208Mi free); mbx gc recovered ~1GiB; the seven worktree target/ dirs are the standing pressure — drain worktree removal freed ~16GiB",
+    "fill.py plan took minutes while seven worktrees carried target/ dirs (worktree_status.collect stats each); fast again after removal — bounding the scan or skipping ignored dirs is a candidate improvement",
+    "corpus_gate saw first live worker use: rep-specialization ran --filter and surfaced 3 moves attributable to golden drift from landed syntax/diagnostic changes — scheduled golden re-record remains the maintenance path"
+  ]
+}
