@@ -1,0 +1,82 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-23T23:57:06Z",
+  "subject": {
+    "name": "structural_proofs",
+    "root": "samples/cli/proofs/structural_proofs/main.omg",
+    "source_revision": "35842c2ab7937af3775837953659bb35bfc85a64"
+  },
+  "key": {
+    "target": "linux_arm64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M2 Max",
+    "logical_cpus": 12,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        25923.1885,
+        25929.755291999998,
+        26069.894958999994
+      ],
+      "median_ms": 25929.755291999998,
+      "min_ms": 25923.1885,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 36.184,
+        "compile: sources -> requested product": 25934.319,
+        "publish: retained product -> published product": 90.189,
+        "Stage 01: SourceFiles -> TokenStreams": 8.485,
+        "Stage 02: TokenStreams -> SyntaxTrees": 6.678,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 132.722,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 24.853,
+        "Stage 05: TypedTrees -> CheckedTrees": 20735.819,
+        "total elapsed": 26061.596
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 123387904,
+      "run_max_rss": null
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192,
+        8192,
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "skipped",
+      "unit": "ms",
+      "samples": [],
+      "median_ms": null,
+      "min_ms": null,
+      "exit_codes": [],
+      "exit_code_expected": null,
+      "stdin": "devnull",
+      "reason": "--no-run was passed"
+    }
+  },
+  "notes": [
+    "compile-only proof subject measured from macOS arm64 host; proof machines emit no runtime code so the leg stays --no-run on every target"
+  ]
+}

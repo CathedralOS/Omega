@@ -53,6 +53,7 @@ when this block drifts.
 | Target | Host leg | Subject | Selection | compile_time_ms | peak_memory_bytes | code_size_bytes | runtime_ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | linux_arm64 | darwin arm64 | standalone | default | measured 49613.5 ms | measured 119750656 B compile | measured 8192 B | skipped (--no-run was passed) |
+| linux_arm64 | darwin arm64 | structural_proofs | default | measured 25929.8 ms | measured 123387904 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_arm64 | linux x86_64 | wrapping_square_sum | default | measured 28129.6 ms | measured 150441984 B compile | measured 8192 B | skipped (--no-run was passed) |
 | linux_x86_64 | linux x86_64 | cli_mvp | default | measured 1.68124e+06 ms | measured 246046720 B compile | measured 8192 B | measured 1.93834 ms |
 | linux_x86_64 | linux x86_64 | cli_mvp | sel-885944b13b84 | measured 1.22939e+06 ms | measured 248938496 B compile | measured 8192 B | measured 1.36314 ms |
@@ -71,14 +72,18 @@ when this block drifts.
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-bacb0af6ca52 | measured 32416.8 ms | measured 156332032 B compile | measured 8192 B | measured 4.61253 ms |
 | macos_arm64 | darwin arm64 | prime_counter | default | measured 896376 ms | measured 247644160 B compile | measured 16640 B | measured 6.41542 ms |
 | macos_arm64 | darwin arm64 | standalone | default | measured 38553.9 ms | measured 120684544 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_arm64 | darwin arm64 | structural_proofs | default | measured 23487.6 ms | measured 123912192 B compile | measured 16640 B | skipped (--no-run was passed) |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
-| macos_arm64 | darwin arm64 | wrapping_square_sum | sel-44c60ac57c66 | measured 19725.2 ms | measured 123535360 B compile | measured 16640 B | measured 2.8475 ms |
+| macos_arm64 | darwin arm64 | wrapping_square_sum | sel-44c60ac57c66 | measured 21863.9 ms | measured 126173184 B compile | measured 16640 B | measured 5.40896 ms |
 | macos_x86_64 | darwin arm64 | standalone | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
+| macos_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | macOS x86-64 host | — | — | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) | unavailable (native realization pending; see MACOS-X64-HOST-PROFILE) |
 | windows_x86_64 | darwin arm64 | standalone | default | measured 56606.8 ms | measured 111902720 B compile | measured 1024 B | skipped (--no-run was passed) |
+| windows_x86_64 | darwin arm64 | structural_proofs | default | measured 21449.6 ms | measured 116834304 B compile | measured 1024 B | skipped (--no-run was passed) |
 | windows_x86_64 | linux x86_64 | wrapping_square_sum | default | measured 24117.5 ms | measured 147505152 B compile | measured 1024 B | skipped (--no-run was passed) |
 | uefi_x86_64 | darwin arm64 | standalone | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
+| uefi_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `uefi_x86_64::ProgramEntry`) |
 | uefi_x86_64 | QEMU or UEFI hardware | — | — | measurable | pending (run leg needs a UEFI runtime) | measurable | unavailable (needs QEMU or UEFI hardware) |
 | cross_platform_cli | build host | — | — | measurable | measurable | measurable | pending build host |
