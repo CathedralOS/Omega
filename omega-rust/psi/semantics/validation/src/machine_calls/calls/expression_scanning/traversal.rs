@@ -509,7 +509,7 @@ fn scan_expression_calls_at_position(
         );
         if !diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.to_string().contains(&message))
+            .any(|diagnostic| diagnostic.message.contains(&message))
         {
             diagnostics.push(Diagnostic::error(message));
         }
