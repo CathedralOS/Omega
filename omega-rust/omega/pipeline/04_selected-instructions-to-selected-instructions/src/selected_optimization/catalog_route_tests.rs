@@ -8,10 +8,7 @@
 
 use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
 
-use crate::{
-    ORDERED_SELECTED_LOWERING_RULES, SELECTED_LOWERING_RULE_CATALOG,
-    resolve_selected_lowering_rules,
-};
+use crate::{SELECTED_LOWERING_RULE_CATALOG, resolve_selected_lowering_rules};
 
 fn selected_lowering_variants() -> Vec<Optimization> {
     Optimization::ALL
@@ -42,7 +39,9 @@ fn every_selected_lowering_variant_owns_exactly_one_catalog_row() {
 #[test]
 fn catalog_route_order_matches_the_phase_vocabulary() {
     assert_eq!(
-        ORDERED_SELECTED_LOWERING_RULES.as_slice(),
+        SELECTED_LOWERING_RULE_CATALOG
+            .map(|entry| entry.optimization())
+            .as_slice(),
         selected_lowering_variants()
     );
 }

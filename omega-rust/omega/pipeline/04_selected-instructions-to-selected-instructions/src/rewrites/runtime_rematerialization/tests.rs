@@ -1,8 +1,8 @@
 mod independence_tests;
 
 use super::Arc;
+use super::RuntimeRematerializationReceipt;
 use crate::RuntimeRematerializationError;
-use crate::RuntimeRematerializationReceipt;
 use crate::ValidatedRuntimeRematerialization;
 use crate::rematerialize_selected_runtime_value;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};

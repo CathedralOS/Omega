@@ -82,11 +82,9 @@ mod tests {
     };
     use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
+    use super::super::LiteralFoldDecodeError;
     use crate::rewrites::literal_fold_identity;
-    use crate::{
-        FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldPlan,
-        LiteralFoldPolicy,
-    };
+    use crate::{FunctionLiteralFold, LiteralFoldAction, LiteralFoldPlan, LiteralFoldPolicy};
     use register_homes::{
         AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
         SpillChoiceIdentity,

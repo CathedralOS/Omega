@@ -88,9 +88,9 @@ pub(crate) fn encode_terminal_pressure_rematerialization_content(
 
 #[cfg(test)]
 mod tests {
+    use super::super::PressureRematerializationDecodeError;
     use crate::FunctionPressureRematerialization;
     use crate::PressureRematerializationAction;
-    use crate::PressureRematerializationDecodeError;
     use crate::PressureRematerializationPlan;
     use crate::PressureRematerializationPolicy;
     use crate::PressureRematerializationRewrite;

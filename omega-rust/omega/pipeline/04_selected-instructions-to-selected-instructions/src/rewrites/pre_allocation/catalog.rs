@@ -44,12 +44,6 @@ pub const PRE_ALLOCATION_RULE_CATALOG: [PreAllocationRuleCatalogEntry; 2] = [
     ),
 ];
 
-/// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_PRE_ALLOCATION_RULES: [Optimization; 2] = [
-    PRE_ALLOCATION_RULE_CATALOG[0].optimization(),
-    PRE_ALLOCATION_RULE_CATALOG[1].optimization(),
-];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreAllocationRuleCatalogError {
     WrongPhase(OptimizationPhaseMismatch),

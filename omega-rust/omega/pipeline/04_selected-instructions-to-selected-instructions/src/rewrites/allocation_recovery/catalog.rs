@@ -32,12 +32,6 @@ pub const ALLOCATION_RECOVERY_RULE_CATALOG: [AllocationRecoveryRuleCatalogEntry;
     ),
 ];
 
-/// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_ALLOCATION_RECOVERY_RULES: [Optimization; 2] = [
-    ALLOCATION_RECOVERY_RULE_CATALOG[0].optimization(),
-    ALLOCATION_RECOVERY_RULE_CATALOG[1].optimization(),
-];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocationRecoveryRuleCatalogError {
     WrongPhase(OptimizationPhaseMismatch),

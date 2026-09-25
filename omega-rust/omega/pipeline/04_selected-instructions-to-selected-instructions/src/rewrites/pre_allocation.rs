@@ -19,8 +19,8 @@ use super::catalog::selected_stage_catalog_contains;
 use crate::StagedOptimizedAllocationLegality;
 
 pub use catalog::{
-    ORDERED_PRE_ALLOCATION_RULES, PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry,
-    PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
+    PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
+    PreAllocationRuleCatalogPayload,
 };
 pub use execution::validate_pre_allocation_optimization_custody;
 pub use model::{

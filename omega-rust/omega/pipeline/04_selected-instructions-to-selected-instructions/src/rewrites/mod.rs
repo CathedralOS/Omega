@@ -44,13 +44,12 @@ pub(crate) use allocation_recovery::pressure_rematerialization_identity;
 pub use allocation_recovery::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, FixedViewCopy,
-    FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence, FixedViewCopyValidationReceipt,
-    FunctionPressureRematerialization, ORDERED_ALLOCATION_RECOVERY_RULES,
-    PressureRematerializationAction, PressureRematerializationDecodeError,
-    PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
-    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
-    ValidatedFixedViewCopies, ValidatedPressureRematerialization, fixed_view_copy_identity,
+    FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, FixedViewCopyValidationReceipt, FunctionPressureRematerialization,
+    PressureRematerializationAction, PressureRematerializationError, PressureRematerializationPlan,
+    PressureRematerializationPolicy, PressureRematerializationRewrite,
+    PressureRematerializationValidationReceipt, ValidatedFixedViewCopies,
+    ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident, selected_allocation_recovery_rule,
     validate_fixed_view_copies, validate_pressure_rematerialization,
 };
@@ -61,7 +60,7 @@ pub use catalog::{
 };
 #[allow(unused_imports)]
 pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
-pub use copy_removal::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
+pub use copy_removal::{CopyRemovalError, ValidatedCopyRemoval};
 pub(crate) use copy_removal::{
     measured_steps as copy_removal_measured_steps, remove_selected_copy,
 };
@@ -95,30 +94,27 @@ pub use literal_folds::{
 #[cfg(any(test, feature = "test-support"))]
 pub use pre_allocation::PreAllocationOptimizationCustodyFieldForTest;
 pub use pre_allocation::{
-    ORDERED_PRE_ALLOCATION_RULES, OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG,
-    PreAllocationPolicy, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
-    PreAllocationRuleCatalogPayload, PreAllocationTransformationIdentity,
-    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
-    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
-    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
-    ValidatedPreAllocationTransformation, resolve_pre_allocation_rules,
-    run_pre_allocation_optimizations, validate_pre_allocation_optimization_custody,
+    OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy,
+    PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError, PreAllocationRuleCatalogPayload,
+    PreAllocationTransformationIdentity, StagedOptimizedPreAllocationAttempt,
+    StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
+    StagedOptimizedPreAllocationStep, StagedPreAllocationOptimizationCustodyReceipt,
+    StagedPreAllocationOptimizationRun, ValidatedPreAllocationTransformation,
+    resolve_pre_allocation_rules, run_pre_allocation_optimizations,
+    validate_pre_allocation_optimization_custody,
 };
-pub use redundant_extension::{
-    RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
-};
+pub use redundant_extension::{RedundantExtensionError, ValidatedRedundantExtension};
 pub(crate) use redundant_extension::{
     measured_steps as redundant_extension_measured_steps, remove_selected_redundant_extension,
 };
 pub use runtime_rematerialization::{
-    RuntimeRematerializationError, RuntimeRematerializationReceipt,
-    ValidatedRuntimeRematerialization, rematerialize_selected_runtime_value,
-    validate_runtime_rematerialization,
+    RuntimeRematerializationError, ValidatedRuntimeRematerialization,
+    rematerialize_selected_runtime_value, validate_runtime_rematerialization,
 };
 pub use runtime_spill::{
-    RuntimeSpillError, RuntimeSpillReceipt, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
-    validate_runtime_spill, validate_runtime_spill_with_span_policy,
+    RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_span_policy, validate_runtime_spill,
+    validate_runtime_spill_with_span_policy,
 };
 pub(crate) use selected_lowering::enabled_pair_rules;
 pub(crate) use selected_lowering::fold_selected_incoming_literal;
@@ -128,12 +124,11 @@ pub(crate) use selected_lowering::literal_fold_identity;
 #[allow(unused_imports)]
 pub(crate) use selected_lowering::validate_literal_fold;
 pub use selected_lowering::{
-    FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldError,
-    LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy, LiteralFoldValidationReceipt,
-    ORDERED_SELECTED_LOWERING_RULES, PairConsumerBindingAdmission, PairFaultDischarge,
-    PairImmediateBound, PairLiteralPosition, PairMachineEffects, PairNonUnitSurface,
-    PairOperandResult, PairOperandShape, PairResultDisposition, PairTailCustody,
-    PairUnitDefRelation, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan,
+    LiteralFoldPolicy, LiteralFoldValidationReceipt, PairConsumerBindingAdmission,
+    PairFaultDischarge, PairImmediateBound, PairLiteralPosition, PairMachineEffects,
+    PairNonUnitSurface, PairOperandResult, PairOperandShape, PairResultDisposition,
+    PairTailCustody, PairUnitDefRelation, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
     SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
     SelectedLoweringRuleCatalogError, SelectedLoweringRuleCatalogPayload, ValidatedLiteralFold,
     resolve_selected_lowering_rules,
