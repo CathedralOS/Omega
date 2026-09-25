@@ -201,7 +201,14 @@ impl Fixture {
         }
     }
 
+    /// The single origin a demand proves, or `None` when it proves none or
+    /// when the routes disagree — `query_all` is what reads a disagreeing set.
     fn query(&self, subject: ProgressSubject) -> Option<ProgressSubject> {
+        let mut subjects = self.query_all(subject)?;
+        (subjects.len() == 1).then(|| subjects.pop()).flatten()
+    }
+
+    fn query_all(&self, subject: ProgressSubject) -> Option<Vec<ProgressSubject>> {
         let machine = self
             .program
             .machines()
@@ -951,8 +958,8 @@ fn control_flow_route_helper_result_proves_when_every_arm_agrees() {
     );
 }
 
-/// A call result whose callee routes through a transition cannot name one
-/// input; the premise stays unproven rather than borrowing a same-shaped
+/// A call result whose callee routes disagree names no SINGLE input, so the
+/// single-origin query still declines it rather than borrowing a same-shaped
 /// operand.
 #[test]
 fn control_flow_route_helper_result_stays_unproven() {
@@ -963,6 +970,27 @@ fn control_flow_route_helper_result_stays_unproven() {
         "machine choose(former: &Context, latter: &Context, flag: bool) -> SchedulerHandle { transition flag { true -> former.scheduler false -> latter.scheduler } }",
     );
     assert_eq!(fixture.query(fixture.subject("saved", &[])), None);
+}
+
+/// Those routes are each exact, though, so the result descends from one of
+/// them and the demand holds only if it holds for BOTH. The set is what the
+/// premise lineage conjoins, one premise per subject; the arms map to the
+/// caller's own arguments in argument order.
+#[test]
+fn control_flow_route_helper_result_carries_every_disagreeing_arm() {
+    let fixture = Fixture::with_machines(
+        "let saved: SchedulerHandle = choose(replacement, context, true);",
+        "saved",
+        &[],
+        "machine choose(former: &Context, latter: &Context, flag: bool) -> SchedulerHandle { transition flag { true -> former.scheduler false -> latter.scheduler } }",
+    );
+    assert_eq!(
+        fixture.query_all(fixture.subject("saved", &[])),
+        Some(vec![
+            fixture.subject("replacement", &[("Context", "scheduler")]),
+            fixture.subject("context", &[("Context", "scheduler")]),
+        ])
+    );
 }
 
 /// A premise on `self` binds the call's receiver: when that receiver is

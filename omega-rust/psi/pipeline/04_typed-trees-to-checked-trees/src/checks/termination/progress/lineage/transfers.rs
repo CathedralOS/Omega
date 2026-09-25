@@ -52,7 +52,11 @@ pub(super) fn collect(
                         subject
                             .projections
                             .extend_from_slice(&destination.projections);
-                        crate::checks::termination::progress::origins::at_call(
+                        // A transfer names ONE source. Routes that disagree
+                        // have no single one, so the transfer stays unknown
+                        // exactly as it did before they were enumerated; the
+                        // summary path is what carries the whole set.
+                        let mut subjects = crate::checks::termination::progress::origins::at_call(
                             program,
                             flow,
                             machine,
@@ -60,7 +64,8 @@ pub(super) fn collect(
                             call,
                             subject,
                             call_frames,
-                        )
+                        )?;
+                        (subjects.len() == 1).then(|| subjects.pop()).flatten()
                     }),
                 });
             }
