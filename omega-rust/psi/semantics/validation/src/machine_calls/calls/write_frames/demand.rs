@@ -71,6 +71,10 @@ pub struct CallFrameResolver<'program> {
     /// site with a single O(statements) walk per state.
     state_write_collections:
         Mutex<HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>>,
+    /// The shared-accumulator flavor of the same collection, serving
+    /// `ReferenceBefore` boundaries.
+    state_write_shared_collections:
+        Mutex<HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>>,
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
@@ -177,6 +181,7 @@ impl<'program> CallFrameResolver<'program> {
                     &self.symbols,
                     statement,
                     local,
+                    &self.state_write_shared_collections,
                 )
                 .map(|source| (source.root, source.segments))
             },
@@ -200,6 +205,7 @@ impl<'program> CallFrameResolver<'program> {
                     machine,
                     &self.symbols,
                     CallerWriteSite::Expression(expression),
+                    &self.state_write_shared_collections,
                 )
                 .is_some()
             },
@@ -216,6 +222,7 @@ impl<'program> CallFrameResolver<'program> {
                     machine,
                     &self.symbols,
                     CallerWriteSite::Call(call),
+                    &self.state_write_shared_collections,
                 )
                 .is_some()
             },
@@ -317,6 +324,7 @@ impl<'program> CallFrameResolver<'program> {
             assignment_frames: Mutex::new(HashMap::new()),
             local_write_origins: Mutex::new(HashMap::new()),
             state_write_collections: Mutex::new(HashMap::new()),
+            state_write_shared_collections: Mutex::new(HashMap::new()),
             expression_frames: Mutex::new(HashMap::new()),
             statement_value_frames: Mutex::new(HashMap::new()),
             inferred_state_frames: Mutex::new(HashMap::new()),
@@ -381,6 +389,7 @@ impl<'program> CallFrameResolver<'program> {
                     current_machine,
                     &self.symbols,
                     CallerWriteSite::Call(call),
+                    &self.state_write_collections,
                     |inference, prefix| {
                         let arguments = self
                             .program
@@ -545,6 +554,7 @@ impl<'program> CallFrameResolver<'program> {
             current_machine,
             &self.symbols,
             CallerWriteSite::Expression(expression),
+            &self.state_write_collections,
             |inference, prefix| {
                 let mut written = Vec::new();
                 self.with_complete_state_summaries(|complete_state_summaries| {
@@ -639,6 +649,7 @@ impl<'program> CallFrameResolver<'program> {
             current_machine,
             &self.symbols,
             CallerWriteSite::Statement(statement),
+            &self.state_write_collections,
             |inference, prefix| {
                 let mut written = Vec::new();
                 self.with_complete_state_summaries(|complete_state_summaries| {
