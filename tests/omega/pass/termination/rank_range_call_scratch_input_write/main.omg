@@ -8,8 +8,10 @@ machine Main::main(&mut self) -> u64 {
     transition { _ -> self.scan_a(0, 4, 0) }
 }
 
-machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4], mut count: u64)
-requires index <= limit;
+machine Main::scan_a(&mut self, index: u64, limit: u64, mut count: u64)
+requires
+    index <= 4 && limit <= 4;
+    index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     count = index;
@@ -19,8 +21,10 @@ terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
     }
 }
 
-machine Main::scan_b(&mut self, index: u64 [0..=4], limit: u64 [0..=4], count: u64)
-requires index <= limit;
+machine Main::scan_b(&mut self, index: u64, limit: u64, count: u64)
+requires
+    index <= 4 && limit <= 4;
+    index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     transition index < limit {

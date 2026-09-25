@@ -8,14 +8,18 @@ machine Main::main(&mut self) -> u64 {
     transition { _ -> self.walk(5, 1) }
 }
 
-machine Main::walk(&mut self, remaining: u64 [0..=5], step: u64 [1..=2])
+machine Main::walk(&mut self, remaining: u64, step: u64)
 terminates by remaining in 0..=5;
--> u64 {
+-> u64
+requires remaining <= 5 && 1 <= step && step <= 2
+{
     transition remaining >= step {
         true -> iterate(remaining, step)
         false -> remaining
     }
-    state iterate(&mut self, pending: u64 [0..=5], step: u64 [1..=2]) -> u64 {
+    state iterate(&mut self, pending: u64, step: u64) -> u64
+    requires pending <= 5 && 1 <= step && step <= 2
+    {
         let shadow: &u64 = &pending;
         transition pending >= step {
             true -> iterate(pending - step, step)

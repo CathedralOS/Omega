@@ -10,18 +10,24 @@ machine Main::main(&mut self) -> u32 {
     transition { _ -> self.count(5) }
 }
 
-machine Main::count(&mut self, remaining: u32 [0..=9])
+machine Main::count(&mut self, remaining: u32)
 terminates by remaining in 0..=9;
--> u32 {
+-> u32
+requires remaining <= 9
+{
     transition remaining > 0 { true -> hold(remaining) false -> remaining }
 
-    state hold(pending: u32 [0..=9]) {
+    state hold(pending: u32)
+    requires pending <= 9
+    {
         transition pending > 1 { true -> hold(pending - 1) false -> self.step(pending) }
     }
 }
 
-machine Main::step(&mut self, n: u32 [0..=9])
+machine Main::step(&mut self, n: u32)
 terminates by n in 0..=9;
--> u32 {
+-> u32
+requires n <= 9
+{
     transition n > 0 { true -> self.count(n - 1) false -> n }
 }

@@ -5,9 +5,11 @@
 // strictly descends.
 data Wrap { remaining: u32; label: bool; }
 
-machine walk(remaining: u32 [0..=5])
+machine walk(remaining: u32)
 terminates by remaining in 0..=5;
--> u32 {
+-> u32
+requires remaining <= 5
+{
     transition { _ -> iterate(Wrap { remaining: remaining, label: false }) }
     state iterate(wrap: Wrap) {
         transition wrap.remaining > 0 {
