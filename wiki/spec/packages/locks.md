@@ -78,7 +78,7 @@ independently accepted sections for explicit requested targets. It has no suppor
 matrix or discovered `all` set. Sections retain canonical semantic target identity,
 not a CLI alias or temporary enum ordinal. Another target's acceptance cannot
 authorize the current child. Multi-target work sharing follows
-[configuration](../build/configuration.md#staged-multi-target-execution).
+[configuration](../build/configuration.md#multi-target-compilation).
 
 Locked compilation never refreshes a mutable selector. It may acquire missing
 content at the recorded pin when allowed; offline absence leaves the graph

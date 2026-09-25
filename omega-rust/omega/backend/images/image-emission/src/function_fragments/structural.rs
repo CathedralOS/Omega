@@ -126,7 +126,7 @@ pub(super) fn published_call(
                                 && matches!(
                                     declaration.shape,
                                     terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                     ) | terminal_psi::StructuralTypeShape::ElementView { .. }
                                 )
                         })

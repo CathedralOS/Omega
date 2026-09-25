@@ -209,7 +209,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
         _ => return malformed("byte field store source is not an immutable whole view"),
     };
     if !module.structural_types.iter().any(|declaration| declaration.id == source_type
-        && matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)))
+        && matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })))
         || !machine.blocks.iter().flat_map(|block| &block.operations).any(|candidate| {
             matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == *source)
                 && candidate.result.scalar_ref().is_some_and(|result| result.id == *length
@@ -279,7 +279,7 @@ pub(super) fn validate_byte_sequence_subslice(
                 && matches!(
                     row.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
         }) || !machine.structural_places.iter().any(|row| {

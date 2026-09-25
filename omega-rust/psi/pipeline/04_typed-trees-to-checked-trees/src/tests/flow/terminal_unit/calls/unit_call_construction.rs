@@ -467,7 +467,7 @@ fn retains_exact_byte_literal_for_static_bodyless_boundary() {
     assert!(matches!(
         byte_type.shape,
         CheckedUnitStructuralTypeShape::ByteSequence(
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
     ));
     let root = plans

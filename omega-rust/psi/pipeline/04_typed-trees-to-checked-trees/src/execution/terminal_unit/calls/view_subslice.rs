@@ -522,8 +522,7 @@ pub(in crate::execution) fn view_kind(
     if matches!(
         program.type_reference_table.type_reference(*element_type),
         TypeReferenceNode::Named { .. }
-    ) && byte_sequence_carrier(program, reference, &[])
-        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+    ) && checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
     {
         return Some(ViewKind::Bytes);
     }

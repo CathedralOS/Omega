@@ -80,7 +80,7 @@ impl TerminalExecution {
         if !source_value.path.is_empty()
             || !source_value.qualifications.is_empty()
             || !matches!(self.structural_types.get(&source_value.structural_type), Some(declaration)
-                if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
+                            if declaration.shape.is_borrowed_byte_view())
         {
             return Err(invalid());
         }

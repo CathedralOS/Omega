@@ -6,6 +6,7 @@ this board identifies remaining work, not a passing baseline.
 
 | Start here | Purpose |
 | --- | --- |
+| [Pipeline route](#pipeline-route) | One Psi pass over every target's bodies, Build once, providers behind Terminal Psi, one driver. |
 | [Immediate product closure](#immediate-product-closure) | Application, sample and canary outcomes and their native-execution blockers. |
 | [Reflection](#semantic-reflection) / [embedding](#embedding-and-interpreted-components) / [tests](#requirement-based-tests) | Accepted language and library capabilities awaiting connected implementation. |
 | [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI and Cathedral customers. |
@@ -35,6 +36,101 @@ and transfers on the common graph, not another source-shape recognizer.
 Compiler verification does not require an accepted package lock, and unfinished
 native realization does not block source-package installation. Package acceptance,
 build authority, and artifact verification remain separate obligations.
+
+## Pipeline route
+
+The compiler is one driver feeding each stage into the next
+([pipeline.md](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization),
+[multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)).
+Owner decision 2026-09-24: targets are data; Psi checks every target's bodies
+once per compilation; the Build evaluates once; `--target` narrows realization
+only. These items land in order, and each deletes the side doors it replaces.
+
+- **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
+  (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
+  Psi stage. Today `build_evaluation::target_machines::filter_target_machines_by_scope`
+  clears the marker on the selected target's bodies before resolution and
+  resolution's `lower_machine_into` skips every still-marked body, so an
+  unselected target's bodies are never checked and callers of an unselected
+  family fail resolution. Resolution admits every body of a family under one
+  path keyed by target; typing and checking check each body; lowering and
+  Terminal Psi retain the tag; a call names the family. Delete the filter,
+  `select_target_machines`, `settle_provider_defaults`, the
+  `SelectedTargetMachineDeclarations` custody and the generated-source
+  `filter_generated_extension` route. Acceptance: `omega --check` of
+  `samples/cli/basics/cli_mvp/main.omg` with no `--target` checks all six
+  `source/library/std/targets/*` trees in one Stage 05 run; a deliberate type
+  error in `std/targets/macos_arm64/filesystem_impl.omg` rejects that check on
+  a Windows host; `omega inspect-terminal` shows each body under its family
+  with its target tag.
+
+- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
+  is target-neutral: one union of physical sources, every target's program-entry
+  contract source (`source_assembly::entry_contract_seed` seeds one target's
+  today), package imports (`resolve_for_exact_target`) and dependency generated
+  sources (`append_dependency_generated_sources_to_storage` selects per
+  target). Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
+  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
+  dependency build that generates target-specific content emits target-tagged
+  declarations, never a different file per target. Depends on
+  PSI-TARGET-FAMILIES for the entry contracts' target-scoped bodies.
+  Acceptance: `PreparedCheckedSource` assembles once for any target set and
+  the `Step: assemble` timing row appears once per compilation.
+
+- **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
+  compilation and its evaluated configuration carries rows keyed by target:
+  provider selections, program entry, subsystem, application intent, opaque
+  representation selections, x86 scalar FMA provider, grants, behavior
+  exclusions, wire demands. Today `build_evaluation::admit_build_program`
+  takes the selected target profile, `Build.target` is observable, and the
+  build-scope/product-scope execution profile split exists only for that.
+  Delete the per-target execution, the preliminary checked pass
+  (`phase_transitions::typed_trees_to_preliminary_checked_trees`) and
+  `declaration_admission::validate_authored_declaration_selections_before_build`;
+  declaration admission runs once on the single checked program. Depends on
+  SOURCE-SET-UNION. Acceptance: one `Step: build` and one `Stage 05` timing
+  row per compilation for a two-target request, and std's `build.omg` rows for
+  six targets come from one evaluation.
+
+- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Calling plans
+  (`provider_planning::calling_policy_plans::compute_boundary_calling_plans`),
+  program-entry selection, provider settlement
+  (`build_evaluation::settle_checked_providers`), dispatch settlement
+  (`selected_dispatch::settle_selected_execution_dispatch_with_source_edits`),
+  callback materialization, task activation and provider-body const folds
+  consume Terminal Psi plus the target's rows inside Omega stage 00
+  (`terminal-psi-to-abstract-operations`, which already admits provider
+  installation), not typed or checked trees. Delete
+  `checked-compilation/src/checking/execution_settlement.rs`,
+  `phase_transitions.rs`, the provider-body folds in `const_evaluation.rs`,
+  the build-crate mutation entry points on `TypedTrees`,
+  `native_realization::NativeInputReuse`, and merge `admit_native_providers`
+  into the same stage. Invert the layering guard
+  `omega_provider_selection_consumes_psi_frontend_directly` so
+  `provider-planning` may not depend on `typed-trees` or `validation`. Depends
+  on BUILD-EVALUATES-ONCE. Acceptance: Psi stages 00-07 run once for a
+  two-target request and produce one Terminal artifact identity, and each
+  target's native artifact is byte-identical to the single-target output for
+  the `samples_compile` corpus.
+
+- **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` calls Psi 00-07 straight
+  through, then maps the realization set over Omega 00-09 and image emission;
+  every stage is one function taking the prior stage's output. The compile
+  route loses its mode parameters (`TargetEntryDiscovery`,
+  `permit_unsettled_fused_service_fields`, `IndependentComponentDiscovery`,
+  `restricted_build_grants`, the sponsors and `build_snapshot` on
+  `CheckedChildExecution`); package review drives stages 00-03 itself for
+  binding discovery. The three orchestration crates dissolve: source loading
+  is stage 00 input preparation; pre-resolution build-time evaluation, dynamic
+  call target resolution, const evaluation and product pruning move inside
+  stages 02-04; terminal-artifact keeps custody validators only. One request
+  record with a target set replaces the seven `for configuration in &mut
+  self.configurations` copy loops, and the target profile resolves once at the
+  CLI boundary instead of 16 `TargetProfile::from_omega_target_name` sites.
+  Each item above performs its share; this item closes the remainder.
+  Acceptance: `compiler.rs` contains the complete stage sequence, the crates
+  `source-assembly`, `checked-compilation` and `terminal-artifact` are gone,
+  and `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
 
 ## Immediate product closure
 
@@ -123,8 +219,16 @@ the complete product bar; focused successes below do not establish that baseline
   (`runtime_exact_guarded_shift_count_exit`,
   `runtime_exclusive_range_constraint_exit`,
   `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
-  20 further pass fixtures now use `requires`/`ensures`. The rest keep
-  brackets. Build-time evaluation refuses an authored `requires`: its
+  53 further pass fixtures now use `requires`/`ensures`. The rest keep
+  brackets. A `mut` parameter's bracket is enforced on every store, while
+  `requires` binds only the arrival value; converting one must re-prove
+  each read after a write (`rank_range_mutable_bounded_endpoint`). The
+  eighteen termination fixtures that Rust tests `include_str!` and patch
+  (`rank_ranges/field_relations.rs` and siblings) need those patches
+  rewritten with them. The relational state-edge judgment does not read a
+  named state's arrival `requires` (`rank_range_declared_step_copies`,
+  `rank_range_call_declared_step_copy`), and a machine `ensures` cannot
+  read a state's result (`ranked_callee_projected_receiver_compile`). Build-time evaluation refuses an authored `requires`: its
   `closure_validation.rs` has no checked invocation proof before checking.
   That blocks the plan-laid layout, wire-policy and interrupt-table
   `evaluate` machines and `runtime_const_measured_recursion_exit`.
@@ -2484,19 +2588,6 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
-- **BORROWED-VIEW-CARRIER-ACCESS.** (new-scope) Terminal's
-  `ByteSequenceCarrier::BorrowedView` (and the checked
-  `CheckedByteSequenceCarrier::BorrowedView`) records no access, so a
-  `&'r mut [u8]` record field and a shared `&'r [u8]` one are the same
-  carrier after checking. de4ee7b382 admitted byte stores through any
-  borrowed-view field in `terminal-verifier/.../structural/byte_sequence_fields.rs`
-  on the strength of the checked planner's mint gate; the verifier cannot
-  check that, so the write admission is withdrawn and
-  `borrowed_view_member_calls::mutable_view_field_element_store_waits_for_carrier_access`
-  pins the refusal. Carry the view's access on both carriers (codec tag and
-  encoding spec included), admit the store only for a mutable view, and turn
-  that test back into `..._lowers_and_verifies`.
-
 - **LOWERING-ROUTE-CONSOLIDATION.** (new-scope) Checked-to-lowered Psi picks
   one of seven whole-module producers per machine
   (`machine_lowering/machine_dispatch.rs::lower_selected_machine`), and the
@@ -2733,11 +2824,34 @@ syntax and other terminal services are not prerequisites.
   of checking with no call row for every non-uefi selection, targetless
   included.
 
+  The rule is settled by the filter's own comment and needs no owner: a
+  surviving caller is by definition not filtered, so its call must reject; a
+  caller that is itself target-scoped and unselected vanishes with the callee.
+
+  This row is NOT Psi's, though its symptom appears there. Naming the selected
+  target is half the acceptance, and `CheckingRequest` carries no target
+  because the firewall keeps 04 target-neutral. The other half needs typing:
+  the witness `self.legs.acquire()` is a receiver call whose callee name is not
+  syntactically resolvable to the filtered full name, so
+  `filter_target_machines_by_scope`, which runs on syntax trees, cannot see it
+  either. Only build-evaluation after typing holds both facts -- it already
+  takes `TypedTrees` in `admit_provider_default_calls` and
+  `settle_provider_defaults`, and `SelectedTargetMachineDeclarations` is
+  already threaded there. Carry the filtered names into that pass, match calls
+  whose `target_symbol` is invalid against them, and reject naming both.
+
+  There is no separable Psi half. Measured on a1dcb8dc48: an undeclared name
+  already rejects by name in both call positions before any authored-selection
+  check runs -- `missing_helper()` as a value call reports "does not resolve to
+  a state of this machine, an attached sibling machine, or a free machine", and
+  as a statement "machine `Main::main` has no local state `missing_helper`".
+  The occurrence-number message appears only once those checks pass, which is
+  exactly the filtered-callee case, so improving
+  `undeclared_checked_call_callee` moves nothing here.
+
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the
   authored source that legitimately filters with its callee keeps compiling.
-  Decide first whether the caller filters with the callee or the call rejects;
-  the two answers differ for a portable body that calls a target-scoped name.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
@@ -4367,8 +4481,32 @@ syntax and other terminal services are not prerequisites.
      `evaluate_const_evaluable_machine_symbol_for_invocation`. An operator has
      none of these, and this is where the design work is.
 
-  Stages 1-3 are each a few lines and provably inert on the corpus; stage 4
-  needs the route decided. The interpreter already evaluates these operations
+  Stages 2 and 3 are each a few lines and provably inert on the corpus
+  (measured 751741736c: widening both gates to `SymbolKind::Operator`, with an
+  operator contributing a dependency and nothing to walk, leaves
+  `tools/corpus_gate.py --baseline` clean on 3303 fixtures). Stage 1 is NOT a
+  few lines, and stage 4 needs the route decided.
+
+  Stage 1 measured: binding `F32::square_root` in
+  `symbols/targets/calls.rs`'s Data-receiver branch does reach the operator and
+  advances the customer two stages, but it breaks
+  `build-time-evaluation .. ambiguous_named_operator_call_does_not_manufacture_early_identity`.
+  Two operators sharing one name collapse to ONE family symbol, so
+  `find_top_level_by_name_and_kinds_from_source` answers `Unique` and cannot
+  report the ambiguity; `resolve_call_target_symbol` receives only a
+  `SymbolTable` and a `MachineScope`, neither of which carries the operator
+  definitions that would separate a one-signature name from a family. Resolving
+  in the constant walk instead does not carry: `call_custody.rs` reads
+  `call.target_symbol` from the typed trees and rejects with "constant call
+  lost its exact authored target selection" because no authored selection
+  resolves to it.
+
+  So stage 1 is a choice between threading operator signature data into
+  `symbols/targets`, or running the constant initializer's dependency walk
+  after typed named-call selection, which already binds these names correctly
+  for bodies -- the ordering this row already identifies as the cause. Prefer
+  the second and measure it before widening stages 2 and 3, which are dead
+  without it. The interpreter already evaluates these operations
   inside a machine body, but keyed on the REWRITTEN intrinsic name
   (`float#fused_multiply_add_f32`) that provider dispatch installs, through
   `checked-interpreter .. execution/scalar_operations.rs`

@@ -477,7 +477,7 @@ pub(crate) fn validate_function_structural_catalog(
             if !matches!(
                 declaration.shape,
                 terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                 )
             ) {
                 return Err(

@@ -608,7 +608,7 @@ pub(crate) fn validate_transfer_shape(
                 declaration.id == structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
                     )
             }) {
                 return unsupported("byte-sequence argument requires a borrowed-view type");

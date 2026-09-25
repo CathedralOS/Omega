@@ -233,8 +233,11 @@ pub(crate) fn build_static_boundary_requirements(
                     break;
                 };
                 if is_reference(program, parameter_type)
-                    && byte_sequence_carrier(program, parameter_type, &[])
-                        != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    && !checked_trees::is_borrowed_view(byte_sequence_carrier(
+                        program,
+                        parameter_type,
+                        &[],
+                    ))
                     && !(qualifications.is_empty()
                         && (shared_plain_affine_referent(program, parameter_type).is_some()
                             || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))

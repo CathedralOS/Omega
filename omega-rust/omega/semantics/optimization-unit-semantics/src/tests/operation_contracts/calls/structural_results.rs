@@ -21,7 +21,9 @@ fn rejects_structural_call_result_signature_and_claim_interface_corruption() {
             id: alternate,
             identity: "validation::alternate-call-result".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         });
     let AbstractOperation::CallStructural { result, .. } =

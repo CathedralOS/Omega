@@ -242,7 +242,7 @@ fn validate_structural_parameter(
         if matches!(
             &shape.shape,
             checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BorrowedView
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
             )
         ) {
             if checked.primitive_type_reference(*element_type)

@@ -292,8 +292,7 @@ fn preceding_byte_loan_preserves_carrier(
             .all(|reference| {
                 structural_access_for_type_reference(program, reference)
                     == Some(CheckedStructuralAccess::MutableBorrow)
-                    && byte_sequence_carrier(program, reference, &[])
-                        == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                    && checked_trees::is_borrowed_view(byte_sequence_carrier(program, reference, &[]))
             }))
     {
         return false;

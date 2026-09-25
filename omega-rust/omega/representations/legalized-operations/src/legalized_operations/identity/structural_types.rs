@@ -299,7 +299,7 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
 
 pub(super) fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
     match carrier {
-        ByteSequenceCarrier::BorrowedView => bytes.push(1),
+        ByteSequenceCarrier::BorrowedView { .. } => bytes.push(1),
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
             bytes.extend_from_slice(&capacity.to_le_bytes());

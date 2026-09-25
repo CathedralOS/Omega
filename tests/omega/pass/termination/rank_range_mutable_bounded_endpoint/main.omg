@@ -16,7 +16,9 @@ terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
         true -> step(index + 1, limit)
         false -> index
     }
-    state step(cursor: u64, ceiling: u64 [0..=10]) {
+    state step(cursor: u64, ceiling: u64)
+    requires ceiling <= 10
+    {
         transition cursor < ceiling {
             true -> walk(cursor + 1, ceiling)
             false -> cursor

@@ -8,14 +8,18 @@ machine Main::main(&mut self) -> u32 {
     transition { _ -> self.count(5, 1) }
 }
 
-machine Main::count(&mut self, remaining: u32 [0..=9], extra: u32)
+machine Main::count(&mut self, remaining: u32, extra: u32)
 terminates by remaining in 0..=9;
--> u32 {
+-> u32
+requires remaining <= 9
+{
     transition remaining > 0 {
         true -> pair(remaining, remaining, extra)
         false -> remaining
     }
-    state pair(left: u32 [0..=9], right: u32 [0..=9], mut scratch: u32) {
+    state pair(left: u32, right: u32, mut scratch: u32)
+    requires left <= 9 && right <= 9
+    {
         scratch = left;
         transition left > 0 {
             true -> self.step(right)
@@ -24,9 +28,11 @@ terminates by remaining in 0..=9;
     }
 }
 
-machine Main::step(&mut self, n: u32 [0..=9])
+machine Main::step(&mut self, n: u32)
 terminates by n in 0..=9;
--> u32 {
+-> u32
+requires n <= 9
+{
     transition n > 0 {
         true -> self.count(n - 1, 0)
         false -> n

@@ -42,7 +42,7 @@ pub(in crate::validation) fn validate_establish_byte_sequence_literal(
     };
     if !matches!(
         declaration.shape,
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
     ) {
         return Err(ModuleError::ByteSequenceLiteralRequiresBorrowedView {
             operation: operation.id,

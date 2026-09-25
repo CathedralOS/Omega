@@ -138,7 +138,7 @@ impl emission::Emission<'_, '_, '_> {
                     let child_type = match &target.field_type {
                         StructuralFieldType::Structural(child_type) => *child_type,
                         StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                         ) => lookup_type_id(
                             self.type_ids,
                             self.checked
@@ -160,7 +160,7 @@ impl emission::Emission<'_, '_, '_> {
                     if !matches!(
                         target.field_type,
                         StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
                     ) && lookup_type_id(
                         self.type_ids,

@@ -33,7 +33,9 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
     let boundary_place = id(4_605, PlaceId::new);
     let declaration = structural_type(
         4_603,
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     );
     reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {

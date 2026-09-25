@@ -34,7 +34,9 @@ pub(super) fn byte_view_length_module() -> TerminalModule {
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
             identity: "test::ImmutableBytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         }],
         structural_domains: Vec::new(),
         services: Vec::new(),

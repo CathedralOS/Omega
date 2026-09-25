@@ -502,7 +502,9 @@ fn affine_identity_calls_preserve_exact_types_and_established_local_custody() {
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
         unreachable!()
     };
-    fields[0].field_type = StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView);
+    fields[0].field_type = StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    });
     assert!(
         verify(&module).is_err(),
         "a nested borrowed field is not plain owned storage"

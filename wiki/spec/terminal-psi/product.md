@@ -90,15 +90,18 @@ lemmas do not change operation or program identity.
 
 ## Build-owned companion
 
-Target/profile, ProgramEntry, target-constrained provider plans, external-binding
-requirements, compiler-builtin proposals, and pending Omega optimization
-selections and pending native PCC request travel beside the target-neutral
-module in an exact owned build companion. It is distinct from a `.proof` file.
-They are not executable semantics inserted into Terminal, and possession does
-not grant realization authority.
+The target-neutral module carries every target-scoped machine body under its
+family path with its target tag; selecting a body is a realization fact, not a
+Terminal branch. The realization target set travels beside the module in an
+exact owned build companion, and per target: profile, ProgramEntry,
+target-constrained provider plans, external-binding requirements,
+compiler-builtin proposals, pending Omega optimization selections, and the
+pending native PCC request, as rows keyed by target. The companion is distinct
+from a `.proof` file. Rows are not executable semantics inserted into Terminal,
+and possession does not grant realization authority.
 
-The companion binds the pending selection to the complete build-selection
-identity. Terminal independently retains the Psi selection already executed.
+The companion binds each target's pending selection to the complete
+build-selection identity. Terminal independently retains the Psi selection already executed.
 A receiving consumer must admit the exact proposed pending selection using its
 own target catalog and local authority, or reject realization. Rejection does
 not invalidate the portable semantics. With no target companion, subsequent

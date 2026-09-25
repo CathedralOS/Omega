@@ -28,7 +28,7 @@ pub(crate) fn linux_write_line_custody_is_exact(
         || !matches!(
             custody.structural_type.shape,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             )
         )
         || !settlement.native_result.is_unit()

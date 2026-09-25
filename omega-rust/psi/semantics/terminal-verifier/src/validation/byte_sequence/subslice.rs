@@ -66,7 +66,7 @@ pub(in crate::validation) fn validate(
                 && matches!(
                     row.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
         })
@@ -122,10 +122,12 @@ pub(in crate::validation) fn validate_uses(
                     && parameter.access == StructuralAccess::MutableBorrow
                     && module.structural_types.iter().any(|declaration| {
                         declaration.id == parameter.structural_type
-                            && declaration.shape
-                                == StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                 )
+                            )
                     })
             })
             || crate::validation::block_views::parameter(machine, place).is_some()

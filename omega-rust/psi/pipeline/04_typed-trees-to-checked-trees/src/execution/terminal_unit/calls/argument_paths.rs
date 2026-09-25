@@ -625,10 +625,11 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             && ((source.multiplicity == Multiplicity::Unrestricted && static_path)
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
-                                    && byte_sequence_carrier(program, target.type_reference, &[])
-                                        == Some(
-                                            checked_trees::CheckedByteSequenceCarrier::BorrowedView,
-                                        )))
+                                    && checked_trees::is_borrowed_view(byte_sequence_carrier(
+                                        program,
+                                        target.type_reference,
+                                        &[],
+                                    ))))
                     }
                     CheckedStructuralAccess::WriteOnlyBorrow => {
                         matches!(
@@ -1019,8 +1020,7 @@ pub(crate) fn byte_sequence_literal_argument(
     parameter_type: TypeReferenceHandle,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if byte_sequence_carrier(program, parameter_type, &[])?
-        != checked_trees::CheckedByteSequenceCarrier::BorrowedView
+    if !byte_sequence_carrier(program, parameter_type, &[])?.is_borrowed_view()
         || structural_access_for_type_reference(program, parameter_type)?
             != CheckedStructuralAccess::SharedBorrow
     {

@@ -86,7 +86,9 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
             None
         );
         for unrelated_carrier in [
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
             StructuralFieldType::Scalar(length_type),
         ] {
             let mut changed = declarations.clone();
@@ -127,7 +129,9 @@ fn byte_field_layout_does_not_admit_owned_byte_roots() {
 
     assert_eq!(
         field_shape(
-            &StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            &StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
             &[],
             &mut Vec::new(),
         ),

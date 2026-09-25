@@ -1796,7 +1796,9 @@ fn view_fixture() -> (AbstractOperationPlan, Execution) {
         StructuralTypeDeclaration {
             id: view_type,
             identity: "probe::View".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         },
         StructuralTypeDeclaration {
             id: holder_type,
@@ -1814,7 +1816,9 @@ fn view_fixture() -> (AbstractOperationPlan, Execution) {
                         identity: "data".into(),
                         relevance: terminal_psi::BindingRelevance::Relevant,
                         field_type: StructuralFieldType::ByteSequence(
-                            ByteSequenceCarrier::BorrowedView,
+                            ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                         ),
                     },
                 ],

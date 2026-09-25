@@ -123,8 +123,7 @@ pub(crate) fn accepts_borrowed_parameters(
         // Per-operation replay, not the result shape, decides whether this
         // access permits each field observation or mutation.
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
-        let byte_view = declaration.shape
-            == StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+        let byte_view = declaration.shape.is_borrowed_byte_view();
         let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
         let sum = matches!(
             declaration.shape,
@@ -280,7 +279,7 @@ pub(crate) fn accepts_borrowed_view(
                         && matches!(
                             declaration.shape,
                             StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                             ) | StructuralTypeShape::ElementView { .. }
                         )
                 })

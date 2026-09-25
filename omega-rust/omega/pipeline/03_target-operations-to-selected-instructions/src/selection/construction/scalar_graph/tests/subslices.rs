@@ -45,7 +45,9 @@ pub(super) fn view_fixture(target: target::NativeTarget, empty: bool) -> Legaliz
             id: structural_type,
             identity: "bytes".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         }]
         .into(),
@@ -617,7 +619,9 @@ fn bound_view_fixture(target: target::NativeTarget) -> LegalizedScalarFunction {
             id: structural_type,
             identity: "bytes".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         }]
         .into(),

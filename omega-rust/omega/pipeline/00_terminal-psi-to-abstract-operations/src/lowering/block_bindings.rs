@@ -51,7 +51,7 @@ pub(super) fn validate_structural_block_bindings(
                                             && matches!(
                                                 declaration.shape,
                                                 terminal_psi::StructuralTypeShape::ByteSequence(
-                                                    terminal_psi::ByteSequenceCarrier::BorrowedView
+                                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                                 ) | terminal_psi::StructuralTypeShape::ElementView {
                                                     ..
                                                 }

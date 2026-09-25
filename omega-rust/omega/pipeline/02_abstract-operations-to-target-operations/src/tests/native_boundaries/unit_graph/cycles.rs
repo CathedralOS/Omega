@@ -89,7 +89,9 @@ fn descriptor_cycle() -> AbstractOperationPlan {
             id: structural_type,
             identity: "cycle::Bytes".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         });
     let parameter = terminal_psi::StructuralParameterDeclaration {

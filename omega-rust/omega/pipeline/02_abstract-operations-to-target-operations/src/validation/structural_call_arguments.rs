@@ -1633,7 +1633,7 @@ impl Replay<'_> {
                     && matches!(
                         entry.shape,
                         StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
                     )
             });
@@ -1642,7 +1642,7 @@ impl Replay<'_> {
                     && matches!(
                         entry.shape,
                         StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
                     )
             });
@@ -3360,7 +3360,7 @@ fn matches_projected_carrier(
         && matches!(
             find_shape(actual.structural_type),
             Some(StructuralTypeShape::ByteSequence(
-                ByteSequenceCarrier::BorrowedView
+                ByteSequenceCarrier::BorrowedView { .. }
             ))
         )
         && actual.fixed_array_length == Some(*length)
@@ -3427,7 +3427,9 @@ fn matches_bounded_byte_field(
         declaration.id == actual.structural_type
             && declaration.shape
                 == terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 )
     }) && actual.source_byte_offset == field_offset
         && actual.fixed_array_length.is_none()

@@ -293,7 +293,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             == Some(PrimitiveType::U8)
                         {
                             checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                                // Matched against the registered view type,
+                                // which binds no access; the borrow's own
+                                // `access` is checked separately.
+                                checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                                    access: None,
+                                },
                             )
                         } else {
                             checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {

@@ -32,7 +32,9 @@ fn byte_field_call(native: target::NativeTarget) -> LegalizedScalarFunction {
             id: view,
             identity: "bytes".into(),
             shape: StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         },
         StructuralTypeDeclaration {

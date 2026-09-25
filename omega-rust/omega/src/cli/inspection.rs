@@ -55,7 +55,7 @@ fn terminal_summary(
                     format!("primitive_scalar({scalar_type:?})")
                 }
                 terminal_psi::StructuralTypeShape::ByteSequence(carrier) => match carrier {
-                    terminal_psi::ByteSequenceCarrier::BorrowedView => {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                         "byte_sequence(borrowed_view)".to_owned()
                     }
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {

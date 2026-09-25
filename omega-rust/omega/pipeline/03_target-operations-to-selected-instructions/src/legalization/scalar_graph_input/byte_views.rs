@@ -320,7 +320,7 @@ pub(super) fn validate(
                                 && matches!(
                                     declaration.shape,
                                     terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                                     ) | terminal_psi::StructuralTypeShape::ElementView { .. }
                                 )
                         })))
@@ -338,7 +338,7 @@ pub(super) fn validate(
                         && matches!(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                             ) | terminal_psi::StructuralTypeShape::ElementView { .. }
                         )
                 })

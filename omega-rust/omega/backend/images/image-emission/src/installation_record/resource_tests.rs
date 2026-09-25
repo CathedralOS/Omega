@@ -591,7 +591,9 @@ fn byte_sequence_carriers_round_trip_in_installations() {
                     identity: "borrowed".into(),
                     relevance: terminal_psi::BindingRelevance::Relevant,
                     field_type: terminal_psi::StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
                     ),
                 },
                 terminal_psi::StructuralFieldDeclaration {

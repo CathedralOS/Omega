@@ -120,53 +120,35 @@ optional mapping converts planner classifications into the native catalog and
 rejects unsupported executions, as required by the
 [boundary contract](../../../../wiki/spec/terminal-psi/boundary_calls.md).
 
-## Immutable source reuse and exact-target children
+## Target set and realization
 
-[Explicit targets](src/compiler/request/targets.rs) accepts a nonempty supplied
-set, normalizes supported aliases, deduplicates and orders exact profiles by the
-trusted catalog, and rejects wildcards, empty or unknown selections. It neither
-infers targets nor certifies platform support.
-
-[Source preparation](../source-assembly/src/source_assembly/checkpoint.rs) retains immutable
-physical sources, unconditional imports and parse results once. Import discovery
-retains each authored occurrence's resolved destination and module requirement;
-symbol binding joins those destinations to parsed source IDs without reopening
-the filesystem. Package destinations settle in the exact child, retaining
-physical/generated collision checks. Generated-source producers carry their
-package owner directly into discovery. Its package source-input projection includes root roles, exact package identities/names,
-physical roots, build-visible metadata and requester-local dependencies. It is
-a private checkpoint equality guard, not durable package identity or a receipt.
-The invocation owns this source graph once; target configurations retain only
-their generated bundles and semantic bindings. Each target child must match the
-source checkpoint before joining generated bundles,
-generated-only imports or selected target imports. Prepared checked input shares
-the source frontier and parse timings, not mutable semantic/build state, sponsor,
-evaluation replay or target authority. The ordinary one-target route uses the
-same child continuation. A consuming repetition iterator moves the last
-(including only) checkpoint instead of cloning behind a retained coordinator owner.
-[Generated source](generated_source.md) owns append
-custody; [checked settlement](checked_settlement.md) owns its later ordered joins.
+[Explicit targets](src/compiler/request/targets.rs) accepts an optional
+selection: absent, the realization set is every deployable profile the
+toolchain closure provides; present, a nonempty set normalized to canonical
+order with duplicates removed, with wildcards, empty and unknown selections
+rejected. The selection narrows realization only. Psi checks every target's
+bodies once per compilation regardless
+([multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)).
 
 [Request admission](src/compiler/request.rs) stores root, product, observation
-policy and package sources once, alongside target configurations. No child-request
-factory or repeated shared fields exist. Each configuration names its target,
-staging, admissions, permissions, rollback and target-specific package inputs.
-Empty or duplicate selections and colliding build directories reject before acquisition.
-That detects deterministic collisions, not host filesystem aliases or races.
-Compilation collects one ordered outcome per target without fail-fast collection;
-a shared preparation failure supplies the same diagnostics to all children.
-A target-specific malformed generated unit fails its child, not an unrelated
-sibling. Success retains the ordinary standalone artifact/manifest identity.
-The collection carries an optional batch manifest binding the explicit target
-set and each child's commitment/outcome; it grants no support, test or audit
-claim.
-An absent target in a single configuration stays target-neutral for Check and
-Terminal production; Native resolves that convenience to Host. Multiple
-configurations require explicit exact targets. Configuration replacement does
-not inherit the discarded configuration's policies; request-level policy setters
-apply to all configurations currently present.
+policy, package sources and the target set once. Compilation collects one
+ordered outcome per realized target without fail-fast; a shared checking
+failure supplies the same diagnostics to every realization, and one
+realization's failure never suppresses another's. Success retains the ordinary
+standalone artifact/manifest identity. The collection carries an optional
+batch manifest binding the realization set and each realization's
+commitment/outcome; it grants no support, test or audit claim.
 
-[Native preparation reuse](../native-realization/README.md#multi-target-reuse)
-has its own exact artifact/profile/selection key. Shared parsing never permits
-reusing one child's checked target, providers, admissions or physical evidence
-as another child's authority.
+Today's implementation instead retains one immutable source parse checkpoint
+([source preparation](../source-assembly/src/source_assembly/checkpoint.rs))
+and runs an exact-target child per configuration: per-target source assembly,
+declaration filtering, build evaluation, provider settlement and checking, with
+request-level policy copied into each configuration.
+[Generated source](generated_source.md) owns append custody and
+[checked settlement](checked_settlement.md) owns its later ordered joins. The
+[pipeline route items](../../../../TASKS.md#pipeline-route) replace the child
+route with the single pass above; until then
+[native preparation reuse](../native-realization/README.md#multi-target-reuse)
+shares prepared inputs across children by exact artifact/profile/selection key,
+and shared parsing never permits reusing one child's checked target, providers,
+admissions or physical evidence as another child's authority.

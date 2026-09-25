@@ -445,7 +445,9 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
             id: structural_type,
             identity: "validation::structural-call-argument".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         }]
         .into(),

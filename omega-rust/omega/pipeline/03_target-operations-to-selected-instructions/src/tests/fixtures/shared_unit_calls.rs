@@ -25,7 +25,9 @@ pub(in crate::tests) fn fixture(
         .push(StructuralTypeDeclaration {
             id: structural_type,
             identity: "Bytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         });
     let skeleton = plan.functions[0].clone();
     plan.functions.clear();

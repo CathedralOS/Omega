@@ -67,6 +67,7 @@ pub use self::terminal::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
     CheckedUnitStructuralReturnPlan, CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    is_borrowed_view,
 };
 pub use borrow_lifetimes::{
     FlowBorrowActivationFact, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason,

@@ -33,8 +33,26 @@ pub(crate) fn terminal_byte_sequence_carrier(
     carrier: checked_trees::CheckedByteSequenceCarrier,
 ) -> ByteSequenceCarrier {
     match carrier {
-        checked_trees::CheckedByteSequenceCarrier::BorrowedView => {
-            ByteSequenceCarrier::BorrowedView
+        // The access crosses with the carrier. Collapsing it here would hand
+        // Terminal a shared view for every authored `&mut [u8]`, which is what
+        // left the verifier unable to check a byte store's authority.
+        checked_trees::CheckedByteSequenceCarrier::BorrowedView { access } => {
+            ByteSequenceCarrier::BorrowedView {
+                access: access.map(|access| match access {
+                    checked_trees::CheckedStructuralAccess::Owned => {
+                        terminal_psi::StructuralAccess::Owned
+                    }
+                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    }
+                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    }
+                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    }
+                }),
+            }
         }
         checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } => {
             ByteSequenceCarrier::BoundedOwned { capacity }

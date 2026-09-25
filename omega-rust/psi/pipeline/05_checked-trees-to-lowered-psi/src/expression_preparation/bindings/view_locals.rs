@@ -28,7 +28,7 @@ impl ViewCarrier {
             .iter()
             .find(|declaration| declaration.id == structural_type)?;
         match declaration.shape {
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
                 Some(Self::Bytes)
             }
             StructuralTypeShape::ElementView { element } => Some(Self::Elements {

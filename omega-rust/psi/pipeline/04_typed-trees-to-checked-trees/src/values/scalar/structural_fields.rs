@@ -105,7 +105,7 @@ pub(super) fn structural_sequence_length(
             crate::execution::terminal_unit::types::byte_sequence_carrier(program, selected_type, &[]),
             Some(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView
+                    | checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
             )
         )
     {

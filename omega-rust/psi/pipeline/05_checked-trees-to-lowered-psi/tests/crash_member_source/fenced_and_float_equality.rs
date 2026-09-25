@@ -879,7 +879,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
                 if fields.iter().any(|field| matches!(
                     field.field_type,
-                    StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+                    StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
                 )))
             })
     );
