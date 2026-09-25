@@ -167,23 +167,33 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         );
                         // Structural call results establish their own operation
                         // place even when the local later lends mutable access.
-                        // Their scalar operands still need exact source rows.
+                        // Their scalar operands still need exact source rows,
+                        // found through the same cast chain an assignment's
+                        // call is.
                         if (!local.is_mutable
                             || program
                                 .primitive_type_reference(local.type_reference)
                                 .is_none())
+                            && let Some(expression) =
+                                scalar_qualified_call_expression(program, local.initial_value)
+                                    .or_else(|| {
+                                        matches!(
+                                            program
+                                                .expression_table
+                                                .expression(local.initial_value),
+                                            ExpressionNode::Call(_)
+                                        )
+                                        .then_some(local.initial_value)
+                                    })
                             && let ExpressionNode::Call(call) =
-                                program.expression_table.expression(local.initial_value)
+                                program.expression_table.expression(expression)
                             && let Some(arguments) = lower_call_arguments(
                                 program,
                                 operators,
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::semantic::calls::CallSite::Expression {
-                                    expression: local.initial_value,
-                                    call,
-                                },
+                                &crate::semantic::calls::CallSite::Expression { expression, call },
                                 &scalar_parameters,
                                 parameters,
                                 &parameter_types,
