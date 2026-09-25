@@ -3,7 +3,6 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
-    StructuralTypeShape,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;

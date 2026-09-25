@@ -5,7 +5,7 @@ use legalized_operations::{
 };
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
-use terminal_psi::{ByteSequenceCarrier, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)

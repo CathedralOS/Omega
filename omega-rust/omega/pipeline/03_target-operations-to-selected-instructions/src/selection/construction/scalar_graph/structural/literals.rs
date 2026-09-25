@@ -10,7 +10,6 @@ use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 pub(super) fn establish(
     builder: &mut Builder<'_>,
