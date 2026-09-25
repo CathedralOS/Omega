@@ -167,3 +167,5 @@ leaf/retained-field-join-guards	52cabbe3472	z4	merged	2026-09-24T19:47:28Z	t2c+c
 leaf/sum-mixed-reference-case-payloads	46c5d9b25c	z5	merged	2026-09-24T19:47:28Z	c2l check+fmt clean; park/case-field-member-store-lowering be05afaf87 salvaged
 414bee87d6	2026-09-24T20:09Z	omega	leaf/check-bound-lookup-index	mine	merged: gate 6239/6239 t2c+validation lib; foreign 6fba36f2d7+d14277d1a1 carried
 2026-09-24T21:31:29Z	leaf/jev-attribute	1a635e98cd	tools/jev_attribute.py + merge-check attribution step; measured on marker-blob case (culprit 0.96 top, co-culprit 0.84, 6 absent)	tools-only, no rust gate
+leaf/storage-alias-closure	f3202cd42a	me	merged	2026-09-25T03:22:24Z	close() per-call 321->271us; lib 17010/17010 + 6289/6289; canary/samplered preexisting
+2026-09-25T03:33:22Z	334326dd7a	case-payload-observation (z5): case arms observe record-payload member fields via staged leaf copies; c2l+codec+interpreter+verifier 1286/1286
