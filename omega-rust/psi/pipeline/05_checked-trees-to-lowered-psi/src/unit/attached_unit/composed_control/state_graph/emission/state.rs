@@ -2,8 +2,9 @@
 //! call operations, the guard or case dispatch, the successor edges with
 //! their staged transfers and ranks, and the blocks it leaves behind. Each
 //! successor edge lowers through `successor_edge`, which reads the state's
-//! fixed facts from a `SuccessorFrame`, and a conditional return's value arm
-//! lowers through `conditional_return` before those edges exist.
+//! fixed facts from a `SuccessorFrame`. Before those edges exist, a
+//! conditional return's value arm lowers through `conditional_return` and an
+//! ordered multi-arm tail stages its later guards through `guarded_chain`.
 
 use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
@@ -381,88 +382,23 @@ impl StateGraphEmission<'_, '_> {
         // own private block reached only along the previous decision's false
         // edge. Their evaluation drafts are staged before the successor-edge
         // closure exists; the terminator match below assembles the chain.
-        let mut guarded_decisions = Vec::new();
-        let mut guarded_drafts = Vec::new();
-        let mut guarded_first_namespace = Vec::new();
-        if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
-            &state.terminator
-        {
-            guarded_first_namespace = values.clone();
-            for _ in 1..arms.len() {
-                guarded_decisions.push(block_id(allocate_dense(&mut next_block)?));
-            }
-            let (resume_current, resume_start, entry_parameters, entry_structural) = (
-                evaluation.current,
-                evaluation.operation_start,
-                std::mem::take(&mut evaluation.parameters),
-                std::mem::take(&mut evaluation.block_structural_parameters),
-            );
-            for (index, arm) in arms.iter().enumerate().skip(1) {
-                let decision = guarded_decisions[index - 1];
-                evaluation.current = decision;
-                evaluation.operation_start = operations.len();
-                evaluation.parameters = Vec::new();
-                evaluation.block_structural_parameters = Vec::new();
-                // A short-circuit guard stages the same planned decision a
-                // two-arm conditional uses; any other guard is one value.
-                let reads_payloads = successor_may_read_payloads(&arm.successor);
-                let guard = if let Some(expression) = evaluation.branch_guard(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    arm.successor.statement_ordinal,
-                    &values,
-                    reads_payloads,
-                )? {
-                    ChainGuard::Decision(plan_short_circuit_guard(
-                        &expression,
-                        &values,
-                        &self.catalogs.structural_types,
-                        &evaluation.structural_parameters,
-                        &mut next_value,
-                        reads_payloads,
-                    )?)
-                } else {
-                    let mut calls = self.catalogs.scalar_calls.emission_context();
-                    let guard = evaluation.guard_value(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        arm.successor.statement_ordinal,
-                        &mut values,
-                        &mut next_value,
-                        &mut next_block,
-                        &mut next_edge,
-                        &mut operations,
-                        &mut calls,
-                    )?;
-                    self.catalogs.scalar_calls.next_call_obligation =
-                        calls.next_obligation_identity;
-                    ChainGuard::Value(guard.id)
-                };
-                let expanded = evaluation.current != decision;
-                guarded_drafts.push((
-                    evaluation.current,
-                    if expanded {
-                        std::mem::take(&mut evaluation.parameters)
-                    } else {
-                        Vec::new()
-                    },
-                    if expanded {
-                        std::mem::take(&mut evaluation.block_structural_parameters)
-                    } else {
-                        Vec::new()
-                    },
-                    operations[evaluation.operation_start..].to_vec(),
-                    guard,
-                    values.clone(),
-                ));
-            }
-            evaluation.current = resume_current;
-            evaluation.operation_start = resume_start;
-            evaluation.parameters = entry_parameters;
-            evaluation.block_structural_parameters = entry_structural;
-        }
+        let (guarded_decisions, guarded_drafts, guarded_first_namespace) =
+            if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+                &state.terminator
+            {
+                self.stage_guarded_chain(
+                    position,
+                    arms,
+                    &mut values,
+                    &mut evaluation,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?
+            } else {
+                (Vec::new(), Vec::new(), Vec::new())
+            };
         // The authored `(expression)` arm lowers its value producer into its
         // own block closed by ReturnStructural now, before the successor-edge
         // closure borrows this state's emission slots. The staged edge joins
@@ -1218,7 +1154,7 @@ fn case_subject_consumptions(
 
 /// Whether a successor evaluates any argument from an expression, which may
 /// read a case payload its guard selected. Parameter forwards read none.
-fn successor_may_read_payloads(
+pub(super) fn successor_may_read_payloads(
     successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
 ) -> bool {
     successor.scalar_arguments.iter().any(|argument| {
@@ -1226,7 +1162,7 @@ fn successor_may_read_payloads(
     })
 }
 
-fn plan_short_circuit_guard(
+pub(super) fn plan_short_circuit_guard(
     expression: &LoweredBooleanReturnExpression,
     values: &[ValueDeclaration],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
@@ -1272,7 +1208,7 @@ fn plan_short_circuit_guard(
 
 /// How one chain arm observes its guard: an evaluated Boolean value, or a
 /// short-circuit decision planned with the namespace its true edge reads.
-enum ChainGuard {
+pub(super) enum ChainGuard {
     Value(semantic_vocabulary::ValueId),
     Decision(
         (

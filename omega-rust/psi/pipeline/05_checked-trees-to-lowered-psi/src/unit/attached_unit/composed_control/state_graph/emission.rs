@@ -21,6 +21,7 @@ use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
 mod conditional_return;
+mod guarded_chain;
 mod state;
 mod successor_edge;
 
