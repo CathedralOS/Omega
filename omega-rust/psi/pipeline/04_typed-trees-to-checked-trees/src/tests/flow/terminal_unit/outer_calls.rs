@@ -690,3 +690,93 @@ fn caller_forwarded_named_view_result_names_the_call_binding() {
         plans.omission_for_machine(machine_named(&checked, "consume"))
     );
 }
+
+const LITERAL_TAIL_SOURCE: &str = r#"
+data Source { name: u64; id: u64; }
+data Handle { name: u64; id: u64; }
+machine Source::get_name(&self) -> u64 {
+    self.name
+}
+machine Source::get_id(&self) -> u64 {
+    self.id
+}
+"#;
+
+#[test]
+fn scalar_call_field_in_tail_literal_composes() {
+    // A scalar-returning call bound as a record literal's field value —
+    // the `get_task_handle` shape — is an admitted ordered statement
+    // call: its scalar root already carries the call-argument role, and
+    // the structural operand walk owns only non-scalar nested calls.
+    let checked = checked(&format!(
+        "{LITERAL_TAIL_SOURCE}
+        machine Source::handle(&self) -> Handle {{
+            Handle {{ name: self.get_name(), id: self.id }}
+        }}"
+    ));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let handle = machine_named(&checked, "Source::handle");
+    assert!(
+        plans.for_machine(handle).is_some() || plans.composed_for_machine(handle).is_some(),
+        "scalar call field in tail literal declined: {:?}",
+        plans.omission_for_machine(handle)
+    );
+}
+
+#[test]
+fn sibling_scalar_calls_in_tail_literal_compose() {
+    // Every field position's call is consumed: the first is the
+    // statement's ordered call and its siblings mint the same
+    // call-argument roots.
+    let checked = checked(&format!(
+        "{LITERAL_TAIL_SOURCE}
+        machine Source::handle(&mut self) -> Handle {{
+            Handle {{ name: self.get_name(), id: self.get_id() }}
+        }}"
+    ));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let handle = machine_named(&checked, "Source::handle");
+    assert!(
+        plans.for_machine(handle).is_some() || plans.composed_for_machine(handle).is_some(),
+        "sibling scalar calls in tail literal declined: {:?}",
+        plans.omission_for_machine(handle)
+    );
+}
+
+#[test]
+fn scalar_call_in_local_literal_composes() {
+    // The same field-call nest inside a `let` local's literal binding is
+    // consumed through the local-data route.
+    let checked = checked(&format!(
+        "{LITERAL_TAIL_SOURCE}
+        machine Source::handle(&mut self) -> Handle {{
+            let handle: Handle = Handle {{ name: self.get_name(), id: self.id }};
+            handle
+        }}"
+    ));
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let handle = machine_named(&checked, "Source::handle");
+    assert!(
+        plans.for_machine(handle).is_some() || plans.composed_for_machine(handle).is_some(),
+        "scalar call in local literal declined: {:?}",
+        plans.omission_for_machine(handle)
+    );
+}
+
+#[test]
+fn scalar_call_in_transition_arm_literal_still_declines() {
+    // A literal produced by a transition arm is not an expression
+    // statement, so the transition keeps its own statement support wall.
+    let checked = checked(&format!(
+        "{LITERAL_TAIL_SOURCE}
+        machine Source::handle(&self) -> Handle {{
+            transition self {{
+                _ -> Handle {{ name: self.get_name(), id: self.id }}
+            }}
+        }}"
+    ));
+    assert_eq!(
+        omission(&checked, "Source::handle"),
+        "statement sequence: unsupported statement kind"
+    );
+}
