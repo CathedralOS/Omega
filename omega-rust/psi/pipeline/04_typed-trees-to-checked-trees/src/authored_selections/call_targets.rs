@@ -150,8 +150,9 @@ pub(crate) fn checked_call_target(
         return operator.symbol;
     }
     if let ExpressionNode::Call(call) = program.expression_table.expression(expression)
-        && let Some(target) =
-            contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call)
+        && let Some(target) = contexts::checked_machine_call_target_from_exact_owner(
+            program, facts, expression, call, None,
+        )
     {
         return target;
     }

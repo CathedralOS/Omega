@@ -43,6 +43,9 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
     // later one: this loop reads the expression table and the checked facts
     // and writes neither, so one index answers them all.
     let mut generic_operator_values: Option<GenericOperatorValueOrigins> = None;
+    // One exact-owner index answers every member expression's query in a
+    // single pass instead of a whole-program rescan per occurrence.
+    let owner_index = crate::authored_selections::contexts::OwnerEnvironmentIndex::default();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -246,7 +249,7 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
-                ) => checked_member_target(program, facts, expression, member),
+                ) => checked_member_target(program, facts, expression, member, Some(&owner_index)),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticPathSegment,
                     ExpressionNode::Name(path),
