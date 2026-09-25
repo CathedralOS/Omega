@@ -52,6 +52,115 @@ struct DirectServiceReach {
     unresolved_installation_reaches: Vec<InstallationReachRequirement>,
 }
 
+// Reach inference repeats the same symbol scans at three scales: the
+// operational summary per machine, the work row per call target inside the
+// fixed point, and the whole program's boundary states / machine-parameter
+// and trait signatures per call. Each roster is stable for the program, so
+// the maps are built once -- locally for the plan pass, cached for the
+// per-call target index.
+struct CallTargetIndex {
+    boundary_machine_by_state: std::collections::HashMap<SymbolHandle, u32>,
+    parameter_signature: std::collections::HashMap<SymbolHandle, (u32, u32)>,
+    trait_by_symbol: std::collections::HashMap<SymbolHandle, u32>,
+    trait_signature: std::collections::HashMap<SymbolHandle, (u32, u32)>,
+    parameter_contract:
+        std::collections::HashMap<SymbolHandle, arena::Handle<typed_trees::data::TypeParameter>>,
+}
+
+thread_local! {
+    static CALL_TARGET_INDEX: std::cell::RefCell<
+        Option<(*const TypedTrees, usize, CallTargetIndex)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn call_target_index_fingerprint(program: &TypedTrees) -> usize {
+    let machines = program.machines();
+    let sample = |index: usize| -> usize {
+        if index < machines.len() {
+            machines[index].symbol.arena_index() as usize
+                ^ machines[index].name.as_str().as_ptr() as usize
+        } else {
+            0
+        }
+    };
+    (program as *const TypedTrees) as usize
+        ^ machines.len().rotate_left(11)
+        ^ program.traits().len().rotate_left(23)
+        ^ sample(0).rotate_left(31)
+        ^ sample(machines.len() / 2).rotate_left(41)
+        ^ sample(machines.len().saturating_sub(1))
+}
+
+fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetIndex) -> R) -> R {
+    CALL_TARGET_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fingerprint = call_target_index_fingerprint(program);
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+        if !fresh {
+            let mut index = CallTargetIndex {
+                boundary_machine_by_state: std::collections::HashMap::new(),
+                parameter_signature: std::collections::HashMap::new(),
+                trait_by_symbol: std::collections::HashMap::new(),
+                trait_signature: std::collections::HashMap::new(),
+                parameter_contract: std::collections::HashMap::new(),
+            };
+            for (machine_index, machine) in program.machines().iter().enumerate() {
+                if machine.supply_mode.is_boundary_declaration() {
+                    for state in program.machine_states(machine) {
+                        index
+                            .boundary_machine_by_state
+                            .entry(state.symbol)
+                            .or_insert(machine_index as u32);
+                    }
+                }
+                for (parameter_index, parameter) in
+                    program.machine_type_parameters(machine).iter().enumerate()
+                {
+                    if matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Machine { .. }
+                    ) {
+                        index
+                            .parameter_signature
+                            .entry(parameter.symbol)
+                            .or_insert((machine_index as u32, parameter_index as u32));
+                    }
+                }
+            }
+            for (trait_index, trait_definition) in program.traits().iter().enumerate() {
+                index
+                    .trait_by_symbol
+                    .entry(trait_definition.symbol)
+                    .or_insert(trait_index as u32);
+                for (signature_index, signature) in program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .enumerate()
+                {
+                    index
+                        .trait_signature
+                        .entry(signature.symbol)
+                        .or_insert((trait_index as u32, signature_index as u32));
+                }
+            }
+            for (handle, parameter) in program.data_type_parameters.iter() {
+                if matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                ) {
+                    index
+                        .parameter_contract
+                        .entry(parameter.symbol)
+                        .or_insert(handle);
+                }
+            }
+            *slot = Some((program as *const TypedTrees, fingerprint, index));
+        }
+        run(&slot.as_ref().expect("index slot is populated").2)
+    })
+}
+
 pub fn infer_service_reaches(
     program: &TypedTrees,
     operational: &OperationalPlan,
@@ -84,10 +193,9 @@ pub fn infer_service_reaches(
             concrete: published.clone(),
             ..Default::default()
         };
-        if let Some(summary) = operational
-            .machines()
-            .iter()
-            .find(|summary| summary.symbol == machine.symbol)
+        if let Some(summary) =
+            with_operational_index(operational, |index| index.get(&machine.symbol).copied())
+                .map(|index| &operational.machines()[index])
         {
             for state in operational.states.span_or_empty(summary.states) {
                 for call in operational.calls.span_or_empty(state.calls) {
@@ -158,6 +266,11 @@ pub fn infer_service_reaches(
         );
     }
 
+    let work_index = work
+        .iter()
+        .enumerate()
+        .map(|(index, machine)| (machine.symbol, index))
+        .collect::<std::collections::HashMap<_, _>>();
     loop {
         let previous = work
             .iter()
@@ -177,17 +290,17 @@ pub fn infer_service_reaches(
             let mut concrete_transitive = work[machine_index].concrete_direct.clone();
             let mut unresolved = work[machine_index].unresolved_installation_reaches.clone();
             let mut dependency = work[machine_index].dependency_direct.clone();
-            for (target, direct, bindings) in work[machine_index].calls.clone() {
+            for (target, direct, bindings) in &work[machine_index].calls {
                 extend_service_set(&mut transitive, &direct.services);
                 extend_service_set(&mut concrete_transitive, &direct.concrete_services);
-                if let Some(target) = work.iter().find(|machine| machine.symbol == target) {
+                if let Some(target) = work_index.get(target).map(|index| &work[*index]) {
                     if work[machine_index].checked_body {
                         substitute_dependency(
                             program,
                             operational,
                             &work,
                             &target.dependency,
-                            bindings,
+                            *bindings,
                             &mut dependency,
                         );
                     }
@@ -239,15 +352,13 @@ pub fn infer_service_reaches(
         ..Default::default()
     };
     for machine in program.machines() {
-        let Some(machine_work) = work.iter().find(|summary| summary.symbol == machine.symbol)
-        else {
+        let Some(machine_work) = work_index.get(&machine.symbol).map(|index| &work[*index]) else {
             continue;
         };
         let mut states = HandleSpan::empty();
-        if let Some(machine_summary) = operational
-            .machines()
-            .iter()
-            .find(|summary| summary.symbol == machine.symbol)
+        if let Some(machine_summary) =
+            with_operational_index(operational, |index| index.get(&machine.symbol).copied())
+                .map(|index| &operational.machines()[index])
         {
             for state_summary in operational.states.span_or_empty(machine_summary.states) {
                 let mut calls = HandleSpan::empty();
@@ -262,9 +373,9 @@ pub fn infer_service_reaches(
                     let mut call_transitive = call_direct.services.clone();
                     let mut call_concrete_transitive = call_direct.concrete_services.clone();
                     let mut call_unresolved = call_direct.unresolved_installation_reaches;
-                    if let Some(target) = work
-                        .iter()
-                        .find(|summary| summary.symbol == call_summary.target_machine_symbol)
+                    if let Some(target) = work_index
+                        .get(&call_summary.target_machine_symbol)
+                        .map(|index| &work[*index])
                     {
                         extend_service_set(&mut call_transitive, effective_services(target));
                         extend_service_set(
@@ -374,16 +485,53 @@ fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] 
     &machine.concrete_effective
 }
 
+thread_local! {
+    static OPERATIONAL_INDEX: std::cell::RefCell<
+        Option<(*const OperationalPlan, usize, std::collections::HashMap<SymbolHandle, usize>)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn with_operational_index<R>(
+    operational: &OperationalPlan,
+    run: impl FnOnce(&std::collections::HashMap<SymbolHandle, usize>) -> R,
+) -> R {
+    OPERATIONAL_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let machines = operational.machines();
+        let sample = |index: usize| -> usize {
+            if index < machines.len() {
+                machines[index].symbol.arena_index() as usize
+            } else {
+                0
+            }
+        };
+        let fingerprint = machines.as_ptr() as usize
+            ^ machines.len().rotate_left(11)
+            ^ sample(0).rotate_left(23)
+            ^ sample(machines.len() / 2).rotate_left(31)
+            ^ sample(machines.len().saturating_sub(1));
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, operational as *const _) && *seen == fingerprint);
+        if !fresh {
+            let index = machines
+                .iter()
+                .enumerate()
+                .map(|(index, summary)| (summary.symbol, index))
+                .collect();
+            *slot = Some((operational as *const OperationalPlan, fingerprint, index));
+        }
+        run(&slot.as_ref().expect("index slot is populated").2)
+    })
+}
+
 pub(crate) fn required_boundary_services(
     program: &TypedTrees,
     operational: &OperationalPlan,
     machine: SymbolHandle,
 ) -> Vec<ServiceReachId> {
     let mut required = Vec::new();
-    if let Some(summary) = operational
-        .machines()
-        .iter()
-        .find(|summary| summary.symbol == machine)
+    if let Some(summary) = with_operational_index(operational, |index| index.get(&machine).copied())
+        .map(|index| &operational.machines()[index])
     {
         for state in operational.states.span_or_empty(summary.states) {
             for call in operational.calls.span_or_empty(state.calls) {
@@ -395,13 +543,56 @@ pub(crate) fn required_boundary_services(
     required
 }
 
+fn indexed_contract_view<'program>(
+    program: &'program TypedTrees,
+    index: &CallTargetIndex,
+    contract: &'program typed_trees::data::MachineParameterContract,
+) -> Option<typed_trees::data::MachineParameterContractView<'program>> {
+    match contract {
+        typed_trees::data::MachineParameterContract::RequirementIdentity => None,
+        typed_trees::data::MachineParameterContract::Structural(signature) => Some(
+            typed_trees::data::MachineParameterContractView::Structural(signature),
+        ),
+        typed_trees::data::MachineParameterContract::Nominal {
+            trait_definition,
+            requirement,
+        } => {
+            let trait_definition =
+                &program.traits()[*index.trait_by_symbol.get(trait_definition)? as usize];
+            let requirement = &program.trait_machine_signatures(trait_definition)
+                [index.trait_signature.get(requirement)?.1 as usize];
+            Some(typed_trees::data::MachineParameterContractView::Nominal {
+                trait_definition,
+                requirement,
+            })
+        }
+    }
+}
+
+fn retained_contract_view<'program>(
+    program: &'program TypedTrees,
+    index: &CallTargetIndex,
+    symbol: SymbolHandle,
+) -> Option<typed_trees::data::MachineParameterContractView<'program>> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let handle = index.parameter_contract.get(&symbol)?;
+    let parameter = program.data_type_parameters.get(*handle);
+    let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
+        return None;
+    };
+    indexed_contract_view(program, index, contract)
+}
+
 fn direct_service_reach_for_operational_call(
     program: &TypedTrees,
     call: &flow_effects::CallOperational,
 ) -> DirectServiceReach {
     let mut reach = direct_service_reach_for_call(program, call.target_state_symbol);
-    if let Some(contract) = program.retained_static_machine_contract(call.static_machine_parameter)
-    {
+    if let Some(contract) = with_call_target_index(program, |index| {
+        retained_contract_view(program, index, call.static_machine_parameter)
+    }) {
         // Selection substitutes nominal reach only. Structural requirements
         // remain fixed even when the selected implementation has a smaller row.
         // A binder call is not a newly authored direct boundary invocation.
@@ -430,10 +621,12 @@ fn direct_service_reach_for_operational_call(
 }
 
 fn is_nominal_parameter(program: &TypedTrees, parameter: SymbolHandle) -> bool {
-    matches!(
-        program.retained_static_machine_contract(parameter),
-        Some(typed_trees::data::MachineParameterContractView::Nominal { .. })
-    )
+    with_call_target_index(program, |index| {
+        matches!(
+            retained_contract_view(program, index, parameter),
+            Some(typed_trees::data::MachineParameterContractView::Nominal { .. })
+        )
+    })
 }
 
 fn extend_parameter_set(destination: &mut Vec<SymbolHandle>, source: &[SymbolHandle]) {
@@ -569,7 +762,23 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
         return reach;
     }
 
-    if let Some((_, signature)) = program.machine_parameter_signature(target) {
+    let parameter_signature = with_call_target_index(program, |index| {
+        index
+            .parameter_signature
+            .get(&target)
+            .and_then(|&(machine_index, parameter_index)| {
+                let machine = &program.machines()[machine_index as usize];
+                let parameter = &program.machine_type_parameters(machine)[parameter_index as usize];
+                let typed_trees::data::TypeParameterKind::Machine { contract } = &parameter.kind
+                else {
+                    return None;
+                };
+                indexed_contract_view(program, index, contract)
+                    .map(typed_trees::data::MachineParameterContractView::signature)
+                    .map(|signature| (machine, signature))
+            })
+    });
+    if let Some((_, signature)) = parameter_signature {
         extend_service_set(
             &mut reach.services,
             program
@@ -590,11 +799,13 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
         return reach;
     }
 
-    for trait_definition in program.traits() {
-        for signature in program.trait_machine_signatures(trait_definition) {
-            if signature.symbol != target {
-                continue;
-            }
+    if let Some((trait_index, signature_index)) =
+        with_call_target_index(program, |index| index.trait_signature.get(&target).copied())
+    {
+        let trait_definition = &program.traits()[trait_index as usize];
+        let signature =
+            &program.trait_machine_signatures(trait_definition)[signature_index as usize];
+        {
             extend_service_set(
                 &mut reach.services,
                 program
@@ -634,13 +845,11 @@ fn direct_service_reach_for_call(program: &TypedTrees, target: SymbolHandle) -> 
             return reach;
         }
     }
-    if let Some(machine) = program.machines().iter().find(|machine| {
-        machine.supply_mode.is_boundary_declaration()
-            && program
-                .machine_states(machine)
-                .iter()
-                .any(|state| state.symbol == target)
-    }) {
+    if let Some(machine) = with_call_target_index(program, |index| {
+        index.boundary_machine_by_state.get(&target).copied()
+    })
+    .map(|machine_index| &program.machines()[machine_index as usize])
+    {
         extend_service_set(
             &mut reach.services,
             program
