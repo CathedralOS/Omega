@@ -4,7 +4,9 @@
 //! manifest through the `debug` section fingerprint. Its wire fields — the
 //! sealed semantic identity, the counted source-file roster (file identity,
 //! origin, byte length, digest, path), and the counted site roster (subject,
-//! span file, span start, span end) — are each substituted independently. A
+//! span file, span start, span end) — are each substituted independently,
+//! every leg declared once in `debug_map_custody_fields.rs` and driven by the
+//! shared one-field substitution matrix. A
 //! substitution either fails canonical decoding (the decoder replays
 //! `validate_debug_map` against the module and re-encodes the decoded map), or
 //! decodes to a different map whose honestly recomputed manifest identity
@@ -12,9 +14,16 @@
 
 use std::ops::Range;
 
+#[path = "debug_map_custody_fields.rs"]
+mod debug_map_custody_fields;
+
 use super::{
     canonical_artifact, contract_id, edge_id, kernel_bundle, machine_id, obligation_id,
     operation_id, semantic_module, value_id,
+};
+use debug_map_custody_fields::DebugMapFieldForTest;
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::ClaimId;
@@ -24,7 +33,7 @@ use terminal_codec::{
     DebugSubject, TerminalDebugMap, build_artifact_manifest, decode_debug_map, encode_debug_map,
     source_digest, terminal_psi_identity, validate_artifact_manifest, validate_debug_map,
 };
-use terminal_psi::TerminalModule;
+use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
 use terminal_verifier::verify_module;
 
 /// Byte offsets of every wire field inside the canonical section encoding.
@@ -241,6 +250,171 @@ fn claim_subject_row(machine: u64, claim: u64) -> [u8; 17] {
     row
 }
 
+/// The first file row with every field held at its honest value except the
+/// presentation path, whose u32 prefix is repaired to the new length.
+fn first_file_row_with_path(path: &str) -> Vec<u8> {
+    let mut row = Vec::new();
+    row.extend_from_slice(&1_u32.to_le_bytes());
+    row.push(1);
+    row.extend_from_slice(&15_u64.to_le_bytes());
+    row.extend_from_slice(source_digest(b"machine main {}").as_bytes());
+    row.extend_from_slice(
+        &u32::try_from(path.len())
+            .expect("path fits u32")
+            .to_le_bytes(),
+    );
+    row.extend_from_slice(path.as_bytes());
+    row
+}
+
+/// An order-preserving fourth file row appended after the roster.
+fn inserted_file_row(encoded: &[u8], spans: &MapSpans) -> Vec<u8> {
+    let mut extra_file = Vec::new();
+    extra_file.extend_from_slice(&4_u32.to_le_bytes());
+    extra_file.push(2);
+    extra_file.extend_from_slice(&3_u64.to_le_bytes());
+    extra_file.extend_from_slice(source_digest(b"tmp").as_bytes());
+    extra_file.extend_from_slice(&9_u32.to_le_bytes());
+    extra_file.extend_from_slice(b"extra.omg");
+    let mut inserted = Vec::with_capacity(encoded.len() + extra_file.len());
+    inserted.extend_from_slice(&encoded[..spans.file_count.start]);
+    inserted.extend_from_slice(&4_u32.to_le_bytes());
+    inserted.extend_from_slice(&encoded[spans.file_count.end..spans.files[2].row.end]);
+    inserted.extend_from_slice(&extra_file);
+    inserted.extend_from_slice(&encoded[spans.files[2].row.end..]);
+    inserted
+}
+
+fn overwrite(section: &mut [u8], range: Range<usize>, bytes: &[u8]) {
+    section[range].copy_from_slice(bytes);
+}
+
+/// The debug-map family's honest-recomputation hook: rewrite exactly one wire
+/// field of the canonical section, repairing only the count or length prefix
+/// the substituted row owns. The donor section supplies an authentic foreign
+/// source digest.
+fn substitute_debug_map_for_test(
+    section: &mut Vec<u8>,
+    field: DebugMapFieldForTest,
+    donor: &[u8],
+    spans: &MapSpans,
+) {
+    use DebugMapFieldForTest as Field;
+    let file = &spans.files[0];
+    let site = &spans.sites[0];
+    match field {
+        Field::VocabularyMarker => {
+            overwrite(section, spans.vocabulary.clone(), &u16::MAX.to_le_bytes())
+        }
+        Field::ProgramFingerprint => section[spans.fingerprint.start] ^= 0xFF,
+        Field::Magic => section[spans.magic.start] ^= 0xFF,
+        Field::FormatMarker => overwrite(
+            section,
+            spans.format_marker.clone(),
+            &u16::MAX.to_le_bytes(),
+        ),
+        Field::TrailingByte => section.push(0),
+        Field::FileOrigin => overwrite(section, file.origin.clone(), &[2]),
+        Field::FileByteLength => overwrite(section, file.byte_len.clone(), &16_u64.to_le_bytes()),
+        Field::FileDigest => overwrite(section, file.digest.clone(), &donor[file.digest.clone()]),
+        Field::FilePath => {
+            *section = splice_file_row(
+                section,
+                spans,
+                0,
+                &first_file_row_with_path("renamed/main.omg"),
+            );
+        }
+        Field::UnreferencedFileDropped => *section = splice_file_row(section, spans, 2, &[]),
+        Field::FileInserted => *section = inserted_file_row(section, spans),
+        Field::ReferencedFileDropped => *section = splice_file_row(section, spans, 1, &[]),
+        Field::FileIdentityZero => overwrite(section, file.id.clone(), &0_u32.to_le_bytes()),
+        Field::FileIdentityDuplicated => {
+            overwrite(section, spans.files[1].id.clone(), &1_u32.to_le_bytes());
+        }
+        Field::FileIdentityOutOfOrder => overwrite(section, file.id.clone(), &5_u32.to_le_bytes()),
+        Field::FileOriginUnknownTag => overwrite(section, file.origin.clone(), &[3]),
+        Field::FileByteLengthStrandingSpans => {
+            overwrite(section, file.byte_len.clone(), &10_u64.to_le_bytes());
+        }
+        Field::FilePathNonUtf8 => overwrite(section, file.path.clone(), &[0xFF; 8]),
+        Field::FilePathOverLong => {
+            overwrite(
+                section,
+                file.path_len.clone(),
+                &((1_u32 << 20) + 1).to_le_bytes(),
+            );
+        }
+        Field::FileCountCleared => {
+            overwrite(section, spans.file_count.clone(), &0_u32.to_le_bytes())
+        }
+        Field::FileCountOverCounted => {
+            overwrite(section, spans.file_count.clone(), &7_u32.to_le_bytes())
+        }
+        // Machine(1) -> Block(1) keeps the roster order and names an existing
+        // subject.
+        Field::SiteSubjectKind => overwrite(section, site.subject_tag.clone(), &[2]),
+        // Value(2) -> Value(1) keeps Edge(1) < Value(1) < Contract(1).
+        Field::SiteSubjectIdentity => {
+            overwrite(
+                section,
+                spans.sites[3].subject_id.clone(),
+                &1_u64.to_le_bytes(),
+            );
+        }
+        Field::SiteSpanStart => overwrite(section, site.start.clone(), &4_u64.to_le_bytes()),
+        Field::SiteSpanEnd => overwrite(section, site.end.clone(), &10_u64.to_le_bytes()),
+        // Rebinding the span to another rostered file keeps every join.
+        Field::SiteSpanFile => overwrite(section, site.file.clone(), &2_u32.to_le_bytes()),
+        Field::SiteDropped => *section = splice_site_row(section, spans, 1, &[]),
+        Field::SiteSubjectKindOutOfOrder => overwrite(section, site.subject_tag.clone(), &[6]),
+        Field::SiteSubjectDuplicated => {
+            overwrite(section, spans.sites[1].subject_tag.clone(), &[1])
+        }
+        Field::SiteSubjectUnknownTag => overwrite(section, site.subject_tag.clone(), &[0]),
+        Field::SiteSubjectNamesNoMachine => {
+            overwrite(section, site.subject_id.clone(), &99_u64.to_le_bytes());
+        }
+        // The module carries no structural place, so a Place subject cannot
+        // join.
+        Field::SiteSubjectNamesNoPlace => {
+            overwrite(section, spans.sites[5].subject_tag.clone(), &[8])
+        }
+        // The two-identity Claim subject splices into the trailing site row;
+        // machine 1 carries no claim.
+        Field::SiteSubjectNamesNoClaim => {
+            let mut claim_site = section[spans.sites[5].row.clone()].to_vec();
+            claim_site.splice(0..9, claim_subject_row(1, 1));
+            *section = splice_site_row(section, spans, 5, &claim_site);
+        }
+        Field::SiteSpanFileZero => overwrite(section, site.file.clone(), &0_u32.to_le_bytes()),
+        Field::SiteSpanFileUnrostered => {
+            overwrite(section, site.file.clone(), &7_u32.to_le_bytes())
+        }
+        Field::SiteSpanStartOvertakingEnd => {
+            overwrite(section, site.start.clone(), &9_u64.to_le_bytes())
+        }
+        Field::SiteSpanEndEscapingFile => {
+            overwrite(section, site.end.clone(), &16_u64.to_le_bytes())
+        }
+        Field::SiteCountCleared => {
+            overwrite(section, spans.site_count.clone(), &0_u32.to_le_bytes())
+        }
+        Field::SiteCountOverCounted => {
+            overwrite(section, spans.site_count.clone(), &9_u32.to_le_bytes())
+        }
+    }
+}
+
+/// The family's combined independent checker result: canonical decoding
+/// first, then replay of the substituted section against the retained
+/// artifact manifest.
+#[derive(Debug, PartialEq)]
+enum DebugMapCheck {
+    Decode(DebugMapError),
+    ManifestReplay(ArtifactManifestError),
+}
+
 #[test]
 fn terminal_debug_map_rejects_every_one_field_substitution() {
     let module = semantic_module();
@@ -276,85 +450,194 @@ fn terminal_debug_map_rejects_every_one_field_substitution() {
         .map(|fingerprint| *fingerprint.as_bytes()),
     );
 
+    // An authentic foreign section over the same module: only the first
+    // file's source digest differs.
+    let mut donor_map = map.clone();
+    donor_map.files[0].digest = source_digest(b"machine donor {}");
+    let donor = encode_debug_map(&module, &donor_map).expect("canonical donor section");
+
+    let check = |section: &Vec<u8>| -> Result<Vec<u8>, DebugMapCheck> {
+        decode_debug_map(&module, section).map_err(DebugMapCheck::Decode)?;
+        validate_artifact_manifest(
+            &module,
+            &bundle,
+            artifact.optimization(),
+            None,
+            Some(section),
+            retained,
+        )
+        .map_err(DebugMapCheck::ManifestReplay)?;
+        Ok(section.clone())
+    };
+
+    let expected_identity = terminal_psi_identity(&module).expect("module identity");
+    let mut foreign_fingerprint = *expected_identity.program_fingerprint.as_bytes();
+    foreign_fingerprint[0] ^= 0xFF;
+    let outcome = |field: DebugMapFieldForTest| -> MutationOutcome<DebugMapCheck> {
+        use DebugMapFieldForTest as Field;
+        let decode = |error| MutationOutcome::ExactError(DebugMapCheck::Decode(error));
+        match field {
+            // --- file roster: origin, byte length, digest, and path are
+            // independently representable, as are dropping an unreferenced
+            // file and inserting an order-preserving one; site roster:
+            // subject, span file, and span bounds are representable where
+            // they keep the roster order and the file join ---
+            Field::FileOrigin
+            | Field::FileByteLength
+            | Field::FileDigest
+            | Field::FilePath
+            | Field::UnreferencedFileDropped
+            | Field::FileInserted
+            | Field::SiteSubjectKind
+            | Field::SiteSubjectIdentity
+            | Field::SiteSpanStart
+            | Field::SiteSpanEnd
+            | Field::SiteSpanFile
+            | Field::SiteDropped => MutationOutcome::ExactError(DebugMapCheck::ManifestReplay(
+                ArtifactManifestError::ManifestMismatch,
+            )),
+            // --- sealed semantic identity: the vocabulary marker and program
+            // fingerprint bind the map to one exact module ---
+            Field::VocabularyMarker => decode(DebugMapError::UnsupportedVocabularyMarker(u16::MAX)),
+            Field::ProgramFingerprint => decode(DebugMapError::SemanticIdentityMismatch {
+                expected: expected_identity,
+                actual: TerminalPsiIdentity {
+                    vocabulary_marker: expected_identity.vocabulary_marker,
+                    program_fingerprint: SemanticFingerprint::from_bytes(foreign_fingerprint),
+                },
+            }),
+            // --- framing axes reject at decoding ---
+            Field::Magic => decode(DebugMapError::InvalidMagic),
+            Field::FormatMarker => decode(DebugMapError::UnsupportedFormatMarker(u16::MAX)),
+            Field::TrailingByte => decode(DebugMapError::TrailingBytes(1)),
+            // A referenced file cannot drop out: the site roster's span-file
+            // join rejects at decoding.
+            Field::ReferencedFileDropped => decode(DebugMapError::UnknownFile(file_id(2))),
+            // File identities admit no representable substitution: a zero
+            // identity rejects outright, and any other value breaks the
+            // strictly increasing roster or strands the spans that join it.
+            Field::FileIdentityZero => decode(DebugMapError::ZeroFileIdentity),
+            Field::FileIdentityDuplicated | Field::FileIdentityOutOfOrder => decode(
+                DebugMapError::NonCanonicalOrder("debug files by DebugFileId"),
+            ),
+            Field::FileOriginUnknownTag => {
+                decode(DebugMapError::InvalidTag("DebugSourceOrigin", 3))
+            }
+            // A shrinking byte length strands the spans that index the file.
+            Field::FileByteLengthStrandingSpans => {
+                decode(DebugMapError::InvalidSpan(DebugSourceSpan {
+                    file: file_id(1),
+                    start: 8,
+                    end: 12,
+                }))
+            }
+            Field::FilePathNonUtf8 => decode(DebugMapError::Codec(CodecError::InvalidUtf8(
+                "debug source path",
+            ))),
+            Field::FilePathOverLong => decode(DebugMapError::Codec(CodecError::StringTooLong(
+                "debug source path",
+            ))),
+            // A count lying about its roster starves or strands the cursor:
+            // a cleared count leaves its rows as trailing bytes, and an
+            // over-count runs the cursor off the section's end.
+            Field::FileCountCleared => decode(DebugMapError::TrailingBytes(334)),
+            Field::FileCountOverCounted => decode(DebugMapError::Codec(CodecError::UnexpectedEnd)),
+            // Subject substitutions that break the roster order or name no
+            // module subject reject at decoding.
+            Field::SiteSubjectKindOutOfOrder | Field::SiteSubjectDuplicated => {
+                decode(DebugMapError::NonCanonicalOrder("debug sites by subject"))
+            }
+            Field::SiteSubjectUnknownTag => decode(DebugMapError::InvalidTag("DebugSubject", 0)),
+            Field::SiteSubjectNamesNoMachine => decode(DebugMapError::UnknownSubject(
+                DebugSubject::Machine(machine_id(99)),
+            )),
+            Field::SiteSubjectNamesNoPlace => {
+                decode(DebugMapError::UnknownSubject(DebugSubject::Place(
+                    semantic_vocabulary::PlaceId::new(1).expect("nonzero place identity"),
+                )))
+            }
+            Field::SiteSubjectNamesNoClaim => {
+                decode(DebugMapError::UnknownSubject(DebugSubject::Claim {
+                    machine: machine_id(1),
+                    claim: ClaimId::new(1).expect("nonzero claim identity"),
+                }))
+            }
+            // Span coordinates reject the moment they lose the file join or
+            // invert.
+            Field::SiteSpanFileZero => decode(DebugMapError::ZeroFileIdentity),
+            Field::SiteSpanFileUnrostered => decode(DebugMapError::UnknownFile(file_id(7))),
+            Field::SiteSpanStartOvertakingEnd => {
+                decode(DebugMapError::InvalidSpan(DebugSourceSpan {
+                    file: file_id(1),
+                    start: 9,
+                    end: 7,
+                }))
+            }
+            Field::SiteSpanEndEscapingFile => decode(DebugMapError::InvalidSpan(DebugSourceSpan {
+                file: file_id(1),
+                start: 0,
+                end: 16,
+            })),
+            Field::SiteCountCleared => decode(DebugMapError::TrailingBytes(174)),
+            Field::SiteCountOverCounted => decode(DebugMapError::Codec(CodecError::UnexpectedEnd)),
+        }
+    };
+
     // A substitution that still forms a canonical section decodes to a
-    // different map, honestly recomputes a divergent artifact identity, and is
-    // rejected by replay against the retained manifest.
-    let representable = |name: &'static str, mutated: &[u8]| -> TerminalDebugMap {
-        let substituted = decode_debug_map(&module, mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, map, "{name} must change the map");
+    // different map that re-encodes canonically, satisfies the module-bound
+    // invariants, and honestly recomputes a divergent artifact identity; the
+    // checker has already rejected it against the retained manifest.
+    let representable = |section: &Vec<u8>, field: DebugMapFieldForTest| {
+        if !matches!(
+            outcome(field),
+            MutationOutcome::ExactError(DebugMapCheck::ManifestReplay(_))
+        ) {
+            return;
+        }
+        let substituted = decode_debug_map(&module, section)
+            .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
+        assert_ne!(substituted, map, "{field:?} must change the map");
         assert_eq!(
-            encode_debug_map(&module, &substituted),
-            Ok(mutated.to_vec()),
-            "{name} must re-encode canonically"
+            encode_debug_map(&module, &substituted).as_ref(),
+            Ok(section),
+            "{field:?} must re-encode canonically"
         );
         assert_eq!(
             validate_debug_map(&module, &substituted),
             Ok(()),
-            "{name} must still satisfy the module-bound map invariants"
+            "{field:?} must still satisfy the module-bound map invariants"
         );
         let recomputed = build_artifact_manifest(
             &module,
             &bundle,
             artifact.optimization(),
             None,
-            Some(mutated),
+            Some(section),
         )
         .expect("honest manifest for the substituted section");
         assert_ne!(
             recomputed.identity(),
             retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
-            validate_artifact_manifest(
-                &module,
-                &bundle,
-                artifact.optimization(),
-                None,
-                Some(mutated),
-                retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        substituted
-    };
-    let rejected = |name: &'static str, mutated: &[u8], expected: DebugMapError| {
-        assert_eq!(
-            decode_debug_map(&module, mutated),
-            Err(expected),
-            "{name} must reject at canonical decoding"
-        );
-    };
-    let rejected_unspecified = |name: &'static str, mutated: &[u8]| {
-        assert!(
-            decode_debug_map(&module, mutated).is_err(),
-            "{name} must reject at canonical decoding"
+            "{field:?} must diverge the recomputed artifact identity"
         );
     };
 
-    // --- sealed semantic identity: the vocabulary marker and program
-    // fingerprint bind the map to one exact module ---
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "terminal debug map",
+        fields: DebugMapFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor,
+        custody: &|section: &Vec<u8>| section.clone(),
+        substitute: &|section, field, donor| {
+            substitute_debug_map_for_test(section, field, donor, &spans);
+        },
+        check: &check,
+        outcome: &outcome,
+        joined_replay: Some(&representable),
+    });
 
-    let mut mutated = encoded.clone();
-    mutated[spans.vocabulary.clone()].copy_from_slice(&u16::MAX.to_le_bytes());
-    rejected(
-        "the vocabulary marker",
-        &mutated,
-        DebugMapError::UnsupportedVocabularyMarker(u16::MAX),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.fingerprint.start] ^= 0xFF;
-    assert!(
-        matches!(
-            decode_debug_map(&module, &mutated),
-            Err(DebugMapError::SemanticIdentityMismatch { .. })
-        ),
-        "a foreign program fingerprint must reject at decoding"
-    );
-
+    // The retained section rejects under a foreign module: the sealed
+    // semantic identity binds it to one exact program.
     let mut foreign = module.clone();
     foreign.machines[0].id = machine_id(7);
     foreign.entry = machine_id(7);
@@ -366,28 +649,8 @@ fn terminal_debug_map_rejects_every_one_field_substitution() {
         "the retained section must reject under a foreign module"
     );
 
-    // --- framing axes reject at decoding ---
-
-    let mut mutated = encoded.clone();
-    mutated[spans.magic.start] ^= 0xFF;
-    rejected("the magic", &mutated, DebugMapError::InvalidMagic);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.format_marker.clone()].copy_from_slice(&u16::MAX.to_le_bytes());
-    rejected(
-        "the format marker",
-        &mutated,
-        DebugMapError::UnsupportedFormatMarker(u16::MAX),
-    );
-
-    let mut trailing = encoded.clone();
-    trailing.push(0);
-    rejected(
-        "a trailing byte",
-        &trailing,
-        DebugMapError::TrailingBytes(1),
-    );
-
+    // Truncation is not a one-field substitution: every cut through a field
+    // rejects at decoding.
     for cut in [
         spans.magic.end - 1,
         spans.format_marker.end - 1,
@@ -399,279 +662,11 @@ fn terminal_debug_map_rejects_every_one_field_substitution() {
         spans.sites[0].row.end - 1,
         spans.end - 1,
     ] {
-        rejected_unspecified("a truncated section", &encoded[..cut]);
-    }
-
-    // --- file roster: origin, byte length, digest, and path are
-    // independently representable; the file identity is order- and join-bound
-    // ---
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].origin.clone()].copy_from_slice(&[2]);
-    representable("a file's source origin", &mutated);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].byte_len.clone()].copy_from_slice(&16_u64.to_le_bytes());
-    representable("a file's byte length", &mutated);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].digest.start] ^= 0xFF;
-    representable("a file's source digest", &mutated);
-
-    // A different-length path repairs its u32 prefix and still decodes.
-    let file_row = |path: &str| -> Vec<u8> {
-        let mut row = Vec::new();
-        row.extend_from_slice(&1_u32.to_le_bytes());
-        row.push(1);
-        row.extend_from_slice(&15_u64.to_le_bytes());
-        row.extend_from_slice(source_digest(b"machine main {}").as_bytes());
-        row.extend_from_slice(
-            &u32::try_from(path.len())
-                .expect("path fits u32")
-                .to_le_bytes(),
+        assert!(
+            decode_debug_map(&module, &encoded[..cut]).is_err(),
+            "a truncated section must reject at canonical decoding"
         );
-        row.extend_from_slice(path.as_bytes());
-        row
-    };
-    representable(
-        "a file's presentation path",
-        &splice_file_row(&encoded, &spans, 0, &file_row("renamed/main.omg")),
-    );
-
-    // An unreferenced roster member drops out representably; an inserted,
-    // order-preserving file row is representable too.
-    representable(
-        "a dropped unreferenced file row",
-        &splice_file_row(&encoded, &spans, 2, &[]),
-    );
-    let mut extra_file = Vec::new();
-    extra_file.extend_from_slice(&4_u32.to_le_bytes());
-    extra_file.push(2);
-    extra_file.extend_from_slice(&3_u64.to_le_bytes());
-    extra_file.extend_from_slice(source_digest(b"tmp").as_bytes());
-    extra_file.extend_from_slice(&9_u32.to_le_bytes());
-    extra_file.extend_from_slice(b"extra.omg");
-    let mut inserted = Vec::with_capacity(encoded.len() + extra_file.len());
-    inserted.extend_from_slice(&encoded[..spans.file_count.start]);
-    inserted.extend_from_slice(&4_u32.to_le_bytes());
-    inserted.extend_from_slice(&encoded[spans.file_count.end..spans.files[2].row.end]);
-    inserted.extend_from_slice(&extra_file);
-    inserted.extend_from_slice(&encoded[spans.files[2].row.end..]);
-    representable("an inserted file row", &inserted);
-
-    // A referenced file cannot drop out: the site roster's span-file join
-    // rejects at decoding.
-    rejected(
-        "a dropped referenced file row",
-        &splice_file_row(&encoded, &spans, 1, &[]),
-        DebugMapError::UnknownFile(file_id(2)),
-    );
-
-    // File identities admit no representable substitution: a zero identity
-    // rejects outright, and any other value breaks the strictly increasing
-    // roster or strands the spans that join it.
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].id.clone()].copy_from_slice(&0_u32.to_le_bytes());
-    rejected(
-        "a zero file identity",
-        &mutated,
-        DebugMapError::ZeroFileIdentity,
-    );
-    let mut mutated = encoded.clone();
-    mutated[spans.files[1].id.clone()].copy_from_slice(&1_u32.to_le_bytes());
-    rejected(
-        "a duplicated file identity",
-        &mutated,
-        DebugMapError::NonCanonicalOrder("debug files by DebugFileId"),
-    );
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].id.clone()].copy_from_slice(&5_u32.to_le_bytes());
-    rejected(
-        "a file identity breaking roster order",
-        &mutated,
-        DebugMapError::NonCanonicalOrder("debug files by DebugFileId"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].origin.clone()].copy_from_slice(&[3]);
-    rejected(
-        "an unknown source-origin tag",
-        &mutated,
-        DebugMapError::InvalidTag("DebugSourceOrigin", 3),
-    );
-
-    // A shrinking byte length strands the spans that index the file.
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].byte_len.clone()].copy_from_slice(&10_u64.to_le_bytes());
-    rejected(
-        "a byte length stranding spans",
-        &mutated,
-        DebugMapError::InvalidSpan(DebugSourceSpan {
-            file: file_id(1),
-            start: 8,
-            end: 12,
-        }),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].path.clone()].copy_from_slice(&[0xFF; 8]);
-    rejected(
-        "a non-UTF-8 path",
-        &mutated,
-        DebugMapError::Codec(CodecError::InvalidUtf8("debug source path")),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.files[0].path_len.clone()].copy_from_slice(&((1_u32 << 20) + 1).to_le_bytes());
-    rejected(
-        "an over-long path",
-        &mutated,
-        DebugMapError::Codec(CodecError::StringTooLong("debug source path")),
-    );
-
-    // A count lying about its roster starves or strands the cursor.
-    let mut mutated = encoded.clone();
-    mutated[spans.file_count.clone()].copy_from_slice(&0_u32.to_le_bytes());
-    rejected_unspecified("a cleared file count", &mutated);
-    let mut mutated = encoded.clone();
-    mutated[spans.file_count.clone()].copy_from_slice(&7_u32.to_le_bytes());
-    rejected_unspecified("an over-counted file roster", &mutated);
-
-    // --- site roster: subject, span file, and span bounds are independently
-    // representable where they keep the roster order and the file join ---
-
-    // A subject-kind substitution that preserves order and names an existing
-    // subject: Machine(1) -> Block(1) sorts before Operation(1).
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].subject_tag.clone()].copy_from_slice(&[2]);
-    representable("a site's subject kind", &mutated);
-
-    // An identity substitution inside one kind: Value(2) -> Value(1) keeps
-    // Edge(1) < Value(1) < Contract(1).
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[3].subject_id.clone()].copy_from_slice(&1_u64.to_le_bytes());
-    representable("a site's subject identity", &mutated);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].start.clone()].copy_from_slice(&4_u64.to_le_bytes());
-    representable("a site's span start", &mutated);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].end.clone()].copy_from_slice(&10_u64.to_le_bytes());
-    representable("a site's span end", &mutated);
-
-    // Rebinding the span to another rostered file keeps every join.
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].file.clone()].copy_from_slice(&2_u32.to_le_bytes());
-    representable("a site's span file", &mutated);
-
-    representable(
-        "a dropped site row",
-        &splice_site_row(&encoded, &spans, 1, &[]),
-    );
-
-    // Subject substitutions that break the roster order or name no module
-    // subject reject at decoding.
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].subject_tag.clone()].copy_from_slice(&[6]);
-    rejected(
-        "a subject kind breaking roster order",
-        &mutated,
-        DebugMapError::NonCanonicalOrder("debug sites by subject"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[1].subject_tag.clone()].copy_from_slice(&[1]);
-    rejected(
-        "a duplicated site subject",
-        &mutated,
-        DebugMapError::NonCanonicalOrder("debug sites by subject"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].subject_tag.clone()].copy_from_slice(&[0]);
-    rejected(
-        "an unknown subject tag",
-        &mutated,
-        DebugMapError::InvalidTag("DebugSubject", 0),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].subject_id.clone()].copy_from_slice(&99_u64.to_le_bytes());
-    rejected(
-        "a subject naming no machine",
-        &mutated,
-        DebugMapError::UnknownSubject(DebugSubject::Machine(machine_id(99))),
-    );
-
-    // The module carries no structural place, so a Place subject cannot join.
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[5].subject_tag.clone()].copy_from_slice(&[8]);
-    rejected(
-        "a subject naming no place",
-        &mutated,
-        DebugMapError::UnknownSubject(DebugSubject::Place(
-            semantic_vocabulary::PlaceId::new(1).expect("nonzero place identity"),
-        )),
-    );
-
-    // The two-identity Claim subject splices into the trailing site row and
-    // still rejects: machine 1 carries no claim.
-    let mut claim_site = encoded[spans.sites[5].row.clone()].to_vec();
-    claim_site.splice(0..9, claim_subject_row(1, 1));
-    rejected(
-        "a subject naming no claim",
-        &splice_site_row(&encoded, &spans, 5, &claim_site),
-        DebugMapError::UnknownSubject(DebugSubject::Claim {
-            machine: machine_id(1),
-            claim: ClaimId::new(1).expect("nonzero claim identity"),
-        }),
-    );
-
-    // Span coordinates reject the moment they lose the file join or invert.
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].file.clone()].copy_from_slice(&0_u32.to_le_bytes());
-    rejected(
-        "a zero span file",
-        &mutated,
-        DebugMapError::ZeroFileIdentity,
-    );
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].file.clone()].copy_from_slice(&7_u32.to_le_bytes());
-    rejected(
-        "an unrostered span file",
-        &mutated,
-        DebugMapError::UnknownFile(file_id(7)),
-    );
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].start.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    rejected(
-        "a span start overtaking its end",
-        &mutated,
-        DebugMapError::InvalidSpan(DebugSourceSpan {
-            file: file_id(1),
-            start: 9,
-            end: 7,
-        }),
-    );
-    let mut mutated = encoded.clone();
-    mutated[spans.sites[0].end.clone()].copy_from_slice(&16_u64.to_le_bytes());
-    rejected(
-        "a span end escaping its file",
-        &mutated,
-        DebugMapError::InvalidSpan(DebugSourceSpan {
-            file: file_id(1),
-            start: 0,
-            end: 16,
-        }),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.site_count.clone()].copy_from_slice(&0_u32.to_le_bytes());
-    rejected_unspecified("a cleared site count", &mutated);
-    let mut mutated = encoded.clone();
-    mutated[spans.site_count.clone()].copy_from_slice(&9_u32.to_le_bytes());
-    rejected_unspecified("an over-counted site roster", &mutated);
+    }
 
     // --- the producing side binds the same rules at encoding ---
 
