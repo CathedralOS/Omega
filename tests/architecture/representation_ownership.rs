@@ -194,12 +194,10 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
         .map(|directory_name| pipeline_package_name(&directory_name).to_string())
         .collect::<Vec<_>>();
     assert_eq!(entrances, ["terminal-psi-to-abstract-operations"]);
-    let coordinator = std::fs::read_to_string(
-        root.join("omega-rust/omega/compiler/native-realization/Cargo.toml"),
-    )
-    .unwrap();
-    assert!(coordinator.contains("../../pipeline/00_terminal-psi-to-abstract-operations"));
-    assert!(coordinator.contains("../../backend/register-environment"));
+    let coordinator =
+        std::fs::read_to_string(root.join("omega-rust/omega/compiler/Cargo.toml")).unwrap();
+    assert!(coordinator.contains("../pipeline/00_terminal-psi-to-abstract-operations"));
+    assert!(coordinator.contains("../backend/register-environment"));
     let setup = std::fs::read_to_string(
         root.join("omega-rust/omega/backend/register-environment/Cargo.toml"),
     )
@@ -626,7 +624,7 @@ fn text_publication_records_and_codec_belong_to_the_representation() {
     assert!(!data.contains("pub enum FunctionFragmentTextSectionSourceCustody"));
     assert!(!data.contains("source_kind:"));
     for forbidden in [
-        "native_realization::",
+        "compiler::native::",
         "machine_emission::",
         "post_allocation_machine_to_post_allocation_machine::",
         "object_file::",
@@ -1447,7 +1445,7 @@ fn exit_contract_records_and_identities_are_representation_owned() {
     assert!(machine.contains("omega.terminal.whole-function-exit-contract.v14"));
     assert!(!pipeline.contains("omega.terminal.whole-function-exit-contract.v14"));
     assert!(!machine.contains("post_allocation_machine_to_post_allocation_machine::"));
-    assert!(!machine.contains("native_realization::"));
+    assert!(!machine.contains("compiler::native::"));
     assert!(
         emission
             .contains("pub fn shared_contract(&self) -> std::sync::Arc<WholeFunctionExitContract>")
@@ -1488,10 +1486,10 @@ fn exit_replay_checks_claimed_records_without_reentering_the_producer() {
         );
         assert!(!entrance.contains("let replayed = compute"));
     }
-    let coordinator = rust_source(&root.join("omega-rust/omega/compiler/native-realization/src"));
+    let coordinator = rust_source(&root.join("omega-rust/omega/compiler/src/native"));
     assert!(!coordinator.contains("pub fn stage_whole_function_exit_contract"));
     assert!(!coordinator.contains("pub fn validate_whole_function_exit_contract"));
-    assert!(!replay.contains("native_realization::"));
+    assert!(!replay.contains("compiler::native::"));
 }
 
 #[test]
@@ -1515,7 +1513,7 @@ fn fragment_projection_is_backend_owned_and_replay_does_not_emit() {
         );
     }
     let source = rust_source(&backend);
-    assert!(!source.contains("native_realization::"));
+    assert!(!source.contains("compiler::native::"));
     assert!(!source.contains("source.replay()"));
     let coordinator = root.join("omega-rust/omega/backend/machine-emission/src/fragment_emission");
     let compute = rust_source(&coordinator.join("compute"));
@@ -1582,7 +1580,7 @@ fn fragment_publication_data_and_codec_do_not_depend_on_admission() {
 fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     let root = repository();
     let data = rust_source(&root.join("omega-rust/omega/representations/machine-code/src"));
-    let pipeline = rust_source(&root.join("omega-rust/omega/compiler/native-realization/src"));
+    let pipeline = rust_source(&root.join("omega-rust/omega/compiler/src/native"));
     for name in [
         "FunctionFragmentFrameApplicationIdentity",
         "FunctionAppliedFrameEpilogue",
@@ -1614,7 +1612,7 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
     let backend = rust_source(
         &root.join("omega-rust/omega/backend/machine-emission/src/frame_application/insertion"),
     );
-    assert!(!backend.contains("native_realization::"));
+    assert!(!backend.contains("compiler::native::"));
     assert!(!backend.contains("StagedFunctionFragmentFrameApplication"));
     assert!(!data.contains("pub struct StagedFunctionFragmentFrameApplication"));
 }
@@ -1625,8 +1623,8 @@ fn semantic_wrapper_object_records_and_codec_belong_to_the_native_artifact() {
     let owner = root.join("omega-rust/omega/backend/artifacts/native-artifact");
     let entrance = std::fs::read_to_string(owner.join("src/semantic_wrapper_object.rs")).unwrap();
     let children = rust_source(&owner.join("src/semantic_wrapper_object"));
-    let stage_root = root
-        .join("omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object");
+    let stage_root =
+        root.join("omega-rust/omega/compiler/src/native/optimized_semantic_wrapper_object");
     let stage = rust_source(&stage_root);
     // The named root declares every durable record once, at its entrance.
     for declaration in [
@@ -1724,10 +1722,8 @@ fn semantic_wrapper_object_records_and_codec_belong_to_the_native_artifact() {
         assert!(stage.contains(definition), "stage lost {definition}");
     }
     assert!(stage.contains("use native_artifact::{"));
-    let coordinator_root = std::fs::read_to_string(
-        root.join("omega-rust/omega/compiler/native-realization/src/lib.rs"),
-    )
-    .unwrap();
+    let coordinator_root =
+        std::fs::read_to_string(root.join("omega-rust/omega/compiler/src/native/mod.rs")).unwrap();
     for record in [
         "OptimizedProgramStorageSemanticWrapperObjectPlan",
         "OptimizedProgramStorageSemanticWrapperObjectManifest",
@@ -1753,7 +1749,7 @@ fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
     let wrapper = owner.join("src/optimized_semantic_wrapper");
     let entrance = std::fs::read_to_string(wrapper.join("encoding.rs")).unwrap();
     let projection = std::fs::read_to_string(wrapper.join("encoding/projection.rs")).unwrap();
-    let coordinator_root = root.join("omega-rust/omega/compiler/native-realization/src");
+    let coordinator_root = root.join("omega-rust/omega/compiler/src/native");
     let coordinator = rust_source(&coordinator_root);
     // The entrance declares the staged record and its error once, and owns
     // both selection and the independent replay.
@@ -1821,7 +1817,7 @@ fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
     let object_stage = rust_source(&coordinator_root.join("optimized_semantic_wrapper_object"));
     assert!(object_stage.contains("use program_entry_plan::"));
     assert!(object_stage.contains("StagedOptimizedProgramStorageSemanticWrapperEncoding"));
-    let crate_root = std::fs::read_to_string(coordinator_root.join("lib.rs")).unwrap();
+    let crate_root = std::fs::read_to_string(coordinator_root.join("mod.rs")).unwrap();
     for name in [
         "StagedOptimizedProgramStorageSemanticWrapperEncoding",
         "OptimizedProgramStorageSemanticWrapperEncodingError",
@@ -1836,7 +1832,7 @@ fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner = root.join("omega-rust/omega/pipeline/08_selected-form-encoding-to-resolved-layout");
-    let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
+    let coordinator = root.join("omega-rust/omega/compiler/src/native");
     let algorithms = rust_source(&owner.join("src"));
     let optimization_owner =
         root.join("omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout");
@@ -1876,8 +1872,8 @@ fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     }
     assert!(!algorithms.contains("with_replayed_functions"));
     assert!(!algorithms.contains("resolved_layout_to_resolved_layout"));
-    assert!(!algorithms.contains("native_realization::"));
-    assert!(!optimization.contains("native_realization::"));
+    assert!(!algorithms.contains("compiler::native::"));
+    assert!(!optimization.contains("compiler::native::"));
     let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
     assert!(!manifest.contains("native-realization"));
     assert!(!manifest.contains("resolved-layout-to-resolved-layout"));
@@ -2195,9 +2191,9 @@ fn rematerialization_uses_the_common_encoding_and_layout_stages() {
 #[test]
 fn physical_coordination_has_one_allocation_machine_and_realization_join() {
     let root = repository();
-    let entrance = std::fs::read_to_string(root.join(
-        "omega-rust/omega/compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs",
-    ))
+    let entrance = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/src/native/native_pipeline/physical_pipeline/mod.rs"),
+    )
     .unwrap();
     for join in [
         "::stage_optimized_instruction_selection(",
@@ -2225,7 +2221,7 @@ fn physical_coordination_has_one_allocation_machine_and_realization_join() {
 
 #[test]
 fn completed_physical_results_and_emission_do_not_fork_by_history() {
-    let root = repository().join("omega-rust/omega/compiler/native-realization/src");
+    let root = repository().join("omega-rust/omega/compiler/src/native");
     let model =
         std::fs::read_to_string(root.join("native_pipeline/physical_pipeline/model.rs")).unwrap();
     assert!(model.contains("pub struct StagedOptimizedVerifiedPhysicalPipeline"));
@@ -2357,20 +2353,6 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     // "One driver, one pass, per-target realization"): checked as one connected
     // compiler route, never counted as Omega pipeline crates, and dissolved by
     // the board's pipeline route items.
-    const COMPILER_ORCHESTRATION: &[(&str, &str)] = &[
-        (
-            "omega/compiler/source-assembly",
-            "source-files-to-assembled-syntax",
-        ),
-        (
-            "omega/compiler/checked-compilation",
-            "assembled-syntax-to-checked-compilation",
-        ),
-        (
-            "omega/compiler/terminal-artifact",
-            "checked-compilation-to-terminal-artifact",
-        ),
-    ];
     let mut covered = std::collections::BTreeSet::new();
     for route in [PROGRAM_ROUTE] {
         let mut previous_output = "";
@@ -2392,25 +2374,6 @@ fn connected_pipeline_route_covers_every_stage_crate() {
                 );
             }
             previous_output = output;
-            covered.insert(String::from(*stage));
-        }
-    }
-    let mut previous_output = "";
-    for (stage, package_name) in COMPILER_ORCHESTRATION {
-        let directory = root.join("omega-rust").join(stage);
-        assert!(
-            directory.join("Cargo.toml").is_file(),
-            "compiler orchestration crate {stage} is missing"
-        );
-        let (input, output) = package_name.split_once("-to-").unwrap();
-        if !previous_output.is_empty() {
-            assert_eq!(
-                input, previous_output,
-                "compiler orchestration break: {package_name} does not consume the preceding output"
-            );
-        }
-        previous_output = output;
-        if stage.contains("/pipeline/") {
             covered.insert(String::from(*stage));
         }
     }

@@ -57,9 +57,9 @@ Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/source-assembly/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/checked-compilation/src/checking.rs) |
-| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/terminal-artifact/src/terminal_artifact.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/src/sources/source_assembly.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
+| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
 
 The [pipeline route items](../TASKS.md#pipeline-route) dissolve them: source
 loading becomes stage 00 input preparation, the Psi-owned work between stages
@@ -165,5 +165,5 @@ Producer and checker may share small predicates and primitives, not the
 output-producing decision procedure the checker is meant to validate. Remaining
 convergence and behavior work belongs to execution boards; this map is not a
 second migration ledger. [Optimization](optimization.md) owns its implementation
-contracts, while [compiler coordination](omega/compiler/compiler/README.md) owns
+contracts, while [compiler coordination](omega/compiler/README.md) owns
 operational reports and product stopping boundaries.

@@ -26,7 +26,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     for obsolete in [
-        "omega-rust/omega/compiler/native-realization/src/realization/physical_stage/fragment_shape.rs",
+        "omega-rust/omega/compiler/src/native/realization/physical_stage/fragment_shape.rs",
         "omega-rust/omega/pipeline/omega-register-homes-to-callee-saved-requirements/Cargo.toml",
         "omega-rust/omega/pipeline/omega-callee-saved-requirements-to-save-storage/Cargo.toml",
         "omega-rust/omega/pipeline/omega-spill-access-constraints-to-frame-requirements/Cargo.toml",
@@ -55,7 +55,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/straight_line_parameter/mod.rs",
         "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/catalog/dispatch/immediate.rs",
         "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/validation/straight_line_scalar_crash.rs",
-        "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements.rs",
+        "omega-rust/omega/compiler/src/native/realization/providers/settlements.rs",
         "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/codec.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
         "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
@@ -232,7 +232,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let obsolete_selected_lowering_schedule =
-        "omega-rust/omega/compiler/native-realization/src/stages/machine/literal_folds/schedule.rs";
+        "omega-rust/omega/compiler/src/native/stages/machine/literal_folds/schedule.rs";
     if repository
         .join(obsolete_selected_lowering_schedule)
         .exists()
@@ -266,7 +266,7 @@ pub(crate) fn check(audit: &mut Audit) {
             ) || path.starts_with(
                 "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/",
             ) || path.starts_with(
-                "omega-rust/omega/compiler/native-realization/src/stages/machine/literal_folds/",
+                "omega-rust/omega/compiler/src/native/stages/machine/literal_folds/",
             ))
     }) {
         match fs::read_to_string(repository.join(path)) {

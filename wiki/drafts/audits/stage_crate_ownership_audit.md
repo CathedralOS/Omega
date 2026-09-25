@@ -130,10 +130,10 @@ artifacts (`include_str!`/`include_bytes!`).
 - `01_abstract-operations-to-abstract-operations/representation_specialization`:
   an X-to-X pass family — correctly placed transform; the
   `REPRESENTATION-SPECIALIZATION` board item owns its remaining gaps.
-- `compiler/source-assembly/source_assembly.rs` constructor blocks
+- `compiler/src/sources/source_assembly.rs` constructor blocks
   and `build_vocabulary` (~300 lines): coordinator-scope audit F1/F2 already
   recorded them; `source/` and `frontend/` are private working state.
-- `compiler/checked-compilation/checking/compile_thread.rs`:
+- `compiler/src/checked/checking/compile_thread.rs`:
   the 256 MiB-stack spawn helper cataloged by the over-ownership audit —
   host infrastructure in a stage crate, relocation optional.
 - Replay-evidence codecs (`sis2sis/rewrites/allocation_recovery/fixed_view_copy/codec`,

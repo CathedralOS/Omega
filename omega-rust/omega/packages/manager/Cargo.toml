@@ -14,7 +14,7 @@ provider-planning = { path = "../../build/provider-planning" }
 build-declarations = { path = "../../build/build-declarations" }
 build-evaluation = { path = "../../build/build-evaluation" }
 boundary-applications = { path = "../../representations/boundary-applications" }
-compiler = { path = "../../compiler/compiler" }
+compiler = { path = "../../compiler" }
 effects = { path = "../../representations/effects" }
 package-evidence = { path = "../review/evidence" }
 package-source = { path = "../sources/acquisition" }
@@ -22,7 +22,6 @@ package-compilation = { path = "../../build/package-compilation" }
 optimization-core = { path = "../../representations/optimization-core" }
 platform-custody = { path = "../../tooling/platform-custody" }
 target = { path = "../../representations/target" }
-native-realization = { path = "../../compiler/native-realization" }
 arena = { path = "../../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }

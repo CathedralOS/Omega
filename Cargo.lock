@@ -118,46 +118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "assembled-syntax-to-checked-compilation"
-version = "0.1.0"
-dependencies = [
- "arena",
- "artifacts",
- "backend-plan",
- "boundary-applications",
- "build-declarations",
- "build-evaluation",
- "build-output",
- "build-time-evaluation",
- "calling-conventions",
- "checked-interpreter",
- "checked-trees",
- "compilation-report",
- "diagnostics",
- "effects",
- "language-semantics",
- "optimization-core",
- "package-compilation",
- "provider-planning",
- "representation-planning",
- "selected-dispatch",
- "semantic-vocabulary",
- "source",
- "source-files-to-assembled-syntax",
- "symbol-resolved-trees",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "target",
- "task-plans",
- "trust-model",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
@@ -348,39 +308,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "checked-compilation-to-terminal-artifact"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "assembled-syntax-to-checked-compilation",
- "backend-plan",
- "boundary-applications",
- "build-evaluation",
- "calling-conventions",
- "checked-trees",
- "checked-trees-to-lowered-psi",
- "compilation-report",
- "diagnostics",
- "effects",
- "lowered-psi",
- "lowered-psi-to-terminal-psi",
- "optimization-core",
- "package-compilation",
- "proof-admission",
- "provider-planning",
- "selected-dispatch",
- "semantic-vocabulary",
- "symbols",
- "target",
- "terminal-codec",
- "terminal-production",
- "terminal-psi",
- "terminal-verifier",
- "typed-trees",
- "validation",
-]
-
-[[package]]
 name = "checked-interpreter"
 version = "0.1.0"
 dependencies = [
@@ -469,48 +396,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "compilation-report"
-version = "0.1.0"
-dependencies = [
- "artifacts",
- "backend-plan",
- "boundary-applications",
- "build-evaluation",
- "build-output",
- "calling-conventions",
- "diagnostics",
- "effects",
- "function-identity",
- "image",
- "image-macho",
- "image-pe",
- "isa-x86_64",
- "lowered-psi",
- "lowered-psi-to-terminal-psi",
- "native-artifact",
- "numerics",
- "optimization-core",
- "package-compilation",
- "program-entry-plan",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "target",
- "target-operations",
- "terminal-codec",
- "terminal-psi",
- "trust-model",
-]
-
-[[package]]
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
+ "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "access-plans",
  "arena",
  "artifacts",
- "assembled-syntax-to-checked-compilation",
  "backend-plan",
  "boundary-applications",
  "build-declarations",
@@ -518,38 +412,54 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "checked-compilation-to-terminal-artifact",
  "checked-interpreter",
  "checked-trees",
  "checked-trees-to-lowered-psi",
- "compilation-report",
  "component-description",
  "diagnostics",
  "effects",
  "extents",
  "facts",
  "flow-effects",
+ "function-identity",
+ "image",
+ "image-emission",
+ "image-macho",
+ "image-pe",
  "installation-evidence",
+ "isa-x86_64",
  "language-core",
  "language-semantics",
  "layout-plans",
+ "legalized-operations",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
- "native-realization",
+ "machine-code",
+ "machine-emission",
+ "native-artifact",
  "numerics",
+ "object-file",
  "optimization-core",
+ "optimization-unit",
  "package-compilation",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
+ "register-environment",
+ "register-homes-to-post-allocation-machine",
  "representation-planning",
+ "resolved-layout-to-resolved-layout",
  "selected-dispatch",
+ "selected-form-encoding-to-resolved-layout",
+ "selected-instructions",
+ "selected-instructions-to-register-homes",
+ "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "sha2",
  "source",
- "source-files-to-assembled-syntax",
  "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
@@ -558,10 +468,13 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "target",
  "target-operations",
+ "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
+ "terminal-fuel",
  "terminal-production",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
  "terminal-verifier",
  "tokens",
  "tokens-to-syntax-trees",
@@ -843,6 +756,7 @@ dependencies = [
  "calling-conventions",
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "compiler",
  "diagnostics",
  "executable-installation",
  "extents",
@@ -860,7 +774,6 @@ dependencies = [
  "legalized-operations",
  "machine-code",
  "machine-emission",
- "native-realization",
  "object-file",
  "optimization-core",
  "program-entry-plan",
@@ -1199,64 +1112,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "native-realization"
-version = "0.1.0"
-dependencies = [
- "abstract-operations",
- "abstract-operations-to-abstract-operations",
- "abstract-operations-to-target-operations",
- "artifacts",
- "assembled-syntax-to-checked-compilation",
- "backend-plan",
- "boundary-applications",
- "build-declarations",
- "build-evaluation",
- "calling-conventions",
- "checked-compilation-to-terminal-artifact",
- "checked-trees-to-lowered-psi",
- "compilation-report",
- "diagnostics",
- "effects",
- "function-identity",
- "image-emission",
- "installation-evidence",
- "isa-x86_64",
- "legalized-operations",
- "lowered-psi",
- "lowered-psi-to-terminal-psi",
- "machine-code",
- "machine-emission",
- "native-artifact",
- "numerics",
- "object-file",
- "optimization-core",
- "optimization-unit",
- "program-entry-plan",
- "proof-admission",
- "provider-planning",
- "register-environment",
- "register-homes-to-post-allocation-machine",
- "resolved-layout-to-resolved-layout",
- "selected-dispatch",
- "selected-form-encoding-to-resolved-layout",
- "selected-instructions",
- "selected-instructions-to-register-homes",
- "selected-instructions-to-selected-instructions",
- "semantic-vocabulary",
- "sha2",
- "symbols",
- "target",
- "target-operations",
- "target-operations-to-selected-instructions",
- "task-plans",
- "terminal-codec",
- "terminal-fuel",
- "terminal-production",
- "terminal-psi",
- "terminal-psi-to-abstract-operations",
-]
-
-[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1355,7 +1210,6 @@ dependencies = [
  "build-declarations",
  "build-evaluation",
  "calling-conventions",
- "checked-compilation-to-terminal-artifact",
  "checked-interpreter",
  "checked-trees",
  "checked-trees-to-lowered-psi",
@@ -1380,7 +1234,6 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "native-artifact",
- "native-realization",
  "numerics",
  "object-file",
  "optimization-core",
@@ -1554,7 +1407,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "language-semantics",
- "native-realization",
  "optimization-core",
  "package-compilation",
  "package-evidence",
@@ -2082,29 +1934,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "source-files-to-assembled-syntax"
-version = "0.1.0"
-dependencies = [
- "arena",
- "artifacts",
- "build-declarations",
- "build-evaluation",
- "build-output",
- "build-time-evaluation",
- "diagnostics",
- "optimization-core",
- "package-compilation",
- "semantic-vocabulary",
- "source",
- "source-files-to-tokens",
- "symbols",
- "syntax-trees",
- "target",
- "tokens",
- "tokens-to-syntax-trees",
-]
-
-[[package]]
 name = "source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
@@ -2423,7 +2252,6 @@ dependencies = [
  "component-description",
  "libc",
  "mutation-matrix",
- "native-realization",
  "package-manager",
  "package-source",
  "proof-admission",

@@ -28,7 +28,7 @@ load/discover sequence; prelude construction lives in
 `source_assembly/entry_contract_seed.rs`. Original finding text retained
 below for the audit trail.
 
-`omega-rust/omega/compiler/source-assembly/src/source_assembly.rs`
+`omega-rust/omega/compiler/src/sources/source_assembly.rs`
 (1014 lines) sequences discovery → lex → parse → import queue, which is the
 crate's transform. But two constructor blocks are domain work inline in the
 entry file:
@@ -70,7 +70,7 @@ but it is the clearest "coordinator absorbed a checker" case in the sweep.
 
 ### F3 — `compiler.rs` product fences sit in the route loop (minor)
 
-`omega-rust/omega/compiler/compiler/src/compiler.rs` is otherwise the gold
+`omega-rust/omega/compiler/src/compiler.rs` is otherwise the gold
 standard, but the artifact-only/PCC/check-only refusal rules (three
 `Diagnostic::error` fences) are product-admission decisions evaluated inside
 the target loop rather than in `admit_checked_compilation` or request
@@ -83,17 +83,17 @@ the family to the admission owner.
 | File | Verdict |
 | --- | --- |
 | `omega/src/main.rs` | parse → worker spawn → invocation dispatch only |
-| `compiler/compiler/src/compiler.rs` | validate → prepare → per-target check/admit/product → report (F3 noted) |
+| `compiler/src/compiler.rs` | validate → prepare → per-target check/admit/product → report (F3 noted) |
 | `pass_manager/{mod,entry,execution,model,accounting}.rs` | entry owns 4 run/replay APIs; execution owns dispatch; accounting owns convergence; model owns carriers — exemplary split |
 | `native_pipeline/{mod,report}.rs` + `physical_pipeline/mod.rs` | pure sequence: selections → instruction selection → optimization → allocation → machine → realization |
 | `abstract_operation_optimization/mod.rs` | entrance + re-exports only |
-| `compiler/checked-compilation/src/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
+| `compiler/src/checked/checking.rs` | driver: prepare → check → build continuation → child compile; mode gates are the route's own contract |
 | `04_typed-trees-to-checked-trees/src/checking.rs` + `facts.rs` | checking route + fact assembly; extra exported entries share the route (`resolution.rs`-style), documented |
 | `05_checked-trees-to-lowered-psi/src/machine_lowering.rs` | select → dispatch → retained-custody sequence; fail-closed documented |
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | executes selected pass list; no pass bodies inline |
 | `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` | preparation → per-kind admission → retention roster |
 | `05_selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
-| `compiler/terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
+| `compiler/src/terminal/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
 | `02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs` | route doc + driver; per-item translation delegated |
 | `00_source-files-to-tokens/src/lexer.rs`, `symbol-resolved-.../lowerer.rs` | the file IS the stage's mechanism (lexer state machine / per-kind lowering dispatch); not coordinators |
 | `tools/coordination.py`, `claims.py`, `landing.py` | claim/landing fence machinery; sequence-only |

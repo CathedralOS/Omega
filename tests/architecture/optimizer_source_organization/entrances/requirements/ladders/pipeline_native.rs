@@ -4,32 +4,32 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "terminal native-artifact realization",
         paths: &[
-            "omega-rust/omega/compiler/native-realization/src/native_realization.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/boundary_applications.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/input_preparation.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/object_emission.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/artifact_assembly.rs",
+            "omega-rust/omega/compiler/src/native/native_realization.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/boundary_applications.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/input_preparation.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/providers/mod.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/object_emission.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/artifact_assembly.rs",
         ],
     },
     SemanticLadder {
         family: "terminal authority closure review",
         paths: &[
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/context.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/reviewer.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/operations.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_review.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_review/context.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_review/reviewer.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_review/operations.rs",
         ],
     },
     SemanticLadder {
         family: "terminal authority policy",
         paths: &[
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/model.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/normalized_foreign.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/classification.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/inventory.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/commitment.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/mod.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/model.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/normalized_foreign.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/classification.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/inventory.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/terminal_authority_policy/commitment.rs",
         ],
     },
     SemanticLadder {
@@ -53,10 +53,10 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "provider-execution settlement",
         paths: &[
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/boundary.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/exact_plan.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/normalized_foreign_call.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/providers/settlements/mod.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/providers/settlements/boundary.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/providers/settlements/exact_plan.rs",
+            "omega-rust/omega/compiler/src/native/native_realization/providers/settlements/normalized_foreign_call.rs",
         ],
     },
     SemanticLadder {

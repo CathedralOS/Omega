@@ -223,7 +223,7 @@ fn spill_realization_rejects_changed_allocation_under_retained_frame_evidence() 
     let source = receiver_source(8, true, true, "u64", "argument7", &[0, 1, 1]);
     let artifact = artifact(&source);
     let physical =
-        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+        compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimize(&artifact),
             NativeTarget::macos_arm64(),
             &[],

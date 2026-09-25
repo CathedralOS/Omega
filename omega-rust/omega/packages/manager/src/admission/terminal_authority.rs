@@ -1,12 +1,12 @@
 //! Root-policy accepted terminal-authority permissions for realization.
 
 use super::AcceptedOrdinaryClosureEvidence;
-use diagnostics::Diagnostic;
-use native_realization::{
+use compiler::native::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyBuildError,
     TerminalAuthorityPermissionPolicyRow, TerminalAuthorityPolicy,
     terminal_authority_permission_policy_with_rows,
 };
+use diagnostics::Diagnostic;
 
 /// Failure to project one accepted package closure into its exact accepted
 /// permission set.
@@ -243,7 +243,7 @@ pub fn realize_accepted_native_report(
     let application_name = proposal.application_name().map(str::to_owned);
     let application_intent = proposal.application_intent();
     let retained_identifier = proposal.application_identifier().cloned();
-    let image_request = native_realization::ExecutableImageEmissionRequest::direct(subsystem);
+    let image_request = compiler::native::ExecutableImageEmissionRequest::direct(subsystem);
     let application_identifier = retained_identifier.or_else(|| {
         image_request
             .code_signature_identifier()
@@ -264,7 +264,7 @@ pub fn realize_accepted_native_report(
         },
     )
     .map_err(|(_, diagnostics)| diagnostics)?;
-    let native_realization::RequestedNativeArtifact::Direct(artifact) = artifact else {
+    let compiler::native::RequestedNativeArtifact::Direct(artifact) = artifact else {
         return Err(diagnostics(
             "accepted Terminal realization requires direct image custody",
         ));

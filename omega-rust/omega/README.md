@@ -27,5 +27,5 @@ unsupported interpretation is a decline, not an agreement.
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must
 provide equivalent stack capacity where needed. This is not a scheduler, command
-bus, or new pipeline protocol. [Compiler orchestration](compiler/compiler/src/compiler.rs)
+bus, or new pipeline protocol. [Compiler orchestration](compiler/src/compiler.rs)
 continues to pass representations through ordinary functions.

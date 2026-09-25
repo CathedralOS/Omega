@@ -86,7 +86,7 @@ fn execute(module: &TerminalModule, call_count: usize, driver: &str) {
     )
     .expect("canonical mixed helper reaches optimizer");
     let physical =
-        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+        compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             NativeTarget::host(),
             &[],

@@ -168,12 +168,12 @@ fn writer_unit_calls_reject_unavailable_or_owned_literal_arguments() {
 fn natural_writer_legalization_requires_verified_custody_and_exact_payloads() {
     let lowered = writer();
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
-    let optimized = native_realization::optimize_artifact_sections(
+    let optimized = compiler::native::optimize_artifact_sections(
         &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
         &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .unwrap(),
         &AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
+        compiler::native::compiler_baseline_request_v1(&selections),
     )
     .unwrap();
     let target = abstract_operations_to_target_operations::lower_optimized_to_target_operations(

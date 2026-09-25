@@ -32,4 +32,4 @@ Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in
 `tests/omega/{pass,fail}/recast/`; compiler integration coverage is in
-`omega-rust/omega/compiler/compiler/tests/recast_views.rs`.
+`omega-rust/omega/compiler/tests/recast_views.rs`.

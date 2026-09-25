@@ -150,4 +150,4 @@ mismatches reject. The handoff is opaque compiler-issued state, not a package
 instance or canonical admission evidence; it has no public constructor or decoder.
 
 Implementation entry points and bounded continuation support are documented
-[beside the compiler](../../../omega-rust/omega/compiler/compiler/generated_source.md).
+[beside the compiler](../../../omega-rust/omega/compiler/generated_source.md).

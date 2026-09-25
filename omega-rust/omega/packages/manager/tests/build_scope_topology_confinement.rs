@@ -141,7 +141,7 @@ fn compose(workspace: &Path) -> Result<PathBuf, String> {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },

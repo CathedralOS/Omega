@@ -178,11 +178,11 @@ fn optimized_record(
     )
     .unwrap();
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
-    native_realization::optimize_artifact_sections(
+    compiler::native::optimize_artifact_sections(
         &semantic,
         &proof,
         &proof_admission::AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
+        compiler::native::compiler_baseline_request_v1(&selections),
     )
     .expect("record return with ordered writes must reach ordinary abstract operations")
 }
@@ -194,7 +194,7 @@ fn native_text_for(
 ) -> machine_emission::StagedOptimizedFixedFrameTextSection {
     let optimized = optimized_record(effects, field_bits);
     let physical =
-        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+        compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             target,
             &[],

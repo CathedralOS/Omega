@@ -24,7 +24,7 @@ Source/Terminal projection support and pending denotation work live
 [beside validation](../../semantics/validation/numeric_proofs.md).
 
 Target providers consume these meanings through selected plans. Their
-[realization note](../../../omega/compiler/compiler/float_realization.md)
+[realization note](../../../omega/compiler/float_realization.md)
 distinguishes instruction custody, image replay, and native execution evidence.
 Future formats require complete executable support, not just another record
 accepted by a currently binary32/binary64-specific adapter.

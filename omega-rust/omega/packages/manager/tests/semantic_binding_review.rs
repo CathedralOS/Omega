@@ -80,7 +80,7 @@ fn assert_accepted_native_report_custody(
     candidate: package_manager::review::ReviewedPackageProductionCandidate,
     evidence: &package_manager::admission::AcceptedOrdinaryClosureEvidence,
     checked: &compiler::CheckedCompilation,
-    accepted_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+    accepted_permission_policy: compiler::native::TerminalAuthorityPermissionPolicy,
     compile_terminal_report: impl FnOnce() -> compiler::CompileReport,
 ) {
     let receiving_policy_identity = accepted_permission_policy.identity();
@@ -97,7 +97,7 @@ fn assert_accepted_native_report_custody(
         AcceptedNativeRealizationRequest {
             evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(
                 accepted_permission_policy.clone(),
             ),
@@ -162,7 +162,7 @@ fn assert_accepted_native_report_custody(
         AcceptedNativeRealizationRequest {
             evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(
                 accepted_permission_policy.clone(),
             ),
@@ -737,9 +737,9 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         AcceptedNativeRealizationRequest {
             evidence: &reused,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(
-                native_realization::current_terminal_authority_permission_policy(),
+                compiler::native::current_terminal_authority_permission_policy(),
             ),
             imports: &[],
         },
@@ -877,7 +877,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(
                 accepted_permission_policy.clone(),
             ),
@@ -996,7 +996,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(
                 accepted_permission_policy.clone(),
             ),
@@ -1030,8 +1030,8 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
     let widened_report =
         compile_terminal_report("proposal-substitution-build", vec![widened_binding]);
     let widened_receiving_policy =
-        native_realization::terminal_authority_permission_policy_with_rows(vec![
-            native_realization::TerminalAuthorityPermissionPolicyRow::new(
+        compiler::native::terminal_authority_permission_policy_with_rows(vec![
+            compiler::native::TerminalAuthorityPermissionPolicyRow::new(
                 provider.schema().identity_digest(),
                 exit_requirement.clone(),
                 TerminalAuthorityDisposition::from_classes([
@@ -1050,7 +1050,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: Some(widened_receiving_policy),
             imports: &[],
         },

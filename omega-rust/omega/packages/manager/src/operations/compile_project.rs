@@ -12,11 +12,11 @@ use crate::review::{
     RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
     compile_resolved_package_candidate_for_production_collecting_timings,
 };
-use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
-use diagnostics::Diagnostic;
-use native_realization::{
+use compiler::native::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
 };
+use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
+use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::PathBuf;
 

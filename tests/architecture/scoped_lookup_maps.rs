@@ -235,7 +235,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "dependency alias spellings bound to package key identities",
     ),
     (
-        "omega-rust/omega/compiler/native-realization/src/retained_native_product.rs",
+        "omega-rust/omega/compiler/src/native/retained_native_product.rs",
         "provider-plan catalog names bound to provider plans",
     ),
     (
@@ -255,7 +255,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "container section names bound to byte offsets",
     ),
     (
-        "omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs",
+        "omega-rust/omega/compiler/src/terminal/terminal_artifact/behavior_exclusions.rs",
         "normalized service/identity spellings bound to handles",
     ),
     // Review, admission, and diagnostic metadata keyed by catalog names.
@@ -272,7 +272,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "dependency scope+name rows bound to machine declarations",
     ),
     (
-        "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/source_imports.rs",
+        "omega-rust/omega/compiler/src/native/native_realization/providers/settlements/source_imports.rs",
         "authored import spellings bound to coverage rows",
     ),
     (

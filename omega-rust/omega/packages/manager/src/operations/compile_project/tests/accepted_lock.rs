@@ -358,7 +358,7 @@ fn receiving_permission_policy_binds_or_rejects_at_explicit_admission_replay() {
         None
     );
     let explicit_empty =
-        native_realization::terminal_authority_permission_policy_with_rows(Vec::new())
+        compiler::native::terminal_authority_permission_policy_with_rows(Vec::new())
             .expect("an explicit empty receiving policy is valid");
     artifact
         .validate_for_terminal_authority_policies(
@@ -406,7 +406,7 @@ fn receiving_permission_policy_binds_or_rejects_at_explicit_admission_replay() {
         )
         .expect("the artifact admits under its bound receiving policy");
 
-    let foreign = native_realization::terminal_authority_permission_policy_with_rows(vec![
+    let foreign = compiler::native::terminal_authority_permission_policy_with_rows(vec![
         effects::ServiceTerminalAuthorityPermission::new(
             effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]),
             "Foreign::noop#exact".to_owned(),

@@ -111,8 +111,8 @@ mod fixture_package_inputs;
 static PROJECT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn replay_native_artifact_parts(
-    parts: &native_realization::NativeArtifactParts,
-) -> native_realization::NativeArtifactParts {
+    parts: &compiler::native::NativeArtifactParts,
+) -> compiler::native::NativeArtifactParts {
     let module = terminal_codec::decode_module(parts.psi_artifact.semantic_bytes())
         .expect("replay Terminal semantics");
     let proof = terminal_codec::decode_proof_bundle(parts.psi_artifact.proof_bytes())
@@ -121,7 +121,7 @@ fn replay_native_artifact_parts(
         .psi_artifact
         .debug_bytes()
         .map(|bytes| terminal_codec::decode_debug_map(&module, bytes).expect("debug map"));
-    native_realization::NativeArtifactParts {
+    compiler::native::NativeArtifactParts {
         target: parts.target,
         psi_artifact: terminal_codec::CanonicalTerminalArtifact::from_parts(
             &module,
@@ -221,7 +221,7 @@ machine Main::main(&mut self) {
         .expect("wrapping-remainder native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -235,18 +235,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -263,8 +263,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -272,7 +272,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -286,8 +286,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -295,12 +295,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -313,18 +313,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -333,9 +333,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -343,7 +343,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -356,7 +356,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -437,7 +437,7 @@ machine Main::main(&mut self) {
         .expect("literal-copy native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -451,18 +451,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -479,8 +479,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -488,7 +488,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -502,8 +502,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -511,12 +511,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -529,18 +529,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -549,9 +549,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -559,7 +559,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -572,7 +572,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -652,7 +652,7 @@ machine Main::main(&mut self) {
         .expect("bitwise-and-zero native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -666,18 +666,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -694,8 +694,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -703,7 +703,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -717,8 +717,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -726,12 +726,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -744,18 +744,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -764,9 +764,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -774,7 +774,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -787,7 +787,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -869,7 +869,7 @@ machine Main::main(&mut self) {
         .expect("bitwise-xor-zero native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -883,18 +883,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -911,8 +911,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -920,7 +920,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -934,8 +934,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -943,12 +943,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -961,18 +961,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -981,9 +981,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -991,7 +991,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -1004,7 +1004,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -1088,7 +1088,7 @@ machine Main::main(&mut self) {
         .expect("literal-extension native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -1102,18 +1102,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -1130,8 +1130,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -1139,7 +1139,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -1153,8 +1153,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -1162,12 +1162,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -1180,18 +1180,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -1200,9 +1200,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -1210,7 +1210,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -1223,7 +1223,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -1306,7 +1306,7 @@ machine Main::main(&mut self) {
         .expect("wrapping-add-zero native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -1320,18 +1320,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -1348,8 +1348,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -1357,7 +1357,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -1371,8 +1371,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -1380,12 +1380,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -1398,18 +1398,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -1418,9 +1418,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -1428,7 +1428,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -1441,7 +1441,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -1526,7 +1526,7 @@ machine Main::main(&mut self) {
         .expect("bitwise-and-ones native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -1540,18 +1540,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -1568,8 +1568,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -1577,7 +1577,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -1591,8 +1591,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -1600,12 +1600,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -1618,18 +1618,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -1638,9 +1638,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -1648,7 +1648,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -1661,7 +1661,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -1760,7 +1760,7 @@ machine Main::main(&mut self) {
         .expect("wrapping-remainder-zero-dividend native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -1774,18 +1774,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -1802,8 +1802,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -1811,7 +1811,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -1825,8 +1825,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -1834,12 +1834,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -1852,18 +1852,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -1872,9 +1872,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -1882,7 +1882,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -1895,7 +1895,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -1993,7 +1993,7 @@ machine Main::main(&mut self) {
         .expect("exact-divide-zero-dividend native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -2007,18 +2007,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -2035,8 +2035,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -2044,7 +2044,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -2058,8 +2058,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -2067,12 +2067,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -2085,18 +2085,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -2105,9 +2105,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -2115,7 +2115,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -2128,7 +2128,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -2226,7 +2226,7 @@ machine Main::main(&mut self) {
         .expect("load8-indexed native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact
         .physical_evidence()
@@ -2240,18 +2240,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -2268,8 +2268,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -2277,7 +2277,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -2291,8 +2291,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -2300,12 +2300,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -2318,18 +2318,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -2338,9 +2338,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -2348,7 +2348,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -2361,7 +2361,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -2444,7 +2444,7 @@ machine Main::main(&mut self) {
         .expect("structural-operator native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact.physical_evidence().unwrap_or_else(|| {
         panic!(
@@ -2461,18 +2461,18 @@ machine Main::main(&mut self) {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::ResolvedInternalCall
+        compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -2489,8 +2489,8 @@ machine Main::main(&mut self) {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -2498,7 +2498,7 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -2512,8 +2512,8 @@ machine Main::main(&mut self) {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -2521,12 +2521,12 @@ machine Main::main(&mut self) {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -2539,18 +2539,18 @@ machine Main::main(&mut self) {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -2559,9 +2559,9 @@ machine Main::main(&mut self) {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -2569,7 +2569,7 @@ machine Main::main(&mut self) {
     });
     // Padded: the machine span must name exactly the emitted call interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -2582,7 +2582,7 @@ machine Main::main(&mut self) {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });
@@ -2655,7 +2655,7 @@ machine probe(left: i32, right: i32) -> bool {
         .expect("integer-comparison native artifact should replay independently");
     assert!(matches!(
         artifact.physical_evidence_scope(),
-        native_realization::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
+        compiler::native::NativePhysicalEvidenceScope::ValidatedOptimizedProjection(_)
     ));
     let physical = artifact.physical_evidence().unwrap_or_else(|| {
         panic!(
@@ -2672,18 +2672,18 @@ machine probe(left: i32, right: i32) -> bool {
     };
     assert_eq!(
         child.occurrence(),
-        native_realization::NativePhysicalOccurrence::Operator(occurrence.identity())
+        compiler::native::NativePhysicalOccurrence::Operator(occurrence.identity())
     );
     assert_eq!(child.projection(), physical.projection().identity());
     assert!(matches!(
         child.parent(),
-        native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+        compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
     ));
     assert!(child.machine_span().byte_count() > 0);
     assert!(child.object_span().byte_count() > 0);
     assert_eq!(
         child.relocation(),
-        native_realization::PhysicalRelocationDisposition::DirectInstructionBytes
+        compiler::native::PhysicalRelocationDisposition::DirectInstructionBytes
     );
 
     // Independent replay from the published parts alone: every mutation
@@ -2700,8 +2700,8 @@ machine probe(left: i32, right: i32) -> bool {
         .expect("replay physical evidence")
         .into_parts();
     missing.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: Vec::new(),
                 identity: evidence.identity,
@@ -2709,7 +2709,7 @@ machine probe(left: i32, right: i32) -> bool {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(missing).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(missing).is_err(),
         "a missing physical child must not replay"
     );
 
@@ -2723,8 +2723,8 @@ machine probe(left: i32, right: i32) -> bool {
         panic!("one physical child before duplication")
     };
     duplicate.physical_evidence = Some(
-        native_realization::NativePhysicalEvidence::from_replayed_parts(
-            native_realization::NativePhysicalEvidenceParts {
+        compiler::native::NativePhysicalEvidence::from_replayed_parts(
+            compiler::native::NativePhysicalEvidenceParts {
                 projection: evidence.projection,
                 children: vec![only_child.clone(), only_child.clone()],
                 identity: evidence.identity,
@@ -2732,12 +2732,12 @@ machine probe(left: i32, right: i32) -> bool {
         ),
     );
     assert!(
-        native_realization::NativeArtifact::from_replayed_parts(duplicate).is_err(),
+        compiler::native::NativeArtifact::from_replayed_parts(duplicate).is_err(),
         "a duplicate physical child must not replay"
     );
 
     let assert_mutated_child_rejected =
-        |mutate: &dyn Fn(&mut native_realization::NativePhysicalChildParts)| {
+        |mutate: &dyn Fn(&mut compiler::native::NativePhysicalChildParts)| {
             let mut replay = replay_native_artifact_parts(&parts);
             let evidence = replay
                 .physical_evidence
@@ -2750,18 +2750,18 @@ machine probe(left: i32, right: i32) -> bool {
             let mut child = child.clone().into_parts();
             mutate(&mut child);
             replay.physical_evidence = Some(
-                native_realization::NativePhysicalEvidence::from_replayed_parts(
-                    native_realization::NativePhysicalEvidenceParts {
+                compiler::native::NativePhysicalEvidence::from_replayed_parts(
+                    compiler::native::NativePhysicalEvidenceParts {
                         projection: evidence.projection,
-                        children: vec![
-                            native_realization::NativePhysicalChild::from_replayed_parts(child),
-                        ],
+                        children: vec![compiler::native::NativePhysicalChild::from_replayed_parts(
+                            child,
+                        )],
                         identity: evidence.identity,
                     },
                 ),
             );
             assert!(
-                native_realization::NativeArtifact::from_replayed_parts(replay).is_err(),
+                compiler::native::NativeArtifact::from_replayed_parts(replay).is_err(),
                 "a mutated physical child must not replay"
             );
         };
@@ -2770,9 +2770,9 @@ machine probe(left: i32, right: i32) -> bool {
     assert_mutated_child_rejected(&|child| {
         assert!(matches!(
             child.parent,
-            native_realization::PhysicalChildParent::OperatorApplicationCoverage(_)
+            compiler::native::PhysicalChildParent::OperatorApplicationCoverage(_)
         ));
-        child.occurrence = native_realization::NativePhysicalOccurrence::Boundary(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Boundary(
             optimization_core::OptimizedBoundaryOccurrenceIdentity::from_bytes(
                 child.occurrence.identity(),
             ),
@@ -2781,7 +2781,7 @@ machine probe(left: i32, right: i32) -> bool {
     // Padded: the machine span must name exactly the attributed instruction
     // interval.
     assert_mutated_child_rejected(&|child| {
-        child.machine_span = native_realization::NativeByteSpan::from_replayed_parts(
+        child.machine_span = compiler::native::NativeByteSpan::from_replayed_parts(
             child.machine_span.offset(),
             child.machine_span.byte_count() + 1,
         );
@@ -2794,7 +2794,7 @@ machine probe(left: i32, right: i32) -> bool {
     // Stale: an occurrence identity no surviving projection names cannot carry
     // a child.
     assert_mutated_child_rejected(&|child| {
-        child.occurrence = native_realization::NativePhysicalOccurrence::Operator(
+        child.occurrence = compiler::native::NativePhysicalOccurrence::Operator(
             optimization_core::OptimizedOperatorOccurrenceIdentity::from_bytes([0xA7; 32]),
         );
     });

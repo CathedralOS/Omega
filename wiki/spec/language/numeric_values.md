@@ -338,7 +338,7 @@ lowerings. Posit carriers and their extended format vocabulary remain future
 work, not permission to rebind `f32`.
 
 The [numeric implementation note](../../../omega-rust/psi/foundation/numerics/README.md)
-and [float realization note](../../../omega-rust/omega/compiler/compiler/float_realization.md)
+and [float realization note](../../../omega-rust/omega/compiler/float_realization.md)
 record current support separately from these language contracts.
 
 ## Collection bounds

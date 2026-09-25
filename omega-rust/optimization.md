@@ -13,11 +13,11 @@ records current experimental status, applicability, and composition limits.
 
 [Build evaluation](omega/build/build-evaluation/src/optimization/mod.rs) admits
 the exact vocabulary. The compiler's
-[build vocabulary](omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs)
+[build vocabulary](omega/compiler/src/sources/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
-[checked handoff](omega/compiler/checked-compilation/src/optimization/checked_handoff/mod.rs)
+[checked handoff](omega/compiler/src/checked/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/compiler/checked-compilation/src/optimization/rollback/mod.rs)
+[Rollback settlement](omega/compiler/src/checked/optimization/rollback/mod.rs)
 computes effective selection before artifact production without changing the
 authored selection.
 
@@ -80,12 +80,12 @@ decision log cannot supply missing transformation authority.
 
 ## One physical sequence
 
-The [native physical entrance](omega/compiler/native-realization/src/native_pipeline/physical_pipeline/mod.rs)
+The [native physical entrance](omega/compiler/src/native/native_pipeline/physical_pipeline/mod.rs)
 checks the retained selection, then performs instruction selection, selected
 X-to-X execution, allocation, machine construction, and canonical frame
 realization once. Mandatory lowering is not an optional optimization.
 
-[Phase admission](omega/compiler/native-realization/src/native_pipeline/physical_pipeline/phase_selections.rs)
+[Phase admission](omega/compiler/src/native/native_pipeline/physical_pipeline/phase_selections.rs)
 rejects selections without an implemented current-data stage before execution.
 In particular, retained selected-lowering catalog entries do not imply native
 publication support, and retired post-allocation rewrite names cannot select an

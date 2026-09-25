@@ -61,11 +61,11 @@ fn publish(
     target: NativeTarget,
 ) -> (image_emission::ExecutableImage, usize) {
     let selections = optimization_core::OptimizationSelections::default();
-    let optimized = native_realization::optimize_artifact_sections(
+    let optimized = compiler::native::optimize_artifact_sections(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
+        compiler::native::compiler_baseline_request_v1(&selections),
     )
     .expect("record optimizer admission");
     let post_terminal = optimized.selections().project_post_terminal();
@@ -74,7 +74,7 @@ fn publish(
         abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .unwrap_or_else(|error| panic!("record lowering on {target:?}: {error:#?}"));
-    let physical = native_realization::stage_optimized_verified_physical_pipeline(
+    let physical = compiler::native::stage_optimized_verified_physical_pipeline(
         targeted,
         post_terminal.selections(),
     )

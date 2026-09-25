@@ -16,6 +16,9 @@ use abstract_operations_to_target_operations::{TargetLoweringRequest, lower_to_t
 use calling_conventions::CallSignature;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use compiler::CheckedCompileRequest;
+use compiler::native::{
+    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
+};
 use compiler::{
     CheckedCompilation, CompileOptions, CompileRequest, RequestedCompileProduct, compile_to_checked,
 };
@@ -58,9 +61,6 @@ use image_emission::ObjectArtifact;
 use image_emission::installation_fingerprint;
 use layout_plans::{
     ArtifactInstallationScopeId, EntryStubId, PlacementConstraints, PlacementPhase, PlacementSite,
-};
-use native_realization::{
-    NativeProviderSettlement as ComponentProviderSettlement, realize_native_artifact,
 };
 use omega_native_differential_test::{
     admit_native_provider, admit_native_provider_for_selected_plan,
@@ -149,8 +149,8 @@ fn stage_terminal_component(
         subsystem,
         profile,
         settlements,
-        native_realization::current_compiler_intrinsic_terminal_authority_policy(),
-        native_realization::current_terminal_authority_permission_policy(),
+        compiler::native::current_compiler_intrinsic_terminal_authority_policy(),
+        compiler::native::current_terminal_authority_permission_policy(),
     )
 }
 
@@ -160,8 +160,8 @@ fn stage_terminal_component_with_policies(
     subsystem: u16,
     profile: &AdmissionProfile,
     settlements: &[ComponentProviderSettlement<'_>],
-    terminal_authority_policy: native_realization::TerminalAuthorityPolicy,
-    terminal_authority_permission_policy: native_realization::TerminalAuthorityPermissionPolicy,
+    terminal_authority_policy: compiler::native::TerminalAuthorityPolicy,
+    terminal_authority_permission_policy: compiler::native::TerminalAuthorityPermissionPolicy,
 ) -> Result<ComponentCandidate, Vec<diagnostics::Diagnostic>> {
     let selected_target = checked.selected_native_target().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
@@ -184,7 +184,7 @@ fn stage_terminal_component_with_policies(
     // coverage that native realization rejoins; a bare `produce_artifact` never
     // supplies the checked custody the hosted-receiver gate requires.
     let (artifact, checked_program_entry, checked_boundary_operator_scope, boundary_coverage) =
-        checked_compilation_to_terminal_artifact::produce_program_entry_terminal_artifact(
+        compiler::terminal::produce_program_entry_terminal_artifact(
             checked,
             selected_program_entry,
             checked.optimization_selections(),
@@ -193,7 +193,7 @@ fn stage_terminal_component_with_policies(
     let post_terminal_optimizations = checked.optimization_selections().project_post_terminal();
     let native_artifact = realize_native_artifact(
         artifact,
-        native_realization::NativeRealizationRequest {
+        compiler::native::NativeRealizationRequest {
             checked_scope: Some(&checked_boundary_operator_scope),
             prepared_input: None,
             target,
@@ -201,7 +201,7 @@ fn stage_terminal_component_with_policies(
             profile,
             terminal_authority_policy,
             terminal_authority_permission_policy: Some(terminal_authority_permission_policy),
-            program_entry: native_realization::NativeProgramEntrySettlement::new(
+            program_entry: compiler::native::NativeProgramEntrySettlement::new(
                 selected_program_entry.source_signature(),
                 selected_program_entry.calling_plans().map(|plans| {
                     (
@@ -856,7 +856,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         .iter()
         .find(|boundary| boundary.identity == demand.requirement_identity)
         .expect("exact demanded notification boundary");
-    let mechanism = native_realization::conservative_syscall_terminal_mechanism(
+    let mechanism = compiler::native::conservative_syscall_terminal_mechanism(
         target::TargetProfile::LinuxX64,
         1,
         &abstract_plan,
@@ -868,19 +868,18 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
     let output = effects::TerminalAuthorityDisposition::from_classes([
         effects::TerminalAuthorityClass::ProcessOutput,
     ]);
-    let policy = native_realization::terminal_authority_policy_with_rows(vec![
-        native_realization::TerminalAuthorityPolicyRow::new(mechanism, output.clone()),
+    let policy = compiler::native::terminal_authority_policy_with_rows(vec![
+        compiler::native::TerminalAuthorityPolicyRow::new(mechanism, output.clone()),
     ])
     .expect("independent output mechanism classification");
-    let permission_policy =
-        native_realization::terminal_authority_permission_policy_with_rows(vec![
-            native_realization::TerminalAuthorityPermissionPolicyRow::new(
-                selected_plan.schema.identity_digest(),
-                demand.requirement_identity.clone(),
-                output,
-            ),
-        ])
-        .expect("exact Scheduler notification permission");
+    let permission_policy = compiler::native::terminal_authority_permission_policy_with_rows(vec![
+        compiler::native::TerminalAuthorityPermissionPolicyRow::new(
+            selected_plan.schema.identity_digest(),
+            demand.requirement_identity.clone(),
+            output,
+        ),
+    ])
+    .expect("exact Scheduler notification permission");
 
     let direct_native = compiler::compile(
         CompileRequest::new(CompileOptions {
@@ -948,7 +947,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &unselected,
             provider_plan: selected_plan,
-            realization: native_realization::NativeBoundaryRealization::Builtin(
+            realization: compiler::native::NativeBoundaryRealization::Builtin(
                 HostedWriteByteI32Realization.into(),
             ),
         }],
@@ -971,7 +970,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         &[ComponentProviderSettlement {
             provider_execution: &provider,
             provider_plan: selected_plan,
-            realization: native_realization::NativeBoundaryRealization::Builtin(
+            realization: compiler::native::NativeBoundaryRealization::Builtin(
                 HostedWriteByteI32Realization.into(),
             ),
         }],
@@ -1268,7 +1267,7 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
             &[ComponentProviderSettlement {
                 provider_execution: &provider,
                 provider_plan: selected_plan,
-                realization: native_realization::NativeBoundaryRealization::Builtin(
+                realization: compiler::native::NativeBoundaryRealization::Builtin(
                     HostedWriteByteI32Realization.into(),
                 ),
             }],
