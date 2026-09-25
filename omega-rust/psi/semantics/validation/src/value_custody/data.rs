@@ -98,13 +98,18 @@ fn validate_stored_field_has_a_representation(
     if field.relevance.is_erased() {
         return;
     }
-    let typed_trees::types::TypeReferenceNode::Named { name, .. } = program
+    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = program
         .type_reference_table
         .type_reference(field.type_reference)
     else {
         return;
     };
-    let Some(builtin) = symbols::BuiltinType::from_name(name.as_str()) else {
+    // The resolved symbol decides this, not the spelling: a name-keyed test
+    // would answer for whatever a later declaration spelled `UInt`.
+    let Some(builtin) = [symbols::BuiltinType::UInt, symbols::BuiltinType::Int]
+        .into_iter()
+        .find(|candidate| program.symbols.builtin_type_symbol(*candidate) == Some(*symbol))
+    else {
         return;
     };
     diagnostics.push(Diagnostic::error(format!(
@@ -131,27 +136,36 @@ pub(crate) fn type_requires_establishment(
     )
 }
 
-/// One walk's working set: the name-indexed declaration table the inner
-/// walkers used to rescan per Named node, the active-path `seen` set, and the
-/// absolute answers already proven for completed definitions — a definition's
-/// result does not depend on the path that reached it, so it is memoized.
+/// One walk's working set: the declaration table the inner walkers used to
+/// rescan per Named node, the active-path `seen` set, and the absolute answers
+/// already proven for completed definitions — a definition's result does not
+/// depend on the path that reached it, so it is memoized.
+///
+/// Every key is the declaration's own symbol, not its spelling. Two modules
+/// may declare the same leaf name, and a spelling key answers for whichever
+/// one was inserted first; the symbol is the selected declaration itself. A
+/// `Named` node whose symbol never resolved keeps the spelling route, which
+/// scans rather than indexing, because an unresolved reference has no
+/// declaration identity to key on.
 struct EstablishmentIndex<'program> {
-    defs_by_name:
-        std::collections::HashMap<&'program str, &'program typed_trees::data::DataDefinition>,
-    seen: std::collections::HashSet<&'program str>,
-    computed: std::collections::HashMap<&'program str, bool>,
+    definitions: std::collections::HashMap<
+        symbols::SymbolHandle,
+        &'program typed_trees::data::DataDefinition,
+    >,
+    seen: std::collections::HashSet<symbols::SymbolHandle>,
+    computed: std::collections::HashMap<symbols::SymbolHandle, bool>,
 }
 
 impl<'program> EstablishmentIndex<'program> {
     fn new(program: &'program TypedTrees) -> Self {
-        let mut defs_by_name = std::collections::HashMap::new();
+        let mut definitions = std::collections::HashMap::new();
         for definition in program.data_definitions() {
-            defs_by_name
-                .entry(definition.name.as_str())
-                .or_insert(definition);
+            if definition.symbol.is_valid() {
+                definitions.entry(definition.symbol).or_insert(definition);
+            }
         }
         Self {
-            defs_by_name,
+            definitions,
             seen: std::collections::HashSet::new(),
             computed: std::collections::HashMap::new(),
         }
@@ -246,8 +260,15 @@ fn type_requires_establishment_inner<'program>(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_requires_establishment_inner(program, *element_type, index)
         }
-        TypeReferenceNode::Named { name, .. } => {
-            let definition = index.defs_by_name.get(name.as_str()).copied();
+        TypeReferenceNode::Named { symbol, name } => {
+            let definition = if symbol.is_valid() {
+                index.definitions.get(symbol).copied()
+            } else {
+                program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == name.as_str())
+            };
             definition.is_some_and(|definition| {
                 data_requires_establishment_inner(program, definition, index)
             })
@@ -271,14 +292,14 @@ fn data_requires_establishment_inner<'program>(
     if definition.zero_gated {
         return true;
     }
-    let name = definition.name.as_str();
-    if index.seen.contains(name) {
+    let key = definition.symbol;
+    if index.seen.contains(&key) {
         return false;
     }
-    if let Some(answer) = index.computed.get(name) {
+    if let Some(answer) = index.computed.get(&key) {
         return *answer;
     }
-    index.seen.insert(name);
+    index.seen.insert(key);
 
     let members = program.data_members(definition);
     let common_gated = members.iter().any(|member| match member {
@@ -299,9 +320,9 @@ fn data_requires_establishment_inner<'program>(
             })
         });
 
-    index.seen.remove(name);
+    index.seen.remove(&key);
     let result = common_gated || zero_case_gated;
-    index.computed.insert(name, result);
+    index.computed.insert(key, result);
     result
 }
 
