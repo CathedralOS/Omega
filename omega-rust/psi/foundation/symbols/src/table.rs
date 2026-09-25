@@ -62,6 +62,11 @@ impl SourceScopedTopLevelBinding {
             module_import: None,
         }
     }
+
+    /// The source whose top-level references this binding scopes.
+    pub const fn reference_source(&self) -> SourceId {
+        self.reference_source
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
