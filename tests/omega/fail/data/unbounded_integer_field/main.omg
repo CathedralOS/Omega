@@ -1,0 +1,21 @@
+// `UInt` and `Int` are the unbounded builtin integers: no width, so no layout.
+// A relevant field naming one has no runtime representation, and shape
+// construction declines the whole declaration. That decline used to be silent
+// and surfaced far away as "selected ProgramEntry establishment rejoins 0
+// Terminal attachment identities ... omitted at local construction at `state
+// graph: state signature: parameter signature: attached data shape`", naming
+// neither the field nor its type. The declaration must refuse here instead.
+//
+// `witness` is erased, so it keeps no representation and may name `UInt`.
+data Counter {
+    calls: UInt;
+    witness [erased]: Int;
+    stored: u64;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Main::main(&mut self) {
+}

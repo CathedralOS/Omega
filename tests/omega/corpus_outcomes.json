@@ -3907,6 +3907,16 @@
   ]
  },
  {
+  "fixture": "fail/data/unbounded_integer_field",
+  "tier": "fail",
+  "status": "rejected",
+  "millis": 1,
+  "expected_satisfied": true,
+  "diagnostics": [
+   "data `Counter` field `calls` stores unbounded integer type `UInt`, which has no runtime representation; use a sized integer such as `u64` or `i64`, or declare the field `[erased]` to keep it proof-only"
+  ]
+ },
+ {
   "fixture": "fail/data/unknown_nested_field_read_rejected",
   "tier": "fail",
   "status": "rejected",
