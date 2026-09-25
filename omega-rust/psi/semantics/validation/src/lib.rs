@@ -220,6 +220,7 @@ pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
 pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
 pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
+pub use proof_contracts::default_domains::data_where_field_intervals;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::contract_entailment::integer_embedding_sources_equal;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;

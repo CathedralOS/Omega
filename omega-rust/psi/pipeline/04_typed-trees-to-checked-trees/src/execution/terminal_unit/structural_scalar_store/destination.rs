@@ -396,7 +396,10 @@ pub(super) fn plain_record(data: &typed_trees::data::DataDefinition, program: &T
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
         && data.quotient.is_none()
-        && data.where_facts.is_empty()
+        // Interval-only facts are the fields' own bounds, which each store's
+        // range obligation re-proves; relational facts stay refused.
+        && (data.where_facts.is_empty()
+            || validation::data_where_field_intervals(program, data).is_some())
         && !data.zero_gated
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record

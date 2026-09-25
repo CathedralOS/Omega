@@ -13,8 +13,17 @@ pub(super) fn retain_scalar_field(
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     primitive: PrimitiveType,
+    stated: Option<(Option<i64>, Option<i64>)>,
 ) -> Option<CheckedUnitStructuralFieldType> {
-    let mut declared_bounds: Option<(BigInt, BigInt)> = None;
+    // The owning data's interval-only `where` facts restrict the field as a
+    // bracketed range did: every write establishes them and every read may
+    // assume them. An unstated side is the carrier's own extreme.
+    let mut declared_bounds: Option<(BigInt, BigInt)> = stated.map(|(lower, upper)| {
+        (
+            lower.map_or_else(|| BigInt::from_i128(i128::MIN), BigInt::from_i64),
+            upper.map_or_else(|| BigInt::from_u128(u128::MAX), BigInt::from_i64),
+        )
+    });
     let mut has_non_exact_domain = false;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -229,7 +238,7 @@ mod tests {
             let (program, reference) =
                 field_type(&format!("data Carrier {{ value: {spelling}; }}"));
             let Some(CheckedUnitStructuralFieldType::BoundedInteger(integer)) =
-                retain_scalar_field(&program, reference, &[], primitive)
+                retain_scalar_field(&program, reference, &[], primitive, None)
             else {
                 panic!("range {spelling} was erased");
             };
@@ -301,7 +310,7 @@ mod tests {
             let (program, reference) = field_type(&format!(
                 "{domain} data Carrier {{ value: {spelling} in Slot; }}"
             ));
-            let retained = retain_scalar_field(&program, reference, &[], primitive);
+            let retained = retain_scalar_field(&program, reference, &[], primitive, None);
             match (retained, restriction) {
                 (
                     Some(CheckedUnitStructuralFieldType::BoundedInteger(integer)),
@@ -341,6 +350,7 @@ mod tests {
             reference,
             &[(*symbol, field.type_reference)],
             PrimitiveType::I32,
+            None,
         ) else {
             panic!("substituted restriction");
         };
@@ -369,13 +379,13 @@ mod tests {
             let (program, reference) =
                 field_type(&format!("data Carrier {{ value: {spelling}; }}"));
             assert!(
-                retain_scalar_field(&program, reference, &[], primitive).is_none(),
+                retain_scalar_field(&program, reference, &[], primitive, None).is_none(),
                 "{spelling}"
             );
         }
         let (program, reference) = field_type("data Carrier { value: u64; }");
         assert_eq!(
-            retain_scalar_field(&program, reference, &[], PrimitiveType::U64),
+            retain_scalar_field(&program, reference, &[], PrimitiveType::U64, None),
             Some(CheckedUnitStructuralFieldType::Scalar(PrimitiveType::U64))
         );
     }
@@ -384,7 +394,7 @@ mod tests {
     fn bounded_integer_fields_reject_unevaluated_bounds_and_intersect_shells() {
         let (program, reference) =
             field_type("data Carrier<const Maximum: i32> { value: i32 [0..=Maximum]; }");
-        assert!(retain_scalar_field(&program, reference, &[], PrimitiveType::I32).is_none());
+        assert!(retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None).is_none());
         let (mut program, reference) = field_type(
             "data Carrier { value: i32 [0..=255]; } data Restriction { value: i32 [12..=100]; }",
         );
@@ -410,7 +420,7 @@ mod tests {
                 constraints,
             });
         let Some(CheckedUnitStructuralFieldType::BoundedInteger(integer)) =
-            retain_scalar_field(&program, reference, &[], PrimitiveType::I32)
+            retain_scalar_field(&program, reference, &[], PrimitiveType::I32, None)
         else {
             panic!("nested range shells");
         };
