@@ -538,3 +538,38 @@ fn a_runtime_element_store_keeps_sibling_field_facts() {
     )
     .expect("the swap verifies");
 }
+
+/// A domain-bearing `[u8; N]` field is a bounded byte sequence with a live
+/// length, so `self.out[0]` reads byte zero through the bounds-checked byte
+/// read, as `self.out[self.i]` does. Planning the literal index as a static
+/// primitive projection reached lowering with a byte field where the path
+/// expected a fixed array ("primitive projection requires a structural
+/// carrier field"), which stopped `cli__text__caesar_cipher`'s
+/// `self.out[0] == 75` guard.
+#[test]
+fn a_literal_index_into_a_bounded_byte_field_is_a_byte_read() {
+    let source = r#"
+        domain [u8; 5]::Tag;
+        data Main { out: [u8; 5] in Tag; hits: u64; }
+        machine Main::main(&mut self) {
+            transition self.out.len > 0 && self.out[0] == 75 {
+                true -> found()
+                _ -> done()
+            }
+            state found(&mut self) {
+                self.hits = 1;
+                transition { _ -> done() }
+            }
+            state done(&mut self) {}
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the literal-index byte read lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the byte read verifies");
+}

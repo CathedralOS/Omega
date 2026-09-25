@@ -465,6 +465,20 @@ fn authored_indexed_primitive_read(
     else {
         return Ok(None);
     };
+    // A bounded byte field's element is a bounds-checked byte read whose only
+    // storage read is its selector, not a projected primitive leaf.
+    if let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression)
+        && validation::declared_place_type_raw(
+            &checked.typed,
+            machine,
+            Some(state),
+            indexed.collection,
+        )
+        .and_then(|collection| validation::bounded_byte_buffer_capacity(&checked.typed, collection))
+        .is_some()
+    {
+        return Ok(None);
+    }
     let Ok(source) = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine.symbol,
