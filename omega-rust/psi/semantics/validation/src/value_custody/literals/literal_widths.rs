@@ -67,12 +67,11 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
             }
         }
     }
-    let mut visited = Vec::new();
+    let mut visited = std::collections::HashSet::new();
     while let Some(handle) = pending.pop() {
-        if !program.expression_table.expression_is_valid(handle) || visited.contains(&handle) {
+        if !program.expression_table.expression_is_valid(handle) || !visited.insert(handle) {
             continue;
         }
-        visited.push(handle);
         let node = program.expression_table.expression(handle);
         if let ExpressionNode::Match(dispatch) = node
             && super::select_anonymous_numeric_match_arm(program, dispatch, |expression| {
