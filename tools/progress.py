@@ -18,13 +18,13 @@ Four measurements, each independent of the others:
             any pass fixture combines the same pair -- "combinations that
             matter" means pairs that at least `--pair-floor` samples use;
   outcomes  per-fixture verdicts from corpus outcome records (the golden
-            `tests/omega/corpus_outcomes.json` by default, or a baseline file
+            `tests/omega/corpus_outcomes.txt` by default, or a baseline file
             written by `tools/corpus_gate.py --baseline --record`).
 
 Run from the repository root; standard library only:
 
     python tools/progress.py
-    python tools/progress.py --outcomes build/corpus_baselines/<head>.json --json out.json
+    python tools/progress.py --outcomes build/corpus_baselines/<head>.txt
 
 The corpus runner compiles every fixture through the check route, so a pass
 fixture's strongest verified level is `checks`; native builds and runs are not
@@ -40,18 +40,20 @@ from __future__ import annotations
 
 import argparse
 import itertools
-import json
 import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import corpus_records  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS = ROOT / "tests" / "omega"
 SAMPLES = ROOT / "samples"
 SPEC = ROOT / "wiki" / "spec" / "language"
 SPEC_GROUPS = ROOT / "tools" / "progress" / "spec_groups.tsv"
-CORPUS_OUTCOMES = CORPUS / "corpus_outcomes.json"
+CORPUS_OUTCOMES = CORPUS / "corpus_outcomes.txt"
 
 # One regular expression per language surface. Multi-line mode; presence only.
 SURFACES = {
@@ -258,7 +260,7 @@ def parse_corpus_outcomes(path: Path) -> dict:
     passes when it checked; a fail fixture passes when it rejected and did not
     reject for the wrong reason (`expected_satisfied` is not false). Fixture
     names drop the tier prefix: `pass/group/name` becomes `group/name`."""
-    records = json.loads(path.read_text(encoding="utf-8"))
+    records = corpus_records.read(path)
     pass_failed: dict[str, str] = {}
     pass_members = 0
     fail_failed: list[str] = []
@@ -396,7 +398,6 @@ def main() -> int:
     parser.add_argument("--outcomes", type=Path, default=CORPUS_OUTCOMES,
                         help="corpus outcome records (default: the checked-in golden)")
     parser.add_argument("--pair-floor", type=int, default=5, help="samples a pair needs to 'matter' (default 5)")
-    parser.add_argument("--json", type=Path, help="also write the full report as JSON")
     args = parser.parse_args()
 
     report = {"corpus": corpus_report()}
@@ -407,8 +408,6 @@ def main() -> int:
         report["sections"] = section_outcomes(report)
     report["headline"] = headline(report)
     print_report(report)
-    if args.json:
-        args.json.write_text(json.dumps(report, indent=1), encoding="utf-8")
     return 0
 
 

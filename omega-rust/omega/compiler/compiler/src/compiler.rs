@@ -163,4 +163,3 @@ fn admit_requested_product(
         _ => Ok(()),
     }
 }
-

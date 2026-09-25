@@ -82,7 +82,7 @@ package-compilation = { path = "../../build/package-compilation", features = ["t
 
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
 # builds and executes it directly and diffs the emitted per-fixture outcome
-# records against tests/omega/corpus_outcomes.json. `harness = false` keeps
+# records against tests/omega/corpus_outcomes.txt. `harness = false` keeps
 # libtest out; the runner exits immediately under NEXTEST so suite runs never
 # execute it.
 [[test]]

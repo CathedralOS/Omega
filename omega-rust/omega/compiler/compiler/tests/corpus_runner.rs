@@ -1,6 +1,6 @@
 //! Corpus outcome runner — a `harness = false` test target that walks
 //! `tests/omega/{pass,fail,run}` and compiles every fixture, printing one
-//! JSON record per fixture to stdout: pass and run fixtures go through
+//! text record per fixture to stdout (format below): pass and run fixtures go through
 //! `compiler::compile` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through `compile_to_checked` with reviewed repository package
@@ -15,9 +15,16 @@
 //! fragments), `OMEGA_CORPUS_SHARD=k/N` (deterministic hash slice, stable
 //! across fixture additions), `OMEGA_CORPUS_JOBS` (worker count, default host
 //! parallelism capped at 12), `OMEGA_CORPUS_FIXTURE_SECS` (per-fixture cap,
-//! default 120 — a timed-out fixture detaches its compile, records
-//! `status: "timeout"`, and the pool applies back-pressure so stragglers
-//! cannot multiply past the worker count).
+//! default 120 — a timed-out fixture detaches its compile, records status
+//! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
+//! past the worker count).
+//!
+//! Record format, read by `tools/corpus_records.py`: one line per fixture,
+//! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
+//! ` unexpected` when the fixture's `expected.txt` fragments were weighed
+//! against its diagnostics. Each diagnostic follows on its own line after one
+//! tab, with backslash, newline, carriage return and tab escaped as `\\`,
+//! `\n`, `\r` and `\t`.
 
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
@@ -46,11 +53,12 @@ fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
     }
 }
 
-fn escape(text: &str) -> String {
+/// One diagnostic on one line: the record format ends a diagnostic at the
+/// line break, so the characters that would break it are escaped.
+fn escape_diagnostic(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 8);
-    for ch in text.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
+    for character in text.chars() {
+        match character {
             '\\' => out.push_str("\\\\"),
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
@@ -61,15 +69,27 @@ fn escape(text: &str) -> String {
     out
 }
 
-fn diagnostics_json(errors: &[diagnostics::Diagnostic]) -> String {
-    format!(
-        "[{}]",
-        errors
-            .iter()
-            .map(|error| format!("\"{}\"", escape(&error.message)))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
+/// One fixture's record: its header line, then one tab-indented line per
+/// diagnostic.
+fn record_text(
+    tier: &str,
+    relative: &str,
+    status: &str,
+    millis: u128,
+    expected: Option<bool>,
+    diagnostics: &[String],
+) -> String {
+    let mut record = format!("{tier}/{relative} {status} {millis}ms");
+    match expected {
+        Some(true) => record.push_str(" expected"),
+        Some(false) => record.push_str(" unexpected"),
+        None => {}
+    }
+    for diagnostic in diagnostics {
+        record.push_str("\n\t");
+        record.push_str(&escape_diagnostic(diagnostic));
+    }
+    sanitize(record)
 }
 
 /// Records must be checkout-portable: diagnostics and panic payloads render
@@ -158,20 +178,19 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     };
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);
-    let (status, diagnostics) = match &outcome {
-        Ok(()) => ("checked".to_string(), "[]".to_string()),
-        Err(errors) => ("rejected".to_string(), diagnostics_json(errors)),
+    let status = if outcome.is_ok() {
+        "checked"
+    } else {
+        "rejected"
     };
+    let diagnostics = errors
+        .iter()
+        .map(|error| error.message.clone())
+        .collect::<Vec<_>>();
     let satisfied = expected_fragment_satisfied(&fixture_dir, errors);
-    let satisfied_json = satisfied
-        .map(|value| if value { "true" } else { "false" })
-        .unwrap_or("null");
     let millis = started.elapsed().as_millis();
     (
-        sanitize(format!(
-            "  {{\"fixture\": \"{tier}/{}\", \"tier\": \"{tier}\", \"status\": \"{status}\", \"millis\": {millis}, \"expected_satisfied\": {satisfied_json}, \"diagnostics\": {diagnostics}}}",
-            escape(&rel)
-        )),
+        record_text(tier, &rel, status, millis, satisfied, &diagnostics),
         millis,
     )
 }
@@ -221,11 +240,7 @@ fn run_one_bounded(
                     .or_else(|| payload.downcast_ref::<&str>().map(|text| text.to_string()))
                     .unwrap_or_else(|| "unknown panic".to_string());
                 (
-                    sanitize(format!(
-                        "  {{\"fixture\": \"{tier}/{}\", \"tier\": \"{tier}\", \"status\": \"crashed\", \"millis\": 0, \"expected_satisfied\": null, \"diagnostics\": [\"{}\"]}}",
-                        escape(&rel_owned),
-                        escape(&message)
-                    )),
+                    record_text(tier, &rel_owned, "crashed", 0, None, &[message]),
                     0,
                 )
             }
@@ -249,13 +264,7 @@ fn run_one_bounded(
                     ("crashed", started.elapsed().as_millis())
                 }
             };
-            (
-                sanitize(format!(
-                    "  {{\"fixture\": \"{tier}/{}\", \"tier\": \"{tier}\", \"status\": \"{status}\", \"millis\": {millis}, \"expected_satisfied\": null, \"diagnostics\": []}}",
-                    escape(&rel)
-                )),
-                millis,
-            )
+            (record_text(tier, &rel, status, millis, None, &[]), millis)
         }
     }
 }
@@ -311,26 +320,18 @@ fn prior_millis() -> std::collections::HashMap<String, u64> {
         eprintln!("corpus_runner: could not read OMEGA_CORPUS_TIMINGS {path:?}");
         return millis;
     };
-    // Fields may share one line (the runner's compact records) or sit on
-    // their own lines (json.dumps indent=1) — associate a millis field with
-    // the most recently seen fixture field instead of requiring one line.
-    let mut current_fixture: Option<String> = None;
+    // A header line is `<fixture> <status> <milliseconds>ms ...`; comment and
+    // tab-indented diagnostic lines carry no timing.
     for line in text.lines() {
-        if let Some(fixture) = line
-            .split("\"fixture\": \"")
-            .nth(1)
-            .and_then(|rest| rest.split('\"').next())
-        {
-            current_fixture = Some(fixture.to_string());
+        if line.starts_with('#') || line.starts_with('\t') {
+            continue;
         }
-        if let Some(ms) = line
-            .split("\"millis\": ")
-            .nth(1)
-            .and_then(|rest| rest.split([',', ' ', '}']).next())
-            .and_then(|value| value.parse::<u64>().ok())
-            && let Some(fixture) = current_fixture.take()
+        let mut fields = line.split(' ');
+        if let (Some(fixture), Some(_status), Some(ms)) =
+            (fields.next(), fields.next(), fields.next())
+            && let Some(value) = ms.strip_suffix("ms").and_then(|ms| ms.parse::<u64>().ok())
         {
-            millis.insert(fixture, ms);
+            millis.insert(fixture.to_string(), value);
         }
     }
     eprintln!("corpus_runner: {} prior timings loaded", millis.len());
@@ -473,7 +474,9 @@ fn main() {
         .unwrap_or_else(|records| records.lock().unwrap().clone().into())
         .into_inner()
         .unwrap();
-    println!("[\n{}\n]", records.join(",\n"));
+    for record in records {
+        println!("{record}");
+    }
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }
