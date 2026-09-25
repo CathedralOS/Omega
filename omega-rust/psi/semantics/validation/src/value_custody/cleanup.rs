@@ -99,10 +99,11 @@ fn type_graph_requires_nominal_drop_with_substitutions(
             arguments,
             ..
         } => {
-            let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *base_symbol)
+            let Some(data) =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program,
+                    *base_symbol,
+                )
             else {
                 return false;
             };
@@ -250,10 +251,10 @@ fn reserved_cleanup_selected_by(
         machine.attached_data.is_some()
             && owner.is_valid()
             && machine.name.as_str().rsplit("::").next() == Some("drop")
-            && program
-                .data_definitions()
-                .iter()
-                .any(|data| data.symbol == owner)
+            && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, owner,
+            )
+            .is_some()
             && if let Some(machine_symbol) = machine_symbol {
                 machine.symbol == machine_symbol
             } else {

@@ -441,14 +441,15 @@ pub fn validate_exact_const_value_encoding(
 /// the label still supplies no nominal authority without the exact typed slot.
 fn canonical_carrier_label(program: &TypedTrees, reference: TypeReferenceHandle) -> String {
     match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *symbol)
+        TypeReferenceNode::Named { symbol, .. } => {
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, *symbol,
+            )
             .map_or_else(
                 || type_reference_label(program, reference),
                 |definition| definition.name.as_str().to_owned(),
-            ),
+            )
+        }
         TypeReferenceNode::FixedArray {
             element_type,
             length: FixedArrayLength::Literal(length),
@@ -470,10 +471,10 @@ fn exact_structured_const_data_carrier_is_eligible(
         return false;
     };
     symbol.is_valid()
-        && program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.symbol == *symbol)
+        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )
+        .is_some()
         && exact_structured_const_carrier_is_eligible(program, type_reference, &mut Vec::new())
 }
 
@@ -495,10 +496,10 @@ fn exact_structured_const_carrier_is_eligible(
                 return false;
             }
             visiting.push(*symbol);
-            let eligible = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            let eligible =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )
                 .is_some_and(|definition| {
                     let members = program.data_members(definition);
                     definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
@@ -617,10 +618,10 @@ fn validate_decoded_structured_const(
             if !symbol.is_valid() || visiting.contains(symbol) {
                 return Err("structured const carrier is unresolved or recursive".to_owned());
             }
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            let definition =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )
                 .ok_or_else(|| {
                     "structured const carrier symbol has no data definition".to_owned()
                 })?;
@@ -677,10 +678,10 @@ fn validate_decoded_structured_const(
             if !symbol.is_valid() || visiting.contains(symbol) {
                 return Err("structured const carrier is unresolved or recursive".to_owned());
             }
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            let definition =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )
                 .ok_or_else(|| {
                     "structured const carrier symbol has no data definition".to_owned()
                 })?;

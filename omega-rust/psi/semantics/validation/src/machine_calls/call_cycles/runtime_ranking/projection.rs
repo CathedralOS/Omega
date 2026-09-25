@@ -344,10 +344,10 @@ impl RankProjection {
         if !data.is_valid() {
             return None;
         }
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *data)?;
+        let definition =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, *data,
+            )?;
 
         // The normalized view path is the existing measure-selection carrier.
         // Resolve it once, reject ambiguity, then use only this occurrence and
@@ -475,10 +475,10 @@ impl RankProjection {
         if !self.is_subject(program, member.receiver, role) || member.case_variant.is_some() {
             return false;
         }
-        let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner)
+        let Some(data) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, owner,
+            )
         else {
             return false;
         };

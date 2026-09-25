@@ -545,10 +545,10 @@ fn selected_shared_borrow_place(
     else {
         return false;
     };
-    let Some(record) = program
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == *symbol)
+    let Some(record) =
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )
     else {
         return false;
     };
@@ -704,10 +704,9 @@ pub fn fresh_payloadless_case(
     else {
         return None;
     };
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)?;
+    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, *symbol,
+    )?;
     let members = program.data_members(data);
     if members.is_empty()
         || members.iter().any(|member| match member {
@@ -1065,10 +1064,10 @@ fn case_pattern(
         }
         _ => return None,
     };
-    let owner = program
-        .data_definitions()
-        .iter()
-        .find(|owner| owner.symbol == owner_symbol)?;
+    let owner = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        owner_symbol,
+    )?;
     let reference = program
         .type_reference_table
         .find_named_type_reference(owner.symbol)?;

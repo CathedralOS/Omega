@@ -103,10 +103,7 @@ pub(in crate::machine_calls::calls::write_frames) fn declared_origins_for_query(
             }
             node if concrete_nominal_type(node).is_some() => {
                 let (symbol, _) = concrete_nominal_type(node)?;
-                let definition = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == symbol)?;
+                let definition = data_definition_by_symbol(program, symbol)?;
                 if program.symbols.get(symbol).kind != SymbolKind::Data
                     || !definition.type_parameters.is_empty()
                 {
@@ -194,11 +191,7 @@ pub(in crate::machine_calls::calls::write_frames) fn demand_is_declared(
                     continue;
                 };
                 let (field_name, rest) = super::split_place_root(suffix);
-                let Some(definition) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == symbol)
-                else {
+                let Some(definition) = data_definition_by_symbol(program, symbol) else {
                     continue;
                 };
                 for member in program.data_members(definition) {
@@ -228,6 +221,16 @@ type PendingOrigin = (
     Vec<PlaceSegment>,
     Vec<TypeReferenceHandle>,
 );
+
+/// A data definition by symbol, resolved through the build-scope memo when
+/// one is open — the type walk otherwise re-scans the declaration table per
+/// nominal node it descends into.
+fn data_definition_by_symbol<'program>(
+    program: &'program TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
+}
 
 fn push_field(
     program: &TypedTrees,

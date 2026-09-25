@@ -41,10 +41,11 @@ pub(crate) fn collect_validated_quotient_formations(
             )));
             continue;
         };
-        let Some(carrier) = program
-            .data_definitions()
-            .iter()
-            .find(|candidate| candidate.symbol == carrier_symbol)
+        let Some(carrier) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                carrier_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "quotient data `{}` has unknown carrier `{}`",

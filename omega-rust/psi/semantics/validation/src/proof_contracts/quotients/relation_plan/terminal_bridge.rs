@@ -718,11 +718,11 @@ fn relation_identity(
     program: &TypedTrees,
     relation: ExactQuotientRelation,
 ) -> Result<QuotientRelationIdentity, String> {
-    let quotient = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == relation.quotient_symbol)
-        .ok_or_else(|| "quotient relation lost its declaration".to_owned())?;
+    let quotient = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        relation.quotient_symbol,
+    )
+    .ok_or_else(|| "quotient relation lost its declaration".to_owned())?;
     if !program.data_type_parameters(quotient).is_empty() {
         return Err("the proof-only bridge excludes generic quotient declarations".to_owned());
     }

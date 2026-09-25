@@ -715,10 +715,10 @@ fn operand_place_projection_type(
                 TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                 _ => return None,
             };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == owner)?;
+            let data =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, owner,
+                )?;
             crate::value_custody::places::exact_data_member_field(
                 program,
                 data,
