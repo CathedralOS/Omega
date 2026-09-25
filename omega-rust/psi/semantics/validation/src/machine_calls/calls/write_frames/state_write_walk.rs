@@ -47,6 +47,8 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
 use crate::machine_calls::calls::write_frames::{
     alias_bindings, local_aliases, reference_subjects, stored_origins, wire_codecs,
 };
+use std::collections::HashMap;
+use std::sync::Mutex;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
@@ -147,8 +149,6 @@ pub(crate) struct StateWritePrefix {
 pub(crate) enum StateWriteQuery<'statement> {
     /// A reusable whole-state frame, never an ancestor-truncated prefix.
     Complete,
-    Before(&'statement StatementNode),
-    ReferenceBefore(&'statement StatementNode),
     ReferenceResult,
     Assignment(&'statement StatementNode),
 }
@@ -200,14 +200,18 @@ pub(crate) fn walk_state_write_prefix_collected(
     })
 }
 
-/// One non-shared prefix walk snapshotting the accumulator before every
-/// statement. Statements at or after an uncomputable point record `None`,
-/// matching the `Before` walk's `None` for those indices exactly.
+/// One prefix walk snapshotting the accumulator before every statement.
+/// `include_shared` selects the shared parameter-seeded accumulators exactly
+/// as `ReferenceResult`/`ReferenceBefore` do, so entry i is what
+/// `Before(statement[i])` (or `ReferenceBefore`) returns for that boundary.
+/// Statements at or after an uncomputable point record `None`, matching the
+/// boundary walk's `None` for those indices exactly.
 pub(crate) fn collect_state_write_prefixes(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
+    include_shared: bool,
 ) -> Option<Vec<Option<CollectedStatementPrefix>>> {
     let statement_count = program
         .statement_table
@@ -226,7 +230,11 @@ pub(crate) fn collect_state_write_prefixes(
             symbols,
             inference,
             &mut complete_state_summaries,
-            None,
+            if include_shared {
+                Some(StateWriteQuery::ReferenceResult)
+            } else {
+                None
+            },
             Some(&mut prefixes),
         )
     });
@@ -234,6 +242,42 @@ pub(crate) fn collect_state_write_prefixes(
         prefixes.push(None);
     }
     Some(prefixes)
+}
+
+/// A state's collected per-statement prefixes are a pure property of
+/// (machine, state, include_shared): the first demand site builds the one
+/// O(statements) walk and every later boundary index reads its collected
+/// entry instead of paying a fresh O(index) prefix walk.
+pub(crate) fn collected_prefix_at(
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    index: usize,
+    include_shared: bool,
+) -> Option<CollectedStatementPrefix> {
+    let key = (machine.symbol, state.symbol);
+    let known = collections
+        .lock()
+        .ok()
+        .is_some_and(|cache| cache.contains_key(&key));
+    if !known {
+        let built = collect_state_write_prefixes(program, machine, state, symbols, include_shared);
+        if let Ok(mut cache) = collections.lock() {
+            cache.insert(key, built);
+        }
+    }
+    collections.lock().ok().and_then(|cache| {
+        cache
+            .get(&key)
+            .and_then(|entry| entry.as_ref())
+            .and_then(|prefixes| prefixes.get(index))
+            .cloned()
+            .flatten()
+    })
 }
 
 /// The same state transfer computes whole-body summaries and the alias context
@@ -288,10 +332,7 @@ fn walk_state_write_prefix_inner(
     // write through such a binding lands on one of its candidates, so the
     // frame unions every route, including through nested call substitution.
     let mut divergent_alias_origins = Vec::<(String, Vec<FramePlaceOrigin>)>::new();
-    let include_shared = matches!(
-        query,
-        Some(StateWriteQuery::ReferenceBefore(_) | StateWriteQuery::ReferenceResult)
-    );
+    let include_shared = matches!(query, Some(StateWriteQuery::ReferenceResult));
     let mut stored = if include_shared {
         parameters
             .iter()
@@ -330,16 +371,6 @@ fn walk_state_write_prefix_inner(
                 divergent: divergent_alias_origins.clone(),
                 stored: stored.clone(),
             }));
-        }
-        if matches!(query, Some(StateWriteQuery::Before(before) | StateWriteQuery::ReferenceBefore(before)) if std::ptr::eq(before, statement))
-        {
-            return Some(StateWritePrefix {
-                written,
-                aliases: local_alias_origins,
-                divergent: divergent_alias_origins,
-                stored,
-                assignment: None,
-            });
         }
         let queried_assignment = matches!(query,
             Some(StateWriteQuery::Assignment(candidate)) if std::ptr::eq(candidate, statement));

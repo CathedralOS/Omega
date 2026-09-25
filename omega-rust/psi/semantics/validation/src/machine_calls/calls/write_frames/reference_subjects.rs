@@ -8,9 +8,11 @@ use super::{
 };
 use crate::machine_calls::calls::write_frames::alias_origins::stable_alias_initializer_origin;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    StateWriteQuery, walk_state_write_prefix,
+    CollectedStatementPrefix, collected_prefix_at,
 };
 use facts::PlaceSegment;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 pub(super) mod bindings;
 mod projections;
@@ -94,6 +96,9 @@ pub(super) fn local_origin(
     symbols: &TopLevelSymbols<'_>,
     before: &StatementNode,
     local_symbol: SymbolHandle,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<FrameSourcePlace> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
@@ -116,15 +121,7 @@ pub(super) fn local_origin(
     {
         return None;
     }
-    let prefix = walk_state_write_prefix(
-        program,
-        machine,
-        state,
-        symbols,
-        &mut FrameInference::default(),
-        &mut Vec::new(),
-        Some(StateWriteQuery::ReferenceBefore(before)),
-    )?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
     let mut origins = prefix
         .aliases
         .iter()

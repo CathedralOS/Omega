@@ -3,12 +3,15 @@
 
 use super::super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
 use super::super::{
-    ExpressionHandle, ExpressionNode, FrameInference, FramePlaceOrigin, Machine, StateParameter,
-    TopLevelSymbols, TypedTrees, caller_aliases, local_aliases, stored_origins,
+    ExpressionHandle, ExpressionNode, FramePlaceOrigin, Machine, StateParameter, TopLevelSymbols,
+    TypedTrees, caller_aliases, local_aliases, stored_origins,
 };
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    StateWriteQuery, walk_state_write_prefix,
+    CollectedStatementPrefix, collected_prefix_at,
 };
+use std::collections::HashMap;
+use std::sync::Mutex;
+use symbols::SymbolHandle;
 
 /// A checked local carrier can capture a reference binding without exposing
 /// it to another machine. Every call operand inside that initializer still
@@ -42,17 +45,12 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<()> {
-    let (state, before, _) = caller_statement_at_site(program, machine, symbols, site)?;
-    let prefix = walk_state_write_prefix(
-        program,
-        machine,
-        state,
-        symbols,
-        &mut FrameInference::default(),
-        &mut Vec::new(),
-        Some(StateWriteQuery::ReferenceBefore(before)),
-    )?;
+    let (state, _, index) = caller_statement_at_site(program, machine, symbols, site)?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
     let reference_binding_exposed = |expression| {
         local_aliases::expression_reborrows_stable_alias_binding(
             program,

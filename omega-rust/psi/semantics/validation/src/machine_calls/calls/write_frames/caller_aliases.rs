@@ -13,8 +13,7 @@ use super::{
 };
 use crate::declarations::symbols::PrefixSiteEntry;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    CollectedStatementPrefix, StateWriteQuery, collect_state_write_prefixes,
-    walk_state_write_prefix,
+    CollectedStatementPrefix, StateWriteQuery, collected_prefix_at, walk_state_write_prefix,
 };
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -237,25 +236,8 @@ pub(super) fn local_write_origins_before_statement(
     )?;
     let evidence = match site {
         CallerPrefixSite::Tracked { state, index, .. } => {
-            let key = (machine.symbol, state.symbol);
-            let known = collections
-                .lock()
-                .ok()
-                .is_some_and(|cache| cache.contains_key(&key));
-            if !known {
-                let built = collect_state_write_prefixes(program, machine, state, symbols);
-                if let Ok(mut cache) = collections.lock() {
-                    cache.insert(key, built);
-                }
-            }
-            let prefix = collections.lock().ok().and_then(|cache| {
-                cache
-                    .get(&key)
-                    .and_then(|entry| entry.as_ref())
-                    .and_then(|prefixes| prefixes.get(index))
-                    .cloned()
-                    .flatten()
-            })?;
+            let prefix =
+                collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
             let statements = program.statement_table.statements(state.statement_nodes);
             let statement = statements.get(index)?;
             if super::stored_origins::statement_exposes_frozen_binding(
@@ -351,11 +333,14 @@ fn close_caller_aliases(
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
     written: Vec<String>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<Vec<String>> {
     if written.is_empty() {
         return Some(written);
     }
-    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
+    let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
     Some(close_over_origins(
         written,
         &evidence.aliases,
@@ -473,9 +458,12 @@ pub(super) fn with_caller_origins(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
-    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
+    let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
     let mut inference = FrameInference::default();
     for local in &evidence.stored {
         inference.record_local(local);
@@ -595,9 +583,12 @@ fn caller_aliases_at_site<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let site = caller_prefix_site(program, machine, symbols, site)?;
-    caller_aliases_at_prefix(program, machine, symbols, site)
+    caller_aliases_at_prefix(program, machine, symbols, site, collections)
 }
 
 #[derive(Clone, Copy)]
@@ -746,9 +737,14 @@ fn caller_aliases_at_prefix<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerPrefixSite<'program>,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let CallerPrefixSite::Tracked {
-        state, statement, ..
+        state,
+        statement,
+        index,
     } = site
     else {
         return Some(CallerPrefixEvidence {
@@ -758,15 +754,7 @@ fn caller_aliases_at_prefix<'program>(
             stored: Vec::new(),
         });
     };
-    let prefix = walk_state_write_prefix(
-        program,
-        machine,
-        state,
-        symbols,
-        &mut FrameInference::default(),
-        &mut Vec::new(),
-        Some(StateWriteQuery::Before(statement)),
-    )?;
+    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, false)?;
     if super::stored_origins::statement_exposes_frozen_binding(
         program,
         machine,
