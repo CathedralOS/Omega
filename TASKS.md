@@ -632,6 +632,26 @@ _roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
   plus `builder.depend(Source::Path { location: ".../source/library/std" })`,
   with no local redeclaration. Rewrite both onto the library surface and vary
   only the calling policy, then confirm each reaches its pinned fragment.
+  41 of 1258 fail fixtures carry no `expected.txt`, so the gate records that
+  they reject without being able to say whether the reason is theirs. The
+  `fail/arithmetic` group is pinned; the rest of the groups are not. Pin from a
+  recorded diagnostic, but read each one first: three of the twenty-two
+  arithmetic fixtures were refused for something other than their subject and
+  pinning them blind would have cemented it.
+
+  Two of those three are stale. `fail/arithmetic/exact_overflow_value_call_hint`
+  exists to lock a value-call-aware overflow hint naming the callee's return
+  annotation, and `fail/arithmetic/wrong_struct_type_argument_rejected` exists
+  to lock a struct-type mismatch; both now stop at "implicit domain weakening
+  in machine ... drops `Wrapping`" instead, because their callees return a
+  `Wrapping` value through a bare `i32` return type. Repair the sources so each
+  reaches its own refusal, then pin it.
+
+  The third is a diagnostic defect, not a stale fixture:
+  `fail/arithmetic/unknown_field_write_rejected` writes `self.cont = 5` and is
+  told "machine `Main::main` state `main` reads `self.cont`, but data `Main`
+  has no field `cont`". The refusal is right and the verb is wrong; a write
+  target should not be reported as a read.
 
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under

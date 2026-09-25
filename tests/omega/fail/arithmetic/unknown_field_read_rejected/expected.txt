@@ -1,0 +1,1 @@
+machine `Main::main` state `main` reads `self.cont`, but data `Main` has no field `cont`

@@ -1,0 +1,1 @@
+machine `Main::main` state `main` assignment expects the `Foo` data type but got `Bar` in the `place` position
