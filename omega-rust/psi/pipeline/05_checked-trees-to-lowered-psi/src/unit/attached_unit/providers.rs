@@ -215,10 +215,17 @@ pub(super) fn checked_unit_provider_candidates(
                     }
                     body
                 }
-                checked_trees::CheckedBoundaryMachineResultPlan::Scalar(_) => {
-                    return unsupported(
-                        "scalar-result provider candidates have no admitted terminal route",
-                    );
+                // A scalar requirement is served by an ordinary callable body
+                // returning the same primitive; installation replays the
+                // call's scalar result like its Unit and structural cousins.
+                checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
+                    let candidate = callable_candidate(checked, machine.symbol)?;
+                    if candidate.scalar_result_type() != Some(*expected) {
+                        return unsupported(
+                            "provider result disagrees with its scalar boundary requirement",
+                        );
+                    }
+                    ProviderBody::Callable
                 }
             };
             output.push(CheckedUnitProviderCandidate {

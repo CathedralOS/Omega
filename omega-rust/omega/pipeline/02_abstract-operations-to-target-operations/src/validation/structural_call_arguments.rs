@@ -1037,9 +1037,9 @@ impl Replay<'_> {
         }
         let expected_result = match result {
             AbstractBoundaryResult::Unit => BoundResult::Unit,
-            // A scalar boundary result has no honest embedded call row: the
-            // resolved projection admits only Unit and Structural results.
-            AbstractBoundaryResult::Scalar(_) => return Err(psi_operation),
+            // An installed scalar provider is an ordinary scalar call; its
+            // result replays exactly as any scalar call's does.
+            AbstractBoundaryResult::Scalar(result) => BoundResult::Scalar(result),
             AbstractBoundaryResult::Structural(result) => BoundResult::Structural(result),
         };
         let callee_function = self.callee(provider.candidate, psi_operation)?;

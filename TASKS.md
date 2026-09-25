@@ -394,10 +394,13 @@ the complete product bar; focused successes below do not establish that baseline
   match. Preserve signatures, receiver storage, rendering and effects under
   [provider selection](wiki/spec/build/provider_selection.md).
 
-  Compiler dependencies: `04_typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs`
-  admits one provider field, while this entry needs four; lowered
-  `attached_unit/providers.rs` excludes scalar-result provider candidates
-  needed by window/input/clock operations. Retain one occurrence-owned concrete
+  Compiler dependencies: an attachment may now hold several provider fields
+  and scalar-result provider candidates install through Omega stage 00
+  (`runtime_adapter_dispatch_exit` runs natively); the remaining provider
+  stops are `attached Unit closure contains a duplicate explicit root`
+  (`runtime_result_domain_requirement_overload_exit`) and the pinned
+  non-observation judgment for write-only stores in opaque provider candidates
+  (`runtime_selected_provider_adapter_exit`). Retain one occurrence-owned concrete
   provider receiver across calls, including nested services: a Fused receipt
   establishes service authority, not receiver storage, and
   `ProviderAttachment` is not an ordinary structural argument.

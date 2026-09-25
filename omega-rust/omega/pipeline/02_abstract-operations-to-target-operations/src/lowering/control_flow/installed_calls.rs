@@ -92,6 +92,42 @@ pub(super) fn resolve(
                 selected_evidence: Vec::new(),
             }
         }
+        // A scalar provider is an ordinary scalar-result call. Without
+        // structural operands it takes the plain scalar call lane; otherwise
+        // the structural-scalar lane carries its borrowed operands.
+        (
+            abstract_operations::AbstractBoundaryResult::Scalar(result),
+            AbstractFunctionResult::Scalar(candidate_result),
+        ) if result.scalar_type == candidate_result.scalar_type
+            && matches!(
+                &installed.result,
+                terminal_psi::OperationResult::Scalar(admitted)
+                    if admitted.id == result.value && admitted.scalar_type == result.scalar_type
+            ) =>
+        {
+            if structural_arguments.is_empty() && claim_transfers.is_empty() {
+                AbstractOperation::Call {
+                    psi_operation: *psi_operation,
+                    result: result.value,
+                    scalar_type: result.scalar_type,
+                    callee,
+                    arguments: arguments.clone(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            } else {
+                AbstractOperation::CallStructuralScalar {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    callee,
+                    arguments: arguments.clone(),
+                    structural_arguments: structural_arguments.clone(),
+                    claim_transfers,
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                }
+            }
+        }
         _ => return Err(invalid()),
     };
     let origin = target_operations::NativeCallOrigin::InstalledProvider {

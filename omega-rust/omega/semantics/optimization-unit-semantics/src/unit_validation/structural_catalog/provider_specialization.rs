@@ -51,9 +51,10 @@ pub(crate) fn validate_provider_attachment_specialization(
     let invalid = || {
         OptimizationUnitValidationError::InvalidProviderAttachmentSpecialization(function.machine)
     };
-    let [provider_field] = provider_fields.as_slice() else {
+    // One attachment may hold several provider fields; every root names one.
+    if provider_fields.is_empty() {
         return Err(invalid());
-    };
+    }
     let Some(attachment) = function.attachment else {
         return Err(invalid());
     };
@@ -81,7 +82,9 @@ pub(crate) fn validate_provider_attachment_specialization(
             return Err(invalid());
         };
         if *root_attachment != attachment
-            || *field != provider_field.id
+            || !provider_fields
+                .iter()
+                .any(|provider_field| provider_field.id == *field)
             || boundary_declaration.attachment.is_some()
             || !specialized_boundaries.insert(*boundary)
         {
