@@ -272,6 +272,19 @@ pub(crate) fn memoized_data_definition_lookup(
     lookup
 }
 
+/// A data definition by symbol, resolved through the build-scope memo when
+/// one is open — the declaration slice is otherwise re-scanned per query.
+/// `find`-style callers read the first match; callers that require uniqueness
+/// should use [`memoized_data_definition_lookup`] directly.
+pub(crate) fn data_definition_by_symbol<'program>(
+    program: &'program typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    memoized_data_definition_lookup(program, symbol)
+        .first_position()
+        .and_then(|position| program.data_definitions().get(position as usize))
+}
+
 /// Whether a machine attached to `symbol` realizes `::drop`, memoized per
 /// (program, symbol): storage-content classification asks it at every data
 /// node and the scan is otherwise O(machines) per node.

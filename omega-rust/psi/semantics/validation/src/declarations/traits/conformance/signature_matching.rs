@@ -783,10 +783,11 @@ pub(crate) fn type_references_match_with_trait_bindings(
                 ..
             },
             TypeReferenceNode::Generic { .. },
-        ) if actual_symbol.is_valid() => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *actual_symbol)
+        ) if actual_symbol.is_valid() => {
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                *actual_symbol,
+            )
             .and_then(|definition| definition.generic_instance)
             .is_some_and(|origin| {
                 type_references_match_with_trait_bindings(
@@ -796,7 +797,8 @@ pub(crate) fn type_references_match_with_trait_bindings(
                     trait_type_parameters,
                     bindings,
                 )
-            }),
+            })
+        }
         _ => type_references_match(program, actual, required),
     }
 }
@@ -1057,10 +1059,11 @@ fn type_reference_is_instance_of_family(
     else {
         return false;
     };
-    let Some(family_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *family_symbol)
+    let Some(family_definition) =
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            *family_symbol,
+        )
     else {
         return false;
     };
@@ -1111,10 +1114,11 @@ fn indexed_law_callable_telescope_groups<'program>(
             else {
                 return None;
             };
-            let carrier = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *carrier_symbol)?;
+            let carrier =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program,
+                    *carrier_symbol,
+                )?;
             let telescope = program.data_type_parameters(carrier);
             (!telescope.is_empty()).then_some(telescope)
         })

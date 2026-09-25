@@ -241,11 +241,10 @@ fn validate_public_const_data_visibility(
     if program.symbols.get(selected_symbol).kind != SymbolKind::Data {
         return;
     }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|declaration| declaration.symbol == selected_symbol)
-    else {
+    let Some(data) = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        selected_symbol,
+    ) else {
         diagnostics.push(Diagnostic::error(format!(
             "public const `{}` selects data `{}` without retained declaration visibility",
             program.symbols.display_path(const_symbol, "::"),

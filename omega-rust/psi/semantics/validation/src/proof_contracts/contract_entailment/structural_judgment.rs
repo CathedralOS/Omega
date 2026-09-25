@@ -1236,10 +1236,8 @@ impl<'program> StructuralJudge<'program> {
                         }
                         _ => return None,
                     };
-                    let data = program
-                        .data_definitions()
-                        .iter()
-                        .find(|data| data.symbol == data_symbol)?;
+                    let data =
+                        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, data_symbol)?;
                     let field = program.data_members(data).iter().find_map(|candidate| {
                         let typed_trees::data::DataMember::Field(field) = candidate else {
                             return None;

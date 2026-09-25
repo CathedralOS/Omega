@@ -77,10 +77,11 @@ fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
 /// before any placed accessor is accepted as an ordinary typed operation.
 pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for view in &program.placed_view_plans {
-        let Some(view_data) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == view.data_symbol)
+        let Some(view_data) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                view.data_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact synthesized data identity",
@@ -88,10 +89,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         };
-        let Some(schema) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == view.schema_symbol)
+        let Some(schema) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                view.schema_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact source schema identity",
@@ -99,10 +101,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             )));
             continue;
         };
-        let Some(policy) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == view.policy_symbol)
+        let Some(policy) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                view.policy_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "placed view `{}` no longer names its exact placement-policy identity",
@@ -291,10 +294,12 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
                 )));
             }
 
-            let has_accessor_data = program
-                .data_definitions()
-                .iter()
-                .any(|definition| definition.symbol == field.accessor_data_symbol);
+            let has_accessor_data =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program,
+                    field.accessor_data_symbol,
+                )
+                .is_some();
             if !has_accessor_data {
                 diagnostics.push(Diagnostic::error(format!(
                     "placed view `{}` field `{}` no longer names its exact generated accessor data identity",

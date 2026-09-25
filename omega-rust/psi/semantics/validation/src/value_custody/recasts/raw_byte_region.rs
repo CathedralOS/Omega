@@ -187,11 +187,9 @@ fn record_view_is_fact_free(
     if !visiting.insert(symbol_identity) {
         return false;
     }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)
-    else {
+    let Some(data) = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, symbol,
+    ) else {
         visiting.remove(&symbol_identity);
         return false;
     };

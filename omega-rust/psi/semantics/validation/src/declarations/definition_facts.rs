@@ -739,10 +739,10 @@ fn domain_target_member_symbol(
         } => *base_symbol,
         _ => return None,
     };
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == target_symbol)?;
+    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        target_symbol,
+    )?;
     program
         .data_members(data)
         .iter()

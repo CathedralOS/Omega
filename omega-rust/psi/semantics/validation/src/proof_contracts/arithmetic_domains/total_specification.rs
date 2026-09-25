@@ -516,10 +516,9 @@ pub(super) fn abstract_specification_place_type(
             }
         };
         if symbol.is_valid() {
-            return program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == symbol);
+            return crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, symbol,
+            );
         }
         let mut candidates = program
             .data_definitions()

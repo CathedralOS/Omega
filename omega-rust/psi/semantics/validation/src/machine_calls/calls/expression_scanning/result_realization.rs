@@ -1227,10 +1227,11 @@ fn retained_record_owner(program: &TypedTrees, data: &typed_trees::data::DataDef
     else {
         return false;
     };
-    let Some(template) = program
-        .data_definitions()
-        .iter()
-        .find(|template| template.symbol == *base_symbol)
+    let Some(template) =
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            *base_symbol,
+        )
     else {
         return false;
     };

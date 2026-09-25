@@ -465,10 +465,11 @@ fn validate_literal_field_names(
         }
     }
 
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == literal.type_symbol)
+    let Some(data_definition) =
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            literal.type_symbol,
+        )
     else {
         // The literal names a type that is not a data definition -- a primitive
         // (`i32 { a: 1 }`) or an undefined name (`Nonexistent { a: 1 }`). Neither is

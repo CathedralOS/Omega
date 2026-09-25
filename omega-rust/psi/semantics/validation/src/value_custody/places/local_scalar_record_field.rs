@@ -69,10 +69,10 @@ pub fn local_scalar_record_field(
     // Every step is resolved under its own declaration. Reusing only the final
     // field spelling would confuse identically shaped children of this root.
     for member in members.iter().rev().take(members.len() - 1) {
-        let record = program
-            .data_definitions()
-            .iter()
-            .find(|record| record.symbol == program.type_reference_symbol(carrier))?;
+        let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            program.type_reference_symbol(carrier),
+        )?;
         let field = super::exact_data_member_field(
             program,
             record,
@@ -86,10 +86,10 @@ pub fn local_scalar_record_field(
         path.push(field.path_identity());
         carrier = field.type_reference;
     }
-    let record = program
-        .data_definitions()
-        .iter()
-        .find(|record| record.symbol == program.type_reference_symbol(carrier))?;
+    let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        program.type_reference_symbol(carrier),
+    )?;
     let field = super::exact_data_member_field(
         program,
         record,
@@ -340,8 +340,7 @@ fn has_realized_record_fields(
                         | typed_trees::types::PrimitiveType::F64
                 )
             ) || matches!(program.type_reference_table.type_reference(field.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if program.data_definitions().iter()
-                    .find(|nested| nested.symbol == *symbol)
+                TypeReferenceNode::Named { symbol, .. } if crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, *symbol)
                     .is_some_and(|nested| has_realized_record_fields(program, nested, active))))
         });
     active.pop();

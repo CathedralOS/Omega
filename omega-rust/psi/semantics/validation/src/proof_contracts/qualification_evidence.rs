@@ -134,14 +134,14 @@ fn lifetime_erased_nominal_carriers_match(
             .type_reference_table
             .type_reference_handles(*arguments)
             .is_empty()
-        && program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == *base_symbol)
-            .is_some_and(|definition| {
-                !definition.lifetime_parameters.is_empty()
-                    && definition.lifetime_parameters.len() == lifetime_arguments.len()
-            })
+        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            *base_symbol,
+        )
+        .is_some_and(|definition| {
+            !definition.lifetime_parameters.is_empty()
+                && definition.lifetime_parameters.len() == lifetime_arguments.len()
+        })
 }
 
 fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
