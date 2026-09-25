@@ -31,7 +31,6 @@ impl StateGraphEmission<'_, '_> {
     /// owners its target does not receive, evaluate its arguments (in a
     /// private staging block when a case edge or established payload needs
     /// them after selection), and record the target's arrival and rank.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn successor_edge(
         &mut self,
         frame: &SuccessorFrame<'_>,

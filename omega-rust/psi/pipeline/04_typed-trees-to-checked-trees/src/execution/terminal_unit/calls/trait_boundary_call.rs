@@ -40,7 +40,6 @@ use crate::execution::terminal_unit::{
 /// Plan a call whose target is `signature`, the one requirement of boundary
 /// trait `definition` it names. `None` means some argument, result, receiver,
 /// or contract of this call has no admitted boundary presentation.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
