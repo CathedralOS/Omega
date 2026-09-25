@@ -7,6 +7,7 @@
 //! restarts over the transformed plan: an extension removal publishes a
 //! `CopyI64` the copy-removal pass then owns, so families share the joint
 //! fixed point rather than each converging alone.
+use crate::AddressFoldError;
 use crate::CopyRemovalError;
 use crate::OptimizedPreAllocationCustodyError;
 use crate::PreAllocationPolicy;
@@ -27,8 +28,8 @@ use crate::analyze_live_ranges;
 use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
 use crate::rewrites::{
-    copy_removal_measured_steps, redundant_extension_measured_steps, remove_selected_copy,
-    remove_selected_redundant_extension,
+    address_fold_measured_steps, copy_removal_measured_steps, fold_selected_address,
+    redundant_extension_measured_steps, remove_selected_copy, remove_selected_redundant_extension,
 };
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
@@ -36,7 +37,10 @@ use optimization_core::{
     PreAllocationOptimizationCompletionIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::{SelectedInstructionKind, SelectedInstructionPlan};
+use register_model::RegisterOperandAccess;
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionKind, SelectedInstructionPlan,
+};
 
 use super::PRE_ALLOCATION_RULE_CATALOG;
 
@@ -72,21 +76,78 @@ fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
     )
 }
 
-/// The joint measure a committed step must drop by exactly one: the plan's
-/// virtual registers plus its remaining extension candidates. A copy removal
-/// drops the copy and its destination's roster row; an extension removal
-/// retires one extension while keeping every register.
+/// Whether the instruction kind is a displacement-carrying consumer the
+/// address-fold family considers: the referent `Load*` forms, the
+/// byte-addressable referent `Store` widths, and `AddressOffset` itself.
+/// Admission decides foldability; this is only the source-bound candidate
+/// surface, scanned in plan order.
+fn is_fold_consumer(kind: SelectedInstructionKind) -> bool {
+    match kind {
+        SelectedInstructionKind::Load8 { .. }
+        | SelectedInstructionKind::Load16 { .. }
+        | SelectedInstructionKind::Load32 { .. }
+        | SelectedInstructionKind::Load64 { .. }
+        | SelectedInstructionKind::AddressOffset { .. } => true,
+        SelectedInstructionKind::Store { byte_size, .. } => {
+            matches!(byte_size, 1 | 2 | 4 | 8)
+        }
+        _ => false,
+    }
+}
+
+/// The operand-0 definition-chain length one fold-shaped consumer adds to
+/// the joint measure: the number of in-block definitions reached by
+/// following each defining instruction's own operand-0 `Use` backward from
+/// the consumer's base register. An address fold rebinds the consumer to
+/// the producer's earlier base and skips the producer's node in this chain
+/// — and in every chain routed through the consumer's result — while a
+/// copy removal erases the copy's node from every rebound chain.
+fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: usize) -> usize {
+    let mut register = match instructions[consumer_index].operands.first() {
+        Some(operand) if operand.access == RegisterOperandAccess::Use => operand.virtual_register,
+        _ => return 0,
+    };
+    let mut position = consumer_index;
+    let mut links = 0usize;
+    while let Some(definition) = instructions[..position].iter().rposition(|instruction| {
+        instruction.operands.iter().any(|operand| {
+            operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
+        })
+    }) {
+        links += 1;
+        match instructions[definition].operands.first() {
+            Some(next) if next.access == RegisterOperandAccess::Use => {
+                register = next.virtual_register;
+                position = definition;
+            }
+            _ => break,
+        }
+    }
+    links
+}
+
+/// The joint measure a committed step must strictly drop: the plan's
+/// virtual registers, plus its remaining extension candidates, plus the
+/// summed operand-0 definition-chain lengths of the fold-shaped consumers.
+/// A copy removal drops the copy and its destination's roster row and can
+/// only shorten chains; an extension removal retires one extension while
+/// keeping every register and chain; an address fold keeps both but skips
+/// a producer node in its consumer's chain.
 fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
-    let extensions = plan
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.instructions)
-        .filter(|instruction| is_extension_candidate(instruction.kind))
-        .count();
-    virtual_registers
-        .checked_add(extensions)
-        .expect("pre-allocation measure fits usize")
+    let mut total = virtual_registers;
+    for function in &plan.functions {
+        for block in &function.blocks {
+            for (index, instruction) in block.instructions.iter().enumerate() {
+                if is_extension_candidate(instruction.kind) {
+                    total += 1;
+                }
+                if is_fold_consumer(instruction.kind) {
+                    total += operand0_chain_length(&block.instructions, index);
+                }
+            }
+        }
+    }
+    total
 }
 
 /// Source-bound candidate discovery: every `CopyI64` instruction in the
@@ -211,6 +272,70 @@ fn extension_removal_pass(
                         return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
                             error,
                         ));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
+/// Source-bound candidate discovery for the address-fold family: every
+/// displacement-carrying consumer — `Load8`/`Load16`/`Load32`/`Load64`,
+/// the byte-addressable referent `Store` widths, and `AddressOffset` — in
+/// the current validated plan, in function/block/instruction order,
+/// evaluated until the first admissible one commits. Declines and hard
+/// failures follow the copy pass's contract exactly, and the measured-step
+/// contract is the fold family's own.
+fn address_fold_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let audit_cost = address_fold_measured_steps(current.selected_plan(), function)
+            .map_err(OptimizedPreAllocationCustodyError::AddressFold)?;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_fold_consumer(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match fold_selected_address(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(fold) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::AddressFold(fold),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (AddressFoldError::WorkBudgetExceeded
+                        | AddressFoldError::IdentityOverflow
+                        | AddressFoldError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::AddressFold(error));
                     }
                     Err(_) => declined += 1,
                 }
@@ -368,6 +493,9 @@ fn run_passes(
                 Optimization::SelectedRedundantExtensionRemovalV1 => {
                     extension_removal_pass(current, environment, budget)?
                 }
+                Optimization::SelectedAddressOffsetFoldV1 => {
+                    address_fold_pass(current, environment, budget)?
+                }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
             };
@@ -402,14 +530,16 @@ fn run_passes(
                     ensure_pre_allocation_budget(usage, budget)?;
                     let step =
                         complete_transformation(transformation, declined, evaluated, source)?;
-                    // The joint measure must drop by exactly one: a copy and
-                    // its destination's roster row leave together, or one
-                    // extension retires into a copy.
+                    // The joint measure must strictly drop: a copy and its
+                    // destination's roster row leave together and rebound
+                    // chains shorten, one extension retires into a copy, or
+                    // a fold skips a producer node in its consumer's
+                    // operand-0 definition chain.
                     let current_measure = measure(
                         step.transformation.transformed(),
                         step.legality.receipt().virtual_register_count(),
                     );
-                    if previous_measure.checked_sub(1) != Some(current_measure) {
+                    if current_measure >= previous_measure {
                         return Err(
                             OptimizedPreAllocationCustodyError::PreAllocationMeasureMismatch {
                                 previous: previous_measure,
@@ -629,7 +759,7 @@ fn pre_allocation_completion_identity(
     receipt: &StagedPreAllocationOptimizationCustodyReceipt,
 ) -> PreAllocationOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v2\0");
+    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v3\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -665,6 +795,10 @@ fn pre_allocation_completion_identity(
             }
             crate::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
                 canonical.push(2);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::AddressFold(identity) => {
+                canonical.push(3);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

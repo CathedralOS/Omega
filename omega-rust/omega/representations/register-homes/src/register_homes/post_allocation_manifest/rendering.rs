@@ -70,6 +70,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::RedundantExtension(identity) => {
                     ("redundant-extension", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::AddressFold(identity) => {
+                    ("address-fold", identity.bytes())
+                }
             };
             writeln!(
                 output,

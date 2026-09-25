@@ -4,12 +4,35 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedFunction, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, admission};
 use crate::ValidatedSelectedAnalysis;
+
+/// The measured-step contract the executing pass charges per evaluated
+/// candidate: the shared plan scan plus the backward producer-location scan
+/// and the base-redefinition interval scan, each bounded by the function's
+/// largest block. Admission and validation meter the same scans at the
+/// actual consumer's block, so this bound is exact whenever the candidates
+/// sit in the function's largest block.
+pub(crate) fn measured_steps(
+    plan: &SelectedInstructionPlan,
+    function: &SelectedFunction,
+) -> Result<u64, AddressFoldError> {
+    let largest_block = function
+        .blocks
+        .iter()
+        .map(|block| block.instructions.len())
+        .max()
+        .unwrap_or(0);
+    let steps = admission::plan_scan_steps(plan)?
+        .checked_add(largest_block)
+        .and_then(|total| total.checked_add(largest_block))
+        .ok_or(AddressFoldError::IdentityOverflow)?;
+    u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)
+}
 
 /// Independently consume the proposed program: the validator locates the one
 /// changed instruction by comparing the proposal to the source — the claimed
@@ -258,22 +281,12 @@ pub fn validate_address_fold(
     if restored != *plan {
         return Err(AddressFoldError::ReplayMismatch);
     }
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            // A backward scan of this block locates the pointer's last
-            // definition; the interval scan then audits the instructions
-            // between it and the consumer for a base redefinition.
-            total
-                .checked_add(block.instructions.len())?
-                .checked_add(block.instructions.len())
-        })
+    // A backward scan of this block locates the pointer's last definition;
+    // the interval scan then audits the instructions between it and the
+    // consumer for a base redefinition.
+    let steps = admission::plan_scan_steps(plan)?
+        .checked_add(block.instructions.len())
+        .and_then(|total| total.checked_add(block.instructions.len()))
         .ok_or(AddressFoldError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)?
         > budget.validation_steps()
@@ -286,6 +299,8 @@ pub fn validate_address_fold(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            access,
         },
         transformed: Arc::new(proposed),
     })

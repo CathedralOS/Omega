@@ -72,6 +72,21 @@ pub(super) fn admitted_offset(
     }
 }
 
+/// The plan-scan cost every candidate audit shares: one pass over the whole
+/// selected plan's instructions plus one step per block.
+pub(super) fn plan_scan_steps(
+    plan: &selected_instructions::SelectedInstructionPlan,
+) -> Result<usize, AddressFoldError> {
+    plan.functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        .ok_or(AddressFoldError::IdentityOverflow)
+}
+
 /// The instruction defining `register` at `position`: the last instruction
 /// in the block before it carrying a non-`Use` operand on that register.
 /// Blocks execute in order, so that definition is the value the consumer
@@ -291,22 +306,12 @@ pub(super) fn admit<'source>(
         },
         _ => return Err(AddressFoldError::UnsupportedInstruction),
     };
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            // A backward scan of this block locates the pointer's last
-            // definition; the interval scan then audits the instructions
-            // between it and the consumer for a base redefinition.
-            total
-                .checked_add(block.instructions.len())?
-                .checked_add(block.instructions.len())
-        })
+    // A backward scan of this block locates the pointer's last definition;
+    // the interval scan then audits the instructions between it and the
+    // consumer for a base redefinition.
+    let steps = plan_scan_steps(plan)?
+        .checked_add(block.instructions.len())
+        .and_then(|total| total.checked_add(block.instructions.len()))
         .ok_or(AddressFoldError::IdentityOverflow)?;
     if u64::try_from(steps).map_err(|_| AddressFoldError::IdentityOverflow)?
         > budget.validation_steps()

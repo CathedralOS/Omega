@@ -95,6 +95,23 @@ impl RedundantExtensionIdentity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct AddressFoldIdentity([u8; 32]);
+
+impl AddressFoldIdentity {
+    pub fn from_canonical_bytes(bytes: &[u8]) -> Self {
+        Self(Sha256::digest(bytes).into())
+    }
+
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LiteralFoldIdentity([u8; 32]);
 
 impl LiteralFoldIdentity {

@@ -73,7 +73,7 @@ pub use analyses::{
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;
 pub use rewrites::{
-    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
+    ALLOCATION_RECOVERY_RULE_CATALOG, AddressFoldError, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, CopyRemovalError,
     FixedPrecoloredSegmentHomeDecline, FixedViewCopy, FixedViewCopyError, FixedViewCopyPlan,
     FixedViewCopyPolicy, FixedViewCopySourceEvidence, LiteralFoldIdentity, LiteralFoldPolicy,
@@ -120,8 +120,8 @@ pub(crate) use rewrites::{
     StagedOptimizedLiteralFoldAttemptReceipt, StagedOptimizedLiteralFoldIterationReceipt,
     StagedOptimizedLiteralFoldStep, StagedOptimizedPreAllocationAttempt,
     StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
-    StagedOptimizedPreAllocationStep, ValidatedCopyRemoval, ValidatedPreAllocationTransformation,
-    ValidatedRedundantExtension, fixed_view_copy_identity,
+    StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedCopyRemoval,
+    ValidatedPreAllocationTransformation, ValidatedRedundantExtension, fixed_view_copy_identity,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use rewrites::{
@@ -136,4 +136,6 @@ pub use rewrites::test_support;
 // Durable transform-output identities live with the selected-instruction
 // representation; the transform publishes them under its root so callers keep
 // one vocabulary.
-pub use selected_instructions::{FixedViewCopyIdentity, PressureRematerializationIdentity};
+pub use selected_instructions::{
+    AddressFoldIdentity, FixedViewCopyIdentity, PressureRematerializationIdentity,
+};

@@ -1,6 +1,7 @@
 //! Pre-allocation carriers, receipts, schedules, and errors.
 use std::sync::Arc;
 
+use crate::AddressFoldError;
 use crate::AllocationLegalityError;
 use crate::CopyRemovalError;
 use crate::LiveRangeError;
@@ -9,6 +10,7 @@ use crate::OptimizedAllocationLegalityCustodyError;
 use crate::RedundantExtensionError;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
+use crate::ValidatedAddressFold;
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedCopyRemoval;
 use crate::ValidatedLiveRanges;
@@ -19,8 +21,9 @@ use optimization_core::{
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
 };
 use selected_instructions::{
-    CopyRemovalIdentity, LiveRangeIdentity, LivenessIdentity, RedundantExtensionIdentity,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, CopyRemovalIdentity, LiveRangeIdentity, LivenessIdentity,
+    RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
 };
 
 /// Narrow pre-allocation admission set: which exact catalog payloads the
@@ -34,7 +37,10 @@ pub struct PreAllocationPolicy {
 impl PreAllocationPolicy {
     const SAME_BLOCK_COPY_I64_V1_BIT: u32 = 1 << 0;
     const REDUNDANT_EXTENSION_V1_BIT: u32 = 1 << 1;
-    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT | Self::REDUNDANT_EXTENSION_V1_BIT;
+    const ADDRESS_FOLD_V1_BIT: u32 = 1 << 2;
+    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
+        | Self::REDUNDANT_EXTENSION_V1_BIT
+        | Self::ADDRESS_FOLD_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
@@ -49,6 +55,14 @@ impl PreAllocationPolicy {
     /// identity.
     pub const REDUNDANT_EXTENSION_V1: Self = Self {
         enabled: Self::REDUNDANT_EXTENSION_V1_BIT,
+    };
+
+    /// Rebind an admitted displacement-carrying consumer's base operand to
+    /// the `AddressOffset` producer's own base and carry the combined
+    /// displacement, keeping the consumer's result, identity, and
+    /// provenance.
+    pub const ADDRESS_FOLD_V1: Self = Self {
+        enabled: Self::ADDRESS_FOLD_V1_BIT,
     };
 
     pub const fn empty() -> Self {
@@ -79,14 +93,15 @@ impl PreAllocationPolicy {
 }
 
 /// One committed pre-allocation step's validated transformation, by exact
-/// rewrite family. Both variants implement `ValidatedSelectedAnalysis`, so
+/// rewrite family. Every variant implements `ValidatedSelectedAnalysis`, so
 /// the step's transformed program re-enters discovery as the next sweep's
 /// source — an extension removal publishes a `CopyI64` the copy-removal
-/// pass then owns.
+/// pass then owns, and any family may expose the next fold's base chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
     RedundantExtension(ValidatedRedundantExtension),
+    AddressFold(ValidatedAddressFold),
 }
 
 impl ValidatedPreAllocationTransformation {
@@ -94,6 +109,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.transformed(),
             Self::RedundantExtension(removal) => removal.transformed(),
+            Self::AddressFold(fold) => fold.transformed(),
         }
     }
 
@@ -101,6 +117,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.shared_transformed(),
             Self::RedundantExtension(removal) => removal.shared_transformed(),
+            Self::AddressFold(fold) => fold.shared_transformed(),
         }
     }
 
@@ -108,6 +125,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().source_selected(),
             Self::RedundantExtension(removal) => removal.receipt().source_selected(),
+            Self::AddressFold(fold) => fold.receipt().source_selected(),
         }
     }
 
@@ -115,6 +133,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().transformed_selected(),
             Self::RedundantExtension(removal) => removal.receipt().transformed_selected(),
+            Self::AddressFold(fold) => fold.receipt().transformed_selected(),
         }
     }
 
@@ -122,6 +141,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().optimization_unit(),
             Self::RedundantExtension(removal) => removal.receipt().optimization_unit(),
+            Self::AddressFold(fold) => fold.receipt().optimization_unit(),
         }
     }
 
@@ -129,6 +149,7 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().fuel_schedule(),
             Self::RedundantExtension(removal) => removal.receipt().fuel_schedule(),
+            Self::AddressFold(fold) => fold.receipt().fuel_schedule(),
         }
     }
 
@@ -137,15 +158,18 @@ impl ValidatedPreAllocationTransformation {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().function_index(),
             Self::RedundantExtension(removal) => removal.receipt().function_index(),
+            Self::AddressFold(fold) => fold.receipt().function_index(),
         }
     }
 
     /// The source-side identity of the instruction the transformation
-    /// rewrote: the removed `CopyI64`, or the extension that became one.
+    /// rewrote: the removed `CopyI64`, the extension that became one, or the
+    /// displacement-carrying consumer the fold rebound.
     pub fn instruction(&self) -> SelectedInstructionId {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().copy(),
             Self::RedundantExtension(removal) => removal.receipt().extension(),
+            Self::AddressFold(fold) => fold.receipt().access(),
         }
     }
 
@@ -161,6 +185,9 @@ impl ValidatedPreAllocationTransformation {
                     removal.receipt().identity(),
                 )
             }
+            Self::AddressFold(fold) => {
+                PreAllocationTransformationIdentity::AddressFold(fold.receipt().identity())
+            }
         }
     }
 }
@@ -172,6 +199,7 @@ impl ValidatedPreAllocationTransformation {
 pub enum PreAllocationTransformationIdentity {
     CopyRemoval(CopyRemovalIdentity),
     RedundantExtension(RedundantExtensionIdentity),
+    AddressFold(AddressFoldIdentity),
 }
 
 /// One independently validated pre-allocation transformation plus the
@@ -449,6 +477,7 @@ pub enum OptimizedPreAllocationCustodyError {
     UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     CopyRemoval(CopyRemovalError),
     RedundantExtension(RedundantExtensionError),
+    AddressFold(AddressFoldError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
     AllocationLegality(AllocationLegalityError),
@@ -462,11 +491,14 @@ pub enum OptimizedPreAllocationCustodyError {
     ReceiptMismatch,
     MissingPreAllocationOptimization,
     UnsupportedPreAllocationOptimization(Optimization),
-    /// Every applied step must drop the joint measure — the plan's virtual
-    /// registers plus its remaining extension instructions — by exactly
-    /// one: a copy removal drops the copy and its destination's roster row;
-    /// an extension removal turns the extension into a copy and removes no
-    /// register.
+    /// Every applied step must strictly drop the joint measure — the plan's
+    /// virtual registers plus its remaining extension instructions plus the
+    /// summed operand-0 definition-chain lengths of the fold-shaped
+    /// consumers: a copy removal drops the copy and its destination's roster
+    /// row and can only shorten chains; an extension removal turns the
+    /// extension into a copy and removes no register; an address fold skips
+    /// its producer's node in the folded consumer's chain and every chain
+    /// downstream of it.
     PreAllocationMeasureMismatch {
         previous: usize,
         current: usize,

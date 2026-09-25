@@ -58,6 +58,9 @@ pub(super) fn pre_allocation_transformations(
             selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
                 PostAllocationSelectedTransformation::RedundantExtension(identity)
             }
+            selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::AddressFold(identity) => {
+                PostAllocationSelectedTransformation::AddressFold(identity)
+            }
         })
         .collect()
 }

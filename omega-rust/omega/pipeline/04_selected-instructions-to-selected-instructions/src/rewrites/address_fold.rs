@@ -60,11 +60,14 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    AddressFoldIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::fold_selected_address;
-pub use validation::validate_address_fold;
+pub(crate) use rewrite::fold_selected_address;
+pub(crate) use validation::{measured_steps, validate_address_fold};
 
 #[cfg(test)]
 mod tests;
@@ -96,6 +99,8 @@ pub struct AddressFoldReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    access: SelectedInstructionId,
 }
 
 impl AddressFoldReceipt {
@@ -111,6 +116,40 @@ impl AddressFoldReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The function the fold was committed in.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The folded displacement-carrying instruction's source-side identity.
+    pub const fn access(&self) -> SelectedInstructionId {
+        self.access
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the address-fold
+    /// domain separator.
+    pub fn identity(&self) -> AddressFoldIdentity {
+        address_fold_identity(self)
+    }
+}
+
+/// Canonical identity of one validated address fold: every receipt field —
+/// the coordinate, both plan identities, and the proof inputs — is part of
+/// the durable record, so two folds of the same instruction under different
+/// sources stay distinct transformations.
+pub(crate) fn address_fold_identity(receipt: &AddressFoldReceipt) -> AddressFoldIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-address-fold.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("address-fold function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.access.0.to_le_bytes());
+    AddressFoldIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

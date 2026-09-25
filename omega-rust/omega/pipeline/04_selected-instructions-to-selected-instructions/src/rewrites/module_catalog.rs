@@ -45,6 +45,15 @@ pub(crate) struct RewriteModuleRow {
 
 pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
+        module: "address_fold",
+        // The pre-allocation executor: its discovery pass calls
+        // `fold_selected_address` for the exact rule the catalog admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "fold_selected_address",
+        },
+    },
+    RewriteModuleRow {
         module: "allocation_recovery",
         // `selected_allocation_recovery_rule` is consulted during native
         // phase selection and its `fixed_view_copy` materialization runs
@@ -152,10 +161,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "window_hazards",
         route: RewriteModuleRoute::Shared,
-    },
-    RewriteModuleRow {
-        module: "address_fold",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
         module: "arm_relocation",

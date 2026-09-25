@@ -125,7 +125,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    46;
+    47;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -356,6 +356,11 @@ optimization_vocabulary! {
         counter: "selected_redundant_extension_removal_v1",
         phase: PreAllocation
     },
+    SelectedAddressOffsetFoldV1 = 47 => {
+        case: "SelectedAddressOffsetFoldV1",
+        counter: "selected_address_offset_fold_v1",
+        phase: PreAllocation
+    },
 }
 
 impl Optimization {
@@ -415,7 +420,8 @@ impl Optimization {
             | Self::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization
             | Self::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization
             | Self::SelectedSameBlockCopyI64RemovalV1
-            | Self::SelectedRedundantExtensionRemovalV1 => None,
+            | Self::SelectedRedundantExtensionRemovalV1
+            | Self::SelectedAddressOffsetFoldV1 => None,
         }
     }
 }

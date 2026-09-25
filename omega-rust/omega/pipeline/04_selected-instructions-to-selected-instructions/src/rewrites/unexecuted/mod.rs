@@ -58,7 +58,6 @@
 //! the general one: two disjoint contiguous runs of at least one member each
 //! exchange places, admitted when every newly trading row pair commutes.
 //!
-//! - `address_fold` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `arm_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `boundary_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -82,7 +81,6 @@
 //! are the shared vocabulary only these families read; `super::block_edges`
 //! and `super::window_hazards` are shared with the executed set.
 
-mod address_fold;
 mod arm_relocation;
 mod boundary_boolean;
 mod boundary_branch;
@@ -104,10 +102,6 @@ mod relocation;
 mod scheduled_relocation;
 mod store_motion;
 
-pub use address_fold::{
-    AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, fold_selected_address,
-    validate_address_fold,
-};
 pub use arm_relocation::{
     ArmRelocationError, ArmRelocationReceipt, ValidatedArmRelocation,
     relocate_selected_instruction_out_of_arm, validate_arm_relocation,
