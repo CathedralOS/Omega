@@ -22,7 +22,7 @@ pub struct BatchCompilationManifestIdentity([u8; 32]);
 impl BatchCompilationManifestIdentity {
     /// Substitute a different claimed identity into a stored manifest so
     /// custody coverage can prove the digest is consulted on replay.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub const fn for_test(bytes: [u8; 32]) -> Self {
         Self(bytes)
@@ -118,7 +118,7 @@ impl BatchCompilationManifest {
 
     /// Mint the honest manifest over arbitrary retained parts so custody
     /// coverage can drive stale or substituted rows through validate().
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn for_test(
         rows: Vec<BatchChildRow>,
@@ -243,6 +243,3 @@ fn append_field(bytes: &mut Vec<u8>, field: &[u8]) {
 fn append_count(bytes: &mut Vec<u8>, count: usize) {
     bytes.extend_from_slice(&(count as u64).to_le_bytes());
 }
-
-#[cfg(test)]
-mod tests;

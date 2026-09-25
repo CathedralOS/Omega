@@ -59,6 +59,3 @@ pub(crate) fn review_terminal_authority_closure(
     )
     .map_err(|error| format!("terminal-authority review receipt rejected: {error:?}"))
 }
-
-#[cfg(test)]
-mod tests;

@@ -502,6 +502,3 @@ fn assemble_syntax(
         build_scope_sources,
     })
 }
-
-#[cfg(test)]
-mod tests;

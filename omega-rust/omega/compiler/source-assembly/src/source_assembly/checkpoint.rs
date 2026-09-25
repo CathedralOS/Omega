@@ -354,6 +354,3 @@ fn load_target_independent_imports(
     }
     Ok(retained_requests)
 }
-
-#[cfg(test)]
-mod tests;

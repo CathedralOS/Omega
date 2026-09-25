@@ -27,7 +27,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/native_product/realization.rs",
             "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs",
             "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/request.rs",
-            "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/tests.rs",
         ],
     },
 ];

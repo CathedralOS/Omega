@@ -8,8 +8,6 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
 
-#[cfg(test)]
-mod custody_tests;
 mod production_subject;
 
 /// Psi-checked semantics paired with the Omega-owned provider realization

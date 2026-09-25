@@ -20,7 +20,6 @@ build-time-evaluation = { path = "../../../psi/semantics/build-time-evaluation" 
 calling-conventions = { path = "../../representations/calling-conventions" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
-checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 compilation-report = { path = "../../compiler/compilation-report" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 effects = { path = "../../representations/effects" }
@@ -40,11 +39,7 @@ syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 target = { path = "../../representations/target" }
 task-plans = { path = "../../representations/task-plans" }
-terminal-production = { path = "../../../psi/compiler/terminal-production" }
 trust-model = { path = "../../build/trust-model" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/semantics/validation" }
-
-[dev-dependencies]
-package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }

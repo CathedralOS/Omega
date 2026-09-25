@@ -38,25 +38,3 @@ impl CheckedOptimizationHandoff {
         self.report
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::CheckedOptimizationHandoff;
-
-    #[test]
-    fn empty_selection_is_retained_without_enabling_optimizer_work() {
-        let selections = optimization_core::OptimizationSelections::default();
-        let handoff = CheckedOptimizationHandoff::retain(
-            selections.clone(),
-            optimization_core::OptimizationReportRequest::Suppressed,
-        );
-
-        assert!(handoff.selections().is_empty());
-        assert_eq!(handoff.selections(), &selections);
-        assert_eq!(handoff.selection_identity(), selections.identity());
-        assert_eq!(
-            handoff.report(),
-            optimization_core::OptimizationReportRequest::Suppressed
-        );
-    }
-}

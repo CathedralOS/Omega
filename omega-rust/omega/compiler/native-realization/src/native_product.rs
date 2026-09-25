@@ -6,7 +6,7 @@ mod prepared;
 mod realization;
 mod receipt;
 pub use input_reuse::NativeInputReuse;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 pub use prepared::NativeInputReuseKey;
 pub use prepared::PreparedNativeCompilation;
 

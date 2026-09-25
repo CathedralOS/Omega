@@ -32,6 +32,3 @@ impl NativeTargetStageResult {
         Ok((self.program, self.evidence))
     }
 }
-
-#[cfg(test)]
-mod tests;

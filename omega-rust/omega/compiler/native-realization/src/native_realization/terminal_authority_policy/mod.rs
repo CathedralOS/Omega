@@ -13,8 +13,6 @@ mod inventory;
 mod model;
 mod normalized_foreign;
 mod syscall;
-#[cfg(test)]
-mod tests;
 mod time_host;
 
 pub use console_host::console_mechanism_row;

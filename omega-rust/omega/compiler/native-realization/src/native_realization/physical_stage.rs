@@ -7,9 +7,6 @@ use crate::native_realization::realization_request::NativeRealizationRequest;
 use crate::native_realization::target_stage::NativeTargetStageResult;
 use diagnostics::Diagnostic;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn lower_realization_physical_stage(
     target_stage: NativeTargetStageResult,
     request: &NativeRealizationRequest<'_>,

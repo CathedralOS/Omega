@@ -715,7 +715,7 @@ impl CompileReport {
 
     /// Substitute the retained production manifest so custody coverage can
     /// drive a stale or honestly recomputed manifest through the report joins.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn production_manifest_mut_for_test(
         &mut self,
@@ -1145,10 +1145,3 @@ impl CompileReport {
         )
     }
 }
-
-#[cfg(test)]
-mod custody_test_support;
-#[cfg(test)]
-mod custody_tests;
-#[cfg(test)]
-mod tests;

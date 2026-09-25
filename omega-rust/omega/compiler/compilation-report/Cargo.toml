@@ -40,8 +40,3 @@ terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 sha2 = "0.10.9"
-
-[dev-dependencies]
-arena = { path = "../../../psi/foundation/arena" }
-optimization-core = { path = "../../representations/optimization-core", features = ["test-support"] }
-object-file = { path = "../../backend/object/object-file" }

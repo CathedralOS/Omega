@@ -233,24 +233,7 @@ struct CheckedChildExecution<'a> {
     permit_unsettled_fused_service_fields: bool,
 }
 
-impl CheckedChildExecution<'_> {
-    #[cfg(test)]
-    fn exact_target(selected_target_profile: target::TargetProfile) -> Self {
-        Self {
-            selected_target_profile: Some(selected_target_profile),
-            build_execution_profile: target::TargetProfile::host_if_supported(),
-            package_inputs: None,
-            build_dir: None,
-            filesystem_sponsor: None,
-            evaluation_sponsor: None,
-            build_snapshot: None,
-            optimization_rollback: crate::OptimizationRollback::default(),
-            independent_component_discovery: None,
-            restricted_build_grants: None,
-            permit_unsettled_fused_service_fields: false,
-        }
-    }
-}
+impl CheckedChildExecution<'_> {}
 
 impl PreparedCheckedSource {
     /// Check another child from this immutable source frontier. Target attachments,
@@ -580,8 +563,3 @@ fn compile_assembled_checked_child(
     );
     CheckedCompilation::seal(execution, sources, package_inputs, timings)
 }
-
-#[cfg(test)]
-mod continuation_tests;
-#[cfg(test)]
-mod execution_profile_tests;

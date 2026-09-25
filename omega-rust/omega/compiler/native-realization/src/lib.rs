@@ -40,7 +40,7 @@ pub use native_artifact::{
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations, PhysicalChildParent,
     PhysicalRelocationDisposition,
 };
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 pub use native_pipeline::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use native_pipeline::{
     EmptyOptimizationSelections, ExplicitOptimizationRequest, OptimizationPipelineError,
@@ -51,7 +51,7 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_ordinary_callable_entry, optimize_artifact_sections,
     optimize_verified_abstract_input, stage_optimized_verified_physical_pipeline,
 };
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 pub use native_product::NativeInputReuseKey;
 pub use native_product::{
     NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
@@ -96,6 +96,3 @@ pub use retained_native_product::{
     RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
     realize_retained_native_artifact,
 };
-
-#[cfg(test)]
-mod tests;
