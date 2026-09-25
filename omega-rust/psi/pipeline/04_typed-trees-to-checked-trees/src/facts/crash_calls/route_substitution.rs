@@ -471,30 +471,17 @@ fn structural_member_identity(program: &TypedTrees, symbol: SymbolHandle) -> Opt
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
-                ),
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    Some(field.path_identity())
+                }
                 typed_trees::data::DataMember::Variant(variant) if variant.symbol == symbol => {
-                    Some(
-                        variant
-                            .identity
-                            .map(|identity| format!("#{identity}"))
-                            .unwrap_or_else(|| variant.name.as_str().to_owned()),
-                    )
+                    Some(variant.path_identity())
                 }
                 typed_trees::data::DataMember::Variant(variant) => program
                     .data_payload_fields(variant)
                     .iter()
                     .find(|field| field.symbol == symbol)
-                    .map(|field| {
-                        field
-                            .identity
-                            .map(|identity| format!("#{identity}"))
-                            .unwrap_or_else(|| field.name.as_str().to_owned())
-                    }),
+                    .map(|field| field.path_identity()),
                 typed_trees::data::DataMember::Field(_) => None,
             })
     })

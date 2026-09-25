@@ -76,10 +76,7 @@ pub(crate) fn prepare(
                     _ => None,
                 })
                 .ok_or(LoweringError::Unsupported("record read field is absent"))?;
-            let identity = authored
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| authored.name.as_str().to_owned());
+            let identity = authored.path_identity();
             let source = validation::local_scalar_record_field(
                 &checked.typed,
                 machine,

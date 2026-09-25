@@ -262,6 +262,30 @@ impl Default for DataField {
     }
 }
 
+/// The canonical structural path segment spelling for a data member: its
+/// schema ordinal `#n` when one was assigned, else its authored name. Checked
+/// structural paths, their lowering, and their validation all match members by
+/// this one spelling.
+fn member_path_identity(identity: Option<u64>, name: &Identifier) -> String {
+    identity
+        .map(|identity| format!("#{identity}"))
+        .unwrap_or_else(|| name.as_str().to_owned())
+}
+
+impl DataField {
+    /// This field's structural path segment spelling.
+    pub fn path_identity(&self) -> String {
+        member_path_identity(self.identity, &self.name)
+    }
+}
+
+impl DataVariant {
+    /// This case's structural path segment spelling.
+    pub fn path_identity(&self) -> String {
+        member_path_identity(self.identity, &self.name)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
     pub identity: Option<u64>,

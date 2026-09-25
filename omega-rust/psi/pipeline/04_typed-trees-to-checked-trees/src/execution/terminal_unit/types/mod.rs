@@ -366,12 +366,7 @@ pub(super) fn terminal_field_identity(
             let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
             };
-            (field.symbol == symbol).then(|| {
-                field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned())
-            })
+            (field.symbol == symbol).then(|| field.path_identity())
         })
     })
 }
@@ -2144,10 +2139,7 @@ impl<'program> ShapeCollector<'program> {
                             payload_fields.push(field);
                         }
                         cases.push(checked_trees::CheckedUnitStructuralCasePlan {
-                            identity: variant
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| variant.name.as_str().to_owned()),
+                            identity: variant.path_identity(),
                             fields: payload_fields,
                         });
                     }
@@ -2270,10 +2262,7 @@ impl<'program> ShapeCollector<'program> {
             }
         };
         Some(CheckedUnitStructuralFieldPlan {
-            identity: field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            identity: field.path_identity(),
             relevance: field.relevance,
             field_type,
         })

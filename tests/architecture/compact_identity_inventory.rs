@@ -352,13 +352,14 @@ fn checked_machine_contract_compact_coordinates_are_reports_beside_strong_author
     assert!(!terminal.contains("pub cleanup_contract_fingerprint: u64"));
     assert!(!terminal.contains("pub contract_fingerprint: u64"));
 
-    let attached_path = root
-        .join("omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs");
-    let attached = fs::read_to_string(&attached_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", attached_path.display()));
+    let boundaries_path = root.join(
+        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/boundaries.rs",
+    );
+    let boundaries = fs::read_to_string(&boundaries_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", boundaries_path.display()));
     assert!(
-        attached.contains("crash_capsule(target.contract_owner, target.state)")
-            && !attached.contains("target.contract_commitment.is_zero()).then_some"),
+        boundaries.contains("crash_capsule(target.contract_owner, target.state)")
+            && !boundaries.contains("target.contract_commitment.is_zero()).then_some"),
         "boundary lowering must rejoin exact canonical contract ownership rather than self-authenticate its stored digest",
     );
 }

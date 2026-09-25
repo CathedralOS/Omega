@@ -2548,14 +2548,8 @@ fn case_payload_transfer(
                 type_identity: program.normalized_type_identity(subject_type).into_string(),
                 access: CheckedStructuralAccess::SharedBorrow,
             },
-            case_identity: variant
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| variant.name.as_str().to_owned()),
-            field_identity: field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            case_identity: variant.path_identity(),
+            field_identity: field.path_identity(),
             path: Vec::new(),
         },
     )

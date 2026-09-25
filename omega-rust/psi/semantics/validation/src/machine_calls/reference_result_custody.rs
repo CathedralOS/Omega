@@ -437,10 +437,7 @@ fn formal_record_sources(
                 return None;
             };
             path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned()),
+                field.path_identity(),
             ));
             visit(program, field.type_reference, parameter_index, path, output)?;
             path.pop();
@@ -514,12 +511,7 @@ fn record_construction_sources(
         )? {
             source.path.insert(
                 0,
-                checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
-                ),
+                checked_trees::CheckedUnitStructuralPathSegment::Field(field.path_identity()),
             );
             output.push(source);
         }
@@ -625,11 +617,7 @@ pub fn local_record_loans(
                 .iter()
                 .find_map(|member| match member {
                     typed_trees::data::DataMember::Field(field)
-                        if field
-                            .identity
-                            .map(|identity| format!("#{identity}"))
-                            .unwrap_or_else(|| field.name.as_str().to_owned())
-                            == *identity =>
+                        if field.path_identity() == *identity =>
                     {
                         Some(field)
                     }
@@ -952,10 +940,7 @@ pub(crate) fn declared_field_path<'a>(
             member.case_variant.as_ref().map(|case| case.as_str()),
         )?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            field.path_identity(),
         ));
         selected = field.type_reference;
     }
@@ -1373,10 +1358,7 @@ pub fn source_leaf(
                 _ => None,
             })?;
         leaf_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            field.path_identity(),
         ));
         selected = field.type_reference;
     }
