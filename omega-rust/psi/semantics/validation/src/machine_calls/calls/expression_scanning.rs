@@ -106,6 +106,110 @@ pub(super) fn receiver_member_chain(
     }
 }
 
+/// A resolved machine state a VALUE-position call invokes.
+#[derive(Clone, Copy)]
+struct ValueCallee<'program> {
+    machine: &'program Machine,
+    state: &'program State,
+    /// The spelling type-parameter bound diagnostics name.
+    spelling: &'program str,
+    /// A static attached call passes its receiver as the explicit first
+    /// argument rather than as the callee's implicit `self`.
+    self_is_argument: bool,
+}
+
+impl<'program> ValueCallee<'program> {
+    /// A callee reported by the call's own spelling.
+    fn named(
+        machine: &'program Machine,
+        state: &'program State,
+        call: &'program TableCallExpression,
+    ) -> Self {
+        Self {
+            machine,
+            state,
+            spelling: call.target.as_str(),
+            self_is_argument: false,
+        }
+    }
+
+    /// A callee reported by its declared state name.
+    fn declared(machine: &'program Machine, state: &'program State) -> Self {
+        Self {
+            machine,
+            state,
+            spelling: state.name.as_str(),
+            self_is_argument: false,
+        }
+    }
+}
+
+/// One VALUE-position call occurrence and the caller facts its resolved
+/// callee is checked against.
+struct ValueCallSite<'a> {
+    program: &'a TypedTrees,
+    current_machine: &'a Machine,
+    current_state: &'a State,
+    value_environment: &'a ValueEnvironment,
+    expression: ExpressionHandle,
+    call: &'a TableCallExpression,
+    arguments: &'a [ExpressionHandle],
+    executes: bool,
+}
+
+impl ValueCallSite<'_> {
+    /// Every resolved callee owes the same checks, whichever route found it:
+    /// a value-producing result, a concrete specialization, its type-parameter
+    /// bounds, and argument arity and classes.
+    fn validate_callee(
+        &self,
+        symbols: &TopLevelSymbols<'_>,
+        callee: ValueCallee<'_>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        report_void_value_callee(
+            self.program,
+            callee.machine,
+            self.current_machine,
+            self.current_state,
+            callee.state,
+            self.expression,
+            diagnostics,
+        );
+        fence_generic_value_callee(
+            self.program,
+            self.current_machine,
+            callee.machine,
+            self.call.target.as_str(),
+            diagnostics,
+        );
+        validate_machine_call_type_parameter_bounds(
+            self.program,
+            symbols,
+            callee.machine,
+            callee.state,
+            callee.spelling,
+            self.arguments,
+            self.current_machine,
+            Some(self.current_state),
+            callee.self_is_argument,
+            diagnostics,
+        );
+        validate_value_call_argument_classes(
+            self.program,
+            self.current_machine,
+            self.current_state,
+            self.value_environment,
+            callee.self_is_argument,
+            self.arguments,
+            callee.machine,
+            callee.state,
+            self.executes,
+            diagnostics,
+        );
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_expression_call_bounds(
     program: &TypedTrees,
@@ -394,6 +498,16 @@ fn validate_expression_call_bounds(
     };
 
     let arguments = program.expression_table.expression_handles(call.arguments);
+    let site = ValueCallSite {
+        program,
+        current_machine,
+        current_state,
+        value_environment,
+        expression,
+        call,
+        arguments,
+        executes,
+    };
 
     // Self-call or `self`-prefixed call: the callee is a state of the
     // current machine, an attached-data sibling machine, or a free machine.
@@ -425,188 +539,30 @@ fn validate_expression_call_bounds(
             return;
         }
 
-        if let Some((callee_machine, callee_state)) =
-            machine_state_by_symbol(program, call.target_symbol)
-        {
-            report_void_value_callee(
-                program,
-                callee_machine,
-                current_machine,
-                current_state,
-                callee_state,
-                expression,
-                diagnostics,
-            );
-            fence_generic_value_callee(
-                program,
-                current_machine,
-                callee_machine,
-                call.target.as_str(),
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                callee_machine,
-                callee_state,
-                call.target.as_str(),
-                arguments,
-                current_machine,
-                Some(current_state),
-                false,
-                diagnostics,
-            );
-            validate_value_call_argument_classes(
-                program,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                callee_machine,
-                callee_state,
-                executes,
-                diagnostics,
-            );
-            return;
-        }
-
-        if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
-            report_void_value_callee(
-                program,
-                current_machine,
-                current_machine,
-                current_state,
-                callee_state,
-                expression,
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                current_machine,
-                callee_state,
-                callee_state.name.as_str(),
-                arguments,
-                current_machine,
-                Some(current_state),
-                false,
-                diagnostics,
-            );
-            validate_value_call_argument_classes(
-                program,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                current_machine,
-                callee_state,
-                executes,
-                diagnostics,
-            );
-            return;
-        }
-
-        // A self-call can also target a SIBLING machine that shares the same
-        // attached data (`machine Main::pick<T [copy]>` called from
-        // `machine Main::main`). The statement-position path uses
-        // `symbols.attached_machine_state(program, attached_data, call.target)`.
-        let attached_state = current_machine
-            .attached_data
-            .as_ref()
-            .and_then(|attached_data| {
-                symbols.attached_machine_state(
-                    program,
-                    attached_data.as_str(),
-                    call.target.as_str(),
-                )
+        // The callee is a selected state, a state of this machine, a
+        // SIBLING machine sharing the same attached data (`machine
+        // Main::pick<T [copy]>` called from `machine Main::main`; the
+        // statement path uses `symbols.attached_machine_state` too), or a
+        // free machine (`compute(item)` -- no `self.`, no receiver).
+        let callee = machine_state_by_symbol(program, call.target_symbol)
+            .map(|(machine, state)| ValueCallee::named(machine, state, call))
+            .or_else(|| {
+                machine_symbols
+                    .state(call.target.as_str())
+                    .map(|state| ValueCallee::declared(current_machine, state))
+            })
+            .or_else(|| {
+                let attached_data = current_machine.attached_data.as_ref()?;
+                symbols
+                    .attached_machine_state(program, attached_data.as_str(), call.target.as_str())
+                    .map(|(machine, state)| ValueCallee::named(machine, state, call))
+            })
+            .or_else(|| {
+                free_machine_entry_state(program, symbols, call.target.as_str())
+                    .map(|(machine, state)| ValueCallee::named(machine, state, call))
             });
-
-        if let Some((callee_machine, callee_state)) = attached_state {
-            report_void_value_callee(
-                program,
-                callee_machine,
-                current_machine,
-                current_state,
-                callee_state,
-                expression,
-                diagnostics,
-            );
-            fence_generic_value_callee(
-                program,
-                current_machine,
-                callee_machine,
-                call.target.as_str(),
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                callee_machine,
-                callee_state,
-                call.target.as_str(),
-                arguments,
-                current_machine,
-                Some(current_state),
-                false,
-                diagnostics,
-            );
-            validate_value_call_argument_classes(
-                program,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                callee_machine,
-                callee_state,
-                executes,
-                diagnostics,
-            );
-            return;
-        }
-
-        // Free machine call (`compute(item)` -- no `self.`, no receiver).
-        if let Some((callee_machine, callee_state)) =
-            free_machine_entry_state(program, symbols, call.target.as_str())
-        {
-            report_void_value_callee(
-                program,
-                callee_machine,
-                current_machine,
-                current_state,
-                callee_state,
-                expression,
-                diagnostics,
-            );
-            fence_generic_value_callee(
-                program,
-                current_machine,
-                callee_machine,
-                call.target.as_str(),
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
-                symbols,
-                callee_machine,
-                callee_state,
-                call.target.as_str(),
-                arguments,
-                current_machine,
-                Some(current_state),
-                false,
-                diagnostics,
-            );
-            validate_value_call_argument_classes(
-                program,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                callee_machine,
-                callee_state,
-                executes,
-                diagnostics,
-            );
+        if let Some(callee) = callee {
+            site.validate_callee(symbols, callee, diagnostics);
             return;
         }
         report_unresolved_value_call(
@@ -796,47 +752,14 @@ fn validate_expression_call_bounds(
             )));
             return;
         }
-        report_void_value_callee(
-            program,
-            callee_machine,
-            current_machine,
-            current_state,
-            callee_state,
-            expression,
-            diagnostics,
-        );
-        fence_generic_value_callee(
-            program,
-            current_machine,
-            callee_machine,
-            call.target.as_str(),
-            diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
+        site.validate_callee(
             symbols,
-            callee_machine,
-            callee_state,
-            callee_state.name.as_str(),
-            arguments,
-            current_machine,
-            Some(current_state),
-            receiver_type_reference.is_none(),
+            ValueCallee {
+                self_is_argument: receiver_type_reference.is_none(),
+                ..ValueCallee::declared(callee_machine, callee_state)
+            },
             diagnostics,
         );
-        super::validate_value_call_argument_classes_with_self_argument(
-            program,
-            current_machine,
-            current_state,
-            value_environment,
-            receiver_type_reference.is_none(),
-            arguments,
-            callee_machine,
-            callee_state,
-            executes,
-            diagnostics,
-        );
-        let _ = writable_roots;
         return;
     }
 
@@ -850,43 +773,9 @@ fn validate_expression_call_bounds(
             .iter()
             .find(|s| s.name == call.target)
         {
-            report_void_value_callee(
-                program,
-                callee_machine,
-                current_machine,
-                current_state,
-                callee_state,
-                expression,
-                diagnostics,
-            );
-            fence_generic_value_callee(
-                program,
-                current_machine,
-                callee_machine,
-                call.target.as_str(),
-                diagnostics,
-            );
-            validate_machine_call_type_parameter_bounds(
-                program,
+            site.validate_callee(
                 symbols,
-                callee_machine,
-                callee_state,
-                callee_state.name.as_str(),
-                arguments,
-                current_machine,
-                Some(current_state),
-                false,
-                diagnostics,
-            );
-            validate_value_call_argument_classes(
-                program,
-                current_machine,
-                current_state,
-                value_environment,
-                arguments,
-                callee_machine,
-                callee_state,
-                executes,
+                ValueCallee::declared(callee_machine, callee_state),
                 diagnostics,
             );
             return;
