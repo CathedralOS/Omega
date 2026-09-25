@@ -19,7 +19,12 @@ neighbours: it depends on `source/library/std` and binds the program entry roots
 ```bash
 python3 tools/corpus_gate.py --filter providers/          # the loop
 python3 tools/corpus_gate.py --record --filter providers/ # pin intended movement
+python3 tools/corpus_gate.py --native --filter providers/ # build, run, diff natively
 ```
+
+A pass fixture named `*_exit` is executed by the native leg, and its exit code
+is recorded in the host's golden; name a fixture that way when its observable
+result is the exit code.
 
 Do not add per-feature Rust test files to this directory. The crate sets
 `autotests = false`, so a new file here is not a test target, and each extra

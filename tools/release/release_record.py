@@ -122,6 +122,7 @@ GATES = {
         "commands": [
             "mbx nextest run -p omega-native-differential-test "
             "--all-targets --no-fail-fast",
+            "python tools/corpus_gate.py --native",
         ],
         "per_host": True,
     },

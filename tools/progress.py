@@ -26,9 +26,10 @@ Run from the repository root; standard library only:
     python tools/progress.py
     python tools/progress.py --outcomes build/corpus_baselines/<head>.txt
 
-The corpus runner compiles every fixture through the check route, so a pass
-fixture's strongest verified level is `checks`; native builds and runs are not
-measured until the runner grows a native leg.
+The check golden gives each fixture's `checks` level. When this host's native
+golden (`tests/omega/corpus_native_<target>.txt`, written by
+`tools/corpus_gate.py --native --record`) exists, the report adds how many
+fixtures build natively and how the executed ones exit.
 
 The surfaces in `SURFACES` are regular expressions over authored source. They
 are deliberately coarse -- a keyword's presence, not a parse -- so a pair
@@ -369,6 +370,23 @@ def section_outcomes(report: dict) -> dict:
     return {"rows": rows, "tally": tally}
 
 
+def parse_native_outcomes(path: Path) -> dict:
+    """Native-leg records: how many pass and run fixtures built, and the
+    exit codes and stdout comparisons of the ones that ran."""
+    records = corpus_records.read(path)
+    built = sum(1 for record in records if record["status"] == "built")
+    exits: dict[str, int] = {}
+    differs = 0
+    for record in records:
+        exit_code = record["facts"].get("exit")
+        if exit_code is not None:
+            exits[exit_code] = exits.get(exit_code, 0) + 1
+        if record["facts"].get("stdout") == "differs":
+            differs += 1
+    return {"target": path.stem.removeprefix("corpus_native_"), "members": len(records),
+            "built": built, "exits": exits, "stdout_differs": differs}
+
+
 def headline(report: dict) -> dict:
     """The numbers to quote. Each is a plain fraction with its denominator
     named, so a reader can disagree with the denominator rather than the
@@ -385,6 +403,11 @@ def headline(report: dict) -> dict:
         tally = report["sections"]["tally"]
         checked = sum(tally.get(k, {}).get("checked", 0) for k in ("core", "typical"))
         out["core+typical sections with a fixture that checks"] = f"{checked}/{ct_total}"
+    n = report.get("native")
+    if n:
+        executed = sum(n["exits"].values())
+        out[f"fixtures built natively on {n['target']}"] = f"{n['built']}/{n['members']}"
+        out[f"executed fixtures exiting 70 on {n['target']}"] = f"{n['exits'].get('70', 0)}/{executed}"
     o = report.get("outcomes")
     if o:
         po, fo = o["pass"], o["fail"]
@@ -405,6 +428,10 @@ def main() -> int:
     report["pairs"] = pairs_report(args.pair_floor)
     if args.outcomes and args.outcomes.is_file():
         report["outcomes"] = parse_corpus_outcomes(args.outcomes)
+    from corpus_gate import host_target
+    native = CORPUS / f"corpus_native_{host_target()}.txt"
+    if native.is_file():
+        report["native"] = parse_native_outcomes(native)
         report["sections"] = section_outcomes(report)
     report["headline"] = headline(report)
     print_report(report)

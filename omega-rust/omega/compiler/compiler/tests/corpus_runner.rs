@@ -19,10 +19,19 @@
 //! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
 //! past the worker count).
 //!
+//! `OMEGA_CORPUS_NATIVE=1` switches to the native leg for the host target:
+//! every pass and run fixture is built as a published native executable
+//! (status `built`), fail fixtures are skipped, and run fixtures and pass
+//! fixtures named `*_exit` are executed in a fresh temporary directory with
+//! `input.txt` as stdin. Their records gain `exit:<code>` (or `exit:timeout`,
+//! `exit:signal`) and, beside an `expected_stdout.txt`, `stdout:match` or
+//! `stdout:differs`.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed
-//! against its diagnostics. Each diagnostic follows on its own line after one
+//! against its diagnostics, then any `key:value` execution facts. Each
+//! diagnostic follows on its own line after one
 //! tab, with backslash, newline, carriage return and tab escaped as `\\`,
 //! `\n`, `\r` and `\t`.
 
@@ -77,6 +86,7 @@ fn record_text(
     status: &str,
     millis: u128,
     expected: Option<bool>,
+    facts: &[String],
     diagnostics: &[String],
 ) -> String {
     let mut record = format!("{tier}/{relative} {status} {millis}ms");
@@ -84,6 +94,10 @@ fn record_text(
         Some(true) => record.push_str(" expected"),
         Some(false) => record.push_str(" unexpected"),
         None => {}
+    }
+    for fact in facts {
+        record.push(' ');
+        record.push_str(fact);
     }
     for diagnostic in diagnostics {
         record.push_str("\n\t");
@@ -125,6 +139,104 @@ fn check_pass_fixture(
         .map(|_| ());
     let _ = fs::remove_dir_all(&build_dir);
     result
+}
+
+/// The host target the native leg builds for, when `OMEGA_CORPUS_NATIVE` is set.
+fn native_target() -> Option<&'static str> {
+    env::var_os("OMEGA_CORPUS_NATIVE")?;
+    target::TargetProfile::host_if_supported().map(|profile| profile.target_name())
+}
+
+/// Build one fixture as a published native executable for `target`.
+fn build_native_fixture(
+    root_path: &Path,
+    build_dir: &Path,
+    target: &str,
+) -> Result<PathBuf, Vec<diagnostics::Diagnostic>> {
+    let options = CompileOptions {
+        root_path: root_path.to_path_buf(),
+        build_dir: Some(build_dir.to_path_buf()),
+        target_name: Some(target.to_owned()),
+    };
+    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let report =
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let published = report
+        .publish_retained_native_artifact(build_dir)
+        .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
+    published
+        .checked_native_executable_path()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| {
+            vec![diagnostics::Diagnostic::error(
+                "published native artifact names no executable",
+            )]
+        })
+}
+
+/// Run one built fixture in a fresh directory, stdin from `input.txt`, and
+/// report its exit and, beside an `expected_stdout.txt`, whether stdout
+/// matched it (line endings normalized).
+fn execute_fixture(executable: &Path, fixture_dir: &Path, sequence: usize) -> Vec<String> {
+    let work = env::temp_dir().join(format!("omega-corpus-run-{}-{sequence}", process::id()));
+    let _ = fs::remove_dir_all(&work);
+    if fs::create_dir_all(&work).is_err() {
+        return vec!["exit:unrunnable".to_owned()];
+    }
+    let stdin = fs::File::open(fixture_dir.join("input.txt"))
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(|_| std::process::Stdio::null());
+    let spawned = process::Command::new(executable)
+        .current_dir(&work)
+        .stdin(stdin)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    let Ok(mut child) = spawned else {
+        let _ = fs::remove_dir_all(&work);
+        return vec!["exit:unrunnable".to_owned()];
+    };
+    let mut stdout = child.stdout.take().expect("piped stdout");
+    let reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut stdout, &mut bytes);
+        bytes
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let exit = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                break status
+                    .code()
+                    .map_or_else(|| "exit:signal".to_owned(), |code| format!("exit:{code}"));
+            }
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break "exit:timeout".to_owned();
+            }
+        }
+    };
+    let output = reader.join().unwrap_or_default();
+    let _ = fs::remove_dir_all(&work);
+    let mut facts = vec![exit];
+    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
+        let actual = String::from_utf8_lossy(&output).replace("\r\n", "\n");
+        facts.push(if actual == expected.replace("\r\n", "\n") {
+            "stdout:match".to_owned()
+        } else {
+            "stdout:differs".to_owned()
+        });
+    }
+    facts
 }
 
 /// `check_canary`: reviewed repository package inputs plus `compile_to_checked`.
@@ -199,8 +311,20 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .unwrap_or(&fixture_dir)
         .to_string_lossy()
         .replace('\\', "/");
-    let mut outcome = match tier {
-        "fail" => check_fail_fixture(main),
+    let mut facts = Vec::new();
+    let mut outcome = match (tier, native_target()) {
+        ("fail", _) => check_fail_fixture(main),
+        (_, Some(target)) => {
+            let build_dir = unique_build_dir(sequence);
+            let built = build_native_fixture(main, &build_dir, target);
+            if let Ok(executable) = &built
+                && (tier == "run" || rel.ends_with("_exit"))
+            {
+                facts = execute_fixture(executable, &fixture_dir, sequence);
+            }
+            let _ = fs::remove_dir_all(&build_dir);
+            built.map(|_| ())
+        }
         _ => check_pass_fixture(main, unique_build_dir(sequence)),
     };
     if tier == "fail" && outcome.is_ok() {
@@ -208,10 +332,10 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);
-    let status = if outcome.is_ok() {
-        "checked"
-    } else {
-        "rejected"
+    let status = match (&outcome, native_target()) {
+        (Ok(()), Some(_)) => "built",
+        (Ok(()), None) => "checked",
+        (Err(_), _) => "rejected",
     };
     let diagnostics = errors
         .iter()
@@ -220,7 +344,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     let satisfied = expected_fragment_satisfied(&fixture_dir, errors);
     let millis = started.elapsed().as_millis();
     (
-        record_text(tier, &rel, status, millis, satisfied, &diagnostics),
+        record_text(tier, &rel, status, millis, satisfied, &facts, &diagnostics),
         millis,
     )
 }
@@ -270,7 +394,7 @@ fn run_one_bounded(
                     .or_else(|| payload.downcast_ref::<&str>().map(|text| text.to_string()))
                     .unwrap_or_else(|| "unknown panic".to_string());
                 (
-                    record_text(tier, &rel_owned, "crashed", 0, None, &[message]),
+                    record_text(tier, &rel_owned, "crashed", 0, None, &[], &[message]),
                     0,
                 )
             }
@@ -294,7 +418,10 @@ fn run_one_bounded(
                     ("crashed", started.elapsed().as_millis())
                 }
             };
-            (record_text(tier, &rel, status, millis, None, &[]), millis)
+            (
+                record_text(tier, &rel, status, millis, None, &[], &[]),
+                millis,
+            )
         }
     }
 }
@@ -391,7 +518,16 @@ fn main() {
     let filter = fixture_filter();
     let prior = prior_millis();
     let mut jobs: Vec<(&'static str, PathBuf, PathBuf, std::time::Duration)> = Vec::new();
-    for tier in ["pass", "fail", "run"] {
+    let tiers: &[&'static str] = if native_target().is_some() {
+        &["pass", "run"]
+    } else {
+        &["pass", "fail", "run"]
+    };
+    if env::var_os("OMEGA_CORPUS_NATIVE").is_some() && native_target().is_none() {
+        eprintln!("corpus_runner: this host has no catalogued Omega target to build for");
+        process::exit(2);
+    }
+    for &tier in tiers {
         let base = root.join("tests/omega").join(tier);
         let mut mains = Vec::new();
         collect_mains(&base, &mut mains);
