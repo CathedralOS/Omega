@@ -211,3 +211,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T15:20:16Z	6b97557590	leaf/field-domain-memo	coordinator	scoped memo for owned field domain identities
 2026-09-25T15:24:34Z	1d06debb9d	leaf/state-summary-map	coordinator	symbol-keyed complete-state memo
 2026-09-25T15:32:01Z	ec5264787c	leaf/domain-summary-index	coordinator	keyed call summaries + state->machine index in default-domains
+2026-09-25T15:35:16Z	46bc16663a	leaf/data-def-position-memo	coordinator	symbol-keyed data-definition positions in plan scope
