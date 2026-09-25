@@ -191,4 +191,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T11:14Z	d880d6fbbc	leaf/transfer-domain-index	coordinator	domain_definitions bucketed by symbol; capture_bounds uses state_location index
 2026-09-25T11:20:51Z	702a5a2871	leaf/root-name-index	coordinator	symbols: per-table root name+leaf buckets behind top-level lookup
 2026-09-25T11:33:01Z	251fd6fe10	leaf/projected-receiver-index	coordinator	stage-02: bucketed local/param/data-def/attached rosters behind call_target
-2026-09-25T11:44:26Z	n/a	leaf/service-reach-index	coordinator	validation: symbol-indexed service-reach inference + per-call target index
+2026-09-25T11:44:26Z	1499b99936	leaf/service-reach-index	coordinator	validation: symbol-indexed service-reach inference + per-call target index
