@@ -550,6 +550,18 @@ the complete product bar; focused successes below do not establish that baseline
   never reaches `admits`. Use the sample command as this policy's acceptance
   check; a corpus fixture passes with the policy reverted and pins nothing.
 
+  `fail/calls/ambiguous_spliced_second_receiver_rejected` is refused by nothing,
+  including native realization, and that is a correctness risk rather than a
+  stale pin. Its subject is two inline value calls from one state into the same
+  data family through different receivers (`self.first.get()`,
+  `self.second.get()`); the recorded defect is that `b` silently delivered 7
+  instead of 9 because the by-type fallback read the first receiver for both.
+  The pinned fence -- "attached Unit closure is missing a checked transitive
+  machine plan" -- no longer fires. Before repinning it, run the program and
+  compare `self.flag` against 9: if it is 7 the old miscompile is back without
+  its fence, and if it is 9 the fixture belongs in the run tier with that exit
+  rather than in `fail`.
+
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
   `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
