@@ -3790,15 +3790,18 @@ syntax and other terminal services are not prerequisites.
   compare-exchange on a record's atomic field reaches Terminal Psi as one
   verified `AtomicAccess` event (codec tag 93) at an exact root place, static
   carrier path and scalar field, with its orderings, operands and observed
-  prior; the interpreter executes it serially. The eight `runtime_atomic_*_exit`
-  canaries verify at Terminal and stop where terminal-to-abstract lowering
-  refuses the event. The abstract-event checker still validates bounded
-  single-function reads-from/modification-predecessor claims only from
-  hand-built events. Unadmitted: atomic cells behind a shared receiver
-  (`shared_receiver_atomic_store`; Terminal types do not mark atomic cells),
-  bounded fields, fences, single-attempt compare-exchange, and scalar-result
-  machines (`atomic_global_order_operations` stops at ordered scalar control).
-  None of this establishes a concurrent memory model.
+  prior; the interpreter executes it serially. Terminal-to-abstract lowering
+  keeps it as one abstract event at the same location, with reads-from and
+  modification-after edges from a reaching-writes pass that the optimization
+  unit's bounded happens-before replay rechecks. An event with no single
+  latest write refuses. The eight `runtime_atomic_*_exit` canaries now stop in
+  abstract-to-target lowering (`UnsupportedControlFlow`). No target
+  operation, selection or encoding realizes an atomic event yet. Unadmitted:
+  atomic cells behind a shared receiver (`shared_receiver_atomic_store`;
+  Terminal types do not mark atomic cells), bounded fields, fences,
+  single-attempt compare-exchange, and scalar-result machines
+  (`atomic_global_order_operations` stops at ordered scalar control). None of
+  this establishes a concurrent memory model.
 
   - Complete independently checkable `sequenced_before`, `reads_from`,
     `modification_order`, `synchronizes_with`, `happens_before` and
