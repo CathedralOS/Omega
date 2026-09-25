@@ -51,7 +51,8 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    settled worker (or the `You are zergling z<N> of the <wave> cloud swarm`
    role line on first dispatch).
 2. The named leaf: title, the board's acceptance text verbatim, the
-   witness/repro lane or file, and the gates
+   witness/repro lane or file, the current owned-walls roster (one
+   `<wall> -> z<N>` line per blocker another worker owns), and the gates
    (`cargo check -p <touched-crates> --all-targets` +
    `cargo nextest run -p <touched-crates>`; for e2e-visible leaves also
    `python3 tools/corpus_gate.py --filter <domain>` — a domain diff against
@@ -79,6 +80,11 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    Never `cargo clean` and never build `omega` from source for evidence:
    fetch the `swarm-binaries` release binary — a local
    `cargo build --release` is the single largest measured leg-time waste.
+   Before any gate projected past ~15min, confirm the fetched binary's
+   pinned rev still matches `origin/main` — the coordinator republishes on
+   toolchain-touching merges and posts the new sha to every active worker;
+   a stale binary silently re-runs yesterday's wall (measured: a 104min
+   check grinding a superseded build while the fix sat published).
    Gates scope to ONE touched crate's `--lib`; multi-crate sweeps only when
    the change crosses crates. Attribute unexpected reds by re-running ONLY
    the failing test names on the stashed base (seconds), never a full
@@ -99,6 +105,17 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    missing api surface, or a decision only the coordinator/user can
    make. The coordinator's drain sees a parked worker and re-dispatches,
    but every parked hour is a wasted slot — chain legs autonomously.
+
+7. **Never spin-poll a long mechanical wait.** An `omega update`, lock
+   refresh, cold check, or rebuild projected past ~30min goes to a
+   background shell while the leg continues on independent work; if the
+   leg truly cannot proceed without it, post `blocked` naming the
+   operation and its projected duration — do not sleep-poll it to
+   completion (measured: a ~10h update poll consumed a slot that could
+   have reported and moved). Before diagnosing any wall, check the
+   dispatch's owned-walls roster: a blocker listed as another worker's
+   claim means report the hit and take the next unblocked slice, never
+   re-derive a diagnosis already owned upstream.
 
 And ALWAYS pass `notify_on_response=true` on every
 `devin_session_interact message` dispatch — it is one-shot (consumed on that
@@ -134,7 +151,13 @@ event tail (`devin_session_events`/`get_messages`): if its last turn
 acknowledged a leg and ended mid-work, that IS the inactivity-suspend
 pattern — nudge it. If it already posted a verdict, drain it. Only a
 worker whose last event is a verdict/blocked you never handled, or a
-genuine question to you, is actually waiting on you.
+genuine question to you, is actually waiting on you. A nudge is never
+"re-confirm your verdict": a bare nudge on a verdict-posted worker
+makes it re-run the whole audit to re-derive the same answer
+(measured: three identical `no_gap` verdicts across ~80min on one
+lane). If the verdict is posted, merge it and dispatch the next leg;
+if mid-leg, the nudge names the leg it should still be on — never a
+bare "are you stuck?".
 
 **Inactivity-suspend mid-leg is a silent settle.** Workers sometimes end
 their turn mid-leg with no verdict and no pushed lane; the session then
@@ -225,7 +248,8 @@ pinned packaged binary (e.g. Squalr's `swarm-binaries` omega build), the
 coordinator rebuilds and re-pins it in a dedicated worktree after merges
 that touch the toolchain path — never per-leg "build your own binary"
 instructions, which burn leg time and split evidence across mismatched
-binaries.
+binaries. On every republish, message all active workers the new pinned
+sha so no gate runs on a superseded binary.
 
 **Residual treadmill.** Prefer re-dispatching the settled worker onto the
 smallest same-domain residual its own verdict names; warm clone + warm
