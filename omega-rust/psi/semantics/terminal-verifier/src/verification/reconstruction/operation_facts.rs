@@ -156,10 +156,32 @@ pub(super) fn append_operation(
         }
         return Ok(());
     }
-    if let OperationKind::WriteOnlyPrimitiveStore { destination, .. } = &operation.kind {
-        field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            !crate::validation::proposition_observes_places(proposition, &[*destination])
-        });
+    if let OperationKind::WriteOnlyPrimitiveStore {
+        destination, path, ..
+    } = &operation.kind
+    {
+        // The store writes its leaf; a runtime-selected element may be any
+        // element of the array it selects in, so the written region is the
+        // static prefix before the first runtime index. Observations of
+        // disjoint sibling paths stay current. A prefix that cannot be scoped
+        // forgets the whole root.
+        let static_prefix = path
+            .iter()
+            .position(|segment| segment.runtime_index().is_some())
+            .unwrap_or(path.len());
+        match crate::validation::canonical_field_path(
+            module,
+            machine,
+            *destination,
+            &path[..static_prefix],
+        ) {
+            Some(written) => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !crate::validation::proposition_observes_write(proposition, *destination, &written)
+            }),
+            None => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !crate::validation::proposition_observes_places(proposition, &[*destination])
+            }),
+        }
     }
     if matches!(
         operation.kind,
