@@ -12,6 +12,10 @@
 //! through one `operation_frame::OperationFrame`. `scalar_callees` then emits
 //! the scalar machines those bodies call, and `providers` checks each provider
 //! candidate against the boundary it satisfies.
+//!
+//! The module list below groups the rest by that route: the closure's own
+//! steps, body emission, the operations a body lowers with their source
+//! custody, and the scalar or structural completion that ends a body.
 use super::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
@@ -39,38 +43,48 @@ use crate::expression_preparation::source_custody::flow_calls::retain_exact_flow
 use crate::scalar_graph::scalar_call_closure::callee::{CheckedScalarCallee, PreparedScalarCallee};
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
+// The closure `lower_unit_closure` assembles: body and callee discovery,
+// admission, providers, catalogs, boundaries, claims and signatures.
 mod admission;
-pub(crate) mod argument_evaluation;
-mod argument_schedule;
-pub(crate) mod bodies;
 mod boundaries;
-mod byte_subslices;
 mod call_catalog;
 mod call_closure;
 pub(crate) mod catalog;
 mod claims;
-mod composed_control;
-mod field_replacement;
-mod operation_frame;
-mod ordinary_calls;
-mod ordinary_machine;
-mod parameters;
-pub(crate) mod primitive_locals;
-mod provider_attachments;
 mod providers;
-mod reference_results;
-pub(crate) mod scalar_arrays;
 mod scalar_callees;
-mod scalar_completion;
-pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
-mod scalar_structural_calls;
-mod selected_operator;
 pub(crate) mod shared_closure;
 mod signatures;
+
+// Body emission: each ordinary body and each composed state graph, through
+// one operation frame and one argument schedule over borrowed body views,
+// with the provider attachment roots a body establishes first.
+pub(crate) mod argument_evaluation;
+mod argument_schedule;
+pub(crate) mod bodies;
+mod composed_control;
+mod operation_frame;
+mod ordinary_machine;
+mod provider_attachments;
+
+// The operations a body lowers, each with its exact source custody.
+mod byte_subslices;
+mod field_replacement;
+mod ordinary_calls;
+mod parameters;
+pub(crate) mod primitive_locals;
+mod reference_results;
+pub(crate) mod scalar_arrays;
+mod scalar_structural_calls;
+mod selected_operator;
 mod structural_calls;
-mod structural_completion;
 pub(crate) mod structural_values;
 mod view_ranges;
+
+// How a body completes: its scalar or structural result.
+mod scalar_completion;
+mod structural_completion;
+pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
 
 use bodies::{UnitBody, UnitPlans};
 pub(crate) use boundaries::retain_exact_unit_boundary;
