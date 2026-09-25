@@ -118,17 +118,23 @@ pub machine Vec::open(&mut self) {
 
 // Append within the current rung: the caller's in-range index is the
 // bounds proof, so `len` follows it exactly.
-pub machine Vec::push4(&mut self, index: u64 [0..=3], value: u32) {
+pub machine Vec::push4(&mut self, index: u64, value: u32)
+requires index <= 3
+{
     self.s4[index] = value;
     self.len = index + 1;
 }
 
-pub machine Vec::push8(&mut self, index: u64 [0..=7], value: u32) {
+pub machine Vec::push8(&mut self, index: u64, value: u32)
+requires index <= 7
+{
     self.s8[index] = value;
     self.len = index + 1;
 }
 
-pub machine Vec::push16(&mut self, index: u64 [0..=15], value: u32) {
+pub machine Vec::push16(&mut self, index: u64, value: u32)
+requires index <= 15
+{
     self.s16[index] = value;
     self.len = index + 1;
 }
@@ -186,15 +192,21 @@ pub machine Vec::reject_grow8to16(&mut self) -> u64 {
 
 // Read one element of the resident rung; the caller's index proof bounds
 // the access to the live prefix.
-pub machine Vec::read4(&mut self, index: u64 [0..=3]) -> u32 {
+pub machine Vec::read4(&mut self, index: u64) -> u32
+requires index <= 3
+{
     self.s4[index]
 }
 
-pub machine Vec::read8(&mut self, index: u64 [0..=7]) -> u32 {
+pub machine Vec::read8(&mut self, index: u64) -> u32
+requires index <= 7
+{
     self.s8[index]
 }
 
-pub machine Vec::read16(&mut self, index: u64 [0..=15]) -> u32 {
+pub machine Vec::read16(&mut self, index: u64) -> u32
+requires index <= 15
+{
     self.s16[index]
 }
 
@@ -227,14 +239,20 @@ pub machine Vec::close16(&mut self) {
 
 // Read one element out of a backing record — the backing owner keeps
 // custody while the caller inspects the returned store.
-pub machine Backing4::read(&mut self, index: u64 [0..=3]) -> u32 {
+pub machine Backing4::read(&mut self, index: u64) -> u32
+requires index <= 3
+{
     self.e[index]
 }
 
-pub machine Backing8::read(&mut self, index: u64 [0..=7]) -> u32 {
+pub machine Backing8::read(&mut self, index: u64) -> u32
+requires index <= 7
+{
     self.e[index]
 }
 
-pub machine Backing16::read(&mut self, index: u64 [0..=15]) -> u32 {
+pub machine Backing16::read(&mut self, index: u64) -> u32
+requires index <= 15
+{
     self.e[index]
 }
