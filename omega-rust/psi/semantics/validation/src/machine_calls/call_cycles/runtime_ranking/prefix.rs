@@ -16,16 +16,16 @@ use super::projection::{RankOrder, RankProjection};
 /// this state's discovered telescope, one entry role per non-self formal;
 /// `conserved_endpoints` says the component mixes ranged and unranged
 /// members, so every caller entry input may be read as a conserved endpoint.
-pub(super) fn preserves_rank(
+pub(super) fn preserves_rank<'a>(
     program: &TypedTrees,
-    machine: &Machine,
+    machine: &'a Machine,
     state: &typed_trees::state::State,
     rank: &RankProjection,
     premises: Option<&[SymbolHandle]>,
     entry_parameters: &[SymbolHandle],
     conserved_endpoints: bool,
-    statement: &StatementNode,
-    frames: Option<&CallFrameResolver<'_>>,
+    statement: &'a StatementNode,
+    frames: Option<&CallFrameResolver<'a>>,
 ) -> bool {
     if !matches!(
         rank.order,
