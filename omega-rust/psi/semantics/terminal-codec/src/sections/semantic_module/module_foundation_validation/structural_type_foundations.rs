@@ -22,7 +22,9 @@ pub(super) fn validate_type_shape(
             }
         }
         StructuralTypeShape::PrimitiveScalar(_) => {}
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {}
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            ..
+        }) => {}
         StructuralTypeShape::ByteSequence(_) => {
             return malformed("first-class byte-sequence type must be a borrowed view");
         }

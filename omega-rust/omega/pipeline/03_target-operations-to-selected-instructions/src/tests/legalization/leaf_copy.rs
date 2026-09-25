@@ -174,7 +174,9 @@ fn sequence_type() -> StructuralTypeDeclaration {
     declare(
         70,
         "test::Sequence",
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     )
 }
 

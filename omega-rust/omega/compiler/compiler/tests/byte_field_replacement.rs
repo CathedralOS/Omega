@@ -139,7 +139,7 @@ fn runtime_replacement(nested: bool, write_only: bool) -> lowered_psi::LoweredPs
         .find_map(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
             )
             .then_some(declaration.id)
         })

@@ -26,7 +26,9 @@ pub(super) fn validate(
                     .is_some_and(|declaration| {
                         matches!(
                             declaration.shape,
-                            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BorrowedView { .. }
+                            )
                         )
                     })
         })

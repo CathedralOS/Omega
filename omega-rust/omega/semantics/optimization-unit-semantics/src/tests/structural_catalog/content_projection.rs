@@ -45,7 +45,9 @@ fn structural_domain_content_projection_replays_terminal_contract() {
                         5,
                         terminal_psi::BindingRelevance::Relevant,
                         terminal_psi::StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                         ),
                     ),
                     structural_leaf_field(
@@ -71,7 +73,9 @@ fn structural_domain_content_projection_replays_terminal_contract() {
         structural_type(
             482,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
     ];

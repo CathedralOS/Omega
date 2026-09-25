@@ -55,7 +55,9 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
             StructuralTypeShape::Record {
                 fields: vec![field(
                     4,
-                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    }),
                 )],
             },
         ),
@@ -74,7 +76,9 @@ fn catalog() -> Vec<StructuralTypeDeclaration> {
         ),
         declaration(
             7,
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            }),
         ),
     ]
 }

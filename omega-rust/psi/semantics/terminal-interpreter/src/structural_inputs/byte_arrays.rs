@@ -11,12 +11,12 @@ use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeMap;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
-use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// Initialized contents of a true fixed u8 array reachable from an entry input.
 /// The static field/index path is relative to the dense structural argument. Exactly the declared
@@ -164,10 +164,7 @@ impl TerminalExecution {
         ) || !self
             .structural_types
             .get(&parameter.structural_type)
-            .is_some_and(|declaration| {
-                declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
-            })
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
         {
             return Ok(None);
         }

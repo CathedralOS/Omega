@@ -41,10 +41,12 @@ pub(in crate::validation) fn validate_destination(
         })
         || !module.structural_types.iter().any(|declaration| {
             declaration.id == parameter.structural_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
+                )
         })
     {
         return Err(invalid());

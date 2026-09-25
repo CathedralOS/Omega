@@ -1236,7 +1236,7 @@ pub(super) fn byte_sequence_type_identity(
 ) -> Option<String> {
     let carrier = byte_sequence_carrier(program, type_reference, substitutions)?;
     let mut identity_type = type_reference;
-    if carrier == checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+    if carrier.is_borrowed_view() {
         while let TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -1812,7 +1812,12 @@ impl<'program> ShapeCollector<'program> {
                 byte_sequence_type_identity(self.program, type_reference, binders, substitutions)?;
             let plan = CheckedUnitStructuralTypePlan {
                 identity: identity.clone(),
-                shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier),
+                // A view type's identity peels the reference shell, so
+                // `&mut [u8]` and `&write [u8]` register under one identity.
+                // The access binds on the field or parameter that uses the
+                // type, not on the type, and keeping it here would make the
+                // second registration conflict with the first.
+                shape: CheckedUnitStructuralTypeShape::ByteSequence(carrier.without_access()),
             };
             if self
                 .types
@@ -2572,7 +2577,7 @@ pub(crate) fn borrowed_slice_view(
         && (borrowed_slice_view_element(program, type_reference, &[]).is_some()
             || matches!(
                 byte_sequence_carrier(program, type_reference, &[]),
-                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
             ))
 }
 
@@ -2672,7 +2677,7 @@ pub(crate) fn byte_sequence_carrier(
     mut type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<checked_trees::CheckedByteSequenceCarrier> {
-    let mut borrowed = false;
+    let mut borrowed = None;
     let mut has_domain = false;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -2702,8 +2707,13 @@ pub(crate) fn byte_sequence_carrier(
                     .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
                 type_reference = *base_type;
             }
-            TypeReferenceNode::Reference { referee, .. } if !borrowed => {
-                borrowed = true;
+            // The reference's access is the carrier's access: a `&mut [u8]`
+            // field and a `&[u8]` one are distinguishable here and nowhere
+            // downstream, so it is recorded rather than discarded.
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } if borrowed.is_none() => {
+                borrowed = Some(*access);
                 type_reference = *referee;
             }
             _ => break,
@@ -2712,15 +2722,17 @@ pub(crate) fn byte_sequence_carrier(
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Slice { element_type }
-            if borrowed
+            if borrowed.is_some()
                 && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
         {
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                access: Some(borrowed?.into()),
+            })
         }
         TypeReferenceNode::FixedArray {
             element_type,
             length: typed_trees::types::FixedArrayLength::Literal(capacity),
-        } if !borrowed
+        } if borrowed.is_none()
             && has_domain
             && program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8) =>
         {

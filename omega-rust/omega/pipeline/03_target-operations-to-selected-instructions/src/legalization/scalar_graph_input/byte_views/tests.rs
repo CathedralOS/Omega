@@ -27,7 +27,9 @@ fn mixed_case_fixture() -> (
         .push(StructuralTypeDeclaration {
             id: structural_type,
             identity: "mutable bytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         });
     let function = &mut plan.functions[0];
     function

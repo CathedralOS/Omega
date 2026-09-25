@@ -11,13 +11,17 @@ fn top_level_structural_type_roster_is_canonical_and_identity_unique() {
     let first = structural_type(
         450,
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ),
     );
     let second = structural_type(
         451,
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ),
     );
 
@@ -61,7 +65,9 @@ fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
         structural_type(
             460,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
         structural_type(
@@ -106,7 +112,9 @@ fn top_level_structural_carriers_are_exact_without_narrowing_field_carriers() {
         structural_type(
             460,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
         structural_type(
@@ -129,7 +137,9 @@ fn structural_domain_roster_is_canonical_unique_and_carrier_closed() {
     let types = vec![structural_type(
         470,
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ),
     )];
     let first = structural_domain(1, 11, carrier);

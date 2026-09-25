@@ -224,7 +224,7 @@ fn decode_fields(
 
 fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
     match carrier {
-        ByteSequenceCarrier::BorrowedView => bytes.push(1),
+        ByteSequenceCarrier::BorrowedView { .. } => bytes.push(1),
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
             bytes.extend_from_slice(&capacity.to_le_bytes());
@@ -236,7 +236,9 @@ fn decode_byte_sequence_carrier(
     cursor: &mut Cursor<'_>,
 ) -> Result<ByteSequenceCarrier, FixedViewCopyDecodeError> {
     match cursor.byte()? {
-        1 => Ok(ByteSequenceCarrier::BorrowedView),
+        1 => Ok(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
             capacity: cursor.u64()?,
         }),

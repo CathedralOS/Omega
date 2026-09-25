@@ -88,7 +88,9 @@ pub(super) fn linux_write_line_exit_plan(provider: &WriteExitProvider) -> Machin
         id: structural_type_id,
         identity: "test::BorrowedBytes".into(),
         shape: terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ),
     };
     let structural_argument = StructuralArgument {

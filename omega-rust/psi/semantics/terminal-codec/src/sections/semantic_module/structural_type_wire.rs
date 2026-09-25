@@ -4,9 +4,7 @@
 //! case payload envelopes. Field payloads remain delegated to the dedicated
 //! structural-field codec.
 
-use terminal_psi::{
-    ByteSequenceCarrier, StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralCaseDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
 
 use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
@@ -32,13 +30,7 @@ pub(crate) fn encode_structural_type(
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             writer.u8(4);
-            match carrier {
-                ByteSequenceCarrier::BorrowedView => writer.u8(1),
-                ByteSequenceCarrier::BoundedOwned { capacity } => {
-                    writer.u8(2);
-                    writer.u64(*capacity);
-                }
-            }
+            super::structural_field_wire::encode_byte_sequence_carrier(writer, *carrier);
         }
         StructuralTypeShape::ElementView { element } => {
             writer.u8(8);
@@ -118,13 +110,9 @@ pub(crate) fn decode_structural_type(
                 })
             })?,
         },
-        4 => StructuralTypeShape::ByteSequence(match reader.u8()? {
-            1 => ByteSequenceCarrier::BorrowedView,
-            2 => ByteSequenceCarrier::BoundedOwned {
-                capacity: reader.u64()?,
-            },
-            tag => return Err(CodecError::InvalidTag("ByteSequenceCarrier", tag)),
-        }),
+        4 => StructuralTypeShape::ByteSequence(
+            super::structural_field_wire::decode_byte_sequence_carrier(reader)?,
+        ),
         5 => StructuralTypeShape::Mixed {
             fields: decode_counted(reader, decode_structural_field)?,
             cases: decode_counted(reader, |reader| {

@@ -27,7 +27,9 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = &mut module.machines[0];
     machine.structural_places.push(StructuralPlaceDeclaration {

@@ -1339,7 +1339,9 @@ fn fixed_byte_windows_retain_backing_offset_and_reject_transport_substitution() 
                 id: view,
                 identity: "View".into(),
                 shape: StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 ),
             });
             let StructuralTypeShape::Record { fields } = &mut types[1].shape else {

@@ -1,10 +1,10 @@
 use crate::byte_sequences::subslice::{
-    ByteSequenceCarrier, IntegerSign, IntegerType, IntegerValue, Operation, OperationKind,
-    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalExecution,
-    TerminalScalarValue, TerminalStructuralValue,
+    IntegerSign, IntegerType, IntegerValue, Operation, OperationKind, StructuralMultiplicity,
+    StructuralPlaceKind, TerminalExecution, TerminalScalarValue, TerminalStructuralValue,
 };
 use crate::effects::AcceptTerminalEffects;
 use std::collections::BTreeMap;
+use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
@@ -134,7 +134,9 @@ fn execution() -> (TerminalExecution, Operation) {
             StructuralTypeDeclaration {
                 id: structural_type,
                 identity: "bytes".into(),
-                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                }),
             },
         )]),
         machines: BTreeMap::from([(machine_id, machine)]).into(),

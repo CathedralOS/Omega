@@ -184,7 +184,9 @@ pub(super) fn verified_byte_operation(
     module.structural_types = vec![StructuralTypeDeclaration {
         id: byte_type,
         identity: "test::Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     }];
     let count_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
     let value = |ordinal| id(ordinal, ValueId::new);

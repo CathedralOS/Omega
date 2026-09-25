@@ -523,7 +523,9 @@ fn canonical_identity_binds_every_retained_field_class() {
         .push(StructuralTypeDeclaration {
             id: structural_type,
             identity: "identity-test-structural-type".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         });
     mutations.push(("module structural type", unit));
     let mut unit = baseline.clone();

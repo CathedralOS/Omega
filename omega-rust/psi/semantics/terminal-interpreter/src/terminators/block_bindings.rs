@@ -4,8 +4,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralTypeShape,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -353,7 +353,7 @@ impl TerminalExecution {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
                     if matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                        if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
+                                            if declaration.shape.is_borrowed_byte_view())
                     {
                         // Borrowed byte views join whole: the argument names
                         // an untracked view root with no projection.
@@ -409,7 +409,7 @@ impl TerminalExecution {
                 StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
                         || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                            if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
+                                                    if declaration.shape.is_borrowed_byte_view())
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == argument.place || entry.place == parameter.place
                         })

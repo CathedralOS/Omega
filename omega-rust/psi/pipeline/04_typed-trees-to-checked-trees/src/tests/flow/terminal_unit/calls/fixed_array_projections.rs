@@ -750,7 +750,7 @@ fn presents_projected_owned_byte_carrier_at_a_borrowed_boundary_view() {
             .expect("borrowed byte-sequence shape")
             .shape,
         CheckedUnitStructuralTypeShape::ByteSequence(
-            checked_trees::CheckedByteSequenceCarrier::BorrowedView
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
         )
     ));
     let root = plans

@@ -52,7 +52,9 @@ pub(super) fn view_cycle() -> TerminalModule {
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::CyclicBytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = &mut module.machines[0];
     machine.ranked_scc = None;

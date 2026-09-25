@@ -103,7 +103,9 @@ fn literal_cycle() -> TerminalModule {
     module.structural_types.push(StructuralTypeDeclaration {
         id: id(1, StructuralTypeId::new),
         identity: "test::ImmutableBytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = &mut module.machines[0];
     machine.ranked_scc = None;

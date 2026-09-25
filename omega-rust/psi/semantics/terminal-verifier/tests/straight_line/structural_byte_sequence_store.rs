@@ -47,7 +47,9 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
         StructuralTypeDeclaration {
             id: id(2),
             identity: "test::View".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         },
     ];
     let machine = &mut module.machines[0];

@@ -258,7 +258,9 @@ fn boolean_ieee_and_byte_contract_fields_retain_their_own_leaf_kind() {
                 }
                 2 => {
                     field_mut(&mut original).field_type = StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
                     );
                     let field = ByteSequenceStructuralField::new(root, path()).unwrap();
                     Proposition::ByteSequenceEqual {

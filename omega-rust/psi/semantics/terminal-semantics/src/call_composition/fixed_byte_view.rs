@@ -59,8 +59,10 @@ pub fn fixed_byte_array_window<'types, 'path>(
         })
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                )
         })
     {
         return None;

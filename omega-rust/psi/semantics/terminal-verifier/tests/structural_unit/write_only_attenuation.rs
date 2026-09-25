@@ -343,7 +343,9 @@ fn indexed_write_only_record_receiver_rejects_nonmaterial_fields() {
     for (relevance, field_type) in [
         (
             terminal_psi::BindingRelevance::Relevant,
-            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         ),
         (
             terminal_psi::BindingRelevance::Erased,
@@ -417,7 +419,9 @@ fn indexed_write_only_receiver_rejects_sums_and_unknown_referents() {
             fields: Vec::new(),
             cases,
         },
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     ] {
         let mut changed = module.clone();
         changed.structural_types[0].shape = shape;

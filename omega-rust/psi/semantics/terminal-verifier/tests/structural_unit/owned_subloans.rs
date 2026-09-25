@@ -66,7 +66,9 @@ fn owned_inline_byte_fields_do_not_inherit_borrowed_view_presentation() {
     // The inline field has no standalone structural identity. Only the
     // borrowed-parent presentation can bridge it to this view parameter.
     module.structural_types[0].shape =
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView);
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
         panic!("the receiver's immediate container is a record")
     };
@@ -139,7 +141,9 @@ fn owned_indexed_write_only_subloans_keep_the_material_type_check() {
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
         panic!("the receiver is a record")
     };
-    fields[0].field_type = StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView);
+    fields[0].field_type = StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    });
     // This is a valid exact record subloan, not an inline-view presentation.
     // Write-only indexed admission additionally requires a material root.
     verifies(&module);

@@ -110,7 +110,9 @@ pub(in crate::validation) fn validate_source(
         declaration.id == structural_type
             && matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
             )
     }) {
         return Err(invalid());

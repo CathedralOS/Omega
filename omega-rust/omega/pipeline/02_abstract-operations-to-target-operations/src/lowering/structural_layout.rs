@@ -93,12 +93,14 @@ pub(crate) fn structural_shape(
             StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
                 IeeeFloatFormat::Binary64,
             )) => Ok(ValueShape::float(8)),
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
-                byte_sequence_shape(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
-                    structural_type,
-                )
-            }
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            ) => byte_sequence_shape(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
+                structural_type,
+            ),
             StructuralTypeShape::ByteSequence(_) => Err(
                 LoweringError::UnsupportedStructuralByteSequence(structural_type),
             ),
@@ -481,7 +483,7 @@ pub(super) fn bounded_byte_field_geometry(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     Some((offset, capacity))
                 }
-                terminal_psi::ByteSequenceCarrier::BorrowedView => None,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => None,
             })
         },
     )
@@ -502,7 +504,7 @@ pub(super) fn borrowed_view_field_offset(
     byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
         |geometry| {
             geometry.and_then(|(offset, carrier)| match carrier {
-                terminal_psi::ByteSequenceCarrier::BorrowedView => Some(offset),
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => Some(offset),
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
             })
         },
@@ -656,7 +658,7 @@ pub(super) fn byte_sequence_shape(
     let byte_size = match carrier {
         // Current native targets are 64-bit. The semantic carrier
         // deliberately does not retain the physical descriptor fields.
-        terminal_psi::ByteSequenceCarrier::BorrowedView => 16_u64,
+        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16_u64,
         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => capacity
             .checked_add(8)
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?,

@@ -195,17 +195,7 @@ pub(super) fn validate(
             let retained = structural.next().ok_or(LoweringError::Unsupported(
                 "primitive reference return lost a structural parameter",
             ))?;
-            let access = match access {
-                language_semantics::ReferenceAccess::Shared => {
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                }
-                language_semantics::ReferenceAccess::Mutable => {
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                }
-                language_semantics::ReferenceAccess::WriteOnly => {
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                }
-            };
+            let access = checked_trees::CheckedStructuralAccess::from(*access);
             // A borrowed byte view rides the same unrestricted observation
             // lane as a plain `&primitive` referent: the retained parameter's
             // identity and shape name the peeled slice carrier exactly. The
@@ -249,7 +239,11 @@ pub(super) fn validate(
                 (
                     checked.normalized_type_identity(view).into_string(),
                     checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                        checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                        // This shape is matched against the registered view
+                        // TYPE, whose identity peels the reference shell, so it
+                        // binds no access. The parameter's own `access` above
+                        // is what carries it.
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { access: None },
                     ),
                 )
             };

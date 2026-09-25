@@ -354,7 +354,7 @@ pub(crate) fn resolve_byte_length(
         field.field_type,
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                | terminal_psi::ByteSequenceCarrier::BorrowedView
+                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
         )
     ) {
         return unsupported("byte field length requires a bounded-owned byte carrier");

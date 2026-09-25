@@ -62,7 +62,7 @@ pub(in crate::lowering) fn is_immutable_byte_carrier_parameter(
                 matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
             })
@@ -86,7 +86,7 @@ pub(in crate::lowering) fn is_byte_parameter(
                 matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
             })
@@ -296,8 +296,7 @@ pub(in crate::lowering) fn view_for_place(
         if !matches!(declaration.kind,
             semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. }
                 if identity == structural_type.id)
-            || structural_type.shape != StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView)
+            || !structural_type.shape.is_borrowed_byte_view()
             || structural_types.get(&structural_type.id).copied() != Some(structural_type)
         { return Err(invalid()); }
         return Ok(TargetByteView::Literal {
@@ -358,7 +357,7 @@ pub(in crate::lowering) fn view_for_place(
                 matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
             })

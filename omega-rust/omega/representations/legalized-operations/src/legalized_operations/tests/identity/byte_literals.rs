@@ -23,7 +23,9 @@ fn literal_identity_binds_payload_declaration_and_producer_reference() {
     let structural_type = StructuralTypeDeclaration {
         id: argument.structural_type,
         identity: "bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     };
     let mut establishment = plan.scalar_functions[0].blocks[0].instructions[0].clone();
     establishment.operation = id(900);

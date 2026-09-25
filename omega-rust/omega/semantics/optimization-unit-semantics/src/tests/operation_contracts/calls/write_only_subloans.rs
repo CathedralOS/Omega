@@ -233,7 +233,9 @@ fn indexed_write_only_paths_cannot_fall_back_to_linear_multiplicity() {
             panic!("leaf is a record")
         };
         fields[0].field_type =
-            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+            StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            });
         rejects_linear(reference);
     }
 }
@@ -274,7 +276,9 @@ fn indexed_subloan_requires_a_material_root_and_scalar_or_record_leaf() {
         panic!("leaf is a record")
     };
     fields[0].field_type =
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     rejects_contract(reference);
     let mut array_leaf = baseline;
     let primitive = id(9_001, StructuralTypeId::new);
@@ -435,7 +439,9 @@ fn owned_root_subloan_keeps_exclusive_and_presentation_limits() {
             id: view,
             identity: "validation::owned-byte-view".into(),
             shape: StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         });
     let StructuralTypeShape::Record { fields } =

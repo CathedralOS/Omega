@@ -35,7 +35,9 @@ fn recomputed_immutable_signature_forgery_is_rejected_by_verified_context() {
             id: structural_type,
             identity: "forged-structural-type".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         });
     forged.push(unit);

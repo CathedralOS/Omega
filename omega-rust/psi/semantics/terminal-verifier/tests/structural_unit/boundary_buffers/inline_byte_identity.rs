@@ -21,7 +21,9 @@ use terminal_psi::ByteSequenceCarrier;
 /// standalone declaration and is listed so a later carrier cannot be added
 /// without a decision about its path-end identity.
 const CARRIERS: [ByteSequenceCarrier; 2] = [
-    ByteSequenceCarrier::BorrowedView,
+    ByteSequenceCarrier::BorrowedView {
+        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    },
     ByteSequenceCarrier::BoundedOwned { capacity: 16 },
 ];
 
@@ -51,7 +53,9 @@ fn no_byte_carrier_resolves_to_a_standalone_leaf_shape() {
 fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
     let mut module = ordinary_buffer_module();
     buffer_field(&mut module).field_type =
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView);
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     // The presentation route refuses the carrier outright, so the rejection
     // cannot have moved into it.
     let OperationKind::CallUnit {
@@ -88,7 +92,9 @@ fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
     ] {
         let mut module = buffer_module();
         buffer_field(&mut module).field_type =
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView);
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            });
         arguments(&mut module)[0].access = access;
         module.boundary_machines[0].structural_parameters[0].access = access;
         assert!(
@@ -121,7 +127,9 @@ fn a_nested_borrowed_view_field_cannot_supply_a_view_parameter() {
         .path
         .insert(0, StructuralPathSegment::Field("owner".into()));
     buffer_field(&mut module).field_type =
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView);
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     assert!(matches!(
         validate_module(&module),
         Err(ModuleError::InvalidStructuralArgumentPath { .. })

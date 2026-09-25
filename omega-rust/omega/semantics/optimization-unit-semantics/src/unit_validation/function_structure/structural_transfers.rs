@@ -43,7 +43,7 @@ pub(super) fn validate(
                             || matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
-                                    ByteSequenceCarrier::BorrowedView
+                                    ByteSequenceCarrier::BorrowedView { .. }
                                 ) | StructuralTypeShape::ElementView { .. }
                             )
                     })

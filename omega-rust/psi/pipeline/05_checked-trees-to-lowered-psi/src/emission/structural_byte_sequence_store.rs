@@ -20,9 +20,7 @@ pub(crate) fn existing_literal_view_type(
         .ok_or(LoweringError::Unsupported(
             "composed callable produced a type absent from the shared catalog",
         ))?;
-    if declaration.shape
-        != StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
-    {
+    if !declaration.shape.is_borrowed_byte_view() {
         return unsupported("generated literal-view identity has a different carrier");
     }
     Ok(declaration.id)
@@ -72,7 +70,10 @@ pub(crate) fn validate_assignment(
 pub(crate) fn literal_view_type(
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<StructuralTypeId, LoweringError> {
-    let shape = StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+    let shape =
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     if let Some(declaration) = types
         .iter()
         .find(|declaration| declaration.identity == LITERAL_VIEW_IDENTITY)

@@ -35,7 +35,9 @@ fn subslice_row_rejoins_exact_producer_place_and_obligation() {
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
             identity: "view".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         }]
         .into(),
         boundary_machines: Vec::new(),

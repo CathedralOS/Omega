@@ -431,7 +431,9 @@ mod tests {
             id: structural_type,
             identity: "bytes".into(),
             shape: StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         };
         let catalog = vec![declaration].into();

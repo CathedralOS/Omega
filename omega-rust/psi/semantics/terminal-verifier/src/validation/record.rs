@@ -42,7 +42,7 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
                 // storage: records carrying one stay plain but may be locally
                 // constructed, where the binding roster checks the loan source.
                 StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 ) => references,
                 _ => field.field_type.scalar_type().is_some(),
             }
@@ -208,7 +208,9 @@ pub(crate) fn fields<'a>(
                 }
             }
             (
-                StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ),
                 RecordFieldValue::Structural(argument),
             ) => {
                 // The field owns a copy of an existing shared-view descriptor:
@@ -222,7 +224,7 @@ pub(crate) fn fields<'a>(
                         && matches!(
                             item.shape,
                             StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                             )
                         )
                 });

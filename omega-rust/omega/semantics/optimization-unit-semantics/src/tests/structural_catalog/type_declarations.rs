@@ -48,7 +48,9 @@ fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_compone
                         7,
                         terminal_psi::BindingRelevance::Relevant,
                         terminal_psi::StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                         ),
                     ),
                     structural_leaf_field(
@@ -71,7 +73,9 @@ fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_compone
         structural_type(
             404,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
         structural_type(
@@ -86,7 +90,9 @@ fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_compone
         structural_type(
             406,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
     ]
@@ -151,7 +157,9 @@ fn structural_type_graph_rejects_an_unused_disconnected_cycle() {
         structural_type(
             419,
             terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
         structural_type(
@@ -425,7 +433,9 @@ fn structural_field_erasure_matrix_matches_canonical_terminal_admission() {
         (
             1,
             terminal_psi::StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         ),
         (

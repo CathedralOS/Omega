@@ -866,7 +866,9 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
         .find(|field| field.identity == "before_bytes")
         .expect("bounded byte field")
         .field_type = CheckedUnitStructuralFieldType::ByteSequence(
-        checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+        checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+            access: Some(checked_trees::CheckedStructuralAccess::SharedBorrow),
+        },
     );
     assert!(matches!(
         lower_partial_affine_unit_cleanup_machine(&bounded_as_borrowed, &byte_plan),
