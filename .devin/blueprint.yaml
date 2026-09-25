@@ -30,7 +30,7 @@ knowledge:
   - name: test
     contents: |
       Scoped: python3 tools/test_affected.py --base <verified-commit> --plan, then without --plan.
-      One test: cargo nextest run -p compiler --test canary_suite <filter>
+      One crate test: cargo nextest run -p <crate> <filter>. Compiler behavior: add a tests/omega fixture and run python3 tools/corpus_gate.py --filter <fragment>
       Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
   - name: landing
     contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/landing.md. Never push main directly.

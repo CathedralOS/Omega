@@ -3,6 +3,10 @@ name = "compiler"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
+# Behavior is tested end to end: a fixture under tests/omega/{pass,fail,run}
+# is the test, and `tools/corpus_gate.py` runs it through `corpus_runner`.
+# No per-file test binaries (see tests/README.md).
+autotests = false
 
 [lib]
 name = "compiler"
@@ -74,44 +78,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
-optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
-target-operations-to-selected-instructions = { path = "../../pipeline/03_target-operations-to-selected-instructions" }
-selected-instructions = { path = "../../representations/selected-instructions" }
-legalized-operations = { path = "../../representations/legalized-operations" }
-register-environment = { path = "../../backend/register-environment" }
-native-realization = { path = "../native-realization", features = ["test-support"] }
-machine-emission = { path = "../../backend/machine-emission" }
-selected-form-encoding-to-resolved-layout = { path = "../../pipeline/08_selected-form-encoding-to-resolved-layout" }
-physical-instructions = { path = "../../representations/physical-instructions" }
-sha2 = "0.10.9"
-terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }
-
-terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
-image = { path = "../../backend/images/image" }
-image-emission = { path = "../../backend/images/image-emission", features = ["test-support", "installed-artifact"] }
-machine-code = { path = "../../representations/machine-code" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
-abstract-operations = { path = "../../representations/abstract-operations" }
-executable-installation = { path = "../../backend/runtime/executable-installation" }
-external-roots = { path = "../../backend/runtime/external-roots" }
-provider-planning = { path = "../../build/provider-planning", features = ["installed-writer"] }
-layout = { path = "../../backend/layout" }
-object-file = { path = "../../backend/object/object-file" }
-native-artifact = { path = "../../backend/artifacts/native-artifact", features = ["test-support"] }
-register-homes = { path = "../../representations/register-homes" }
-register-homes-to-post-allocation-machine = { path = "../../pipeline/06_register-homes-to-post-allocation-machine", features = ["test-support"] }
-register-model = { path = "../../representations/register-model" }
-program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }
-compilation-report = { path = "../compilation-report", features = ["test-support"] }
-build-evaluation = { path = "../../build/build-evaluation", features = ["test-support"] }
-installation-evidence = { path = "../../representations/installation-evidence" }
-facts = { path = "../../../psi/representations/facts" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-
-[[test]]
-name = "generic_data"
-path = "../../../../tests/omega/generic_data.rs"
 
 # A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
 # builds and executes it directly and diffs the emitted per-fixture outcome

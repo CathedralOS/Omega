@@ -255,10 +255,25 @@ fn has_external_caller(reachers: &[&str], name: &str) -> bool {
 /// plumbing delegates and test-only helpers re-exported for crate-internal or
 /// integration-test consumers, cataloged by the stage-entrance orphan audit.
 /// Adding an entry needs the same audit disposition, not an unexamined pass.
-const PLUMBING_REEXPORTS: [(&str, &str); 1] = [(
-    "typed-trees-to-checked-trees",
-    "normalize_open_index_identities",
-)];
+///
+/// The two placed-view input entrances are the in-progress direct-entry
+/// placed-view route (see the crate's `lib.rs`): no production caller is wired
+/// yet, and its only callers were compiler integration tests removed on
+/// 2026-09-25 when the compiler moved to corpus-only testing.
+const PLUMBING_REEXPORTS: [(&str, &str); 3] = [
+    (
+        "typed-trees-to-checked-trees",
+        "normalize_open_index_identities",
+    ),
+    (
+        "abstract-operations-to-target-operations",
+        "lower_to_target_operations_with_placed_view_inputs",
+    ),
+    (
+        "abstract-operations-to-target-operations",
+        "validate_placed_view_input_translation",
+    ),
+];
 
 /// Stage crates whose lowering surface is one entrance by design: every
 /// root-exported `lower_*` function must be exactly the named entrance, and

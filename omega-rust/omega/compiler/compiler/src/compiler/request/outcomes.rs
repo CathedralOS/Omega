@@ -46,8 +46,6 @@ impl CompileTargetOutcome {
 pub struct CompileOutcomes {
     outcomes: Box<[CompileTargetOutcome]>,
     batch_manifest: BatchCompilationManifest,
-    #[cfg(test)]
-    prepared_terminal_native_input_count: usize,
 }
 
 impl CompileOutcomes {
@@ -65,8 +63,6 @@ impl CompileOutcomes {
         Ok(Self {
             outcomes: outcomes.into_boxed_slice(),
             batch_manifest,
-            #[cfg(test)]
-            prepared_terminal_native_input_count: 0,
         })
     }
     pub fn outcomes(&self) -> &[CompileTargetOutcome] {
@@ -121,26 +117,6 @@ impl CompileOutcomes {
             .pop()
             .ok_or_else(|| vec![Diagnostic::error("compilation outcome is missing")])?
             .into_result()
-    }
-    pub(in crate::compiler) fn with_prepared_terminal_native_input_count(
-        self,
-        count: usize,
-    ) -> Self {
-        #[cfg(test)]
-        {
-            let mut outcomes = self;
-            outcomes.prepared_terminal_native_input_count = count;
-            outcomes
-        }
-        #[cfg(not(test))]
-        {
-            let _ = count;
-            self
-        }
-    }
-    #[cfg(test)]
-    pub(in crate::compiler) const fn prepared_terminal_native_input_count(&self) -> usize {
-        self.prepared_terminal_native_input_count
     }
 }
 

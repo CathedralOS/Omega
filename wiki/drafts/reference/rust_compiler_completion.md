@@ -35,13 +35,13 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 | Gate | Capability that must be true | Automated invocation |
 | --- | --- | --- |
 | `RC-REPOSITORY` | The pinned toolchain formats, lints, type-checks, and preserves architectural dependency boundaries. | The baseline command block below. |
-| `RC-SOURCE-SEMANTICS` | Every accepted positive fixture reaches its promised checked or product stage; every negative fixture rejects; individual semantic integration tests pass. | `mbx nextest run -p compiler --all-targets --no-fail-fast` |
+| `RC-SOURCE-SEMANTICS` | Every accepted positive fixture reaches its promised checked or product stage; every negative fixture rejects; individual semantic integration tests pass. | `python tools/corpus_gate.py` |
 | `RC-PCC-REPLAY` | Requested artifact/`.proof` pairs round-trip; hostile or substituted evidence rejects before PCC-required interpretation or lowering. Ordinary output still checks without publishing PCC. | `mbx nextest run -p checked-trees-to-lowered-psi -p terminal-codec -p terminal-verifier -p terminal-interpreter -p terminal-psi-to-abstract-operations --no-fail-fast`; also run the same package selection with `mbx test --doc`. |
-| `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=portable_terminal_reload::portable_terminal_product_reloads_across_process_boundary)'` |
+| `RC-PORTABLE-PSI` | One process publishes a complete source-free Terminal Psi envelope and exits; a second process reconstructs, verifies, and interprets it using newly supplied authority. | `mbx nextest run -p terminal-codec -p terminal-verifier -p terminal-interpreter --no-fail-fast`. These round-trip, verify and interpret source-free Terminal Psi in one process; the two-process reload test was deleted with the compiler test tree on 2026-09-25, so the cross-process leg has no automated evidence. |
 | `RC-BUILD-AND-PACKAGES` | Build declarations, immutable inputs, package identities, reviewed evidence, resolution, and compilation handoff agree without path/name inference or hidden ambient mutation. | The package/build command block below. |
 | `RC-NATIVE-MATRIX` | Each hosted target produces independently validated machine code, object/image bytes, ABI behavior, provider settlement, and observable execution on its matching host. | `mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast`, plus `RC-SOURCE-SEMANTICS`, on every required host in the platform table below. |
-| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment)'` and the negative cases included by `RC-SOURCE-SEMANTICS`. |
-| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx nextest run -p compiler --test samples_compile --no-fail-fast` on every required host. |
+| `RC-DIAGNOSTICS` | Rejected source and failed product admission report stable, actionable diagnostics rather than panics, silent fallback, or accidental acceptance. | `python tools/corpus_gate.py --filter fail/`, which also belongs to `RC-SOURCE-SEMANTICS`. |
+| `RC-REPRESENTATIVE-PROGRAMS` | Every maintained sample reaches checked semantics; every sample with an authored host entry reaches its native product; every documented deterministic exit/output oracle passes. | `mbx run -p omega -- refresh-samples` on every required host. It builds every sample natively for the host; it does not yet run the exit/output oracles. |
 
 `RC-REPOSITORY` is:
 
@@ -58,7 +58,6 @@ mbx nextest run --workspace --lib --no-fail-fast
 ```text
 mbx nextest run -p build-declarations -p build-evaluation -p package-compilation -p package-source -p resolver-execution -p package-evidence -p package-manager --no-fail-fast
 mbx test --doc -p build-declarations -p build-evaluation -p package-compilation -p package-source -p resolver-execution -p package-evidence -p package-manager
-mbx nextest run -p compiler --test build_config_granted --test build_log_facet --test build_target_activation --test checked_build_machine_identity --test evaluated_via_binding --test package_compilation_inputs --no-fail-fast
 ```
 
 Commands work in PowerShell and a POSIX shell as written. Use Cargo if `mbx` is

@@ -71,7 +71,7 @@ Use these gates when establishing or refreshing a full checkout baseline:
 python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
-mbx nextest run -p compiler --test canary_suite --no-fail-fast --no-tests fail -E 'test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)'
+python tools/corpus_gate.py
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
@@ -187,39 +187,21 @@ removing the checkout used to build it.
 
 ### Running one test
 
-```bash
-mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile
-```
+A crate's own tests run by package and name filter:
 
 ```bash
-mbx nextest run -p compiler --test canary_suite proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment
+mbx nextest run -p terminal-verifier boundary_requires
 ```
 
-`canary_suite` is the umbrella target driving the `tests/omega/{pass,fail,run}`
-corpus; its submodules live in `tests/canary_suite/`. Filter by module or
-feature name to run a single group.
-
-The two tests above also select corpus members from
-`OMEGA_PASS_CANARY_FILTER` and `OMEGA_FAIL_CANARY_FILTER`: comma-separated
-trimmed substrings matched against the `group/name` path, so `wire/` takes a
-whole group. Unset runs the whole corpus, and a value matching nothing fails
-the test rather than passing empty. Every other test in the target ignores
-both. `OMEGA_CANARY_JOBS` overrides the outer worker count, which defaults to
-host parallelism capped at 12 and must be a positive integer.
-
-```bash
-OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
-  mbx nextest run -p compiler --test canary_suite entry_and_abi::pass_canary_coverage::pass_canaries_compile
-```
-
-`canary_suite` is not in the baseline gates above and a full run is currently
-red, so a filtered run scoped to what you changed is how a failure gets
-attributed.
+The `compiler` crate has no Rust test targets besides `corpus_runner`. Its
+behavior is tested end to end: a fixture under `tests/omega/{pass,fail,run}` is
+the test, and the corpus gate below runs it. Add a fixture, not a Rust test
+file; see `omega-rust/omega/compiler/compiler/tests/README.md`.
 
 ### Corpus outcome gate
 
-For e2e-visible changes, `tools/corpus_gate.py` is the cheap iteration smoke:
-it runs the `corpus_runner` binary (a `harness = false` test target that
+`tools/corpus_gate.py` is the compiler's end-to-end test. It runs the
+`corpus_runner` binary (a `harness = false` test target that
 compiles every `tests/omega/{pass,fail,run}` fixture through the compile and
 checked-compile routes) and diffs per-fixture outcome records —
 checked/rejected, diagnostic messages, expected-fragment satisfaction, and
@@ -233,8 +215,8 @@ python3 tools/corpus_gate.py --filter wire/,fail/proofs
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
-`--filter` matches the same comma-separated `tier/group/name` fragments as the
-canary filters (also `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
+`--filter` matches comma-separated `tier/group/name` fragments (also
+`OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
 deterministic hash slice for splitting the run across sessions.
 
 To measure what your own change moved, record a baseline once per base commit
@@ -252,9 +234,10 @@ a run against the shared golden cannot separate that drift from yours, and
 re-recording the shared golden would pin their regression as expected. A subset diff
 compares only the fixtures that ran against the same golden; a subset
 `--record` merges into it. The unfiltered corpus is scheduled-workload cost,
-not loop cost — keep it out of routine iteration. This gate does not replace
-the scoped suites AGENTS.md names for internal-only surfaces, and run-tier
-fixtures are compile-checked only, not executed.
+not loop cost — keep it out of routine iteration. It checks fixtures through
+the check route only: nothing here builds the corpus natively or executes the
+run tier. Native coverage comes from `tests/native-differential` and
+`omega refresh-samples`.
 
 ### Bootstrap gates
 
@@ -549,7 +532,7 @@ Configuration that looks wrong but is deliberate:
   `CARGO_PROFILE_DEV_DEBUG=2`.
 - `opt-level = 1` in `[profile.test]` is intentional: a test that compiles
   an Omega program checks the whole assembled program, and unoptimized that
-  is 4.6 times slower (40.0 s against 8.6 s per owner canary test) while the
+  is 4.6 times slower (40.0 s against 8.6 s per program-compiling test) while the
   edit-loop rebuild stays around 13 s. Override per session with
   `CARGO_PROFILE_TEST_OPT_LEVEL=0` when stepping through test code.
 - `.gitattributes` forces LF because canonical source and evidence identities

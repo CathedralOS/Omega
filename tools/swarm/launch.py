@@ -681,10 +681,8 @@ def local_host_block():
     if system == "Darwin" and machine == "x86_64":
         return (
             "You are on Intel macOS (x86_64). `TargetProfile::host()` has no "
-            "macos_x86_64 profile and `canary_suite`'s `native_hosted_target()` "
-            "has no matching cfg arm: host-profiled tests panic with "
-            "`unsupported host profile for Omega native planning` and the "
-            "canary target does not compile here. See "
+            "macos_x86_64 profile: host-profiled tests panic with "
+            "`unsupported host profile for Omega native planning`. See "
             "wiki/drafts/measurements/known_baseline_failures.md. Route omega invocations "
             "through `--target linux_x86_64` (or another declared target) and "
             "report native-host coverage as unavailable, never as passing.")

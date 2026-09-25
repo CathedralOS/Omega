@@ -73,7 +73,7 @@ GATES = {
                       "checked or product stage; every negative fixture "
                       "rejects; individual semantic integration tests pass.",
         "commands": [
-            "mbx nextest run -p compiler --all-targets --no-fail-fast",
+            "python tools/corpus_gate.py",
         ],
     },
     "RC-PCC-REPLAY": {
@@ -96,10 +96,8 @@ GATES = {
                       "verifies, and interprets it using newly supplied "
                       "authority.",
         "commands": [
-            "mbx nextest run -p compiler --test canary_suite --no-fail-fast "
-            "--no-tests fail "
-            "-E 'test(=portable_terminal_reload::"
-            "portable_terminal_product_reloads_across_process_boundary)'",
+            "mbx nextest run -p terminal-codec -p terminal-verifier "
+            "-p terminal-interpreter --no-fail-fast",
         ],
     },
     "RC-BUILD-AND-PACKAGES": {
@@ -114,10 +112,6 @@ GATES = {
             "mbx test --doc -p build-declarations -p build-evaluation "
             "-p package-compilation -p package-source -p resolver-execution "
             "-p package-evidence -p package-manager",
-            "mbx nextest run -p compiler --test build_config_granted "
-            "--test build_log_facet --test build_target_activation "
-            "--test checked_build_machine_identity --test evaluated_via_binding "
-            "--test package_compilation_inputs --no-fail-fast",
         ],
     },
     "RC-NATIVE-MATRIX": {
@@ -136,10 +130,7 @@ GATES = {
                       "stable, actionable diagnostics rather than panics, "
                       "silent fallback, or accidental acceptance.",
         "commands": [
-            "mbx nextest run -p compiler --test canary_suite --no-fail-fast "
-            "--no-tests fail "
-            "-E 'test(=proof_and_float_suites::proof_and_domain_canaries::"
-            "fail_canaries_reject_with_expected_diagnostic_fragment)'",
+            "python tools/corpus_gate.py --filter fail/",
         ],
     },
     "RC-REPRESENTATIVE-PROGRAMS": {
@@ -148,7 +139,7 @@ GATES = {
                       "native product; every documented deterministic "
                       "exit/output oracle passes.",
         "commands": [
-            "mbx nextest run -p compiler --test samples_compile --no-fail-fast",
+            "mbx run -p omega -- refresh-samples",
         ],
         "per_host": True,
     },
@@ -212,6 +203,8 @@ def resolve_command(text, selected_runner):
     argv = shlex.split(text)
     if argv and argv[0] == "mbx":
         argv[0] = selected_runner
+    elif argv and argv[0] == "python":
+        argv[0] = sys.executable
     return argv
 
 

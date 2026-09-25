@@ -48,9 +48,6 @@ DOCUMENTATION_FILES = {
     "tools/rust_producer_omission.md", "tools/testing.md",
     "omega-rust/omega/representations/optimization-core/rules.md",
 }
-DOCUMENTATION_TEST = (
-    "surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus"
-)
 
 # Measured multi-minute library tests by owning package
 # (wiki/drafts/measurements/test_cycle_selection_remeasurement.md), and the routine-diff
@@ -209,15 +206,13 @@ def jev_api_key(root):
     return None
 
 
-def jev_payload(paths, affected, doc_audit_runs, candidates):
+def jev_payload(paths, affected, candidates):
     baseline = [
         "the full omega-architecture-test suite (always runs on every diff)",
         "library tests of every changed crate and its reverse dependencies: "
         + (", ".join(affected) if affected
            else "all crates — the diff touched shared or unknown inputs so "
                 "every library test already runs")]
-    if doc_audit_runs:
-        baseline.append("the documentation canary (audited docs changed)")
     questions = {
         f"needs_run::{c['id']}": {
             "type": "noul",
@@ -293,9 +288,7 @@ def jev_augment(root, runner, paths, affected, commands, disabled, full):
         return summary
     candidates = json.loads(
         JEV_CATALOG.read_text(encoding="utf-8"))["candidates"]
-    doc_audit_runs = any(DOCUMENTATION_TEST in " ".join(c)
-                         for c in commands)
-    payload = jev_payload(paths, affected, doc_audit_runs, candidates)
+    payload = jev_payload(paths, affected, candidates)
     try:
         result = jev_post(root, payload, key)
     except Exception as error:  # augment must never break selection
@@ -369,10 +362,6 @@ def make_plan(root, runner, base, full=False, with_slow_tail=False):
         direct = changed_source_crates(owners, paths)
     commands = [[runner, "nextest", "run", "--locked", "-p",
                  "omega-architecture-test", "--all-targets", "--no-fail-fast"]]
-    if full or documentation_paths:
-        commands.append([runner, "nextest", "run", "--locked", "-p", "compiler",
-                         "--test", "canary_suite", "--no-fail-fast", "--no-tests", "fail",
-                         "-E", f"test(={DOCUMENTATION_TEST})"])
     slow_tail = [
         {"package": owner, "test": name, "measured_seconds": seconds}
         for owner, tests in SLOW_TEST_OWNERS.items()

@@ -20,6 +20,13 @@ does not earn another paragraph. Delete completed work and duplicate aliases;
 Git preserves history. Keep a revision-bound failure only when it changes
 where to resume, and prefer stable symbols/tests over line numbers.
 
+The compiler crate's Rust test targets (`canary_suite`, `samples_compile` and
+the per-feature `compiler --test ...` targets) were deleted; compiler behavior
+is tested through `tests/omega` fixtures and `tools/corpus_gate.py`. Where an
+item's acceptance names one of those tests, the acceptance is the named
+fixture's corpus-gate outcome, plus a native build or run where the item says
+so. Rewrite such an item's acceptance when you next touch it.
+
 [AGENTS.md](AGENTS.md#workflow) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
 [claims registry](tools/claims.md), not the board. A paused strategy is not a

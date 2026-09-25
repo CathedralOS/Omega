@@ -74,17 +74,14 @@ class SelectionTests(unittest.TestCase):
                          ["app", "core"])
         self.assertEqual(self.select("README.md", "Cargo.lock")[0], "all()")
 
-    def test_docs_plan_runs_architecture_and_exact_corpus_check_without_libraries(self):
+    def test_docs_plan_runs_architecture_without_libraries(self):
         with patch.object(affected, "changed_paths", return_value=["README.md"]), \
                 patch.object(affected, "output", return_value=json.dumps(
                     dict(self.metadata, workspace_root=str(self.root)))):
             plan = affected.make_plan(self.root, "mbx", "verified-base")
         self.assertEqual(plan["documentation_paths"], ["README.md"])
-        self.assertEqual(len(plan["commands"]), 2)
-        architecture, corpus = plan["commands"]
-        self.assertIn("omega-architecture-test", architecture)
-        self.assertIn("test(=" + affected.DOCUMENTATION_TEST + ")", corpus)
-        self.assertEqual(corpus[corpus.index("--no-tests") + 1], "fail")
+        self.assertEqual(len(plan["commands"]), 1)
+        self.assertIn("omega-architecture-test", plan["commands"][0])
         self.assertFalse(any("--lib" in command for command in plan["commands"]))
 
     def test_no_change_selects_no_libraries(self):

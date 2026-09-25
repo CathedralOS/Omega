@@ -28,10 +28,8 @@ class BaselineCommandTests(unittest.TestCase):
             ["mbx", "nextest", "run", "-p", "omega-architecture-test",
              "--all-targets", "--no-fail-fast"])
         self.assertEqual(
-            commands["canary-corpus-audit"],
-            ["mbx", "nextest", "run", "-p", "compiler", "--test",
-             "canary_suite", "--no-fail-fast", "--no-tests", "fail", "-E",
-             "test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)"])
+            commands["corpus"],
+            [sys.executable, "tools/corpus_gate.py"])
         self.assertEqual(
             commands["check"],
             ["mbx", "check", "--workspace", "--all-targets"])
@@ -42,7 +40,7 @@ class BaselineCommandTests(unittest.TestCase):
     def test_gate_names_are_stable_and_ordered(self):
         names = [name for name, _ in gate.baseline_commands("cargo")]
         self.assertEqual(names, ["fmt", "clippy", "architecture",
-                                 "canary-corpus-audit", "check", "libraries"])
+                                 "corpus", "check", "libraries"])
 
     def test_runner_prefers_mbx_then_cargo_then_errors(self):
         with patch.object(gate.shutil, "which",
