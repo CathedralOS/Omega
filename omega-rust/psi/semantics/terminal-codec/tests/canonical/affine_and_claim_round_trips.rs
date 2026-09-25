@@ -4,8 +4,8 @@ use super::{
     structural_effect_fixture, unit_fixture, unused_provider_attachment_fixture,
 };
 use crate::canonical::{
-    block_id, claim_id, contract_id, edge_id, machine_id, operation_id, place_id,
-    structural_domain_id, structural_field_id, structural_type_id, value_id,
+    block_id, boundary_machine_id, claim_id, contract_id, edge_id, machine_id, operation_id,
+    place_id, structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_codec::{CodecError, decode_module, encode_module, semantic_fingerprint};
@@ -798,6 +798,41 @@ fn provider_attachment_encoding_requires_exact_direct_call_roots() {
 
     module.machines[0].blocks[0].operations.clear();
     assert_eq!(encode_module(&module), incomplete, "orphan root rejects");
+}
+
+#[test]
+fn provider_attachment_encoding_counts_only_signature_boundary_calls() {
+    let mut module = unused_provider_attachment_fixture();
+    let mut declared = module.boundary_machines[0].clone();
+    declared.id = boundary_machine_id(2);
+    declared.identity = "example::Device::reset".into();
+    declared.attachment = Some(structural_type_id(1));
+    module.boundary_machines.push(declared);
+    module.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    let mut declaration_call = provider_boundary_call();
+    declaration_call.id = operation_id(2);
+    let OperationKind::BoundaryCall { boundary, .. } = &mut declaration_call.kind else {
+        unreachable!()
+    };
+    *boundary = boundary_machine_id(2);
+    module.machines[0].blocks[0]
+        .operations
+        .extend([provider_boundary_call(), declaration_call]);
+    // The declaration machine settles through its own seam and needs no
+    // provider root; the signature call still needs exactly its own.
+    let bytes = encode_module(&module).expect("only the signature call needs a provider root");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    module.machines[0].blocks[0].operations.remove(0);
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "provider-backed attachment specialization is incomplete",
+        )),
+        "a declaration call cannot stand in for the signature call",
+    );
 }
 
 #[test]
