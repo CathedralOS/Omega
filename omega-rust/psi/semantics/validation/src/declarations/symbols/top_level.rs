@@ -37,19 +37,12 @@ pub(crate) enum PrefixSiteEntry {
 
 #[derive(Debug)]
 pub struct TopLevelSymbols<'program> {
-    data_definitions: Vec<DataDefinitionSymbol<'program>>,
     machines: Vec<MachineSymbol<'program>>,
     traits: Vec<TraitSymbol<'program>>,
     types: Vec<TypeSymbol<'program>>,
     /// Demand caches for the write-frame/caller-alias queries. Inserted lazily
     /// by readers; `build` leaves them empty.
     pub(crate) caller_sites: CallerSiteCaches,
-}
-
-#[derive(Debug)]
-struct DataDefinitionSymbol<'program> {
-    name: &'program str,
-    symbol: SymbolHandle,
 }
 
 #[derive(Debug)]
@@ -78,7 +71,6 @@ impl<'program> TopLevelSymbols<'program> {
         let machine_count = program.machines().len();
         let trait_count = program.traits().len();
         let mut symbols = Self {
-            data_definitions: Vec::with_capacity(data_definition_count),
             machines: Vec::with_capacity(machine_count),
             traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
@@ -86,13 +78,28 @@ impl<'program> TopLevelSymbols<'program> {
         };
         symbols.types.reserve(data_definition_count + trait_count);
 
+        // Prior declarations bucketed by name: every conflict check below
+        // used to scan the whole accumulated roster per new declaration.
+        let mut data_by_name: std::collections::HashMap<&str, Vec<SymbolHandle>> =
+            std::collections::HashMap::new();
+        let mut machines_by_name: std::collections::HashMap<
+            &str,
+            Vec<&'program typed_trees::machine::Machine>,
+        > = std::collections::HashMap::new();
+        let mut traits_by_name: std::collections::HashMap<&str, Vec<SymbolHandle>> =
+            std::collections::HashMap::new();
+
         for data_definition in program.data_definitions() {
-            let conflicts = symbols.data_definitions.iter().any(|previous| {
-                previous.name == data_definition.name.as_str()
-                    && !program
-                        .symbols
-                        .source_scopes_separate(previous.symbol, data_definition.symbol)
-            });
+            let conflicts =
+                data_by_name
+                    .get(data_definition.name.as_str())
+                    .is_some_and(|previous| {
+                        previous.iter().any(|previous| {
+                            !program
+                                .symbols
+                                .source_scopes_separate(*previous, data_definition.symbol)
+                        })
+                    });
             if conflicts {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate data `{}`",
@@ -100,34 +107,37 @@ impl<'program> TopLevelSymbols<'program> {
                 )));
             }
 
-            symbols.data_definitions.push(DataDefinitionSymbol {
-                name: data_definition.name.as_str(),
-                symbol: data_definition.symbol,
-            });
             symbols.types.push(TypeSymbol {
                 name: data_definition.name.as_str(),
                 symbol: data_definition.symbol,
             });
+            data_by_name
+                .entry(data_definition.name.as_str())
+                .or_default()
+                .push(data_definition.symbol);
         }
 
         for machine in program.machines() {
-            let same_named = symbols
-                .machines
-                .iter()
-                .filter(|symbol| {
-                    symbol.name == machine.name.as_str()
-                        && !program
-                            .symbols
-                            .source_scopes_separate(symbol.symbol, machine.symbol)
+            let same_named = machines_by_name
+                .get(machine.name.as_str())
+                .map(|previous| {
+                    previous
+                        .iter()
+                        .filter(|previous| {
+                            !program
+                                .symbols
+                                .source_scopes_separate(previous.symbol, machine.symbol)
+                        })
+                        .collect::<Vec<_>>()
                 })
-                .collect::<Vec<_>>();
+                .unwrap_or_default();
             let is_result_overload_family = !same_named.is_empty()
                 && program
                     .normalized_machine_overload_identity(machine)
                     .is_some_and(|identity| {
                         same_named.iter().all(|previous| {
                             program
-                                .normalized_machine_overload_identity(previous.machine)
+                                .normalized_machine_overload_identity(previous)
                                 .is_some_and(|previous_identity| {
                                     previous_identity.path() == identity.path()
                                         && previous_identity.parameters() == identity.parameters()
@@ -146,39 +156,55 @@ impl<'program> TopLevelSymbols<'program> {
                 machine,
                 symbol: machine.symbol,
             });
+            machines_by_name
+                .entry(machine.name.as_str())
+                .or_default()
+                .push(machine);
         }
 
         for trait_definition in program.traits() {
-            if symbols.traits.iter().any(|previous| {
-                previous.name == trait_definition.name.as_str()
-                    && !program
-                        .symbols
-                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
-            }) {
+            if traits_by_name
+                .get(trait_definition.name.as_str())
+                .is_some_and(|previous| {
+                    previous.iter().any(|previous| {
+                        !program
+                            .symbols
+                            .source_scopes_separate(*previous, trait_definition.symbol)
+                    })
+                })
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate trait `{}`",
                     trait_definition.name
                 )));
             }
 
-            if symbols.data_definitions.iter().any(|previous| {
-                previous.name == trait_definition.name.as_str()
-                    && !program
-                        .symbols
-                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
-            }) {
+            if data_by_name
+                .get(trait_definition.name.as_str())
+                .is_some_and(|previous| {
+                    previous.iter().any(|previous| {
+                        !program
+                            .symbols
+                            .source_scopes_separate(*previous, trait_definition.symbol)
+                    })
+                })
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both data and a trait",
                     trait_definition.name
                 )));
             }
 
-            if symbols.machines.iter().any(|previous| {
-                previous.name == trait_definition.name.as_str()
-                    && !program
-                        .symbols
-                        .source_scopes_separate(previous.symbol, trait_definition.symbol)
-            }) {
+            if machines_by_name
+                .get(trait_definition.name.as_str())
+                .is_some_and(|previous| {
+                    previous.iter().any(|previous| {
+                        !program
+                            .symbols
+                            .source_scopes_separate(previous.symbol, trait_definition.symbol)
+                    })
+                })
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both a machine and a trait",
                     trait_definition.name
@@ -194,6 +220,10 @@ impl<'program> TopLevelSymbols<'program> {
                 name: trait_definition.name.as_str(),
                 symbol: trait_definition.symbol,
             });
+            traits_by_name
+                .entry(trait_definition.name.as_str())
+                .or_default()
+                .push(trait_definition.symbol);
         }
 
         symbols
