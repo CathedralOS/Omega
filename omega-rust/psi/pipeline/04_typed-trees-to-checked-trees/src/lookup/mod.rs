@@ -1,6 +1,6 @@
 pub(crate) mod calls;
 mod receivers;
-mod symbols;
+pub(crate) mod symbols;
 
 pub(crate) use calls::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_name_path_member_symbol,
