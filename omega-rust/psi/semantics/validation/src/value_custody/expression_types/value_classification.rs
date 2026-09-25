@@ -265,9 +265,10 @@ fn data_definition_by_symbol<'program>(
     program: &'program TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_position(
+    crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
         program, symbol,
     )
+    .first_position()
     .and_then(|position| program.data_definitions().get(position as usize))
 }
 
