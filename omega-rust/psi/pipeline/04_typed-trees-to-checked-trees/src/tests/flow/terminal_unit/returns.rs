@@ -578,12 +578,12 @@ fn mutable_byte_view_member_record_result_still_declines() {
         .flow
         .terminal_unit_effects
         .omission_for_machine(machine_named(&checked, "pick"))
-        .map(|row| row.stage.clone());
+        .map(|row| row.stage);
     assert!(
         matches!(
             stage,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
-                if *phase == "state graph: result signature"
+            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+                if phase == "state graph: result signature"
         ),
         "a mutable byte-view member still declines at result signature, got {stage:?}"
     );
@@ -634,12 +634,12 @@ fn view_member_result_machines_advance_past_signature() {
             .flow
             .terminal_unit_effects
             .omission_for_machine(machine)
-            .map(|row| row.stage.clone());
+            .map(|row| row.stage);
         assert!(
             !matches!(
                 stage,
-                Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
-                    if *phase == "state graph: result signature"
+                Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+                    if phase == "state graph: result signature"
             ),
             "{name} still declines at result signature: {stage:?}"
         );
