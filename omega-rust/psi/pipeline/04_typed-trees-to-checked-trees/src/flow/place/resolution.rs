@@ -109,147 +109,200 @@ fn container_member_type_position(
     if !parent.is_valid() {
         return ContainerOutcome::Unmapped;
     }
-    if let Some(machine) = machine_by_symbol(program, parent) {
-        if let Some(field) =
-            validation::exact_attached_field(program, machine, symbol, program.symbols.name(symbol))
-        {
-            return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
-        }
-        return program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| owned.symbol == symbol)
-            .map(|owned| {
-                ContainerOutcome::Position(MemberPosition::Reference(owned.type_reference))
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == parent)
-    {
-        return program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
-                    ContainerOutcome::Position(MemberPosition::Reference(field.type_reference)),
-                ),
-                _ => None,
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    // A payload field's parent is its variant and the variant's parent is
-    // the data row, so two hops reach the same field list the scan walks.
+    // The declaring parent's kind names its container class exactly: member
+    // storage is keyed to the declaring container, so a machine-parented
+    // member lives in machine rows and a state member in state rows — never
+    // two classes at once. Dispatching on the row's kind jumps each lookup
+    // straight to its one scan instead of walking every container family in
+    // sequence (the previous order ran up to seven linear scans per call).
+    // Parents whose kind owns no member storage — roots, modules, traits,
+    // domains, signatures' own rows — map to Unmapped, the same result the
+    // all-miss walk produced.
     let grandparent = program.symbols.get(parent).parent;
-    if grandparent.is_valid()
-        && let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == grandparent)
-        && let Some(variant) = program
-            .data_members(data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
-                    Some(variant)
-                }
-                _ => None,
-            })
-    {
-        return program
-            .data_payload_fields(variant)
-            .iter()
-            .find(|field| field.symbol == symbol)
-            .map(|field| {
-                ContainerOutcome::Position(MemberPosition::Reference(field.type_reference))
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    if let Some(state) = crate::semantic::calls::find_state(program, parent) {
-        if let Some(parameter) = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-        {
-            return ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference));
+    match program.symbols.get(parent).kind {
+        symbols::SymbolKind::Machine => {
+            let Some(machine) = machine_by_symbol(program, parent) else {
+                return ContainerOutcome::Unmapped;
+            };
+            if let Some(field) = validation::exact_attached_field(
+                program,
+                machine,
+                symbol,
+                program.symbols.name(symbol),
+            ) {
+                return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
+            }
+            return program
+                .machine_owned_data(machine)
+                .iter()
+                .find(|owned| owned.symbol == symbol)
+                .map(|owned| {
+                    ContainerOutcome::Position(MemberPosition::Reference(owned.type_reference))
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
         }
-        return program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local_data)
-                    if local_data.symbol == symbol =>
-                {
-                    Some(ContainerOutcome::Position(MemberPosition::Reference(
-                        local_data.type_reference,
-                    )))
-                }
-                _ => None,
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
+        symbols::SymbolKind::Data => {
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == parent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            return program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
+                        ContainerOutcome::Position(MemberPosition::Reference(field.type_reference)),
+                    ),
+                    _ => None,
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        // A payload field's parent is its variant and the variant's parent
+        // is the data row, so two hops reach the same field list the scan
+        // walks.
+        symbols::SymbolKind::Variant => {
+            if !grandparent.is_valid() {
+                return ContainerOutcome::Unmapped;
+            }
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == grandparent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            let Some(variant) = program
+                .data_members(data)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
+                        Some(variant)
+                    }
+                    _ => None,
+                })
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            return program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| field.symbol == symbol)
+                .map(|field| {
+                    ContainerOutcome::Position(MemberPosition::Reference(field.type_reference))
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        // States and trait signatures share SymbolKind::State; the row's own
+        // parent separates them — a signature's parent names its trait, a
+        // state member's parent names its state.
+        symbols::SymbolKind::State
+            if grandparent.is_valid()
+                && program.symbols.get(grandparent).kind == symbols::SymbolKind::Trait =>
+        {
+            let Some(trait_definition) = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == grandparent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            let Some(signature) = program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .find(|signature| signature.symbol == parent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            return program
+                .state_signature_parameters(signature)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .map(|parameter| {
+                    ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        symbols::SymbolKind::State => {
+            let Some(state) = crate::semantic::calls::find_state(program, parent) else {
+                return ContainerOutcome::Unmapped;
+            };
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+            {
+                return ContainerOutcome::Position(MemberPosition::Reference(
+                    parameter.type_reference,
+                ));
+            }
+            return program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| match statement {
+                    typed_trees::statement::StatementNode::LocalData(local_data)
+                        if local_data.symbol == symbol =>
+                    {
+                        Some(ContainerOutcome::Position(MemberPosition::Reference(
+                            local_data.type_reference,
+                        )))
+                    }
+                    _ => None,
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        // Domain operators chain through the domain row the way signatures
+        // chain through traits; a top-level operator's parameters resolve on
+        // the operator itself.
+        symbols::SymbolKind::Operator
+            if grandparent.is_valid()
+                && program.symbols.get(grandparent).kind == symbols::SymbolKind::Domain =>
+        {
+            let Some(domain) = program
+                .domain_definitions()
+                .iter()
+                .find(|domain| domain.symbol == grandparent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            let Some(operator) = program
+                .domain_operators(domain)
+                .iter()
+                .find(|operator| operator.symbol == parent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            return program
+                .operator_parameters(operator)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .map(|parameter| {
+                    ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        symbols::SymbolKind::Operator => {
+            let Some(operator) = program
+                .operators()
+                .iter()
+                .find(|operator| operator.symbol == parent)
+            else {
+                return ContainerOutcome::Unmapped;
+            };
+            return program
+                .operator_parameters(operator)
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)
+                .map(|parameter| {
+                    ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+                })
+                .unwrap_or(ContainerOutcome::MappedMiss);
+        }
+        _ => ContainerOutcome::Unmapped,
     }
-    // Trait signatures are checked state signatures: parameter symbols parent
-    // to the signature row and the signature's parent names the trait, so the
-    // same two hops reach the one signature storing the parameter.
-    if grandparent.is_valid()
-        && let Some(trait_definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == grandparent)
-        && let Some(signature) = program
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .find(|signature| signature.symbol == parent)
-    {
-        return program
-            .state_signature_parameters(signature)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-            .map(|parameter| {
-                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    // Operator declarations parent their parameters directly; domain
-    // operators chain through the domain row the way signatures chain
-    // through traits.
-    if let Some(operator) = program
-        .operators()
-        .iter()
-        .find(|operator| operator.symbol == parent)
-    {
-        return program
-            .operator_parameters(operator)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-            .map(|parameter| {
-                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    if grandparent.is_valid()
-        && let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == grandparent)
-        && let Some(operator) = program
-            .domain_operators(domain)
-            .iter()
-            .find(|operator| operator.symbol == parent)
-    {
-        return program
-            .operator_parameters(operator)
-            .iter()
-            .find(|parameter| parameter.symbol == symbol)
-            .map(|parameter| {
-                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
-            })
-            .unwrap_or(ContainerOutcome::MappedMiss);
-    }
-    ContainerOutcome::Unmapped
 }
 
 /// The position a resolved symbol's declared type points at. Unlike
