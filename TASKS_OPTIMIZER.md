@@ -114,8 +114,17 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **CUSTODY-MUTATION-COVERAGE.** Finish migrating legacy custody mutation
   matrices to `psi/foundation/mutation-matrix`'s inventory and substitution
   driver, preserving each family's independent checker.
-  Remaining surfaces include component-publication tests, executable-installation
-  tests, and Terminal codec artifact matrices not yet using the driver.
+  Hand-written `*_rejects_every_one_field_substitution` matrices remain in the
+  Terminal codec artifact tests (float meaning, proof section, proposition
+  vocabulary, recursive component, and both reborrow families), the
+  native-differential `pipeline_ownership` stage matrices over the plain
+  `*FieldForTest` inventories of Omega stages 03-06, the `compiler` crate's
+  custody tests, `image`, `image-emission`, the `native-artifact` semantic
+  wrapper object, `component-description`, `external-roots` root admission,
+  `build-output`, `selected-dispatch` source edits, package review evidence,
+  and the component-era receipts in `effects`. Component-publication's
+  `installed_runnable_component_rejects_every_one_field_substitution` exercises
+  lifecycle joins, not one-field substitutions.
   The topology owner-request `request_custody_fields.rs` is an existing
   shared-driver example, including unrepresentable-field rejection. `optimization-core`
   re-exports the foundation harness; Psi consumers use its foundation owner
@@ -123,8 +132,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Reuse `custody_field_inventory!`, `run_one_field_substitution_matrix`, and
   the `custody_mutation_matrix` architecture gate. Nested installation,
-  optimization-execution custody, and trust-graph custody already use the driver;
-  do not repeat those migrations.
+  optimization-execution custody, trust-graph custody, component-publication
+  external stack provision, the executable-installation container wire, and the
+  Terminal codec debug-map, artifact-envelope, PCC sidecar, obligation-ledger,
+  operation-crash-contract and placed-view-input matrices already use the
+  driver; do not repeat those migrations.
 
   Acceptance: every representable field changes independently, the containing
   identity recomputes honestly, and independent replay rejects the substitution.
