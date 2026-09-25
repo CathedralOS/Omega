@@ -570,10 +570,7 @@ pub fn structural_claim_path(
                     return Err("structural claim traverses an erased field");
                 }
                 path.push(CheckedUnitStructuralPathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field.path_identity(),
                 ));
                 reference = field.type_reference;
             }

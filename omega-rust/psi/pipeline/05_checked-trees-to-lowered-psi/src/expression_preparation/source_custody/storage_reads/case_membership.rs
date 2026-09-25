@@ -110,10 +110,7 @@ pub(crate) fn authored(
                     return Ok(None);
                 }
                 path.push(checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field.path_identity(),
                 ));
                 subject = member.receiver;
             }
@@ -237,9 +234,6 @@ pub(crate) fn authored(
         .ok_or(LoweringError::Unsupported(
             "case observation has no selected case declaration",
         ))?;
-    let identity = case
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| case.name.as_str().to_owned());
+    let identity = case.path_identity();
     Ok(Some((subject, path, identity)))
 }

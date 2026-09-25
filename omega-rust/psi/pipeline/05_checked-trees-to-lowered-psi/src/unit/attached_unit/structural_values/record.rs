@@ -74,10 +74,7 @@ impl emission::Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "record field declaration missing",
                 ))?;
-            let identity = declaration
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| declaration.name.as_str().to_owned());
+            let identity = declaration.path_identity();
             let position = shape_fields
                 .iter()
                 .position(|candidate| candidate.identity == identity)

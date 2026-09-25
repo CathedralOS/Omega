@@ -724,10 +724,7 @@ fn validate_record_stores(
             .ok_or(LoweringError::Unsupported(
                 "record store field declaration is missing",
             ))?;
-        let identity = declaration
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| declaration.name.as_str().to_owned());
+        let identity = declaration.path_identity();
         if store.field_identity != identity {
             return unsupported("record store field drifted from its literal ordinal");
         }
@@ -873,12 +870,7 @@ pub(crate) fn computation_root(
                         checked_trees::data::DataMember::Field(declaration)
                             if declaration.symbol == field.field_symbol =>
                         {
-                            Some(
-                                declaration
-                                    .identity
-                                    .map(|identity| format!("#{identity}"))
-                                    .unwrap_or_else(|| declaration.name.as_str().to_owned()),
-                            )
+                            Some(declaration.path_identity())
                         }
                         _ => None,
                     })

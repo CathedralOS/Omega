@@ -178,10 +178,7 @@ fn validate_stored_descriptor(
             ..TypeIdentityRequest::ordinary(destination.type_reference)
         })
         .into_string();
-    let destination_field_identity = field
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| field.name.as_str().to_owned());
+    let destination_field_identity = field.path_identity();
     let exact_storages = checked
         .facts
         .dynamic_conformances

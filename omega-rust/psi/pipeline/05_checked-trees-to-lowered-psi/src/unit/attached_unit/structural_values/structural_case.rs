@@ -59,10 +59,7 @@ impl emission::Emission<'_, '_, '_> {
             let checked_trees::data::DataMember::Variant(variant) = member else {
                 continue;
             };
-            let identity = variant
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| variant.name.as_str().to_owned());
+            let identity = variant.path_identity();
             if variant.symbol == case_symbol {
                 let case = cases
                     .iter()
@@ -84,10 +81,7 @@ impl emission::Emission<'_, '_, '_> {
                 .iter()
                 .find(|declaration| declaration.symbol == field.field)
                 .ok_or(LoweringError::Unsupported("case field declaration missing"))?;
-            let identity = declaration
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| declaration.name.as_str().to_owned());
+            let identity = declaration.path_identity();
             let position = shape_fields
                 .iter()
                 .position(|candidate| candidate.identity == identity)

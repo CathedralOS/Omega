@@ -271,10 +271,7 @@ impl Preparation<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "scalar record field belongs to another declaration",
                 ))?;
-            let identity = authored
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| authored.name.as_str().to_owned());
+            let identity = authored.path_identity();
             let position = declared_fields
                 .iter()
                 .position(|field| field.identity == identity)

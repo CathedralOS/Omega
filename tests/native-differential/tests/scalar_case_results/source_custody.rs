@@ -126,10 +126,7 @@ fn nested_record_replay_rejects_effectful_operand_and_projected_local_substituti
         .find_map(|member| match member {
             checked_trees::data::DataMember::Field(field) if field.name.as_str() == "second" => {
                 Some(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field.path_identity(),
                 ))
             }
             _ => None,
@@ -245,12 +242,7 @@ fn projected_record_getter_replay_rejects_sibling_root_path_and_endpoint_substit
                 _ => None,
             })
             .unwrap();
-        CheckedUnitStructuralPathSegment::Field(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
-        )
+        CheckedUnitStructuralPathSegment::Field(field.path_identity())
     };
     let inner = declared_field("Outer", "inner");
     let other = declared_field("Outer", "other");

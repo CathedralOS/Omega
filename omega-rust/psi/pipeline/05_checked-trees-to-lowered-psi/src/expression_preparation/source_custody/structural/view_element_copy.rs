@@ -69,12 +69,7 @@ pub(super) fn validate(
         .data_members(record)
         .iter()
         .map(|member| match member {
-            checked_trees::data::DataMember::Field(field) => Some(
-                field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned()),
-            ),
+            checked_trees::data::DataMember::Field(field) => Some(field.path_identity()),
             _ => None,
         })
         .collect::<Option<Vec<_>>>()

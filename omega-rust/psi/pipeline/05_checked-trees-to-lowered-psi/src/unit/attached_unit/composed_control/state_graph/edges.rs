@@ -301,16 +301,14 @@ pub(super) fn validate_bindings(
             }) else {
                 return unsupported("Unit graph case-payload case is missing");
             };
-            if super::cases::identity(variant) != *case_identity {
+            if variant.path_identity() != *case_identity {
                 return unsupported("Unit graph case-payload case identity drifted");
             }
-            let Some(field) = checked.data_payload_fields(variant).iter().find(|field| {
-                field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned())
-                    == *field_identity
-            }) else {
+            let Some(field) = checked
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| field.path_identity() == *field_identity)
+            else {
                 return unsupported("Unit graph case-payload field is missing");
             };
             if checked
