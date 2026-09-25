@@ -30,6 +30,23 @@ const MAP_MARKERS: [&str; 2] = ["HashMap", "BTreeMap"];
 /// cannot serve — the record the "measured reason" clause asks for, grouped
 /// by justification class as in the audit doc.
 const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
+    // Declaration conflicts are defined by equal spellings, and the
+    // builders now run for every machine and resolver: a per-declaration
+    // scan of the tree or of everything collected so far was quadratic.
+    (
+        "omega-rust/psi/semantics/validation/src/declarations/symbols/machine.rs",
+        "member, owned-data and state spellings of one machine — one \
+         children-by-name index per build replaces a `find_child_by_name` walk per member \
+         (first match wins, as that walk did), and the duplicate verdicts are keyed by the \
+         spelling that defines a duplicate; built eagerly for every machine in \
+         `CallFrameResolver::new`",
+    ),
+    (
+        "omega-rust/psi/semantics/validation/src/declarations/symbols/top_level.rs",
+        "top-level data, machine and trait spellings — prior declarations bucketed by name \
+         so each conflict check visits only its own spelling class instead of rescanning the \
+         whole accumulated roster per declaration on every resolver construction",
+    ),
     // A spelling the symbol tree has no entry for: the reference never
     // resolved, or the construct carries a name and no symbol at all.
     (
