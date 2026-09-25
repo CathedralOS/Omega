@@ -66,34 +66,55 @@ fn prove(
         call.statement_index,
         call.call_ordinal,
     )?;
-    let crate::semantic::calls::CallSite::Expression {
-        call: source_call, ..
-    } = &site
-    else {
-        return None;
+    // A bare call to a machine names its entry state; a named transition
+    // names a state of the caller's own machine, whose receiver is the
+    // caller's own `self`.
+    let (callee, callee_state) = match &site {
+        crate::semantic::calls::CallSite::Expression {
+            call: source_call, ..
+        } => {
+            if source_call.target_symbol != call.target_symbol
+                || source_call.receiver.is_valid()
+                || source_call.static_requirement_dispatch.is_some()
+            {
+                return None;
+            }
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol).filter(
+                |(machine, state)| {
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == state.symbol)
+                },
+            )?
+        }
+        crate::semantic::calls::CallSite::TransitionNamed {
+            path,
+            evidence_arguments,
+            ..
+        } => {
+            if path.symbol != call.target_symbol || !evidence_arguments.is_empty() {
+                return None;
+            }
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+                .filter(|(machine, _)| machine.symbol == caller.machine_symbol)?
+        }
+        crate::semantic::calls::CallSite::Statement(_) => return None,
     };
-    if source_call.target_symbol != call.target_symbol
-        || source_call.receiver.is_valid()
-        || source_call.static_requirement_dispatch.is_some()
-    {
+    let transition = matches!(
+        site,
+        crate::semantic::calls::CallSite::TransitionNamed { .. }
+    );
+    let parameters = program.state_parameters(callee_state);
+    if !transition && parameters.iter().any(|parameter| parameter.is_self) {
         return None;
     }
-    // A bare call to a machine names its entry state; a target resolving to
-    // any other state is not the machine-head call this route proves.
-    let callee = crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
-        .and_then(|(machine, state)| {
-            program
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == state.symbol)
-                .then_some(machine)
-        })?;
-    let parameters = program.state_parameters(program.machine_states(callee).first()?);
-    if parameters.iter().any(|parameter| parameter.is_self) {
-        return None;
-    }
+    let explicit = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    if arguments.len() != parameters.len() {
+    if arguments.len() != explicit.len() {
         return None;
     }
     let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
@@ -103,22 +124,38 @@ fn prove(
         caller.state_symbol,
     )?;
     let operand = |expression| match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(literal) => literal.value_i64().map(|value| ((value, value), None)),
+        ExpressionNode::Integer(literal) => literal
+            .value_i64()
+            .map(|value| ((Some(value), Some(value)), None)),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
-            let position = parameters
+            let position = explicit
                 .iter()
                 .position(|parameter| parameter.symbol == path.symbol)?;
-            let parameter = &parameters[position];
-            if parameter.is_mutable || parameter.is_self || parameter.is_const {
+            let parameter = explicit[position];
+            if parameter.is_mutable || parameter.is_const {
                 return None;
             }
             let argument = arguments[position];
             if !super::prover::has_builtin_operators(program, &facts.operators, argument) {
                 return None;
             }
-            let bounds =
+            let (low, high) =
                 validation::immutable_integer_expression_bounds(program, machine, state, argument)?;
-            Some((bounds, Some(parameter.type_reference)))
+            Some(((Some(low), Some(high)), Some(parameter.type_reference)))
+        }
+        // A field of the shared receiver holds what every store to it
+        // enforces at each read, so those bounds hold at arrival. The
+        // callee's own `requires` are never read here.
+        ExpressionNode::Member(_) if transition && receiver_rooted(program, callee, expression) => {
+            let bounds =
+                validation::stored_integer_bounds(program, callee, callee_state, expression)?;
+            let place_type = validation::declared_place_type_raw(
+                program,
+                callee,
+                Some(callee_state),
+                expression,
+            );
+            Some((bounds, place_type))
         }
         _ => None,
     };
@@ -135,13 +172,32 @@ fn prove(
     }
     Some(match binary.operator {
         BinaryOperator::Equal => {
-            left_low == left_high && right_low == right_high && left_low == right_low
+            left_low? == left_high? && right_low? == right_high? && left_low == right_low
         }
-        BinaryOperator::NotEqual => left_high < right_low || right_high < left_low,
-        BinaryOperator::Less => left_high < right_low,
-        BinaryOperator::LessOrEqual => left_high <= right_low,
-        BinaryOperator::Greater => left_low > right_high,
-        BinaryOperator::GreaterOrEqual => left_low >= right_high,
+        BinaryOperator::NotEqual => left_high? < right_low? || right_high? < left_low?,
+        BinaryOperator::Less => left_high? < right_low?,
+        BinaryOperator::LessOrEqual => left_high? <= right_low?,
+        BinaryOperator::Greater => left_low? > right_high?,
+        BinaryOperator::GreaterOrEqual => left_low? >= right_high?,
         _ => return None,
     })
+}
+
+/// Whether a member chain reads a field of the machine's own receiver.
+fn receiver_rooted(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    mut expression: ExpressionHandle,
+) -> bool {
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                expression = member.receiver;
+            }
+            ExpressionNode::Name(path) => {
+                return path.symbol == machine.symbol && path.head_symbol == machine.symbol;
+            }
+            _ => return false,
+        }
+    }
 }
