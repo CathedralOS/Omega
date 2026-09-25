@@ -130,6 +130,7 @@ pub(super) fn canonical_template_contract_bytes(
         language_semantics::MachineSupplyMode::AdmissionClaim => 4,
         language_semantics::MachineSupplyMode::ExternalRealization { .. } => 5,
         language_semantics::MachineSupplyMode::TopLevelRequirement => 6,
+        language_semantics::MachineSupplyMode::TargetSibling => 7,
     });
     for (index, parameter) in parameters.iter().enumerate() {
         bytes.push(match parameter.kind {

@@ -301,6 +301,7 @@ pub(super) fn project<'a>(
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
         | MachineSupplyMode::ExternalRealization { .. }
+        | MachineSupplyMode::TargetSibling
             if machine.body_is_present =>
         {
             return Err(vec![Diagnostic::error(format!(
@@ -312,7 +313,8 @@ pub(super) fn project<'a>(
         | MachineSupplyMode::AdmissionClaim
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Requirement
-        | MachineSupplyMode::ExternalRealization { .. } => {}
+        | MachineSupplyMode::ExternalRealization { .. }
+        | MachineSupplyMode::TargetSibling => {}
     }
     let has_checked_body = machine.body_is_present
         && matches!(
@@ -363,6 +365,11 @@ pub(super) fn project<'a>(
         MachineSupplyMode::AdmissionClaim => PackageReviewCallableSupply::AdmissionClaim,
         MachineSupplyMode::ExternalRealization { .. } => {
             PackageReviewCallableSupply::ExternalRealization
+        }
+        MachineSupplyMode::TargetSibling => {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{subject}` is another target's sibling declaration; siblings are pruned before review"
+            ))]);
         }
     };
 

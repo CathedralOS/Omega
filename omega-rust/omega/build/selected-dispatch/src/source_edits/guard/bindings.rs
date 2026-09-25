@@ -170,9 +170,11 @@ pub(super) fn capture(
                 }
             }
             if found != 1 {
-                return Err(rejected(
-                    "a called symbol without one exact entry signature",
-                ));
+                return Err(rejected(&format!(
+                    "a called symbol without one exact entry signature: `{}` ({:?}, {found} found)",
+                    program.symbols.display_path(symbol, "::"),
+                    declaration.kind,
+                )));
             }
         }
         SymbolKind::Operator => {

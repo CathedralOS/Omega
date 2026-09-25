@@ -36,6 +36,17 @@ pub struct Machine {
     /// semantic consumers must not reconstruct supply from source spelling or
     /// body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
+    /// The target this body belongs to when it is a sibling of the selected
+    /// target's declaration (`<target> machine ...`): retained so every
+    /// target's bodies are checked, never selected by conformance or
+    /// attachment lookups, and pruned once checking has committed. `None`
+    /// for the selected declaration and every ordinary machine.
+    pub target: Option<DiagnosticName>,
+    /// A sibling's symbol spelling, `<path>::<target>`, so the symbol table
+    /// keeps one root machine per authored path for name lookups while the
+    /// record's `name` stays the authored family path. Empty for every other
+    /// machine.
+    pub target_symbol_name: DiagnosticName,
     /// Exact source-body presence retained independently from supply mode.
     /// Boundary supply admits both bodyless host declarations and checked
     /// adapters, so downstream review must not reconstruct this distinction
@@ -73,6 +84,18 @@ pub struct Machine {
     pub compiler_selection_partition:
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     pub storage: MachineStorage,
+}
+
+impl Machine {
+    /// The spelling of this machine's symbol in the symbol table: the
+    /// authored name, or `<name>::<target>` for a target sibling.
+    pub fn symbol_spelling(&self) -> &str {
+        if self.target.is_some() {
+            self.target_symbol_name.as_str()
+        } else {
+            self.name.as_str()
+        }
+    }
 }
 
 /// Compiler-owned derivation, separate from trait-default selection partitions.

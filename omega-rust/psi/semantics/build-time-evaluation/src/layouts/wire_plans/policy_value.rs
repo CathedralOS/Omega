@@ -15,9 +15,7 @@ pub(super) fn evaluate_wire_policy(
     custody: crate::BuildTimeInvocationCustody,
 ) -> Result<Vec<WirePlacement>, String> {
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == WIRE_GRAMMAR_POLICY)
+        .realized_machine_named(WIRE_GRAMMAR_POLICY)
         .expect("caller checked the policy exists");
     admission.require_common_floor_for_invocation(typed, machine, custody)?;
 

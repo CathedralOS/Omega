@@ -63,6 +63,8 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         spelling: Some(language_core::operator_spelling::OperatorSpelling::Add),
         is_public: true,
         supply_mode: Default::default(),
+        target: None,
+        target_symbol_name: Default::default(),
         body_is_present: true,
         has_structural_type_equations: false,
         structural_type_equations_pending: false,

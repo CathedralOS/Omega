@@ -107,9 +107,7 @@ pub fn compute_native_layout_plan(
     let schema_value = build_schema_value(typed, schema_data, &schema_fields)?;
 
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == policy_machine)
+        .realized_machine_named(policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
     match custody {
@@ -461,13 +459,9 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
     byte_order: ByteOrder,
     destination: &mut [u8],
 ) -> Result<(), MaterializationDiagnostic> {
-    let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == value_machine)
-        .ok_or_else(|| {
-            MaterializationDiagnostic(format!("no machine named `{value_machine}` exists"))
-        })?;
+    let machine = typed.realized_machine_named(value_machine).ok_or_else(|| {
+        MaterializationDiagnostic(format!("no machine named `{value_machine}` exists"))
+    })?;
     let states = typed.machine_states(machine);
     let [entry] = states else {
         return Err(MaterializationDiagnostic(format!(

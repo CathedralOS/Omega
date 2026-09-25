@@ -48,22 +48,25 @@ only. These items land in order, and each deletes the side doors it replaces.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
-  Psi stage. Today `build_evaluation::target_machines::filter_target_machines_by_scope`
-  clears the marker on the selected target's bodies before resolution and
-  resolution's `lower_machine_into` skips every still-marked body, so an
-  unselected target's bodies are never checked and callers of an unselected
-  family fail resolution. Resolution admits every body of a family under one
-  path keyed by target; typing and checking check each body; lowering and
-  Terminal Psi retain the tag; a call names the family. Delete the filter,
-  `select_target_machines`, `settle_provider_defaults`, the
-  `SelectedTargetMachineDeclarations` custody and the generated-source
-  `filter_generated_extension` route. Acceptance: `omega --check` of
-  `samples/cli/basics/cli_mvp/main.omg` with no `--target` checks all six
-  `source/library/std/targets/*` trees in one Stage 05 run; a deliberate type
-  error in `std/targets/macos_arm64/filesystem_impl.omg` rejects that check on
-  a Windows host; `omega inspect-terminal` shows each body under its family
-  with its target tag.
-
+  Psi stage. Landed so far: every body of a non-selected target lowers as a
+  sibling declaration (authored name, symbol `<path>::<target>`, `target`
+  on the record, no conformances, bodyless siblings with
+  `MachineSupplyMode::TargetSibling`), calls inside a sibling bind to the same
+  target's siblings (`symbols/target_siblings.rs`), and `prune_target_siblings`
+  drops them after plan-fact binding, so a compile on any host checks all six
+  `source/library/std/targets/*` trees (`omega --check` of `cli_mvp` runs Stage
+  05 over every tree; `tests/omega/fail/targets/sibling_body_type_error_rejected`
+  pins a `demo_target` type error on every host). Remaining: the transitional
+  pre-resolution selection in
+  `build_evaluation::target_machines::filter_target_machines_by_scope` still
+  clears the selected target's marker and validates the one-body-per-target
+  rule, and siblings never reach Terminal Psi. Replace both with a family
+  record (one path, bodies keyed by target) that lowering and Terminal Psi
+  retain, so `omega inspect-terminal` shows each body under its family with
+  its target tag and Omega selects the body at realization
+  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Known cost:
+  each std check pass now checks six target trees (`cli_mvp` check 36 s ->
+  81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
   contract source (`source_assembly::entry_contract_seed` seeds one target's
@@ -463,6 +466,20 @@ the complete product bar; focused successes below do not establish that baseline
   `filesystem`. Their shared owner is
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
+
+  Method that works, and one cause closed by it (cab36531c8f). The phase the
+  message carries is the only pointer: grep it verbatim under
+  `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
+  -- then replace the `?` exits marked after it with `let .. else` probes that
+  name the machine, since most hits are unrelated machines legitimately
+  declining. `attached data shape` led to `add_data_shape` rejecting a field,
+  and outward to `UInt`/`Int`: the builtin UNBOUNDED integers have no width and
+  so no layout, and a relevant field naming one killed its whole declaration
+  silently. Nine authored files did that. The declaration now refuses instead.
+  Re-measure after each such fix rather than assuming one cause covers the
+  cohort: the dungeon sample advanced to a different phase, `call operation:
+  structural arguments: parameter path`, and `samples/cli/basics/cli_mvp`
+  now checks clean.
 
   Distinct remaining probes, with the cause each now reports (measured
   2026-09-24 through `tools/corpus_gate.py`, so targetless -- a probe whose

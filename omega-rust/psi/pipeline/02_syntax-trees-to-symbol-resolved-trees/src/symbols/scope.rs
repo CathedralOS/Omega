@@ -41,9 +41,13 @@ pub(super) fn attached_machines(
                     )
                 })
             });
+            // A target sibling is checked but never an ambient method of the
+            // realized program; its own target's bodies reach it through
+            // sibling binding.
             (!closed_realization
                 && machine.symbol.is_valid()
-                && machine.attached_data_symbol.is_valid())
+                && machine.attached_data_symbol.is_valid()
+                && machine.target.is_none())
             .then_some(AttachedMachine {
                 owner: machine.attached_data_symbol,
                 machine: machine.symbol,

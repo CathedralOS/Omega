@@ -1,0 +1,1 @@
+data `Counter` field `calls` stores unbounded integer type `UInt`, which has no runtime representation

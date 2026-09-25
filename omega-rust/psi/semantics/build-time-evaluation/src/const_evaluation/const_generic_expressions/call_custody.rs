@@ -869,11 +869,7 @@ mod tests {
         )
         .expect("checked closure");
         let program = &checked.typed;
-        let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "probe")
-            .unwrap();
+        let machine = program.realized_machine_named("probe").unwrap();
         let state = &program.machine_states(machine)[0];
         let [StatementNode::Expression(expression)] =
             program.statement_table.statements(state.statement_nodes)
@@ -913,12 +909,7 @@ mod tests {
         else {
             panic!("probe call");
         };
-        call.target_symbol = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "touch")
-            .unwrap()
-            .symbol;
+        call.target_symbol = program.realized_machine_named("touch").unwrap().symbol;
         assert!(
             collect(&changed, machine, state, *expression, false, &syntax).is_err(),
             "a changed callee cannot reuse the original authored selection"

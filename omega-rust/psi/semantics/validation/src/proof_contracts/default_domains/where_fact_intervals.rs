@@ -249,6 +249,35 @@ pub fn data_where_field_intervals(
     )
 }
 
+/// The interval a store to `target` must land in when the target is a field
+/// of data whose facts are all interval-only: every store re-proves its own
+/// field's interval, which is then the whole default domain for that field.
+pub(crate) fn stored_field_where_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    target: ExpressionHandle,
+) -> Option<Interval> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(target) else {
+        return None;
+    };
+    let definition =
+        data_definition_for_expression(program, machine, Some(state), member.receiver)?;
+    let field = program
+        .data_members(definition)
+        .iter()
+        .find_map(|candidate| match candidate {
+            typed_trees::data::DataMember::Field(field) if field.name == member.member => {
+                Some(field)
+            }
+            _ => None,
+        })?;
+    data_where_field_intervals(program, definition)?
+        .into_iter()
+        .find(|(symbol, _, _)| *symbol == field.symbol)
+        .map(|(_, low, high)| Interval { low, high })
+}
+
 fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program

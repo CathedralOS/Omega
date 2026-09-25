@@ -27,6 +27,7 @@ mod propositions;
 mod scope;
 mod scoped_paths;
 mod statements;
+pub(crate) mod target_siblings;
 mod targets;
 mod top_level;
 mod type_references;

@@ -232,9 +232,7 @@ fn admit_policy_invocations(
         return Ok(());
     };
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == policy_machine)
+        .realized_machine_named(policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
     for source in invocation_sources {

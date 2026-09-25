@@ -97,6 +97,7 @@ fn machine_record_carries_one_public_termination_interface() {
             // STR7: the first-class supply mode is populated once at the
             // syntax-to-resolved boundary and copied downstream.
             supply_mode: _,
+            target: _,
             // TPR2 (2026-07-16): the normalized guarantee/witness split.
             termination_plan: _,
             // EFX: the normalized, symbol-resolved service row is the only

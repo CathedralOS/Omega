@@ -127,7 +127,8 @@ pub(super) fn project_callable_conformances(
         | MachineSupplyMode::Requirement
         | MachineSupplyMode::TopLevelRequirement
         | MachineSupplyMode::Boundary
-        | MachineSupplyMode::AdmissionClaim => None,
+        | MachineSupplyMode::AdmissionClaim
+        | MachineSupplyMode::TargetSibling => None,
     };
     let mut projected = Vec::new();
     let mut operator_realizations = Vec::new();

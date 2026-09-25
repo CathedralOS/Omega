@@ -30,6 +30,10 @@ pub struct Machine {
     /// Copied from symbol-resolved trees; semantic consumers must not
     /// reconstruct supply from source spelling or body presence.
     pub supply_mode: language_semantics::MachineSupplyMode,
+    /// Copied from symbol-resolved trees: the target of a sibling body that
+    /// is checked here and pruned before lowering; `None` for the selected
+    /// declaration and every ordinary machine.
+    pub target: Option<Identifier>,
     /// Exact source-body presence copied from symbol-resolved trees. Boundary
     /// supply can be either bodyless or a checked adapter.
     pub body_is_present: bool,
@@ -60,6 +64,20 @@ pub struct Machine {
     pub states: HandleSpan<State>,
 }
 
+impl Machine {
+    /// The spelling of this machine's symbol in the symbol table: the
+    /// authored name, or `<name>::<target>` for a target sibling, whose
+    /// symbol is kept apart from the realized declaration's.
+    pub fn symbol_spelling(&self) -> std::borrow::Cow<'_, str> {
+        match &self.target {
+            Some(target) => {
+                std::borrow::Cow::Owned(format!("{}::{}", self.name.as_str(), target.as_str()))
+            }
+            None => std::borrow::Cow::Borrowed(self.name.as_str()),
+        }
+    }
+}
+
 impl Default for Machine {
     fn default() -> Self {
         Self {
@@ -72,6 +90,7 @@ impl Default for Machine {
             spelling: None,
             is_public: false,
             supply_mode: language_semantics::MachineSupplyMode::CheckedBody,
+            target: None,
             body_is_present: true,
             structural_type_equations_pending: false,
             termination_plan: language_semantics::MachineTerminationPlan::default(),

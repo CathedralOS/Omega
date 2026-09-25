@@ -3,6 +3,7 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use package_compilation::PackageCompilationInputs;
 use source::SourceOrigin;
+use std::collections::HashSet;
 use symbols::SymbolKind;
 
 /// Opaque proof that the exact pre-build package source closure passed the
@@ -34,11 +35,16 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
     // handoff.
+    // The other targets' sibling bodies are checked once, in the settled
+    // pass; this provisional pass admits declarations only.
+    let mut provisional = typed.clone();
+    let pruned_occurrences =
+        typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
     let checked = crate::checking::phase_transitions::typed_trees_to_preliminary_checked_trees(
-        typed.clone(),
+        provisional,
         timings,
     )?;
-    validate_authored_declaration_selections(&checked, packages)?;
+    validate_authored_declaration_selections_skipping(&checked, packages, &pruned_occurrences)?;
     let base = package_compilation::derive_package_compilation_subject(
         &checked,
         packages,
@@ -53,9 +59,26 @@ pub(crate) fn validate_authored_declaration_selections(
     program: &CheckedTrees,
     packages: &PackageCompilationInputs,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Siblings are still present at this point; their selections resolve
+    // under their own target's realization and are pruned with them.
+    let sibling_occurrences =
+        typed_trees_to_checked_trees::target_sibling_selection_occurrences(program);
+    validate_authored_declaration_selections_skipping(program, packages, &sibling_occurrences)
+}
+
+/// `skipped` names the selections recorded inside bodies a provisional check
+/// pruned before checking; they belong to another target's realization.
+fn validate_authored_declaration_selections_skipping(
+    program: &CheckedTrees,
+    packages: &PackageCompilationInputs,
+    skipped: &HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
     for selection in program.authored_declaration_selections() {
+        if skipped.contains(&selection.occurrence_id()) {
+            continue;
+        }
         let source_span = selection.source_span();
         let Some(source_file) = program.symbols.source_file(source_span) else {
             diagnostics.push(
@@ -98,6 +121,12 @@ pub(crate) fn validate_authored_declaration_selections(
             }
             AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
         };
+        // A selection recorded inside a target sibling's body was checked for
+        // that target and pruned with it; it is not a selection this
+        // realization admits.
+        if !typed_trees::visibility::owning_machine_is_retained(program, selected) {
+            continue;
+        }
 
         // Primitive types and compiler builtin functions have exact semantic
         // identity but intentionally have no package or authored toolchain

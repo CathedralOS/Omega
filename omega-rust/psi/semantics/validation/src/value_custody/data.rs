@@ -63,9 +63,56 @@ pub(crate) fn validate_data_field_types(
                     type_parameters,
                     &data_definition.lifetime_parameters,
                 );
+                validate_stored_field_has_a_representation(
+                    program,
+                    data_definition,
+                    field,
+                    diagnostics,
+                );
             }
         }
     }
+}
+
+/// A relevant field must have a runtime representation. `UInt` and `Int` are
+/// the unbounded builtin integers: they carry no width, so no layout exists
+/// for them and shape construction declines the whole declaration.
+///
+/// Without this the decline is silent. It propagates outward -- the owning
+/// data has no shape, so an attached machine has no signature, so its unit
+/// plan is omitted -- and surfaces far away as "selected ProgramEntry
+/// establishment rejoins 0 Terminal attachment identities ... omitted at local
+/// construction at `state graph: state signature: parameter signature:
+/// attached data shape`", which names neither the field nor its type. The
+/// dungeon-crawler sample reached that message through `Main.game` ->
+/// `Game.dungeon` -> `Dungeon.random` -> `RandomState.calls: UInt`.
+///
+/// An `[erased]` field is proof-only and keeps no representation, so it may
+/// name either type.
+fn validate_stored_field_has_a_representation(
+    program: &TypedTrees,
+    data_definition: &typed_trees::data::DataDefinition,
+    field: &typed_trees::data::DataField,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if field.relevance.is_erased() {
+        return;
+    }
+    let typed_trees::types::TypeReferenceNode::Named { name, .. } = program
+        .type_reference_table
+        .type_reference(field.type_reference)
+    else {
+        return;
+    };
+    let Some(builtin) = symbols::BuiltinType::from_name(name.as_str()) else {
+        return;
+    };
+    diagnostics.push(Diagnostic::error(format!(
+ "data `{}` field `{}` stores unbounded integer type `{}`, which has no runtime representation; use a sized integer such as `u64` or `i64`, or declare the field `[erased]` to keep it proof-only",
+        data_definition.name.as_str(),
+        field.name.as_str(),
+        builtin.name(),
+    )));
 }
 
 /// Whether zero-filled storage is already an established value of this type.

@@ -240,6 +240,21 @@ pub(super) fn validate(
                 diagnostics,
             );
         }
+        if let Some(stated) = current_state.and_then(|state| {
+            crate::proof_contracts::default_domains::stored_field_where_interval(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
+        }) {
+            arithmetic_domains::check_where_interval_containment(
+                stated,
+                interval,
+                &owner,
+                diagnostics,
+            );
+        }
     }
     // Analyze the RHS against pre-store facts, then invalidate every
     // spelling of the storage before recording the new target value.
