@@ -29,6 +29,16 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
 ) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
 
+    // Call-argument destinations resolve their callee state by symbol; one
+    // index over the frozen machine/state table replaces a per-call scan.
+    let mut state_targets =
+        symbols::SymbolKeyMap::<SymbolHandle, &typed_trees::state::State>::default();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            state_targets.entry(state.symbol).or_insert(state);
+        }
+    }
+
     // Aggregate fields and value-call arguments carry their destination types
     // in the typed expression graph itself.
     for (handle, expression) in program.expression_table.expression_entries() {
@@ -61,6 +71,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
             }
             ExpressionNode::Call(call) => collect_call_destinations(
                 program,
+                &state_targets,
                 call.target_symbol,
                 program.expression_table.expression_handles(call.arguments),
                 &mut destinations,
@@ -88,6 +99,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
                     }
                     StatementNode::Call(call) => collect_call_destinations(
                         program,
+                        &state_targets,
                         call.target_symbol,
                         program.statement_table.expression_handles(call.arguments),
                         &mut destinations,
@@ -114,6 +126,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
                                 } => {
                                     collect_call_destinations(
                                         program,
+                                        &state_targets,
                                         path.symbol,
                                         program.statement_table.expression_handles(*arguments),
                                         &mut destinations,
@@ -142,6 +155,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals_from(
 
 fn collect_call_destinations(
     program: &TypedTrees,
+    state_targets: &symbols::SymbolKeyMap<SymbolHandle, &typed_trees::state::State>,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
     destinations: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -149,12 +163,7 @@ fn collect_call_destinations(
     if !target_symbol.is_valid() {
         return;
     }
-    let Some(target) = program.machines().iter().find_map(|machine| {
-        program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == target_symbol)
-    }) else {
+    let Some(target) = state_targets.get(&target_symbol).copied() else {
         return;
     };
     let parameters = program
