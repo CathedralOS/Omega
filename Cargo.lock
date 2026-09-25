@@ -906,7 +906,6 @@ dependencies = [
  "target-operations",
  "task-plans",
  "terminal-codec",
- "terminal-fixed-fuel",
  "terminal-fuel",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
