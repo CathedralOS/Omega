@@ -145,7 +145,12 @@ fn append_where_requirements(
 ) {
     // A gated definition's own facts are withheld: its ZII storage does not
     // satisfy them, so seeding them at entry would assume false premises.
-    if !definition.zero_gated {
+    // Facts that each bound one of the definition's own fields by a literal
+    // are withheld too: they already bound those fields' Terminal carriers,
+    // which every store proves and every read assumes.
+    if !definition.zero_gated
+        && validation::data_where_field_intervals(program, definition).is_none()
+    {
         for fact in program.proof_facts.span_or_empty(definition.where_facts) {
             let ProofFact::Expression(expression) = fact else {
                 continue;

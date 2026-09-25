@@ -67,9 +67,11 @@ fn entry_receiver_standing_bound_is_a_runtime_requirement() {
          data Main<'s>
          where
              value <= 60,
+             value <= limit,
          {
              console: &'s mut Console;
              value: i32;
+             limit: i32;
          }
          machine Main::main(&mut self) reaches Console {
              let return_code: i32 = 70 + self.value;
@@ -90,8 +92,10 @@ fn nested_standing_bound_reaches_the_receiver_path() {
          data Map
          where
              value <= 60,
+             value <= limit,
          {
              value: i32;
+             limit: i32;
          }
          data Main<'s> { console: &'s mut Console; map: Map; }
          machine Main::main(&mut self) reaches Console {
@@ -113,8 +117,10 @@ fn fixed_array_element_facts_publish_at_their_indexed_paths() {
          data Map
          where
              value <= 60,
+             value <= limit,
          {
              value: i32;
+             limit: i32;
          }
          data Main<'s> { console: &'s mut Console; maps: [Map; 2]; }
          machine Main::main(&mut self) reaches Console {
@@ -245,10 +251,12 @@ fn erased_field_facts_are_withheld() {
          where
              witness <= 60,
              value <= 60,
+             value <= limit,
          {
              witness [erased]: i32;
              console: &'s mut Console;
              value: i32;
+             limit: i32;
          }
          machine Main::main(&mut self) reaches Console {
              self.console.exit_process(70);
@@ -293,22 +301,35 @@ fn non_entry_machines_keep_facts_as_write_obligations() {
     );
     let requirements = machine_requirements(&checked, "main");
     assert!(
-        requirements.iter().any(|requirement| {
-            matches!(requirement,
-                CheckedBooleanExpression::IntegerComparison {
-                    kind: CheckedIntegerComparisonKind::LessOrEqual,
-                    left,
-                    right,
-                } if matches!(left.as_ref(),
-                    CheckedScalarExpression::StructuralParameterField { path, .. }
-                        if path == &[
-                            CheckedStructuralPredicatePathSegment::Field("meter".to_string()),
-                            CheckedStructuralPredicatePathSegment::Field("count".to_string()),
-                        ]
-                ) && matches!(right.as_ref(),
-                    CheckedScalarExpression::IntegerLiteral { .. })
-            )
-        }),
-        "the entry receiver's nested bound should be emitted: {requirements:?}"
+        requirements.is_empty(),
+        "an interval-only fact bounds the field's carrier, not the entry: {requirements:?}"
+    );
+}
+
+/// Facts that each bound one of the data's own fields by a literal make those
+/// fields bounded Terminal carriers, which every store proves and every read
+/// assumes. Restating them as entry requirements would only add a contract
+/// that observes the mutable receiver.
+#[test]
+fn interval_only_facts_bound_their_fields_instead_of_the_entry() {
+    let checked = checked(
+        "boundary trait Console { machine exit_process(code: i32) reaches Console; }
+         data Main<'s>
+         where
+             value <= 60,
+             0 <= value,
+         {
+             console: &'s mut Console;
+             value: i32;
+         }
+         machine Main::main(&mut self) reaches Console {
+             let return_code: i32 = 70 + self.value;
+             self.console.exit_process(return_code);
+         }",
+    );
+    let requirements = machine_requirements(&checked, "main");
+    assert!(
+        requirements.is_empty(),
+        "interval-only facts belong to the field carrier: {requirements:?}"
     );
 }
