@@ -15,11 +15,21 @@
 //! over a different program can never observe the outer program's plans.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use flow_effects::{OperationalPlan, ServiceReachInferencePlan};
+use typed_trees::types::TypeReferenceHandle;
+
+use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 
 type OperationalSlot = Option<Option<(*const typed_trees::TypedTrees, OperationalPlan)>>;
 type ServiceReachSlot = Option<Option<(*const typed_trees::TypedTrees, ServiceReachInferencePlan)>>;
+type ClaimFrontierSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        HashMap<TypeReferenceHandle, Vec<ClaimFrontierClaim>>,
+    )>,
+>;
 
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
@@ -27,6 +37,9 @@ thread_local! {
     /// for the program currently being checked.
     static OPERATIONAL_PLAN_SLOT: RefCell<OperationalSlot> = const { RefCell::new(None) };
     static SERVICE_REACH_PLAN_SLOT: RefCell<ServiceReachSlot> = const { RefCell::new(None) };
+    /// The claim frontier memoizes per queried type reference rather than a
+    /// single plan; the map itself is the stored plan for the scoped program.
+    static CLAIM_FRONTIER_SLOT: RefCell<ClaimFrontierSlot> = const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -34,6 +47,7 @@ thread_local! {
 pub struct ProgramPlanScopeGuard {
     operational: OperationalSlot,
     service_reach: ServiceReachSlot,
+    claim_frontiers: ClaimFrontierSlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -43,6 +57,9 @@ impl Drop for ProgramPlanScopeGuard {
         });
         SERVICE_REACH_PLAN_SLOT.with(|cell| {
             *cell.borrow_mut() = self.service_reach.take();
+        });
+        CLAIM_FRONTIER_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.claim_frontiers.take();
         });
     }
 }
@@ -54,6 +71,8 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         operational: OPERATIONAL_PLAN_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         service_reach: SERVICE_REACH_PLAN_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        claim_frontiers: CLAIM_FRONTIER_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -79,6 +98,63 @@ pub fn memoized_operational_plan(program: &typed_trees::TypedTrees) -> Operation
         }
     });
     plan
+}
+
+/// The exact linear claim frontier of a type is pure in the program, and
+/// each caller's walk rebuilds the declaration/parameter indexes before
+/// recursing; inside a scope, each queried type reference walks once.
+pub(crate) fn memoized_claim_frontier(
+    program: &typed_trees::TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<ClaimFrontierClaim> {
+    enum SlotState {
+        NoScope,
+        Hit(Vec<ClaimFrontierClaim>),
+        Miss,
+        ForeignProgram,
+    }
+    let state = CLAIM_FRONTIER_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&type_reference)
+                        .cloned()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(claims) = state {
+        return claims;
+    }
+    let claims = crate::value_custody::claim_frontier::linear_claim_frontier_uncached(
+        program,
+        type_reference,
+    );
+    if matches!(state, SlotState::Miss) {
+        CLAIM_FRONTIER_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert(type_reference, claims.clone());
+                    }
+                    slot_none @ None => {
+                        *slot_none =
+                            Some((program, HashMap::from([(type_reference, claims.clone())])));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    claims
 }
 
 pub fn memoized_service_reach_plan(

@@ -30,6 +30,18 @@ pub fn linear_claim_frontier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
+    crate::machine_calls::effect_inference::plan_scope::memoized_claim_frontier(
+        program,
+        type_reference,
+    )
+}
+
+/// The uncached whole-table walk; the memoized entry routes here on a miss or
+/// when no program plan scope is open.
+pub(crate) fn linear_claim_frontier_uncached(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Vec<ClaimFrontierClaim> {
     let mut claims = Vec::new();
     // Data definitions are only ever identified by their own symbol during
     // the walk; index them once so each named-type expansion is O(1) instead
