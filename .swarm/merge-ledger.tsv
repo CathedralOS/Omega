@@ -214,3 +214,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T15:35:16Z	46bc16663a	leaf/data-def-position-memo	coordinator	symbol-keyed data-definition positions in plan scope
 2026-09-25T15:43:33Z	5f8124c824	leaf/storage-contents-lookup	coordinator	memoized definition lookup + drop-hook in storage contents
 2026-09-25T15:52:31Z	7b2b6ef7f0	leaf/invocation-state-index	coordinator	indexed state->machine in invocation inference + definition lookups
+2026-09-25T16:01:03Z	342956ffb7	leaf/data-def-lookup-sweep	coordinator	validation-wide data-definition lookup memo
