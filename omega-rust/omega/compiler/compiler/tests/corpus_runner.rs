@@ -134,6 +134,33 @@ fn check_fail_fixture(root_path: &Path) -> Result<(), Vec<diagnostics::Diagnosti
     compile_to_checked(request).map(|_| ())
 }
 
+/// A fail fixture whose refusal belongs to a stage after checking -- a layout
+/// size overflow, target lowering, provider selection -- checks clean on the
+/// targetless route above and would otherwise be recorded as having stopped
+/// rejecting. Realize it for the host before concluding that: the rejection is
+/// real, it simply lives past where `compile_to_checked` stops.
+fn realize_fail_fixture(
+    root_path: &Path,
+    build_dir: PathBuf,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let options = CompileOptions {
+        root_path: root_path.to_path_buf(),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+    };
+    let package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(RequestedCompileProduct::NativeArtifact);
+    if let Some(package_inputs) = package_inputs {
+        request = request.with_package_inputs(package_inputs);
+    }
+    let result = compiler::compile(request)
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .map(|_| ());
+    let _ = fs::remove_dir_all(&build_dir);
+    result
+}
+
 /// Whether the fixture's expected fragments all appear in the diagnostics it
 /// produced, or `None` when the question does not arise.
 ///
@@ -172,10 +199,13 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .unwrap_or(&fixture_dir)
         .to_string_lossy()
         .replace('\\', "/");
-    let outcome = match tier {
+    let mut outcome = match tier {
         "fail" => check_fail_fixture(main),
         _ => check_pass_fixture(main, unique_build_dir(sequence)),
     };
+    if tier == "fail" && outcome.is_ok() {
+        outcome = realize_fail_fixture(main, unique_build_dir(sequence));
+    }
     let errors: &[diagnostics::Diagnostic] =
         outcome.as_ref().err().map(Vec::as_slice).unwrap_or(&[]);
     let status = if outcome.is_ok() {
