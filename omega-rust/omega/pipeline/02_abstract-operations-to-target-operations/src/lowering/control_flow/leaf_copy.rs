@@ -7,7 +7,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
@@ -101,35 +101,16 @@ pub(super) fn copy_extent(
     if endpoint != result.structural_type {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let indices = indices
-        .into_iter()
-        .map(|(index, stride)| {
-            // Only an incoming parameter's value has a home this copy can
-            // scale before its first load.
-            let (parameter_index, parameter) = function
-                .parameters
-                .iter()
-                .enumerate()
-                .find(|(_, parameter)| parameter.value == index)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            let parameter_index = u32::try_from(parameter_index)
-                .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?;
-            let ScalarType::Integer(index_type) = parameter.scalar_type else {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            if index_type.bits() > 64 {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
-            Ok(target_operations::TargetStructuralRuntimeIndex {
-                operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
-                    parameter_index,
-                    source_value: parameter.value,
-                    scalar_type: parameter.scalar_type,
-                },
-                stride,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    // A selector resolves to its exact dominating scalar source — an
+    // incoming parameter, a block parameter, or a stored/computed value in
+    // its durable home — the same admission the primitive store and read
+    // siblings use. The segment's verified bound obligation stays attached;
+    // only the operand's home is found here.
+    let indices = super::scalar_sources::runtime_indices(
+        indices,
+        function,
+        &super::scalar_sources::ScalarSources::from(&*live),
+    )?;
     let result_home = super::aggregate_results::home(psi_operation, result, types)?;
     if result_home.layout.shape() != shape {
         return Err(LoweringError::unsupported_control_flow(function.machine));
