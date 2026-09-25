@@ -83,7 +83,7 @@ pub struct CallFrameResolver<'program> {
     /// Successful acyclic state summaries are context-independent relative
     /// frames. Retain them across resolver queries; opaque and cycle fallback
     /// results remain one-shot so the conservative frontier is unchanged.
-    complete_state_summaries: Mutex<Vec<(SymbolHandle, Vec<String>)>>,
+    complete_state_summaries: Mutex<HashMap<SymbolHandle, Vec<String>>>,
     /// Whole-program operational and service-reach plans an operand Call node
     /// consumes to test call-candidate totality. Both are pure over this
     /// resolver's immutable program, so one lazy pair serves every operand
@@ -329,7 +329,7 @@ impl<'program> CallFrameResolver<'program> {
             statement_value_frames: Mutex::new(HashMap::default()),
             inferred_state_frames: Mutex::new(HashMap::default()),
             inferred_machine_frames: Mutex::new(HashMap::default()),
-            complete_state_summaries: Mutex::new(Vec::new()),
+            complete_state_summaries: Mutex::new(HashMap::default()),
             call_plans: Mutex::new(None),
         })
     }
@@ -732,7 +732,7 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
         state: &'program State,
-        complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+        complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     ) -> NormalizedWriteFrame {
         let mut inference = FrameInference::for_state(state.symbol);
         let relative_paths = summarize_state_written_paths(
@@ -769,11 +769,11 @@ impl<'program> CallFrameResolver<'program> {
 
     fn with_complete_state_summaries<T>(
         &self,
-        resolve: impl FnOnce(&mut Vec<(SymbolHandle, Vec<String>)>) -> T,
+        resolve: impl FnOnce(&mut HashMap<SymbolHandle, Vec<String>>) -> T,
     ) -> T {
         match self.complete_state_summaries.lock() {
             Ok(mut summaries) => resolve(&mut summaries),
-            Err(_) => resolve(&mut Vec::new()),
+            Err(_) => resolve(&mut HashMap::default()),
         }
     }
 }
@@ -851,7 +851,7 @@ pub(super) fn collect_expression_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     written: &mut Vec<String>,
-    complete_state_summaries: &mut Vec<(symbols::SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     origins: &CallOriginContext<'_>,
 ) -> Option<()> {
     if !expression.is_valid() {

@@ -11,6 +11,7 @@ use super::{
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::parameter_relative_origins::parameter_relative_place_origin;
+use symbols::SymbolKeyMap as HashMap;
 
 enum ExpressionAdmission {
     Reject,
@@ -191,7 +192,7 @@ fn complete_expression_tree(
     let mut value_children = Vec::new();
     // Sibling call frames share completed state summaries: one honest
     // acyclic or solved-cycle frame per state per tree walk.
-    let mut complete_state_summaries = Vec::new();
+    let mut complete_state_summaries = HashMap::default();
     while let Some(node) = pending.pop() {
         let expression = match node {
             PendingNode::Receiver(expression) => {

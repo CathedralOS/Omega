@@ -4,6 +4,7 @@ use super::{
     walk_state_write_prefix,
 };
 use crate::CallFrameResolver;
+use symbols::SymbolKeyMap as HashMap;
 
 // The former demand route deliberately recovered the prefix separately for
 // the direct target and closure. Keep it as a result/work comparison, not a
@@ -40,7 +41,7 @@ fn replayed_assignment_paths(
             state,
             symbols,
             &mut FrameInference::default(),
-            &mut Vec::new(),
+            &mut HashMap::default(),
             Some(StateWriteQuery::Assignment(statement)),
         )?
         .assignment?
