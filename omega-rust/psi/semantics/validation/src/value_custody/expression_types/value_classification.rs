@@ -252,13 +252,23 @@ fn concrete_data_type_symbol(
         TypeReferenceNode::Constrained { base_type, .. } => {
             concrete_data_type_symbol(program, *base_type)
         }
-        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => program
-            .data_definitions()
-            .iter()
-            .any(|definition| definition.symbol == *symbol)
-            .then_some(*symbol),
+        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            (data_definition_by_symbol(program, *symbol).is_some()).then_some(*symbol)
+        }
         _ => None,
     }
+}
+
+/// A data definition by symbol, resolved through the build-scope memo when
+/// one is open (the declaration slice is otherwise re-scanned per query).
+fn data_definition_by_symbol<'program>(
+    program: &'program TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_position(
+        program, symbol,
+    )
+    .and_then(|position| program.data_definitions().get(position as usize))
 }
 
 pub(super) fn concrete_data_type_name(
@@ -266,11 +276,7 @@ pub(super) fn concrete_data_type_name(
     handle: TypeReferenceHandle,
 ) -> Option<&str> {
     let symbol = concrete_data_type_symbol(program, handle)?;
-    program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
-        .map(|definition| definition.name.as_str())
+    data_definition_by_symbol(program, symbol).map(|definition| definition.name.as_str())
 }
 
 /// A constructor's resolved declaration is value identity, independent of the
@@ -290,10 +296,8 @@ fn constructed_data_symbol(
         ExpressionNode::Borrow(inner) => return constructed_data_symbol(program, inner.target),
         _ => return None,
     };
-    program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol && definition.type_parameters.is_empty())
+    data_definition_by_symbol(program, symbol)
+        .filter(|definition| definition.type_parameters.is_empty())
         .map(|definition| definition.symbol)
 }
 
@@ -326,11 +330,7 @@ pub(super) fn value_concrete_data_name<'program>(
     value: ExpressionHandle,
 ) -> Option<&'program str> {
     let symbol = value_concrete_data_symbol(program, machine, state, value)?;
-    program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)
-        .map(|definition| definition.name.as_str())
+    data_definition_by_symbol(program, symbol).map(|definition| definition.name.as_str())
 }
 
 /// Compare selected nominal declarations at a receiving position. Names and

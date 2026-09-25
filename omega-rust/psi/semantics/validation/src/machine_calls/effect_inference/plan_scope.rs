@@ -30,6 +30,12 @@ type ClaimFrontierSlot = Option<
         HashMap<TypeReferenceHandle, Vec<ClaimFrontierClaim>>,
     )>,
 >;
+type DataDefinitionPositionSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        HashMap<symbols::SymbolHandle, Option<u32>>,
+    )>,
+>;
 
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
@@ -40,6 +46,10 @@ thread_local! {
     /// The claim frontier memoizes per queried type reference rather than a
     /// single plan; the map itself is the stored plan for the scoped program.
     static CLAIM_FRONTIER_SLOT: RefCell<ClaimFrontierSlot> = const { RefCell::new(None) };
+    /// Data-definition lookups memoize a symbol's position in the
+    /// declaration table (including negative answers) rather than one plan.
+    static DATA_DEF_POSITION_SLOT: RefCell<DataDefinitionPositionSlot> =
+        const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -48,6 +58,7 @@ pub struct ProgramPlanScopeGuard {
     operational: OperationalSlot,
     service_reach: ServiceReachSlot,
     claim_frontiers: ClaimFrontierSlot,
+    data_def_positions: DataDefinitionPositionSlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -61,6 +72,9 @@ impl Drop for ProgramPlanScopeGuard {
         CLAIM_FRONTIER_SLOT.with(|cell| {
             *cell.borrow_mut() = self.claim_frontiers.take();
         });
+        DATA_DEF_POSITION_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.data_def_positions.take();
+        });
     }
 }
 
@@ -73,6 +87,8 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         service_reach: SERVICE_REACH_PLAN_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         claim_frontiers: CLAIM_FRONTIER_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        data_def_positions: DATA_DEF_POSITION_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -155,6 +171,63 @@ pub(crate) fn memoized_claim_frontier(
         });
     }
     claims
+}
+
+/// The data-definition table's position for a symbol, memoized per
+/// (program, symbol) inside the scope — the `.find` over the declaration
+/// slice otherwise re-scans the whole table at every classification site.
+pub(crate) fn memoized_data_definition_position(
+    program: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<u32> {
+    enum SlotState {
+        NoScope,
+        Hit(Option<u32>),
+        Miss,
+        ForeignProgram,
+    }
+    let state = DATA_DEF_POSITION_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&symbol)
+                        .copied()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(position) = state {
+        return position;
+    }
+    let position = program
+        .data_definitions()
+        .iter()
+        .position(|definition| definition.symbol == symbol)
+        .map(|index| u32::try_from(index).expect("data definition position overflow"));
+    if matches!(state, SlotState::Miss) {
+        DATA_DEF_POSITION_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert(symbol, position);
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((program, HashMap::from([(symbol, position)])));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    position
 }
 
 pub fn memoized_service_reach_plan(
