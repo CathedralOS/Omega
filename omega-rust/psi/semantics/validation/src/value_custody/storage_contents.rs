@@ -178,23 +178,12 @@ pub fn has_owned_or_shared_view_fields(
     if !symbol.is_valid() {
         return false;
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == symbol);
-    let Some(data) = definitions.next() else {
+    let Some(data) = definition(program, symbol) else {
         return false;
     };
-    if definitions.next().is_some() {
-        return false;
-    }
     // A linear declaration is not plain owned storage and a `::drop` carrier
     // belongs to the cleanup family — the shared views change neither.
-    if data.properties.multiplicity == Multiplicity::Linear
-        || program.machines().iter().any(|machine| {
-            machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
-        })
-    {
+    if data.properties.multiplicity == Multiplicity::Linear || owns_drop_hook(program, symbol) {
         return false;
     }
     let shared_view = |field: &DataField| {
@@ -427,12 +416,20 @@ fn definition(
     if !symbol.is_valid() {
         return None;
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|data| data.symbol == symbol);
-    let data = definitions.next()?;
-    definitions.next().is_none().then_some(data)
+    match crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
+        program, symbol,
+    ) {
+        crate::machine_calls::effect_inference::plan_scope::DataDefinitionLookup::Unique(
+            position,
+        ) => program.data_definitions().get(position as usize),
+        _ => None,
+    }
+}
+
+/// Whether a machine attached to `symbol` realizes `::drop`, resolved
+/// through the build-scope memo when one is open.
+fn owns_drop_hook(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    crate::machine_calls::effect_inference::plan_scope::memoized_owns_drop_hook(program, symbol)
 }
 
 fn check_contents(
@@ -473,10 +470,7 @@ fn check_contents(
             matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
         })
-        || (requirement != ContentsRequirement::CleanupOwned
-            && program.machines().iter().any(|machine| {
-                machine.attached_data_symbol == *symbol && machine.name.as_str().ends_with("::drop")
-            }))
+        || (requirement != ContentsRequirement::CleanupOwned && owns_drop_hook(program, *symbol))
     {
         return false;
     }
