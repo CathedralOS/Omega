@@ -1301,370 +1301,18 @@ pub(crate) fn validate_consumer(
                 "nested structural argument has no expression-owned producer binding",
             );
         }
-        // Check both directions: an authored result cannot be replaced with a
-        // same-typed parameter or construction-local plan.
-        for candidate in caller.operations {
-            if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
-                source:
-                    source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
-                        call_ordinal,
-                        parameter_position,
-                    },
-                result,
-                ..
-            } = candidate
-            {
-                // A literal has no local symbol. Its call occurrence and formal
-                // position own the constructor even when it has no leaf values.
-                let (source_expression, source_type) =
-                    crate::expression_preparation::source_custody::array_sources::construction_expression(
-                        checked,
-                        caller.machine,
-                        caller.state,
-                        result.statement_index,
-                        *source,
-                    )
-                    .ok_or(LoweringError::Unsupported(
-                        "array argument constructor lost its authored occurrence",
-                    ))?;
-                let names_result = result.statement_index == coordinate.statement_index
-                    && *call_ordinal == coordinate.call_ordinal
-                    && *parameter_position == parameter.position
-                    && expression == Some(source_expression);
-                if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                    return unsupported(
-                        "array argument does not rejoin its exact constructor occurrence",
-                    );
-                }
-                if names_result
-                    && (authored.boundary
-                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                        || !argument.path.is_empty()
-                        || result.multiplicity != Multiplicity::Unrestricted
-                        || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
-                        || checked
-                            .typed
-                            .normalized_type_identity(source_type)
-                            .into_string()
-                            != result.type_identity)
-                {
-                    return unsupported("array argument constructor lost whole owned custody");
-                }
-                continue;
-            }
-            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                operand_source:
-                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
-                        call_ordinal,
-                        parameter_position,
-                    }),
-                result,
-                value,
-                ..
-            } = candidate
-            {
-                // A case or record construction operand has no local symbol;
-                // its call occurrence and authored formal position own the
-                // constructor, exactly like a literal array operand.
-                if !checked
-                    .facts
-                    .values
-                    .structural_values
-                    .nodes
-                    .is_valid(*value)
-                {
-                    return unsupported("case argument operand has a stale value handle");
-                }
-                let node = checked.facts.values.structural_values.nodes.get(*value);
-                let (construction_expression, construction_type) = match &node.kind {
-                    checked_trees::CheckedStructuralValueKind::Case(constructor) => {
-                        (constructor.expression, constructor.type_reference)
-                    }
-                    checked_trees::CheckedStructuralValueKind::Record { .. }
-                    | checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
-                        node.expression,
-                        checked
-                            .facts
-                            .values
-                            .structural_values
-                            .root_for_expression(
-                                caller.state,
-                                result.statement_index,
-                                node.expression,
-                            )
-                            .ok_or(LoweringError::Unsupported(
-                                "record argument operand lost its checked root",
-                            ))?
-                            .type_reference,
-                    ),
-                    _ => return unsupported("case argument operand is not a case construction"),
-                };
-                let names_result = result.statement_index == coordinate.statement_index
-                    && *call_ordinal == coordinate.call_ordinal
-                    && *parameter_position == parameter.position
-                    && expression == Some(construction_expression);
-                if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                    return unsupported(
-                        "case argument does not rejoin its exact constructor occurrence",
-                    );
-                }
-                // The call takes the fresh value whole: unrestricted or affine
-                // plain contents (numeric domains allowed) need no cleanup
-                // beyond the transfer itself; linear values keep claim rules.
-                let whole_owned_contents = result.multiplicity != Multiplicity::Linear
-                    && validation::has_plain_owned_contents_with_numeric_constraints(
-                        &checked.typed,
-                        construction_type,
-                    );
-                if names_result
-                    && (authored.boundary
-                        || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                        || !argument.path.is_empty()
-                        || !whole_owned_contents
-                        || checked
-                            .typed
-                            .normalized_type_identity(construction_type)
-                            .into_string()
-                            != result.type_identity)
-                {
-                    return unsupported("case argument constructor lost whole owned custody");
-                }
-                continue;
-            }
-            let (producer_coordinate, source_site, result) = match candidate {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate: producer_coordinate,
-                    source_site,
-                    result,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate: producer_coordinate,
-                    source_site,
-                    result,
-                    ..
-                } => (*producer_coordinate, *source_site, result),
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
-                    checked_trees::CheckedUnitCallCoordinate {
-                        statement_index: result.statement_index,
-                        call_ordinal: 0,
-                    },
-                    None,
-                    result,
-                ),
-                _ => continue,
-            };
-            if producer_coordinate.call_ordinal == 0
-                && matches!(
-                    statements.get(result.statement_index as usize),
-                    Some(StatementNode::Expression(_))
-                )
-            {
-                if binding_ordinal == Some(result.binding_ordinal) {
-                    return unsupported(
-                        "terminal structural result cannot supply an earlier call operand",
-                    );
-                }
-                continue;
-            }
-            // `place = value` over a borrowed structural field stores the
-            // produced value whole into the window its move-out opened
-            // (`StoreStructuralField`); the field, not a local, holds it.
-            if producer_coordinate.call_ordinal == 0
-                && matches!(
-                    statements.get(result.statement_index as usize),
-                    Some(StatementNode::Assignment(_))
-                )
-            {
-                if binding_ordinal == Some(result.binding_ordinal) {
-                    return unsupported(
-                        "stored field replacement value cannot supply a later operand",
-                    );
-                }
-                continue;
-            }
-            if producer_coordinate.call_ordinal == 0
-                && matches!(
-                    statements.get(result.statement_index as usize),
-                    Some(StatementNode::Call(_))
-                )
-            {
-                crate::emission::call_source_custody::initializers::validate_discarded_structural(
-                    checked,
-                    caller.machine,
-                    caller.state,
-                    producer_coordinate,
-                    result,
-                )?;
-                if binding_ordinal == Some(result.binding_ordinal) {
-                    return unsupported("discarded boundary result cannot supply a later operand");
-                }
-                continue;
-            }
-            let names_result = if producer_coordinate.call_ordinal == 0 {
-                let Some(StatementNode::LocalData(local)) =
-                    statements.get(result.statement_index as usize)
-                else {
-                    return unsupported("Unit structural result producer has no authored local");
-                };
-                // A `&T` producer keeps the authored reference on its local but
-                // joins the referent's carrier: compare the slice/record the
-                // view names, not the borrow shell.
-                let view_carrier = crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
-                    checked,
-                    local.type_reference,
-                );
-                if !local.symbol.is_valid()
-                    || (result.multiplicity == Multiplicity::Unrestricted
-                        && !(validation::is_closed_primitive_array_type(
-                            &checked.typed,
-                            local.type_reference,
-                        ) || crate::expression_preparation::source_custody::structural::plain_record(
-                            checked,
-                            local.type_reference,
-                        ) || view_carrier.is_some()))
-                    || checked
-                        .typed
-                        .normalized_type_identity(view_carrier.unwrap_or(
-                            crate::unit::attached_unit::parameters::structural_carrier_type(
-                                checked,
-                                local.type_reference,
-                            )?,
-                        ))
-                        .into_string()
-                        != result.type_identity
-                {
-                    return unsupported(
-                        "Unit structural result producer disagrees with its authored local",
-                    );
-                }
-                match expression.map(|expression| {
-                    super::super::parameters::source_path(
-                        checked,
-                        source_machine,
-                        local.type_reference,
-                        expression,
-                    )
-                }) {
-                    Some(Ok((root, path, access))) if root == local.symbol => {
-                        // A borrowed-view local can only ever be lent shared;
-                        // its authored access names the view's only custody.
-                        let authored_access = access.unwrap_or(if view_carrier.is_some() {
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                        } else {
-                            checked_trees::CheckedStructuralAccess::Owned
-                        });
-                        if path != argument.path || authored_access != argument.access {
-                            return unsupported(
-                                "Unit result projection disagrees with its authored path",
-                            );
-                        }
-                        true
-                    }
-                    _ => false,
-                }
-            } else {
-                let source = crate::emission::call_source_custody::authored::locate_source(
-                    checked,
-                    caller.state,
-                    producer_coordinate,
-                )?;
-                if source.source_site != source_site {
-                    return unsupported(
-                        "nested structural producer has a different authored source",
-                    );
-                }
-                let Some(checked_trees::NominalMachineUseSite::Expression(source_expression)) =
-                    source.source_site
-                else {
-                    return unsupported("anonymous producer has no expression-owned source");
-                };
-                let matches = producer_coordinate.statement_index == coordinate.statement_index
-                    && expression.and_then(|expression| expression_producer(checked, expression))
-                        == Some(source_expression);
-                if matches {
-                    let signature =
-                        crate::emission::call_source_custody::authored::target_signature(
-                            checked,
-                            source_machine.symbol,
-                            source.source_target,
-                        )?;
-                    if result.multiplicity == Multiplicity::Unrestricted
-                        && !validation::is_closed_primitive_array_type(
-                            &checked.typed,
-                            signature.return_type,
-                        )
-                    {
-                        return unsupported(
-                            "unrestricted structural operand has no primitive array producer",
-                        );
-                    }
-                    let (root, path, access) = super::super::parameters::source_place_path(
-                        checked,
-                        source_machine,
-                        signature.return_type,
-                        expression.unwrap(),
-                    )?;
-                    if root != facts::PlaceRoot::Expression(source_expression)
-                        || path != argument.path
-                        || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
-                            != argument.access
-                    {
-                        return unsupported(
-                            "anonymous result projection disagrees with its authored source",
-                        );
-                    }
-                    if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
-                        super::shared_temporary::validate(
-                            checked,
-                            caller,
-                            producer_coordinate,
-                            *coordinate,
-                            source_expression,
-                        )?;
-                    }
-                }
-                matches
-            };
-            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
-                return unsupported(if producer_coordinate.call_ordinal == 0 {
-                    "Unit structural result argument does not rejoin its exact authored local"
-                } else {
-                    "Unit structural result argument does not rejoin its exact authored source"
-                });
-            }
-            if names_result
-                && producer_coordinate.call_ordinal == 0
-                && expression.is_none_or(|expression| {
-                    // The operand's authored access mirrors its source: a
-                    // borrowed-view local carries shared custody in its type,
-                    // not a borrow expression.
-                    let authored_access = named_result_operand(checked, expression).1;
-                    let authored_access =
-                        if authored_access == checked_trees::CheckedStructuralAccess::Owned
-                            && matches!(
-                                statements.get(result.statement_index as usize),
-                                Some(StatementNode::LocalData(local))
-                                    if crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
-                                        checked,
-                                        local.type_reference,
-                                    )
-                                    .is_some()
-                            )
-                        {
-                            checked_trees::CheckedStructuralAccess::SharedBorrow
-                        } else {
-                            authored_access
-                        };
-                    authored_access != argument.access
-                })
-            {
-                return unsupported(
-                    "Unit structural result access disagrees with its authored operand",
-                );
-            }
-        }
+        validate_operand_producers(
+            checked,
+            caller,
+            coordinate,
+            &authored,
+            source_machine,
+            statements,
+            argument,
+            parameter,
+            expression,
+            binding_ordinal,
+        )?;
         let Some(binding_ordinal) = binding_ordinal else {
             continue;
         };
@@ -1818,6 +1466,382 @@ pub(crate) fn validate_consumer(
                     .any(|transfer| transfer.argument_index as usize == index))
         {
             return unsupported("Unit structural result argument has invalid claim-free custody");
+        }
+    }
+    Ok(())
+}
+
+/// Check one structural argument against every producer the caller plans,
+/// in both directions: a construction, call result or local names this
+/// argument's result binding exactly when the authored operand is that
+/// producer, and the named producer's custody and access agree with the
+/// formal. An authored result therefore cannot be replaced by a same-typed
+/// parameter or construction-local plan.
+fn validate_operand_producers(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    coordinate: &checked_trees::CheckedUnitCallCoordinate,
+    authored: &crate::emission::call_source_custody::authored::AuthoredCall,
+    source_machine: &checked_trees::machine::Machine,
+    statements: &[StatementNode],
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    expression: Option<checked_trees::expression::ExpressionHandle>,
+    binding_ordinal: Option<u32>,
+) -> Result<(), LoweringError> {
+    for candidate in caller.operations {
+        if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
+            source:
+                source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
+                    call_ordinal,
+                    parameter_position,
+                },
+            result,
+            ..
+        } = candidate
+        {
+            // A literal has no local symbol. Its call occurrence and formal
+            // position own the constructor even when it has no leaf values.
+            let (source_expression, source_type) =
+                crate::expression_preparation::source_custody::array_sources::construction_expression(
+                    checked,
+                    caller.machine,
+                    caller.state,
+                    result.statement_index,
+                    *source,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "array argument constructor lost its authored occurrence",
+                ))?;
+            let names_result = result.statement_index == coordinate.statement_index
+                && *call_ordinal == coordinate.call_ordinal
+                && *parameter_position == parameter.position
+                && expression == Some(source_expression);
+            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+                return unsupported(
+                    "array argument does not rejoin its exact constructor occurrence",
+                );
+            }
+            if names_result
+                && (authored.boundary
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || !argument.path.is_empty()
+                    || result.multiplicity != Multiplicity::Unrestricted
+                    || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
+                    || checked
+                        .typed
+                        .normalized_type_identity(source_type)
+                        .into_string()
+                        != result.type_identity)
+            {
+                return unsupported("array argument constructor lost whole owned custody");
+            }
+            continue;
+        }
+        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            operand_source:
+                Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+                    call_ordinal,
+                    parameter_position,
+                }),
+            result,
+            value,
+            ..
+        } = candidate
+        {
+            // A case or record construction operand has no local symbol;
+            // its call occurrence and authored formal position own the
+            // constructor, exactly like a literal array operand.
+            if !checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .is_valid(*value)
+            {
+                return unsupported("case argument operand has a stale value handle");
+            }
+            let node = checked.facts.values.structural_values.nodes.get(*value);
+            let (construction_expression, construction_type) = match &node.kind {
+                checked_trees::CheckedStructuralValueKind::Case(constructor) => {
+                    (constructor.expression, constructor.type_reference)
+                }
+                checked_trees::CheckedStructuralValueKind::Record { .. }
+                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
+                    node.expression,
+                    checked
+                        .facts
+                        .values
+                        .structural_values
+                        .root_for_expression(caller.state, result.statement_index, node.expression)
+                        .ok_or(LoweringError::Unsupported(
+                            "record argument operand lost its checked root",
+                        ))?
+                        .type_reference,
+                ),
+                _ => return unsupported("case argument operand is not a case construction"),
+            };
+            let names_result = result.statement_index == coordinate.statement_index
+                && *call_ordinal == coordinate.call_ordinal
+                && *parameter_position == parameter.position
+                && expression == Some(construction_expression);
+            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+                return unsupported(
+                    "case argument does not rejoin its exact constructor occurrence",
+                );
+            }
+            // The call takes the fresh value whole: unrestricted or affine
+            // plain contents (numeric domains allowed) need no cleanup
+            // beyond the transfer itself; linear values keep claim rules.
+            let whole_owned_contents = result.multiplicity != Multiplicity::Linear
+                && validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    construction_type,
+                );
+            if names_result
+                && (authored.boundary
+                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || !argument.path.is_empty()
+                    || !whole_owned_contents
+                    || checked
+                        .typed
+                        .normalized_type_identity(construction_type)
+                        .into_string()
+                        != result.type_identity)
+            {
+                return unsupported("case argument constructor lost whole owned custody");
+            }
+            continue;
+        }
+        let (producer_coordinate, source_site, result) = match candidate {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                coordinate: producer_coordinate,
+                source_site,
+                result,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                coordinate: producer_coordinate,
+                source_site,
+                result,
+                ..
+            } => (*producer_coordinate, *source_site, result),
+            CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => (
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: result.statement_index,
+                    call_ordinal: 0,
+                },
+                None,
+                result,
+            ),
+            _ => continue,
+        };
+        if producer_coordinate.call_ordinal == 0
+            && matches!(
+                statements.get(result.statement_index as usize),
+                Some(StatementNode::Expression(_))
+            )
+        {
+            if binding_ordinal == Some(result.binding_ordinal) {
+                return unsupported(
+                    "terminal structural result cannot supply an earlier call operand",
+                );
+            }
+            continue;
+        }
+        // `place = value` over a borrowed structural field stores the
+        // produced value whole into the window its move-out opened
+        // (`StoreStructuralField`); the field, not a local, holds it.
+        if producer_coordinate.call_ordinal == 0
+            && matches!(
+                statements.get(result.statement_index as usize),
+                Some(StatementNode::Assignment(_))
+            )
+        {
+            if binding_ordinal == Some(result.binding_ordinal) {
+                return unsupported("stored field replacement value cannot supply a later operand");
+            }
+            continue;
+        }
+        if producer_coordinate.call_ordinal == 0
+            && matches!(
+                statements.get(result.statement_index as usize),
+                Some(StatementNode::Call(_))
+            )
+        {
+            crate::emission::call_source_custody::initializers::validate_discarded_structural(
+                checked,
+                caller.machine,
+                caller.state,
+                producer_coordinate,
+                result,
+            )?;
+            if binding_ordinal == Some(result.binding_ordinal) {
+                return unsupported("discarded boundary result cannot supply a later operand");
+            }
+            continue;
+        }
+        let names_result = if producer_coordinate.call_ordinal == 0 {
+            let Some(StatementNode::LocalData(local)) =
+                statements.get(result.statement_index as usize)
+            else {
+                return unsupported("Unit structural result producer has no authored local");
+            };
+            // A `&T` producer keeps the authored reference on its local but
+            // joins the referent's carrier: compare the slice/record the
+            // view names, not the borrow shell.
+            let view_carrier = crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+                checked,
+                local.type_reference,
+            );
+            if !local.symbol.is_valid()
+                || (result.multiplicity == Multiplicity::Unrestricted
+                    && !(validation::is_closed_primitive_array_type(
+                        &checked.typed,
+                        local.type_reference,
+                    )
+                        || crate::expression_preparation::source_custody::structural::plain_record(
+                            checked,
+                            local.type_reference,
+                        )
+                        || view_carrier.is_some()))
+                || checked
+                    .typed
+                    .normalized_type_identity(view_carrier.unwrap_or(
+                        crate::unit::attached_unit::parameters::structural_carrier_type(
+                            checked,
+                            local.type_reference,
+                        )?,
+                    ))
+                    .into_string()
+                    != result.type_identity
+            {
+                return unsupported(
+                    "Unit structural result producer disagrees with its authored local",
+                );
+            }
+            match expression.map(|expression| {
+                super::super::parameters::source_path(
+                    checked,
+                    source_machine,
+                    local.type_reference,
+                    expression,
+                )
+            }) {
+                Some(Ok((root, path, access))) if root == local.symbol => {
+                    // A borrowed-view local can only ever be lent shared;
+                    // its authored access names the view's only custody.
+                    let authored_access = access.unwrap_or(if view_carrier.is_some() {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                    } else {
+                        checked_trees::CheckedStructuralAccess::Owned
+                    });
+                    if path != argument.path || authored_access != argument.access {
+                        return unsupported(
+                            "Unit result projection disagrees with its authored path",
+                        );
+                    }
+                    true
+                }
+                _ => false,
+            }
+        } else {
+            let source = crate::emission::call_source_custody::authored::locate_source(
+                checked,
+                caller.state,
+                producer_coordinate,
+            )?;
+            if source.source_site != source_site {
+                return unsupported("nested structural producer has a different authored source");
+            }
+            let Some(checked_trees::NominalMachineUseSite::Expression(source_expression)) =
+                source.source_site
+            else {
+                return unsupported("anonymous producer has no expression-owned source");
+            };
+            let matches = producer_coordinate.statement_index == coordinate.statement_index
+                && expression.and_then(|expression| expression_producer(checked, expression))
+                    == Some(source_expression);
+            if matches {
+                let signature = crate::emission::call_source_custody::authored::target_signature(
+                    checked,
+                    source_machine.symbol,
+                    source.source_target,
+                )?;
+                if result.multiplicity == Multiplicity::Unrestricted
+                    && !validation::is_closed_primitive_array_type(
+                        &checked.typed,
+                        signature.return_type,
+                    )
+                {
+                    return unsupported(
+                        "unrestricted structural operand has no primitive array producer",
+                    );
+                }
+                let (root, path, access) = super::super::parameters::source_place_path(
+                    checked,
+                    source_machine,
+                    signature.return_type,
+                    expression.unwrap(),
+                )?;
+                if root != facts::PlaceRoot::Expression(source_expression)
+                    || path != argument.path
+                    || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
+                        != argument.access
+                {
+                    return unsupported(
+                        "anonymous result projection disagrees with its authored source",
+                    );
+                }
+                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    super::shared_temporary::validate(
+                        checked,
+                        caller,
+                        producer_coordinate,
+                        *coordinate,
+                        source_expression,
+                    )?;
+                }
+            }
+            matches
+        };
+        if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+            return unsupported(if producer_coordinate.call_ordinal == 0 {
+                "Unit structural result argument does not rejoin its exact authored local"
+            } else {
+                "Unit structural result argument does not rejoin its exact authored source"
+            });
+        }
+        if names_result
+            && producer_coordinate.call_ordinal == 0
+            && expression.is_none_or(|expression| {
+                // The operand's authored access mirrors its source: a
+                // borrowed-view local carries shared custody in its type,
+                // not a borrow expression.
+                let authored_access = named_result_operand(checked, expression).1;
+                let authored_access =
+                    if authored_access == checked_trees::CheckedStructuralAccess::Owned
+                        && matches!(
+                            statements.get(result.statement_index as usize),
+                            Some(StatementNode::LocalData(local))
+                                if crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+                                    checked,
+                                    local.type_reference,
+                                )
+                                .is_some()
+                        )
+                    {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                    } else {
+                        authored_access
+                    };
+                authored_access != argument.access
+            })
+        {
+            return unsupported(
+                "Unit structural result access disagrees with its authored operand",
+            );
         }
     }
     Ok(())
