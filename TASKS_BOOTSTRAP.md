@@ -84,15 +84,20 @@ prerequisite to every lower-rung milestone.
 
 ## Alpha execution hardening
 
-- **ALPHA-WINDOWS-CONFORMANCE.** Execute `sh tests/bootstrap/alpha-beta-edge.sh`
-  and `sh tests/alpha/reference/diamond-py.sh` on Windows x64 using the
-  [selected seed](bootstrap/0_alpha/README.md#retention-inventory).
-  Owners: `bootstrap/0_alpha/` and `tests/alpha/`. Retain exact bounds/Trap
-  observations and register preservation through host I/O: `io-registers.hex`
-  must return zero and `ABCDEF` for input `AB`. PE reconstruction, Wine and
-  other hosts' runs do not establish Windows execution.
-  Preserve [coverage limits](tests/alpha/README.md#bounds-conformance) and
-  explicit unsupported-host refusal.
+- **ALPHA-WINDOWS-DIV-TRAP.** (split-of:ALPHA-WINDOWS-CONFORMANCE) Windows
+  x64 execution is measured and recorded in
+  [bounds conformance](tests/alpha/README.md#bounds-conformance); one real
+  divergence remains. `div`/`mod` traps take the hardware `0xC0000094`
+  divide fault rather than the audited illegal-instruction routine every
+  other trap class uses; conforming means carrying the divisor pre-check
+  the Linux and arm64 seeds already use for this hardware/OS mismatch, then
+  re-forging, re-auditing, and re-pinning the Windows inventory identities.
+  Escalate to `OWNER_QUESTIONS.md` only if accepting `#DE` as the Windows
+  trap form instead. The gate's byte-level expected values also need a
+  native-shell observation route or a normalized 127 surface on MSYS hosts:
+  sign-bit-set `halt` codes observe 127 through Git Bash even though the
+  seed emits the correct raw exit code. Owners: `bootstrap/0_alpha/` and
+  `tests/alpha/`.
 
 - **ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION.** Re-forge and re-sign the macOS ARM64
   Alpha container from the corrected 128-GiB startup extent, repin its audit
