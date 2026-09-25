@@ -48,10 +48,11 @@ pub(super) fn check_call_result_qualifications(
         else {
             continue;
         };
-        let Some(domain) = program.domain_definitions().iter().find(|domain| {
-            domain.symbol == domain_symbol
-                && crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
-        }) else {
+        let Some(domain) =
+            typed_trees::domain::domain_by_symbol(program, domain_symbol).filter(|_| {
+                crate::facts::field_domain::domain_requires_provenance(program, domain_symbol)
+            })
+        else {
             continue;
         };
         let place = facts.semantic.places.get(place);
