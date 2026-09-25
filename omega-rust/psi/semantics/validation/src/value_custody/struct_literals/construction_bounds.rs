@@ -83,33 +83,9 @@ pub(super) fn value_bounds(
             // parameter's own arrival `requires`, and a field's `where`
             // facts. A mutable place keeps only what every store enforces:
             // its declared range and its data's `where` facts.
-            let interval =
-                crate::proof_contracts::arithmetic_domains::immutable_integer_expression_interval(
-                    program, machine, state, expression,
-                )
-                .or_else(|| {
-                    let declared = crate::value_custody::places::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        expression,
-                    )
-                    .and_then(|handle| {
-                        crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-                            program, handle,
-                        )
-                    });
-                    let facts = crate::proof_contracts::default_domains::where_fact_interval(
-                        program,
-                        machine,
-                        Some(state),
-                        expression,
-                    );
-                    match (declared, facts) {
-                        (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
-                        (declared, facts) => declared.or(facts),
-                    }
-                });
+            let interval = crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+                program, machine, state, expression,
+            );
             if let Some(interval) = interval {
                 bounds.low = interval.low;
                 bounds.high = interval.high;
