@@ -346,3 +346,37 @@ fn scalar_computations_do_not_duplicate_pure_indexed_store_operands() {
             .is_none()
     );
 }
+
+/// A builtin selection is an ordinary integer computation. It has to compose as
+/// an operand of arithmetic, not only as a whole assigned value: a builtin has
+/// no entry state, so the ordinary call route cannot resolve it.
+#[test]
+fn a_builtin_selection_composes_as_an_arithmetic_operand() {
+    let checked = checked_source(
+        r#"
+        data Main { lo: i32; hi: i32; mid: i32; }
+        machine Main::main(&mut self) {
+            self.mid = (min(max(self.lo, 0), 31) + min(max(self.hi, 0 - 1), 30)) / 2;
+        }
+        "#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(
+            state.symbol,
+            0,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .expect("the clamped midpoint retains a computation root");
+    assert!(matches!(
+        plans.nodes.get(root.root).kind,
+        CheckedScalarComputationKind::Apply { .. }
+    ));
+}

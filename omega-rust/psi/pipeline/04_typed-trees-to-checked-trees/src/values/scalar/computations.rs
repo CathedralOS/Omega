@@ -909,7 +909,7 @@ impl Builder<'_, '_> {
                 ExpressionNode::Call(_)
             )
         {
-            let integer = self.integer_operand(expression)?;
+            let integer = self.integer_operand(expression, Some(expected_type))?;
             if scalar_expression_type(&integer.value)? != expected_type {
                 return None;
             }

@@ -101,7 +101,7 @@ impl Builder<'_, '_> {
                 return None;
             }
             self.expression(dispatch.subject, subject_type)?
-        } else if let Some(operand) = self.integer_operand(dispatch.subject)
+        } else if let Some(operand) = self.integer_operand(dispatch.subject, None)
             && scalar_expression_type(&operand.value).is_some_and(is_integer)
         {
             self.materialize_integer(operand)?
