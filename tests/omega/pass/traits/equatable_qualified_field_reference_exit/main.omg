@@ -4,10 +4,20 @@
 // field's conformance is found and `Filter == Filter` expands structurally.
 // Exits 70 only when qualified-spelling field conformance, qualified-spelling
 // operands, and unqualified references all agree.
+//
+// `leaf` declares its own `Equatable` and satisfies `Region` against THAT
+// trait; a same-named trait in another package is a different trait, so the
+// field's conformance to this one is declared here. Conformances name a bare
+// subject and a bare trait, which is why `Region` is also imported unqualified
+// -- `leaf::region::Region satisfies Equatable` does not parse. Declaring a
+// map for a type another package owns is ordinary: see
+// wiki/spec/language/conformances.md, "Another package may declare a
+// separately named map".
 
 use omega_language_std::console;
 use omega::language::core::binding;
 use leaf::region;
+use leaf::region::Region;
 
 data Filter {
     range: leaf::region::Region;
@@ -17,6 +27,7 @@ trait Equatable {
     machine equals(&self, other: &Self) -> bool;
 }
 
+RegionEquatable: Region satisfies Equatable;
 FilterEquatable: Filter satisfies Equatable;
 
 data Main {

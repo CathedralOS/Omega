@@ -17226,12 +17226,10 @@
  {
   "fixture": "pass/collections/runtime_vec_u32_growth_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 37,
+  "status": "checked",
+  "millis": 446,
   "expected_satisfied": null,
-  "diagnostics": [
-   "data `Main` field `console` references unknown generic type `Service`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/collections/runtime_whole_array_value_copy_exit",
@@ -28571,12 +28569,10 @@
  {
   "fixture": "pass/traits/equatable_qualified_field_reference_exit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 34,
+  "status": "checked",
+  "millis": 265,
   "expected_satisfied": null,
-  "diagnostics": [
-   "data `Region` does not satisfy trait `Equatable`: no written or default machine `Region::equals`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/traits/equatable_record_equality_exit",
