@@ -681,7 +681,13 @@ pub(super) fn lower_structural_parameter_field(
             ArithmeticDomain::Exact,
         ));
     }
-    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
+    // Floating leaves read the same statically named member storage an
+    // integer leaf does; an address carrier still has no admitted runtime
+    // observation.
+    if primitive_type == PrimitiveType::Addr
+        || (!is_integer(primitive_type)
+            && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64))
+    {
         return None;
     }
     Some((
