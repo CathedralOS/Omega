@@ -1,5 +1,5 @@
 mod calls;
-mod projected_receivers;
+pub(in crate::symbols) mod projected_receivers;
 mod receivers;
 mod stamping;
 
