@@ -1057,7 +1057,8 @@ fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
             "{scalar:?} cannot feed address math"
         );
     }
-    // An index that is no incoming parameter has no home to scale.
+    // An index with no dominating scalar definition has no home to scale:
+    // value 12 is defined nowhere, so its selector cannot name a source.
     let source = runtime_index_source(12, u64_type());
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
@@ -1065,6 +1066,95 @@ fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
             TargetLoweringRequest::new(NativeTarget::linux_x64()),
         )
         .is_err()
+    );
+}
+
+/// A leaf copy's runtime selector is not limited to incoming parameters: a
+/// selector whose value a preceding scalar operation defined — here a
+/// constant, the same shape a stored field read's home carries — resolves to
+/// that definition's operand through the shared source environment the
+/// primitive store and read siblings already use.
+#[test]
+fn leaf_copy_runtime_index_admits_a_defined_non_parameter_selector() {
+    let native = NativeTarget::linux_x64();
+    let mut source = runtime_index_source(12, u64_type());
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(2).unwrap(),
+            result: ValueId::new(12).unwrap(),
+            scalar_type: u64_type(),
+            value: IntegerValue::Unsigned(3),
+        },
+    );
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        TargetLoweringRequest::new(native),
+    )
+    .expect("a defined non-parameter selector admits the runtime index");
+    let copies: Vec<_> = target.functions[0]
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation, TargetUnitOperation::StructuralLeafCopy { .. }))
+        .collect();
+    assert_eq!(copies.len(), 1, "one retained leaf copy row");
+    let TargetUnitOperation::StructuralLeafCopy { indices, .. } = copies[0] else {
+        unreachable!()
+    };
+    let [index] = indices.as_slice() else {
+        panic!("one runtime index traversal is retained")
+    };
+    assert_eq!(index.stride, 16, "the record element stride");
+    assert_eq!(
+        index.operand,
+        target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            defining_operation: OperationId::new(2).unwrap(),
+            source_value: ValueId::new(12).unwrap(),
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            value: IntegerValue::Unsigned(3),
+        }
+    );
+    let unit = super::accept_referenced_obligations(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap(),
+    );
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("defined-selector leaf copy graph keeps canonical custody");
+    let legal = legalize_target_operations(&target, &source, &unit)
+        .expect("defined-selector leaf copy legalizes");
+    let rows: Vec<_> = legal.plan().scalar_functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| {
+            matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+            )
+        })
+        .collect();
+    assert_eq!(rows.len(), 1, "one legalized leaf copy instruction");
+    let LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. } = &rows[0].kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        indices.as_slice(),
+        &[super::runtime_operand(
+            &unit,
+            OperationId::new(1).unwrap(),
+            abstract_operations::AbstractResult {
+                value: ValueId::new(12).unwrap(),
+                scalar_type: u64_type(),
+            },
+            16,
+            2,
+            semantic_vocabulary::ObligationId::new(1).unwrap(),
+        )]
     );
 }
 

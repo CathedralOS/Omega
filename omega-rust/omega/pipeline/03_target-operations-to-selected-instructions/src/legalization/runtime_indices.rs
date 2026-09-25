@@ -60,7 +60,10 @@ pub(crate) fn operands(
 
 /// The declared type of one value of this function: a function or block
 /// parameter, or a node's definition.
-fn defined_type(optimized: &PsiOptimizationFunction, value: ValueId) -> Option<ScalarType> {
+pub(in crate::legalization) fn defined_type(
+    optimized: &PsiOptimizationFunction,
+    value: ValueId,
+) -> Option<ScalarType> {
     optimized
         .parameters
         .iter()

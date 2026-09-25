@@ -234,9 +234,10 @@ pub(in crate::legalization) fn membership_layout(
 /// canonical shape. The path's endpoint type must be the declared result type
 /// and the result must keep the copy's unrestricted empty custody.
 /// `RuntimeIndex` segments additionally yield their runtime elements in path
-/// order: each index must be an incoming parameter's value carrying an
-/// integer no wider than the address model, the operand contract target
-/// lowering applies to leaf copies.
+/// order: each index must resolve to a dominating integer scalar source no
+/// wider than the address model — an incoming parameter, a block parameter,
+/// or a computed definition — the operand contract target lowering applies
+/// to leaf copies.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
@@ -275,17 +276,12 @@ pub(in crate::legalization) fn leaf_copy_layout(
         return Err(LegalizationError::custody());
     }
     for element in &indices {
-        let parameter = function
-            .parameters
-            .iter()
-            .find(|parameter| parameter.value == element.index)
+        crate::legalization::runtime_indices::defined_type(function, element.index)
+            .filter(|scalar| {
+                matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
+                    if integer.bits() <= 64)
+            })
             .ok_or(LegalizationError::custody())?;
-        let semantic_vocabulary::ScalarType::Integer(index_type) = parameter.scalar_type else {
-            return Err(LegalizationError::custody());
-        };
-        if index_type.bits() > 64 {
-            return Err(LegalizationError::custody());
-        }
     }
     let shape = crate::structural_inputs::structural_reference_input::shape(
         endpoint,
