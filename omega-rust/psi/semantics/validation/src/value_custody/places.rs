@@ -184,12 +184,14 @@ fn data_definition_by_symbol(
     if !symbol.is_valid() || program.symbols.get(symbol).kind != symbols::SymbolKind::Data {
         return None;
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == symbol);
-    let definition = definitions.next()?;
-    definitions.next().is_none().then_some(definition)
+    match crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
+        program, symbol,
+    ) {
+        crate::machine_calls::effect_inference::plan_scope::DataDefinitionLookup::Unique(
+            position,
+        ) => program.data_definitions().get(position as usize),
+        _ => None,
+    }
 }
 
 /// The attached declaration selected for this machine. Diagnostic attachment
