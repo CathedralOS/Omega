@@ -150,7 +150,187 @@ fn use_key(
     )
 }
 
+/// One whole-source index behind the per-type-reference origin lookup.
+/// `application` is called once per lowered named/generic reference and used
+/// to rescan the whole origin roster and definition table per call; both
+/// scans only ever match one symbol, so bucket them once per source program.
+/// Freshness anchors on the source pointer plus sampled declaration heap
+/// addresses: fixture programs forge identical symbol arenas, but a
+/// `DiagnosticName`'s text pointer is a distinct allocation per program.
+struct GenericOriginIndex {
+    origins_by_symbol: std::collections::HashMap<
+        SymbolHandle,
+        Vec<Handle<resolved::types::GenericApplicationOrigin>>,
+    >,
+    definitions_by_symbol: std::collections::HashMap<SymbolHandle, Vec<usize>>,
+    malformed: bool,
+}
+
+thread_local! {
+    static GENERIC_ORIGIN_INDEX: std::cell::RefCell<
+        Option<(*const resolved::SymbolResolvedTrees, usize, GenericOriginIndex)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn source_index_fingerprint(source: &resolved::SymbolResolvedTrees) -> usize {
+    let definitions_len = source.data_definitions.len();
+    let sample = |index: usize| -> usize {
+        if index < definitions_len {
+            let definition = &source.data_definitions[index];
+            definition.symbol.arena_index() as usize ^ definition.name.as_str().as_ptr() as usize
+        } else {
+            0
+        }
+    };
+    let mut fingerprint = (source as *const resolved::SymbolResolvedTrees) as usize
+        ^ source.tables.types.generic_application_origins.len()
+        ^ definitions_len.rotate_left(17)
+        ^ source.symbols.name(source.symbols.root()).as_ptr() as usize;
+    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
+    fingerprint = fingerprint.rotate_left(11) ^ sample(definitions_len / 2);
+    fingerprint.rotate_left(11) ^ sample(definitions_len.saturating_sub(1))
+}
+
+fn with_generic_origin_index<R>(
+    source: &resolved::SymbolResolvedTrees,
+    run: impl FnOnce(&GenericOriginIndex) -> R,
+) -> R {
+    GENERIC_ORIGIN_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fingerprint = source_index_fingerprint(source);
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, source as *const _) && *seen == fingerprint);
+        if !fresh {
+            let origins = &source.tables.types.generic_application_origins;
+            let references = &source.tables.declarations.child_type_references;
+            let mut index = GenericOriginIndex {
+                origins_by_symbol: std::collections::HashMap::new(),
+                definitions_by_symbol: std::collections::HashMap::new(),
+                malformed: false,
+            };
+            for (handle, origin) in origins.iter() {
+                let instance_symbol = if references.is_valid(origin.instance)
+                    && references.is_valid(origin.application)
+                {
+                    match references.get(origin.instance) {
+                        TypeReference::Named { symbol, .. } => *symbol,
+                        TypeReference::Generic(value) => value.base_symbol,
+                        _ => {
+                            index.malformed = true;
+                            break;
+                        }
+                    }
+                } else {
+                    index.malformed = true;
+                    break;
+                };
+                index
+                    .origins_by_symbol
+                    .entry(instance_symbol)
+                    .or_default()
+                    .push(handle);
+            }
+            for (position, definition) in source.data_definitions.iter().enumerate() {
+                index
+                    .definitions_by_symbol
+                    .entry(definition.symbol)
+                    .or_default()
+                    .push(position);
+            }
+            *slot = Some((
+                source as *const resolved::SymbolResolvedTrees,
+                fingerprint,
+                index,
+            ));
+        }
+        run(&slot.as_ref().unwrap().2)
+    })
+}
+
 pub(super) fn application<'source>(
+    source: &'source resolved::SymbolResolvedTrees,
+    mut typed: Option<&mut typed::TypedTrees>,
+    name: &resolved::name::DiagnosticName,
+    symbol: SymbolHandle,
+) -> Result<Option<&'source TypeReference>, Diagnostic> {
+    if with_generic_origin_index(source, |index| index.malformed) {
+        return application_scanned(source, typed, name, symbol);
+    }
+    let mut selected = None;
+    let mut selected_definition = None;
+    for handle in with_generic_origin_index(source, |index| {
+        index
+            .origins_by_symbol
+            .get(&symbol)
+            .cloned()
+            .unwrap_or_default()
+    }) {
+        #[cfg(test)]
+        tests::ORIGIN_ROSTER_VISITS.with(|count| count.set(count.get() + 1));
+        let origin = source.tables.types.generic_application_origins.get(handle);
+        let references = &source.tables.declarations.child_type_references;
+        let instance = references.get(origin.instance);
+        let (instance_symbol, instance_name) = match instance {
+            TypeReference::Named { symbol, name } => (*symbol, name),
+            TypeReference::Generic(value) => (value.base_symbol, &value.base_name),
+            _ => return Err(mismatch(name)),
+        };
+        if instance_symbol != symbol || instance_name.source_span() != name.source_span() {
+            continue;
+        }
+        let definition = match selected_definition {
+            Some(definition) => definition,
+            None => {
+                let bucket = with_generic_origin_index(source, |index| {
+                    index
+                        .definitions_by_symbol
+                        .get(&symbol)
+                        .cloned()
+                        .unwrap_or_default()
+                });
+                let definition = bucket
+                    .first()
+                    .map(|position| &source.data_definitions[*position])
+                    .ok_or_else(|| mismatch(name))?;
+                if bucket.len() > 1 {
+                    return Err(mismatch(name));
+                }
+                definition
+            }
+        };
+        selected = Some(validate_origin(
+            source,
+            typed.as_deref_mut(),
+            name,
+            origin,
+            definition,
+            selected,
+        )?);
+        selected_definition = Some(definition);
+    }
+    if selected.is_none()
+        && with_generic_origin_index(source, |index| {
+            index
+                .definitions_by_symbol
+                .get(&symbol)
+                .is_some_and(|bucket| {
+                    bucket.iter().any(|position| {
+                        source.data_definitions[*position]
+                            .generic_instance
+                            .is_some()
+                    })
+                })
+        })
+    {
+        return Err(mismatch(name));
+    }
+    Ok(selected)
+}
+
+/// The original roster traversal, retained for programs whose origin rows
+/// hold a malformed handle: the indexed path must never reorder where that
+/// mismatch surfaces.
+fn application_scanned<'source>(
     source: &'source resolved::SymbolResolvedTrees,
     mut typed: Option<&mut typed::TypedTrees>,
     name: &resolved::name::DiagnosticName,
