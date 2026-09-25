@@ -224,3 +224,86 @@ pub(super) fn emit_prefix(
     }
     Ok(bindings)
 }
+
+/// Reads below a case payload's record member in one successor argument: each
+/// `[Case, Field(member), Field(leaf)]` path binds `(parameter position, case,
+/// member, leaf)` so the staged block can mint the member copy and its scalar
+/// leaf read. Other shapes stay on the ordinary observation path and decline.
+pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_reads<'a>(
+    expression: &'a checked_trees::CheckedScalarExpression,
+    reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+) {
+    use checked_trees::{
+        CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
+        CheckedStructuralPredicatePathSegment as Segment,
+    };
+    fn nested(path: &[Segment]) -> Option<(&str, &str, &str)> {
+        let [
+            Segment::Case(case),
+            Segment::Field(member),
+            Segment::Field(leaf),
+        ] = path
+        else {
+            return None;
+        };
+        Some((case.as_str(), member.as_str(), leaf.as_str()))
+    }
+    fn scalar<'a>(
+        expression: &'a checked_trees::CheckedScalarExpression,
+        reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+    ) {
+        match expression {
+            Scalar::StructuralParameterField {
+                parameter_position,
+                path,
+                ..
+            } => {
+                if let Some((case, member, leaf)) = nested(path) {
+                    reads.push((*parameter_position, case, member, leaf));
+                }
+            }
+            Scalar::IntegerBinary { left, right, .. } => {
+                scalar(left, reads);
+                scalar(right, reads);
+            }
+            Scalar::IntegerBitwiseNot { operand, .. }
+            | Scalar::IntegerWiden { operand, .. }
+            | Scalar::IntegerExactCast { operand, .. }
+            | Scalar::IntegerSaturatingCast { operand, .. }
+            | Scalar::IntegerWrappingCast { operand, .. }
+            | Scalar::IntegerTrappingCast { operand, .. } => scalar(operand, reads),
+            Scalar::StructuralParameterIndexedRead { index, .. } => scalar(index, reads),
+            Scalar::Boolean(expression) => boolean(expression, reads),
+            _ => {}
+        }
+    }
+    fn boolean<'a>(
+        expression: &'a checked_trees::CheckedBooleanExpression,
+        reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+    ) {
+        match expression {
+            Boolean::StructuralParameterField {
+                parameter_position,
+                path,
+            } => {
+                if let Some((case, member, leaf)) = nested(path) {
+                    reads.push((*parameter_position, case, member, leaf));
+                }
+            }
+            Boolean::Not(operand) => boolean(operand, reads),
+            Boolean::Equal { left, right }
+            | Boolean::And { left, right }
+            | Boolean::Or { left, right } => {
+                boolean(left, reads);
+                boolean(right, reads);
+            }
+            Boolean::IntegerComparison { left, right, .. }
+            | Boolean::ScalarIeeeFloatComparison { left, right, .. } => {
+                scalar(left, reads);
+                scalar(right, reads);
+            }
+            _ => {}
+        }
+    }
+    scalar(expression, reads);
+}

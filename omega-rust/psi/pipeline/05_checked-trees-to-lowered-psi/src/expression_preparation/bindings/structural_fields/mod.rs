@@ -33,7 +33,10 @@ enum CasePayloadAccess {
     #[default]
     Unavailable,
     Deferred,
-    Established(Vec<EstablishedCasePayload>),
+    Established(
+        Vec<EstablishedCasePayload>,
+        Vec<NestedEstablishedCasePayload>,
+    ),
 }
 
 /// One payload field bound by a dominating `StructuralCase` successor, at its
@@ -42,6 +45,19 @@ enum CasePayloadAccess {
 pub(crate) struct EstablishedCasePayload {
     pub(crate) source: PlaceId,
     pub(crate) case: StructuralCaseId,
+    pub(crate) field: StructuralFieldId,
+    pub(crate) position: usize,
+}
+
+/// One scalar leaf below a case payload's record member, observed by the
+/// dominating successor's staged block: the leaf copy of `member` and the
+/// scalar field read of `field` are minted where the case edge dominates, and
+/// the read's computed value occupies `position`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct NestedEstablishedCasePayload {
+    pub(crate) source: PlaceId,
+    pub(crate) case: StructuralCaseId,
+    pub(crate) member: StructuralFieldId,
     pub(crate) field: StructuralFieldId,
     pub(crate) position: usize,
 }
@@ -70,6 +86,7 @@ pub(crate) fn defer_case_payloads(fields: &mut [StructuralScalarFieldBinding]) {
 pub(crate) fn establish_case_payloads(
     fields: &mut [StructuralScalarFieldBinding],
     established: &[EstablishedCasePayload],
+    nested: &[NestedEstablishedCasePayload],
 ) {
     for field in fields {
         let rows = established
@@ -77,8 +94,13 @@ pub(crate) fn establish_case_payloads(
             .filter(|row| row.source == field.source)
             .copied()
             .collect::<Vec<_>>();
-        if !rows.is_empty() {
-            field.case_payloads = CasePayloadAccess::Established(rows);
+        let nested_rows = nested
+            .iter()
+            .filter(|row| row.source == field.source)
+            .copied()
+            .collect::<Vec<_>>();
+        if !rows.is_empty() || !nested_rows.is_empty() {
+            field.case_payloads = CasePayloadAccess::Established(rows, nested_rows);
         }
     }
 }
@@ -239,10 +261,8 @@ pub(crate) fn resolve_case_payload(
     if matching.next().is_some() {
         return unsupported("case payload observation has ambiguous bindings");
     }
-    let [
-        checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity),
-        checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity),
-    ] = path
+    let Some((checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity), tail)) =
+        path.split_first()
     else {
         return unsupported("case payload observation requires one case and one payload field");
     };
@@ -265,43 +285,230 @@ pub(crate) fn resolve_case_payload(
     let case = selected.next().ok_or(LoweringError::Unsupported(
         "case payload observation lost its declared case",
     ))?;
-    let mut payload = case
-        .fields
-        .iter()
-        .filter(|field| field.identity == *field_identity);
-    let field = payload.next().ok_or(LoweringError::Unsupported(
-        "case payload observation lost its declared payload field",
-    ))?;
-    if selected.next().is_some() || payload.next().is_some() || field.relevance.is_erased() {
+    if selected.next().is_some() {
         return unsupported("case payload observation has an erased or ambiguous payload");
     }
-    let declared = match field.field_type {
-        StructuralFieldType::Scalar(scalar) => scalar,
-        StructuralFieldType::BoundedInteger(integer) => ScalarType::Integer(integer.integer_type()),
-        _ => return unsupported("case payload observation requires a scalar payload"),
+    let (member, field) = match tail {
+        [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] => {
+            let mut payload = case
+                .fields
+                .iter()
+                .filter(|field| field.identity == *field_identity);
+            let field = payload.next().ok_or(LoweringError::Unsupported(
+                "case payload observation lost its declared payload field",
+            ))?;
+            if payload.next().is_some() || field.relevance.is_erased() {
+                return unsupported("case payload observation has an erased or ambiguous payload");
+            }
+            let declared = match field.field_type {
+                StructuralFieldType::Scalar(scalar) => scalar,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    ScalarType::Integer(integer.integer_type())
+                }
+                _ => return unsupported("case payload observation requires a scalar payload"),
+            };
+            if declared != scalar_type {
+                return unsupported("case payload observation changes its declared scalar type");
+            }
+            (None, field.id)
+        }
+        [
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(member_identity),
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(leaf_identity),
+        ] => {
+            let mut members = case
+                .fields
+                .iter()
+                .filter(|field| field.identity == *member_identity);
+            let member = members.next().ok_or(LoweringError::Unsupported(
+                "case payload observation lost its declared payload field",
+            ))?;
+            if members.next().is_some() || member.relevance.is_erased() {
+                return unsupported("case payload observation has an erased or ambiguous payload");
+            }
+            // The member must be a record leaf the staged block's copy can
+            // observe; a scalar leaf inside it becomes an ordinary field read
+            // on the copied place.
+            let StructuralFieldType::Structural(member_type) = member.field_type else {
+                return unsupported(
+                    "case payload observation requires a structural payload member",
+                );
+            };
+            let mut member_declarations = binding
+                .declarations
+                .iter()
+                .filter(|declaration| declaration.id == member_type);
+            let member_declaration =
+                member_declarations
+                    .next()
+                    .ok_or(LoweringError::Unsupported(
+                        "case payload observation lost its member declaration",
+                    ))?;
+            if member_declarations.next().is_some() {
+                return unsupported("case payload observation has ambiguous member declarations");
+            }
+            let StructuralTypeShape::Record { fields } = &member_declaration.shape else {
+                return unsupported("case payload observation requires a record payload member");
+            };
+            let mut leaves = fields
+                .iter()
+                .filter(|field| field.identity == *leaf_identity);
+            let leaf = leaves.next().ok_or(LoweringError::Unsupported(
+                "case payload observation lost its member field",
+            ))?;
+            if leaves.next().is_some() || leaf.relevance.is_erased() {
+                return unsupported(
+                    "case payload observation has an erased or ambiguous member field",
+                );
+            }
+            let declared = match leaf.field_type {
+                StructuralFieldType::Scalar(scalar) => scalar,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    ScalarType::Integer(integer.integer_type())
+                }
+                _ => {
+                    return unsupported("case payload observation requires a scalar member field");
+                }
+            };
+            if declared != scalar_type {
+                return unsupported("case payload observation changes its declared scalar type");
+            }
+            (Some(member.id), leaf.id)
+        }
+        _ => {
+            return unsupported("case payload observation requires one case and one payload field");
+        }
     };
-    if declared != scalar_type {
-        return unsupported("case payload observation changes its declared scalar type");
-    }
     match &binding.case_payloads {
-        CasePayloadAccess::Deferred => Ok(CasePayloadRead::Deferred {
-            source: binding.source,
-            case: case.id,
-            field: field.id,
-        }),
-        CasePayloadAccess::Established(rows) => rows
-            .iter()
-            .find(|row| row.case == case.id && row.field == field.id)
-            .map(|row| CasePayloadRead::Established {
-                position: row.position,
+        CasePayloadAccess::Deferred => {
+            if member.is_some() {
+                return unsupported("case payload observation requires an established case");
+            }
+            Ok(CasePayloadRead::Deferred {
+                source: binding.source,
+                case: case.id,
+                field,
             })
-            .ok_or(LoweringError::Unsupported(
-                "case payload observation requires an established case",
-            )),
+        }
+        CasePayloadAccess::Established(rows, nested) => {
+            if let Some(member) = member {
+                return nested
+                    .iter()
+                    .find(|row| row.case == case.id && row.member == member && row.field == field)
+                    .map(|row| CasePayloadRead::Established {
+                        position: row.position,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "case payload observation requires an established case",
+                    ));
+            }
+            rows.iter()
+                .find(|row| row.case == case.id && row.field == field)
+                .map(|row| CasePayloadRead::Established {
+                    position: row.position,
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "case payload observation requires an established case",
+                ))
+        }
         CasePayloadAccess::Unavailable => {
             unsupported("case payload observation requires an established case")
         }
     }
+}
+
+/// One planned leaf read below a case payload's record member: `member` is
+/// copied where the selecting case edge dominates and `field` is read as an
+/// ordinary scalar leaf of the copy, whose value takes the read's scalar
+/// namespace position.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PlannedCasePayloadLeaf {
+    pub(crate) source: PlaceId,
+    pub(crate) case: StructuralCaseId,
+    pub(crate) member: StructuralFieldId,
+    pub(crate) member_type: StructuralTypeId,
+    pub(crate) field: StructuralFieldId,
+    pub(crate) scalar_type: ScalarType,
+}
+
+/// Resolve a `[Case, Field(member), Field(leaf)]` read's declared identities
+/// against the binding at `position`, returning `None` whenever any step is
+/// absent, ambiguous, or not a record member carrying a scalar leaf — the
+/// ordinary observation path then declines with its own diagnostic.
+pub(crate) fn plan_case_payload_leaf(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    case_identity: &str,
+    member_identity: &str,
+    leaf_identity: &str,
+) -> Option<PlannedCasePayloadLeaf> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let mut declarations = binding
+        .declarations
+        .iter()
+        .filter(|declaration| declaration.id == binding.structural_type);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return None;
+    };
+    let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
+    let case = selected.next()?;
+    if selected.next().is_some() {
+        return None;
+    }
+    let mut members = case
+        .fields
+        .iter()
+        .filter(|field| field.identity == *member_identity);
+    let member = members.next()?;
+    if members.next().is_some() || member.relevance.is_erased() {
+        return None;
+    }
+    let StructuralFieldType::Structural(member_type) = member.field_type else {
+        return None;
+    };
+    let mut member_declarations = binding
+        .declarations
+        .iter()
+        .filter(|declaration| declaration.id == member_type);
+    let member_declaration = member_declarations.next()?;
+    if member_declarations.next().is_some() {
+        return None;
+    }
+    let StructuralTypeShape::Record { fields } = &member_declaration.shape else {
+        return None;
+    };
+    let mut leaves = fields
+        .iter()
+        .filter(|field| field.identity == *leaf_identity);
+    let leaf = leaves.next()?;
+    if leaves.next().is_some() || leaf.relevance.is_erased() {
+        return None;
+    }
+    let scalar_type = match leaf.field_type {
+        StructuralFieldType::Scalar(scalar) => scalar,
+        StructuralFieldType::BoundedInteger(integer) => ScalarType::Integer(integer.integer_type()),
+        _ => return None,
+    };
+    Some(PlannedCasePayloadLeaf {
+        source: binding.source,
+        case: case.id,
+        member: member.id,
+        member_type,
+        field: leaf.id,
+        scalar_type,
+    })
 }
 
 pub(crate) fn resolve_byte_length(

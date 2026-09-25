@@ -1,0 +1,39 @@
+// Regression for case arms READING a bound record payload's member field:
+// `Shape::Boxed { inner } -> emit(inner.x)`. The nested read
+// [Case(Boxed), Field(inner), Field(x)] resolves through a
+// StructuralCaseLeafCopy of the record member staged under the selecting
+// case edge, then an IntegerStructuralField read on the completed copy --
+// the machine verifies and lowers instead of declining at the
+// payload-observation gate ("requires one case and one payload field").
+// `inner.y` (a member that is not a payload field) still declines upstream
+// at checked-trees ("data `Inner` has no field `y`").
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Inner {
+    x: i32 in Wrapping;
+}
+
+data Shape {
+    case Circle(r: i32 in Wrapping);
+    case Boxed(inner: Inner);
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::run(&mut self, s: Shape) reaches Console {
+    transition s {
+        Shape::Circle { r } -> emit(r * 7)
+        Shape::Boxed { inner } -> emit(inner.x)
+    }
+    state emit(&mut self, v: i32 in Wrapping) {
+        self.console.exit_process(v as i32);
+    }
+}
+
+machine Main::main(&mut self) {
+    self.run(Shape::Circle { r: 10 });
+}
