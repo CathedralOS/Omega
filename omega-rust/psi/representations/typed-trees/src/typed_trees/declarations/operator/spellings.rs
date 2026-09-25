@@ -32,6 +32,7 @@ pub fn resolve_spelling<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     receiver_type: Option<TypeReferenceHandle>,
+    use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
     // A token-bearing machine attached to a domain is that domain's family
     // meaning: it participates only where an operand binding selects the
@@ -62,6 +63,14 @@ pub fn resolve_spelling<'program>(
 
     root_candidates
         .chain(domain_candidates)
+        // A spelling is a candidate only where its declaration may be
+        // selected from the use site: a loaded source exposes nothing
+        // merely by being loaded (modules spec, "Import scope and exposure").
+        .filter(|candidate| {
+            program
+                .symbols
+                .source_reference_may_select_symbol(use_site, candidate.operator.symbol)
+        })
         .filter(|candidate| match receiver_type {
             Some(receiver_type) => {
                 operator_matches_receiver(program, candidate.operator, receiver_type)
@@ -108,6 +117,7 @@ pub fn resolve_spelling_for_operands<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
+    use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
     resolve_spelling_for_operand_types(
         program,
@@ -117,6 +127,7 @@ pub fn resolve_spelling_for_operands<'program>(
             .copied()
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
+        use_site,
     )
 }
 
@@ -126,8 +137,9 @@ pub fn resolve_spelling_for_operand_types<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[OperandType],
+    use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
-    resolve_spelling(program, spelling, None)
+    resolve_spelling(program, spelling, None, use_site)
         .into_iter()
         .filter(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
         .collect()
@@ -162,6 +174,7 @@ pub fn has_builtin_spelled_expression_meaning(
             .copied()
             .map(OperandType::from_reference)
             .collect::<Vec<_>>(),
+        program.expression_table.source_span(expression),
     ) && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         && program
             .expression_table
@@ -187,8 +200,9 @@ fn spelling_for_operands_exists(
     program: &TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[OperandType],
+    use_site: source::SourceSpan,
 ) -> bool {
-    resolve_spelling(program, spelling, None)
+    resolve_spelling(program, spelling, None, use_site)
         .into_iter()
         .any(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
 }

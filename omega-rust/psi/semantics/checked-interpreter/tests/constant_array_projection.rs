@@ -76,6 +76,7 @@ fn typed_array_projection_cannot_execute_authored_indexing_as_builtin() {
                     &typed,
                     language_core::OperatorSpelling::Index,
                     &[Some(indexed), None],
+                    source::SourceSpan::default(),
                 )
                 .is_empty(),
                 "authored operator must actually participate in this fixture"

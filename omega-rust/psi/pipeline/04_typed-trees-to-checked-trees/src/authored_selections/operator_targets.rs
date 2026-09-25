@@ -226,7 +226,7 @@ fn checked_operator_target(
                 })
         })
         .or_else(|| {
-            resolve_authored_operator_without_use_fact(program, node)
+            resolve_authored_operator_without_use_fact(program, expression, node)
                 .and_then(|operator| declaration_target(operator.symbol))
         })
         .or_else(|| {
@@ -247,7 +247,7 @@ fn checked_operator_target(
             ))
         })
         .or_else(|| {
-            operator_has_no_authored_spelling_candidate(program, node).then_some(
+            operator_has_no_authored_spelling_candidate(program, expression, node).then_some(
                 CheckedResolutionTarget::Intrinsic(
                     AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
                 ),
@@ -368,6 +368,7 @@ pub(crate) fn checked_structural_equality_call(
 /// reconstruction remains unresolved and therefore rejects package custody.
 fn resolve_authored_operator_without_use_fact<'program>(
     program: &'program TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     use language_core::OperatorSpelling;
@@ -423,8 +424,12 @@ fn resolve_authored_operator_without_use_fact<'program>(
         }
         _ => return None,
     };
-    let candidates =
-        typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types);
+    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(expression),
+    );
     let [candidate] = candidates.as_slice() else {
         return None;
     };
@@ -641,6 +646,7 @@ fn operator_contract_value_type(
 
 fn operator_has_no_authored_spelling_candidate(
     program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
     node: &ExpressionNode,
 ) -> bool {
     use language_core::OperatorSpelling;
@@ -681,7 +687,13 @@ fn operator_has_no_authored_spelling_candidate(
         ExpressionNode::Unary(_) => return true,
         _ => return false,
     };
-    typed_trees::operator::resolve_spelling(program, spelling, None).is_empty()
+    typed_trees::operator::resolve_spelling(
+        program,
+        spelling,
+        None,
+        program.expression_table.source_span(expression),
+    )
+    .is_empty()
 }
 
 /// Return whether an early typed operator expression cannot select an authored
@@ -692,7 +704,7 @@ pub(crate) fn typed_operator_has_no_authored_selection(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let node = program.expression_table.expression(expression);
-    operator_has_no_authored_spelling_candidate(program, node)
+    operator_has_no_authored_spelling_candidate(program, expression, node)
         // A loaded declaration with the same spelling is not necessarily a
         // candidate for these operands. Reuse the checked selection query's
         // primitive/candidate distinction before build-time execution, while
@@ -790,7 +802,12 @@ fn candidate_operators<'program>(
         _ => return Vec::new(),
     };
 
-    typed_trees::operator::resolve_spelling_for_operand_types(program, spelling, &operand_types)
+    typed_trees::operator::resolve_spelling_for_operand_types(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(expression),
+    )
 }
 
 pub(crate) fn type_reference_for_symbol(

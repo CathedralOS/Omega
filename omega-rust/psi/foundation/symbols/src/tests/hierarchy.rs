@@ -345,3 +345,112 @@ fn child_ranges_are_exact_per_parent() {
         vec!["entry".to_owned(), "running".to_owned()]
     );
 }
+
+/// A loaded source exposes nothing merely by being loaded: a reference
+/// selects declarations from its own source, its checked package instance,
+/// and the sources its file imported.
+#[test]
+fn reference_selects_own_package_and_imported_declarations_only() {
+    let mut sources = SourceMap::default();
+    let main = sources
+        .add_with_metadata(
+            PathBuf::from("app/main.omg"),
+            String::from("Nat"),
+            PathBuf::from("app"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let sibling = sources
+        .add_with_metadata(
+            PathBuf::from("app/helper.omg"),
+            String::from("Nat"),
+            PathBuf::from("app"),
+            None,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let entry_contract = sources
+        .add_with_metadata(
+            PathBuf::from("toolchain/std/targets/host/entry.omg"),
+            String::from("use"),
+            PathBuf::from("toolchain/std"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let bundled = sources
+        .add_with_metadata(
+            PathBuf::from("toolchain/core/nat.omg"),
+            String::from("Nat"),
+            PathBuf::from("toolchain/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let imported = sources
+        .add_with_metadata(
+            PathBuf::from("toolchain/core/slice.omg"),
+            String::from("Nat"),
+            PathBuf::from("toolchain/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let bindings = vec![SourceScopedTopLevelBinding::module_import(
+        main,
+        imported,
+        "omega::language::core::slice",
+        3,
+    )];
+    let mut builder =
+        SymbolTableBuilder::with_sources_and_top_level_bindings(Some(Arc::new(sources)), bindings);
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(main, Span::new(0, 3))),
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(sibling, Span::new(0, 3))),
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(bundled, Span::new(0, 3))),
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(imported, Span::new(0, 3))),
+            ),
+        ],
+    ))
+    .collect::<Vec<_>>();
+    let symbols = builder.finish();
+    let reference = |source_id| SourceSpan::new(source_id, Span::new(0, 1));
+
+    let [own, package_sibling, loaded_only, imported_declaration] = declarations.as_slice() else {
+        panic!("four declarations");
+    };
+    assert!(symbols.source_reference_may_select_symbol(reference(main), *own));
+    assert!(symbols.source_reference_may_select_symbol(reference(main), *package_sibling));
+    assert!(symbols.source_reference_may_select_symbol(reference(main), *imported_declaration));
+    assert!(
+        !symbols.source_reference_may_select_symbol(reference(main), *loaded_only),
+        "a bundled source reached only through another source's imports exposes nothing"
+    );
+    assert!(
+        !symbols.source_reference_may_select_symbol(reference(entry_contract), *own),
+        "the toolchain contract does not select the program's declarations either"
+    );
+    assert!(
+        !symbols.source_reference_may_select_symbol(reference(entry_contract), *loaded_only),
+        "one bundled root does not expose another bundled root without an import"
+    );
+    assert!(
+        symbols.source_reference_may_select_symbol(SourceSpan::default(), *loaded_only),
+        "source-free consumers keep the whole program"
+    );
+}

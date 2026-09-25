@@ -77,8 +77,13 @@ fn indexed_shared_collection_views_retain_exact_operator_and_closed_element() {
         assert_eq!(program.display_type_reference(*type_reference), "i32");
         if collection == "[i32; 3]" {
             assert!(
-                resolve_spelling_for_operands(&program, OperatorSpelling::Index, &operands)
-                    .is_empty(),
+                resolve_spelling_for_operands(
+                    &program,
+                    OperatorSpelling::Index,
+                    &operands,
+                    source::SourceSpan::default()
+                )
+                .is_empty(),
                 "ordinary matching must not gain collection coercion"
             );
             assert!(
@@ -618,6 +623,7 @@ fn attached_receiver_normalizes_to_operand_position_zero() {
             &program,
             OperatorSpelling::Add,
             &[Some(receiver_type), Some(right_type)],
+            source::SourceSpan::default(),
         )
         .len(),
         1
@@ -627,6 +633,7 @@ fn attached_receiver_normalizes_to_operand_position_zero() {
             &program,
             OperatorSpelling::Add,
             &[Some(right_type), Some(receiver_type)],
+            source::SourceSpan::default(),
         )
         .is_empty()
     );
@@ -702,6 +709,7 @@ fn complete_operand_matching_shares_generic_bindings_across_positions() {
         &program,
         OperatorSpelling::Add,
         &[Some(i32_type), Some(u64_type)],
+        source::SourceSpan::default(),
     );
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].operator.symbol, heterogeneous_operator_symbol);

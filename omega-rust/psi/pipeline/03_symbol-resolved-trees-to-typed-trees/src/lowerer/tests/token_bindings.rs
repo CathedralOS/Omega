@@ -96,6 +96,7 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         &program,
         OperatorSpelling::Add,
         &[Some(wrapped), Some(other_wrapped)],
+        source::SourceSpan::default(),
     );
     assert_eq!(selected.len(), 1);
     assert_eq!(selected[0].operator.symbol, add.symbol);
@@ -105,7 +106,8 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         resolve_spelling_for_operands(
             &program,
             OperatorSpelling::Add,
-            &[Some(wrapped), Some(scale)]
+            &[Some(wrapped), Some(scale)],
+            source::SourceSpan::default()
         )
         .is_empty(),
         "a foreign operand shape selects nothing"
@@ -114,7 +116,8 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         resolve_spelling_for_operands(
             &program,
             OperatorSpelling::Subtract,
-            &[Some(wrapped), Some(scale)]
+            &[Some(wrapped), Some(scale)],
+            source::SourceSpan::default()
         )
         .is_empty(),
         "`&Wrapped` is not `Wrapped`: the reference shape is part of the binding"
@@ -123,7 +126,8 @@ fn operand_directed_selection_finds_the_matching_binding_only() {
         resolve_spelling_for_operands(
             &program,
             OperatorSpelling::Multiply,
-            &[Some(wrapped), Some(other_wrapped)]
+            &[Some(wrapped), Some(other_wrapped)],
+            source::SourceSpan::default()
         )
         .is_empty(),
         "a token nobody bound selects nothing"

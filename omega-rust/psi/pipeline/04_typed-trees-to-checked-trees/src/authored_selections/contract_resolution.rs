@@ -158,8 +158,12 @@ fn checked_spelled_operator_resolution(
     if operand_types.iter().all(Option::is_none) {
         return None;
     }
-    let candidates =
-        typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types);
+    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(expression),
+    );
     match candidates.as_slice() {
         [] => Some(CheckedContractOperatorResolution::Builtin),
         [candidate] => Some(CheckedContractOperatorResolution::Declaration(

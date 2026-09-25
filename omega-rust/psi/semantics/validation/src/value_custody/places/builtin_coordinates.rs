@@ -62,6 +62,7 @@ pub fn has_builtin_subslice_meaning(
         program,
         OperatorSpelling::Range,
         &operands,
+        program.expression_table.source_span(expression),
     )
     .is_empty()
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
@@ -164,6 +165,7 @@ fn builtin_coordinates(
                 program,
                 OperatorSpelling::Index,
                 &operands,
+                program.expression_table.source_span(expression),
             )
             .is_empty()
                 && typed_trees::operator::has_builtin_spelled_expression_meaning(

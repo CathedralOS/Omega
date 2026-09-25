@@ -104,6 +104,7 @@ impl Evaluator<'_> {
             self.program,
             language_core::OperatorSpelling::Index,
             &operands,
+            self.program.expression_table.source_span(expression),
         )
         .is_empty()
             || !typed_trees::operator::has_builtin_spelled_expression_meaning(

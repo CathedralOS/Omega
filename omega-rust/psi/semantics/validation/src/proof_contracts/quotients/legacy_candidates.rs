@@ -51,12 +51,7 @@ pub(crate) fn legacy_quotient_call_candidate<'program>(
         if quotient_for_type(program, receiver_type)?.symbol != quotient.symbol {
             return None;
         }
-        let attached_carrier = operation.attached_data.as_ref().and_then(|attached| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached.as_str())
-        })?;
+        let attached_carrier = program.attached_data_definition(operation)?;
         if attached_carrier.symbol != carrier {
             return None;
         }

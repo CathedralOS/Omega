@@ -20,6 +20,7 @@ pub fn resolve_indexed_spelling_for_operands<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
+    use_site: source::SourceSpan,
 ) -> Vec<SpelledOperator<'program>> {
     if !matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         return Vec::new();
@@ -29,7 +30,7 @@ pub fn resolve_indexed_spelling_for_operands<'program>(
         .copied()
         .map(OperandType::from_reference)
         .collect::<Vec<_>>();
-    resolve_spelling(program, spelling, None)
+    resolve_spelling(program, spelling, None, use_site)
         .into_iter()
         .filter(|candidate| {
             operator_matches_operands_with_indexed_collection(

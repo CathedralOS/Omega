@@ -27,7 +27,7 @@
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::equatable::{
-    DataEqualityShape, FieldEquality, data_definition_by_name, data_equality_shape,
+    DataEqualityShape, FieldEquality, data_definition_by_name_from, data_equality_shape,
     equatable_conformance_declared, field_equality, synthesized_equals_state_symbol,
     value_type_base_name, written_equals_state_symbol,
 };
@@ -68,13 +68,20 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let Some(type_name) = self.operand_data_type_name(call.receiver) else {
             return Ok(None);
         };
-        if !equatable_conformance_declared(program, &type_name)
-            || written_equals_state_symbol(program, &type_name).is_some()
+        let Some(data) = data_definition_by_name_from(
+            program,
+            &type_name,
+            self.source.source_span(call.receiver),
+        ) else {
+            return Ok(None);
+        };
+        if !equatable_conformance_declared(program, data)
+            || written_equals_state_symbol(program, data).is_some()
         {
             return Ok(None);
         }
         let synthesized_target =
-            synthesized_equals_state_symbol(program, &type_name).ok_or_else(|| {
+            synthesized_equals_state_symbol(program, data).ok_or_else(|| {
                 Diagnostic::error(format!(
                     "compiler-generated `{type_name}::equals` declaration is missing or ambiguous"
                 ))
@@ -215,8 +222,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 .or_else(|| self.operand_data_type_name(binary.right));
             if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
                 && left_name != right_name
-                && data_definition_by_name(program, left_name).is_some()
-                && data_definition_by_name(program, right_name).is_some()
+                && data_definition_by_name_from(
+                    program,
+                    left_name,
+                    self.source.source_span(binary.left),
+                )
+                .is_some()
+                && data_definition_by_name_from(
+                    program,
+                    right_name,
+                    self.source.source_span(binary.right),
+                )
+                .is_some()
             {
                 return Err(Diagnostic::error(format!(
                     "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands \
@@ -244,8 +261,18 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         // Direction`).
         if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
             && left_name != right_name
-            && data_definition_by_name(program, left_name).is_some()
-            && data_definition_by_name(program, right_name).is_some()
+            && data_definition_by_name_from(
+                program,
+                left_name,
+                self.source.source_span(binary.left),
+            )
+            .is_some()
+            && data_definition_by_name_from(
+                program,
+                right_name,
+                self.source.source_span(binary.right),
+            )
+            .is_some()
         {
             return Err(Diagnostic::error(format!(
                 "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands are \
@@ -256,7 +283,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             Some(name) => name,
             None => return Ok(None),
         };
-        let Some(data) = data_definition_by_name(program, &type_name) else {
+        let Some(data) =
+            data_definition_by_name_from(program, &type_name, self.source.source_span(binary.left))
+        else {
             return Ok(None);
         };
         if data.quotient.is_some() {
@@ -274,14 +303,14 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
 
-        if !equatable_conformance_declared(program, &type_name) {
+        if !equatable_conformance_declared(program, data) {
             // PROOF-FACT position over RECURSIVE (proof-only) data: the
             // compare stays a raw Binary for the structural entailment judge
             // (math roster N3) -- no runtime lowering exists to synthesize,
             // and the resolved-level pre-pass already stood down for exactly
             // this shape.
             if self.fact_position
-                && crate::expressions::equality::data_is_directly_recursive(program, &type_name)
+                && crate::expressions::equality::data_is_directly_recursive(program, data)
             {
                 return Ok(None);
             }
@@ -290,7 +319,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             )));
         }
 
-        if let Some(equals_state) = written_equals_state_symbol(program, &type_name) {
+        if let Some(equals_state) = written_equals_state_symbol(program, data) {
             let receiver = self.lower(binary.left)?;
             let argument = self.lower(binary.right)?;
             let arguments = self.target().insert_expression_handles(vec![argument]);
@@ -422,7 +451,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Member(member) => {
                 let receiver_type = self.operand_data_type_name(member.receiver)?;
-                let data = data_definition_by_name(program, &receiver_type)?;
+                let data = data_definition_by_name_from(
+                    program,
+                    &receiver_type,
+                    self.source.source_span(member.receiver),
+                )?;
                 let field = program
                     .data_members(data.members)
                     .iter()
@@ -685,7 +718,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let program = self
             .program
             .expect("structural equality requires program context");
-        match field_equality(program, &visiting[0], data.name.as_str(), field)? {
+        match field_equality(program, &visiting[0], data, field)? {
             FieldEquality::Direct => {
                 let left_value = self.operand_field_value(field, case_variant, left)?;
                 let right_value = self.operand_field_value(field, case_variant, right)?;

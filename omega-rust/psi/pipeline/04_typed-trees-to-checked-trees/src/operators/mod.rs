@@ -922,7 +922,12 @@ fn binary_operator_use_fact(
             candidate_facts,
         ));
     }
-    let candidates = resolve_spelling_for_operands(program, spelling, operand_types);
+    let candidates = resolve_spelling_for_operands(
+        program,
+        spelling,
+        operand_types,
+        program.expression_table.source_span(expression),
+    );
     if candidates.is_empty() {
         return None;
     }
@@ -1035,14 +1040,16 @@ fn operator_use_fact(
             candidate_facts,
         );
     }
+    let use_site = program.expression_table.source_span(expression);
     let candidates = if matches!(spelling, OperatorSpelling::Index | OperatorSpelling::Range) {
         typed_trees::operator::resolve_indexed_spelling_for_operands(
             program,
             spelling,
             operand_types,
+            use_site,
         )
     } else {
-        resolve_spelling_for_operands(program, spelling, operand_types)
+        resolve_spelling_for_operands(program, spelling, operand_types, use_site)
     };
     let candidate_count = candidates.len();
     let candidate_span = candidate_facts.insert_many(

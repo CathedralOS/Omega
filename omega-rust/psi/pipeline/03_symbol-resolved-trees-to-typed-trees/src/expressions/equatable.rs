@@ -44,17 +44,37 @@ pub(crate) enum DataEqualityShape {
     Structural,
 }
 
-pub(crate) fn data_definition_by_name<'program>(
+/// Resolve `type_name` as the data declaration the reference's source
+/// selects -- its own, its package's, or an imported one -- never a
+/// same-named declaration that merely loaded with another source (modules
+/// spec, "Import scope and exposure"). Without a source-backed reference,
+/// or when the reference selects nothing, the unique declaration of that
+/// name remains; two same-named declarations resolve to none.
+pub(crate) fn data_definition_by_name_from<'program>(
     program: &'program SymbolResolvedTrees,
     type_name: &str,
+    reference: source::SourceSpan,
 ) -> Option<&'program DataDefinition> {
-    program
+    if reference.span.start != reference.span.end
+        && let Some(symbol) = program
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                type_name,
+                &[symbols::SymbolKind::Data],
+                reference,
+            )
+    {
+        return data_definition_by_symbol(program, symbol);
+    }
+    let mut matches = program
         .data_definitions
         .iter()
-        .find(|definition| definition.name.as_str() == type_name)
+        .filter(|definition| definition.name.as_str() == type_name);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
 }
 
-fn data_definition_by_symbol(
+pub(crate) fn data_definition_by_symbol(
     program: &SymbolResolvedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<&DataDefinition> {
@@ -98,16 +118,34 @@ pub(crate) fn data_equality_shape(
     }
 }
 
+/// Whether `data` itself declares `satisfies Equatable`. The carrier symbol
+/// decides; a same-named declaration loaded from another source does not.
 pub(crate) fn equatable_conformance_declared(
     program: &SymbolResolvedTrees,
-    type_name: &str,
+    data: &DataDefinition,
 ) -> bool {
     program.conformances.iter().any(|conformance| {
         conformance.trait_name.as_str() == EQUATABLE_TRAIT
-            && conformance
-                .carrier_name()
-                .is_some_and(|carrier| carrier.as_str() == type_name)
+            && if conformance.carrier_symbol.is_valid() {
+                conformance.carrier_symbol == data.symbol
+            } else {
+                conformance
+                    .carrier_name()
+                    .is_some_and(|carrier| carrier.as_str() == data.name.as_str())
+            }
     })
+}
+
+/// Whether `machine` is attached to exactly `data`, by symbol where the
+/// machine records one and by spelling otherwise.
+fn machine_attached_to(machine: &resolved::machine::Machine, data: &DataDefinition) -> bool {
+    if machine.attached_data_symbol.is_valid() {
+        return machine.attached_data_symbol == data.symbol;
+    }
+    machine
+        .attached_data
+        .as_ref()
+        .is_some_and(|attached| attached.as_str() == data.name.as_str())
 }
 
 /// A hand-written `machine Type::equals(...)` wins over synthesis (check-
@@ -115,7 +153,7 @@ pub(crate) fn equatable_conformance_declared(
 /// member lowers to a call targeting its entry state.
 pub(crate) fn written_equals_state_symbol(
     program: &SymbolResolvedTrees,
-    type_name: &str,
+    data: &DataDefinition,
 ) -> Option<symbols::SymbolHandle> {
     program
         .machines
@@ -125,10 +163,7 @@ pub(crate) fn written_equals_state_symbol(
                 .name
                 .as_str()
                 .starts_with("__omega_synthesized_equatable::")
-                && machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|attached| attached.as_str() == type_name)
+                && machine_attached_to(machine, data)
         })
         .find_map(|machine| {
             program
@@ -148,7 +183,7 @@ pub(crate) fn written_equals_state_symbol(
 /// omits the wrapper.
 pub(crate) fn synthesized_equals_state_symbol(
     program: &SymbolResolvedTrees,
-    type_name: &str,
+    data: &DataDefinition,
 ) -> Option<symbols::SymbolHandle> {
     let matches = program
         .machines
@@ -158,10 +193,7 @@ pub(crate) fn synthesized_equals_state_symbol(
                 .name
                 .as_str()
                 .starts_with("__omega_synthesized_equatable::")
-                && machine
-                    .attached_data
-                    .as_ref()
-                    .is_some_and(|attached| attached.as_str() == type_name)
+                && machine_attached_to(machine, data)
         })
         .flat_map(|machine| {
             program
@@ -193,9 +225,10 @@ pub(crate) enum FieldEquality<'program> {
 pub(crate) fn field_equality<'program>(
     program: &'program SymbolResolvedTrees,
     conforming_type: &str,
-    owner: &str,
+    owner_data: &DataDefinition,
     field: &DataField,
 ) -> Result<FieldEquality<'program>, Diagnostic> {
+    let owner = owner_data.name.as_str();
     // A `&[u8]` byte-slice text VIEW (`&[u8] in Utf8`, bare `&[u8]`) shares the
     // identical 16-byte `{ptr, len}` descriptor with `String` and is likewise
     // CONTENT-comparable (length AND single-byte loop) -- the value-position
@@ -219,7 +252,16 @@ pub(crate) fn field_equality<'program>(
         return Ok(FieldEquality::Direct);
     }
 
-    let Some(field_data) = data_definition_by_name(program, &base_name) else {
+    // The field's type resolves from the owner's declaration site, exactly
+    // as the field's own type reference did.
+    let Some(field_data) = data_definition_by_name_from(
+        program,
+        &base_name,
+        program
+            .symbols
+            .symbol_source_span(owner_data.symbol)
+            .unwrap_or_default(),
+    ) else {
         return Err(Diagnostic::error(format!(
             "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: `{base_name}` is not a comparable data type",
             field.name
@@ -236,7 +278,7 @@ pub(crate) fn field_equality<'program>(
     match data_equality_shape(program, field_data) {
         DataEqualityShape::Implicit => Ok(FieldEquality::Direct),
         DataEqualityShape::Structural => {
-            if equatable_conformance_declared(program, &base_name) {
+            if equatable_conformance_declared(program, field_data) {
                 Ok(FieldEquality::Structural(field_data))
             } else {
                 Err(Diagnostic::error(format!(
@@ -261,7 +303,12 @@ pub(crate) fn validate_equatable_conformances(
         let Some(type_name) = conformance.carrier_name().map(|name| name.as_str()) else {
             continue;
         };
-        let Some(data) = data_definition_by_name(program, type_name) else {
+        let data = if conformance.carrier_symbol.is_valid() {
+            data_definition_by_symbol(program, conformance.carrier_symbol)
+        } else {
+            data_definition_by_name_from(program, type_name, source::SourceSpan::default())
+        };
+        let Some(data) = data else {
             continue;
         };
         if data.quotient.is_some() {
@@ -290,7 +337,7 @@ fn validate_equatable_data(
         };
         for field in fields {
             let FieldEquality::Structural(nested) =
-                field_equality(program, conforming_type, owner, field)?
+                field_equality(program, conforming_type, data, field)?
             else {
                 continue;
             };

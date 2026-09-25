@@ -513,9 +513,14 @@ impl<'program> Reader<'program> {
             AuthoredDeclarationSelectionLateBinding as LateBinding,
             AuthoredDeclarationSelectionTarget as Target,
         };
-        typed_trees::operator::resolve_spelling_for_operands(self.program, spelling, operand_types)
-            .iter()
-            .all(|candidate| candidate.operator.is_boundary)
+        typed_trees::operator::resolve_spelling_for_operands(
+            self.program,
+            spelling,
+            operand_types,
+            self.program.expression_table.source_span(expression),
+        )
+        .iter()
+        .all(|candidate| candidate.operator.is_boundary)
             && typed_trees::operator::selected_trait_operator_meanings(
                 self.program,
                 self.owner,

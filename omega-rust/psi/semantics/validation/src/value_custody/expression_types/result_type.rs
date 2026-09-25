@@ -635,8 +635,12 @@ fn binary_result(
             &operands,
         )
     {
-        let candidates =
-            typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operands);
+        let candidates = typed_trees::operator::resolve_spelling_for_operands(
+            program,
+            spelling,
+            &operands,
+            program.expression_table.source_span(expression),
+        );
         let [selected] = candidates.as_slice() else {
             return None;
         };

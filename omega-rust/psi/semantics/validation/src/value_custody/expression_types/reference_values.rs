@@ -626,6 +626,7 @@ fn selected_value_type(
                     program,
                     language_core::OperatorSpelling::Index,
                     &[Some(collection), index_type],
+                    program.expression_table.source_span(expression),
                 )
                 .is_empty()
             {

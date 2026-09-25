@@ -79,6 +79,32 @@ impl TypedTrees {
             .span_or_empty(self.roots.data_definitions)
     }
 
+    /// The data declaration `machine` is attached to: the exact nominal
+    /// symbol typing retained, never a same-spelled declaration from another
+    /// package (every compilation loads bundled sources such as core's `Nat`
+    /// beside the program's own). A machine without that symbol -- compiler
+    /// synthesized, or a focused test program -- falls back to the one
+    /// declaration of its attachment spelling; two such declarations resolve
+    /// to none rather than to whichever loaded first.
+    pub fn attached_data_definition(
+        &self,
+        machine: &crate::machine::Machine,
+    ) -> Option<&data::DataDefinition> {
+        if machine.attached_data_symbol.is_valid() {
+            return self
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == machine.attached_data_symbol);
+        }
+        let attached = machine.attached_data.as_ref()?;
+        let mut matches = self
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.name.as_str() == attached.as_str());
+        let first = matches.next()?;
+        matches.next().is_none().then_some(first)
+    }
+
     pub fn push_data_type_parameter(
         &mut self,
         data_definition: &mut data::DataDefinition,

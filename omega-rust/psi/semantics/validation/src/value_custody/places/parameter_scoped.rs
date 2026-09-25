@@ -92,6 +92,7 @@ fn expression_type(
                     program,
                     language_core::OperatorSpelling::Index,
                     &operands,
+                    program.expression_table.source_span(expression),
                 )
                 .is_empty()
             {

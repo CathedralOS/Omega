@@ -248,8 +248,12 @@ pub(super) fn sealed_float_comparison(
     {
         return false;
     }
-    let candidates =
-        typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types);
+    let candidates = typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(expression),
+    );
     let [candidate] = candidates.as_slice() else {
         return false;
     };
@@ -750,6 +754,7 @@ fn operand_place_projection_type(
                 program,
                 OperatorSpelling::Index,
                 &operands,
+                program.expression_table.source_span(expression),
             )
             .is_empty()
             {

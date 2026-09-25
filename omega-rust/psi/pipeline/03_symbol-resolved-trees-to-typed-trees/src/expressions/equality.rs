@@ -20,7 +20,7 @@
 
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
-use resolved::data::DataMember;
+use resolved::data::{DataDefinition, DataMember};
 use resolved::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use resolved::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use symbol_resolved_trees as resolved;
@@ -233,11 +233,15 @@ fn check_equality_operand(
             let [type_name, case_name] = members else {
                 return Ok(());
             };
-            let Some((data_name, case_name)) =
-                payload_bearing_case(program, type_name.as_str(), case_name.as_str())
-            else {
+            let Some((data, case_name)) = payload_bearing_case(
+                program,
+                type_name.as_str(),
+                case_name.as_str(),
+                program.tables.bodies.expressions.source_span(operand),
+            ) else {
                 return Ok(());
             };
+            let data_name = data.name.as_str();
             Err(Diagnostic::error(format!(
                 "`{data_name}::{case_name}` carries a payload, so the bare case name is not a value -- use `in` to test the case (`value in {data_name}::{case_name}`), or compare against a constructed value"
             )))
@@ -246,15 +250,19 @@ fn check_equality_operand(
             let Some(case_name) = literal.case_name.as_ref() else {
                 return Ok(());
             };
-            let Some((data_name, case_name)) =
-                payload_bearing_case(program, literal.type_name.as_str(), case_name.as_str())
-            else {
+            let Some((data, case_name)) = payload_bearing_case(
+                program,
+                literal.type_name.as_str(),
+                case_name.as_str(),
+                program.tables.bodies.expressions.source_span(operand),
+            ) else {
                 return Ok(());
             };
+            let data_name = data.name.as_str();
             // A declared `Type satisfies Equatable;` synthesizes structural
             // equality, so the constructed-case compare is legal and lowers
             // to the inline expansion (`expression::table::structural_equality`).
-            if crate::expressions::equatable::equatable_conformance_declared(program, &data_name) {
+            if crate::expressions::equatable::equatable_conformance_declared(program, data) {
                 return Ok(());
             }
             // FACT position over RECURSIVE (hence proof-only) data: no
@@ -262,7 +270,7 @@ fn check_equality_operand(
             // entailment judge owns this equality (math roster N3;
             // injectivity/disjointness over constructed cases). Runtime
             // positions keep the fence.
-            if fact_position && data_is_directly_recursive(program, &data_name) {
+            if fact_position && data_is_directly_recursive(program, data) {
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
@@ -273,15 +281,14 @@ fn check_equality_operand(
     }
 }
 
-fn payload_bearing_case(
-    program: &SymbolResolvedTrees,
+fn payload_bearing_case<'program>(
+    program: &'program SymbolResolvedTrees,
     type_name: &str,
     case_name: &str,
-) -> Option<(String, String)> {
-    let data_definition = program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.name.as_str() == type_name)?;
+    reference: source::SourceSpan,
+) -> Option<(&'program DataDefinition, String)> {
+    let data_definition =
+        crate::expressions::equatable::data_definition_by_name_from(program, type_name, reference)?;
 
     program
         .data_members(data_definition.members)
@@ -290,7 +297,7 @@ fn payload_bearing_case(
             DataMember::Variant(variant)
                 if variant.name.as_str() == case_name && variant.payload.count() > 0 =>
             {
-                Some((type_name.to_owned(), case_name.to_owned()))
+                Some((data_definition, case_name.to_owned()))
             }
             _ => None,
         })
@@ -302,14 +309,11 @@ fn payload_bearing_case(
 /// resolved level because this pass runs before typing. Direct recursion
 /// only: mutually recursive types stay conservatively fenced in fact
 /// position until a consumer needs them.
-pub(crate) fn data_is_directly_recursive(program: &SymbolResolvedTrees, type_name: &str) -> bool {
-    let Some(definition) = program
-        .data_definitions
-        .iter()
-        .find(|definition| definition.name.as_str() == type_name)
-    else {
-        return false;
-    };
+pub(crate) fn data_is_directly_recursive(
+    program: &SymbolResolvedTrees,
+    definition: &DataDefinition,
+) -> bool {
+    let type_name = definition.name.as_str();
     program
         .data_members(definition.members)
         .iter()

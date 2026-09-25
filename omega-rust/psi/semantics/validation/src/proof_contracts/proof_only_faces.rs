@@ -82,10 +82,7 @@ pub(crate) fn validate_proof_only_consumption(
 
         // The machine's own storage: `machine Main::main` runs ON `Main`.
         if let Some(attached) = machine.attached_data.as_ref()
-            && let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached.as_str())
+            && let Some(definition) = program.attached_data_definition(machine)
             && let Some(reason) = classification.describe(attached.as_str(), definition.symbol)
         {
             diagnostics.push(Diagnostic::error(format!(
