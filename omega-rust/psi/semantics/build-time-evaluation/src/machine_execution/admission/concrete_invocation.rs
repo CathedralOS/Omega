@@ -1,17 +1,28 @@
-//! Concrete premise discharge for a zero-argument `machine()` invocation.
+//! Checked discharge of authored `requires` premises in a call closure.
 //!
 //! An authored `requires` premise has no meaning outside an invocation, so
-//! the common floor fences every call closure carrying one until a checked
-//! probe re-runs ordinary contract checking on the exact call. Positions
-//! that own an authored call node — constant initializers — build that
-//! probe around it. A const-position leg such as a fixed-array length's
-//! `machine()` owns no call node, but the invocation is just as concrete:
-//! the exact call is `machine()` at the leg's own source span. Admission
-//! therefore builds the private probe itself, appending a generated machine
-//! whose body is the synthesized call, and treats a clean checked lowering
-//! with no retained crash routes as the discharge evidence. Every other
-//! floor axis — service reach, suspension, blocking, termination, linear
-//! carriers, declaration-selection authority — is enforced unchanged.
+//! the common floor fences every call closure carrying one until ordinary
+//! contract checking proves it. Two routes produce that proof here.
+//!
+//! A premise on the invoked machine or its entry state depends on the
+//! invocation's arguments. Positions that own an authored call node —
+//! constant initializers — build a checked probe around it. A const-position
+//! leg such as a fixed-array length's `machine()` owns no call node, but the
+//! invocation is just as concrete: the exact call is `machine()` at the leg's
+//! own source span. Admission therefore builds the private probe itself,
+//! appending a generated machine whose body is the synthesized call, and
+//! treats a clean checked lowering with no retained crash routes as the
+//! discharge evidence.
+//!
+//! Every other premise — on a callee, a later state, or a callable target —
+//! sits at a source call or transition site whose proof reads only that
+//! caller's own facts. When the entry carries no premise, a clean checked
+//! lowering of the program proves the whole closure for any arguments, so an
+//! argument-carrying policy or layout invocation needs no synthesized call.
+//!
+//! Every other floor axis — service reach, suspension, blocking,
+//! termination, linear carriers, declaration-selection authority — is
+//! enforced unchanged.
 
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
@@ -19,6 +30,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
+
+use super::closure_validation::has_authored_requires;
 
 /// Whether a private checked probe discharges `machine`'s authored
 /// `requires` premises for the concrete zero-argument call `machine()`.
@@ -37,24 +50,8 @@ pub(super) fn zero_argument_invocation_discharges(
     // private program, so they must not survive as a tolerated lost fold.
     probe.pending_const_range_endpoints.clear();
 
-    let leaf = machine
-        .name
-        .as_str()
-        .rsplit("::")
-        .next()
-        .unwrap_or_default();
-    let Some((entry_symbol, entry_name, entry_return)) = probe
-        .machines()
-        .iter()
-        .find(|candidate| candidate.symbol == machine.symbol)
-        .and_then(|candidate| {
-            let states = probe.machine_states(candidate);
-            states
-                .iter()
-                .find(|state| state.name.as_str() == leaf)
-                .or_else(|| states.first())
-        })
-        .filter(|entry| probe.state_parameters(entry).is_empty())
+    let Some((entry_symbol, entry_name, entry_return)) = entry_state(program, machine)
+        .filter(|entry| program.state_parameters(entry).is_empty())
         .map(|entry| (entry.symbol, entry.name.clone(), entry.return_type))
     else {
         return false;
@@ -105,6 +102,47 @@ pub(super) fn zero_argument_invocation_discharges(
     )
 }
 
+/// Whether ordinary checking alone discharges every authored `requires`
+/// premise in `machine`'s call closure, whatever the invocation's arguments.
+/// Holds only when neither the machine nor its entry state carries an
+/// authored premise and the program survives ordinary checked lowering;
+/// an entry premise keeps its concrete routes or the conservative fence.
+pub(super) fn argument_independent_closure_discharges(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> bool {
+    let entry_is_unconditional = !has_authored_requires(program.machine_contracts(machine))
+        && entry_state(program, machine)
+            .is_some_and(|entry| !has_authored_requires(program.state_contracts(entry)));
+    if !entry_is_unconditional {
+        return false;
+    }
+    let mut checked = program.clone();
+    // Same preliminary-package window as the zero-argument probe above.
+    checked.pending_const_range_endpoints.clear();
+    typed_trees_to_checked_trees::lower_typed_trees(
+        checked,
+        &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+    )
+    .is_ok()
+}
+
+/// The state an invocation of `machine` enters: the one named by the
+/// machine's leaf, else its first state.
+fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a State> {
+    let leaf = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    let states = program.machine_states(machine);
+    states
+        .iter()
+        .find(|state| state.name.as_str() == leaf)
+        .or_else(|| states.first())
+}
+
 /// Append the generated probe machine whose single state returns the
 /// synthesized call: `machine @const-length() -> <entry return> { machine() }`.
 fn append_invocation_probe(
@@ -150,7 +188,7 @@ fn append_invocation_probe(
 
 #[cfg(test)]
 mod tests {
-    use super::zero_argument_invocation_discharges;
+    use super::{argument_independent_closure_discharges, zero_argument_invocation_discharges};
     use crate::BuildTimeAdmissionPlan;
 
     fn admission(program: &typed_trees::TypedTrees) -> BuildTimeAdmissionPlan {
@@ -240,5 +278,77 @@ machine Main::main(&mut self) { }
             target,
             Some(source::SourceSpan::default()),
         ));
+    }
+
+    #[test]
+    fn checking_discharges_callee_premises_past_an_unconditional_entry() {
+        let program = crate::front_end::typed_program(
+            r#"
+machine bounded(value: u64) -> u64
+requires value <= 512;
+{
+    value
+}
+
+machine policy(value: u64) -> u64 {
+    bounded(256)
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+        );
+        let plan = admission(&program);
+        let target = machine(&program, "policy");
+        assert!(plan.closure_includes_authored_requires(&program, target));
+        assert!(argument_independent_closure_discharges(&program, target));
+        plan.require_common_floor(&program, target)
+            .expect("the callee premise is proved at its call site");
+    }
+
+    #[test]
+    fn an_unproved_callee_premise_keeps_the_fence() {
+        let program = crate::front_end::typed_program(
+            r#"
+machine bounded(value: u64) -> u64
+requires value <= 512;
+{
+    value
+}
+
+machine policy(value: u64) -> u64 {
+    bounded(value)
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+        );
+        let plan = admission(&program);
+        let target = machine(&program, "policy");
+        assert!(!argument_independent_closure_discharges(&program, target));
+        let error = plan
+            .require_common_floor(&program, target)
+            .expect_err("ordinary checking cannot prove `value <= 512`")
+            .reason;
+        assert!(
+            error.contains("has an authored `requires` premise"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn an_entry_premise_depends_on_the_invocation_arguments() {
+        let program = crate::front_end::typed_program(
+            r#"
+machine policy(value: u64) -> u64
+requires value <= 512;
+{
+    value
+}
+data Main { }
+machine Main::main(&mut self) { }
+"#,
+        );
+        let target = machine(&program, "policy");
+        assert!(!argument_independent_closure_discharges(&program, target));
     }
 }

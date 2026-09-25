@@ -12,16 +12,16 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField {
+data SchemaField where size <= 4096, 1 <= align, align <= 16 {
     key: u64;
-    size: u64 [0..=4096];
-    align: u64 [1..=16];
+    size: u64;
+    align: u64;
     number: i64;
     kind: FieldKind;
 }
-data Schema {
+data Schema where field_count <= 32 {
     fields: [SchemaField; 32];
-    field_count: u64 [0..=32];
+    field_count: u64;
 }
 data FieldPlan {
     case At(offset: u64);
@@ -48,27 +48,35 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     self.evaluate(schema, 256)
 }
 
-machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64 [1..=256]) -> Plan
+machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+requires 1 <= fuel
+requires fuel <= 256
 terminates by fuel;
 {
     let mut entries: [FieldEntry; 64];
     self.index = 0;
     transition { _ -> fill_loop(schema, fuel, entries) }
 
-    state fill_loop(&mut self, schema: Schema, fuel: u64 [1..=256], entries: [FieldEntry; 64]) {
+    state fill_loop(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    requires 1 <= fuel
+    requires fuel <= 256 {
         transition fuel > 1 && self.index < 32 && self.index < schema.field_count {
             true -> place_field(schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state place_field(&mut self, schema: Schema, fuel: u64 [1..=256], entries: [FieldEntry; 64]) {
+    state place_field(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    requires 1 <= fuel
+    requires fuel <= 256 {
         self.slot = self.index * 16;
         transition fuel > 1 && self.index < 32 {
             true -> write_field(schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state write_field(&mut self, schema: Schema, fuel: u64 [1..=256], entries: [FieldEntry; 64]) {
+    state write_field(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    requires 1 <= fuel
+    requires fuel <= 256 {
         let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = self.slot as u64;
         updated[self.index] = FieldEntry {

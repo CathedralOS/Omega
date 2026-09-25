@@ -371,7 +371,9 @@ fn machine_precondition_violation(
     })
 }
 
-fn has_authored_requires(contracts: &[typed_trees::signature::SignatureContract]) -> bool {
+pub(super) fn has_authored_requires(
+    contracts: &[typed_trees::signature::SignatureContract],
+) -> bool {
     contracts
         .iter()
         .any(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
