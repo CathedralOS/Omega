@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 mod conditional_return;
 mod guarded_chain;
+mod seal;
 mod state;
 mod successor_edge;
 
