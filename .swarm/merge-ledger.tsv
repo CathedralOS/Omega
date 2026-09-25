@@ -216,3 +216,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T15:52:31Z	7b2b6ef7f0	leaf/invocation-state-index	coordinator	indexed state->machine in invocation inference + definition lookups
 2026-09-25T16:01:03Z	342956ffb7	leaf/data-def-lookup-sweep	coordinator	validation-wide data-definition lookup memo
 2026-09-25T16:16:29Z	9e7752b83b	leaf/conformance-slot-carriers	coordinator	conformance slot-carrier index via plan scope
+2026-09-25T16:47:21Z	2ec0e0ad9b	leaf/entry-operand-resolution	coordinator	machine/state/drop lookup memos for crash-entry operands
