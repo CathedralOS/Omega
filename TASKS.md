@@ -356,22 +356,15 @@ the complete product bar; focused successes below do not establish that baseline
   (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
   otherwise; `proofs/cauchy_predicates_compile` on a cited callee's
   premises; `control_flow/runtime_branching_helper_string` on a borrow-carrying
-  value stored in a persistent field; `core/extent_root_provider_adapter` on
-  the provider-selection subject route below.
+  value stored in a persistent field.
   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
-  `providers/external_leaf_dllimport_compile`, and
-  `domains/explicit_domain_erasure` check and leave this list.
+  `providers/external_leaf_dllimport_compile`,
+  `domains/explicit_domain_erasure`, and `core/extent_root_provider_adapter`
+  check and leave this list.
   Reproduce a selected customer on the working base, repair its owning
   capability, and rerun the same outer command.
 
   Concrete repair routes:
-  - `core/extent_root_provider_adapter`: establish a legitimate build-visible
-    selection route for a public core-owned boundary trait. In
-    `symbols::find_product_declaration_from_source`, an unqualified operand
-    fails `same_product_package_instance` against toolchain-injected core;
-    core has no package manifest for an authored dependency alternative.
-    Resolve that ownership/visibility route under the package contract, without
-    inventing fixture-local authority or weakening exact declaration selection.
   - `capabilities/windows_provides_import_exit`: preserve the producing
     statement for `self.m = self.beeper.beep(self.v)`. The packaged Windows
     fixture reaches `05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
