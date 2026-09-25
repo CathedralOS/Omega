@@ -1230,6 +1230,19 @@ fn samples_with_documented_exit_run_correctly() {
         let _ = fs::remove_dir_all(&build_dir);
         let started = std::time::Instant::now();
         let failures_before = failures.len();
+        // One line per sample under `--no-capture`, so a slow compile or run
+        // names itself while the suite is still going.
+        let report_sample = |failures: &[String]| {
+            eprintln!(
+                "sample {name}: {} in {:.1}s",
+                if failures.len() == failures_before {
+                    "ok"
+                } else {
+                    "failed"
+                },
+                started.elapsed().as_secs_f64()
+            );
+        };
 
         match compile_native_and_publish(CompileOptions {
             root_path: main_path.clone(),
@@ -1241,6 +1254,7 @@ fn samples_with_documented_exit_run_correctly() {
                     "{name}: compile failed: {error:?}; retained observations: {}",
                     build_dir.display()
                 ));
+                report_sample(&failures);
                 continue;
             }
             Ok(report) => {
@@ -1251,6 +1265,7 @@ fn samples_with_documented_exit_run_correctly() {
                     failures.push(format!(
                         "{name}: publication retained no checked executable path"
                     ));
+                    report_sample(&failures);
                     continue;
                 };
                 match run_to_deadline(executable, &build_dir, SAMPLE_RUN_DEADLINE) {
@@ -1282,17 +1297,7 @@ fn samples_with_documented_exit_run_correctly() {
                 }
             }
         }
-        // One line per sample under `--no-capture`, so a slow compile or run
-        // names itself while the suite is still going.
-        eprintln!(
-            "sample {name}: {} in {:.1}s",
-            if failures.len() == failures_before {
-                "ok"
-            } else {
-                "failed"
-            },
-            started.elapsed().as_secs_f64()
-        );
+        report_sample(&failures);
         let _ = fs::remove_dir_all(&build_dir);
     }
 

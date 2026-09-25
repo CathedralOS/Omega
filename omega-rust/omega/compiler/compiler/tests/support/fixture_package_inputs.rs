@@ -598,6 +598,42 @@ pub fn candidate_program_entry_binding(
     standard_library_root: &Path,
     standard_library: PackageKeyIdentity,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
+    // The candidate depends only on these three inputs, and each derivation
+    // checks the whole standard library entry: a test that compiles many
+    // fixtures (the sample run oracle) would otherwise repeat that check for
+    // every one. Compute outside the lock; a racing duplicate is only waste.
+    type Key = (String, std::path::PathBuf, PackageKeyIdentity);
+    type Candidate = Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>>;
+    static CANDIDATES: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<Key, Candidate>>,
+    > = std::sync::OnceLock::new();
+    let candidates = CANDIDATES.get_or_init(Default::default);
+    let key = (
+        target_name.to_owned(),
+        standard_library_root.to_path_buf(),
+        standard_library,
+    );
+    if let Some(candidate) = candidates
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(&key)
+    {
+        return candidate.clone();
+    }
+    let candidate =
+        derive_program_entry_binding(target_name, standard_library_root, standard_library);
+    candidates
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key, candidate.clone());
+    candidate
+}
+
+fn derive_program_entry_binding(
+    target_name: &str,
+    standard_library_root: &Path,
+    standard_library: PackageKeyIdentity,
+) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|diagnostic| vec![diagnostic])?;
     Ok(match profile {
