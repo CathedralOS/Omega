@@ -660,6 +660,7 @@ dependencies = [
  "image-emission",
  "layout-plans",
  "machine-code",
+ "optimization-core",
  "proof-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",

@@ -22,6 +22,7 @@ extents = { path = "../../../../psi/foundation/extents" }
 function-identity = { path = "../../../representations/function-identity" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 machine-code = { path = "../../../representations/machine-code" }
+optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }
 proof-admission = { path = "../../../../psi/semantics/proof-admission" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }

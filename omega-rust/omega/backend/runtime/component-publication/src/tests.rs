@@ -1,3 +1,5 @@
+mod external_stack_custody_fields;
+
 use super::{
     AdmittedExternalStackDomainLease, ArtifactId, CompletedRegistration, ComponentEraCandidate,
     ComponentEraEntryLedger, ComponentEraPublicationReceipt, InstalledCodeId, InstalledRootLedger,
@@ -6,7 +8,18 @@ use super::{
     RunnableComponentEraLedger, admit_external_stack_domain_lease,
     bind_installed_runnable_component, seal_external_stack_provision,
 };
+use crate::stack_provision::check_external_stack_provision;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use external_stack_custody_fields::{
+    ExternalStackCustodyRejection, ExternalStackDomainLeaseFieldForTest,
+    ProvisionedExternalStackSetFieldForTest, classify_external_stack_rejection, demanded_lease,
+    external_stack_lease_custody_outcome, provisioned_external_stack_set_custody_outcome,
+    substitute_external_stack_lease_for_test, substitute_provisioned_external_stack_set_for_test,
+};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 
 use checked_trees_to_lowered_psi::lower_machine;
@@ -557,6 +570,52 @@ fn expect_provision_rejection(
     );
     drop(runtime);
     (*error).into_parts()
+}
+
+/// The real install seam an external stack matrix leg replays through: the
+/// runnable component whose retained provision a leg substitutes, and the
+/// root inputs every provision-lane rejection hands back for the next leg.
+struct ProvisionInstallSeam {
+    fixture: RunnableFixture,
+    inputs: Option<(ValidatedExternalRoot, RootSlotAuthority, RootAdmission)>,
+}
+
+impl ProvisionInstallSeam {
+    /// The shared install-time provision gate for `set` against this
+    /// component's installed occurrence and the callback root's demand.
+    fn gate(&self, set: &ProvisionedExternalStackSet) -> Result<(), ExternalStackCustodyRejection> {
+        let (validated, _, _) = self.inputs.as_ref().expect("root inputs");
+        check_external_stack_provision(Some(set), self.fixture.runnable.installed(), validated)
+            .map_err(|diagnostic| classify_external_stack_rejection(&diagnostic))
+    }
+
+    /// Install the callback root against the currently retained provision
+    /// and require the provision lane to reject with `expected`.
+    fn expect_install_rejection(
+        &mut self,
+        field: impl std::fmt::Debug,
+        expected: ExternalStackCustodyRejection,
+    ) {
+        let (validated, slot, admission) = self.inputs.take().expect("root inputs");
+        self.inputs = Some(expect_provision_rejection(
+            &mut self.fixture.runnable,
+            validated,
+            slot,
+            admission,
+            &format!("{field:?}"),
+            expected.fragment(),
+        ));
+    }
+}
+
+/// The exact rejection a declared external stack lane must produce.
+fn exact(outcome: MutationOutcome<ExternalStackCustodyRejection>) -> ExternalStackCustodyRejection {
+    match outcome {
+        MutationOutcome::ExactError(rejection) => rejection,
+        MutationOutcome::RebuiltCustodyDiffers => {
+            panic!("external stack custody lanes declare exact rejections")
+        }
+    }
 }
 
 /// An installed terminal artifact plus the root registry claimed on its exact
@@ -1709,13 +1768,15 @@ fn external_stack_provision_rejects_cohort_evidence_for_another_occurrence() {
 
 /// `AdmittedExternalStackDomainLease` and `ProvisionedExternalStackSet` are
 /// in-memory custody records: every representable field mutates
-/// independently. A substitution either fails before a record exists — the
-/// lease admission gates — or is rejected by the exact later seam that owns
-/// its join: the seal binding each lease's occurrence triple and keying the
-/// domain map, the component-admission gate retaining the set for this exact
-/// occurrence, and the install-time rejoin re-authenticating the retained
-/// set's occurrence triple and each demanded domain's supply before the
-/// ledger sees the root. Provider-minted provenance on a lease (provisioner,
+/// independently, each family's lanes declared once in
+/// `tests/external_stack_custody_fields.rs` and driven by the shared
+/// one-field substitution matrix. A substitution either fails before a
+/// record exists — the lease admission gates — or is rejected by the exact
+/// later seam that owns its join: the seal binding each lease's occurrence
+/// triple and keying the domain map, the component-admission gate retaining
+/// the set for this exact occurrence, and the install-time rejoin
+/// re-authenticating the retained set's occurrence triple and each demanded
+/// domain's supply before the ledger sees the root. Provider-minted provenance on a lease (provisioner,
 /// validation receipt), a lease's binding triple restated inside an
 /// already-sealed set, a domain restated under its sealed key, and supply
 /// over the composed demand are carried verbatim: sealing is the
@@ -1801,48 +1862,8 @@ fn external_stack_provision_rejects_every_one_field_substitution() {
         );
     }
 
-    // Seal: the lease's retained occurrence triple is authenticated against
-    // the set being sealed, and the roster must be nonempty with unique
-    // domains. Rejection hands every supplied lease back for correction.
-    let seal_rejected: [(&str, Box<dyn Fn(&mut AdmittedExternalStackDomainLease)>); 3] = [
-        (
-            "installed-code identity",
-            Box::new(move |lease| *lease.installed_code_mut_for_test() = foreign_code),
-        ),
-        (
-            "installed-code context",
-            Box::new(move |lease| {
-                *lease.installed_code_context_mut_for_test() = foreign_context.clone();
-            }),
-        ),
-        (
-            "artifact identity",
-            Box::new(move |lease| *lease.artifact_mut_for_test() = foreign_artifact),
-        ),
-    ];
-    for (field, mutate) in seal_rejected {
-        let authentic = stack_lease(fixture.runnable.installed());
-        let mut changed = authentic.clone();
-        mutate(&mut changed);
-        assert_ne!(
-            changed, authentic,
-            "{field}: substitution changes the lease"
-        );
-        let error = seal_external_stack_provision(fixture.runnable.installed(), [changed])
-            .expect_err(field);
-        assert!(
-            error.diagnostic().to_string().contains(
-                "different installed-code occurrence than the provision set being sealed"
-            ),
-            "{field}: unexpected diagnostic: {}",
-            error.diagnostic()
-        );
-        assert_eq!(
-            error.into_leases().len(),
-            1,
-            "{field}: supplied leases return for correction"
-        );
-    }
+    // Seal: the roster must be nonempty with unique domains. Rejection hands
+    // every supplied lease back for correction.
     let error = seal_external_stack_provision(fixture.runnable.installed(), [])
         .expect_err("an empty lease set cannot seal a provision");
     assert!(
@@ -1866,58 +1887,11 @@ fn external_stack_provision_rejects_every_one_field_substitution() {
             .contains("two external stack leases provision domain")
     );
 
-    // Component admission: the set's retained occurrence triple is
-    // authenticated before it can become this component's provision.
-    let foreign_code = distinct.installed_code;
-    let foreign_context = colliding.runnable.installed().receipt_context();
-    let admit_rejected: [(&str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 3] = [
-        (
-            "installed-code identity",
-            Box::new(move |set| *set.installed_code_mut_for_test() = foreign_code),
-        ),
-        (
-            "installed-code context",
-            Box::new(move |set| {
-                *set.installed_code_context_mut_for_test() = foreign_context.clone();
-            }),
-        ),
-        (
-            "artifact identity",
-            Box::new(move |set| *set.artifact_mut_for_test() = foreign_artifact),
-        ),
-    ];
-    for (field, mutate) in admit_rejected {
-        let authentic = callback_stack_provision(fixture.runnable.installed());
-        let mut changed = authentic.clone();
-        mutate(&mut changed);
-        assert_ne!(changed, authentic, "{field}: substitution changes the set");
-        let error = fixture
-            .runnable
-            .admit_external_stack_provision(changed)
-            .expect_err(field);
-        assert!(
-            error.diagnostic().to_string().contains(
-                "different installed-code occurrence than the retained runnable component"
-            ),
-            "{field}: unexpected diagnostic: {}",
-            error.diagnostic()
-        );
-        let recovered = (*error).into_provision();
-        assert!(
-            !recovered.binds_installed_code(fixture.runnable.installed()),
-            "{field}: the rejected set still names its foreign occurrence"
-        );
-        assert!(
-            fixture.runnable.external_stack_provision().is_none(),
-            "{field}: rejection leaves the absent field untouched"
-        );
-    }
-
     // Install: with no provision retained at all the field's absent state
     // rejects before the ledger sees the root.
     let (validated, slot, admission) =
         callback_install_inputs(fixture.runnable.installed(), private_entry);
-    let (mut validated, mut slot, mut admission) = expect_provision_rejection(
+    let (validated, slot, admission) = expect_provision_rejection(
         &mut fixture.runnable,
         validated,
         slot,
@@ -1925,203 +1899,189 @@ fn external_stack_provision_rejects_every_one_field_substitution() {
         "absent provision",
         "no admitted external stack provision",
     );
+    let seam = RefCell::new(ProvisionInstallSeam {
+        fixture,
+        inputs: Some((validated, slot, admission)),
+    });
 
-    // A lease admitted for the demanded domain but restated before the seal
-    // lands under its restated key: the demanded domain has no provisioned
-    // lease at the coverage join.
-    let mut restated = stack_lease(fixture.runnable.installed());
-    *restated.domain_mut_for_test() = StackDomain::Dedicated { class: 7 };
-    let dedicated_only = seal_external_stack_provision(fixture.runnable.installed(), [restated])
-        .expect("the restated domain keys the retained map");
-    fixture
-        .runnable
-        .admit_external_stack_provision(dedicated_only)
-        .expect("a set keyed on an undemanded domain still binds this occurrence");
-    (validated, slot, admission) = expect_provision_rejection(
-        &mut fixture.runnable,
-        validated,
-        slot,
-        admission,
-        "restated lease domain",
-        "no admitted stack lease provisions domain",
-    );
-
-    // Corrupting the RETAINED record in place is the substitution an
-    // in-memory custody family must survive: the install-time rejoin
-    // re-authenticates the set's occurrence triple and each demanded
-    // domain's supply before the ledger sees the root, and every rejection
-    // returns the inputs for retry.
-    let foreign_context = colliding.runnable.installed().receipt_context();
-    let retained_rejected: [(&str, &str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 8] = [
-        (
-            "set installed-code identity",
-            "different installed-code occurrence",
-            Box::new(move |set| *set.installed_code_mut_for_test() = foreign_code),
-        ),
-        (
-            "set installed-code context",
-            "different installed-code occurrence",
-            Box::new(move |set| {
-                *set.installed_code_context_mut_for_test() = foreign_context.clone();
-            }),
-        ),
-        (
-            "set artifact identity",
-            "different installed-code occurrence",
-            Box::new(move |set| *set.artifact_mut_for_test() = foreign_artifact),
-        ),
-        (
-            "dropped demanded lease",
-            "no admitted stack lease provisions domain",
-            Box::new(|set| {
-                set.leases_mut_for_test().remove(&StackDomain::Interrupted);
-            }),
-        ),
-        (
-            "lease capacity below demand",
-            "below the composed 2048-byte demand",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .capacity_bytes_mut_for_test() = 1024;
-            }),
-        ),
-        (
-            "lease zero capacity",
-            "below the composed 2048-byte demand",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .capacity_bytes_mut_for_test() = 0;
-            }),
-        ),
-        (
-            "lease alignment below demand",
-            "below the composed alignment",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .alignment_mut_for_test() = 8;
-            }),
-        ),
-        (
-            "lease zero alignment",
-            "below the composed alignment",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .alignment_mut_for_test() = 0;
-            }),
-        ),
-    ];
-    for (field, fragment, mutate) in retained_rejected {
-        *fixture.runnable.external_stack_provision_mut_for_test() =
-            Some(callback_stack_provision(fixture.runnable.installed()));
-        mutate(
-            fixture
+    // Every declared lease lane substitutes independently. The seal
+    // authenticates the lease's occurrence triple against the set being
+    // sealed; a lease whose domain or supply is restated before the seal
+    // seals under its restated values and leaves the demanded domain
+    // uncovered at the install-time provision gate. Joined replay drives each
+    // sealable substitution through component admission and the real install
+    // seam, which rejects in the provision lane before the ledger sees the
+    // root.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "external stack domain lease",
+        fields: ExternalStackDomainLeaseFieldForTest::INVENTORY,
+        honest: &|| stack_lease(seam.borrow().fixture.runnable.installed()),
+        donor: stack_lease(distinct.runnable.installed()),
+        custody: &|lease: &AdmittedExternalStackDomainLease| lease.clone(),
+        substitute: &|lease, field, donor| {
+            substitute_external_stack_lease_for_test(lease, field, donor, &foreign_context);
+        },
+        check: &|lease| {
+            let seam = seam.borrow();
+            let set = match seal_external_stack_provision(
+                seam.fixture.runnable.installed(),
+                [lease.clone()],
+            ) {
+                Ok(set) => set,
+                Err(error) => {
+                    let rejection = classify_external_stack_rejection(error.diagnostic());
+                    assert_eq!(
+                        error.into_leases().len(),
+                        1,
+                        "supplied leases return for correction"
+                    );
+                    return Err(rejection);
+                }
+            };
+            seam.gate(&set)?;
+            Ok(lease.clone())
+        },
+        outcome: &external_stack_lease_custody_outcome,
+        joined_replay: Some(&|lease, field| {
+            let mut seam = seam.borrow_mut();
+            let Ok(set) =
+                seal_external_stack_provision(seam.fixture.runnable.installed(), [lease.clone()])
+            else {
+                return;
+            };
+            seam.fixture
                 .runnable
-                .external_stack_provision_mut_for_test()
-                .as_mut()
-                .expect("retained provision"),
-        );
-        (validated, slot, admission) = expect_provision_rejection(
-            &mut fixture.runnable,
-            validated,
-            slot,
-            admission,
-            field,
-            fragment,
-        );
-    }
+                .admit_external_stack_provision(set)
+                .expect("a set sealed under restated supply still binds this occurrence");
+            seam.expect_install_rejection(
+                field,
+                exact(external_stack_lease_custody_outcome(field)),
+            );
+        }),
+    });
+
+    // Every declared lane of the retained set substitutes independently. The
+    // install-time provision gate re-authenticates the set's occurrence
+    // triple and each demanded domain's supply. Joined replay offers the
+    // substituted set to component admission, which authenticates the
+    // occurrence triple before the set can become this component's
+    // provision, then corrupts the RETAINED record in place — the
+    // substitution an in-memory custody family must survive — and drives the
+    // real install seam, whose every rejection returns the inputs for retry.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "provisioned external stack set",
+        fields: ProvisionedExternalStackSetFieldForTest::INVENTORY,
+        honest: &|| callback_stack_provision(seam.borrow().fixture.runnable.installed()),
+        donor: callback_stack_provision(distinct.runnable.installed()),
+        custody: &|set: &ProvisionedExternalStackSet| set.clone(),
+        substitute: &|set, field, donor| {
+            substitute_provisioned_external_stack_set_for_test(set, field, donor, &foreign_context);
+        },
+        check: &|set| {
+            seam.borrow().gate(set)?;
+            Ok(set.clone())
+        },
+        outcome: &provisioned_external_stack_set_custody_outcome,
+        joined_replay: Some(&|set, field| {
+            let expected = exact(provisioned_external_stack_set_custody_outcome(field));
+            let mut seam = seam.borrow_mut();
+            let retained = seam.fixture.runnable.external_stack_provision().cloned();
+            match seam
+                .fixture
+                .runnable
+                .admit_external_stack_provision(set.clone())
+            {
+                Err(error) => {
+                    assert_eq!(
+                        (
+                            expected,
+                            classify_external_stack_rejection(error.diagnostic())
+                        ),
+                        (
+                            ExternalStackCustodyRejection::RetainedOccurrence,
+                            ExternalStackCustodyRejection::AdmissionOccurrence
+                        ),
+                        "{field:?}: only a foreign occurrence rejects at component admission"
+                    );
+                    let recovered = (*error).into_provision();
+                    assert_eq!(
+                        &recovered, set,
+                        "{field:?}: the rejected set returns intact"
+                    );
+                    assert!(
+                        !recovered.binds_installed_code(seam.fixture.runnable.installed()),
+                        "{field:?}: the rejected set still names its foreign occurrence"
+                    );
+                    assert_eq!(
+                        seam.fixture.runnable.external_stack_provision(),
+                        retained.as_ref(),
+                        "{field:?}: rejection leaves the retained field untouched"
+                    );
+                }
+                Ok(()) => assert_ne!(
+                    expected,
+                    ExternalStackCustodyRejection::RetainedOccurrence,
+                    "{field:?}: a foreign occurrence cannot become this component's provision"
+                ),
+            }
+            *seam
+                .fixture
+                .runnable
+                .external_stack_provision_mut_for_test() = Some(set.clone());
+            seam.expect_install_rejection(field, expected);
+        }),
+    });
+    let ProvisionInstallSeam {
+        mut fixture,
+        inputs,
+    } = seam.into_inner();
+    let (validated, slot, admission) = inputs.expect("root inputs return after every leg");
 
     // Substitutions the later seams deliberately do not authenticate stay
     // carried: lease provenance is provider-minted at admission and the seal
     // is the lease-binding seam, while the coverage join is a supply
     // inequality that over-satisfying, desynced, or undemanded leases still
     // meet.
-    let foreign_context = colliding.runnable.installed().receipt_context();
-    let carried: [(&str, Box<dyn Fn(&mut ProvisionedExternalStackSet)>); 8] = [
+    let carried: [(&str, Box<dyn Fn(&mut AdmittedExternalStackDomainLease)>); 8] = [
         (
             "lease provisioner",
-            Box::new(move |set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .provisioner_mut_for_test() = foreign_provider;
-            }),
+            Box::new(move |lease| *lease.provisioner_mut_for_test() = foreign_provider),
         ),
         (
             "lease validation receipt",
-            Box::new(move |set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .validation_receipt_mut_for_test() = foreign_validation;
-            }),
+            Box::new(move |lease| *lease.validation_receipt_mut_for_test() = foreign_validation),
         ),
         (
             "lease installed-code identity",
-            Box::new(move |set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .installed_code_mut_for_test() = foreign_code;
-            }),
+            Box::new(move |lease| *lease.installed_code_mut_for_test() = foreign_code),
         ),
         (
             "lease installed-code context",
-            Box::new(move |set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .installed_code_context_mut_for_test() = foreign_context.clone();
+            Box::new(|lease| {
+                *lease.installed_code_context_mut_for_test() = foreign_context.clone();
             }),
         ),
         (
             "lease artifact identity",
-            Box::new(move |set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .artifact_mut_for_test() = foreign_artifact;
-            }),
+            Box::new(move |lease| *lease.artifact_mut_for_test() = foreign_artifact),
         ),
         (
             "lease domain restated under its sealed key",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .domain_mut_for_test() = StackDomain::Dedicated { class: 7 };
-            }),
+            Box::new(|lease| *lease.domain_mut_for_test() = StackDomain::Dedicated { class: 7 }),
         ),
         (
             "over-provisioned lease capacity",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .capacity_bytes_mut_for_test() = 16_384;
-            }),
+            Box::new(|lease| *lease.capacity_bytes_mut_for_test() = 16_384),
         ),
         (
             "over-aligned lease supply",
-            Box::new(|set| {
-                *set.leases_mut_for_test()
-                    .get_mut(&StackDomain::Interrupted)
-                    .expect("interrupted lease")
-                    .alignment_mut_for_test() = 32;
-            }),
+            Box::new(|lease| *lease.alignment_mut_for_test() = 32),
         ),
     ];
     for (field, mutate) in carried {
         let authentic = callback_stack_provision(fixture.runnable.installed());
         let mut changed = authentic.clone();
-        mutate(&mut changed);
+        mutate(demanded_lease(&mut changed));
         assert_ne!(changed, authentic, "{field}: substitution changes the set");
         assert!(
             changed.binds_installed_code(fixture.runnable.installed()),
@@ -2170,11 +2130,7 @@ fn external_stack_provision_rejects_every_one_field_substitution() {
     // install seam: a substituted lease provisioner installs, and the live
     // root then pins the provision field against replacement.
     let mut changed = callback_stack_provision(fixture.runnable.installed());
-    *changed
-        .leases_mut_for_test()
-        .get_mut(&StackDomain::Interrupted)
-        .expect("interrupted lease")
-        .provisioner_mut_for_test() = foreign_provider;
+    *demanded_lease(&mut changed).provisioner_mut_for_test() = foreign_provider;
     *fixture.runnable.external_stack_provision_mut_for_test() = Some(changed);
     let mut runtime = fixture.runnable.external_root_runtime();
     let root = runtime
