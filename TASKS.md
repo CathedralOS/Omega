@@ -2744,11 +2744,14 @@ syntax and other terminal services are not prerequisites.
   already threaded there. Carry the filtered names into that pass, match calls
   whose `target_symbol` is invalid against them, and reject naming both.
 
-  Psi's own half is separable and smaller: `undeclared_checked_call_callee`
-  names only receiverless unqualified expression calls, so a filtered receiver
-  or statement call still reports "authored Call declaration selection
-  occurrence N remained unresolved". Naming the callee there does not need the
-  target and does not close this row.
+  There is no separable Psi half. Measured on a1dcb8dc48: an undeclared name
+  already rejects by name in both call positions before any authored-selection
+  check runs -- `missing_helper()` as a value call reports "does not resolve to
+  a state of this machine, an attached sibling machine, or a free machine", and
+  as a statement "machine `Main::main` has no local state `missing_helper`".
+  The occurrence-number message appears only once those checks pass, which is
+  exactly the filtered-callee case, so improving
+  `undeclared_checked_call_callee` moves nothing here.
 
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the
