@@ -181,20 +181,20 @@ pub(crate) fn collect_state_write_prefixes(
     let mut prefixes = Vec::new();
     let mut inference = FrameInference::default();
     let mut complete_state_summaries = Vec::new();
-    inference
-        .with_local_scope(|inference| {
-            walk_state_write_prefix_inner(
-                program,
-                machine,
-                state,
-                symbols,
-                inference,
-                &mut complete_state_summaries,
-                None,
-                Some(&mut prefixes),
-            )
-        })
-        .map(|_| ());
+    // The walk's own result is unused here: `prefixes` and
+    // `complete_state_summaries` carry everything the caller reads.
+    let _ = inference.with_local_scope(|inference| {
+        walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            &mut complete_state_summaries,
+            None,
+            Some(&mut prefixes),
+        )
+    });
     while prefixes.len() < statement_count {
         prefixes.push(None);
     }
