@@ -87,6 +87,21 @@ fn record_with_named_view_member_lowers_and_verifies() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("named-view member construction verifies");
+    // The roster is custody, not decoration: a result that names no source
+    // for its reference leaf is rejected.
+    let mut unmapped = lowered.semantic_module.clone();
+    let entry = unmapped.entry;
+    let machine = unmapped
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .expect("entry machine");
+    let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.result else {
+        panic!("structural result");
+    };
+    assert!(!result.reference_sources.is_empty());
+    result.reference_sources.clear();
+    assert!(terminal_verifier::validate_module(&unmapped).is_err());
 }
 
 #[test]

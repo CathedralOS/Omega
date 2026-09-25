@@ -101,6 +101,7 @@ pub(in crate::execution::terminal_unit) fn finish(
     Some(CheckedComposedUnitControlMachinePlan {
         machine: machine.symbol,
         result: checked_trees::CheckedControlResultPlan::Unit,
+        result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
         attachment_type_identity,
         provider_attachment_requirements,

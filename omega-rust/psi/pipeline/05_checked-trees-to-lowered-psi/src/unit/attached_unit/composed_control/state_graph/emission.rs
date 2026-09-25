@@ -85,7 +85,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             },
         })
         .collect::<Vec<_>>();
-    let machine_result = returns::result(&plan.result, catalogs, &mut structural_places)?;
+    let machine_result = returns::result(
+        &plan.result,
+        &plan.result_reference_sources,
+        &parameters,
+        catalogs,
+        &mut structural_places,
+    )?;
     let entry = &plan.states[0];
     let mut claims = crate::unit::attached_unit::claims::lower_unit_entry_claims(
         plan.machine,

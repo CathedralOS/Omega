@@ -1448,6 +1448,21 @@ pub(super) fn build_traced(
         planned,
     )?;
     plan.natural_ranks = natural_ranks;
+    // A returned record holding references names the entry parameter each
+    // reference leaf borrows from. Only the entry state's own completion can
+    // name those parameters, so a reference record returned from any other
+    // state has no sources to publish.
+    if matches!(
+        result,
+        checked_trees::CheckedControlResultPlan::Structural(_)
+    ) && super::reference_results::is_reference_record(program, states[0].return_type)
+    {
+        if states.len() != 1 {
+            return None;
+        }
+        plan.result_reference_sources =
+            super::reference_results::returned_record_sources(program, &states[0])?;
+    }
     plan.result = result;
     Some(plan)
 }
