@@ -59,6 +59,7 @@ use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -107,7 +108,7 @@ fn known_call_written_paths_with_summaries(
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
@@ -147,7 +148,7 @@ fn known_call_written_paths_for_parts(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     known_call_written_paths_for_parts_with_origins(
         program,
@@ -180,7 +181,7 @@ fn known_call_written_paths_for_parts_with_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // A static machine parameter's selected target is a specialization input,
     // not an ordinary receiver binding. Until MP summaries instantiate that
@@ -301,7 +302,7 @@ fn summarize_resolved_call(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // Every proven receiver candidate is a base the callee's `self`-relative
     // writes may land on; the caller-visible set is the union across bases.

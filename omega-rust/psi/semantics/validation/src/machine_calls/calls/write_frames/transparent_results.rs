@@ -45,6 +45,7 @@ use crate::machine_calls::calls::write_frames::value_expressions::{
     ValuePosition, value_expression_preserves_transparent_result,
 };
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
@@ -361,7 +362,7 @@ pub(crate) fn transparent_callee_result_origins(
                                     symbols,
                                     inference,
                                     written,
-                                    &mut Vec::new(),
+                                    &mut HashMap::default(),
                                     &super::caller_aliases::CallOriginContext {
                                         parameters,
                                         isolated_locals: &isolated_local_roots,
@@ -668,7 +669,7 @@ fn statement_call_preserves_transparent_result(
         symbols,
         inference,
         Some(&argument_origins),
-        &mut Vec::new(),
+        &mut HashMap::default(),
     )
     .or_else(|| {
         (!arguments
