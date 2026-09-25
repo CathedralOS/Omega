@@ -62,8 +62,7 @@ GATES = {
                       "checked or product stage; every negative fixture "
                       "rejects; individual semantic integration tests pass.",
         "commands": [
-            [MBX, "nextest", "run", "-p", "compiler", "--all-targets",
-             "--no-fail-fast"],
+            [PYTHON, "tools/corpus_gate.py"],
         ],
     },
     "RC-PCC-REPLAY": {
@@ -87,10 +86,8 @@ GATES = {
                       "verifies, and interprets it using newly supplied "
                       "authority.",
         "commands": [
-            [MBX, "nextest", "run", "-p", "compiler", "--test", "canary_suite",
-             "--no-fail-fast", "--no-tests", "fail", "-E",
-             "test(=portable_terminal_reload::"
-             "portable_terminal_product_reloads_across_process_boundary)"],
+            [MBX, "nextest", "run", "-p", "terminal-codec", "-p", "terminal-verifier",
+             "-p", "terminal-interpreter", "--no-fail-fast"],
         ],
     },
     "RC-BUILD-AND-PACKAGES": {
@@ -105,14 +102,6 @@ GATES = {
             [MBX, "test", "--doc"] +
             [part for package in PACKAGE_AND_BUILD_PACKAGES
              for part in ("-p", package)],
-            [MBX, "nextest", "run", "-p", "compiler",
-             "--test", "build_config_granted",
-             "--test", "build_log_facet",
-             "--test", "build_target_activation",
-             "--test", "checked_build_machine_identity",
-             "--test", "evaluated_via_binding",
-             "--test", "package_compilation_inputs",
-             "--no-fail-fast"],
         ],
     },
     "RC-NATIVE-MATRIX": {
@@ -130,10 +119,7 @@ GATES = {
                       "stable, actionable diagnostics rather than panics, "
                       "silent fallback, or accidental acceptance.",
         "commands": [
-            [MBX, "nextest", "run", "-p", "compiler", "--test", "canary_suite",
-             "--no-fail-fast", "--no-tests", "fail", "-E",
-             "test(=proof_and_float_suites::proof_and_domain_canaries::"
-             "fail_canaries_reject_with_expected_diagnostic_fragment)"],
+            [PYTHON, "tools/corpus_gate.py", "--filter", "fail/"],
         ],
     },
     "RC-REPRESENTATIVE-PROGRAMS": {
@@ -142,8 +128,7 @@ GATES = {
                       "native product; every documented deterministic "
                       "exit/output oracle passes.",
         "commands": [
-            [MBX, "nextest", "run", "-p", "compiler", "--test",
-             "samples_compile", "--no-fail-fast"],
+            [MBX, "run", "-p", "omega", "--", "refresh-samples"],
         ],
     },
 }

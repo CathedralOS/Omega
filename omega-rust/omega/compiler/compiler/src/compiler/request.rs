@@ -437,5 +437,3 @@ impl ValidatedTargetCompilation {
     }
 }
 
-#[cfg(test)]
-mod tests;

@@ -37,31 +37,8 @@ Conventions:
 - If a case graduates into a clearer feature family, move the directory and
   update the suite path rather than duplicating it.
 
-The `canary_suite::roster` tests validate registered source paths and file-based
-failure expectations independently of host support and compile filters. A
-dedicated integration test can expose its execution table through the compiler
-tests' `fixture_rosters/` directory; both its test loop and the inventory consume
-that same table. Inventory membership does not schedule another compilation or
-change a checked-only case into a native case. Inline diagnostic owners need not
-add an unused `expected.txt` merely to appear in the inventory.
-
-The exact-native coverage index also resolves named fixture constants through
-the executing module's declared roster leaf. A constant supplies only the
-fixture path: the enabled test must still satisfy the native compilation,
-execution, target, and exact-status checks. Missing or ambiguous references do
-not justify skipping an umbrella compilation.
-
-Compiler library tests share their corpus identities through the compiler test
-leaves too. Package tests keep leaves in their owning package's
-`tests/fixture_rosters/`; cross-layer native differential tests use
-`tests/native-differential/fixture_rosters/`. The compiler inventory includes
-only those dependency-free leaves, not the package or differential harness.
-Repackaging corpus source for checked policy projection does not claim native
-execution. Corpus bucket membership does not replace a dedicated owner's
-phase-specific expectation.
-
-Both corpus inventories reject every unregistered fixture directory as well as
-missing registered source. File-based negative owners also require their
-expectations; inline diagnostic owners remain distinct. New registrations must
-name an actual executing owner rather than an inventory-only exemption list,
-independently of compile filters and host eligibility.
+Every fixture here is a test. `tools/corpus_gate.py` compiles each one through
+the `corpus_runner` target and diffs its outcome record (checked or rejected,
+diagnostics, expected-fragment match) against `corpus_outcomes.json`; nothing
+needs registering in a roster. That run checks fixtures only: it does not build
+them natively or execute the run tier.

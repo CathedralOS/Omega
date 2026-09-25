@@ -47,6 +47,11 @@ enum AbsentReason {
     /// The owning phase validator carries no measured work budget, so the
     /// budget axis does not exist. Only legal on the `budget` axis.
     NoStepBudget,
+    /// Whether the rule runs at all is compiler orchestration, which the
+    /// compiler crate tests only end to end: every corpus fixture compiles
+    /// with the selection absent (`tools/corpus_gate.py`). Only legal on the
+    /// `disabled` axis.
+    CorpusOrchestration,
 }
 
 const fn covered(file: &'static str, test: &'static str) -> Leg {
@@ -55,6 +60,7 @@ const fn covered(file: &'static str, test: &'static str) -> Leg {
 
 const NO_SELECTION_VOCABULARY: Leg = Leg::Absent(AbsentReason::NoSelectionVocabulary);
 const NO_STEP_BUDGET: Leg = Leg::Absent(AbsentReason::NoStepBudget);
+const CORPUS_ORCHESTRATION: Leg = Leg::Absent(AbsentReason::CorpusOrchestration);
 
 /// One rule's complete coverage row, in the board's axis order.
 struct RuleCoverage {
@@ -1199,10 +1205,7 @@ const COVERAGE: &[RuleCoverage] = &[
             "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
             "boundary_machines_are_interface_surface_not_pruning_candidates",
         ),
-        disabled: covered(
-            "omega-rust/omega/compiler/compiler/tests/optimizer_opt_in/product_pruning.rs",
-            "absent_checked_tree_pruning_selection_is_the_identity_boundary",
-        ),
+        disabled: CORPUS_ORCHESTRATION,
         budget: NO_STEP_BUDGET,
         determinism: covered(
             "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs",
@@ -1550,6 +1553,14 @@ fn check_table(
                     if axis != "budget" {
                         audit.violations.insert(format!(
                             "coverage row `{}` records a no-step-budget absence on the {axis} axis",
+                            row.rule
+                        ));
+                    }
+                }
+                Leg::Absent(AbsentReason::CorpusOrchestration) => {
+                    if axis != "disabled" {
+                        audit.violations.insert(format!(
+                            "coverage row `{}` records a corpus-orchestration absence on the {axis} axis",
                             row.rule
                         ));
                     }

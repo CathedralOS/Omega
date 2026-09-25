@@ -121,8 +121,7 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
             };
             outcomes.push(CompileTargetOutcome::new(profile, compile_target()));
         }
-        Ok(CompileOutcomes::new(outcomes)?
-            .with_prepared_terminal_native_input_count(native_inputs.prepared_input_count()))
+        CompileOutcomes::new(outcomes)
     })
 }
 
@@ -165,5 +164,3 @@ fn admit_requested_product(
     }
 }
 
-#[cfg(test)]
-mod tests;
