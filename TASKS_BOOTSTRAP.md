@@ -87,10 +87,11 @@ prerequisite to every lower-rung milestone.
 - **ALPHA-WINDOWS-DIV-TRAP.** (split-of:ALPHA-WINDOWS-CONFORMANCE) Windows
   x64 execution is measured and recorded in
   [bounds conformance](tests/alpha/README.md#bounds-conformance); one real
-  divergence remains. `div`/`mod` traps take the hardware `0xC0000094`
-  divide fault rather than the audited illegal-instruction routine every
-  other trap class uses; conforming means carrying the divisor pre-check
-  the Linux and arm64 seeds already use for this hardware/OS mismatch, then
+  divergence remains. `div`/`mod` traps take the hardware divide faults
+  (`0xC0000094` for a zero divisor, `0xC0000095` for `INT64_MIN / -1`)
+  rather than the audited illegal-instruction routine every other trap
+  class uses; conforming means carrying the divisor pre-check the Linux
+  and arm64 seeds already use for this hardware/OS mismatch, then
   re-forging, re-auditing, and re-pinning the Windows inventory identities.
   Escalate to `OWNER_QUESTIONS.md` only if accepting `#DE` as the Windows
   trap form instead. The gate's byte-level expected values also need a
