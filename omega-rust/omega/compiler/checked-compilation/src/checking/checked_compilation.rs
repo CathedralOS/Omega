@@ -98,20 +98,6 @@ impl CheckedCompilation {
 }
 
 impl CheckedCompilation {
-    /// Restore only exact selected-dispatch edits after checking their settled
-    /// operand/type graphs. This is not a pre-specialization or source-text view.
-    /// The supplied semantic trees are checked against this compilation's sealed
-    /// edits; the returned review scratch never changes compiler custody.
-    pub fn pre_selected_dispatch_source_trees<'source>(
-        &self,
-        settled: &'source typed_trees::TypedTrees,
-    ) -> Result<std::borrow::Cow<'source, typed_trees::TypedTrees>, Vec<Diagnostic>> {
-        self.execution
-            .settled
-            .dispatch_source_edits
-            .source_trees(settled)
-    }
-
     /// Canonical boundary calls already live in this checked program.
     pub fn terminal_production_trees(&self) -> &CheckedTrees {
         &self.execution.settled.program

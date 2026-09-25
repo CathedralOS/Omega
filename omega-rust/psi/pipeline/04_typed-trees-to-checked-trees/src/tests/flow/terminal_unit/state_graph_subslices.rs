@@ -196,8 +196,6 @@ fn byte_tail_plan_rejects_missing_duplicate_or_drifted_endpoint_custody() {
                     boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &facts.flow.terminal_structural_scalar_returns,
                 },
-                &[],
-                &[],
             );
             assert!(
                 rebuilt.composed_for_machine(machine).is_none(),
@@ -237,8 +235,6 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
                 boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.composed_for_machine(machine).is_none(),
@@ -261,8 +257,6 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),
@@ -284,8 +278,6 @@ fn byte_tail_plan_rejects_selected_or_wrong_range_meaning_and_unknown_source() {
             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),

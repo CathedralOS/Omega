@@ -1,6 +1,5 @@
 //! Build dependent execution plans without publishing intermediate checked facts.
 
-use crate::{SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication};
 use checked_trees::{
     CheckFacts, CheckedBoundaryScalarReturnPlans, CheckedStructuralScalarReturnPlans,
     CheckedUnitEffectPlans,
@@ -17,14 +16,12 @@ pub(crate) struct ExecutionPlans {
 
 /// Independent returns precede Unit closure; complete structural returns depend
 /// on that closure. Initial checking and provider settlement build the lanes
-/// the same way, from the current facts and the selected applications.
+/// the same way, from the current facts.
 /// Diagnostics remain owned output so initial checking can aggregate its later
 /// affine-cleanup failures before deciding whether to publish checked trees.
 pub(crate) fn build_execution_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
-    operator_applications: &[SelectedOperatorApplication],
-    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> ExecutionPlans {
     let boundary_returns =
@@ -44,8 +41,6 @@ pub(crate) fn build_execution_plans(
             program,
             facts,
             scalar_callees,
-            operator_applications,
-            ieee_float_fma_applications,
             call_frames,
         );
     let mut cleanup_diagnostics = Vec::new();
@@ -54,7 +49,6 @@ pub(crate) fn build_execution_plans(
             program,
             facts,
             &unit_effects,
-            operator_applications,
             &mut cleanup_diagnostics,
         );
     ExecutionPlans {

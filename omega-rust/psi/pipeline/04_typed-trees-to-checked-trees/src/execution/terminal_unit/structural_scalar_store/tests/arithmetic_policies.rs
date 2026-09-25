@@ -78,8 +78,6 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                         },
                         &mut shapes,
                         machine,
-                        &[],
-                        &[],
                         None,
                     )
                     .unwrap()
@@ -122,8 +120,6 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
                         },
                         &mut shapes,
                         machine,
-                        &[],
-                        &[],
                         None,
                     )
                     .unwrap()

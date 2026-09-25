@@ -12,7 +12,6 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::statement_sequence::StatementSequence;
 use crate::execution::terminal_unit::providers::checked_provider_attachment_requirements;
-use crate::execution::terminal_unit::selected_operator::free_selected_operator_structural_signature;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, checked_state_contracts_supported, is_unit, machine_binders,
     return_unit_affine_discards, state_flow, type_graph_requires_nominal_drop,
@@ -31,8 +30,6 @@ pub(crate) fn build_checked_machine(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
     build_checked_machine_traced(
@@ -41,8 +38,6 @@ pub(crate) fn build_checked_machine(
         scalar_callees,
         shapes,
         machine,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
         call_frames,
         &LocalConstructionTrace::default(),
     )
@@ -59,8 +54,6 @@ pub(crate) fn build_checked_machine_traced(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectMachinePlan> {
@@ -70,8 +63,6 @@ pub(crate) fn build_checked_machine_traced(
         scalar_callees,
         shapes,
         machine,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
         false,
         call_frames,
         trace,
@@ -84,8 +75,6 @@ pub(crate) fn build_checked_machine_with(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     retain_reference_self: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<CheckedUnitEffectMachinePlan> {
@@ -95,8 +84,6 @@ pub(crate) fn build_checked_machine_with(
         scalar_callees,
         shapes,
         machine,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
         retain_reference_self,
         call_frames,
         &LocalConstructionTrace::default(),
@@ -110,8 +97,6 @@ fn build_checked_machine_with_trace(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     retain_reference_self: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
@@ -122,8 +107,6 @@ fn build_checked_machine_with_trace(
         scalar_callees,
         shapes,
         machine,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
         retain_reference_self,
         call_frames,
         trace,
@@ -146,8 +129,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     scalar_callees: ScalarCalleePlans<'_>,
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     retain_reference_self: bool,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
@@ -249,13 +230,6 @@ pub(crate) fn build_checked_machine_residual_parts(
     trace.phase("signature");
     let statements = program.statement_table.statements(state.statement_nodes);
     let binders = machine_binders(program, machine);
-    let binds_selected_operator =
-        crate::execution::terminal_unit::selected_operator::binds_selected_operator(
-            machine,
-            state,
-            statements,
-            selected_operator_applications,
-        );
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
         typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
             .is_some()
@@ -273,16 +247,6 @@ pub(crate) fn build_checked_machine_residual_parts(
                 let (structural, scalar) =
                     free_fused_service_scalar_signature(program, shapes, state, &binders)?;
                 (None, structural, scalar)
-            } else if binds_selected_operator
-                && !carries_scalar_parameter
-                && !program.state_parameters(state).is_empty()
-            {
-                // Selected operators retain their affine signature contract. An
-                // ordinary result local does not establish that category: its call
-                // retains the declared signature, including unrestricted arrays.
-                let structural =
-                    free_selected_operator_structural_signature(program, shapes, state, &binders)?;
-                (None, structural, Vec::new())
             } else {
                 let (structural, scalar) =
                     free_structural_scalar_signature(program, shapes, state, &binders)?;
@@ -410,10 +374,6 @@ pub(crate) fn build_checked_machine_residual_parts(
         &calls,
         &local_rows,
         prefix_statement_count,
-        statement_sequence::SelectedApplications {
-            operators: selected_operator_applications,
-            ieee_float_fma: selected_ieee_float_fma_applications,
-        },
         call_frames,
         trace,
     )?;

@@ -153,8 +153,6 @@ fn static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         let (conflicted, independent) = if call_ordinal < 3 {
             (write, exit)

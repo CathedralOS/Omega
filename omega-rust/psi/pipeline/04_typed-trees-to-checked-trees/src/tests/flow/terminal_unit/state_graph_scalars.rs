@@ -314,8 +314,6 @@ fn general_scalar_prefix_and_successors_require_exact_facts_and_custody() {
                     boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &facts.flow.terminal_structural_scalar_returns,
                 },
-                &[],
-                &[],
             );
             assert!(
                 plans.composed_for_machine(machine).is_none(),

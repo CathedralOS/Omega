@@ -16,6 +16,9 @@ pub(crate) fn unit_plan_omission_explanation(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
 ) -> Option<String> {
+    if let Some(report) = checked.uninstalled_operator_report(machine) {
+        return Some(report);
+    }
     let plans = &checked.facts.flow.terminal_unit_effects;
     let name = |symbol: symbols::SymbolHandle| checked.symbols.display_path(symbol, "::");
     let mut current = machine;
@@ -71,6 +74,11 @@ pub(crate) fn unit_plan_omission_explanation(
                 "`{}` calls boundary `{}`, which has no boundary plan",
                 name(current),
                 name(target)
+            ),
+            CheckedUnitPlanOmissionStage::UninstalledOperator { operator } => format!(
+                "`{}` applies boundary operator `{}`, which has no requirement-level Terminal route",
+                name(current),
+                name(operator)
             ),
             CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => format!(
                 "`{}` calls scalar `{}`, which has neither a registered target nor an ordinary body",

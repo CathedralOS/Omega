@@ -73,8 +73,6 @@ fn array_sequence_rejoins_every_nested_constant_projection_selection() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             replanned.for_machine(symbol).is_none(),
@@ -171,8 +169,6 @@ fn array_sequence_requires_exact_computation_call_roots() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             replanned.for_machine(symbol).is_none(),
@@ -347,8 +343,6 @@ fn scalar_sequence_rejects_stale_or_duplicate_outer_initializer_calls() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(symbol).is_none(),

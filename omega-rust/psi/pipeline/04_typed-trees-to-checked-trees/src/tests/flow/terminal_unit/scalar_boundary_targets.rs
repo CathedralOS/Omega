@@ -104,8 +104,6 @@ fn scalar_boundary_wrapper_retains_reordered_scalar_formals_and_actuals() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(root).is_none(),
@@ -429,8 +427,7 @@ fn unit_scalar_call_retains_registered_boundary_return_target() {
             .unwrap()
             .commitment
     );
-    checked =
-        crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default()).unwrap();
+    checked = crate::settle_checked_execution(checked).unwrap();
     assert!(
         checked
             .facts
@@ -473,8 +470,6 @@ fn unit_scalar_call_rejects_drifted_retained_boundary_return_registration() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(root).is_none(),
@@ -621,8 +616,6 @@ fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(root).is_none(),
@@ -848,8 +841,6 @@ fn unit_scalar_call_rejoins_ordinary_body_without_legacy_boundary_return_row() {
             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert_eq!(rebuilt.for_machine(root), Some(&original));
     assert_eq!(rebuilt.for_machine(target), Some(&callee));

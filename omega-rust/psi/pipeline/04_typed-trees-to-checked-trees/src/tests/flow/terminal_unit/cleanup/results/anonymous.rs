@@ -431,9 +431,7 @@ fn anonymous_projection_permissions_cannot_be_removed_duplicated_or_rebound() {
                     }
                     _ => unreachable!(),
                 }
-                if let Ok(changed) =
-                    crate::settle_checked_execution(changed, &crate::ExecutionSettlement::default())
-                {
+                if let Ok(changed) = crate::settle_checked_execution(changed) {
                     // The public rebuild refreshes call plans; partial cleanup has
                     // its own existing producer and must also be rederived.
                     let rebuilt = crate::execution::terminal_unit::build_checked_partial_affine_unit_cleanup_plans(

@@ -106,8 +106,8 @@ pass/arithmetic/runtime_float_compare_bool_exit rejected 14452ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
 pass/arithmetic/runtime_float_compare_cast_exit rejected 14665ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 1, statement 2)
-pass/arithmetic/runtime_float_min_max_abs_clamp_exit rejected 14680ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 4)
+pass/arithmetic/runtime_float_min_max_abs_clamp_exit rejected 17692ms
+	unimplemented: `Main::main` applies boundary operator `F64::maximum`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/arithmetic/runtime_float_nan_comparison_exit rejected 14318ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 1)
 pass/arithmetic/runtime_float_negative_ops_exit rejected 14509ms
@@ -116,8 +116,8 @@ pass/arithmetic/runtime_float_nested_operand_exit rejected 14684ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 0)
 pass/arithmetic/runtime_float_operations_exit rejected 1382ms
 	anonymous value `79/10` cannot land exactly in cast target `i32` in machine `Main::main` state `main` assignment; type an operand before division if integer division was intended
-pass/arithmetic/runtime_float_running_min_max_fold_exit rejected 14688ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: value shape` (state 0, statement 4)
+pass/arithmetic/runtime_float_running_min_max_fold_exit rejected 17428ms
+	unimplemented: `Main::main` applies boundary operator `F64::minimum`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/arithmetic/runtime_float_self_compare_nan_exit rejected 14599ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 0)
 pass/arithmetic/runtime_fnv1a_hash_exit built 10846ms exit:70
@@ -192,8 +192,8 @@ pass/arithmetic/runtime_shl_saturating_value_overflow_exit rejected 4097ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
 pass/arithmetic/runtime_signed_division_exit built 10751ms exit:70
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit built 11078ms exit:70
-pass/arithmetic/runtime_sqrt_builtin_exit rejected 14720ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: assignment: call source result type` (state 0, statement 1)
+pass/arithmetic/runtime_sqrt_builtin_exit rejected 17332ms
+	unimplemented: `Main::main` applies boundary operator `F64::square_root`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/arithmetic/runtime_struct_field_range_narrowing_exit rejected 9536ms
 	native artifact fragment object publication failed: fragment import lacks selected call custody
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit built 10667ms exit:70
@@ -944,7 +944,7 @@ pass/collections/std_option_surface rejected 1736ms
 	native-artifact production requires one exact selected program entry
 pass/collections/zero_length_byte_array_admission rejected 1749ms
 	native-artifact production requires one exact selected program entry
-pass/comptime/provider_boundary_range_endpoint_exit built 11746ms exit:70
+pass/comptime/provider_boundary_range_endpoint_exit built 14745ms exit:70
 pass/comptime/runtime_const_array_length_bare_call_arm_exit rejected 149ms
 	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: machine `table_size` is not build-time admissible: machine call path `table_size -> burn` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 pass/comptime/runtime_const_array_length_exit built 10883ms exit:70
@@ -1982,12 +1982,12 @@ pass/filesystem/wrapper_times_owner_lstat_exit rejected 10170ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
 pass/float/anonymous_exact_rat_const_exit rejected 15905ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 0, statement 0)
-pass/float/build_runtime_semantics_twins rejected 18814ms
+pass/float/build_runtime_semantics_twins rejected 19719ms
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
-pass/float/build_runtime_semantics_twins_windows_x64 rejected 36440ms
-	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at statement sequence: local data: scalar local: pure initializer, statement 4)") })
-pass/float/build_runtime_semantics_twins_x86_baseline rejected 6362ms
+pass/float/build_runtime_semantics_twins_windows_x64 rejected 36667ms
+	unimplemented: `windows_x86_64_baseline_float_twin_code` applies boundary operator `F32::multiply_then_add`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/build_runtime_semantics_twins_x86_baseline rejected 8973ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
 pass/float/exclusive_float_range_below_endpoint rejected 2196ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(ScalarFloatRangeDelivery { caller: MachineId(1), operation: OperationId(1), callee: MachineId(2), parameter: ValueId(4294967297) }))
@@ -2023,37 +2023,37 @@ pass/float/float_trapping_propagated_infinity_traps rejected 15956ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
 pass/float/float_trapping_propagated_nan_traps rejected 15898ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
-pass/float/foreign_control_state_restore rejected 5987ms
+pass/float/foreign_control_state_restore rejected 8552ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
-pass/float/named_float_to_integer_no_context_compile rejected 9541ms
+pass/float/named_float_to_integer_no_context_compile rejected 7780ms
 	native-artifact production requires one exact selected program entry
-pass/float/named_provider_classification_predicates_exit rejected 16332ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 3)
-pass/float/named_provider_classify_exit rejected 16311ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 3)
-pass/float/named_provider_directed_add_exit rejected 16315ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 3)
-pass/float/named_provider_directed_divide_exit rejected 16055ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 4)
-pass/float/named_provider_directed_fused_multiply_add_exit rejected 15987ms
+pass/float/named_provider_classification_predicates_exit rejected 17719ms
+	unimplemented: `Main::main` applies boundary operator `F32::is_finite`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_classify_exit rejected 17878ms
+	unimplemented: `Main::main` applies boundary operator `F32::negate`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_directed_add_exit rejected 17723ms
+	unimplemented: `Main::main` applies boundary operator `F32::add_toward_positive`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_directed_divide_exit rejected 14570ms
+	unimplemented: `Main::main` applies boundary operator `F32::divide_toward_positive`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_directed_fused_multiply_add_exit rejected 14723ms
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
-pass/float/named_provider_directed_multiply_exit rejected 15996ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 3)
-pass/float/named_provider_directed_square_root_exit rejected 16187ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: assignment: call source result type` (state 0, statement 3)
-pass/float/named_provider_directed_subtract_exit rejected 15957ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 3)
-pass/float/named_provider_fused_multiply_add_exit rejected 15748ms
+pass/float/named_provider_directed_multiply_exit rejected 14435ms
+	unimplemented: `Main::main` applies boundary operator `F32::multiply_toward_positive`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_directed_square_root_exit rejected 14822ms
+	unimplemented: `Main::main` applies boundary operator `F32::square_root_toward_positive`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_directed_subtract_exit rejected 14788ms
+	unimplemented: `Main::main` applies boundary operator `F32::subtract_toward_positive`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_fused_multiply_add_exit rejected 14651ms
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
-pass/float/named_provider_min_max_sqrt_exit rejected 15487ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 7)
-pass/float/named_provider_multiply_then_add_exit rejected 15549ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
-pass/float/named_provider_negate_is_nan_exit rejected 15258ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 3)
-pass/float/named_requirement_fused_multiply_add_exit rejected 14926ms
+pass/float/named_provider_min_max_sqrt_exit rejected 15008ms
+	unimplemented: `Main::main` applies boundary operator `F32::minimum`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_multiply_then_add_exit rejected 14850ms
+	unimplemented: `Main::main` applies boundary operator `F32::multiply_then_add`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_provider_negate_is_nan_exit rejected 15093ms
+	unimplemented: `Main::main` applies boundary operator `F32::negate`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_requirement_fused_multiply_add_exit rejected 14494ms
 	selected x86 scalar FMA ProviderPlan `windows_x86_64::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
 pass/float/native_float_arg rejected 5438ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
@@ -2061,17 +2061,16 @@ pass/float/native_float_return rejected 5267ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
 pass/float/native_float_two_args rejected 5280ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
-pass/float/runtime_named_float_to_integer_conversion_exit rejected 15378ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 0, statement 0)
-pass/float/runtime_named_float_to_integer_trapping_nan_traps rejected 14991ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer`
-pass/float/runtime_named_float_to_integer_trapping_overflow_traps rejected 15081ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer`
-pass/float/runtime_named_format_conversion_exit rejected 14848ms
-	selected operator expression Handle { arena_index: 73, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained
-	selected operator expression Handle { arena_index: 76, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained
-pass/float/runtime_named_integer_to_float_conversion_exit rejected 15494ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 0, statement 9)
+pass/float/runtime_named_float_to_integer_conversion_exit rejected 15124ms
+	unimplemented: `Main::main` applies boundary operator `I8::from_f32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/runtime_named_float_to_integer_trapping_nan_traps rejected 14825ms
+	unimplemented: `Main::main` applies boundary operator `I32::from_f64`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/runtime_named_float_to_integer_trapping_overflow_traps rejected 14715ms
+	unimplemented: `Main::main` applies boundary operator `U8::from_f64`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/runtime_named_format_conversion_exit rejected 14429ms
+	unimplemented: `Main::main` applies boundary operator `F32::from_f64`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/runtime_named_integer_to_float_conversion_exit rejected 14670ms
+	unimplemented: `Main::main` applies boundary operator `F32::from_i8`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/float/runtime_policy_adapter_matrix_exit rejected 15489ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
 pass/float/runtime_std_is_finite_exit rejected 15929ms
@@ -2084,8 +2083,8 @@ pass/float/unsuffixed_f32_argument_single_rounding_exit rejected 15628ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 0, statement 2)
 pass/float/unsuffixed_f32_destination_single_rounding_exit rejected 15651ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 0, statement 2)
-pass/float/x86_fma_plan_association rejected 15574ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 3)
+pass/float/x86_fma_plan_association rejected 14124ms
+	unimplemented: `Main::main` applies boundary operator `F32::multiply_then_add`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/generics/authored_const_application_local_destination rejected 3840ms
 	native-artifact production requires one exact selected program entry
 pass/generics/closed_indexed_quantity rejected 15718ms
@@ -2676,21 +2675,24 @@ pass/proofs/signature_call_premises rejected 1799ms
 pass/proofs/signed_rat_metric_compile rejected 3757ms
 	native-artifact production requires one exact selected program entry
 pass/providers/adapter_satisfies_compile built 10845ms
-pass/providers/checked_boundary_operator_const_application_alternate_exit built 9184ms exit:70
-pass/providers/checked_boundary_operator_const_application_exit built 9006ms exit:70
-pass/providers/checked_boundary_operator_const_application_selected_exit built 8908ms exit:70
-pass/providers/checked_boundary_operator_const_length_exit built 7257ms exit:70
-pass/providers/checked_boundary_operator_dispatch_exit rejected 5600ms
-	native artifact fragment object publication failed: fragment import lacks selected call custody
-pass/providers/checked_boundary_operator_physical_custody built 6610ms
+pass/providers/checked_boundary_operator_const_application_alternate_exit built 14527ms exit:70
+pass/providers/checked_boundary_operator_const_application_exit built 14618ms exit:70
+pass/providers/checked_boundary_operator_const_application_selected_exit built 14536ms exit:70
+pass/providers/checked_boundary_operator_const_length_exit built 7185ms exit:70
+pass/providers/checked_boundary_operator_dispatch_exit rejected 4087ms
+	unimplemented: `Main::main` applies boundary operator `CheckedMath::offset_zero`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/checked_boundary_operator_physical_custody rejected 4161ms
+	unimplemented: `Main::main` applies boundary operator `CheckedMath::offset_zero`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/providers/checked_boundary_requirement_dispatch_exit built 6534ms exit:70
 pass/providers/checked_boundary_requirement_statement_call_exit built 6689ms exit:70
 pass/providers/checked_boundary_requirement_terminal_exit built 6485ms exit:70
-pass/providers/checked_fixed_operator_dispatch_exit built 10981ms exit:70
-pass/providers/checked_fixed_operator_physical_custody built 11019ms
-pass/providers/checked_named_boundary_operator_const_application_exit built 15891ms exit:70
-pass/providers/checked_named_boundary_operator_const_length_exit built 12439ms exit:70
-pass/providers/checked_operator_fragment_publication rejected 2054ms
+pass/providers/checked_fixed_operator_dispatch_exit rejected 3993ms
+	unimplemented: `Main::main` applies boundary operator `CheckedMath::select_left`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/checked_fixed_operator_physical_custody rejected 4084ms
+	unimplemented: `Main::main` applies boundary operator `CheckedMath::select_left`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/checked_named_boundary_operator_const_application_exit built 12725ms exit:70
+pass/providers/checked_named_boundary_operator_const_length_exit built 6855ms exit:70
+pass/providers/checked_operator_fragment_publication rejected 1861ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
 pass/providers/component_owner_provider_override_compile built 4154ms
 pass/providers/external_boundary_requirement_via_exit rejected 2176ms
@@ -2722,13 +2724,18 @@ pass/providers/service_fused_erasure_compile rejected 2127ms
 	native-artifact production requires one exact selected program entry
 pass/providers/service_fused_root_establishment rejected 164ms
 	selected target `windows_x86_64` has no bound required root slot `windows_x86_64::ProgramEntry`
-pass/providers/specialized_boundary_operator_physical_custody built 11005ms
-pass/providers/specialized_fixed_operator_physical_custody built 10910ms
-pass/providers/specialized_mixed_structural_fixed_operator_hosted_native built 6412ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native built 6462ms
-pass/providers/specialized_structural_fixed_operator_hosted_native built 6322ms
-pass/providers/specialized_structural_fixed_operator_terminal_custody built 4414ms
-pass/providers/specialized_structural_fixed_operator_unit_terminal_custody built 4401ms
+pass/providers/specialized_boundary_operator_physical_custody rejected 4288ms
+	unimplemented: `Main::main` applies boundary operator `GenericMath::identity`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/specialized_fixed_operator_physical_custody rejected 4078ms
+	unimplemented: `Main::main` applies boundary operator `GenericMath::remainder`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/specialized_mixed_structural_fixed_operator_hosted_native rejected 3818ms
+	unimplemented: `consume` applies boundary operator `Indexing::index`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 3871ms
+	unimplemented: `consume` applies boundary operator `Indexing::index`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/specialized_structural_fixed_operator_hosted_native rejected 3821ms
+	unimplemented: `consume` applies boundary operator `Indexing::index`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/specialized_structural_fixed_operator_terminal_custody built 3522ms
+pass/providers/specialized_structural_fixed_operator_unit_terminal_custody built 3402ms
 pass/providers/test_owner_provider_override_compile built 4201ms
 pass/range/runtime_element_range_dataflow_exit built 11251ms exit:15
 pass/range/runtime_funnel_guard_agreement_exit built 11226ms exit:7

@@ -174,17 +174,9 @@ pub fn bind_checked_x86_scalar_fma_plan_associations(
                     continue;
                 }
 
+                // A targetless check realizes nothing, so it owes no x86
+                // deployment demand; realization for an exact profile does.
                 let Some(profile) = selected_profile else {
-                    if TargetProfile::from_canonical_target_name(&retained.plan.target)
-                        .ok()
-                        .and_then(X86FeatureRequirement::scalar_fma)
-                        .is_some()
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "selected x86 scalar FMA ProviderPlan `{}` requires an exact deployment profile and admitted AVX+FMA3 provider",
-                            retained.plan.name,
-                        )));
-                    }
                     continue;
                 };
                 if X86FeatureRequirement::scalar_fma(profile).is_none()

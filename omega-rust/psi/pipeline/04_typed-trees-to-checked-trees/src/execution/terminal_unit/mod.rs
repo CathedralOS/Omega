@@ -135,8 +135,7 @@ use checked_trees::{
     CheckedPartialAffineUnitCleanupPlans, CheckedPayloadlessGuardedCallEvidencePlan,
     CheckedPayloadlessGuardedCallEvidenceUsePlan, CheckedPayloadlessGuardedCallReturnMachinePlan,
     CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding, CheckedScalarBindingValue,
-    CheckedScalarExpression, CheckedScalarExpressionRole,
-    CheckedSelectedOperatorStructuralScalarReturnMachinePlan, CheckedStructuralAccess,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralCallReturnPlans, CheckedStructuralControlSuccessorPlan,
     CheckedStructuralControlTransferPlan, CheckedStructuralResultPlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralReturnPlans,
@@ -192,8 +191,6 @@ use validation::reference_result_custody as reference_results;
 pub(crate) mod returns;
 mod scalar_locals;
 mod scalar_targets;
-mod selected_ieee_float;
-pub(super) mod selected_operator;
 pub(crate) mod shared_convergence;
 mod state_graph;
 mod structural_scalar_store;
@@ -221,25 +218,14 @@ pub(crate) fn build_checked_unit_effect_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
 ) -> CheckedUnitEffectPlans {
-    build_checked_unit_effect_plans_with_call_frames(
-        program,
-        facts,
-        scalar_callees,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
-        None,
-    )
+    build_checked_unit_effect_plans_with_call_frames(program, facts, scalar_callees, None)
 }
 
 pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
     program: &TypedTrees,
     facts: &CheckFacts,
     scalar_callees: ScalarCalleePlans<'_>,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
-    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> CheckedUnitEffectPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -277,8 +263,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             scalar_callees,
             &mut shapes,
             machine,
-            selected_operator_applications,
-            selected_ieee_float_fma_applications,
             call_frames,
             &trace,
         ) {
@@ -353,8 +337,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut shapes,
         &mut candidates,
         &mut composed_machines,
-        selected_operator_applications,
-        selected_ieee_float_fma_applications,
         call_frames,
     );
     // Prefer a complete general state graph when both builders describe the

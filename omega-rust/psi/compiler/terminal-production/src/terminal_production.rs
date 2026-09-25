@@ -434,6 +434,17 @@ impl std::fmt::Display for ProgramEntryTerminalReceiptError {
 
 impl std::error::Error for ProgramEntryTerminalReceiptError {}
 
+impl TerminalArtifactProductionError {
+    /// The `unimplemented:` report of a refusal caused by a missing
+    /// compiler route rather than by the program, when this is one.
+    pub fn unimplemented_report(&self) -> Option<&str> {
+        match self {
+            Self::Lowering(error) => error.unimplemented_report(),
+            _ => None,
+        }
+    }
+}
+
 impl std::fmt::Display for TerminalArtifactProductionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{self:?}")

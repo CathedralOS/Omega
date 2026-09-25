@@ -3,7 +3,6 @@
 use crate::selected_dispatch::float_intrinsic::execution_identities::{
     named_float_realization_arity, selected_compiler_intrinsic_realization,
 };
-use crate::selected_dispatch::float_intrinsic::named_float_realizations::preflight_named_float_execution;
 use crate::selected_dispatch::float_intrinsic::{
     NamedFloatRealization, SelectedCompilerIntrinsicRealization, StagedNamedFloatRewrite,
 };
@@ -21,7 +20,6 @@ pub(crate) struct SelectedIntrinsicUse {
     pub(crate) origin: checked_trees::CheckedValueOrigin,
     /// The operator symbol or the requirement machine symbol.
     pub(crate) requirement_symbol: symbols::SymbolHandle,
-    pub(crate) policy_adapter: checked_trees::CheckedArithmeticPolicyAdapter,
     pub(crate) provider_plan_report_fingerprint: u64,
     pub(crate) provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
 }
@@ -32,7 +30,6 @@ impl From<&checked_trees::CheckedNamedOperatorUseFact> for SelectedIntrinsicUse 
             expression: operator_use.expression,
             origin: operator_use.origin,
             requirement_symbol: operator_use.selected_operator_symbol,
-            policy_adapter: operator_use.policy_adapter,
             provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
             provider_plan_commitment: operator_use.provider_plan_commitment,
         }
@@ -45,7 +42,6 @@ impl From<&checked_trees::CheckedNamedRequirementUseFact> for SelectedIntrinsicU
             expression: requirement_use.expression,
             origin: requirement_use.origin,
             requirement_symbol: requirement_use.requirement_symbol,
-            policy_adapter: requirement_use.policy_adapter,
             provider_plan_report_fingerprint: requirement_use.provider_plan_report_fingerprint,
             provider_plan_commitment: requirement_use.provider_plan_commitment,
         }
@@ -163,11 +159,9 @@ fn resolve_float_intrinsic_call(
         )));
     }
 
-    let execution = preflight_named_float_execution(checked, &requirement, realization)?;
     Ok(Some(StagedNamedFloatRewrite {
         expression: selected_use.expression,
         origin: selected_use.origin,
-        realization,
-        execution,
+        requirement: requirement.symbol,
     }))
 }

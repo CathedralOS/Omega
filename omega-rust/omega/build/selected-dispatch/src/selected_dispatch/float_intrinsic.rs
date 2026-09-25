@@ -1,35 +1,24 @@
-//! F7 named-float ProviderPlan execution bridge.
+//! F7 named-float ProviderPlan realizations.
 //!
 //! Checking retains the source operator identity and the exact selected plan
-//! on each named use. Execution may then redirect only a compiler-known
-//! realization to either an existing builtin or an exact primitive expression.
-//! The source expression handle and fact remain unchanged, so proof,
-//! result-policy evidence, and diagnostics continue to name the boundary
-//! requirement rather than the bootstrap execution form.
+//! on each named use, and execution keeps naming the boundary requirement:
+//! Omega installs the compiler-known realization. A named use bound to one
+//! is found here only so its missing requirement-level route reports
+//! `unimplemented:`; the execution identities serve build-time folding and
+//! Terminal coverage.
 //!
-//! This file owns the realization vocabulary and the settle, plan and apply
-//! entry points. `fma_unit_applications.rs` selects and validates IEEE fused
-//! multiply-add unit applications, `intrinsic_resolution.rs` resolves
-//! float intrinsic calls, `execution_identities.rs` derives execution
-//! identities and realizations, `named_float_realizations.rs` realizes
-//! named and directed float builtins and `tests.rs` holds the dispatch
-//! tests.
+//! `intrinsic_resolution.rs` resolves float intrinsic calls,
+//! `execution_identities.rs` derives execution identities and realizations,
+//! and `named_float_realizations.rs` realizes named and directed float
+//! builtins.
 
 mod execution_identities;
-mod fma_unit_applications;
 mod intrinsic_resolution;
 mod named_float_realizations;
-#[cfg(test)]
-mod requirement_view_tests;
-#[cfg(test)]
-mod tests;
 
 pub use execution_identities::{
     derive_selected_compiler_intrinsic_execution_identity,
     derive_selected_primitive_float_binary_execution,
-};
-pub(crate) use fma_unit_applications::{
-    selected_ieee_float_fma_unit_applications, validate_selected_ieee_float_fma_unit_applications,
 };
 
 use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::{
@@ -41,9 +30,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::RoundingDirection;
 use numerics::literals::FloatFormat;
 use provider_planning::CompilerIntrinsicExecutionIdentity;
-use std::sync::Arc;
 use symbols::BuiltinFunction;
-use typed_trees_to_checked_trees::{SettledFloatIntrinsic, SettledFloatIntrinsicExecution};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NamedFloatRealization {
@@ -88,57 +75,13 @@ enum DirectedFloatBinaryOperation {
     Divide,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StagedNamedFloatExecution {
-    Builtin {
-        function: BuiltinFunction,
-        symbol: symbols::SymbolHandle,
-    },
-    Negate(FloatFormat),
-    Convert {
-        domain: ArithmeticDomain,
-        target_type: typed_trees::types::TypeReferenceHandle,
-    },
-}
-
+/// One named float use whose selected row is a compiler-known realization,
+/// keyed by the requirement it names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct StagedNamedFloatRewrite {
     pub(super) expression: typed_trees::expression::ExpressionHandle,
-    origin: checked_trees::CheckedValueOrigin,
-    realization: NamedFloatRealization,
-    execution: StagedNamedFloatExecution,
-}
-
-impl StagedNamedFloatRewrite {
-    /// The settlement row Psi applies for this planned rewrite.
-    pub(super) fn settled_intrinsic(&self) -> SettledFloatIntrinsic {
-        SettledFloatIntrinsic {
-            expression: self.expression,
-            origin: self.origin,
-            execution: match self.execution {
-                StagedNamedFloatExecution::Builtin { function, symbol } => {
-                    SettledFloatIntrinsicExecution::Builtin { function, symbol }
-                }
-                StagedNamedFloatExecution::Negate(format) => {
-                    SettledFloatIntrinsicExecution::Negate(format)
-                }
-                StagedNamedFloatExecution::Convert {
-                    domain,
-                    target_type,
-                } => SettledFloatIntrinsicExecution::Convert {
-                    domain,
-                    target_type,
-                },
-            },
-        }
-    }
-}
-
-pub fn settle_selected_float_intrinsic_dispatch(
-    checked: Arc<CheckedTrees>,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
-    super::settle_selected_execution_dispatch(checked, selected_provider_plans)
+    pub(super) origin: checked_trees::CheckedValueOrigin,
+    pub(super) requirement: symbols::SymbolHandle,
 }
 
 pub(super) fn plan_selected_float_intrinsic_rewrites(
@@ -169,7 +112,6 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
         {
             continue;
         }
-        let operator_use = selected_use;
         let rewrite = match resolve_selected_float_intrinsic_call(
             checked,
             selected_provider_plans.plans(),
@@ -182,19 +124,10 @@ pub(super) fn plan_selected_float_intrinsic_rewrites(
                 continue;
             }
         };
-        if let Some(existing) = rewrites
+        if !rewrites
             .iter()
-            .find(|existing: &&StagedNamedFloatRewrite| existing.expression == rewrite.expression)
+            .any(|existing: &StagedNamedFloatRewrite| existing.expression == rewrite.expression)
         {
-            if existing.realization != rewrite.realization
-                || existing.execution != rewrite.execution
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "named float expression {:?} carries contradictory selected intrinsic realizations",
-                    operator_use.expression
-                )));
-            }
-        } else {
             rewrites.push(rewrite);
         }
     }

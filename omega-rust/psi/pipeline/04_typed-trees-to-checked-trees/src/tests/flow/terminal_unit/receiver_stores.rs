@@ -315,8 +315,6 @@ fn receiver_store_requires_its_exact_receiver_write_frame() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(rebuilt.for_machine(machine).is_none());
     }
@@ -365,8 +363,6 @@ fn receiver_store_sequence_requires_the_complete_assignment_frame() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(rebuilt.for_machine(machine).is_none());
     }

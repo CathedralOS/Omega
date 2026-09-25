@@ -6,8 +6,8 @@
 //! token from source text.
 
 use super::{
-    OperatorAdapterRewrite, OperatorAdapterSource, exact_operator_definition,
-    resolve_checked_adapter_for_operator, resolve_exact_selected_plan,
+    OperatorAdapterRewrite, exact_operator_definition, resolve_checked_adapter_for_operator,
+    resolve_exact_selected_plan,
 };
 use checked_trees::{CheckedOperatorResolutionStatus, CheckedTrees};
 use diagnostics::Diagnostic;
@@ -71,22 +71,16 @@ pub(super) fn resolve_selected_spelled_operator_adapter_call(
             operands.len(),
         )));
     }
-    let Some((machine_symbol, machine, entry_symbol)) =
-        resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
-    else {
+    if resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
+        .is_none()
+    {
         return Ok(None);
-    };
+    }
 
     Ok(Some(OperatorAdapterRewrite {
         expression: operator_use.expression,
         origin: operator_use.origin,
         requirement_operator: operator_use.selected_operator_symbol,
-        provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-        provider_plan_commitment: operator_use.provider_plan_commitment,
-        machine_symbol,
-        machine,
-        entry_symbol,
-        source: OperatorAdapterSource::Spelled(operands.into_boxed_slice()),
     }))
 }
 

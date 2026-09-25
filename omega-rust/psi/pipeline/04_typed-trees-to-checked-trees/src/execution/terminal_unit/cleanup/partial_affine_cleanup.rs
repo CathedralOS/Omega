@@ -60,8 +60,6 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 },
                 shapes,
                 machine,
-                &[],
-                &[],
                 false,
                 None,
                 &control::LocalConstructionTrace::default(),

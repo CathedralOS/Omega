@@ -260,62 +260,6 @@ requires index == 0u64
 }
 
 #[test]
-fn fixed_token_index_source_custody_checks_both_original_operands() {
-    if host_target_name().is_none() {
-        return;
-    }
-    let checked = compile_fixture(
-        r#"pub data Buffer { value: i32; }
-pub data Indexing {}
-pub boundary operator [] Indexing::index(items: Buffer, index: u64) -> i32;
-pub data Provider {}
-pub machine Provider::index(items: Buffer, index: u64) -> i32
-satisfies Indexing::index { items.value }
-pub machine exercise(items: Buffer, index: u64) -> i32
-requires index == 0u64 { items[index] }
-"#,
-    );
-    let source = checked
-        .custody
-        .pre_selected_dispatch_source_trees(&checked.typed)
-        .expect("fixed-token indexing has an exact source view");
-    let machine = source
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "exercise")
-        .unwrap();
-    let entry = &source.machine_states(machine)[0];
-    let indexed = source
-        .statement_table
-        .statements(entry.statement_nodes)
-        .iter()
-        .find_map(|statement| {
-            let typed_trees::statement::StatementNode::Expression(handle) = statement else {
-                return None;
-            };
-            let typed_trees::expression::ExpressionNode::Indexed(indexed) =
-                source.expression_table.expression(*handle)
-            else {
-                return None;
-            };
-            Some(*indexed)
-        })
-        .expect("restored source indexing, not the selected direct call");
-    for operand in [indexed.collection, indexed.index] {
-        let mut altered = checked.clone();
-        *altered.typed.expression_table.expression_mut(operand) =
-            typed_trees::expression::ExpressionNode::Boolean(false);
-        assert!(
-            altered
-                .custody
-                .pre_selected_dispatch_source_trees(&altered.typed)
-                .is_err(),
-            "changing either original indexing operand invalidates custody"
-        );
-    }
-}
-
-#[test]
 fn fixed_token_checked_adapter_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;

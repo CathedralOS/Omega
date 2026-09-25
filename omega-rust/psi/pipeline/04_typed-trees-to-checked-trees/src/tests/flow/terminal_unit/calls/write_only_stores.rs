@@ -384,8 +384,6 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
             boundary_returns: &without_certificate.flow.terminal_boundary_scalar_returns,
             structural_returns: &without_certificate.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rebuilt
@@ -445,8 +443,6 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
             boundary_returns: &without_certificate.flow.terminal_boundary_scalar_returns,
             structural_returns: &without_certificate.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rebuilt

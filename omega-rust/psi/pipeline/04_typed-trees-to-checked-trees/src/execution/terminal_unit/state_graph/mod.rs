@@ -352,10 +352,6 @@ pub(super) fn build_traced(
             &calls,
             &[],
             binding_count,
-            control::statement_sequence::SelectedApplications {
-                operators: &[],
-                ieee_float_fma: &[],
-            },
             call_frames,
             trace,
         )?;

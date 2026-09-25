@@ -27,8 +27,6 @@ pub(super) fn reconcile(
     shapes: &mut ShapeCollector<'_>,
     candidates: &mut Vec<CheckedUnitEffectMachinePlan>,
     composed: &mut Vec<CheckedComposedUnitControlMachinePlan>,
-    selected_operators: &[crate::SelectedOperatorApplication],
-    selected_float_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
     // Receiver retention grows along the already-checked call graph. Rebuild
@@ -135,8 +133,6 @@ pub(super) fn reconcile(
                 scalar_callees,
                 shapes,
                 machine,
-                selected_operators,
-                selected_float_applications,
                 true,
                 call_frames,
             ) else {

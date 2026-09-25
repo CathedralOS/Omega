@@ -261,8 +261,6 @@ fn shared_result_reads_require_exact_captured_borrow_access() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(machine).is_none(),

@@ -64,12 +64,7 @@ pub use checking::{
 // producing pass keeps the checker itself public so post-publication
 // evidence is checkable, not just inspectable.
 pub use checks::replay_checked_borrow_certificates;
-pub use execution::selected_execution::{
-    ExecutionSettlement, SelectedIeeeFloatFmaUnitApplication, SelectedOperatorApplication,
-    SettledCallSite, SettledFloatIntrinsic, SettledFloatIntrinsicExecution,
-    SettledOperatorAdapterCall, SettledOperatorAdapterSource, SettledRequirementCall,
-    settle_checked_execution,
-};
+pub use execution::selected_execution::settle_checked_execution;
 
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
