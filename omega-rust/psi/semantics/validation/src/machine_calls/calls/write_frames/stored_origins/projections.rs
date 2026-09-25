@@ -55,7 +55,7 @@ pub(in crate::machine_calls::calls::write_frames) fn symbolic_reference_leaves(
     expected: TypeReferenceHandle,
     inference: &super::super::FrameInference,
 ) -> Option<AggregateOrigins> {
-    let (state, before, _) = super::super::caller_aliases::caller_statement_at_site(
+    let (state, before, _) = super::super::caller_aliases::caller_statement_owner(
         program,
         machine,
         super::super::caller_aliases::CallerWriteSite::Expression(expression),

@@ -153,6 +153,54 @@ pub(crate) enum StateWriteQuery<'statement> {
     Assignment(&'statement StatementNode),
 }
 
+/// A per-statement snapshot of the non-shared prefix walk's alias/stored
+/// accumulators. `collect_state_write_prefixes` captures one entry per
+/// statement index: entry i holds exactly what `Before(statement[i])` would
+/// have returned, so a state pays one O(statements) walk instead of a fresh
+/// O(index) prefix walk per demand site.
+#[derive(Debug, Clone)]
+pub(crate) struct CollectedStatementPrefix {
+    pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
+    pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
+    pub(crate) stored: Vec<StoredLocalOrigins>,
+}
+
+/// One non-shared prefix walk snapshotting the accumulator before every
+/// statement. Statements at or after an uncomputable point record `None`,
+/// matching the `Before` walk's `None` for those indices exactly.
+pub(crate) fn collect_state_write_prefixes(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+) -> Option<Vec<Option<CollectedStatementPrefix>>> {
+    let statement_count = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .len();
+    let mut prefixes = Vec::new();
+    let mut inference = FrameInference::default();
+    let mut complete_state_summaries = Vec::new();
+    inference
+        .with_local_scope(|inference| {
+            walk_state_write_prefix_inner(
+                program,
+                machine,
+                state,
+                symbols,
+                inference,
+                &mut complete_state_summaries,
+                None,
+                Some(&mut prefixes),
+            )
+        })
+        .map(|_| ());
+    while prefixes.len() < statement_count {
+        prefixes.push(None);
+    }
+    Some(prefixes)
+}
+
 /// The same state transfer computes whole-body summaries and the alias context
 /// immediately before a demand query. Prefix results never enter the complete
 /// state-summary cache.
@@ -174,6 +222,7 @@ pub(crate) fn walk_state_write_prefix(
             inference,
             complete_state_summaries,
             query,
+            None,
         )
     })
 }
@@ -186,6 +235,7 @@ fn walk_state_write_prefix_inner(
     inference: &mut FrameInference,
     complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
     query: Option<StateWriteQuery<'_>>,
+    mut collect: Option<&mut Vec<Option<CollectedStatementPrefix>>>,
 ) -> Option<StateWritePrefix> {
     if crate::declarations::standard_declarations::is_core_vector_surface_state(
         program, machine, state,
@@ -239,6 +289,13 @@ fn walk_state_write_prefix_inner(
 
     let statements = program.statement_table.statements(state.statement_nodes);
     for (statement_index, statement) in statements.iter().enumerate() {
+        if let Some(prefixes) = collect.as_deref_mut() {
+            prefixes.push(Some(CollectedStatementPrefix {
+                aliases: local_alias_origins.clone(),
+                divergent: divergent_alias_origins.clone(),
+                stored: stored.clone(),
+            }));
+        }
         if matches!(query, Some(StateWriteQuery::Before(before) | StateWriteQuery::ReferenceBefore(before)) if std::ptr::eq(before, statement))
         {
             return Some(StateWritePrefix {

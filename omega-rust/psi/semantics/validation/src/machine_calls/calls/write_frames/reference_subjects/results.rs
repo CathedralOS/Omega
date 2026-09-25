@@ -37,6 +37,7 @@ pub(super) fn call_origin(
     let (state, before, _) = caller_aliases::caller_statement_at_site(
         program,
         machine,
+        symbols,
         caller_aliases::CallerWriteSite::Expression(expression),
     )?;
     let returned = result_origins::call_result_origins(

@@ -59,6 +59,7 @@ pub(super) fn call_result_origins(
                         let Some((state, _, _)) = super::caller_aliases::caller_statement_at_site(
                             program,
                             caller_machine,
+                            symbols,
                             super::caller_aliases::CallerWriteSite::Expression(target),
                         ) else {
                             return true;

@@ -1,9 +1,40 @@
 use diagnostics::Diagnostic;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::trait_definition::TraitDefinition;
+
+/// Memoized caller-prefix resolution for write-origin walks. The caller-side
+/// queries repeat the same machine-level scans for every statement site:
+/// whether a machine declares tracked origins at all, which (state, index)
+/// a call/statement/expression site names, and the resulting prefix site.
+/// All three are program-pure identities; they live here beside the other
+/// program-level symbol indexes rather than rescanned per demand query.
+#[derive(Debug, Default)]
+pub(crate) struct CallerSiteCaches {
+    /// machine symbol -> does any state declare tracked origins (incoming
+    /// carriers or origin-declaring locals). The machine-level `.any` scan
+    /// this replaces walks every statement of every state per call.
+    pub tracked_origin_machines: Mutex<HashMap<SymbolHandle, bool>>,
+    /// (machine symbol, site kind, site identity) -> (state symbol, index)
+    /// for the unique statement a caller write site resolves to.
+    pub site_statements: Mutex<HashMap<(SymbolHandle, u8, usize), Option<(SymbolHandle, usize)>>>,
+    /// (machine symbol, site kind, site identity) -> the resolved prefix
+    /// site outcome; None in the map encodes "no unique statement".
+    pub prefix_site_entries: Mutex<HashMap<(SymbolHandle, u8, usize), Option<PrefixSiteEntry>>>,
+}
+
+/// The memoizable shape of `CallerPrefixSite`: `Tracked` retains the state's
+/// symbol and statement index, and callers rebuild the borrowed `State` and
+/// `StatementNode` from the program on a hit.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PrefixSiteEntry {
+    Untracked,
+    Tracked { state: SymbolHandle, index: usize },
+}
 
 #[derive(Debug)]
 pub struct TopLevelSymbols<'program> {
@@ -11,6 +42,9 @@ pub struct TopLevelSymbols<'program> {
     machines: Vec<MachineSymbol<'program>>,
     traits: Vec<TraitSymbol<'program>>,
     types: Vec<TypeSymbol<'program>>,
+    /// Demand caches for the write-frame/caller-alias queries. Inserted lazily
+    /// by readers; `build` leaves them empty.
+    pub(crate) caller_sites: CallerSiteCaches,
 }
 
 #[derive(Debug)]
@@ -49,6 +83,7 @@ impl<'program> TopLevelSymbols<'program> {
             machines: Vec::with_capacity(machine_count),
             traits: Vec::with_capacity(trait_count),
             types: builtin_type_symbols(program),
+            caller_sites: CallerSiteCaches::default(),
         };
         symbols.types.reserve(data_definition_count + trait_count);
 
