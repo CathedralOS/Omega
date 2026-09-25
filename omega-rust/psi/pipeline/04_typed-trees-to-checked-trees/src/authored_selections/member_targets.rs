@@ -28,6 +28,7 @@ pub(crate) fn checked_member_target(
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
+    owner_index: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedResolutionTarget> {
     declaration_target(crate::flow::effective_member_symbol(
         program,
@@ -35,16 +36,21 @@ pub(crate) fn checked_member_target(
         member,
     ))
     .or_else(|| {
-        contexts::checked_member_target_from_exact_owner(program, facts, expression, member).map(
-            |target| match target {
-                contexts::OwnerMemberTarget::Declaration(symbol) => {
-                    CheckedResolutionTarget::Declaration(symbol)
-                }
-                contexts::OwnerMemberTarget::CollectionMeasure(measure) => {
-                    CheckedResolutionTarget::Intrinsic(measure.intrinsic())
-                }
-            },
+        contexts::checked_member_target_from_exact_owner(
+            program,
+            facts,
+            expression,
+            member,
+            owner_index,
         )
+        .map(|target| match target {
+            contexts::OwnerMemberTarget::Declaration(symbol) => {
+                CheckedResolutionTarget::Declaration(symbol)
+            }
+            contexts::OwnerMemberTarget::CollectionMeasure(measure) => {
+                CheckedResolutionTarget::Intrinsic(measure.intrinsic())
+            }
+        })
     })
     .or_else(|| {
         let matching = facts
@@ -459,6 +465,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                     &CheckFacts::default(),
                     expression,
                     member,
+                    None,
                 ),
                 Some(contexts::OwnerMemberTarget::CollectionMeasure(_))
             ) {

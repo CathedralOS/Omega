@@ -42,6 +42,7 @@ pub(super) fn checked_operand_type(
                 facts,
                 containing_expression,
                 operand,
+                None,
             )
         })
         .or_else(|| {
@@ -76,7 +77,7 @@ pub(super) fn checked_named_operator_call<'program>(
             crate::authored_selections::operator_targets::authored_operand_type(program, *argument)
                 .or_else(|| {
                     super::contexts::checked_expression_type_reference_from_exact_owner(
-                        program, facts, expression, *argument,
+                        program, facts, expression, *argument, None,
                     )
                 })
         })
