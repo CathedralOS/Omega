@@ -157,3 +157,26 @@ fn method_symbols<const N: usize>(
 
     (builder.finish(), declarations)
 }
+
+/// The top-level name index a lookup builds is cleared by every mutation
+/// that adds a root child, so a later lookup sees the extended roster.
+#[test]
+fn a_top_level_added_after_a_lookup_is_found() {
+    let find = |symbols: &SymbolTable, name: &str| {
+        symbols.find_top_level_by_name_and_kinds_from_source(
+            name,
+            &[SymbolKind::Machine],
+            SourceSpan::default(),
+        )
+    };
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    builder.insert_children(root, [(SymbolKind::Machine, SymbolNameRef::Static("x"))]);
+    let symbols = builder.finish();
+    assert_eq!(find(&symbols, "y"), None);
+
+    let mut extension = symbols.begin_extension(None, Vec::new());
+    let inserted = extension.insert_top_level([(SymbolKind::Machine, SymbolNameRef::Static("y"))]);
+    let symbols = extension.finish();
+    assert_eq!(find(&symbols, "y"), Some(inserted[0]));
+}

@@ -28,6 +28,7 @@ pub struct SymbolTable {
     /// a linear scan per lookup would cost `O(#sources)` on every
     /// module-qualified name walk.
     source_module_index: Vec<SymbolHandle>,
+    root_names: RootNameIndexCache,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -98,16 +99,36 @@ enum TopLevelSelection {
     SignatureFree,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RootNameIndex {
     by_name: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     by_leaf: std::collections::HashMap<Box<str>, Vec<(u32, SymbolHandle)>>,
 }
 
-thread_local! {
-    static ROOT_NAME_INDEX: std::cell::RefCell<
-        Option<(*const SymbolTable, usize, RootNameIndex)>,
-    > = const { std::cell::RefCell::new(None) };
+/// The table's root children bucketed by full name and by leaf, built on the
+/// first top-level lookup. Every mutation that can change the root roster
+/// clears it, so it always describes this table; equality ignores it.
+#[derive(Clone, Default)]
+struct RootNameIndexCache(std::sync::OnceLock<RootNameIndex>);
+
+impl RootNameIndexCache {
+    fn clear(&mut self) {
+        self.0.take();
+    }
+}
+
+impl PartialEq for RootNameIndexCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for RootNameIndexCache {}
+
+impl std::fmt::Debug for RootNameIndexCache {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("RootNameIndexCache")
+    }
 }
 
 impl SymbolLookup {
@@ -205,6 +226,7 @@ impl SymbolTableBuilder {
             supplemental_top_level: Vec::new(),
             module_symbols: Arena::new(),
             source_module_index: Vec::new(),
+            root_names: RootNameIndexCache::default(),
         }
     }
 
@@ -285,6 +307,7 @@ impl SymbolTable {
                 && self.symbols.get(generated_from).kind != SymbolKind::Unknown,
             "compiler-generated symbols require one existing derivation origin"
         );
+        self.root_names.clear();
         let name = self
             .names
             .insert(SymbolName::from_ref(SymbolNameRef::Borrowed(name)));
@@ -305,6 +328,7 @@ impl SymbolTable {
         parent: SymbolHandle,
         children: impl IntoIterator<Item = (SymbolKind, &'name str)>,
     ) -> HandleSpan<Symbol> {
+        self.root_names.clear();
         let names = &mut self.names;
         self.symbols.insert_generated_children(
             parent,
@@ -706,70 +730,42 @@ impl SymbolTable {
     /// Root-level children whose full name or leaf name selects `name`,
     /// in declaration order. The whole-roster filter behind every top-level
     /// lookup is O(children) per call; bucketing once per table keeps the
-    /// same candidate pool without rescanning. Freshness anchors on the
-    /// table pointer plus arena lens and sampled name text pointers:
-    /// fixture tables forge identical handles, but each built table owns a
-    /// distinct name text allocation.
+    /// same candidate pool without rescanning.
     fn top_level_children_matching_name(
         &self,
         name: &str,
         include_leaf: bool,
     ) -> Vec<SymbolHandle> {
-        ROOT_NAME_INDEX.with(|cell| {
-            let mut slot = cell.borrow_mut();
-            let fingerprint = self.root_index_fingerprint();
-            let fresh = matches!(&*slot, Some((owner, seen, _))
-                if std::ptr::eq(*owner, self as *const _) && *seen == fingerprint);
-            if !fresh {
-                let mut index = RootNameIndex::default();
-                if let Some(children) = self.child_handles(self.root) {
-                    for (position, symbol) in children.enumerate() {
-                        let full_name = self.name(symbol);
-                        index
-                            .by_name
-                            .entry(full_name.into())
-                            .or_default()
-                            .push((position as u32, symbol));
-                        if let Some((_, leaf)) = full_name.rsplit_once("::") {
-                            index
-                                .by_leaf
-                                .entry(leaf.into())
-                                .or_default()
-                                .push((position as u32, symbol));
-                        }
-                    }
-                }
-                *slot = Some((self as *const SymbolTable, fingerprint, index));
-            }
-            let index = &slot.as_ref().expect("index slot is populated").2;
-            let mut merged = index.by_name.get(name).cloned().unwrap_or_default();
-            if include_leaf && let Some(leaves) = index.by_leaf.get(name) {
-                merged.extend_from_slice(leaves);
-            }
-            merged.sort_unstable_by_key(|(position, _)| *position);
-            merged.dedup_by_key(|(_, symbol)| *symbol);
-            merged.into_iter().map(|(_, symbol)| symbol).collect()
-        })
+        let index = self.root_names.0.get_or_init(|| self.root_name_index());
+        let mut merged = index.by_name.get(name).cloned().unwrap_or_default();
+        if include_leaf && let Some(leaves) = index.by_leaf.get(name) {
+            merged.extend_from_slice(leaves);
+        }
+        merged.sort_unstable_by_key(|(position, _)| *position);
+        merged.dedup_by_key(|(_, symbol)| *symbol);
+        merged.into_iter().map(|(_, symbol)| symbol).collect()
     }
 
-    fn root_index_fingerprint(&self) -> usize {
-        let symbols_len = self.symbols.len();
-        let sample = |index: u32| -> usize {
-            if (index as usize) < symbols_len {
-                self.name(SymbolHandle::from_arena_index(index)).as_ptr() as usize
-            } else {
-                0
+    fn root_name_index(&self) -> RootNameIndex {
+        let mut index = RootNameIndex::default();
+        if let Some(children) = self.child_handles(self.root) {
+            for (position, symbol) in children.enumerate() {
+                let full_name = self.name(symbol);
+                index
+                    .by_name
+                    .entry(full_name.into())
+                    .or_default()
+                    .push((position as u32, symbol));
+                if let Some((_, leaf)) = full_name.rsplit_once("::") {
+                    index
+                        .by_leaf
+                        .entry(leaf.into())
+                        .or_default()
+                        .push((position as u32, symbol));
+                }
             }
-        };
-        let mut fingerprint = (self as *const Self) as usize
-            ^ symbols_len
-            ^ self.names.len().rotate_left(17)
-            ^ self.supplemental_top_level.len().rotate_left(31)
-            ^ self.source_scoped_top_level_bindings.len().rotate_left(41)
-            ^ self.name(self.root).as_ptr() as usize;
-        fingerprint = fingerprint.rotate_left(11) ^ sample(0);
-        fingerprint = fingerprint.rotate_left(11) ^ sample((symbols_len / 2) as u32);
-        fingerprint.rotate_left(11) ^ sample(symbols_len.saturating_sub(1) as u32)
+        }
+        index
     }
 
     fn lookup_top_level(
@@ -1224,7 +1220,8 @@ impl SymbolTableExtension {
         )
     }
 
-    pub fn finish(self) -> SymbolTable {
+    pub fn finish(mut self) -> SymbolTable {
+        self.table.root_names.clear();
         self.table
     }
 }
