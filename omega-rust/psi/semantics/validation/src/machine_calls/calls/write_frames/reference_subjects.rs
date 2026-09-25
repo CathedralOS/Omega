@@ -65,7 +65,7 @@ pub(super) fn replaces_binding(
     let StatementNode::Assignment(assignment) = statement else {
         return Some(false);
     };
-    let (state, _, index) = caller_aliases::caller_statement_at_site(
+    let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
         caller_aliases::CallerWriteSite::Statement(statement),
@@ -95,7 +95,7 @@ pub(super) fn local_origin(
     before: &StatementNode,
     local_symbol: SymbolHandle,
 ) -> Option<FrameSourcePlace> {
-    let (state, _, index) = caller_aliases::caller_statement_at_site(
+    let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
         caller_aliases::CallerWriteSite::Statement(before),
@@ -191,7 +191,7 @@ pub(super) fn value_origin(
         aliases,
         stored,
     )?;
-    let (state, _, index) = caller_aliases::caller_statement_at_site(
+    let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
         caller_aliases::CallerWriteSite::Expression(expression),
@@ -259,7 +259,7 @@ fn declared_initializer_origin(
         expression = borrow.target;
     }
     if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
-        let (state, _, index) = caller_aliases::caller_statement_at_site(
+        let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,
             caller_aliases::CallerWriteSite::Expression(expression),
@@ -283,7 +283,7 @@ fn declared_initializer_origin(
     }
     reference_origins::declared_origin_root(program, machine, expression)?;
     projections::validate_selectors(program, machine, expression)?;
-    let (state, _, index) = caller_aliases::caller_statement_at_site(
+    let (state, _, index) = caller_aliases::caller_statement_owner(
         program,
         machine,
         caller_aliases::CallerWriteSite::Expression(expression),

@@ -43,7 +43,7 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
 ) -> Option<()> {
-    let (state, before, _) = caller_statement_at_site(program, machine, site)?;
+    let (state, before, _) = caller_statement_at_site(program, machine, symbols, site)?;
     let prefix = walk_state_write_prefix(
         program,
         machine,

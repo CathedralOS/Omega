@@ -11,7 +11,7 @@ use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
 use crate::machine_calls::calls::write_frames::caller_aliases::{
-    CallerWriteSite, caller_statement_at_site,
+    CallerWriteSite, caller_statement_owner,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -215,7 +215,7 @@ fn source_owner(
                     _ => false,
                 };
                 if owns_root {
-                    let (state, _, _) = caller_statement_at_site(
+                    let (state, _, _) = caller_statement_owner(
                         program,
                         machine,
                         CallerWriteSite::Expression(expression),

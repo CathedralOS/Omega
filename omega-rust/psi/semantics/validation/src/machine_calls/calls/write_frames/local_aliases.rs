@@ -269,7 +269,7 @@ pub(super) fn validate_divergent_projections(
                 return false;
             }
             let projection = || {
-                let (state, _, _) = super::caller_aliases::caller_statement_at_site(
+                let (state, _, _) = super::caller_aliases::caller_statement_owner(
                     program,
                     machine,
                     super::caller_aliases::CallerWriteSite::Expression(expression),
@@ -300,7 +300,7 @@ pub(super) fn validate_divergent_projections(
             return false;
         }
         let projection = || {
-            let (state, _, index) = super::caller_aliases::caller_statement_at_site(
+            let (state, _, index) = super::caller_aliases::caller_statement_owner(
                 program,
                 machine,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
