@@ -52,6 +52,7 @@ pub(crate) fn emit_assignment(
     state: symbols::SymbolHandle,
     statement_index: u32,
     destination: Destination,
+    role: CheckedScalarExpressionRole,
     value: &checked_trees::CheckedCallScalarArgument,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     source_value_count: usize,
@@ -83,7 +84,7 @@ pub(crate) fn emit_assignment(
         machine,
         state,
         statement_index,
-        CheckedScalarExpressionRole::AssignmentValue,
+        role,
         value,
         source_value_count,
         values,
@@ -137,6 +138,52 @@ pub(crate) fn validate_symbol_assignment(
     path: &[CheckedUnitStructuralPathSegment],
     value: &checked_trees::CheckedCallScalarArgument,
 ) -> Result<(), LoweringError> {
+    let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
+    if !destination.is_valid() || target.root != destination {
+        return unsupported("primitive store destination differs from its authored parameter");
+    }
+    match value_role_at(checked, state_symbol, assignment, &target.path, path)? {
+        CheckedScalarExpressionRole::AssignmentValue => {
+            validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
+        }
+        role => validate_array_element_value(
+            checked,
+            state_symbol,
+            statement_index,
+            assignment,
+            role,
+            value,
+        ),
+    }
+}
+
+/// Where a primitive store's value was checked. A store whose path is its
+/// authored target's own path stores the assignment's value; one whose path
+/// extends it by literal element indices is one element store of a whole
+/// array-literal replacement and stores that element's row.
+pub(crate) fn value_role(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Result<CheckedScalarExpressionRole, LoweringError> {
+    let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
+    value_role_at(checked, state_symbol, assignment, &target.path, path)
+}
+
+/// The authored assignment at a primitive store's statement, with the
+/// storage its target names.
+fn authored_store(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+) -> Result<
+    (
+        &checked_trees::statement::TableAssignment,
+        crate::emission::call_source_custody::projected_receivers::ReceiverSource,
+    ),
+    LoweringError,
+> {
     use checked_trees::statement::StatementNode;
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -154,10 +201,117 @@ pub(crate) fn validate_symbol_assignment(
         Some(statement_index as usize),
         assignment.target,
     )?;
-    if !destination.is_valid() || target.root != destination || target.path != path {
-        return unsupported("primitive store destination differs from its authored parameter");
+    Ok((assignment, target))
+}
+
+fn value_role_at(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    assignment: &checked_trees::statement::TableAssignment,
+    target_path: &[CheckedUnitStructuralPathSegment],
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Result<CheckedScalarExpressionRole, LoweringError> {
+    use checked_trees::types::{FixedArrayLength, TypeReferenceNode};
+    if target_path == path {
+        return Ok(CheckedScalarExpressionRole::AssignmentValue);
     }
-    validate_assignment_value(checked, state_symbol, statement_index, assignment, value)
+    let mismatch = || {
+        LoweringError::Unsupported(
+            "primitive store destination differs from its authored parameter",
+        )
+    };
+    let indices = path
+        .strip_prefix(target_path)
+        .filter(|suffix| !suffix.is_empty())
+        .ok_or_else(mismatch)?;
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let mut reference = validation::declared_place_type_raw(
+        &checked.typed,
+        machine,
+        Some(state),
+        assignment.target,
+    )
+    .ok_or_else(mismatch)?;
+    let mut ordinal = 0_u64;
+    let mut indices = indices.iter();
+    while let TypeReferenceNode::FixedArray {
+        element_type,
+        length: FixedArrayLength::Literal(length),
+    } = checked.type_reference_table.type_reference(reference)
+    {
+        let Some(CheckedUnitStructuralPathSegment::FixedIndex(index)) = indices.next() else {
+            return Err(mismatch());
+        };
+        let extent = u64::try_from(*length).map_err(|_| mismatch())?;
+        if *index >= extent {
+            return Err(mismatch());
+        }
+        ordinal = ordinal
+            .checked_mul(extent)
+            .and_then(|ordinal| ordinal.checked_add(*index))
+            .ok_or_else(mismatch)?;
+        reference = *element_type;
+    }
+    if indices.next().is_some() {
+        return Err(mismatch());
+    }
+    Ok(CheckedScalarExpressionRole::ArrayElement {
+        source: checked_trees::CheckedArrayConstructionSource::Statement,
+        element_ordinal: u32::try_from(ordinal).map_err(|_| mismatch())?,
+    })
+}
+
+/// The authored-RHS custody of one element store of a whole array-literal
+/// replacement: the store's value is the element's own checked row, bound
+/// to exactly that authored element of the literal.
+fn validate_array_element_value(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+    role: CheckedScalarExpressionRole,
+    value: &checked_trees::CheckedCallScalarArgument,
+) -> Result<(), LoweringError> {
+    let mismatch =
+        || LoweringError::Unsupported("array element store differs from its authored literal");
+    let CheckedScalarExpressionRole::ArrayElement {
+        element_ordinal, ..
+    } = role
+    else {
+        return Err(mismatch());
+    };
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    let expected = validation::declared_place_type_raw(
+        &checked.typed,
+        machine,
+        Some(state),
+        assignment.target,
+    )
+    .ok_or_else(mismatch)?;
+    let element = validation::scalar_array_elements(
+        &checked.typed,
+        machine.symbol,
+        assignment.value,
+        expected,
+    )
+    .and_then(|array| array.elements.get(element_ordinal as usize).copied())
+    .map(|(element, _)| element)
+    .ok_or_else(mismatch)?;
+    let checked_trees::CheckedCallScalarArgument::Pure(value) = value else {
+        return Err(mismatch());
+    };
+    let (binding, expression) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(state_symbol, statement_index, role)
+        .ok_or_else(mismatch)?;
+    if binding.expression != element || binding.destination.is_valid() || expression != value {
+        return Err(mismatch());
+    }
+    crate::expression_preparation::source_custody::validate_namespace(checked, binding)
 }
 
 /// The authored-RHS custody of a primitive store.

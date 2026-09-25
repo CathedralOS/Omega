@@ -271,9 +271,8 @@ fn runtime_indexed_read_then_guard_exit_canary_runs() {
 
 #[test]
 fn runtime_row_const_column_write_exit_canary_runs() {
-    // The working side of the 2D-write boundary: a runtime ROW index with a CONST column
-    // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
-    // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
+    // A runtime ROW index with a CONST column (`grid[r][0]`, `grid[r][1]`) lowers correctly.
+    // Fill both columns of both rows by runtime row, sum 10+15+20+25 = 70.
     let canary = pass_canary(fixture_roster::RUNTIME_ROW_CONST_COLUMN_WRITE_EXIT);
     let scratch = std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
     let _ = fs::remove_dir_all(&scratch);
@@ -296,9 +295,37 @@ fn runtime_row_const_column_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_runtime_indexed_writes_exit_canary_runs() {
+    // Runtime selectors at several depths write exactly the element they name, over arrays
+    // that start from whole array literals: 99 + 42 read back, neighbors 6 + 5 intact -> 70.
+    let canary = pass_canary(fixture_roster::RUNTIME_NESTED_RUNTIME_INDEXED_WRITES_EXIT);
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-nested-runtime-writes-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("nested runtime-indexed write canary should compile");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("nested runtime-indexed write canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("nested runtime-indexed write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested runtime-indexed writes to land exactly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_nested_array_const_index_exit_canary_runs() {
     // A 2D array [[i32;2];2]: const-indexed reads and writes work. Fill all four cells, sum =
-    // 1+2+3+4 = 10 -> exit 70. (Runtime-column 2D indexing is a separate known gap.)
+    // 1+2+3+4 = 10 -> exit 70.
     let canary = pass_canary(fixture_roster::RUNTIME_NESTED_ARRAY_CONST_INDEX_EXIT);
     let scratch =
         std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));

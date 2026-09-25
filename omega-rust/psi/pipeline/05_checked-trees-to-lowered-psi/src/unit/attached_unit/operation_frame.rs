@@ -568,12 +568,19 @@ impl OperationFrame<'_, '_> {
                 }
             }
         };
+        let role = crate::emission::primitive_store::value_role(
+            self.checked,
+            self.state,
+            statement_index,
+            path,
+        )?;
         let kind = crate::emission::primitive_store::emit_assignment(
             self.checked,
             self.machine,
             self.state,
             statement_index,
             destination,
+            role,
             value,
             self.evaluation,
             self.source_value_count,
