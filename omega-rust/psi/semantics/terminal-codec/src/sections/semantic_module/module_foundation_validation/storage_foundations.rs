@@ -987,6 +987,8 @@ pub(super) fn validate_integer_structural_field(
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
             )
         })
         .filter_map(|producer| producer.result.structural())

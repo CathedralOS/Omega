@@ -28,6 +28,7 @@ mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
 mod case_payload_guard_observation;
 mod case_payload_path_boundaries;
+mod case_payload_record_member_read;
 mod composed_call_admission;
 mod composed_call_arguments_source;
 mod composed_internal_call_arguments_source;
