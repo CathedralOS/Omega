@@ -457,6 +457,72 @@ pub(crate) fn declared_owned_field_domain_identities(
     output
 }
 
+// Domain declarations bucketed by their resolved symbol once per program.
+// `domain_requires_provenance` runs per DomainMembership fact per context
+// per statement and its alias walk rescanned the whole domain table at
+// every visited node. Freshness anchors on the program pointer plus the
+// domain slice and sampled name text pointers: fixture programs forge
+// identical symbol arenas, but an `Identifier`'s text allocation is
+// distinct per program.
+thread_local! {
+    static DOMAIN_SYMBOL_INDEX: std::cell::RefCell<
+        Option<(
+            *const typed_trees::TypedTrees,
+            usize,
+            std::collections::HashMap<SymbolHandle, usize>,
+        )>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
+    let domains = program.domain_definitions();
+    let sample = |index: usize| -> usize {
+        domains
+            .get(index)
+            .map(|domain| {
+                domain.symbol.arena_index() as usize ^ domain.name.as_str().as_ptr() as usize
+            })
+            .unwrap_or(0)
+    };
+    let mut fingerprint = (program as *const typed_trees::TypedTrees) as usize
+        ^ (domains.as_ptr() as usize)
+        ^ domains.len().rotate_left(17)
+        ^ (program.data_definitions().as_ptr() as usize)
+        ^ program.data_definitions().len().rotate_left(31);
+    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
+    fingerprint = fingerprint.rotate_left(11) ^ sample(domains.len() / 2);
+    fingerprint.rotate_left(11) ^ sample(domains.len().saturating_sub(1))
+}
+
+fn domain_by_symbol<'program>(
+    program: &'program typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::domain::DomainDefinition> {
+    DOMAIN_SYMBOL_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fingerprint = domain_index_fingerprint(program);
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+        if !fresh {
+            let mut by_symbol = std::collections::HashMap::new();
+            for (position, domain) in program.domain_definitions().iter().enumerate() {
+                // `find` returns the first matching row; keep it.
+                by_symbol.entry(domain.symbol).or_insert(position);
+            }
+            *slot = Some((
+                program as *const typed_trees::TypedTrees,
+                fingerprint,
+                by_symbol,
+            ));
+        }
+        slot.as_ref()
+            .unwrap()
+            .2
+            .get(&symbol)
+            .map(|position| &program.domain_definitions()[*position])
+    })
+}
+
 /// Transparent aliases retain their constituents' provenance requirement;
 /// testing only the alias's own route list would permit predicate-only minting.
 pub(crate) fn domain_requires_provenance(
@@ -471,11 +537,7 @@ pub(crate) fn domain_requires_provenance(
         if ancestors.contains(&symbol) {
             return true;
         }
-        let Some(domain) = program
-            .domain_definitions()
-            .iter()
-            .find(|domain| domain.symbol == symbol)
-        else {
+        let Some(domain) = domain_by_symbol(program, symbol) else {
             return true;
         };
         if !domain.establishment_routes.is_empty() {
