@@ -10,11 +10,22 @@
 //! tolerate, so a substitution either fails canonical decoding (at the
 //! envelope or inside one section) or rides a consistent payload set whose
 //! honestly recomputed artifact identity diverges and whose replay against
-//! the retained manifest and the terminal verifier rejects.
+//! the retained manifest and the terminal verifier rejects. Every leg is
+//! declared once in `artifact_envelope_custody_fields.rs` and driven by the
+//! shared one-field substitution matrix.
 
 use std::ops::Range;
 
+#[path = "artifact_envelope_custody_fields.rs"]
+mod artifact_envelope_custody_fields;
+
 use super::{canonical_artifact, kernel_bundle, machine_id, obligation_id, semantic_module};
+use artifact_envelope_custody_fields::{
+    ArtifactEnvelopeFieldForTest, DebugBearingEnvelopeFieldForTest,
+};
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
@@ -175,44 +186,60 @@ fn reject(name: &'static str, bytes: &[u8], expected: CanonicalTerminalArtifactE
     );
 }
 
+/// The family's combined independent checker result: canonical envelope
+/// decoding first, then replay of the decoded sections against the retained
+/// artifact manifest.
+#[derive(Debug, PartialEq)]
+enum EnvelopeCheck {
+    Decode(CanonicalTerminalArtifactError),
+    ManifestReplay(ArtifactManifestError),
+}
+
+/// The independent checker shared by both envelope families.
+fn check_envelope(
+    bytes: &[u8],
+    retained: &CanonicalTerminalArtifact,
+) -> Result<Vec<u8>, EnvelopeCheck> {
+    let decoded = CanonicalTerminalArtifact::from_bytes(bytes).map_err(EnvelopeCheck::Decode)?;
+    let module = decode_module(decoded.semantic_bytes())
+        .expect("a decoded artifact's semantic section still decodes");
+    let proof = decode_proof_section_for(&module, decoded.proof_bytes())
+        .expect("a decoded artifact's proof section still decodes for its subject");
+    validate_artifact_manifest(
+        &module,
+        &proof,
+        decoded.optimization(),
+        None,
+        decoded.debug_bytes(),
+        retained.manifest(),
+    )
+    .map_err(EnvelopeCheck::ManifestReplay)?;
+    Ok(bytes.to_vec())
+}
+
 /// A representable substitution: the envelope still decodes to an internally
-/// consistent artifact whose recomputed identity diverges, and the retained
-/// manifest replay rejects it.
-fn divergent(
-    name: &'static str,
+/// consistent artifact that re-encodes byte-exact and whose recomputed
+/// identity diverges. The checker has already rejected it against the
+/// retained manifest.
+fn representable(
+    field: impl std::fmt::Debug,
     mutated: &[u8],
     retained: &CanonicalTerminalArtifact,
 ) -> CanonicalTerminalArtifact {
     let decoded = CanonicalTerminalArtifact::from_bytes(mutated)
-        .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
+        .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
     assert_eq!(
         decoded.to_bytes(),
         mutated,
-        "{name} must re-encode byte-exact"
+        "{field:?} must re-encode byte-exact"
     );
     decoded
         .validate()
-        .unwrap_or_else(|error| panic!("{name} must stay internally consistent: {error:?}"));
+        .unwrap_or_else(|error| panic!("{field:?} must stay internally consistent: {error:?}"));
     assert_ne!(
         decoded.manifest().identity(),
         retained.manifest().identity(),
-        "{name} must diverge the honestly recomputed artifact identity"
-    );
-    let module = decode_module(decoded.semantic_bytes())
-        .expect("a representable semantic section still decodes");
-    let proof = decode_proof_section_for(&module, decoded.proof_bytes())
-        .expect("a representable proof section still decodes for its subject");
-    assert_eq!(
-        validate_artifact_manifest(
-            &module,
-            &proof,
-            decoded.optimization(),
-            None,
-            decoded.debug_bytes(),
-            retained.manifest(),
-        ),
-        Err(ArtifactManifestError::ManifestMismatch),
-        "{name} must reject at the retained-manifest replay"
+        "{field:?} must diverge the honestly recomputed artifact identity"
     );
     decoded
 }
@@ -231,6 +258,185 @@ fn consistent_sections(
             .expect("an identity-stage optimization receipt"),
     );
     (semantic, proof, optimization)
+}
+
+/// The two retained envelopes and the honestly produced alternates their
+/// substitution hooks draw from beyond each family's donor.
+struct EnvelopeFixture {
+    spans: EnvelopeSpans,
+    debug_envelope: Vec<u8>,
+    debug_spans: EnvelopeSpans,
+    /// Sections resealed for the retained module under a proof bundle whose
+    /// first evidence row names an obligation the module never raised.
+    retargeted: (Vec<u8>, Vec<u8>, Vec<u8>),
+    /// An identity-stage receipt claiming a selected pass roster over the
+    /// retained module and bundle's unchanged products.
+    selected_receipt: Vec<u8>,
+}
+
+impl EnvelopeFixture {
+    fn section<'a>(bytes: &'a [u8], span: &Range<usize>) -> &'a [u8] {
+        &bytes[span.clone()]
+    }
+
+    /// The debug-free family's honest-recomputation hook: rewrite exactly one
+    /// envelope field, or replace payloads while every declared length
+    /// honestly follows them. The donor is the consistent foreign artifact.
+    fn substitute_envelope_for_test(
+        &self,
+        bytes: &mut Vec<u8>,
+        field: ArtifactEnvelopeFieldForTest,
+        donor: &[u8],
+    ) {
+        use ArtifactEnvelopeFieldForTest as Field;
+        let spans = &self.spans;
+        let donor_spans = envelope_spans(donor);
+        let semantic = Self::section(bytes, &spans.semantic).to_vec();
+        let proof = Self::section(bytes, &spans.proof).to_vec();
+        let optimization = Self::section(bytes, &spans.optimization).to_vec();
+        let length = |span: &Range<usize>| u64::try_from(span.len()).unwrap();
+        *bytes = match field {
+            Field::Magic => flip(bytes, spans.magic.start),
+            Field::FormatMarker => substitute(bytes, &spans.format_marker, &3_u16.to_le_bytes()),
+            Field::SemanticLengthCleared => set_len(bytes, &spans.semantic_len, 0),
+            Field::SemanticLengthShortened => {
+                set_len(bytes, &spans.semantic_len, length(&spans.semantic) - 1)
+            }
+            Field::SemanticLengthLengthened => {
+                set_len(bytes, &spans.semantic_len, length(&spans.semantic) + 1)
+            }
+            Field::SemanticLengthOverLarge => set_len(bytes, &spans.semantic_len, u64::MAX),
+            Field::ProofLengthCleared => set_len(bytes, &spans.proof_len, 0),
+            Field::ProofLengthShortened => {
+                set_len(bytes, &spans.proof_len, length(&spans.proof) - 1)
+            }
+            Field::ProofLengthLengthened => {
+                set_len(bytes, &spans.proof_len, length(&spans.proof) + 1)
+            }
+            Field::ProofLengthOverLarge => set_len(bytes, &spans.proof_len, u64::MAX),
+            Field::OptimizationLengthCleared => set_len(bytes, &spans.optimization_len, 0),
+            Field::OptimizationLengthShortened => set_len(
+                bytes,
+                &spans.optimization_len,
+                length(&spans.optimization) - 1,
+            ),
+            Field::OptimizationLengthLengthened => set_len(
+                bytes,
+                &spans.optimization_len,
+                length(&spans.optimization) + 1,
+            ),
+            Field::OptimizationLengthOverLarge => set_len(bytes, &spans.optimization_len, u64::MAX),
+            Field::DebugTagUnknown => substitute(bytes, &spans.debug_tag, &[2]),
+            Field::DebugTagClaimedWithoutLength => substitute(bytes, &spans.debug_tag, &[1]),
+            Field::SemanticMagic => flip(bytes, spans.semantic.start),
+            Field::ProofMagic => flip(bytes, spans.proof.start),
+            Field::OptimizationMagic => flip(bytes, spans.optimization.start),
+            // The declared lengths honestly follow the payloads, so the
+            // semantic slot now holds the sealed proof section.
+            Field::ProofPayloadInSemanticSlot => {
+                envelope_for(&proof, &semantic, &optimization, None)
+            }
+            // A dropped section keeps its declared length but surrenders its
+            // bytes to the neighboring spans.
+            Field::SemanticPayloadDropped => substitute(bytes, &spans.semantic, &[]),
+            Field::ProofPayloadDropped => substitute(bytes, &spans.proof, &[]),
+            Field::OptimizationPayloadDropped => bytes[..spans.optimization.start].to_vec(),
+            Field::OptimizationPayloadDuplicated => {
+                let mut mutated = bytes.clone();
+                mutated.extend_from_slice(&optimization);
+                mutated
+            }
+            Field::TrailingByte => {
+                let mut mutated = bytes.clone();
+                mutated.push(0);
+                mutated
+            }
+            Field::SemanticPayloadForeign => envelope_for(
+                Self::section(donor, &donor_spans.semantic),
+                &proof,
+                &optimization,
+                None,
+            ),
+            Field::ProofPayloadForeign => envelope_for(
+                &semantic,
+                Self::section(donor, &donor_spans.proof),
+                &optimization,
+                None,
+            ),
+            Field::OptimizationPayloadForeign => envelope_for(
+                &semantic,
+                &proof,
+                Self::section(donor, &donor_spans.optimization),
+                None,
+            ),
+            Field::AllPayloadsForeign => envelope_for(
+                Self::section(donor, &donor_spans.semantic),
+                Self::section(donor, &donor_spans.proof),
+                Self::section(donor, &donor_spans.optimization),
+                None,
+            ),
+            Field::ProofRosterRetargeted => {
+                let (semantic, proof, optimization) = &self.retargeted;
+                envelope_for(semantic, proof, optimization, None)
+            }
+            Field::OptimizationRosterSelected => {
+                envelope_for(&semantic, &proof, &self.selected_receipt, None)
+            }
+            Field::DebugSectionAdded => envelope_for(
+                &semantic,
+                &proof,
+                &optimization,
+                Some(Self::section(
+                    &self.debug_envelope,
+                    self.debug_spans.debug.as_ref().unwrap(),
+                )),
+            ),
+        };
+    }
+
+    /// The debug-bearing family's honest-recomputation hook. The donor is the
+    /// same artifact carrying a different debug map bound to the same module.
+    fn substitute_debug_bearing_envelope_for_test(
+        &self,
+        bytes: &mut Vec<u8>,
+        field: DebugBearingEnvelopeFieldForTest,
+        donor: &[u8],
+    ) {
+        use DebugBearingEnvelopeFieldForTest as Field;
+        let spans = &self.debug_spans;
+        let debug = spans.debug.clone().unwrap();
+        let debug_len = spans.debug_len.clone().unwrap();
+        let debug_payload_len = u64::try_from(debug.len()).unwrap();
+        let semantic = Self::section(bytes, &spans.semantic).to_vec();
+        let proof = Self::section(bytes, &spans.proof).to_vec();
+        let optimization = Self::section(bytes, &spans.optimization).to_vec();
+        *bytes = match field {
+            // A lengthened optimization declaration starves the debug read.
+            Field::OptimizationLengthLengthened => set_len(
+                bytes,
+                &spans.optimization_len,
+                u64::try_from(spans.optimization.len() + 1).unwrap(),
+            ),
+            Field::DebugTagDropped => substitute(bytes, &spans.debug_tag, &[0]),
+            Field::DebugTagCorrupted => substitute(bytes, &spans.debug_tag, &[2]),
+            Field::DebugLengthCleared => set_len(bytes, &debug_len, 0),
+            Field::DebugLengthShortened => set_len(bytes, &debug_len, debug_payload_len - 1),
+            Field::DebugLengthLengthened => set_len(bytes, &debug_len, debug_payload_len + 1),
+            Field::DebugLengthOverLarge => set_len(bytes, &debug_len, u64::MAX),
+            Field::DebugMagic => flip(bytes, debug.start),
+            Field::DebugPayloadDropped => bytes[..debug.start].to_vec(),
+            Field::DebugPayloadSubstituted => envelope_for(
+                &semantic,
+                &proof,
+                &optimization,
+                Some(Self::section(
+                    donor,
+                    envelope_spans(donor).debug.as_ref().unwrap(),
+                )),
+            ),
+            Field::DebugSectionDropped => envelope_for(&semantic, &proof, &optimization, None),
+        };
+    }
 }
 
 #[test]
@@ -262,77 +468,331 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
             .map(|span| span.end - span.start),
         Some(8)
     );
+    let semantic_len = spans.semantic.len();
+    let proof_len = spans.proof.len();
+    let optimization_len = spans.optimization.len();
+    let debug_payload_len = debug_spans.debug.clone().unwrap().len();
 
-    // --- magic and format marker reject at decoding ---
+    // A foreign module: the same machine shape under a different machine and
+    // entry identity. Its complete consistent payload set is the debug-free
+    // family's donor; its semantic section is canonical on its own.
+    let mut foreign = semantic_module();
+    foreign.machines[0].id = machine_id(7);
+    foreign.entry = machine_id(7);
+    let (foreign_semantic, foreign_proof, foreign_optimization) =
+        consistent_sections(&foreign, &bundle);
+    let donor = envelope_for(
+        &foreign_semantic,
+        &foreign_proof,
+        &foreign_optimization,
+        None,
+    );
 
-    for offset in spans.magic.clone() {
+    // A different debug map bound to the same module: the debug-bearing
+    // family's donor.
+    let mut renamed = debug_map(&module);
+    renamed.files[0].path = "renamed.omg".to_owned();
+    let renamed_debug = encode_debug_map(&module, &renamed).expect("a renamed debug map encodes");
+    let debug_donor = envelope_for(
+        &debug_envelope[debug_spans.semantic.clone()],
+        &debug_envelope[debug_spans.proof.clone()],
+        &debug_envelope[debug_spans.optimization.clone()],
+        Some(&renamed_debug),
+    );
+
+    // A proof-bundle substitution resealed for the retained module, and a
+    // selected-pass roster on the identity-stage receipt under the same
+    // produced identities.
+    let mut retargeted_bundle = bundle.clone();
+    retargeted_bundle.evidence[0].obligation = obligation_id(77);
+    let produced_semantic = terminal_psi_identity(&module).expect("produced module identity");
+    let produced_proof = proof_bundle_fingerprint(&bundle).expect("produced proof fingerprint");
+    let selected = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup])
+        .expect("a unique pass roster");
+    let selected_record = PsiOptimizationExecutionRecord::new(
+        selected,
+        produced_semantic,
+        produced_proof,
+        produced_semantic,
+        produced_proof,
+    )
+    .expect("a selected roster with unchanged products still forms a receipt");
+
+    let fixture = EnvelopeFixture {
+        spans,
+        debug_envelope: debug_envelope.clone(),
+        debug_spans,
+        retargeted: consistent_sections(&module, &retargeted_bundle),
+        selected_receipt: encode_psi_optimization_execution_record(&selected_record),
+    };
+    let spans = &fixture.spans;
+    let debug_spans = &fixture.debug_spans;
+
+    let foreign_identity = terminal_psi_identity(&foreign).expect("foreign module identity");
+    let envelope_error = |error| {
+        MutationOutcome::ExactError(EnvelopeCheck::Decode(
+            CanonicalTerminalArtifactError::Envelope(error),
+        ))
+    };
+    let decode = |error| MutationOutcome::ExactError(EnvelopeCheck::Decode(error));
+    let replay_mismatch = || {
+        MutationOutcome::ExactError(EnvelopeCheck::ManifestReplay(
+            ArtifactManifestError::ManifestMismatch,
+        ))
+    };
+    use CanonicalTerminalArtifactEnvelopeError as Envelope;
+
+    let outcome = |field: ArtifactEnvelopeFieldForTest| -> MutationOutcome<EnvelopeCheck> {
+        use ArtifactEnvelopeFieldForTest as Field;
+        match field {
+            // --- magic and format marker reject at decoding ---
+            Field::Magic => envelope_error(Envelope::InvalidMagic),
+            Field::FormatMarker => envelope_error(Envelope::UnsupportedFormatMarker(3)),
+            // --- declared section lengths ---
+            //
+            // Every declared length is read before any payload is taken, so a
+            // single-field length lie never reaches a section codec: a
+            // shrunken declaration leaves the surrendered tail as trailing
+            // bytes and a grown one starves a later section read.
+            Field::SemanticLengthCleared => envelope_error(Envelope::TrailingBytes(semantic_len)),
+            Field::ProofLengthCleared => envelope_error(Envelope::TrailingBytes(proof_len)),
+            Field::OptimizationLengthCleared => {
+                envelope_error(Envelope::TrailingBytes(optimization_len))
+            }
+            Field::SemanticLengthShortened
+            | Field::ProofLengthShortened
+            | Field::OptimizationLengthShortened
+            | Field::TrailingByte => envelope_error(Envelope::TrailingBytes(1)),
+            Field::SemanticLengthLengthened
+            | Field::SemanticLengthOverLarge
+            | Field::ProofLengthLengthened
+            | Field::ProofLengthOverLarge
+            | Field::OptimizationLengthLengthened
+            | Field::OptimizationLengthOverLarge => envelope_error(Envelope::UnexpectedEnd),
+            // --- debug presence tag ---
+            Field::DebugTagUnknown => envelope_error(Envelope::InvalidDebugTag(2)),
+            // Claiming presence without a declared debug length reads the
+            // semantic magic as a u64 length and overruns the envelope.
+            Field::DebugTagClaimedWithoutLength => envelope_error(Envelope::UnexpectedEnd),
+            // --- payload bytes belong to their own section codecs ---
+            Field::SemanticMagic => decode(CanonicalTerminalArtifactError::Semantic(
+                CodecError::InvalidMagic,
+            )),
+            Field::ProofMagic => decode(CanonicalTerminalArtifactError::Proof(
+                ProofCodecError::InvalidMagic,
+            )),
+            Field::OptimizationMagic => decode(CanonicalTerminalArtifactError::Optimization(
+                PsiOptimizationExecutionRecordDecodeError::InvalidMagic,
+            )),
+            // A section payload moved out of its slot decodes under the wrong
+            // codec.
+            Field::ProofPayloadInSemanticSlot => decode(CanonicalTerminalArtifactError::Semantic(
+                CodecError::InvalidMagic,
+            )),
+            // A dropped section surrenders its bytes to the neighboring
+            // spans, so some later section read starves.
+            Field::SemanticPayloadDropped
+            | Field::ProofPayloadDropped
+            | Field::OptimizationPayloadDropped => envelope_error(Envelope::UnexpectedEnd),
+            // An extra section payload is trailing envelope content.
+            Field::OptimizationPayloadDuplicated => {
+                envelope_error(Envelope::TrailingBytes(optimization_len))
+            }
+            // --- cross-section joins reject non-canonical custody ---
+            //
+            // Substituting the semantic payload without resealing the joined
+            // proof section rejects at the subject-binding decode: the
+            // retained section is sealed to the original module identity. The
+            // foreign-sealed proof section under the retained semantic payload
+            // rejects at the same join in the other direction.
+            Field::SemanticPayloadForeign => decode(CanonicalTerminalArtifactError::Proof(
+                ProofCodecError::ProofSubjectMismatch {
+                    claimed: produced_semantic,
+                    reconstructed: foreign_identity,
+                },
+            )),
+            Field::ProofPayloadForeign => decode(CanonicalTerminalArtifactError::Proof(
+                ProofCodecError::ProofSubjectMismatch {
+                    claimed: foreign_identity,
+                    reconstructed: produced_semantic,
+                },
+            )),
+            // The foreign identity-stage receipt under retained semantic and
+            // proof payloads fails the produced-output binding inside
+            // manifest building. The residual `NonCanonicalSections` byte
+            // join stays defense in depth: every section decoder already
+            // requires canonical re-encodings, so no single-field
+            // substitution reaches it.
+            Field::OptimizationPayloadForeign => decode(CanonicalTerminalArtifactError::Manifest(
+                ArtifactManifestError::Optimization(
+                    PsiOptimizationExecutionRecordError::OutputMismatch,
+                ),
+            )),
+            // --- representable substitutions: honestly recomputed containing
+            // identity, rejected by independent replay ---
+            Field::AllPayloadsForeign
+            | Field::ProofRosterRetargeted
+            | Field::OptimizationRosterSelected
+            | Field::DebugSectionAdded => replay_mismatch(),
+        }
+    };
+
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "canonical terminal artifact envelope",
+        fields: ArtifactEnvelopeFieldForTest::INVENTORY,
+        honest: &|| envelope.clone(),
+        donor: donor.clone(),
+        custody: &|bytes: &Vec<u8>| bytes.clone(),
+        substitute: &|bytes, field, donor| {
+            fixture.substitute_envelope_for_test(bytes, field, donor);
+        },
+        check: &|bytes| check_envelope(bytes, &retained),
+        outcome: &outcome,
+        joined_replay: Some(&|bytes, field| {
+            use ArtifactEnvelopeFieldForTest as Field;
+            match field {
+                // The complete consistent foreign payload set decodes to a
+                // real artifact; the verifier replay rejects it as a
+                // substitute for the retained artifact (the kernel bundle
+                // still discharges the unchanged contract, so the semantic
+                // verdict is unchanged even though custody diverged).
+                Field::AllPayloadsForeign => {
+                    let substituted = representable(field, bytes, &retained);
+                    let verdict =
+                        verify_terminal_artifact_proof(&substituted, &AdmissionProfile::default())
+                            .expect(
+                                "the foreign artifact still verifies under the unchanged contract",
+                            );
+                    assert_eq!(verdict.semantic_subject, foreign_identity);
+                    assert_ne!(
+                        verdict.semantic_subject,
+                        retained.manifest().semantic(),
+                        "the foreign artifact must not carry the retained semantic subject"
+                    );
+                }
+                // The obligation retarget is representable and the verifier
+                // replay refuses obligations the module never raised.
+                Field::ProofRosterRetargeted => {
+                    let substituted = representable(field, bytes, &retained);
+                    assert!(
+                        verify_terminal_artifact_proof(&substituted, &AdmissionProfile::default())
+                            .is_err(),
+                        "a retargeted proof roster must reject at the verifier replay"
+                    );
+                }
+                Field::OptimizationRosterSelected => {
+                    let substituted = representable(field, bytes, &retained);
+                    assert_eq!(
+                        substituted.optimization().selections(),
+                        selected_record.selections(),
+                        "the substitution decodes to the claimed receipt"
+                    );
+                }
+                // Adding the honestly encoded section to the debug-free
+                // envelope recomputes exactly the debug-bearing artifact.
+                Field::DebugSectionAdded => {
+                    let added = representable(field, bytes, &retained);
+                    assert_eq!(
+                        added.manifest().identity(),
+                        retained_debug.manifest().identity(),
+                        "adding the honest debug section recomputes exactly the debug-bearing artifact"
+                    );
+                }
+                _ => {}
+            }
+        }),
+    });
+
+    let debug_outcome =
+        |field: DebugBearingEnvelopeFieldForTest| -> MutationOutcome<EnvelopeCheck> {
+            use DebugBearingEnvelopeFieldForTest as Field;
+            match field {
+                Field::OptimizationLengthLengthened
+                | Field::DebugLengthLengthened
+                | Field::DebugLengthOverLarge => envelope_error(Envelope::UnexpectedEnd),
+                // Clearing presence strands the now unclaimed debug length
+                // field and payload as trailing bytes.
+                Field::DebugTagDropped => {
+                    envelope_error(Envelope::TrailingBytes(8 + debug_payload_len))
+                }
+                Field::DebugTagCorrupted => envelope_error(Envelope::InvalidDebugTag(2)),
+                Field::DebugLengthCleared => {
+                    envelope_error(Envelope::TrailingBytes(debug_payload_len))
+                }
+                Field::DebugLengthShortened => envelope_error(Envelope::TrailingBytes(1)),
+                Field::DebugMagic => decode(CanonicalTerminalArtifactError::Debug(
+                    DebugMapError::InvalidMagic,
+                )),
+                Field::DebugPayloadDropped => envelope_error(Envelope::UnexpectedEnd),
+                Field::DebugPayloadSubstituted | Field::DebugSectionDropped => replay_mismatch(),
+            }
+        };
+
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "debug-bearing canonical terminal artifact envelope",
+        fields: DebugBearingEnvelopeFieldForTest::INVENTORY,
+        honest: &|| debug_envelope.clone(),
+        donor: debug_donor,
+        custody: &|bytes: &Vec<u8>| bytes.clone(),
+        substitute: &|bytes, field, donor| {
+            fixture.substitute_debug_bearing_envelope_for_test(bytes, field, donor);
+        },
+        check: &|bytes| check_envelope(bytes, &retained_debug),
+        outcome: &debug_outcome,
+        joined_replay: Some(&|bytes, field| {
+            use DebugBearingEnvelopeFieldForTest as Field;
+            match field {
+                // A different debug map bound to the same module is
+                // representable and diverges the containing identity.
+                Field::DebugPayloadSubstituted => {
+                    let substituted = representable(field, bytes, &retained_debug);
+                    assert_eq!(
+                        substituted.debug_bytes(),
+                        Some(renamed_debug.as_slice()),
+                        "the substitution decodes to the claimed debug section"
+                    );
+                }
+                // Dropping the section recomputes an artifact identical to the
+                // debug-free artifact, still foreign to the debug-bearing
+                // retained manifest.
+                Field::DebugSectionDropped => {
+                    let dropped = representable(field, bytes, &retained_debug);
+                    assert_eq!(
+                        dropped.manifest().identity(),
+                        retained.manifest().identity(),
+                        "dropping the debug section recomputes exactly the debug-free artifact"
+                    );
+                }
+                _ => {}
+            }
+        }),
+    });
+
+    // --- value sweeps beyond each lane's representative ---
+
+    for offset in spans.magic.clone().skip(1) {
         reject(
             "an artifact-magic byte",
             &flip(&envelope, offset),
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::InvalidMagic,
-            ),
+            CanonicalTerminalArtifactError::Envelope(Envelope::InvalidMagic),
         );
     }
-    for marker in [0_u16, 1, 3, u16::MAX] {
+    for marker in [0_u16, 1, u16::MAX] {
         reject(
             "the artifact format marker",
             &substitute(&envelope, &spans.format_marker, &marker.to_le_bytes()),
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(marker),
-            ),
+            CanonicalTerminalArtifactError::Envelope(Envelope::UnsupportedFormatMarker(marker)),
         );
     }
+    reject(
+        "an unknown debug presence tag",
+        &substitute(&envelope, &spans.debug_tag, &[u8::MAX]),
+        CanonicalTerminalArtifactError::Envelope(Envelope::InvalidDebugTag(u8::MAX)),
+    );
 
-    // --- declared section lengths ---
-    //
-    // Every declared length is read before any payload is taken, so a
-    // single-field length lie never reaches a section codec: a shrunken
-    // declaration leaves the surrendered tail as trailing bytes and a grown
-    // one starves a later section read.
-
-    let semantic_len = spans.semantic.end - spans.semantic.start;
-    let proof_len = spans.proof.end - spans.proof.start;
-    let optimization_len = spans.optimization.end - spans.optimization.start;
-    reject(
-        "a cleared semantic length",
-        &set_len(&envelope, &spans.semantic_len, 0),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(semantic_len),
-        ),
-    );
-    reject(
-        "a shortened semantic length",
-        &set_len(
-            &envelope,
-            &spans.semantic_len,
-            u64::try_from(semantic_len - 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1),
-        ),
-    );
-    reject(
-        "a lengthened semantic length",
-        &set_len(
-            &envelope,
-            &spans.semantic_len,
-            u64::try_from(semantic_len + 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    reject(
-        "an over-large semantic length",
-        &set_len(&envelope, &spans.semantic_len, u64::MAX),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    // Swapping the declared semantic and proof lengths keeps the declared sum
-    // exact, so the shifted semantic span does decode — into a truncated
-    // module the semantic codec rejects.
+    // Swapping the declared semantic and proof lengths changes two fields
+    // but keeps the declared sum exact, so the shifted semantic span does
+    // decode — into a truncated module the semantic codec rejects.
     let swapped = substitute(
         &set_len(
             &envelope,
@@ -350,272 +810,8 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
         "swapped declared lengths must starve or spill the module decode"
     );
 
-    // --- declared proof length ---
+    // --- truncation rejects at the envelope ---
 
-    reject(
-        "a cleared proof length",
-        &set_len(&envelope, &spans.proof_len, 0),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(proof_len),
-        ),
-    );
-    reject(
-        "a shortened proof length",
-        &set_len(
-            &envelope,
-            &spans.proof_len,
-            u64::try_from(proof_len - 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1),
-        ),
-    );
-    reject(
-        "a lengthened proof length",
-        &set_len(
-            &envelope,
-            &spans.proof_len,
-            u64::try_from(proof_len + 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    reject(
-        "an over-large proof length",
-        &set_len(&envelope, &spans.proof_len, u64::MAX),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-
-    // --- declared optimization length ---
-
-    reject(
-        "a cleared optimization length",
-        &set_len(&envelope, &spans.optimization_len, 0),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(optimization_len),
-        ),
-    );
-    reject(
-        "a shortened optimization length",
-        &set_len(
-            &envelope,
-            &spans.optimization_len,
-            u64::try_from(optimization_len - 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1),
-        ),
-    );
-    reject(
-        "a lengthened optimization length",
-        &set_len(
-            &envelope,
-            &spans.optimization_len,
-            u64::try_from(optimization_len + 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    reject(
-        "an over-large optimization length",
-        &set_len(&envelope, &spans.optimization_len, u64::MAX),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    // On the debug-bearing envelope a lengthened optimization declaration
-    // starves the debug read the same way.
-    reject(
-        "a lengthened optimization length over a debug section",
-        &set_len(
-            &debug_envelope,
-            &debug_spans.optimization_len,
-            u64::try_from(optimization_len + 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-
-    // --- debug presence tag ---
-
-    for tag in [2_u8, u8::MAX] {
-        reject(
-            "an unknown debug presence tag",
-            &substitute(&envelope, &spans.debug_tag, &[tag]),
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::InvalidDebugTag(tag),
-            ),
-        );
-    }
-    // Claiming presence without a declared debug length reads the semantic
-    // magic as a u64 length and overruns the envelope.
-    reject(
-        "a presence tag with no debug length field",
-        &substitute(&envelope, &spans.debug_tag, &[1]),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    // Clearing presence on the debug-bearing envelope strands the now
-    // unclaimed debug length field and payload as trailing bytes.
-    let debug_payload_len = debug_spans.debug.clone().unwrap().len();
-    reject(
-        "a dropped debug presence tag",
-        &substitute(&debug_envelope, &debug_spans.debug_tag, &[0]),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(8 + debug_payload_len),
-        ),
-    );
-    reject(
-        "a corrupted debug presence tag",
-        &substitute(&debug_envelope, &debug_spans.debug_tag, &[2]),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::InvalidDebugTag(2),
-        ),
-    );
-
-    // --- declared debug length on the debug-bearing envelope ---
-
-    reject(
-        "a cleared debug length",
-        &set_len(&debug_envelope, &debug_spans.debug_len.clone().unwrap(), 0),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(debug_payload_len),
-        ),
-    );
-    reject(
-        "a shortened debug length",
-        &set_len(
-            &debug_envelope,
-            &debug_spans.debug_len.clone().unwrap(),
-            u64::try_from(debug_spans.debug.clone().unwrap().len() - 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1),
-        ),
-    );
-    reject(
-        "a lengthened debug length",
-        &set_len(
-            &debug_envelope,
-            &debug_spans.debug_len.clone().unwrap(),
-            u64::try_from(debug_spans.debug.clone().unwrap().len() + 1).unwrap(),
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-    reject(
-        "an over-large debug length",
-        &set_len(
-            &debug_envelope,
-            &debug_spans.debug_len.clone().unwrap(),
-            u64::MAX,
-        ),
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-
-    // --- payload bytes belong to their own section codecs ---
-
-    reject(
-        "a corrupted semantic magic",
-        &flip(&envelope, spans.semantic.start),
-        CanonicalTerminalArtifactError::Semantic(CodecError::InvalidMagic),
-    );
-    reject(
-        "a corrupted proof magic",
-        &flip(&envelope, spans.proof.start),
-        CanonicalTerminalArtifactError::Proof(ProofCodecError::InvalidMagic),
-    );
-    reject(
-        "a corrupted optimization magic",
-        &flip(&envelope, spans.optimization.start),
-        CanonicalTerminalArtifactError::Optimization(
-            PsiOptimizationExecutionRecordDecodeError::InvalidMagic,
-        ),
-    );
-    reject(
-        "a corrupted debug magic",
-        &flip(&debug_envelope, debug_spans.debug.clone().unwrap().start),
-        CanonicalTerminalArtifactError::Debug(DebugMapError::InvalidMagic),
-    );
-
-    // A section payload moved out of its slot decodes under the wrong codec:
-    // the declared lengths honestly follow the payloads, so the semantic slot
-    // now holds the sealed proof section.
-    reject(
-        "the proof payload occupying the semantic slot",
-        &envelope_for(
-            &envelope[spans.proof.clone()],
-            &envelope[spans.semantic.clone()],
-            &envelope[spans.optimization.clone()],
-            None,
-        ),
-        CanonicalTerminalArtifactError::Semantic(CodecError::InvalidMagic),
-    );
-    // A dropped section keeps its declared length but surrenders its bytes to
-    // the neighboring spans, so some later section read starves.
-    for (name, dropped) in [
-        ("a dropped semantic payload", {
-            let mut mutated = envelope[..spans.semantic.start].to_vec();
-            mutated.extend_from_slice(&envelope[spans.semantic.end..]);
-            mutated
-        }),
-        ("a dropped proof payload", {
-            let mut mutated = envelope[..spans.proof.start].to_vec();
-            mutated.extend_from_slice(&envelope[spans.proof.end..]);
-            mutated
-        }),
-        (
-            "a dropped optimization payload",
-            envelope[..spans.optimization.start].to_vec(),
-        ),
-        (
-            "a dropped debug payload",
-            debug_envelope[..debug_spans.debug.clone().unwrap().start].to_vec(),
-        ),
-    ] {
-        reject(
-            name,
-            &dropped,
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-            ),
-        );
-    }
-    // An extra section payload is trailing envelope content.
-    reject(
-        "a duplicated optimization payload",
-        &{
-            let mut mutated = envelope.clone();
-            mutated.extend_from_slice(&envelope[spans.optimization.clone()]);
-            mutated
-        },
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(optimization_len),
-        ),
-    );
-
-    // --- trailing bytes and truncation reject at the envelope ---
-
-    reject(
-        "a trailing byte",
-        &{
-            let mut mutated = envelope.clone();
-            mutated.push(0);
-            mutated
-        },
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::TrailingBytes(1),
-        ),
-    );
     for cut in [
         spans.magic.end - 1,
         spans.format_marker.end - 1,
@@ -632,9 +828,7 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
         reject(
             "a truncated envelope",
             &envelope[..cut],
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-            ),
+            CanonicalTerminalArtifactError::Envelope(Envelope::UnexpectedEnd),
         );
     }
     for cut in [
@@ -644,221 +838,12 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
         reject(
             "a truncated debug-bearing envelope",
             &debug_envelope[..cut],
-            CanonicalTerminalArtifactError::Envelope(
-                CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-            ),
+            CanonicalTerminalArtifactError::Envelope(Envelope::UnexpectedEnd),
         );
     }
     reject(
         "an empty envelope",
         &[],
-        CanonicalTerminalArtifactError::Envelope(
-            CanonicalTerminalArtifactEnvelopeError::UnexpectedEnd,
-        ),
-    );
-
-    // --- cross-section joins reject non-canonical custody ---
-
-    // A foreign module: the same machine shape under a different machine and
-    // entry identity. Its semantic section is canonical on its own.
-    let mut foreign = semantic_module();
-    foreign.machines[0].id = machine_id(7);
-    foreign.entry = machine_id(7);
-    let (foreign_semantic, foreign_proof, foreign_optimization) =
-        consistent_sections(&foreign, &bundle);
-
-    // Substituting the semantic payload without resealing the joined proof
-    // section rejects at the subject-binding decode: the retained section is
-    // sealed to the original module identity.
-    assert!(
-        matches!(
-            CanonicalTerminalArtifact::from_bytes(&envelope_for(
-                &foreign_semantic,
-                &envelope[spans.proof.clone()],
-                &envelope[spans.optimization.clone()],
-                None,
-            )),
-            Err(CanonicalTerminalArtifactError::Proof(
-                ProofCodecError::ProofSubjectMismatch { .. }
-            ))
-        ),
-        "a foreign semantic payload must reject at the proof subject join"
-    );
-    // The foreign-sealed proof section under the retained semantic payload
-    // rejects at the same join in the other direction.
-    assert!(
-        matches!(
-            CanonicalTerminalArtifact::from_bytes(&envelope_for(
-                &envelope[spans.semantic.clone()],
-                &foreign_proof,
-                &envelope[spans.optimization.clone()],
-                None,
-            )),
-            Err(CanonicalTerminalArtifactError::Proof(
-                ProofCodecError::ProofSubjectMismatch { .. }
-            ))
-        ),
-        "a foreign-sealed proof payload must reject at the subject join"
-    );
-    // The residual `NonCanonicalSections` byte join stays defense in depth:
-    // every section decoder already requires canonical re-encodings, so no
-    // single-field substitution reaches it.
-    // The foreign identity-stage receipt under retained semantic and proof
-    // payloads fails the produced-output binding inside manifest building.
-    assert!(
-        matches!(
-            CanonicalTerminalArtifact::from_bytes(&envelope_for(
-                &envelope[spans.semantic.clone()],
-                &envelope[spans.proof.clone()],
-                &foreign_optimization,
-                None,
-            )),
-            Err(CanonicalTerminalArtifactError::Manifest(
-                ArtifactManifestError::Optimization(
-                    PsiOptimizationExecutionRecordError::OutputMismatch
-                )
-            ))
-        ),
-        "a foreign optimization receipt must reject at the output binding"
-    );
-
-    // --- representable substitutions: honestly recomputed containing
-    // identity, rejected by independent replay ---
-
-    // The complete consistent foreign payload set decodes to a real artifact
-    // whose recomputed identity diverges; the retained manifest and the
-    // verifier replay both reject it as a substitute for the retained
-    // artifact (the kernel bundle still discharges the unchanged contract,
-    // so the semantic verdict is unchanged even though custody diverged).
-    let substituted = divergent(
-        "a consistently foreign artifact",
-        &envelope_for(
-            &foreign_semantic,
-            &foreign_proof,
-            &foreign_optimization,
-            None,
-        ),
-        &retained,
-    );
-    let verdict = verify_terminal_artifact_proof(&substituted, &AdmissionProfile::default())
-        .expect("the foreign artifact still verifies under the unchanged contract");
-    assert_eq!(
-        verdict.semantic_subject,
-        terminal_psi_identity(&foreign).expect("foreign module identity"),
-    );
-    assert_ne!(
-        verdict.semantic_subject,
-        retained.manifest().semantic(),
-        "the foreign artifact must not carry the retained semantic subject"
-    );
-
-    // A proof-bundle substitution resealed for the retained module: the
-    // obligation retarget is representable, the recomputed identity diverges,
-    // and the verifier replay refuses obligations the module never raised.
-    let mut retargeted = bundle.clone();
-    retargeted.evidence[0].obligation = obligation_id(77);
-    let (proof_semantic, proof_substitution, proof_optimization) =
-        consistent_sections(&module, &retargeted);
-    let substituted = divergent(
-        "a retargeted proof roster",
-        &envelope_for(
-            &proof_semantic,
-            &proof_substitution,
-            &proof_optimization,
-            None,
-        ),
-        &retained,
-    );
-    assert!(
-        verify_terminal_artifact_proof(&substituted, &AdmissionProfile::default()).is_err(),
-        "a retargeted proof roster must reject at the verifier replay"
-    );
-
-    // A selected-pass roster on the optimization receipt is representable
-    // under the same produced identities; the recomputed artifact identity
-    // diverges and the retained manifest replay rejects it.
-    let produced_semantic = terminal_psi_identity(&module).expect("produced module identity");
-    let produced_proof = proof_bundle_fingerprint(&bundle).expect("produced proof fingerprint");
-    let selected = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup])
-        .expect("a unique pass roster");
-    let record = PsiOptimizationExecutionRecord::new(
-        selected,
-        produced_semantic,
-        produced_proof,
-        produced_semantic,
-        produced_proof,
-    )
-    .expect("a selected roster with unchanged products still forms a receipt");
-    let substituted = divergent(
-        "a selected roster on the identity-stage receipt",
-        &envelope_for(
-            &envelope[spans.semantic.clone()],
-            &envelope[spans.proof.clone()],
-            &encode_psi_optimization_execution_record(&record),
-            None,
-        ),
-        &retained,
-    );
-    assert_eq!(
-        substituted.optimization().selections(),
-        record.selections(),
-        "the substitution decodes to the claimed receipt"
-    );
-
-    // A different debug map bound to the same module is representable and
-    // diverges the containing identity.
-    let mut renamed = debug_map(&module);
-    renamed.files[0].path = "renamed.omg".to_owned();
-    let renamed_debug = encode_debug_map(&module, &renamed).expect("a renamed debug map encodes");
-    let substituted = divergent(
-        "a substituted debug payload",
-        &envelope_for(
-            &debug_envelope[debug_spans.semantic.clone()],
-            &debug_envelope[debug_spans.proof.clone()],
-            &debug_envelope[debug_spans.optimization.clone()],
-            Some(&renamed_debug),
-        ),
-        &retained_debug,
-    );
-    assert_eq!(
-        substituted.debug_bytes(),
-        Some(renamed_debug.as_slice()),
-        "the substitution decodes to the claimed debug section"
-    );
-
-    // The debug presence axis itself is representable in both directions:
-    // dropping the section recomputes an artifact identical to the debug-free
-    // artifact (still foreign to the debug-bearing retained manifest), and
-    // adding the honestly encoded section to the debug-free envelope diverges
-    // the same way.
-    let dropped = divergent(
-        "a dropped debug section",
-        &envelope_for(
-            &debug_envelope[debug_spans.semantic.clone()],
-            &debug_envelope[debug_spans.proof.clone()],
-            &debug_envelope[debug_spans.optimization.clone()],
-            None,
-        ),
-        &retained_debug,
-    );
-    assert_eq!(
-        dropped.manifest().identity(),
-        retained.manifest().identity(),
-        "dropping the debug section recomputes exactly the debug-free artifact"
-    );
-    let added = divergent(
-        "an added debug section",
-        &envelope_for(
-            &envelope[spans.semantic.clone()],
-            &envelope[spans.proof.clone()],
-            &envelope[spans.optimization.clone()],
-            Some(&debug_envelope[debug_spans.debug.clone().unwrap()]),
-        ),
-        &retained,
-    );
-    assert_eq!(
-        added.manifest().identity(),
-        retained_debug.manifest().identity(),
-        "adding the honest debug section recomputes exactly the debug-bearing artifact"
+        CanonicalTerminalArtifactError::Envelope(Envelope::UnexpectedEnd),
     );
 }
