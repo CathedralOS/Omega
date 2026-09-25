@@ -194,3 +194,5 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T11:44:26Z	1499b99936	leaf/service-reach-index	coordinator	validation: symbol-indexed service-reach inference + per-call target index
 2026-09-25T11:55:21Z	7a08356311	leaf/domain-symbol-index	coordinator	typed-trees: domain_by_symbol cached roster; 10 symbol scans indexed
 2026-09-25T12:00:36Z	82f8f73d50	leaf/domain-candidate-buckets	coordinator	stage-03: spelling-bucketed domain candidates + retained path via domain_by_symbol
+2026-09-25T12:30:09Z	f64ce5dfe2	leaf/result-identity-type-memo	coordinator	z5 return-type-keyed memo, Stage05 -16.3s
+2026-09-25T12:30:09Z	756f8803d3	leaf/ordered-statement-call-literals	coordinator	z5 call-literal regression pins
