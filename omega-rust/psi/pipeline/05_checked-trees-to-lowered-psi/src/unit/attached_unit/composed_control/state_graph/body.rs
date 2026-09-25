@@ -615,6 +615,44 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            // A scalar boundary call bound by an immutable `let` replays like
+            // an ordinary scalar call and consumes its boundary like a Unit
+            // boundary call: the local's primitive is the call's result.
+            (
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    coordinate,
+                    result,
+                    target_state,
+                    structural_arguments,
+                    completion_receipts,
+                    ..
+                },
+                StatementNode::LocalData(local),
+            ) if !local.is_mutable
+                && coordinate.statement_index as usize == ordinal
+                && coordinate.call_ordinal == 0
+                && result.statement_index == coordinate.statement_index
+                && checked.primitive_type_reference(local.type_reference)
+                    == Some(result.primitive_type) =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+                super::claims::validate_boundary_consumption(
+                    checked,
+                    machine,
+                    source,
+                    state,
+                    *coordinate,
+                    *target_state,
+                    structural_arguments,
+                    completion_receipts,
+                )?;
+            }
             (
                 CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
                 StatementNode::LocalData(_),
