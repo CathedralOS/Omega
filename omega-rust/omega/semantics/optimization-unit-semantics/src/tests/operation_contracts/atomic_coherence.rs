@@ -3,6 +3,7 @@
 
 use crate::tests::support::{id, refresh_identity};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractBlockEntry, AbstractFunction,
     AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractResult,
@@ -12,7 +13,7 @@ use abstract_operations::{
 use optimization_unit::reconstruct_psi_optimization_unit_seed;
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
-    OperationId, PlaceId, ScalarType, ValueId,
+    OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -24,8 +25,12 @@ fn observed_value() -> ValueId {
     id(34, ValueId::new)
 }
 
-fn location() -> PlaceId {
-    id(35, PlaceId::new)
+fn location() -> AbstractAtomicLocation {
+    AbstractAtomicLocation {
+        root: id(35, PlaceId::new),
+        path: Vec::new(),
+        field: id(1, StructuralFieldId::new),
+    }
 }
 
 fn integer_constant(psi_operation: u64, result: ValueId) -> AbstractOperation {
@@ -39,10 +44,14 @@ fn integer_constant(psi_operation: u64, result: ValueId) -> AbstractOperation {
     }
 }
 
-fn store(psi_operation: u64, place: PlaceId, value: ValueId) -> AbstractOperation {
+fn store(
+    psi_operation: u64,
+    location: AbstractAtomicLocation,
+    value: ValueId,
+) -> AbstractOperation {
     store_after(
         psi_operation,
-        place,
+        location,
         value,
         AtomicModificationAfter::InitialResidency,
     )
@@ -50,14 +59,14 @@ fn store(psi_operation: u64, place: PlaceId, value: ValueId) -> AbstractOperatio
 
 fn store_after(
     psi_operation: u64,
-    place: PlaceId,
+    location: AbstractAtomicLocation,
     value: ValueId,
     predecessor: AtomicModificationAfter,
 ) -> AbstractOperation {
     AbstractOperation::AtomicEvent {
         psi_operation: id(psi_operation, OperationId::new),
         event: AbstractAtomicEvent::Store {
-            place,
+            location,
             ordering: language_core::atomic::MemoryOrdering::NoOrdering,
             value,
         },
@@ -74,14 +83,14 @@ fn predecessor_after(operation: u64) -> AtomicModificationAfter {
 
 fn load(
     psi_operation: u64,
-    place: PlaceId,
+    location: AbstractAtomicLocation,
     result: ValueId,
     reads_from: Option<AtomicReadsFrom>,
 ) -> AbstractOperation {
     AbstractOperation::AtomicEvent {
         psi_operation: id(psi_operation, OperationId::new),
         event: AbstractAtomicEvent::Load {
-            place,
+            location,
             ordering: language_core::atomic::MemoryOrdering::NoOrdering,
             result: AbstractResult {
                 value: result,
@@ -582,7 +591,7 @@ fn chained_writes_unit(
             AbstractOperation::AtomicEvent {
                 psi_operation: id(80, OperationId::new),
                 event: AbstractAtomicEvent::Store {
-                    place: location(),
+                    location: location(),
                     ordering: language_core::atomic::MemoryOrdering::NoOrdering,
                     value: stored_value(),
                 },
