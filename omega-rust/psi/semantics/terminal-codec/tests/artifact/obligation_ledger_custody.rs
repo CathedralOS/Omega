@@ -6,24 +6,30 @@
 //! each owner variant's identities and positions, the obligation identity and
 //! admission class, the proposition, the requirements and semantic-axiom
 //! rosters, and the canonical-certificate flag — is substituted independently.
-//! A substitution either fails to form a canonical ledger on the wire, or
-//! decodes to a different ledger whose honestly recomputed fingerprint
-//! diverges and whose independent reconstruction replay rejects it.
+//! Every representable substitution is driven through the shared
+//! `run_one_field_substitution_matrix` driver over the inventory in
+//! `obligation_ledger_custody_fields.rs`: it decodes to a different ledger
+//! whose honestly recomputed fingerprint diverges and whose independent
+//! reconstruction replay rejects it. Substitutions that fail to form a
+//! canonical ledger on the wire — framing, zero identities, closed tags,
+//! lying counts, truncations, duplicate identities or owners — stay authored
+//! below the matrix as decode-level rejections.
 
 use std::ops::Range;
 
 use super::{
-    block_id, contract_id, edge_id, evidence_id, machine_id, obligation_id, operation_id, value_id,
+    block_id, contract_id, edge_id, evidence_id, machine_id, obligation_id, operation_id,
+    semantic_module, value_id,
 };
 use proof_admission::{AdmissionKind, AuthorizedAdmission, ObligationClass};
 use semantic_vocabulary::{
     AdmissionSiteId, IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
 };
 use terminal_codec::{
-    CodecError, build_terminal_obligation_ledger, canonical_proposition_order_key,
-    current_terminal_trust_graph, decode_terminal_obligation_ledger,
-    encode_terminal_obligation_ledger, terminal_obligation_ledger_fingerprint,
-    validate_terminal_obligation_ledger,
+    CodecError, TerminalObligationLedger, build_terminal_obligation_ledger,
+    canonical_proposition_order_key, current_terminal_trust_graph,
+    decode_terminal_obligation_ledger, encode_terminal_obligation_ledger,
+    terminal_obligation_ledger_fingerprint, validate_terminal_obligation_ledger,
 };
 use terminal_psi::{
     Block, ContractClause, MachineContract, Operation, OperationKind, OperationResult,
@@ -31,6 +37,15 @@ use terminal_psi::{
     VocabularyMarker,
 };
 use terminal_verifier::{ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner};
+
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+
+#[path = "obligation_ledger_custody_fields.rs"]
+mod obligation_ledger_custody_fields;
+
+use obligation_ledger_custody_fields::ObligationLedgerCustodyFieldForTest;
 
 const HEADER_LEN: usize = 8 + 2 + 2 + 32 + 32 + 4;
 
@@ -419,13 +434,397 @@ fn row_spans(start: usize, row: &ReconstructedTerminalObligation) -> RowSpans {
     }
 }
 
+/// The family's honest-recomputation hook: re-encode `ledger` with exactly
+/// the declared field substituted — repairing the roster count when a leg
+/// drops or appends a row — and decode the result. Every declared leg is
+/// representable, so the substituted wire form must still decode and
+/// re-encode to the same canonical bytes; the decoder recomputes nothing
+/// else. `donor` is an authentic ledger for a different Terminal module and
+/// supplies the substituted program fingerprint.
+fn substitute_obligation_ledger_for_test(
+    ledger: &mut TerminalObligationLedger,
+    field: ObligationLedgerCustodyFieldForTest,
+    donor: &TerminalObligationLedger,
+) {
+    use ObligationLedgerCustodyFieldForTest as Leg;
+    let encoded = encode_terminal_obligation_ledger(ledger).expect("encode ledger");
+    let donor_encoded = encode_terminal_obligation_ledger(donor).expect("encode donor ledger");
+    let rows = ledger.obligations();
+    let mut header = encoded[..HEADER_LEN].to_vec();
+    let count = header.len() - 4..header.len();
+    let mut row_bytes: Vec<Vec<u8>> = rows.iter().map(encode_row).collect();
+    let set_count = |header: &mut Vec<u8>, rows: usize| {
+        header[count.clone()].copy_from_slice(&u32::try_from(rows).expect("fits").to_le_bytes());
+    };
+    let patch_row = |row_bytes: &mut [Vec<u8>],
+                     index: usize,
+                     patch: &dyn Fn(&mut ReconstructedTerminalObligation)| {
+        let mut row = rows[index].clone();
+        patch(&mut row);
+        row_bytes[index] = encode_row(&row);
+    };
+    let authorized = |site, kind, authority| {
+        ObligationClass::AdmissionAuthorized(AuthorizedAdmission {
+            site,
+            kind,
+            authority_identity: authority,
+        })
+    };
+    let i8_type = || IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let owner_on = |owner: ReconstructedTerminalObligationOwner| {
+        move |row: &mut ReconstructedTerminalObligation| row.owner = owner
+    };
+    let class_on_operation_row = |class: ObligationClass| {
+        move |row: &mut ReconstructedTerminalObligation| row.obligation.class = class
+    };
+    match field {
+        // Envelope: the program fingerprint and trust graph identity are
+        // representable fields of the header.
+        Leg::ProgramFingerprintFlipped => header[12] ^= 0xFF,
+        Leg::ProgramFingerprintZeroed => header[12..44].copy_from_slice(&[0; 32]),
+        Leg::ProgramFingerprintSubstituted => {
+            header[12..44].copy_from_slice(&donor_encoded[12..44]);
+        }
+        Leg::TrustGraphIdentityFlipped => header[44] ^= 0xFF,
+        Leg::TrustGraphIdentityZeroed => header[44..76].copy_from_slice(&[0; 32]),
+        // Roster: dropping a row with an honestly recomputed count, reordering
+        // (owners stay unique but the order is fingerprinted), and appending a
+        // foreign row all still decode.
+        Leg::LeadingRowDropped => {
+            row_bytes.remove(0);
+            set_count(&mut header, rows.len() - 1);
+        }
+        Leg::TrailingRowDropped => {
+            row_bytes.pop();
+            set_count(&mut header, rows.len() - 1);
+        }
+        Leg::RosterReordered => row_bytes.swap(0, 1),
+        Leg::ForeignObligationAppended => {
+            row_bytes.push(encode_row(&ReconstructedTerminalObligation {
+                owner: ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                    machine: machine_id(1),
+                    header: block_id(901),
+                    edge: edge_id(902),
+                },
+                obligation: proof_admission::Obligation {
+                    id: obligation_id(999),
+                    class: ObligationClass::Derivable,
+                    proposition: Proposition::Truth,
+                },
+                requirements: Vec::new(),
+                semantic_axioms: Vec::new(),
+                canonical_certificate: false,
+            }));
+            set_count(&mut header, rows.len() + 1);
+        }
+        // Operation owner: each field substitutes independently.
+        Leg::OperationOwnerMachine => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::Operation {
+                machine: machine_id(2),
+                operation: operation_id(10),
+            }),
+        ),
+        Leg::OperationOwnerOperation => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::Operation {
+                machine: machine_id(1),
+                operation: operation_id(77),
+            }),
+        ),
+        // CallRequires owner: machine, operation, and requirement position.
+        Leg::CallRequirementOwnerMachine => patch_row(
+            &mut row_bytes,
+            1,
+            &owner_on(ReconstructedTerminalObligationOwner::CallRequires {
+                machine: machine_id(2),
+                operation: operation_id(11),
+                requirement_position: 0,
+            }),
+        ),
+        Leg::CallRequirementOwnerOperation => patch_row(
+            &mut row_bytes,
+            1,
+            &owner_on(ReconstructedTerminalObligationOwner::CallRequires {
+                machine: machine_id(1),
+                operation: operation_id(77),
+                requirement_position: 0,
+            }),
+        ),
+        Leg::CallRequirementPosition => patch_row(
+            &mut row_bytes,
+            1,
+            &owner_on(ReconstructedTerminalObligationOwner::CallRequires {
+                machine: machine_id(1),
+                operation: operation_id(11),
+                requirement_position: 7,
+            }),
+        ),
+        // ContractEnsures owner: machine, contract, and clause position.
+        Leg::EnsuresOwnerMachine => patch_row(
+            &mut row_bytes,
+            3,
+            &owner_on(ReconstructedTerminalObligationOwner::ContractEnsures {
+                machine: machine_id(2),
+                contract: contract_id(1),
+                clause_position: 0,
+            }),
+        ),
+        Leg::EnsuresOwnerContract => patch_row(
+            &mut row_bytes,
+            3,
+            &owner_on(ReconstructedTerminalObligationOwner::ContractEnsures {
+                machine: machine_id(1),
+                contract: contract_id(77),
+                clause_position: 0,
+            }),
+        ),
+        Leg::EnsuresOwnerClausePosition => patch_row(
+            &mut row_bytes,
+            3,
+            &owner_on(ReconstructedTerminalObligationOwner::ContractEnsures {
+                machine: machine_id(1),
+                contract: contract_id(1),
+                clause_position: 9,
+            }),
+        ),
+        // Owner-kind substitutions: every remaining variant is representable
+        // on the produced operation row.
+        Leg::OperationRowCallRequirementOwner => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::CallRequires {
+                machine: machine_id(1),
+                operation: operation_id(77),
+                requirement_position: 0,
+            }),
+        ),
+        Leg::OperationRowNominalCleanupOwner => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(
+                ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: machine_id(1),
+                    edge: edge_id(55),
+                    cleanup_position: 2,
+                    requirement_position: 3,
+                },
+            ),
+        ),
+        Leg::OperationRowEnsuresOwner => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::ContractEnsures {
+                machine: machine_id(1),
+                contract: contract_id(77),
+                clause_position: 4,
+            }),
+        ),
+        Leg::OperationRowBlockInvariantOwner => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                machine: machine_id(1),
+                header: block_id(88),
+                edge: edge_id(89),
+            }),
+        ),
+        // Each field of the unproduced owner kinds binds independently.
+        Leg::BlockInvariantOwnerMachine => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                machine: machine_id(2),
+                header: block_id(88),
+                edge: edge_id(89),
+            }),
+        ),
+        Leg::BlockInvariantOwnerHeader => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                machine: machine_id(1),
+                header: block_id(90),
+                edge: edge_id(89),
+            }),
+        ),
+        Leg::BlockInvariantOwnerEdge => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                machine: machine_id(1),
+                header: block_id(88),
+                edge: edge_id(91),
+            }),
+        ),
+        Leg::CleanupOwnerMachine => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(
+                ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: machine_id(2),
+                    edge: edge_id(55),
+                    cleanup_position: 2,
+                    requirement_position: 3,
+                },
+            ),
+        ),
+        Leg::CleanupOwnerEdge => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(
+                ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: machine_id(1),
+                    edge: edge_id(56),
+                    cleanup_position: 2,
+                    requirement_position: 3,
+                },
+            ),
+        ),
+        Leg::CleanupOwnerCleanupPosition => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(
+                ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: machine_id(1),
+                    edge: edge_id(55),
+                    cleanup_position: 7,
+                    requirement_position: 3,
+                },
+            ),
+        ),
+        Leg::CleanupOwnerRequirementPosition => patch_row(
+            &mut row_bytes,
+            0,
+            &owner_on(
+                ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine: machine_id(1),
+                    edge: edge_id(55),
+                    cleanup_position: 2,
+                    requirement_position: 8,
+                },
+            ),
+        ),
+        Leg::ObligationIdentity => patch_row(&mut row_bytes, 0, &|row| {
+            row.obligation.id = obligation_id(999)
+        }),
+        // The produced roster is all derivable; an admission-authorized class
+        // is representable and every authorized field binds independently.
+        Leg::AdmissionAuthorizedClass => patch_row(
+            &mut row_bytes,
+            0,
+            &class_on_operation_row(authorized(
+                AdmissionSiteId::new(77).expect("site"),
+                AdmissionKind::ForeignBoundaryGuarantee,
+                evidence_id(88),
+            )),
+        ),
+        Leg::AdmissionSite => patch_row(
+            &mut row_bytes,
+            0,
+            &class_on_operation_row(authorized(
+                AdmissionSiteId::new(78).expect("site"),
+                AdmissionKind::ForeignBoundaryGuarantee,
+                evidence_id(88),
+            )),
+        ),
+        Leg::AdmissionKind => patch_row(
+            &mut row_bytes,
+            0,
+            &class_on_operation_row(authorized(
+                AdmissionSiteId::new(77).expect("site"),
+                AdmissionKind::ProviderFact,
+                evidence_id(88),
+            )),
+        ),
+        Leg::CheckedAssemblyAdmissionKind => patch_row(
+            &mut row_bytes,
+            0,
+            &class_on_operation_row(authorized(
+                AdmissionSiteId::new(77).expect("site"),
+                AdmissionKind::CheckedAssemblyClaim,
+                evidence_id(88),
+            )),
+        ),
+        Leg::AdmissionAuthority => patch_row(
+            &mut row_bytes,
+            0,
+            &class_on_operation_row(authorized(
+                AdmissionSiteId::new(77).expect("site"),
+                AdmissionKind::ForeignBoundaryGuarantee,
+                evidence_id(89),
+            )),
+        ),
+        // Substituting the goal proposition is representable and replay-bound.
+        Leg::OperationGoal => patch_row(&mut row_bytes, 0, &|row| {
+            row.obligation.proposition = Proposition::Truth
+        }),
+        Leg::CallRequirementGoal => patch_row(&mut row_bytes, 1, &|row| {
+            row.obligation.proposition = Proposition::LessOrEqual(
+                ScalarTerm::value(value_id(11), ScalarType::Integer(i8_type())),
+                ScalarTerm::integer(i8_type(), IntegerValue::Signed(0)).expect("literal"),
+            );
+        }),
+        Leg::EnsuresGoal => patch_row(&mut row_bytes, 3, &|row| {
+            let eight = ScalarTerm::integer(i8_type(), IntegerValue::Signed(8)).expect("literal");
+            row.obligation.proposition = Proposition::Equal(eight.clone(), eight);
+        }),
+        // Every caller row carries two requirements; substitute, drop, extend,
+        // and reorder that roster on the produced rows.
+        Leg::RequirementMemberSubstituted => {
+            patch_row(&mut row_bytes, 0, &|row| {
+                row.requirements[1] = Proposition::Truth
+            });
+        }
+        Leg::RequirementMemberDropped => patch_row(&mut row_bytes, 0, &|row| {
+            row.requirements.pop();
+        }),
+        Leg::RequirementRosterExtended => {
+            patch_row(&mut row_bytes, 0, &|row| {
+                row.requirements.push(Proposition::Falsehood)
+            });
+        }
+        Leg::RequirementRosterReordered => {
+            patch_row(&mut row_bytes, 0, &|row| row.requirements.swap(0, 1))
+        }
+        // The call rows accumulate axioms from the earlier exact operation;
+        // substitute and drop members there, and extend the operation row's
+        // empty roster.
+        Leg::AxiomMemberSubstituted => patch_row(&mut row_bytes, 1, &|row| {
+            let last = row.semantic_axioms.len() - 1;
+            row.semantic_axioms[last] = Proposition::Truth;
+        }),
+        Leg::AxiomMemberDropped => patch_row(&mut row_bytes, 1, &|row| {
+            row.semantic_axioms.pop();
+        }),
+        Leg::AxiomRosterExtended => {
+            patch_row(&mut row_bytes, 0, &|row| {
+                row.semantic_axioms.push(Proposition::Truth)
+            });
+        }
+        Leg::CanonicalCertificateFlipped => patch_row(&mut row_bytes, 0, &|row| {
+            row.canonical_certificate = !row.canonical_certificate;
+        }),
+    }
+    let mutated = compose(&header, &row_bytes);
+    let substituted = decode_terminal_obligation_ledger(&mutated)
+        .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
+    assert_eq!(
+        encode_terminal_obligation_ledger(&substituted).expect("re-encode"),
+        mutated,
+        "{field:?} must re-encode canonically"
+    );
+    *ledger = substituted;
+}
+
 #[test]
 fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
     let module = ledger_fixture();
     let trust_graph = current_terminal_trust_graph().expect("current trust graph");
     let ledger = build_terminal_obligation_ledger(&module, &trust_graph).expect("produced ledger");
     let encoded = encode_terminal_obligation_ledger(&ledger).expect("encode ledger");
-    let fingerprint = terminal_obligation_ledger_fingerprint(&ledger).expect("fingerprint");
 
     assert_eq!(
         decode_terminal_obligation_ledger(&encoded),
@@ -478,6 +877,10 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
         rows[1].semantic_axioms.len() > rows[0].semantic_axioms.len(),
         "the call row accumulates the exact-subtraction equation"
     );
+    assert!(
+        !rows[1].semantic_axioms.is_empty(),
+        "the first call row carries reconstructed axioms"
+    );
 
     // Verify the local encoder reproduces the canonical bytes exactly, and
     // compute every row's span.
@@ -499,31 +902,34 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
     let header = encoded[..HEADER_LEN].to_vec();
     let count = header.len() - 4..header.len();
 
-    // Every substitution below lands in exactly one of two outcomes: the wire
-    // form is no longer canonical and decoding rejects it outright, or it
-    // decodes to a different ledger whose honestly recomputed fingerprint
-    // diverges and whose independent reconstruction replay rejects it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_terminal_obligation_ledger(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, ledger, "{name} must change the ledger");
-        assert_eq!(
-            encode_terminal_obligation_ledger(&substituted).expect("re-encode"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_obligation_ledger_fingerprint(&substituted).expect("substituted fingerprint"),
-            fingerprint,
-            "{name} must diverge the honestly recomputed ledger fingerprint"
-        );
-        assert_eq!(
-            validate_terminal_obligation_ledger(&substituted, &module, &trust_graph),
-            Err(CodecError::ObligationLedgerMismatch),
-            "{name} must reject at the reconstruction replay"
-        );
-        substituted
-    };
+    // Every representable substitution decodes to a different ledger whose
+    // honestly recomputed fingerprint diverges and whose independent
+    // reconstruction replay rejects it. The donor is an authentic ledger for
+    // another Terminal module under the same trust graph.
+    let donor_module = semantic_module();
+    let donor = build_terminal_obligation_ledger(&donor_module, &trust_graph)
+        .expect("the foreign donor ledger builds");
+    validate_terminal_obligation_ledger(&donor, &donor_module, &trust_graph)
+        .expect("the foreign donor ledger replays against its own module");
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "TerminalObligationLedger",
+        fields: ObligationLedgerCustodyFieldForTest::INVENTORY,
+        honest: &|| ledger.clone(),
+        donor,
+        custody: &|ledger: &TerminalObligationLedger| {
+            terminal_obligation_ledger_fingerprint(ledger).expect("ledger fingerprint")
+        },
+        substitute: &substitute_obligation_ledger_for_test,
+        check: &|ledger| {
+            validate_terminal_obligation_ledger(ledger, &module, &trust_graph)
+                .map(|()| terminal_obligation_ledger_fingerprint(ledger).expect("fingerprint"))
+        },
+        outcome: &|_| MutationOutcome::ExactError(CodecError::ObligationLedgerMismatch),
+        joined_replay: None,
+    });
+
+    // The remaining substitutions are not representable ledgers: the wire
+    // form is no longer canonical, and decoding rejects it outright.
 
     // Replace row `index` with `substitute` and keep the roster count honest.
     let with_row = |index: usize, substitute: &ReconstructedTerminalObligation| -> Vec<u8> {
@@ -531,13 +937,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
         spliced[index] = encode_row(substitute);
         compose(&header, &spliced)
     };
-    let mutated_row =
-        |index: usize, patch: &dyn Fn(&mut ReconstructedTerminalObligation)| -> Vec<u8> {
-            let mut row = rows[index].clone();
-            patch(&mut row);
-            with_row(index, &row)
-        };
-
     // --- envelope axes ---------------------------------------------------
 
     let mut mutated = encoded.clone();
@@ -563,21 +962,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
         Err(CodecError::UnsupportedVocabularyMarker(u16::MAX)),
         "an unknown vocabulary marker must reject at decoding"
     );
-
-    // The program fingerprint and trust graph identity are representable
-    // fields: substitutions still decode but the recomputed fingerprint
-    // diverges and replay rejects them.
-    for (name, range) in [
-        ("the program fingerprint", 12..44),
-        ("the trust graph identity", 44..76),
-    ] {
-        let mut mutated = encoded.clone();
-        mutated[range.start] ^= 0xFF;
-        divergent(name, &mutated);
-        let mut mutated = encoded.clone();
-        mutated[range.clone()].copy_from_slice(&[0; 32]);
-        divergent(name, &mutated);
-    }
 
     // A roster count lying about its roster starves the tail or strands bytes.
     for (name, value, expected) in [
@@ -635,51 +1019,9 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
 
     // --- roster axes ------------------------------------------------------
 
-    // Dropping a row with an honestly recomputed count still decodes to a
-    // different ledger, and replay rejects the incomplete question.
-    for (name, index) in [
-        ("a dropped leading row", 0),
-        ("a dropped trailing row", rows.len() - 1),
-    ] {
-        let mut spliced = row_bytes.clone();
-        spliced.remove(index);
-        let mut dropped_header = header.clone();
-        dropped_header[count.clone()].copy_from_slice(&((rows.len() - 1) as u32).to_le_bytes());
-        divergent(name, &compose(&dropped_header, &spliced));
-    }
-
-    // Reordering is representable (owners stay unique) but the roster order is
-    // fingerprinted, so replay rejects the permuted ledger.
-    let mut spliced = row_bytes.clone();
-    spliced.swap(0, 1);
-    divergent("a reordered roster", &compose(&header, &spliced));
-
-    // An appended foreign row is representable; replay rejects the extended
-    // question. A duplicated row or owner is not even canonical on the wire.
-    let foreign = ReconstructedTerminalObligation {
-        owner: ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-            machine: machine_id(1),
-            header: block_id(901),
-            edge: edge_id(902),
-        },
-        obligation: proof_admission::Obligation {
-            id: obligation_id(999),
-            class: ObligationClass::Derivable,
-            proposition: Proposition::Truth,
-        },
-        requirements: Vec::new(),
-        semantic_axioms: Vec::new(),
-        canonical_certificate: false,
-    };
+    // A duplicated row or owner is not canonical on the wire.
     let mut extended_header = header.clone();
     extended_header[count.clone()].copy_from_slice(&((rows.len() + 1) as u32).to_le_bytes());
-    let mut spliced = row_bytes.clone();
-    spliced.push(encode_row(&foreign));
-    divergent(
-        "an appended foreign obligation",
-        &compose(&extended_header, &spliced),
-    );
-
     let mut spliced = row_bytes.clone();
     spliced.push(row_bytes.last().expect("last row").clone());
     assert_eq!(
@@ -700,206 +1042,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
     );
 
     // --- owner fields ------------------------------------------------------
-
-    // Operation owner: each field substitutes independently.
-    divergent(
-        "the operation owner machine",
-        &mutated_row(0, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::Operation {
-                machine: machine_id(2),
-                operation: operation_id(10),
-            };
-        }),
-    );
-    divergent(
-        "the operation owner operation",
-        &mutated_row(0, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::Operation {
-                machine: machine_id(1),
-                operation: operation_id(77),
-            };
-        }),
-    );
-
-    // CallRequires owner: machine, operation, and requirement position.
-    divergent(
-        "the call-requirement owner machine",
-        &mutated_row(1, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::CallRequires {
-                machine: machine_id(2),
-                operation: operation_id(11),
-                requirement_position: 0,
-            };
-        }),
-    );
-    divergent(
-        "the call-requirement owner operation",
-        &mutated_row(1, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::CallRequires {
-                machine: machine_id(1),
-                operation: operation_id(77),
-                requirement_position: 0,
-            };
-        }),
-    );
-    divergent(
-        "the call-requirement requirement position",
-        &mutated_row(1, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::CallRequires {
-                machine: machine_id(1),
-                operation: operation_id(11),
-                requirement_position: 7,
-            };
-        }),
-    );
-
-    // ContractEnsures owner: machine, contract, and clause position.
-    divergent(
-        "the ensures owner machine",
-        &mutated_row(3, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::ContractEnsures {
-                machine: machine_id(2),
-                contract: contract_id(1),
-                clause_position: 0,
-            };
-        }),
-    );
-    divergent(
-        "the ensures owner contract",
-        &mutated_row(3, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::ContractEnsures {
-                machine: machine_id(1),
-                contract: contract_id(77),
-                clause_position: 0,
-            };
-        }),
-    );
-    divergent(
-        "the ensures owner clause position",
-        &mutated_row(3, &|row| {
-            row.owner = ReconstructedTerminalObligationOwner::ContractEnsures {
-                machine: machine_id(1),
-                contract: contract_id(1),
-                clause_position: 9,
-            };
-        }),
-    );
-
-    // Owner-kind substitutions: every remaining variant is representable on a
-    // produced row, and each of its fields binds independently.
-    for (name, owner) in [
-        (
-            "a call-requirement owner on the operation row",
-            ReconstructedTerminalObligationOwner::CallRequires {
-                machine: machine_id(1),
-                operation: operation_id(77),
-                requirement_position: 0,
-            },
-        ),
-        (
-            "a nominal-cleanup owner on the operation row",
-            ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine: machine_id(1),
-                edge: edge_id(55),
-                cleanup_position: 2,
-                requirement_position: 3,
-            },
-        ),
-        (
-            "an ensures owner on the operation row",
-            ReconstructedTerminalObligationOwner::ContractEnsures {
-                machine: machine_id(1),
-                contract: contract_id(77),
-                clause_position: 4,
-            },
-        ),
-        (
-            "a block-invariant owner on the operation row",
-            ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                machine: machine_id(1),
-                header: block_id(88),
-                edge: edge_id(89),
-            },
-        ),
-    ] {
-        divergent(
-            name,
-            &mutated_row(0, &|row| {
-                row.owner = owner;
-            }),
-        );
-    }
-
-    // Each field of the unproduced owner kinds binds independently.
-    for (name, owner) in [
-        (
-            "the block-invariant owner machine",
-            ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                machine: machine_id(2),
-                header: block_id(88),
-                edge: edge_id(89),
-            },
-        ),
-        (
-            "the block-invariant owner header",
-            ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                machine: machine_id(1),
-                header: block_id(90),
-                edge: edge_id(89),
-            },
-        ),
-        (
-            "the block-invariant owner edge",
-            ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                machine: machine_id(1),
-                header: block_id(88),
-                edge: edge_id(91),
-            },
-        ),
-        (
-            "the cleanup owner machine",
-            ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine: machine_id(2),
-                edge: edge_id(55),
-                cleanup_position: 2,
-                requirement_position: 3,
-            },
-        ),
-        (
-            "the cleanup owner edge",
-            ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine: machine_id(1),
-                edge: edge_id(56),
-                cleanup_position: 2,
-                requirement_position: 3,
-            },
-        ),
-        (
-            "the cleanup owner cleanup position",
-            ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine: machine_id(1),
-                edge: edge_id(55),
-                cleanup_position: 7,
-                requirement_position: 3,
-            },
-        ),
-        (
-            "the cleanup owner requirement position",
-            ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine: machine_id(1),
-                edge: edge_id(55),
-                cleanup_position: 2,
-                requirement_position: 8,
-            },
-        ),
-    ] {
-        divergent(
-            name,
-            &mutated_row(0, &|row| {
-                row.owner = owner;
-            }),
-        );
-    }
 
     // Owner identity fields are nonzero and the owner tag is closed.
     for (name, offset, expected) in [
@@ -932,12 +1074,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
 
     // --- obligation identity ------------------------------------------------
 
-    divergent(
-        "the obligation identity",
-        &mutated_row(0, &|row| {
-            row.obligation.id = obligation_id(999);
-        }),
-    );
     // A colliding identity is not canonical on the wire.
     let colliding = {
         let mut row = rows[0].clone();
@@ -961,8 +1097,8 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
 
     // --- obligation class -----------------------------------------------------
 
-    // The produced roster is all derivable; an admission-authorized class is
-    // representable and every authorized field binds independently.
+    // The admission-authorized class's own fields are nonzero identities and
+    // a closed kind vocabulary.
     let authorized = |site, kind, authority| {
         ObligationClass::AdmissionAuthorized(AuthorizedAdmission {
             site,
@@ -970,56 +1106,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
             authority_identity: authority,
         })
     };
-    for (name, class) in [
-        (
-            "an admission-authorized class",
-            authorized(
-                AdmissionSiteId::new(77).expect("site"),
-                AdmissionKind::ForeignBoundaryGuarantee,
-                evidence_id(88),
-            ),
-        ),
-        (
-            "the admission site",
-            authorized(
-                AdmissionSiteId::new(78).expect("site"),
-                AdmissionKind::ForeignBoundaryGuarantee,
-                evidence_id(88),
-            ),
-        ),
-        (
-            "the admission kind",
-            authorized(
-                AdmissionSiteId::new(77).expect("site"),
-                AdmissionKind::ProviderFact,
-                evidence_id(88),
-            ),
-        ),
-        (
-            "the checked-assembly admission kind",
-            authorized(
-                AdmissionSiteId::new(77).expect("site"),
-                AdmissionKind::CheckedAssemblyClaim,
-                evidence_id(88),
-            ),
-        ),
-        (
-            "the admission authority",
-            authorized(
-                AdmissionSiteId::new(77).expect("site"),
-                AdmissionKind::ForeignBoundaryGuarantee,
-                evidence_id(89),
-            ),
-        ),
-    ] {
-        divergent(
-            name,
-            &mutated_row(0, &|row| {
-                row.obligation.class = class;
-            }),
-        );
-    }
-
     // Noncanonical class encodings reject at decoding.
     let mut mutated = encoded.clone();
     mutated[spans[0].class_tag] = 9;
@@ -1067,48 +1153,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
 
     // --- proposition ------------------------------------------------------------
 
-    // Substituting the goal proposition is representable and replay-bound.
-    for (name, index, proposition) in [
-        ("the operation goal", 0, Proposition::Truth),
-        (
-            "the call-requirement goal",
-            1,
-            Proposition::LessOrEqual(
-                ScalarTerm::value(
-                    value_id(11),
-                    ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8")),
-                ),
-                ScalarTerm::integer(
-                    IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
-                    IntegerValue::Signed(0),
-                )
-                .expect("literal"),
-            ),
-        ),
-        (
-            "the ensures goal",
-            3,
-            Proposition::Equal(
-                ScalarTerm::integer(
-                    IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
-                    IntegerValue::Signed(8),
-                )
-                .expect("literal"),
-                ScalarTerm::integer(
-                    IntegerType::new(IntegerSign::Signed, 8).expect("i8"),
-                    IntegerValue::Signed(8),
-                )
-                .expect("literal"),
-            ),
-        ),
-    ] {
-        divergent(
-            name,
-            &mutated_row(index, &|row| {
-                row.obligation.proposition = proposition.clone();
-            }),
-        );
-    }
     // An unknown proposition tag is not canonical on the wire.
     let mut mutated = encoded.clone();
     mutated[spans[0].proposition.start] = 0xFE;
@@ -1120,32 +1164,6 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
 
     // --- requirements roster -------------------------------------------------
 
-    // Every caller row carries two requirements; substitute, drop, extend, and
-    // reorder that roster on the produced rows.
-    divergent(
-        "a substituted requirement member",
-        &mutated_row(0, &|row| {
-            row.requirements[1] = Proposition::Truth;
-        }),
-    );
-    divergent(
-        "a dropped requirement member",
-        &mutated_row(0, &|row| {
-            row.requirements.pop();
-        }),
-    );
-    divergent(
-        "an extended requirement roster",
-        &mutated_row(0, &|row| {
-            row.requirements.push(Proposition::Falsehood);
-        }),
-    );
-    divergent(
-        "a reordered requirement roster",
-        &mutated_row(0, &|row| {
-            row.requirements.swap(0, 1);
-        }),
-    );
     // A requirement count lying about its members rejects at decoding.
     for (name, value) in [
         (
@@ -1165,43 +1183,8 @@ fn terminal_obligation_ledger_rejects_every_one_field_substitution() {
         );
     }
 
-    // --- semantic axiom roster ------------------------------------------------
-
-    // The call rows accumulate axioms from the earlier exact operation;
-    // substitute and drop members there, and extend the operation row's empty
-    // roster.
-    assert!(
-        !rows[1].semantic_axioms.is_empty(),
-        "the first call row carries reconstructed axioms"
-    );
-    divergent(
-        "a substituted axiom member",
-        &mutated_row(1, &|row| {
-            let last = row.semantic_axioms.len() - 1;
-            row.semantic_axioms[last] = Proposition::Truth;
-        }),
-    );
-    divergent(
-        "a dropped axiom member",
-        &mutated_row(1, &|row| {
-            row.semantic_axioms.pop();
-        }),
-    );
-    divergent(
-        "an extended axiom roster",
-        &mutated_row(0, &|row| {
-            row.semantic_axioms.push(Proposition::Truth);
-        }),
-    );
-
     // --- canonical-certificate flag --------------------------------------------
 
-    divergent(
-        "the canonical-certificate flag",
-        &mutated_row(0, &|row| {
-            row.canonical_certificate = !row.canonical_certificate;
-        }),
-    );
     let mut mutated = encoded.clone();
     mutated[spans[0].certificate] = 2;
     assert_eq!(
