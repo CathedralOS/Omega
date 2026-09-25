@@ -205,7 +205,7 @@ fn signed_carrier_above(bits: u16) -> Result<IntegerType, LoweringError> {
 
 /// `2^bits - 1` — the residue mask — or `unsupported` if the width exceeds
 /// what a literal can hold.
-fn mask_value(bits: u16) -> Result<u128, LoweringError> {
+pub(super) fn mask_value(bits: u16) -> Result<u128, LoweringError> {
     1_u128
         .checked_shl(u32::from(bits))
         .and_then(|modulus| modulus.checked_sub(1))
@@ -227,7 +227,7 @@ fn and_mask(
     ))
 }
 
-fn shift_right(
+pub(super) fn shift_right(
     operand: LoweredDirectExpression,
     carrier: IntegerType,
     count: u32,
@@ -253,7 +253,7 @@ fn shift_left(
     ))
 }
 
-fn binary(
+pub(super) fn binary(
     kind: LoweredIntegerBinaryKind,
     carrier: IntegerType,
     left: LoweredDirectExpression,
@@ -274,7 +274,10 @@ fn exact_cast(operand: LoweredDirectExpression, target: ScalarType) -> LoweredDi
     }
 }
 
-fn widen(operand: LoweredDirectExpression, carrier: IntegerType) -> LoweredDirectExpression {
+pub(super) fn widen(
+    operand: LoweredDirectExpression,
+    carrier: IntegerType,
+) -> LoweredDirectExpression {
     LoweredDirectExpression::IntegerWiden {
         scalar_type: ScalarType::Integer(carrier),
         operand: Box::new(operand),

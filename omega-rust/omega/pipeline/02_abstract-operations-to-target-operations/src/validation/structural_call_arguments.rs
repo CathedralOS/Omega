@@ -3424,13 +3424,7 @@ fn matches_bounded_byte_field(
             StructuralAccess::SharedBorrow
         )
     ) && declarations.iter().any(|declaration| {
-        declaration.id == actual.structural_type
-            && declaration.shape
-                == terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    },
-                )
+        declaration.id == actual.structural_type && declaration.shape.is_borrowed_byte_view()
     }) && actual.source_byte_offset == field_offset
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()

@@ -224,7 +224,15 @@ fn decode_fields(
 
 fn encode_byte_sequence_carrier(bytes: &mut Vec<u8>, carrier: ByteSequenceCarrier) {
     match carrier {
-        ByteSequenceCarrier::BorrowedView { .. } => bytes.push(1),
+        // The view's access follows its tag; zero is the absent access of a
+        // standalone view type.
+        ByteSequenceCarrier::BorrowedView { access } => {
+            bytes.push(1);
+            match access {
+                Some(access) => encode_access(bytes, access),
+                None => bytes.push(0),
+            }
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.push(2);
             bytes.extend_from_slice(&capacity.to_le_bytes());
@@ -237,7 +245,10 @@ fn decode_byte_sequence_carrier(
 ) -> Result<ByteSequenceCarrier, FixedViewCopyDecodeError> {
     match cursor.byte()? {
         1 => Ok(ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            access: match cursor.byte()? {
+                0 => None,
+                tag => Some(access_from_tag(tag)?),
+            },
         }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
             capacity: cursor.u64()?,
@@ -557,7 +568,11 @@ pub(super) fn encode_access(bytes: &mut Vec<u8>, value: StructuralAccess) {
 pub(super) fn decode_access(
     cursor: &mut Cursor<'_>,
 ) -> Result<StructuralAccess, FixedViewCopyDecodeError> {
-    match cursor.byte()? {
+    access_from_tag(cursor.byte()?)
+}
+
+fn access_from_tag(tag: u8) -> Result<StructuralAccess, FixedViewCopyDecodeError> {
+    match tag {
         1 => Ok(StructuralAccess::Owned),
         2 => Ok(StructuralAccess::SharedBorrow),
         3 => Ok(StructuralAccess::MutableBorrow),
