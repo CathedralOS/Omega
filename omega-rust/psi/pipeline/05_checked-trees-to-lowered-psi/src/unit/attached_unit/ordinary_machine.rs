@@ -1124,6 +1124,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
@@ -1163,9 +1164,6 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => {
                 self.selected_ieee_float_fused_multiply_add(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
-                return unsupported("Unit structural case field store has no lowered operation");
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {

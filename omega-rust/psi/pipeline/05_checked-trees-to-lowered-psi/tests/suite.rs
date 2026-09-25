@@ -26,6 +26,7 @@ mod byte_sequence_subslice;
 mod call_operand_source_custody;
 mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
+mod case_field_member_store;
 mod case_payload_guard_observation;
 mod case_payload_path_boundaries;
 mod case_payload_record_member_read;

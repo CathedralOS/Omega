@@ -1,0 +1,38 @@
+// Regression for the structural case-field member store:
+// `self.boxed.fmt = source.fmt` where `fmt` is a `[copy]` sum and the value
+// is a member read below a borrowed structural parameter. The store mints
+// a CheckedStructuralCaseFieldStorePlan, which lowers through a structural
+// leaf copy of the member plus the destination field's window move/store
+// pair. Previously it declined at lowering ("Unit structural case field
+// store has no lowered operation").
+// An owned `source: Box` stays declined at checked-trees: the parameter is
+// affine, so the member read would be a move leaving a husk, not a copy.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Fmt [copy] {
+    case Decimal;
+    case Hex;
+    case Octal;
+}
+
+data Box {
+    fmt: Fmt;
+    tag: u64;
+}
+
+data Main {
+    console: Binding<Console>;
+    boxed: Box;
+}
+
+machine Main::copy_fmt<'a>(&mut self, source: &'a Box) {
+    self.boxed.fmt = source.fmt;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let source: Box = Box { fmt: Fmt::Hex, tag: 7 };
+    self.copy_fmt(&source);
+    self.console.exit_process(0);
+}
