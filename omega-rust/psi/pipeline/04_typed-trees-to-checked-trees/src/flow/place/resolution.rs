@@ -79,6 +79,18 @@ fn member_type_position(
     symbol_type_position(program, member_symbol)
 }
 
+/// The container a member-parented symbol was looked up in.
+enum ContainerOutcome {
+    /// The parent mapped to a container and the member resolved inside it.
+    Position(MemberPosition),
+    /// The parent mapped to a container but holds no such member — definite
+    /// miss, since symbol storage is keyed to the declaring container.
+    MappedMiss,
+    /// The parent names no jump container (roots, trait signatures,
+    /// operators, machine symbols themselves); the caller must scan.
+    Unmapped,
+}
+
 /// The member-position lookup `symbol_type_position` performs, restricted to
 /// the one container `parent` names. Symbol storage is keyed to the
 /// declaring parent, so a machine-parented member resolves through that
@@ -87,27 +99,30 @@ fn member_type_position(
 /// declaration's fields, and a variant-parented member through that
 /// variant's payload fields — each reproducing the row the whole-program
 /// scan's first match yields. Parents with no container role here (roots,
-/// trait signatures, operators, states, machines themselves) yield nothing
-/// and the caller scans.
+/// trait signatures, operators, machines themselves) are `Unmapped` and the
+/// caller scans.
 fn container_member_type_position(
     program: &typed_trees::TypedTrees,
     parent: SymbolHandle,
     symbol: SymbolHandle,
-) -> Option<MemberPosition> {
+) -> ContainerOutcome {
     if !parent.is_valid() {
-        return None;
+        return ContainerOutcome::Unmapped;
     }
     if let Some(machine) = machine_by_symbol(program, parent) {
         if let Some(field) =
             validation::exact_attached_field(program, machine, symbol, program.symbols.name(symbol))
         {
-            return Some(MemberPosition::Reference(field.type_reference));
+            return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
         }
         return program
             .machine_owned_data(machine)
             .iter()
             .find(|owned| owned.symbol == symbol)
-            .map(|owned| MemberPosition::Reference(owned.type_reference));
+            .map(|owned| {
+                ContainerOutcome::Position(MemberPosition::Reference(owned.type_reference))
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
     }
     if let Some(data) = program
         .data_definitions()
@@ -118,11 +133,12 @@ fn container_member_type_position(
             .data_members(data)
             .iter()
             .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    Some(MemberPosition::Reference(field.type_reference))
-                }
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => Some(
+                    ContainerOutcome::Position(MemberPosition::Reference(field.type_reference)),
+                ),
                 _ => None,
-            });
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
     }
     // A payload field's parent is its variant and the variant's parent is
     // the data row, so two hops reach the same field list the scan walks.
@@ -146,7 +162,10 @@ fn container_member_type_position(
             .data_payload_fields(variant)
             .iter()
             .find(|field| field.symbol == symbol)
-            .map(|field| MemberPosition::Reference(field.type_reference));
+            .map(|field| {
+                ContainerOutcome::Position(MemberPosition::Reference(field.type_reference))
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
     }
     if let Some(state) = crate::semantic::calls::find_state(program, parent) {
         if let Some(parameter) = program
@@ -154,7 +173,7 @@ fn container_member_type_position(
             .iter()
             .find(|parameter| parameter.symbol == symbol)
         {
-            return Some(MemberPosition::Reference(parameter.type_reference));
+            return ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference));
         }
         return program
             .statement_table
@@ -164,12 +183,15 @@ fn container_member_type_position(
                 typed_trees::statement::StatementNode::LocalData(local_data)
                     if local_data.symbol == symbol =>
                 {
-                    Some(MemberPosition::Reference(local_data.type_reference))
+                    Some(ContainerOutcome::Position(MemberPosition::Reference(
+                        local_data.type_reference,
+                    )))
                 }
                 _ => None,
-            });
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
     }
-    None
+    ContainerOutcome::Unmapped
 }
 
 /// The position a resolved symbol's declared type points at. Unlike
@@ -191,12 +213,27 @@ pub(super) fn symbol_type_position(
     // produced, without walking every unrelated machine, signature,
     // operator, and data row. A parent carrying no container role (roots,
     // signatures, operators) or a miss inside the jump keeps the full scan.
-    if let Some(position) =
-        container_member_type_position(program, program.symbols.get(symbol).parent, symbol)
-    {
-        return Some(position);
+    let parent = program.symbols.get(symbol).parent;
+    match container_member_type_position(program, parent, symbol) {
+        ContainerOutcome::Position(position) => return Some(position),
+        // A symbol whose parent is one of the containers the jump indexes
+        // cannot hold a scanned position elsewhere: symbol storage is keyed
+        // to the declaring container, so a miss inside the mapped parent is
+        // definite and the scan is skipped entirely. Only unmapped parents
+        // (roots, trait signatures, operators, machine symbols themselves)
+        // still scan.
+        ContainerOutcome::MappedMiss => return None,
+        ContainerOutcome::Unmapped => {}
     }
+    whole_program_member_type_position(program, symbol)
+}
 
+/// The original whole-program member scan: machines and their states, trait
+/// signatures, operators, and data rows, first match wins.
+fn whole_program_member_type_position(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<MemberPosition> {
     for machine in program.machines() {
         // Bare attached fields retain an inherited machine symbol. Resolve its
         // exact declaration type before walking child fields; missing child
