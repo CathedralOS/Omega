@@ -1,5 +1,7 @@
 //! Denotational-call admission below a proof integer embedding.
 
+use std::collections::HashSet;
+
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceHandle,
     TypeReferenceNode, TypedTrees, collect_expression_nodes, expression_type_reference,
@@ -17,12 +19,13 @@ pub(crate) fn validate_integer_embedding_calls(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Vec<ValidatedIntegerEmbeddingCall> {
     let mut nodes = Vec::new();
+    let mut seen = HashSet::new();
     for (_, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression
             && is_exact_embed_call(program, call)
         {
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_nodes(program, *argument, &mut nodes);
+                collect_expression_nodes(program, *argument, &mut nodes, &mut seen);
             }
         }
     }

@@ -2,6 +2,8 @@
 //! Keep one visited roster so shared children and malformed cycles cannot make
 //! owner lookup duplicate or indefinitely revisit an expression occurrence.
 
+use std::collections::HashSet;
+
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -9,12 +11,13 @@ pub(crate) fn collect_expression_nodes(
     program: &TypedTrees,
     expression: ExpressionHandle,
     nodes: &mut Vec<ExpressionHandle>,
+    seen: &mut HashSet<ExpressionHandle>,
 ) {
-    if !expression.is_valid() || nodes.contains(&expression) {
+    if !expression.is_valid() || !seen.insert(expression) {
         return;
     }
     nodes.push(expression);
-    let mut recurse = |child| collect_expression_nodes(program, child, nodes);
+    let mut recurse = |child| collect_expression_nodes(program, child, nodes, seen);
     match program.expression_table.expression(expression) {
         ExpressionNode::Match(dispatch) => {
             for child in super::match_children(program, *dispatch) {

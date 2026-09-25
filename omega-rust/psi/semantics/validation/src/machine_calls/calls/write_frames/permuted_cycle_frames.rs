@@ -212,6 +212,13 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
         delta = next_delta;
     }
 
+    // The fixed point solves every reachable cyclic state at once, and every
+    // solved state's reachable region is already inside this equation set —
+    // record all of them in the shared memo so the next state's complete-frame
+    // query reads this solve instead of re-running the same equation system.
+    for (symbol, writes) in &summaries {
+        complete_state_summaries.push((*symbol, writes.clone()));
+    }
     summaries
         .into_iter()
         .find_map(|(symbol, writes)| (symbol == entry.symbol).then_some(writes))
