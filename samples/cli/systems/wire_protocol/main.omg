@@ -132,8 +132,13 @@ machine Main::main(&mut self) reaches Console {
 // author plan(), everything else is derived). The std layout vocabulary is
 // inlined because temp/sample programs do not resolve `use omega::...` paths.
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data SchemaField where 0 <= size, size <= 4096, 1 <= align, align <= 16 {
+    size: i64;
+    align: i64;
+    number: i64;
+    kind: FieldKind;
+}
+data Schema where 0 <= field_count, field_count <= 32 { fields: [SchemaField; 32]; field_count: i64; }
 data FieldPlan [copy] {
     case At(offset: i64);
     case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
@@ -151,18 +156,24 @@ machine CompactBinary::plan(&mut self, schema: Schema) -> Plan
     self.evaluate(schema, 128)
 }
 
-machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+requires 1 <= fuel
+requires fuel <= 128
 terminates by fuel;
 {
     transition { _ -> fill(schema, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=128], index: i64 in Wrapping) {
+    state fill(&mut self, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    requires 1 <= fuel
+    requires fuel <= 128 {
         transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {
             true -> place(schema, fuel - 1, index)
             _ -> done(schema)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64 [1..=128], index: i64 in Wrapping) {
+    state place(&mut self, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    requires 1 <= fuel
+    requires fuel <= 128 {
         self.tag = schema.fields[index].number;
         self.plans[index] = field_plan(schema.fields[index].kind, self.tag);
         transition fuel > 1 { true -> fill(schema, fuel - 1, index + 1) _ -> done(schema) }
