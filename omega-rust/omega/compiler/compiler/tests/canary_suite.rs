@@ -1082,6 +1082,15 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // payload; promote to ROOTED_BACKEND/ACTIVE once native production
     // plans the record-literal field store.
     "relevance/erased_case_payload_field_exit",
+    // Both pin a fix as a run canary, but only checked semantics ever ran
+    // them (the corpus outcome is `checked`); the native route refuses today.
+    // `sum_shared_receiver_exit` stops at Terminal production with the very
+    // gate it names as fixed: "shared case operand requires a whole scalar
+    // sum". `case_payload_record_member_read` stops at Terminal validation:
+    // `UnknownStructuralArgument` for the staged member leaf copy's argument.
+    // Promote each to ROOTED_BACKEND/ACTIVE once it compiles natively.
+    "calls/sum_shared_receiver_exit",
+    "structural/case_payload_record_member_read",
     // The `filesystem/native_*` family: authored as native canaries but never
     // runnable, with no `build.omg` and the retired `omega::language::std`
     // import spelling. With an ordinary build declaration and the
@@ -2907,6 +2916,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "text/runtime_pointee_string_guard_exit",
     "text/runtime_string_field_literal_guard_exit",
     "text/runtime_bounded_byte_field_read_exit",
+    "structural/borrowed_byte_view_member_result",
     "text/runtime_mutable_string_parameter_concat_exit",
     "text/runtime_mutable_string_parameter_concat_write_line",
     "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
@@ -4623,6 +4633,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_pointee_string_guard_exit",
     "text/runtime_string_field_literal_guard_exit",
     "text/runtime_bounded_byte_field_read_exit",
+    "structural/borrowed_byte_view_member_result",
     "text/runtime_mutable_string_parameter_concat_exit",
     "text/runtime_mutable_string_parameter_concat_write_line",
     "text/runtime_mutable_string_parameter_wrapped_concat_write_line",
@@ -5085,6 +5096,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "data/unbounded_integer_field",
     "float/exclusive_float_range_endpoint_rejected",
     "traits/trait_invariant_clause_retired",
     "traits/trait_contract_undeclared_self_member",
