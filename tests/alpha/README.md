@@ -44,9 +44,30 @@ call, access above the stack origin, and overlapping call storage.
 
 macOS arm64 and Linux x86-64 execution are validated for the identities in the
 [seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
-Windows native execution remains outstanding; exact PE reconstruction and source
-review do not establish that host result. These tests do not discharge native
-correspondence proofs.
+These tests do not discharge native correspondence proofs.
+
+Windows x64 execution is now measured on Git Bash with the selected seed:
+`bounds.py` passes 78/78 native cases, the Beta reconstruction tape reproduces
+its compiler byte-identically, `io-registers.hex` returns 0 with stdout
+`ABCDEF` for input `AB`, and 29 of 34 `conformance.sh` cases pass. The five
+red cases decompose into one real divergence and one host-observation limit:
+
+- `div_zero_trap`/`div_ovf_trap` reach the hardware `0xC0000094`
+  (`STATUS_INTEGER_DIVIDE_BY_ZERO`) fault rather than the illegal-instruction
+  trap routine that unknown opcodes and memory bounds deliver (`0xC000001D`,
+  which Git Bash reports as 132). The semantic Trap contract — a
+  non-resumable halt that preserves the stdout prefix and appends no bytes —
+  still holds, but the audited mechanism says implementations raise an
+  illegal instruction, and the Windows divide/remainder handlers do not carry
+  the divisor pre-check the Linux and arm64 seeds use for exactly this
+  hardware/OS mismatch.
+- `div_neg`/`mod_neg`/`read_eof` (and the diamond's `jlt_signed` via its
+  halt-r0 target) halt with a sign-bit-set register. The seed exits with the
+  raw low-32 code (PowerShell reads `$LASTEXITCODE = -5` for a `-5` halt), so
+  the VM itself is correct; Git Bash collapses every negative process exit
+  code to 127, which makes the byte-level expected values unobservable through
+  that shell. Those cases need a native-shell observation route or a
+  normalized expected-127 surface on MSYS hosts.
 
 ## Register isolation
 

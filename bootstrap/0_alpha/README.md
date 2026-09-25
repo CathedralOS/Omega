@@ -34,8 +34,11 @@ address is `0x140004000`, and `SizeOfImage` is `0x1004000`. The loader calls
 PAGE_READWRITE)` through a fourth import entry, traps on a null return, and
 keeps `MEMSIZE`/`MEMSIZE-8` in callee-saved `r13`/`r14` because `imm32` cannot
 encode the extent. The tape hole still begins at file offset `0x1400`.
-Windows runtime validation is not established by the listing's exact
-reconstruction.
+Windows execution is now measured: the container reconstructs exactly and
+executes, but divide/remainder traps take the hardware `0xC0000094` fault
+rather than the audited illegal-instruction routine; see
+[bounds conformance](../../tests/alpha/README.md#bounds-conformance) for the
+measured record.
 
 The Linux x86-64 realization is a static ELF64 built from
 `alpha_x64_linux.s` with GNU `as` and `ld -s --build-id=none` (binutils
@@ -103,9 +106,8 @@ and stack accesses in `0x2000000000..0x200000000000` admitted rather than
 trapped, so macOS MEMSIZE validation stays unestablished. The x64 seeds
 already encode the specified extent.
 See [bounds conformance](../../tests/alpha/README.md#bounds-conformance) for
-tested behavior and observation limits. macOS execution and source rebuild
-are checked on a macOS host; Windows listing reconstruction is not Windows
-runtime validation.
+tested behavior, observation limits, and the measured Windows execution
+record. macOS execution and source rebuild are checked on a macOS host.
 
 Windows host I/O scratch occupies RVAs `0x3800..0x381f`, immediately after
 the 256 eight-byte Alpha registers at `0x3000..0x37ff`; semantic memory is
@@ -116,8 +118,9 @@ for the native word read. All storage fits the existing writable zeroed page.
 This corrects the former alias with registers 16–19 by relocating eleven
 address immediates (22 binary bytes), without adding instructions or capacity.
 The [register fixture](../../tests/alpha/io-registers.hex) checks initial zero
-values, full-word preservation, and direct I/O operands. Its macOS/reference
-results do not establish Windows runtime validation.
+values, full-word preservation, and direct I/O operands. On Windows it
+returns exit 0 with stdout `ABCDEF` for input `AB`, so the host's I/O
+scratch no longer aliases registers 16–19 at runtime either.
 
 ## Owned files
 
