@@ -258,6 +258,14 @@ pub(super) fn enforce_construction_field_obligations(
                     &owner,
                     &mut throwaway,
                 );
+                // The value's standing bounds, including an immutable
+                // parameter's own arrival `requires`, hold wherever it is read.
+                let interval = match crate::proof_contracts::arithmetic_domains::immutable_integer_expression_interval(
+                    program, machine, state, field.value,
+                ) {
+                    Some(standing) => interval.intersect(standing),
+                    None => interval,
+                };
                 let provably_in_range = range
                     .low()
                     .is_none_or(|low| interval.low().is_some_and(|value_low| value_low >= low))

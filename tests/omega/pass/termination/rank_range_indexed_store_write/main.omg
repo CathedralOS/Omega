@@ -13,14 +13,18 @@ machine Main::main(&mut self) -> u64 {
     transition { _ -> self.walk(5, 1, &mut self.cells) }
 }
 
-machine Main::walk(&mut self, remaining: u64 [0..=5], step: u64 [1..=2], bulk: &mut [u64; 4])
+machine Main::walk(&mut self, remaining: u64, step: u64, bulk: &mut [u64; 4])
 terminates by remaining in 0..=5;
--> u64 {
+-> u64
+requires remaining <= 5 && 1 <= step && step <= 2
+{
     transition remaining >= step {
         true -> iterate(remaining, step, bulk)
         false -> remaining
     }
-    state iterate(&mut self, pending: u64 [0..=5], step: u64 [1..=2], slots: &mut [u64; 4]) -> u64 {
+    state iterate(&mut self, pending: u64, step: u64, slots: &mut [u64; 4]) -> u64
+    requires pending <= 5 && 1 <= step && step <= 2
+    {
         slots[0] = pending;
         self.entries[1] = step;
         transition pending >= step {

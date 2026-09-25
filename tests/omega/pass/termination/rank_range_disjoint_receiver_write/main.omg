@@ -7,8 +7,10 @@ machine Main::main(&mut self) -> u64 {
     transition { _ -> self.walk(0, 4) }
 }
 
-machine Main::walk(&mut self, index: u64, limit: u64 [0..=10])
-requires index <= limit;
+machine Main::walk(&mut self, index: u64, limit: u64)
+requires
+    limit <= 10;
+    index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);
 -> u64 {
     self.visited = index;

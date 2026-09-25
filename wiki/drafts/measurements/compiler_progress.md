@@ -13,11 +13,10 @@ applications have not answered this question: each stops once, at one wall.
 The corpus of 2,059 small pass fixtures, each pinning one rule, reports a
 coverage fraction per tier and per language surface instead.
 
-Revision `e526ef3f54` (origin/main, 2026-09-23). Host: Windows x86-64. The
-owner verdicts come from one release-profile run of the whole `canary_suite`
-(1,511 tests, 1,518 s); the umbrella rows from the dev-profile pass and fail
-umbrellas at `bf3640c39d` (1,310 s and 56 s), whose route the change between
-the two revisions does not exercise.
+Revision `521637cc5d` (origin/main, 2026-09-24). Host: Windows x86-64, 24 cores.
+The owner verdicts come from one run of the whole `canary_suite` in the test
+profile at opt-level 1 with 20 threads (1,484 tests, 948 s); the umbrella rows
+from the pass and fail umbrellas at the same revision (167 s and 10 s).
 
 ```text
 python tools/progress.py --pass-log <pass.log> --fail-log <fail.log> --samples-log <samples.log>
@@ -43,10 +42,10 @@ verified fixture.** Across all
 120 sections: 73 run, 13 compile, 10 check,
 24 have none.
 
-Of the 2,030 pass fixtures, 158 run, 94 compile, 692 check, 892 fail some run
-and 194 are judged by neither route. At `e526ef3f54` on 2026-09-23 the same
-numbers were ,, 154, ,, 92 and ,; the movement since is the three
-repairs described below.
+Of the 2,036 pass fixtures, 284 run, 102 compile, 695 check, 760 fail some run
+and 195 are judged by neither route. At `cf7b8baa2b` earlier on 2026-09-24 the same
+numbers were ,, 158, ,, 94 and ,; the movement since is the day's upstream
+landings, described below.
 
 | Measurement | Value | Reads as |
 | --- | --- | --- |
@@ -54,12 +53,12 @@ repairs described below.
 | core+typical sections whose best fixture only compiles | 7/66 | a native artifact exists, never executed |
 | core+typical sections whose best fixture only checks | 2/66 | the language rule is understood, not realized |
 | all sections: runs / compiles / checks / none | 73 / 13 / 10 / 24 of 120 | breadth over the whole language |
-| pass fixtures: runs / compiles / checks / fails / unmeasured | 158 / 94 / 692 / 892 / 194 of 2,030 | depth: distinct fixtures |
-| elided fixtures judged by their dedicated owner: runs | 158/913 | the rooted native route with execution |
-| owner failures by stage | compile 748, other 4, run 3 | what fails, fails before execution |
+| pass fixtures: runs / compiles / checks / fails / unmeasured | 284 / 102 / 695 / 760 / 195 of 2,036 | depth: distinct fixtures |
+| elided fixtures judged by their dedicated owner: runs | 284/916 | the rooted native route with execution |
+| owner failures by stage | compile 624, other 5, run 3 | what fails, fails before execution |
 | spec sections exercised by any pass fixture | 98/120 | the corpus's own coverage of the spec |
-| fail fixtures rejecting with their expected diagnostic | 1,158/1,158 | the compiler refuses what it should |
-| pass fixtures some roster runs | 2,000/2,030 | how much of the corpus is rostered at all |
+| fail fixtures rejecting with their expected diagnostic | 1,157/1,157 | the compiler refuses what it should |
+| pass fixtures some roster runs | 2,005/2,036 | how much of the corpus is rostered at all |
 | construct pairs that matter, covered by a fixture | 31/31 | combinations real samples spell |
 
 The distance, stated plainly: the compiler understands most of the language
@@ -76,21 +75,18 @@ at run time, all interpreter-oracle filesystem fixtures on Windows
 `windows_fs_wrapper_breadth_exit`) that exit 0 where 70 is expected.
 
 On the rooted route the omission sites, by the phase the construction
-trace names (622 owner failures name one, over 57 phases at `3b4e69c19b`),
-group into families. Stores into a structural field own 230: no pure source
-74, a case-typed leaf 60, a scalar-typed leaf 40, the destination parameter
-40, the carrier path 11, a byte carrier 5. Then structural call binding of a
-local 48, the state graph's result signature 35 (a multi-state machine that
-returns a scalar has no route there), a guard expression 33, an unsupported
-statement kind 31, a pure scalar initializer 28, write-frame agreement 18,
-a bound prefix initializer 16. The 76 that stopped at "call operation" now
-name their guard: a scalar result over structural operands with no
-registered producer 14 (admitted to the closure since `71687a843b`), the
-argument planner's parameter path 11, caller structural result 11, source
-symbol 7, parameter access 4, alias and identity 3, parameter source 1;
-projected operand support 8; boundary arguments 8 and boundary claim
-transfers 7; scalar arguments 1; a linear structural result 1. Every site is
-in `typed-trees-to-checked-trees`, so this wall is host-neutral.
+trace names (487 owner failures name one, over 62 phases at `521637cc5d`),
+group into families. Stores into a structural field own 152: a value with
+no scalar-expression row 47, a destination that is not a parameter 44, a
+scalar-typed leaf 27, the carrier path 14, a borrowed view field 10, a
+case-typed leaf 10 (60 the day before). Then structural call binding of a
+local 42, an unsupported statement kind 25, a guard expression 21, a pure
+scalar initializer 20, a bound prefix initializer 14, write-frame agreement
+14, and the call-operation guards (projected operand support 12, parameter
+path 11). The state graph's result signature, 40 the day before, no longer
+appears: multi-state scalar machines now forward their structural formals
+per state. Every site is in `typed-trees-to-checked-trees`, so this wall is
+host-neutral.
 
 The Windows wall that hid all of this is gone. Until 2026-09-23 every rooted
 fixture that exited through `Console::exit_process` stopped at "selected
@@ -101,15 +97,22 @@ kernel syscall, which Windows does not have. They now bind kernel32
 Windows-specific: `write_byte` and `read_byte` are still intrinsics without
 a hosted realization, so the fixtures and samples that print stop there.
 
-Three host-neutral repairs followed on 2026-09-24. A scalar-result call with
-structural operands is planned and resolved by the candidate closure instead
-of refused at construction (`71687a843b`); a single-state attached machine
-with `&mut self` and a structural formal keeps its scalar graph, which a
-same-day widening had excluded as a side effect (`75decc76bc`); and the
-verifier treats a machine's shared `&[T]` input as established at entry
-(`cf7b8baa2b`). Together they move 4 owner fixtures to running and the
-remaining call-site failures onto their callees' own walls, which is why the
-state graph's result signature grew from 35 to 40.
+The movement on 2026-09-24 is 126 more fixtures running end to end (158 to
+284) and 153 more owner tests passing (451 to 604). Three host-neutral
+repairs opened it: a scalar-result call with structural operands is planned
+and resolved by the candidate closure instead of refused at construction
+(`71687a843b`); a single-state attached machine with `&mut self` and a
+structural formal keeps its scalar graph (`75decc76bc`); and the verifier
+treats a machine's shared `&[T]` input as established at entry
+(`cf7b8baa2b`). The rest landed upstream the same day: scalar graphs carry
+whole mixed signatures across multiple states, case stores and view
+construction reach the Unit builder, and named-view record members mint
+under their reference shell. Four owner tests regressed in those landings
+and are open on this host: two range-inference tests stop at "quoted byte
+literal cannot initialize owned fixed byte array `[u8; ObjectLength]`", a
+hosted-read test cannot prove a `byte` requires contract, and
+`fail/calls/value_call_param_effect_arm_rejected` no longer rejects with
+its expected fragment.
 
 The next wall the same fixtures reach is in the Omega backend: the
 legalization replay reports `Selection(SourceCustodyMismatch)` for a

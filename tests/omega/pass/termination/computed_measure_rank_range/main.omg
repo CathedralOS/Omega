@@ -9,9 +9,11 @@ data Countdown {}
 
 measure Countdown::Doubled(value: u8) -> u8 { value * 2 }
 
-machine walk(remaining: u8 [0..=100])
+machine walk(remaining: u8)
 terminates by remaining -> Countdown::Doubled in 0..=200;
--> u8 {
+-> u8
+requires remaining <= 100
+{
     transition remaining > 0 {
         true -> walk(remaining - 1)
         false -> remaining
