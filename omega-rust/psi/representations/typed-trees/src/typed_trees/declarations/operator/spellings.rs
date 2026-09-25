@@ -5,7 +5,8 @@ use crate::operator::indexing;
 use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches;
 use crate::typed_trees::declarations::operator::{
-    OperatorConstBinding, OperatorDefinition, SpelledOperator, selected_trait_operator_meanings,
+    OperatorConstBinding, OperatorDefinition, SpelledOperator,
+    selected_trait_operator_meaning_exists,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_core::operator_spelling::OperatorSpelling;
@@ -148,9 +149,18 @@ pub fn has_builtin_spelled_expression_meaning(
         AuthoredDeclarationSelectionLateBinding as LateBinding,
         AuthoredDeclarationSelectionTarget as Target,
     };
-    resolve_spelling_for_operands(program, spelling, operand_types).is_empty()
-        && selected_trait_operator_meanings(program, machine_symbol, spelling, operand_types)
-            .is_empty()
+    // Existence only: both resolution walks stop at the first match instead
+    // of materializing candidate sets whose per-candidate operand matching
+    // allocates generic substitutions.
+    !spelling_for_operands_exists(
+        program,
+        spelling,
+        &operand_types
+            .iter()
+            .copied()
+            .map(OperandType::from_reference)
+            .collect::<Vec<_>>(),
+    ) && !selected_trait_operator_meaning_exists(program, machine_symbol, spelling, operand_types)
         && program
             .expression_table
             .authored_selection_occurrences(expression)
@@ -166,6 +176,19 @@ pub fn has_builtin_spelled_expression_meaning(
                         )
                     })
             })
+}
+
+/// [`resolve_spelling_for_operand_types`] existence without collecting: stops
+/// at the first operand-matched candidate instead of materializing the whole
+/// set and evaluating every candidate's substitution.
+fn spelling_for_operands_exists(
+    program: &TypedTrees,
+    spelling: OperatorSpelling,
+    operand_types: &[OperandType],
+) -> bool {
+    resolve_spelling(program, spelling, None)
+        .into_iter()
+        .any(|candidate| operator_matches_operands(program, candidate.operator, operand_types))
 }
 
 fn operator_matches_operands(

@@ -24,7 +24,10 @@ pub struct SymbolTable {
     root: SymbolHandle,
     supplemental_top_level: Vec<SymbolHandle>,
     module_symbols: Arena<SymbolHandle>,
-    source_modules: Arena<modules::SourceModule>,
+    /// Dense `SourceId`-indexed map from a source to its declared module:
+    /// a linear scan per lookup would cost `O(#sources)` on every
+    /// module-qualified name walk.
+    source_module_index: Vec<SymbolHandle>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -184,7 +187,7 @@ impl SymbolTableBuilder {
             root: self.root,
             supplemental_top_level: Vec::new(),
             module_symbols: Arena::new(),
-            source_modules: Arena::new(),
+            source_module_index: Vec::new(),
         }
     }
 
