@@ -1,3 +1,4 @@
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use std::collections::BTreeSet;
@@ -53,13 +54,15 @@ pub(super) enum Truth {
 }
 
 /// Slice 9: a literal field VALUE's sound interval -- an integer literal is
-/// a point; a Name/Member place with a declared range contributes that
-/// range intersected with its primitive width; anything else is unknown.
+/// a point; a Name/Member place contributes its standing bounds (declared
+/// range, immutable parameter `requires`, field `where` facts) or a local's
+/// initializer; anything else is unknown.
 pub(super) fn value_bounds(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    environment: &ValueEnvironment,
 ) -> Bounds {
     match program.expression_table.expression(expression) {
         ExpressionNode::String(literal) => Bounds::sequence(literal.len()),
@@ -68,183 +71,81 @@ pub(super) fn value_bounds(
             .parse::<i64>()
             .map(Bounds::point)
             .unwrap_or(Bounds::UNKNOWN),
-        ExpressionNode::Borrow(inner) => value_bounds(program, machine, state, inner.target),
+        ExpressionNode::Borrow(inner) => {
+            value_bounds(program, machine, state, inner.target, environment)
+        }
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-            // RAW keeps the Constrained shell that carries the declared
-            // range (the unwrapping variant strips it).
-            let Some(handle) = crate::value_custody::places::declared_place_type_raw(
+            let mut bounds = Bounds::UNKNOWN;
+            if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+                bounds.symbol = path.symbol;
+            }
+            // Standing bounds first: a declared range, an immutable
+            // parameter's own arrival `requires`, and a field's `where`
+            // facts. A mutable place keeps only what every store enforces:
+            // its declared range and its data's `where` facts.
+            let interval =
+                crate::proof_contracts::arithmetic_domains::immutable_integer_expression_interval(
+                    program, machine, state, expression,
+                )
+                .or_else(|| {
+                    let declared = crate::value_custody::places::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    )
+                    .and_then(|handle| {
+                        crate::proof_contracts::arithmetic_domains::range_constraint_interval(
+                            program, handle,
+                        )
+                    });
+                    let facts = crate::proof_contracts::default_domains::where_fact_interval(
+                        program,
+                        machine,
+                        Some(state),
+                        expression,
+                    );
+                    match (declared, facts) {
+                        (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
+                        (declared, facts) => declared.or(facts),
+                    }
+                });
+            if let Some(interval) = interval {
+                bounds.low = interval.low;
+                bounds.high = interval.high;
+            }
+            if let Some(local) = local_initializer_bounds(program, state, expression) {
+                bounds.low = local.low;
+                bounds.high = local.high;
+                bounds.length = local.length;
+                bounds.capacity = local.capacity;
+            }
+            bounds
+        }
+        // An arithmetic value takes the analyzer's interval under the
+        // construction's guard facts. Its own overflow obligation is reported
+        // by the ordinary statement walk, so those diagnostics are dropped.
+        ExpressionNode::Binary(_) | ExpressionNode::Unary(_) | ExpressionNode::Cast(_) => {
+            let mut throwaway = Vec::new();
+            let interval = crate::proof_contracts::arithmetic_domains::validate_arithmetic_domains(
                 program,
                 machine,
                 Some(state),
                 expression,
-            ) else {
-                let mut bounds = Bounds::UNKNOWN;
-                if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
-                {
-                    bounds.symbol = path.symbol;
-                    if let Some(required) = requires_contract_bounds(program, machine, expression) {
-                        bounds.low = required.low;
-                        bounds.high = required.high;
-                    }
-                    if let Some(local) = local_initializer_bounds(program, state, expression) {
-                        bounds.low = local.low;
-                        bounds.high = local.high;
-                        bounds.length = local.length;
-                        bounds.capacity = local.capacity;
-                    }
-                }
-                return bounds;
-            };
-            let mut bounds =
-                match crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-                    program, handle,
-                ) {
-                    Some(interval) => Bounds {
-                        low: interval.low,
-                        high: interval.high,
-                        ..Bounds::UNKNOWN
-                    },
-                    None => Bounds::UNKNOWN,
-                };
-            if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
-                bounds.symbol = path.symbol;
-                // A declared range, where there is one, already decided the
-                // interval above; a `requires` clause narrows a place that
-                // carries no declared range of its own, which is the ordinary
-                // shape for a plain `i32` parameter.
-                if bounds.low.is_none()
-                    && bounds.high.is_none()
-                    && let Some(required) = requires_contract_bounds(program, machine, expression)
-                {
-                    bounds.low = required.low;
-                    bounds.high = required.high;
-                }
-                if let Some(local) = local_initializer_bounds(program, state, expression) {
-                    bounds.low = local.low;
-                    bounds.high = local.high;
-                    bounds.length = local.length;
-                    bounds.capacity = local.capacity;
-                }
+                environment,
+                None,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+                "construction value",
+                &mut throwaway,
+            );
+            Bounds {
+                low: interval.low,
+                high: interval.high,
+                ..Bounds::UNKNOWN
             }
-            bounds
         }
         _ => Bounds::UNKNOWN,
     }
-}
-
-/// The interval a machine's own `requires` clauses pin on one named place.
-///
-/// A declared range always holds and needs no site reasoning, which is why it
-/// is consulted first. A `requires` clause holds too -- at every call site,
-/// because the caller discharges it -- so a parameter it bounds carries that
-/// interval THROUGHOUT the machine body, including at a construction gate.
-/// Only the literal-comparison shapes are read, one clause at a time, and
-/// several clauses narrow the same place: `requires 1 <= strength, strength
-/// <= 100` yields `[1, 100]`. A clause this does not recognize contributes
-/// nothing rather than widening anything, so the result stays sound.
-fn requires_contract_bounds(
-    program: &TypedTrees,
-    machine: &Machine,
-    expression: ExpressionHandle,
-) -> Option<Bounds> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let name = program
-        .expression_table
-        .name_path_members(path.members)
-        .last()?
-        .as_str()
-        .to_owned();
-    // A place is the same place as the clause's mention when the resolved
-    // symbols agree; the spelling is the fallback for an unresolved mention.
-    let names_the_place =
-        |candidate: ExpressionHandle| match program.expression_table.expression(candidate) {
-            ExpressionNode::Name(other) => {
-                (path.symbol.is_valid() && other.symbol == path.symbol)
-                    || program
-                        .expression_table
-                        .name_path_members(other.members)
-                        .last()
-                        .is_some_and(|member| member.as_str() == name)
-            }
-            _ => false,
-        };
-    let literal = |candidate: ExpressionHandle| match program.expression_table.expression(candidate)
-    {
-        ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
-        _ => None,
-    };
-    let mut low: Option<i64> = None;
-    let mut high: Option<i64> = None;
-    let mut raise = |value: i64| low = Some(low.map_or(value, |current: i64| current.max(value)));
-    let mut lower = |value: i64| high = Some(high.map_or(value, |current: i64| current.min(value)));
-    for contract in program.signature_contracts.span_or_empty(machine.contracts) {
-        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
-            continue;
-        }
-        for fact in program.proof_facts.span_or_empty(contract.facts) {
-            let typed_trees::domain::ProofFact::Expression(clause) = fact else {
-                continue;
-            };
-            let ExpressionNode::Binary(binary) = program.expression_table.expression(*clause)
-            else {
-                continue;
-            };
-            let (left, right) = (binary.left, binary.right);
-            use typed_trees::expression::BinaryOperator;
-            match binary.operator {
-                // `bound <= place` and `bound < place` raise the floor;
-                // `place <= bound` and `place < bound` lower the ceiling.
-                BinaryOperator::LessOrEqual if names_the_place(right) => {
-                    if let Some(bound) = literal(left) {
-                        raise(bound);
-                    }
-                }
-                BinaryOperator::Less if names_the_place(right) => {
-                    if let Some(bound) = literal(left) {
-                        raise(bound.saturating_add(1));
-                    }
-                }
-                BinaryOperator::LessOrEqual if names_the_place(left) => {
-                    if let Some(bound) = literal(right) {
-                        lower(bound);
-                    }
-                }
-                BinaryOperator::Less if names_the_place(left) => {
-                    if let Some(bound) = literal(right) {
-                        lower(bound.saturating_sub(1));
-                    }
-                }
-                BinaryOperator::GreaterOrEqual if names_the_place(left) => {
-                    if let Some(bound) = literal(right) {
-                        raise(bound);
-                    }
-                }
-                BinaryOperator::Greater if names_the_place(left) => {
-                    if let Some(bound) = literal(right) {
-                        raise(bound.saturating_add(1));
-                    }
-                }
-                BinaryOperator::GreaterOrEqual if names_the_place(right) => {
-                    if let Some(bound) = literal(left) {
-                        lower(bound);
-                    }
-                }
-                BinaryOperator::Greater if names_the_place(right) => {
-                    if let Some(bound) = literal(left) {
-                        lower(bound.saturating_sub(1));
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    (low.is_some() || high.is_some()).then_some(Bounds {
-        low,
-        high,
-        ..Bounds::UNKNOWN
-    })
 }
 
 fn local_initializer_bounds(
@@ -488,6 +389,7 @@ pub(super) fn validate_literal_default_domain(
     state: &State,
     literal: &TableStructLiteral,
     data_definition: &DataDefinition,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if data_definition.where_facts.is_empty() {
@@ -506,6 +408,7 @@ pub(super) fn validate_literal_default_domain(
         &format!("data `{}`", literal.type_name.as_str()),
         "the default domain",
         "default-domain",
+        environment,
         diagnostics,
     );
 }
@@ -522,6 +425,7 @@ pub(super) fn validate_literal_case_constraints(
     data_definition: &DataDefinition,
     case_name: &str,
     variant: &typed_trees::data::DataVariant,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if variant.where_facts.is_empty() {
@@ -564,6 +468,7 @@ pub(super) fn validate_literal_case_constraints(
         &format!("data `{}` case `{case_name}`", literal.type_name.as_str()),
         "the case constraint",
         "case",
+        environment,
         diagnostics,
     );
 }
@@ -634,6 +539,7 @@ fn fold_literal_facts(
     subject: &str,
     fact_label: &str,
     fact_adjective: &str,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Slice 9: each field's value resolves to an INTERVAL -- an integer
@@ -642,7 +548,7 @@ fn fold_literal_facts(
     // (declared ranges always hold); anything else is unknown.
     let mut valuation: Vec<(&str, Bounds)> = Vec::new();
     for field in program.expression_table.struct_fields(literal.fields) {
-        let value = value_bounds(program, machine, state, field.value);
+        let value = value_bounds(program, machine, state, field.value, environment);
         valuation.push((field.name.as_str(), value));
     }
     for fact in program.proof_facts.span_or_empty(facts) {

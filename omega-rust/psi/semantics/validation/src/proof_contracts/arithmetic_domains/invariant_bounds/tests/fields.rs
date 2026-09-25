@@ -6,6 +6,25 @@ use typed_trees::name::Identifier;
 use typed_trees::statement::StatementNode;
 
 #[test]
+fn field_reads_carry_their_datas_where_facts() {
+    for (facts, expected) in [
+        ("value >= 8, value <= 12", Some((8, 12))),
+        ("8 <= value && value <= 12", Some((8, 12))),
+        // A fact about a sibling field bounds nothing here.
+        ("divisor <= 4", None),
+    ] {
+        assert_eq!(
+            query(&format!(
+                "data Inputs where {facts} {{ value: u16; divisor: u16; }}
+                 machine value(input: Inputs) -> u16 {{ input.value }}"
+            )),
+            expected.or(Some((0, 65535))),
+            "{facts}"
+        );
+    }
+}
+
+#[test]
 fn direct_fields_and_scalar_operands_share_exact_arithmetic_bounds() {
     for (expression, expected) in [
         ("input.value", (8, 12)),

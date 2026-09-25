@@ -226,7 +226,14 @@ fn scan_expression(
             diagnostics,
         ),
         ExpressionNode::StructLiteral(literal) => {
-            validate_literal_field_names(program, machine, state, literal, diagnostics);
+            validate_literal_field_names(
+                program,
+                machine,
+                state,
+                literal,
+                environment,
+                diagnostics,
+            );
             enforce_construction_field_obligations(
                 program,
                 machine,
@@ -410,7 +417,14 @@ fn scan_expression(
                 case_symbol: Some(variant.symbol),
                 fields: Default::default(),
             };
-            validate_literal_field_names(program, machine, state, &literal, diagnostics);
+            validate_literal_field_names(
+                program,
+                machine,
+                state,
+                &literal,
+                environment,
+                diagnostics,
+            );
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
@@ -428,6 +442,7 @@ fn validate_literal_field_names(
     machine: &Machine,
     state: &State,
     literal: &TableStructLiteral,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
@@ -512,6 +527,7 @@ fn validate_literal_field_names(
         state,
         literal,
         data_definition,
+        environment,
         diagnostics,
     );
     validate_omitted_gated_fields(program, literal, data_definition, diagnostics);
@@ -564,6 +580,7 @@ fn validate_literal_field_names(
                 data_definition,
                 case_name.as_str(),
                 variant,
+                environment,
                 diagnostics,
             );
             // A case literal names the case's PAYLOAD fields, and -- for mixed
