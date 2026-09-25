@@ -221,3 +221,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T16:58:01Z	c4657b6a65	leaf/claim-frontier-shared-indexes	coordinator	Rc-shared claim-frontier lookup tables via plan scope
 2026-09-25T17:03:28Z	56f64a383d	leaf/multi-case-sum-payload-binding	z5	CaseDispatchSplit: 3+ case union payload binding
 2026-09-25T17:05:16Z	e2116c1462	leaf/call-argument-destinations-memo	coordinator	memoized call-argument destination verdicts
+2026-09-25T17:07:22Z	ffb9fa6588	leaf/transition-target-parent-jump	coordinator	transition target resolution via symbol parent
