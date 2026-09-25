@@ -3558,16 +3558,6 @@ syntax and other terminal services are not prerequisites.
   rather than treating each source arrangement as another unsupported feature.
   Remaining concrete joins:
 
-  - Distinguish conservative ownership ceilings from derived complete frames
-    during `execution/selected_execution.rs::refresh_settled_state_write_frames`.
-    `package-evidence`'s
-    `operators::boundary_selection::review_projects_application_closed_inside_specialized_generic_helper`
-    reports a retained `["$P0", "self"]` ceiling versus settled `[]` after
-    a helper calls a bodyless boundary. Allow justified refinement without
-    silently dropping a derived write. Preserve the unknown-place sentinel
-    even in free machines and the by-value ceiling; retain
-    `unresolved_no_argument_call_preserves_an_unpassed_parameter` as a control.
-
   - Extend typed-tree `CallFrameResolver` coverage to full source checking for
     contextual-case, named-state, aggregate-result, and nested-helper composition.
     Reuse `exclusive_reference_origins`, `transparent_call_result_origins`,
