@@ -37,7 +37,60 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     lower_ordered_nominal_affine_unit_cleanup_machine(checked, nominal)
 }
 
-pub(super) fn patch_nominal_cleanup_member(
+/// A nominal consuming member (a seeded `drop<T>` specialization) emitted the
+/// ordinary complete-only body; its return edge still invokes the exact
+/// owner-attached `::drop` hook the roster selected for each parameter. A hook
+/// that keeps a borrowed `self` receiver declares it as its terminal `is_self`
+/// parameter; collect each emitted hook's receiver place so the edge can lend
+/// the consumed place into the callee frame.
+pub(super) fn patch_nominal_cleanup_members(
+    checked: &CheckedTrees,
+    entry: SymbolHandle,
+    machines: &mut [TerminalMachine],
+    type_ids: &[(String, StructuralTypeId)],
+    machine_ids: &[(SymbolHandle, MachineId)],
+) -> Result<(), LoweringError> {
+    let cleanup_receivers: std::collections::BTreeMap<MachineId, PlaceId> = machines
+        .iter()
+        .filter_map(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.is_self)
+                .map(|parameter| (machine.id, parameter.place))
+        })
+        .collect();
+    for nominal in &checked
+        .facts
+        .flow
+        .terminal_nominal_affine_unit_cleanups
+        .machines
+    {
+        if nominal.machine.machine == entry || nominal.machine.attachment_type_identity.is_some() {
+            continue;
+        }
+        let Ok(terminal_member) = lookup_machine_id(machine_ids, nominal.machine.machine) else {
+            continue;
+        };
+        let member = machines
+            .iter_mut()
+            .find(|member| member.id == terminal_member)
+            .ok_or(LoweringError::Unsupported(
+                "nominal cleanup member was not emitted in the terminal closure",
+            ))?;
+        patch_nominal_cleanup_member(
+            checked,
+            nominal,
+            member,
+            type_ids,
+            machine_ids,
+            &cleanup_receivers,
+        )?;
+    }
+    Ok(())
+}
+
+fn patch_nominal_cleanup_member(
     checked: &CheckedTrees,
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
     machine: &mut TerminalMachine,

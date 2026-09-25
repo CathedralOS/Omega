@@ -8,9 +8,13 @@
 //! competing body plans must reject rather than choose whichever path succeeds.
 
 use super::bodies::UnitPlans;
+use super::operation_frame::BoundaryParameters;
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError,
-    Multiplicity, UnitBody, unique_unit_boundary, unsupported,
+    BoundaryMachineDeclaration, CheckedTrees, CheckedUnitEffectOperationPlan,
+    CheckedUnitProviderCandidate, LoweringError, MachineId, Multiplicity,
+    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
+    ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
+    unique_unit_boundary, unsupported,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
@@ -263,4 +267,99 @@ pub(super) fn checked_unit_provider_candidates(
         return unsupported("Unit provider catalog contains a duplicate exact candidate");
     }
     Ok(output)
+}
+
+/// Each candidate's conformance to the boundary requirement it satisfies:
+/// the emitted candidate's scalar signature equals the boundary's, and its
+/// structural parameters refine the boundary's positionally. Rows are in
+/// canonical (boundary, provider, candidate) order.
+pub(super) fn conformances(
+    candidates: &[CheckedUnitProviderCandidate],
+    boundary_parameters: &[BoundaryParameters],
+    boundary_machines: &[BoundaryMachineDeclaration],
+    machine_ids: &[(symbols::SymbolHandle, MachineId)],
+    machines: &[TerminalMachine],
+) -> Result<Vec<ProviderCandidateConformance>, LoweringError> {
+    let mut conformances = candidates
+        .iter()
+        .map(|candidate| {
+            let (_, boundary, parameters, scalar_parameters) = boundary_parameters
+                .iter()
+                .find(|(symbol, _, _, _)| *symbol == candidate.boundary)
+                .ok_or(LoweringError::Unsupported(
+                    "provider candidate references an unlowered Unit boundary requirement",
+                ))?;
+            let terminal_candidate = lookup_machine_id(machine_ids, candidate.candidate)?;
+            let realized = machines
+                .iter()
+                .find(|machine| machine.id == terminal_candidate)
+                .expect("provider candidate root was lowered as an ordinary terminal machine");
+            if scalar_parameters.len() != realized.parameters.len()
+                || scalar_parameters
+                    .iter()
+                    .zip(&realized.parameters)
+                    .any(|(boundary, candidate)| *boundary != candidate.scalar_type)
+            {
+                return unsupported(
+                    "provider candidate scalar signature disagrees with its boundary requirement",
+                );
+            }
+            Ok(ProviderCandidateConformance {
+                boundary: *boundary,
+                requirement_identity: candidate.requirement_identity.clone(),
+                provider_identity: candidate.provider_identity.clone(),
+                candidate_identity: candidate.candidate_identity.clone(),
+                candidate: terminal_candidate,
+                signature: ProviderSignature {
+                    parameters: parameters
+                        .iter()
+                        .map(|parameter| ProviderSignatureParameter {
+                            position: parameter.position,
+                            is_self: parameter.is_self,
+                            structural_type: parameter.structural_type,
+                            multiplicity: parameter.multiplicity,
+                            access: parameter.access,
+                            qualifications: parameter.qualifications.clone(),
+                            projected_qualifications: parameter.projected_qualifications.clone(),
+                        })
+                        .collect(),
+                },
+                refinement: ProviderRefinement {
+                    positional_parameters: (0..parameters.len())
+                        .map(|index| {
+                            let index = u32::try_from(index).map_err(|_| {
+                                LoweringError::Unsupported("provider signature arity exceeds u32")
+                            })?;
+                            Ok(ProviderParameterRefinement {
+                                boundary_index: index,
+                                candidate_index: index,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?,
+                    required_domains: boundary_machines
+                        .iter()
+                        .find(|declaration| declaration.id == *boundary)
+                        .expect("lowered provider boundary declaration exists")
+                        .requires
+                        .clone(),
+                    realized_service_ceiling: realized.published_service_ceiling.clone(),
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    conformances.sort_by(|left, right| {
+        (
+            left.boundary,
+            &left.provider_identity,
+            &left.candidate_identity,
+            left.candidate,
+        )
+            .cmp(&(
+                right.boundary,
+                &right.provider_identity,
+                &right.candidate_identity,
+                right.candidate,
+            ))
+    });
+    Ok(conformances)
 }

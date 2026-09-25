@@ -6,19 +6,16 @@ use super::super::super::{
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedUnitEffectOperationPlan, LoweredPsi, SemanticDomainId, ServiceReachSummary,
-    StructuralDomainId, StructuralDomainRequirement, StructuralPlaceDeclaration, StructuralTypeId,
-    boundary_machine_id, dense_identity, lookup_domain_id, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_result,
-    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
-    lower_unit_parameters, terminal_scalar_type, unsupported,
+    StructuralDomainId, StructuralPlaceDeclaration, StructuralTypeId, lower_root_service_reach,
+    unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, lower_program_local_root_introductions, lower_selected_unit_services,
-    lower_unit_structural_domains_including, lower_unit_structural_type_roots,
+    collect_service_summary, lower_selected_unit_services, lower_unit_structural_domains_including,
+    lower_unit_structural_type_roots,
 };
 use crate::unit::attached_unit::operation_frame::BoundaryParameters;
 use crate::unit::attached_unit::signatures::MachineSignature;
@@ -302,94 +299,16 @@ fn lower_catalogs(
         admitted_internal_targets,
     )?;
     let root_service_reach = lower_root_service_reach(checked, machine, &service_ids)?;
-    let mut boundary_machines = Vec::with_capacity(boundaries.len());
-    let mut boundary_parameters = Vec::with_capacity(boundaries.len());
     let mut next_place = 1_u64;
-    for (index, (boundary, identity)) in boundaries.iter().enumerate() {
-        let scalar_parameters = boundary
-            .scalar_parameters
-            .iter()
-            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
-            .collect::<Result<Vec<_>, _>>()?;
-        let id = boundary_machine_id(dense_identity(index)?);
-        let structural_parameters = lower_unit_parameters(
-            &boundary.structural_parameters,
+    let (boundary_machines, boundary_parameters) =
+        crate::unit::attached_unit::boundaries::lower_declarations(
+            checked,
+            boundaries,
             &type_ids,
             &domain_ids,
+            &service_ids,
             &mut next_place,
         )?;
-        let result = lower_boundary_result(&boundary.result, &type_ids, &domain_ids)?;
-        let mut requires = boundary
-            .domain_requirements
-            .iter()
-            .map(|requirement| {
-                if usize::try_from(requirement.argument_index)
-                    .ok()
-                    .is_none_or(|index| index >= structural_parameters.len())
-                {
-                    return Err(LoweringError::Unsupported(
-                        "boundary structural requirement has an invalid argument index",
-                    ));
-                }
-                Ok(StructuralDomainRequirement {
-                    argument_index: requirement.argument_index,
-                    domain: lookup_domain_id(&domain_ids, requirement.domain)?,
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        requires.sort();
-        let original_requirement_count = requires.len();
-        requires.dedup();
-        if requires.len() != original_requirement_count {
-            return unsupported("boundary structural requirements contain duplicates");
-        }
-        boundary_machines.push(BoundaryMachineDeclaration {
-            parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
-                &boundary.scalar_parameters,
-                &boundary.structural_parameters,
-            )?,
-            id,
-            identity: identity.clone(),
-            attachment: boundary
-                .attachment_type_identity
-                .as_ref()
-                .map(|identity| lookup_type_id(&type_ids, identity))
-                .transpose()?,
-            scalar_parameters: scalar_parameters.clone(),
-            crash_routes: lower_boundary_crash_routes(checked, boundary, &scalar_parameters)?,
-            structural_parameters: structural_parameters.clone(),
-            result,
-            requires,
-            program_local_root_introductions: lower_program_local_root_introductions(
-                checked,
-                boundary,
-                identity,
-                &structural_parameters,
-                &domain_ids,
-            )?,
-            content_guarantees: lower_boundary_content_guarantees(
-                &checked.facts.qualifications.content.conservation_plans,
-                boundary.state,
-            )?,
-            fixed_service_reach: lower_fixed_boundary_service_reach(
-                checked,
-                boundary,
-                &service_ids,
-            )?,
-            published_service_ceiling: lower_published_service_ceiling(
-                &checked.facts.service_reaches.rows,
-                boundary.contract_service_reach,
-                boundary.service_reach,
-                &service_ids,
-            )?,
-        });
-        boundary_parameters.push((
-            boundary.machine,
-            id,
-            structural_parameters,
-            scalar_parameters,
-        ));
-    }
     let scalar_calls = scalar_calls::prepare(checked, machine, states)?;
     let root_crash_routes = crate::unit::effective_crash_routes(checked, machine)?;
     Ok(ComposedCatalogs {
