@@ -83,12 +83,7 @@ pub fn local_scalar_record_field(
         if field.relevance.is_erased() {
             return None;
         }
-        path.push(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
-        );
+        path.push(field.path_identity());
         carrier = field.type_reference;
     }
     let record = program

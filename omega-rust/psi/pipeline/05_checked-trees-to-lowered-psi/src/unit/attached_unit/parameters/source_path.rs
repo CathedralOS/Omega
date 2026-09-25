@@ -269,10 +269,7 @@ pub(crate) fn source_place_path(
                     );
                 }
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field.path_identity(),
                 ));
                 type_reference = field.type_reference;
             }

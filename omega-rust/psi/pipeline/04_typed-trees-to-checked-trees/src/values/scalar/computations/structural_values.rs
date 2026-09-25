@@ -1039,10 +1039,7 @@ impl Builder<'_, '_> {
                     index: Box::new(selection.index.clone()),
                     element_path: vec![
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                            field
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| field.name.as_str().to_owned()),
+                            field.path_identity(),
                         ),
                     ],
                     primitive_type,

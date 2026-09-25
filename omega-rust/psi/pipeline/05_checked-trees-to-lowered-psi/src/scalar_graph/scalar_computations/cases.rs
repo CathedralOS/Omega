@@ -149,10 +149,7 @@ pub(crate) fn reserve(
         let DataMember::Variant(variant) = member else {
             continue;
         };
-        let identity = variant
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| variant.name.as_str().to_owned());
+        let identity = variant.path_identity();
         let case = cases.iter().find(|case| case.identity == identity).ok_or(
             LoweringError::Unsupported("computed case declaration is absent"),
         )?;
@@ -177,10 +174,7 @@ pub(crate) fn reserve(
             .ok_or(LoweringError::Unsupported(
                 "computed case field has a foreign owner",
             ))?;
-        let identity = authored
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| authored.name.as_str().to_owned());
+        let identity = authored.path_identity();
         let declaration = case
             .fields
             .iter()
@@ -553,12 +547,9 @@ fn structural_case_identity(
         .iter()
         .flat_map(|data| checked.data_members(data).iter())
         .filter_map(|member| match member {
-            DataMember::Variant(variant) if variant.symbol == observed_case => Some(
-                variant
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| variant.name.as_str().to_owned()),
-            ),
+            DataMember::Variant(variant) if variant.symbol == observed_case => {
+                Some(variant.path_identity())
+            }
             _ => None,
         })
         .next()

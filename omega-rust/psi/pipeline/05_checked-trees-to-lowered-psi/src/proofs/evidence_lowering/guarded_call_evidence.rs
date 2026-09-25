@@ -106,12 +106,7 @@ pub(crate) fn lower_outcome_specific_ensures(
                 let checked_trees::data::DataMember::Variant(variant) = member else {
                     return None;
                 };
-                (variant.symbol == guarantee.result_case).then(|| {
-                    variant
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| variant.name.as_str().to_owned())
-                })
+                (variant.symbol == guarantee.result_case).then(|| variant.path_identity())
             })
             .ok_or(LoweringError::Unsupported(
                 "guarded guarantee references an unknown result case",

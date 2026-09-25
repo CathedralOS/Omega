@@ -124,10 +124,7 @@ pub(crate) fn validate(
             let checked_trees::data::DataMember::Variant(case) = member else {
                 return unsupported("scalar case coverage is not a closed sum");
             };
-            let identity = case
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| case.name.as_str().to_owned());
+            let identity = case.path_identity();
             if !coverage.contains(&identity) {
                 return unsupported("scalar case coverage omitted an authored case");
             }
