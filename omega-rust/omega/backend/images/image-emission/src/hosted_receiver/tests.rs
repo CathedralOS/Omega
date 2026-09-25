@@ -785,7 +785,7 @@ fn hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements(
     let source = program_entry_plan::exact_macos_arm64_physical_contract_package_source_digest();
     for requirement in [
         program_entry_plan::MACOS_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::MacosPhysicalEntry::enter",
+        "accepted-package::MacosArm64PhysicalEntry::enter",
     ] {
         assert!(physical_contract_matches(
             &physical_contract(requirement, source),
@@ -799,7 +799,7 @@ fn hosted_physical_replay_keeps_source_bytes_for_package_qualified_requirements(
         );
     assert!(!physical_contract_matches(
         &physical_contract(
-            "accepted-package::MacosPhysicalEntry::enter",
+            "accepted-package::MacosArm64PhysicalEntry::enter",
             changed_source
         ),
         target::NativeTarget::macos_arm64()
@@ -833,7 +833,7 @@ fn linux_hosted_physical_replay_keeps_source_bytes_for_package_qualified_require
     let source = program_entry_plan::exact_linux_x86_64_physical_contract_package_source_digest();
     for requirement in [
         program_entry_plan::LINUX_X86_64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::LinuxPhysicalEntry::enter",
+        "accepted-package::LinuxX86_64PhysicalEntry::enter",
     ] {
         assert!(physical_contract_matches(
             &linux_physical_contract(requirement, source),
@@ -852,7 +852,7 @@ fn linux_hosted_physical_replay_keeps_source_bytes_for_package_qualified_require
         );
     assert!(!physical_contract_matches(
         &linux_physical_contract(
-            "accepted-package::LinuxPhysicalEntry::enter",
+            "accepted-package::LinuxX86_64PhysicalEntry::enter",
             changed_source
         ),
         target::NativeTarget::linux_x64()
@@ -896,7 +896,7 @@ fn linux_arm64_hosted_physical_replay_keeps_source_bytes_for_package_qualified_r
     let source = program_entry_plan::exact_linux_arm64_physical_contract_package_source_digest();
     for requirement in [
         program_entry_plan::LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY,
-        "accepted-package::LinuxPhysicalEntry::enter",
+        "accepted-package::LinuxArm64PhysicalEntry::enter",
     ] {
         assert!(physical_contract_matches(
             &linux_arm64_physical_contract(requirement, source),
@@ -919,7 +919,7 @@ fn linux_arm64_hosted_physical_replay_keeps_source_bytes_for_package_qualified_r
         );
     assert!(!physical_contract_matches(
         &linux_arm64_physical_contract(
-            "accepted-package::LinuxPhysicalEntry::enter",
+            "accepted-package::LinuxArm64PhysicalEntry::enter",
             changed_source
         ),
         target::NativeTarget::linux_arm64()

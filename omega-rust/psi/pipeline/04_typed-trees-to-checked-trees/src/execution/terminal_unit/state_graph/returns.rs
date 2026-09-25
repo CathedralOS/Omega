@@ -67,7 +67,8 @@ pub(in crate::execution::terminal_unit) fn signature(
                 || (!view_result
                     && !validation::has_plain_owned_contents_with_numeric_constraints(
                         program, reference,
-                    ))))
+                    )
+                    && !validation::has_owned_or_shared_view_fields(program, reference))))
     {
         return None;
     }
@@ -94,6 +95,11 @@ pub(in crate::execution::terminal_unit) fn signature(
                     CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::BoundedInteger(_)
                         | CheckedUnitStructuralFieldType::Structural { .. }
+                        | CheckedUnitStructuralFieldType::ByteSequence(
+                            CheckedByteSequenceCarrier::BorrowedView {
+                                access: Some(CheckedStructuralAccess::SharedBorrow),
+                            }
+                        )
                 )
         })
     };

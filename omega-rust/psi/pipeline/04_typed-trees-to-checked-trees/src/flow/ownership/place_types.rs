@@ -160,25 +160,40 @@ fn symbol_type_reference_in_state(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     let state = find_state(program, state_symbol)?;
 
-    program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(statement_index)
-                .find_map(|statement| {
-                    let StatementNode::LocalData(local_data) = statement else {
-                        return None;
-                    };
-                    (local_data.symbol == symbol).then_some(local_data.type_reference)
-                })
-        })
-        .or_else(|| machine_member_type_reference(program, state_symbol, symbol))
+    // State parameters and statement locals key their symbol parent to the
+    // declaring state — the same storage invariant
+    // `container_member_type_position` relies on — so a valid symbol whose
+    // parent names another container (a machine member, a field, another
+    // state's local) can never appear in this parameter list or statement
+    // prefix. Skipping the scan on that definite miss keeps member-heavy
+    // machines off the O(statements) prefix walk.
+    let local_candidate = !symbol.is_valid()
+        || program.symbols.get(symbol).parent == state_symbol
+        || !program.symbols.get(symbol).parent.is_valid();
+
+    if local_candidate {
+        program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .map(|parameter| parameter.type_reference)
+            .or_else(|| {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .take(statement_index)
+                    .find_map(|statement| {
+                        let StatementNode::LocalData(local_data) = statement else {
+                            return None;
+                        };
+                        (local_data.symbol == symbol).then_some(local_data.type_reference)
+                    })
+            })
+            .or_else(|| machine_member_type_reference(program, state_symbol, symbol))
+    } else {
+        machine_member_type_reference(program, state_symbol, symbol)
+    }
 }
 
 fn machine_member_type_reference(

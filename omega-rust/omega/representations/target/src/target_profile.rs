@@ -494,7 +494,7 @@ impl TargetProfile {
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
             ),
             // The macOS ARM64 hosted bridge retains two authored entry
-            // surfaces in toolchain custody: `MacosPhysicalEntry::enter` is
+            // surfaces in toolchain custody: `MacosArm64PhysicalEntry::enter` is
             // the physical process arrival and `ProgramStorageEntry::enter`
             // is the semantic continuation it must adapter-map into. The
             // source-visible application stays `HostedApplication` with no
@@ -504,13 +504,13 @@ impl TargetProfile {
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
                 Some("MacosApplication"),
-                Some("MacosPhysicalEntry::enter"),
+                Some("MacosArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
             // The Linux x86-64 hosted bridge retains the same two authored
-            // surfaces: `LinuxPhysicalEntry::enter` is the kernel process
+            // surfaces: `LinuxX86_64PhysicalEntry::enter` is the kernel process
             // arrival (initial stack image in rsp, exit_group status in edi)
             // and `ProgramStorageEntry::enter` is the semantic continuation it
             // adapter-maps into. The source-visible application stays
@@ -521,13 +521,13 @@ impl TargetProfile {
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
                 Some("LinuxX86_64Application"),
-                Some("LinuxPhysicalEntry::enter"),
+                Some("LinuxX86_64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxX86_64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
             ),
             // The Linux ARM64 hosted bridge retains the same two authored
-            // surfaces: `LinuxPhysicalEntry::enter` is the kernel process
+            // surfaces: `LinuxArm64PhysicalEntry::enter` is the kernel process
             // arrival (the initial process-stack image's argument-count head
             // word is delivered at the incoming stack base; completion leaves
             // through the exit_group supervisor call with status in w0) and
@@ -540,13 +540,13 @@ impl TargetProfile {
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
                 Some("LinuxArm64Application"),
-                Some("LinuxPhysicalEntry::enter"),
+                Some("LinuxArm64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::LinuxArm64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
                 Some(ProgramEntryCallingConvention::Aapcs64),
             ),
             // The macOS x86-64 hosted bridge retains the same two authored
-            // surfaces: `MacosPhysicalEntry::enter` is the dyld `appMain`
+            // surfaces: `MacosX64PhysicalEntry::enter` is the dyld `appMain`
             // process arrival (argc in edi; argv, envp and apple in rsi, rdx
             // and rcx; the completion status back in eax) and
             // `ProgramStorageEntry::enter` is the semantic continuation it
@@ -558,7 +558,7 @@ impl TargetProfile {
                 ProgramEntrySchema::HostedApplication,
                 ProgramEntryVisibleParameters::None,
                 Some("MacosX64Application"),
-                Some("MacosPhysicalEntry::enter"),
+                Some("MacosX64PhysicalEntry::enter"),
                 Some(ProgramEntryPhysicalContractPackage::MacosX64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
                 Some(ProgramEntryCallingConvention::SystemVAMD64),
@@ -1091,7 +1091,7 @@ mod tests {
         assert_eq!(slot.boundary_schema, Some("MacosX64Application"));
         assert_eq!(
             slot.physical_arrival_requirement,
-            Some("MacosPhysicalEntry::enter")
+            Some("MacosX64PhysicalEntry::enter")
         );
         assert_eq!(
             slot.physical_contract_package,

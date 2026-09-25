@@ -392,6 +392,11 @@ fn check_known_length_index(
                 // bound, low >= 0 the lower.
                 let declared_range =
                     expression_enforced_declared_range(program, machine, state, index);
+                // Standing bounds also cover an immutable parameter's own
+                // `requires` and a field's data `where` facts.
+                let (standing_low, standing_high) =
+                    validation::standing_integer_bounds(program, machine, state, index)
+                        .unwrap_or_default();
                 // A call index carries its callee's own result contract:
                 // `ensures result < K` / `<= K` / `== K` (and `>=`/`>` for the
                 // lower half) is discharged at every callee exit, so it bounds
@@ -429,6 +434,9 @@ fn check_known_length_index(
                     || ensured_high.is_some_and(|high| {
                         i64::try_from(length).is_ok_and(|length| high < length)
                     })
+                    || standing_high.is_some_and(|high| {
+                        i64::try_from(length).is_ok_and(|length| high < length)
+                    })
                     || initializer_label.is_some_and(|label| {
                         facts.index_is_proven(&collection_label, label)
                             || facts.index_upper_bound_is_proven(label, length)
@@ -444,6 +452,7 @@ fn check_known_length_index(
                         || facts.non_negative_is_proven_via_ordering(&index_label)
                         || declared_range.is_some_and(|(low, _)| low >= 0)
                         || ensured_low.is_some_and(|low| low >= 0)
+                        || standing_low.is_some_and(|low| low >= 0)
                         || initializer_label.is_some_and(|label| {
                             facts.non_negative_is_proven(label)
                                 || facts.non_negative_is_proven_via_ordering(label)

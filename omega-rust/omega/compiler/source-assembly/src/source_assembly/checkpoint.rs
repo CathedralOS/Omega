@@ -206,20 +206,23 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             timings,
         )?;
-        if let Some(seed) = super::entry_contract_seed::hosted_entry_contract_seed(
-            target_name,
-            package_inputs,
-            &source_storage,
-        ) {
-            if seed.closed_subtree {
-                // Only the bundled fallback owns toolchain provenance. A seed
-                // selected from the reconciled graph retains its supplier's
-                // identity so accepted binding replay can verify that owner.
-                source_storage
-                    .register_toolchain_contract_root(seed.source.clone(), seed.root.clone());
-                source_storage.register_toolchain_contract_dir(seed.root);
+        // Every target's entry contract joins the set; the selected target
+        // only decides which one realizes the program entry later.
+        let seeds =
+            super::entry_contract_seed::entry_contract_seeds(package_inputs, &source_storage);
+        if !seeds.is_empty() {
+            for seed in seeds {
+                if seed.closed_subtree {
+                    // Only the bundled fallback owns toolchain provenance. A
+                    // seed selected from the reconciled graph retains its
+                    // supplier's identity so accepted binding replay can
+                    // verify that owner.
+                    source_storage
+                        .register_toolchain_contract_root(seed.source.clone(), seed.root.clone());
+                    source_storage.register_toolchain_contract_dir(seed.root);
+                }
+                imports.seed(seed.source, source::DependencyScope::Product);
             }
-            imports.seed(seed.source, source::DependencyScope::Product);
             load_pending_imports(
                 &mut source_storage,
                 &mut imports,

@@ -1,0 +1,35 @@
+// Nested anonymous arithmetic stays builtin exact arithmetic when the program
+// also declares an authored `-` spelling for some carrier: `(6 + 1) - 0`
+// selects no declaration and lands as the destination type. The outer `-`
+// has no typed operand of its own (its left operand is itself anonymous
+// arithmetic), so its builtin meaning must follow from both operands being
+// anonymous, not from a recorded operand type. Every compile now loads the
+// bundled Float operators through the targets' entry contracts, so this shape
+// is reachable from any program, not only one declaring its own spelling.
+data Quantity {
+    value: i32;
+}
+
+domain Quantity::Additive
+requires
+    self.value >= 0;
+
+machine - Quantity::Additive::subtract(left: Quantity, right: Quantity) -> Quantity {
+    Quantity { value: ((left.value as i32 in Wrapping) - (right.value as i32 in Wrapping)) as i32 }
+}
+
+machine nested_difference() -> i32 {
+    let difference: i32 = (6 + 1) - 0;
+    difference
+}
+
+machine nested_chain() -> i32 {
+    let chain: i32 = 6 + 1 - 0;
+    chain
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+}

@@ -14,9 +14,9 @@ const LINUX_ARM64_TARGET_PACKAGE_SOURCE: &[u8] = include_bytes!(concat!(
     "/../../../../../source/library/std/targets/linux_arm64/entry.omg"
 ));
 
-/// Canonical checked-tree overload identity for `LinuxPhysicalEntry::enter`.
+/// Canonical checked-tree overload identity for `LinuxArm64PhysicalEntry::enter`.
 pub const LINUX_ARM64_PHYSICAL_REQUIREMENT_IDENTITY: &str = concat!(
-    "named-callable(path(LinuxPhysicalEntry::enter),parameters(",
+    "named-callable(path(LinuxArm64PhysicalEntry::enter),parameters(",
     "parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,",
     "named\\(name\\(u64\\)\\)\\)",
     "),result-dispatch())",

@@ -158,7 +158,22 @@ fn retained_import_bindings_do_not_reopen_the_source_filesystem() {
         before.source_scoped_top_level_bindings,
         after.source_scoped_top_level_bindings
     );
-    assert_eq!(after.source_scoped_top_level_bindings.len(), 2);
+    // The targets' entry contracts bring their own import bindings; the
+    // root's two imports are the ones retained from its parsed snapshot.
+    let root_source = after
+        .sources
+        .files()
+        .find(|file| file.path.ends_with("main.omg"))
+        .expect("the root source is loaded")
+        .source_id;
+    assert_eq!(
+        after
+            .source_scoped_top_level_bindings
+            .iter()
+            .filter(|binding| binding.reference_source() == root_source)
+            .count(),
+        2
+    );
 }
 
 #[test]
@@ -435,9 +450,14 @@ fn single_use_checkpoint_moves_syntax_storage_for_exact_and_targetless_children(
         let mut timings = CompileTimings::default();
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
             .expect("prepare standalone checkpoint");
-        let original_roots = checkpoint.source_storage.syntax_trees.root_item_handles();
-        assert!(!original_roots.is_empty());
-        let original_roots_pointer = original_roots.as_ptr();
+        assert!(
+            !checkpoint
+                .source_storage
+                .syntax_trees
+                .root_item_handles()
+                .is_empty()
+        );
+        let original_root_path = root_source_path_pointer(&checkpoint.source_storage.sources);
         let assemble = |checkpoint: ImmutableSourceParseCheckpoint,
                         timings: &mut CompileTimings| {
             match target_name {
@@ -451,20 +471,15 @@ fn single_use_checkpoint_moves_syntax_storage_for_exact_and_targetless_children(
         };
         let (shared_count, shared) = assemble(checkpoint.clone(), &mut timings);
         let (owned_count, owned) = assemble(checkpoint, &mut timings);
-        // An exact-target child joins its hosted entry contract seed during
-        // assembly, so its item arena legitimately grows past the shared
-        // frontier — pointer identity can only witness the storage move on
-        // the targetless arm, where no per-child source joins.
-        if target_name.is_none() {
-            assert_ne!(
-                shared.syntax_trees.root_item_handles().as_ptr(),
-                original_roots_pointer
-            );
-            assert_eq!(
-                owned.syntax_trees.root_item_handles().as_ptr(),
-                original_roots_pointer
-            );
-        }
+        // Every child joins the targets' entry contracts during assembly, so
+        // the arenas grow past the shared frontier on both arms; the root
+        // source's path buffer witnesses the storage move instead, since a
+        // moved arena keeps it and a cloned arena copies it.
+        assert_ne!(
+            root_source_path_pointer(&shared.sources),
+            original_root_path
+        );
+        assert_eq!(root_source_path_pointer(&owned.sources), original_root_path);
         assert_eq!(owned_count, shared_count);
         assert_eq!(owned.syntax_trees, shared.syntax_trees);
         assert_eq!(owned.sources, shared.sources);
@@ -489,20 +504,29 @@ fn target_repetition_shares_frontier_and_moves_final_arenas() {
         let mut timings = CompileTimings::default();
         let checkpoint = ImmutableSourceParseCheckpoint::prepare(&fixture.main, None, &mut timings)
             .expect("prepare shared source");
-        let original_roots = checkpoint
-            .source_storage
-            .syntax_trees
-            .root_item_handles()
-            .as_ptr();
+        let original_root_path = root_source_path_pointer(&checkpoint.source_storage.sources);
         for (target_index, child) in std::iter::repeat_n(checkpoint, target_count).enumerate() {
             let (_, assembled) = child
                 .assemble_targetless(None, &mut timings)
                 .expect("assemble child");
             assert_eq!(
-                assembled.syntax_trees.root_item_handles().as_ptr() == original_roots,
+                root_source_path_pointer(&assembled.sources) == original_root_path,
                 target_index + 1 == target_count,
                 "only the final child moves the original arenas, including a singleton request",
             );
         }
     }
+}
+
+/// The heap buffer of the first loaded source's path: a moved source map
+/// keeps it and a cloned one copies it, whichever sources join afterwards.
+fn root_source_path_pointer(sources: &source::SourceMap) -> *const u8 {
+    sources
+        .files()
+        .next()
+        .expect("the checkpoint holds the root source")
+        .path
+        .as_os_str()
+        .as_encoded_bytes()
+        .as_ptr()
 }
