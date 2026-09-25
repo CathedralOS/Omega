@@ -92,6 +92,15 @@ type TypeParameterMultiplicitySlot = Option<
         >,
     )>,
 >;
+/// (target state symbol, argument count) -> resolved call-argument
+/// destination types; each query rescans every machine and state to verify
+/// symbol uniqueness, so the whole verdict is memoized per scoped program.
+type CallArgumentDestinationsSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        HashMap<(symbols::SymbolHandle, usize), Option<Vec<TypeReferenceHandle>>>,
+    )>,
+>;
 
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
@@ -119,6 +128,10 @@ thread_local! {
     /// The type-parameter multiplicity table, shared once per scoped program.
     static TYPE_PARAMETER_MULTIPLICITY_SLOT: RefCell<TypeParameterMultiplicitySlot> =
         const { RefCell::new(None) };
+    /// Call-argument destination verdicts memoize per (target, argument
+    /// count) inside the scope.
+    static CALL_ARGUMENT_DESTINATIONS_SLOT: RefCell<CallArgumentDestinationsSlot> =
+        const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -132,6 +145,7 @@ pub struct ProgramPlanScopeGuard {
     conformance_slot_carriers: ConformanceSlotCarriersSlot,
     data_def_positions: DataDefinitionPositionsSlot,
     type_parameter_multiplicities: TypeParameterMultiplicitySlot,
+    call_argument_destinations: CallArgumentDestinationsSlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -160,6 +174,9 @@ impl Drop for ProgramPlanScopeGuard {
         TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
             *cell.borrow_mut() = self.type_parameter_multiplicities.take();
         });
+        CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.call_argument_destinations.take();
+        });
     }
 }
 
@@ -182,6 +199,8 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         data_def_positions: DATA_DEF_POSITIONS_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         type_parameter_multiplicities: TYPE_PARAMETER_MULTIPLICITY_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        call_argument_destinations: CALL_ARGUMENT_DESTINATIONS_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -575,6 +594,65 @@ pub(crate) fn memoized_type_parameter_multiplicities(
         });
     }
     map
+}
+
+/// The call-argument destination answer for a target state, memoized per
+/// (target, argument count): computing it rescans every machine and every
+/// state to prove the target symbol is unique, which dominated its callers
+/// before verdicts were shared inside the scope.
+pub(crate) fn memoized_call_argument_destinations(
+    program: &typed_trees::TypedTrees,
+    target: symbols::SymbolHandle,
+    argument_count: usize,
+    compute: impl FnOnce() -> Option<Vec<TypeReferenceHandle>>,
+) -> Option<Vec<TypeReferenceHandle>> {
+    enum SlotState {
+        NoScope,
+        Hit(Option<Vec<TypeReferenceHandle>>),
+        Miss,
+        ForeignProgram,
+    }
+    let state = CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&(target, argument_count))
+                        .cloned()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(destinations) = state {
+        return destinations;
+    }
+    let destinations = compute();
+    if matches!(state, SlotState::Miss) {
+        CALL_ARGUMENT_DESTINATIONS_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert((target, argument_count), destinations.clone());
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((
+                            program,
+                            HashMap::from([((target, argument_count), destinations.clone())]),
+                        ));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    destinations
 }
 
 pub fn memoized_service_reach_plan(
