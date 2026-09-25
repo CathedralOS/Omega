@@ -3856,7 +3856,11 @@ syntax and other terminal services are not prerequisites.
     either: `self.b + 1.0` builds no computation, and `0.0 - 3.7` has no pure
     landing because `land_anonymous_scalar_expression` lands integers only.
     Together these stop 39 float run canaries and 10 samples at `pure source:
-    scalar expression row` or `value shape`.
+    scalar expression row` or `value shape`. The two reads have identical
+    payloads and appear in 152 files; they differ only in semantic-row custody
+    and frontier policy (`terminal-semantics/src/structural_effect.rs`). So
+    the float read should be one observation typed by its result declaration
+    that reconciles those rows, not a third copy.
   - Add ordinary construction for record members typed `UInt`, `&[u8] in Utf8`,
     and primitive arrays such as `[u32; 4]`; top-level array locals are not
     record-field support. Aggregate replacement must keep the custody checks below.
