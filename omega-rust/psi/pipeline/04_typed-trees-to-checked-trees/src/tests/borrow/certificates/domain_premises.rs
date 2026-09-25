@@ -512,7 +512,12 @@ fn domain_subject_carrier_comes_from_the_binding_not_its_display_name() {
         .find(|domain| domain.name.as_str().ends_with("::Upper"))
         .expect("domain");
     assert!(
-        !validation::has_exact_integer_domain_subject(&checked.typed, domain, expression),
+        !validation::has_exact_integer_domain_subject(
+            &checked.typed,
+            domain,
+            &validation::ImmutableBoundLookup::new(&checked.typed),
+            expression,
+        ),
         "a retained i32 binding cannot become the displayed u64 parameter"
     );
 }

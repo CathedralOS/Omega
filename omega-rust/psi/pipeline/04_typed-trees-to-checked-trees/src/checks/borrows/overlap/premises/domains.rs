@@ -40,7 +40,7 @@ pub(super) fn append_membership_premises(
     {
         return;
     }
-    if !validation::has_exact_integer_domain_subject(program, domain, membership.value)
+    if !validation::has_exact_integer_domain_subject(program, domain, lookup, membership.value)
         || !validation::has_builtin_bound_expression_meaning(
             program,
             machine,

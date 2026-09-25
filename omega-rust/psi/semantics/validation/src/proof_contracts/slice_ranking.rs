@@ -48,7 +48,16 @@ pub fn slice_tail_strictly_decreases(
     {
         return false;
     }
-    let Some(start) = tail_bound(program, range.start) else {
+    // The bound index scans the whole program once; the cheap shape gates
+    // above reject most selectors before it is needed.
+    let mut bound_lookup = None;
+    let Some(start) = tail_bound(
+        program,
+        bound_lookup.get_or_insert_with(|| {
+            crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
+        }),
+        range.start,
+    ) else {
         return false;
     };
     if !tail_bound_is_positive(program, start) {
@@ -82,8 +91,14 @@ pub fn slice_tail_strictly_decreases(
     CollectionMeasure::from_authored_spelling(length.member.as_str())
         == Some(CollectionMeasure::Length)
         && names_parameter(program, length.receiver, parameter)
-        && tail_bound(program, binary.right)
-            .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))
+        && tail_bound(
+            program,
+            bound_lookup.get_or_insert_with(|| {
+                crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
+            }),
+            binary.right,
+        )
+        .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))
 }
 
 /// One immutable range bound as an ordering key: an exact literal value, or
@@ -98,16 +113,18 @@ enum TailBound {
 /// Normalize an integer-bound expression to an ordering key through the shared
 /// immutable-integer-bound machinery. Every other shape -- mutable, ambiguous,
 /// cyclic, qualified, or computed beyond a constant shift -- stays unknown.
-fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<TailBound> {
-    let bound_lookup =
-        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
+fn tail_bound(
+    program: &TypedTrees,
+    bound_lookup: &crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'_>,
+    expression: ExpressionHandle,
+) -> Option<TailBound> {
     if let Some(value) =
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, expression)
+        crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, expression)
     {
         return Some(TailBound::Literal(value));
     }
     if let Some(bound) =
-        crate::immutable_integer_bound_symbol_offset(program, &bound_lookup, expression)
+        crate::immutable_integer_bound_symbol_offset(program, bound_lookup, expression)
     {
         return Some(TailBound::Symbol {
             symbol: bound.symbol,
@@ -115,7 +132,7 @@ fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<Tail
         });
     }
     if let Some(leaf) =
-        crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
+        crate::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     {
         return match program.expression_table.expression(leaf) {
             ExpressionNode::Name(path)
@@ -135,7 +152,7 @@ fn tail_bound(program: &TypedTrees, expression: ExpressionHandle) -> Option<Tail
             _ => None,
         };
     }
-    crate::immutable_integer_bound_value_symbol(program, &bound_lookup, expression)
+    crate::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
         .map(|symbol| TailBound::Symbol { symbol, offset: 0 })
 }
 
