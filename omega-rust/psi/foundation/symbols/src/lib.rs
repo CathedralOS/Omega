@@ -8,7 +8,9 @@
 //! lookup walks. String names never stand in for identity after resolution.
 //!
 //! Start at `table.rs`; `symbol` holds the handle, name, path and kind types
-//! it stores, and `builtin` the seeded builtin symbols.
+//! it stores, `builtin` the seeded builtin symbols, and `fast_map` the
+//! handle-keyed map and hasher its callers key by `SymbolHandle` rather than
+//! by name.
 
 mod builtin;
 mod fast_map;

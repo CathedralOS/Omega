@@ -10,6 +10,8 @@
 //! operation that joins them:
 //!
 //! - a primitive field takes one `StructuralScalarFieldStore`;
+//! - a primitive-array place takes a closed array literal as one element
+//!   store per element (`primitive.rs`);
 //! - a record place takes a record literal as one field store per member;
 //! - a payload-free sum field takes a whole owned parameter of its type;
 //! - a bounded-owned byte field or a whole borrowed byte view takes the byte
@@ -133,6 +135,18 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             assignment,
         ) {
             stores.push(store);
+            continue;
+        }
+        if let Some(elements) = primitive::array_literal_stores(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+        ) {
+            stores.extend(elements);
             continue;
         }
         let baseline = trace.mark();

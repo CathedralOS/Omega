@@ -25,7 +25,7 @@ thread_local! {
             Option<SymbolHandle>,
             std::collections::HashMap<SymbolHandle, Option<usize>>,
         )>,
-    > = RefCell::new(None);
+    > = const { RefCell::new(None) };
 }
 
 fn machine_index_by_symbol(

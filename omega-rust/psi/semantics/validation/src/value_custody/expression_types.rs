@@ -493,20 +493,14 @@ fn hinted_named_value_type_reference(
             if program.symbols.get(grandparent).kind != symbols::SymbolKind::Machine {
                 return None;
             }
-            let Some(machine) = program
+            let machine = program
                 .machines()
                 .iter()
-                .find(|machine| machine.symbol == grandparent)
-            else {
-                return None;
-            };
-            let Some(state) = program
+                .find(|machine| machine.symbol == grandparent)?;
+            let state = program
                 .machine_states(machine)
                 .iter()
-                .find(|state| state.symbol == parent)
-            else {
-                return None;
-            };
+                .find(|state| state.symbol == parent)?;
             if let Some(parameter) = program
                 .state_parameters(state)
                 .iter()

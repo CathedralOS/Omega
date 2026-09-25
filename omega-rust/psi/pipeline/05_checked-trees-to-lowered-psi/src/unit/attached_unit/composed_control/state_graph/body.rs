@@ -742,8 +742,9 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
 
 /// The statement an operation may continue rather than consume: a call's
 /// continuation cleanup, a store of its own statement's scalar call result,
-/// the member stores of a whole-record replacement, and the move-out/store
-/// pair of a displaced borrowed field.
+/// the member stores of a whole-record replacement, the element stores of a
+/// whole array-literal replacement, and the move-out/store pair of a
+/// displaced borrowed field.
 fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
@@ -752,6 +753,9 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
         }
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index, ..
+        } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
             if matches!(
                 store.value,
@@ -782,8 +786,9 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
 /// statement-consuming operation began. One authored statement may plan
 /// several effects, and one rule covers all of them: an operation whose
 /// `continued_statement` is that current statement rejoins it; every other
-/// operation consumes the next authored statement. Only a plain field store
-/// can also begin a statement (the first member of a record replacement);
+/// operation consumes the next authored statement. Only a plain field or
+/// primitive store can also begin a statement (the first member of a record
+/// replacement, the first element of an array-literal replacement);
 /// every other continuing kind exists only after its producer, so one that
 /// continues nothing lost that producer.
 fn statement_continuations(
@@ -815,7 +820,11 @@ fn statement_continuations(
                     if !matches!(
                         store.value,
                         checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
-                    ));
+                    ))
+                || matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                );
             if !may_begin {
                 return unsupported("Unit graph continuation lost its producing statement");
             }

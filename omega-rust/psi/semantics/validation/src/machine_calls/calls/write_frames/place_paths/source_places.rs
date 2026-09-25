@@ -205,13 +205,10 @@ fn source_owner(
                 SymbolKind::Machine => root,
                 _ => declaration.parent,
             };
-            let Some(machine) = program
+            let machine = program
                 .machines()
                 .iter()
-                .find(|machine| machine.symbol == machine_symbol)
-            else {
-                return None;
-            };
+                .find(|machine| machine.symbol == machine_symbol)?;
             let owns_root = match declaration.kind {
                 SymbolKind::Machine => true,
                 _ => {

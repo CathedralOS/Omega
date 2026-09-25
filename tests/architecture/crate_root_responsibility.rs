@@ -235,7 +235,10 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         "psi/foundation/source",
         &["source_file", "source_map", "source_text"],
     ),
-    ("psi/foundation/symbols", &["builtin", "symbol", "table"]),
+    (
+        "psi/foundation/symbols",
+        &["builtin", "fast_map", "symbol", "table"],
+    ),
     // Psi pipeline.
     (
         "psi/pipeline/05_checked-trees-to-lowered-psi",

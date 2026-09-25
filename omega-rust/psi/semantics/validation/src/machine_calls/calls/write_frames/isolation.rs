@@ -60,7 +60,7 @@ pub(super) struct IsolationCache {
 thread_local! {
     static ISOLATION_CACHE: RefCell<
         Option<(*const TypedTrees, usize, IsolationCache)>,
-    > = RefCell::new(None);
+    > = const { RefCell::new(None) };
 }
 
 /// Cheap per-call identity over the tables these verdicts read. Forged
@@ -152,10 +152,10 @@ pub(super) fn with_isolation_cache<R>(
     })
 }
 
-pub(super) fn definitions_for_symbol<'p>(
-    program: &'p TypedTrees,
+pub(super) fn definitions_for_symbol(
+    program: &TypedTrees,
     symbol: SymbolHandle,
-) -> Vec<&'p typed_trees::data::DataDefinition> {
+) -> Vec<&typed_trees::data::DataDefinition> {
     let indexes = with_isolation_cache(program, |cache| cache.by_symbol.get(&symbol).cloned());
     indexes
         .map(|indexes| {
@@ -191,14 +191,12 @@ fn type_identities_match(
     if !actual.is_valid() || !expected.is_valid() {
         return actual.is_valid() == expected.is_valid();
     }
-    if !identities.contains_key(&actual) {
-        let identity = program.normalized_type_identity(actual);
-        identities.insert(actual, identity);
-    }
-    if !identities.contains_key(&expected) {
-        let identity = program.normalized_type_identity(expected);
-        identities.insert(expected, identity);
-    }
+    identities
+        .entry(actual)
+        .or_insert_with(|| program.normalized_type_identity(actual));
+    identities
+        .entry(expected)
+        .or_insert_with(|| program.normalized_type_identity(expected));
     identities[&actual] == identities[&expected]
 }
 
