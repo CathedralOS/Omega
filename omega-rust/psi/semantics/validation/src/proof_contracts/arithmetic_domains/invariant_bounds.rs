@@ -5,10 +5,12 @@
 //! to it; losing the point would lose valid static endpoints. Fixed-width kernels
 //! still check each typed operation and operand landing, before interval fallback.
 //! Declared singleton ranges on parameters/fields do not become static values.
+//! An immutable parameter also carries the literal comparisons its owning
+//! `requires` clause states: every arrival proves them and nothing rewrites it.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
-    enforced_declared_range,
+    PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle, TypeReferenceNode,
+    TypedTrees, enforced_declared_range, literal_i64,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use language_core::OperatorSpelling;
@@ -67,7 +69,8 @@ fn exact_integer_primitive(
 /// Bound a literal or builtin arithmetic tree over exact immutable primitive
 /// parameters or their direct owned integer fields. No initializer, caller flow
 /// fact, callee body, or mutable place is read: the interval is valid independently
-/// of the evaluation snapshot.
+/// of the evaluation snapshot. A parameter's own `requires` bounds are arrival
+/// facts, not snapshot facts, so they are read.
 pub fn immutable_integer_expression_bounds(
     program: &TypedTrees,
     machine: &Machine,
@@ -81,8 +84,26 @@ pub fn immutable_integer_expression_bounds(
     {
         return None;
     }
-    let value = bounds(program, machine.symbol, Some(state), expression, false)?;
+    let value = bounds(program, machine, Some(state), expression, false)?;
     Some((value.interval.low?, value.interval.high?))
+}
+
+/// The same bounds with either endpoint allowed to be open: an unrestricted
+/// u64 keeps its zero floor although its ceiling does not fit an i64.
+pub(crate) fn immutable_integer_expression_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    if !program
+        .machine_states(machine)
+        .iter()
+        .any(|candidate| candidate.symbol == state.symbol)
+    {
+        return None;
+    }
+    Some(bounds(program, machine, Some(state), expression, false)?.interval)
 }
 
 /// Bound a literal or builtin arithmetic tree over exact primitive parameters
@@ -110,7 +131,7 @@ pub fn declared_integer_expression_lands(
     {
         return false;
     }
-    bounds(program, machine.symbol, Some(state), expression, true).is_some()
+    bounds(program, machine, Some(state), expression, true).is_some()
 }
 
 /// Retain one-sided carrier bounds when projecting an exact builtin guard.
@@ -139,8 +160,8 @@ pub(super) fn builtin_comparison_intervals(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let left = bounds(program, machine.symbol, Some(state), binary.left, false)?;
-    let right = bounds(program, machine.symbol, Some(state), binary.right, false)?;
+    let left = bounds(program, machine, Some(state), binary.left, false)?;
+    let right = bounds(program, machine, Some(state), binary.right, false)?;
     typed_trees::operator::has_builtin_spelled_expression_meaning(
         program,
         machine.symbol,
@@ -198,7 +219,7 @@ fn type_bounds(program: &TypedTrees, type_reference: TypeReferenceHandle) -> Opt
 
 fn bounds(
     program: &TypedTrees,
-    machine: SymbolHandle,
+    machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
     // When true, a mutable parameter contributes its declared storage bounds:
@@ -216,7 +237,7 @@ fn bounds(
     let mut closed_anonymous = None;
     if let Some(value) =
         crate::value_custody::literals::closed_record_integer_projection(program, expression)
-            .or_else(|| program.closed_integer_value_in(expression, machine))
+            .or_else(|| program.closed_integer_value_in(expression, machine.symbol))
     {
         // Every member read folded into the closed value must satisfy strict
         // record custody: a member that resolves loosely but not through the
@@ -229,7 +250,9 @@ fn bounds(
                 has_member = true;
                 if crate::value_custody::literals::closed_record_integer_projection(program, handle)
                     .is_none()
-                    && program.closed_integer_value_in(handle, machine).is_some()
+                    && program
+                        .closed_integer_value_in(handle, machine.symbol)
+                        .is_some()
                 {
                     return None;
                 }
@@ -263,8 +286,9 @@ fn bounds(
         // Literal failure in the shared query is final, not a second landing path.
         ExpressionNode::Integer(_) => None,
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
+            let state = state?;
             let parameter = program
-                .state_parameters(state?)
+                .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
             if parameter.is_self
@@ -273,7 +297,19 @@ fn bounds(
             {
                 return None;
             }
-            type_bounds(program, parameter.type_reference)
+            let declared = type_bounds(program, parameter.type_reference)?;
+            if parameter.is_mutable {
+                return Some(declared);
+            }
+            Some(Bounds {
+                interval: declared.interval.intersect(requires_interval(
+                    program,
+                    machine,
+                    state,
+                    parameter.symbol,
+                )),
+                ..declared
+            })
         }
         ExpressionNode::Member(_) => type_bounds(
             program,
@@ -329,7 +365,7 @@ fn bounds(
             }
             if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,
-                machine,
+                machine.symbol,
                 expression,
                 spelling,
                 &[left.type_reference, right.type_reference],
@@ -420,6 +456,83 @@ fn bounds(
         }
         _ => None,
     }
+}
+
+/// The literal comparisons on `parameter` in the clause every arrival proves:
+/// the machine's `requires` for its entry state, the state's own otherwise.
+/// Only exact builtin orderings and equalities over a literal contribute.
+fn requires_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    parameter: SymbolHandle,
+) -> Interval {
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol);
+    let machine_contracts = if entry {
+        program.machine_contracts(machine)
+    } else {
+        &[]
+    };
+    let mut interval = Interval::UNBOUNDED;
+    let requires = machine_contracts
+        .iter()
+        .chain(program.state_contracts(state))
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
+    for fact in requires {
+        let ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let mut conjuncts = vec![*expression];
+        while let Some(conjunct) = conjuncts.pop() {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            else {
+                continue;
+            };
+            if binary.operator == BinaryOperator::And {
+                conjuncts.extend([binary.left, binary.right]);
+                continue;
+            }
+            let builtin = match binary.operator {
+                BinaryOperator::Equal => super::guard_narrowing::has_builtin_equality(
+                    program,
+                    machine,
+                    Some(state),
+                    conjunct,
+                ),
+                _ => super::guard_narrowing::has_builtin_ordering(
+                    program,
+                    machine,
+                    Some(state),
+                    conjunct,
+                ),
+            };
+            if !builtin {
+                continue;
+            }
+            for (subject, operand, subject_on_left) in [
+                (binary.left, binary.right, true),
+                (binary.right, binary.left, false),
+            ] {
+                let names_parameter = matches!(
+                    program.expression_table.expression(subject),
+                    ExpressionNode::Name(path)
+                        if path.symbol == parameter && path.head_symbol == path.symbol
+                );
+                if names_parameter && let Some(value) = literal_i64(program, operand) {
+                    interval = interval.intersect(super::guard_narrowing::comparison_interval(
+                        binary.operator,
+                        Interval::constant(value),
+                        subject_on_left,
+                    ));
+                }
+            }
+        }
+    }
+    interval
 }
 
 #[cfg(test)]

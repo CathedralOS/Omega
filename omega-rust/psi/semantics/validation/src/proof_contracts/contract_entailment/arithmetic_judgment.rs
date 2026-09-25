@@ -793,14 +793,52 @@ impl<'program> Engine<'program> {
     /// The caller establishes exact builtin operand meaning and live captures.
     /// Widenings are transparent only while those actuals are normalized; a
     /// strict symbol namespace alone does not license this reading elsewhere.
-    pub(super) fn bind_exact_arguments(
+    /// Every actual resolves in the caller's namespace before any formal is
+    /// bound, and a formal named twice must receive one polynomial.
+    pub(super) fn exact_argument_values(
         &mut self,
         arguments: &[StrictArithmeticExpressionBinding],
-    ) -> bool {
+    ) -> Option<Vec<(SymbolHandle, Polynomial)>> {
+        if !self.strict_symbol_bindings_valid || self.strict_symbol_bindings.is_none() {
+            return None;
+        }
         self.exact_argument_widening = true;
-        let bound = self.bind_strict_arguments(arguments);
+        let resolved = arguments
+            .iter()
+            .map(|argument| {
+                argument.symbol.is_valid().then_some(())?;
+                Some((argument.symbol, self.normalize(argument.expression)?))
+            })
+            .collect::<Option<Vec<_>>>();
         self.exact_argument_widening = false;
-        bound
+        let mut formals: Vec<(SymbolHandle, Polynomial)> = Vec::new();
+        for (symbol, polynomial) in resolved? {
+            match formals.iter().find(|(candidate, _)| *candidate == symbol) {
+                Some((_, existing)) if *existing != polynomial => return None,
+                Some(_) => {}
+                None => formals.push((symbol, polynomial)),
+            }
+        }
+        Some(formals)
+    }
+
+    /// The goal is the callee's clause, so each formal denotes its actual.
+    /// A self-call's formals are the caller's own parameter symbols: they
+    /// shadow those bindings here, after the caller's hypotheses were
+    /// normalized under the caller's meaning.
+    pub(super) fn bind_goal_formals(&mut self, formals: Vec<(SymbolHandle, Polynomial)>) {
+        let Some(bindings) = &mut self.strict_symbol_bindings else {
+            return;
+        };
+        for (symbol, polynomial) in formals {
+            match bindings
+                .iter_mut()
+                .find(|(candidate, _)| *candidate == symbol)
+            {
+                Some((_, existing)) => *existing = polynomial,
+                None => bindings.push((symbol, polynomial)),
+            }
+        }
     }
 
     pub(super) fn bind_strict_arguments(
