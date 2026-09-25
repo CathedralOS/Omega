@@ -150,3 +150,66 @@ fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
         "a receiver operand must name the authored receiver place"
     );
 }
+
+/// A local of an affine multi-case sum (no `[copy]`) is shared-borrowed whole
+/// as a `&self` receiver: the shared borrow neither moves nor copies it, so
+/// the source-custody join admits it exactly as it admits an unrestricted
+/// sum, and Terminal verification checks the borrow independently. Only a
+/// linear sum, whose custody a shared observation cannot settle, still
+/// declines.
+#[test]
+fn an_affine_sum_local_is_a_shared_whole_receiver() {
+    let source = r#"
+        data Resp {
+            case Results(v: u64, w: u64);
+            case Empty;
+        }
+        machine Resp::get(&self, position: u64) -> u64 {
+            transition self {
+                Resp::Results { v, w } -> (v)
+                _ -> (position)
+            }
+        }
+        data Main { outcome: u64; }
+        machine Main::main(&mut self) {
+            transition { _ -> observe() }
+            state observe(&mut self) {
+                let r: Resp = Resp::Results { v: 41, w: 7 };
+                let answer: u64 = r.get(9);
+                transition answer == 41 { true -> passed() false -> failed() }
+            }
+            state passed(&mut self) { self.outcome = 70; }
+            state failed(&mut self) { self.outcome = 1; }
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the affine sum local lowers as a shared whole receiver");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the shared receiver call verifies");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("entry machine");
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| match &operation.kind {
+                OperationKind::CallStructuralScalar {
+                    structural_arguments,
+                    ..
+                } => structural_arguments
+                    .iter()
+                    .any(|argument| argument.access == StructuralAccess::SharedBorrow),
+                _ => false,
+            })
+    );
+}

@@ -210,8 +210,7 @@ pub(super) fn validate(
         .iter()
         .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
         && (!argument.path.is_empty()
-            || checked.type_multiplicity(reference)
-                != language_semantics::Multiplicity::Unrestricted
+            || checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
             || !members.iter().all(|member| {
                 let checked_trees::data::DataMember::Variant(case) = member else {
                     return false;
