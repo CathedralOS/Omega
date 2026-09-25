@@ -28,6 +28,7 @@ pub(crate) fn validate_domain_definitions(
     validate_domain_aliases(program, symbols, diagnostics);
     validate_progress_profile_domains(program, diagnostics);
     validate_repeated_normalized_domain_identities(program, fact_plan, diagnostics);
+    validate_capacity_normalized_domain_agreement(program, fact_plan, diagnostics);
 
     for domain in program.domain_definitions() {
         validate_type_reference_handle_with_type_parameters(
@@ -337,6 +338,70 @@ fn validate_repeated_normalized_domain_identities(
             )));
         }
     }
+}
+
+/// [domains](wiki/spec/language/domains.md): "Fixed capacities do not define
+/// different meanings for one normalized byte-domain name. Declarations over
+/// different bounded carriers may share that name when their normalized facts
+/// agree; differing facts reject rather than selecting a declaration by order."
+///
+/// A fixed-array target normalizes its capacity out of the declared name, so
+/// `[u8; 8]::Utf8` and `[u8; 256]::Utf8` are one name. That rule is stated
+/// about the name, not the owner: both declarations answer the same use site,
+/// so a use cannot pick between disagreeing facts. The identities stay
+/// distinct — capacities and representation remain distinct — which is why
+/// this compares normalized facts and never semantic ids. Same-owner peers
+/// are left to the stricter agreement check above, which also pins predicate
+/// presence, classification, roles and establishment routes.
+///
+/// The capacity is erased from the name for every element type, not only
+/// `u8`, so the ambiguity this forbids is the same for a `[u16; N]` carrier
+/// and the check does not narrow itself to bytes.
+fn validate_capacity_normalized_domain_agreement(
+    program: &TypedTrees,
+    fact_plan: &FactPlan,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let domains = program.domain_definitions();
+    for (domain_index, domain) in domains.iter().enumerate() {
+        if !domain_target_normalizes_its_capacity(program, domain)
+            || domains[..domain_index]
+                .iter()
+                .any(|prior| prior.name == domain.name)
+        {
+            continue;
+        }
+        let normalized_facts = normalized_domain_facts(program, fact_plan, domain.symbol);
+        if domains
+            .iter()
+            .skip(domain_index + 1)
+            .filter(|peer| {
+                peer.name == domain.name
+                    && domain_target_normalizes_its_capacity(program, peer)
+                    && !same_normalized_domain_owner(program, peer, domain)
+            })
+            .any(|peer| {
+                normalized_domain_facts(program, fact_plan, peer.symbol) != normalized_facts
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "domain `{}` is declared over different bounded carriers with different normalized facts; capacity specializations of one name must agree",
+                domain.name
+            )));
+        }
+    }
+}
+
+fn domain_target_normalizes_its_capacity(
+    program: &TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(domain.target_type),
+        typed_trees::types::TypeReferenceNode::FixedArray { .. }
+    )
 }
 
 fn same_normalized_domain_owner(
