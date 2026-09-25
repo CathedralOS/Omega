@@ -26,6 +26,7 @@ impl RangeFacts<'_> {
             return;
         }
         let mut reads = Vec::new();
+        let mut bounds = None;
         if collect_reads(
             program,
             machine,
@@ -36,6 +37,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut reads,
             0,
+            &mut bounds,
         ) {
             self.alias_index(&program.expression_table.display_name(expression), name);
             self.alias_captured_selector(program, machine, state, expression, symbol);
@@ -55,6 +57,7 @@ impl RangeFacts<'_> {
             return;
         }
         let mut captured_reads = Vec::new();
+        let mut bounds = None;
         if !collect_reads(
             program,
             machine,
@@ -65,6 +68,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut captured_reads,
             0,
+            &mut bounds,
         ) {
             return;
         }
@@ -86,6 +90,7 @@ impl RangeFacts<'_> {
                 continue;
             }
             let mut selector_reads = Vec::new();
+            let mut bounds = None;
             if !collect_reads(
                 program,
                 machine,
@@ -96,6 +101,7 @@ impl RangeFacts<'_> {
                 self.checked_operators,
                 &mut selector_reads,
                 0,
+                &mut bounds,
             ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
             {
                 continue;
@@ -139,6 +145,7 @@ impl RangeFacts<'_> {
                     continue;
                 }
                 let mut reads = Vec::new();
+                let mut bounds = None;
                 // The current binding now exists. Later immutable copies may
                 // already have typed uses but do not introduce a new value.
                 // Read those uses through the shared captured-value identity,
@@ -162,6 +169,7 @@ impl RangeFacts<'_> {
                     self.checked_operators,
                     &mut reads,
                     0,
+                    &mut bounds,
                 ) || !reads
                     .iter()
                     .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))

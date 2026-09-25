@@ -12,18 +12,12 @@ pub fn payload_variant_for_field(
     if !field_symbol.is_valid() {
         return None;
     }
-    program.data_definitions().iter().find_map(|definition| {
-        program.data_members(definition).iter().find_map(|member| {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
-            program
-                .data_payload_fields(variant)
-                .iter()
-                .any(|field| field.symbol == field_symbol)
-                .then_some(variant.symbol)
-        })
-    })
+    // Payload field symbols are declared as children of their variant member
+    // (ordinary fields parent to the data definition), so the parent's kind
+    // names the owning variant without a definitions-by-members-by-fields scan.
+    let parent = program.symbols.get(field_symbol).parent;
+    (parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Variant)
+        .then_some(parent)
 }
 
 /// Resolve the retained member identity without establishing any semantic fact.
@@ -180,16 +174,19 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
         return None;
     }
 
-    for machine in program.machines() {
-        if machine.symbol == symbol
-            && let Some(attached_data) = machine.attached_data.as_deref()
-            && let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached_data)
-        {
-            return Some(data.symbol);
+    if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
+        for machine in program.machines() {
+            if machine.symbol == symbol
+                && let Some(attached_data) = machine.attached_data.as_deref()
+                && let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|definition| definition.name.as_str() == attached_data)
+            {
+                return Some(data.symbol);
+            }
         }
+        return None;
     }
     symbol_type_reference(program, symbol)
         .map(|reference| type_reference_base_symbol(program, reference))
@@ -202,54 +199,105 @@ fn symbol_type_reference(
     if !symbol.is_valid() {
         return None;
     }
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for parameter in program.state_parameters(state) {
-                if parameter.symbol == symbol {
-                    return Some(parameter.type_reference);
-                }
+    // The retained parent names the declaring container, so the type lookup
+    // walks straight to the owning state/data/machine instead of scanning the
+    // whole program. Only machine-state parameters, machine-state locals,
+    // machine-owned data, and data members carry a resolvable reference — the
+    // same set the old whole-program scan could reach.
+    let declaration = program.symbols.get(symbol);
+    match declaration.kind {
+        symbols::SymbolKind::Parameter | symbols::SymbolKind::Local => {
+            let state_symbol = declaration.parent;
+            let machine_symbol = program.symbols.get(state_symbol).parent;
+            if program.symbols.get(machine_symbol).kind != symbols::SymbolKind::Machine {
+                return None;
             }
-            let declaration = program.symbols.get(symbol);
-            if declaration.kind == symbols::SymbolKind::Local && declaration.parent == state.symbol
-            {
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                        && local.symbol == symbol
-                        && program.symbols.name(symbol) == local.name.as_str()
-                    {
-                        return Some(local.type_reference);
-                    }
-                }
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)?;
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)?;
+            if declaration.kind == symbols::SymbolKind::Parameter {
+                program
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)
+                    .map(|parameter| parameter.type_reference)
+            } else {
+                program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| {
+                        if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                            && local.symbol == symbol
+                            && program.symbols.name(symbol) == local.name.as_str()
+                        {
+                            Some(local.type_reference)
+                        } else {
+                            None
+                        }
+                    })
             }
         }
-        for owned in program.machine_owned_data(machine) {
-            if owned.symbol == symbol {
-                return Some(owned.type_reference);
+        symbols::SymbolKind::Field => match program.symbols.get(declaration.parent).kind {
+            symbols::SymbolKind::Machine => {
+                let machine = program
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == declaration.parent)?;
+                program
+                    .machine_owned_data(machine)
+                    .iter()
+                    .find(|owned| owned.symbol == symbol)
+                    .map(|owned| owned.type_reference)
             }
-        }
-    }
-
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            match member {
-                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
-                    return Some(field.type_reference);
-                }
-                typed_trees::data::DataMember::Variant(variant) => {
-                    if let Some(field) = program
-                        .data_payload_fields(variant)
+            symbols::SymbolKind::Variant => {
+                let data_symbol = program.symbols.get(declaration.parent).parent;
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == data_symbol)?;
+                let variant =
+                    program
+                        .data_members(data)
                         .iter()
-                        .find(|field| field.symbol == symbol)
-                    {
-                        return Some(field.type_reference);
-                    }
-                }
-                _ => {}
+                        .find_map(|member| match member {
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == declaration.parent =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })?;
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == symbol)
+                    .map(|field| field.type_reference)
             }
-        }
+            symbols::SymbolKind::Data => {
+                let data = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == declaration.parent)?;
+                program
+                    .data_members(data)
+                    .iter()
+                    .find_map(|member| match member {
+                        typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                            Some(field.type_reference)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        },
+        _ => None,
     }
-
-    None
 }
 
 fn expression_type_reference(

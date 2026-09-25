@@ -191,6 +191,64 @@ fn container_member_type_position(
             })
             .unwrap_or(ContainerOutcome::MappedMiss);
     }
+    // Trait signatures are checked state signatures: parameter symbols parent
+    // to the signature row and the signature's parent names the trait, so the
+    // same two hops reach the one signature storing the parameter.
+    if grandparent.is_valid()
+        && let Some(trait_definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == grandparent)
+        && let Some(signature) = program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .find(|signature| signature.symbol == parent)
+    {
+        return program
+            .state_signature_parameters(signature)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .map(|parameter| {
+                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
+    }
+    // Operator declarations parent their parameters directly; domain
+    // operators chain through the domain row the way signatures chain
+    // through traits.
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == parent)
+    {
+        return program
+            .operator_parameters(operator)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .map(|parameter| {
+                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
+    }
+    if grandparent.is_valid()
+        && let Some(domain) = program
+            .domain_definitions()
+            .iter()
+            .find(|domain| domain.symbol == grandparent)
+        && let Some(operator) = program
+            .domain_operators(domain)
+            .iter()
+            .find(|operator| operator.symbol == parent)
+    {
+        return program
+            .operator_parameters(operator)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .map(|parameter| {
+                ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
+            })
+            .unwrap_or(ContainerOutcome::MappedMiss);
+    }
     ContainerOutcome::Unmapped
 }
 
@@ -224,6 +282,37 @@ pub(super) fn symbol_type_position(
         // still scan.
         ContainerOutcome::MappedMiss => return None,
         ContainerOutcome::Unmapped => {}
+    }
+    // Only member-capable kinds can hold a scan position: parameters, state
+    // locals, data and payload fields, and the machine's own symbol (its
+    // attached data declaration). Every other kind — type parameters,
+    // roots, states, signatures, operators, traits, domains, variants —
+    // stores no member row, so the scan is provably a miss for them.
+    match program.symbols.get(symbol).kind {
+        symbols::SymbolKind::Machine => {
+            // A machine's position is its attached data declaration; resolve
+            // that row directly instead of walking every unrelated machine.
+            let Some(machine) = machine_by_symbol(program, symbol) else {
+                return None;
+            };
+            if machine.attached_data_application.is_valid() {
+                return Some(MemberPosition::Reference(machine.attached_data_application));
+            }
+            return machine
+                .attached_data
+                .as_deref()
+                .and_then(|attached_data| {
+                    program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.name.as_str() == attached_data)
+                })
+                .map(|data| MemberPosition::Declaration(data.symbol));
+        }
+        symbols::SymbolKind::Parameter
+        | symbols::SymbolKind::Local
+        | symbols::SymbolKind::Field => {}
+        _ => return None,
     }
     whole_program_member_type_position(program, symbol)
 }

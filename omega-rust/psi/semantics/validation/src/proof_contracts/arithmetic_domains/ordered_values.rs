@@ -266,7 +266,19 @@ pub(super) fn operand(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<Operand> {
-    build_operand(program, machine, state, expression, 0)
+    operand_with_frames(program, machine, state, expression, None)
+}
+
+/// `operand` served by the resolver's once-computed whole-program call plans
+/// when a live call-frame resolver reaches this site.
+pub(super) fn operand_with_frames(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Option<Operand> {
+    build_operand(program, machine, state, expression, 0, frames)
 }
 
 fn build_operand(
@@ -275,6 +287,7 @@ fn build_operand(
     state: &State,
     expression: ExpressionHandle,
     depth: usize,
+    frames: Option<&crate::CallFrameResolver<'_>>,
 ) -> Option<Operand> {
     if !expression.is_valid() || depth >= 128 {
         return None;
@@ -287,6 +300,7 @@ fn build_operand(
             state,
             collection,
             depth + 1,
+            frames,
         )?)));
     }
     match program.expression_table.expression(expression) {
@@ -329,7 +343,7 @@ fn build_operand(
         ExpressionNode::Member(member) => {
             let Operand::Place {
                 root, mut fields, ..
-            } = build_operand(program, machine, state, member.receiver, depth + 1)?
+            } = build_operand(program, machine, state, member.receiver, depth + 1, frames)?
             else {
                 return None;
             };
@@ -371,14 +385,10 @@ fn build_operand(
             // Shape eligibility grants no purity: the complete candidate check
             // below still consumes both summaries for every admitted call.
             crate::machine_calls::denotational_calls::plain_value_call_target(program, call)?;
-            let operational = crate::infer_operational_may(program);
-            let reaches = crate::infer_service_reaches(program, &operational);
+            let plans = crate::operand_call_plans(program, frames);
             let (_, entry) =
                 crate::machine_calls::denotational_calls::normal_return_call_candidate(
-                    program,
-                    call,
-                    &operational,
-                    &reaches,
+                    program, call, &plans.0, &plans.1,
                 )
                 .ok()?;
             let arguments = program.expression_table.expression_handles(call.arguments);
@@ -389,7 +399,9 @@ fn build_operand(
                 target: call.target_symbol,
                 arguments: arguments
                     .iter()
-                    .map(|argument| build_operand(program, machine, state, *argument, depth + 1))
+                    .map(|argument| {
+                        build_operand(program, machine, state, *argument, depth + 1, frames)
+                    })
                     .collect::<Option<Vec<_>>>()?,
             })
         }
@@ -407,8 +419,8 @@ fn build_operand(
                 primitive,
                 domain,
                 operands: vec![
-                    build_operand(program, machine, state, binary.left, depth + 1)?,
-                    build_operand(program, machine, state, binary.right, depth + 1)?,
+                    build_operand(program, machine, state, binary.left, depth + 1, frames)?,
+                    build_operand(program, machine, state, binary.right, depth + 1, frames)?,
                 ],
             })
         }
