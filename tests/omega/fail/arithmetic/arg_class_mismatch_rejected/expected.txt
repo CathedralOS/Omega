@@ -1,0 +1,1 @@
+argument `return_code` for state `exit_process` stores a boolean into a `i32` parameter, which holds a numeric value
