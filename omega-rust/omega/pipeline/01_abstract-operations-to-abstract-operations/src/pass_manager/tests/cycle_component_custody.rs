@@ -16,6 +16,7 @@ use crate::{
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{ProvenanceDisposition, PsiProvenance, PsiRealizationSite};
+use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 
 /// A certified countdown loop: the `remaining > 0` guard and `remaining - 1`
@@ -39,28 +40,56 @@ const CERTIFIED_COUNTDOWN_SOURCE: &str = r#"
     }
 "#;
 
+/// A countdown whose other carried value reads the pre-decrement counter
+/// (`acc * n` beside `n - 1`), reached as a scalar callee. The `n > 0` guard
+/// edge passes both carried values to the decrement block as that block's own
+/// parameters, so the backedge subtracts the decrement block's parameter
+/// rather than the header's.
+const GUARD_BOUND_COUNTDOWN_SOURCE: &str = r#"
+    data Root {
+        result: u64;
+    }
+
+    machine Root::fact(&mut self, n: u64, acc: u64 in Wrapping)
+    terminates by n;
+    -> u64
+    {
+        transition n > 0 {
+            true -> fact(n - 1, acc * (n as u64 in Wrapping))
+            false -> (acc as u64)
+        }
+    }
+
+    machine Root::main(&mut self) {
+        self.result = self.fact(5, 1);
+    }
+"#;
+
 fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
-    let tokens = source_files_to_tokens::Lexer::new(CERTIFIED_COUNTDOWN_SOURCE)
+    countdown_session(CERTIFIED_COUNTDOWN_SOURCE, "Root::scan")
+}
+
+fn countdown_session(source: &str, machine: &str) -> VerifiedPsiOptimizationSession {
+    let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
-        .expect("tokenize certified countdown");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse certified countdown");
+        .expect("tokenize countdown");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse countdown");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )
-    .expect("resolve certified countdown");
+    .expect("resolve countdown");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type certified countdown");
+        .expect("type countdown");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(
         typed,
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
-    .expect("check certified countdown");
+    .expect("check countdown");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
-        TerminalMachineSelection::Name("Root::scan"),
+        TerminalMachineSelection::Name(machine),
     )
-    .expect("lower certified countdown");
+    .expect("lower countdown");
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
@@ -78,13 +107,13 @@ fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
             .into_optimization_artifact()
             .into_optimization_input()
     })
-    .expect("certified countdown optimizer admission");
+    .expect("countdown optimizer admission");
     let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
-    .expect("certified countdown optimizer unit");
-    VerifiedPsiOptimizationSession::new(verified).expect("certified countdown session")
+    .expect("countdown optimizer unit");
+    VerifiedPsiOptimizationSession::new(verified).expect("countdown session")
 }
 
 #[test]
@@ -261,5 +290,72 @@ fn counted_loop_replay_rejects_a_tampered_region_on_a_certified_roster() {
     assert_eq!(
         session.validate_counted_loop_analysis(&forged),
         Err(CountedLoopAnalysisError::SnapshotMismatch)
+    );
+}
+
+#[test]
+fn a_guard_bound_countdown_counter_carries_its_certificate() {
+    let session = countdown_session(GUARD_BOUND_COUNTDOWN_SOURCE, "Root::main");
+    let [certificate] = session.ranking_certificates().certificates() else {
+        panic!("one countdown certificate on the guard-bound component")
+    };
+    let descent = &certificate.descent;
+    assert_ne!(descent.source_parameter, certificate.rank_parameter);
+    let header = session
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == certificate.header)
+        .expect("certificate header block");
+    let Some(AbstractOperation::Conditional { when_true, .. }) =
+        header.nodes.last().map(|node| &node.operation)
+    else {
+        panic!("countdown header ends in its guard")
+    };
+    assert!(when_true.bindings.iter().any(|binding| {
+        binding.parameter == descent.source_parameter
+            && binding.argument == certificate.rank_parameter
+    }));
+    session
+        .validate_counted_loop_analysis(session.counted_loop_analysis().unwrap().snapshot())
+        .unwrap();
+}
+
+#[test]
+fn a_decrement_parameter_bound_from_another_value_carries_no_certificate() {
+    let session = countdown_session(GUARD_BOUND_COUNTDOWN_SOURCE, "Root::main");
+    let certificate = session.ranking_certificates().certificates()[0].clone();
+    let (input, mut unit) = session.into_parts();
+    let header = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|block| block.id == certificate.header)
+        .expect("certificate header block");
+    let other = header
+        .parameters
+        .iter()
+        .map(|parameter| parameter.value)
+        .find(|value| *value != certificate.rank_parameter)
+        .expect("a second carried value");
+    let Some(AbstractOperation::Conditional { when_true, .. }) =
+        header.nodes.last_mut().map(|node| &mut node.operation)
+    else {
+        panic!("countdown header ends in its guard")
+    };
+    let binding = when_true
+        .bindings
+        .iter_mut()
+        .find(|binding| binding.parameter == certificate.descent.source_parameter)
+        .expect("guard binds the decremented parameter");
+    binding.argument = other;
+    assert_eq!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit).err(),
+        Some(
+            OptimizationUnitValidationError::RankedCycleRankingEvidenceMismatch {
+                machine: certificate.component.machine,
+            }
+        )
     );
 }
