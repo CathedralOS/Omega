@@ -20,6 +20,7 @@ use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
+mod conditional_return;
 mod state;
 mod successor_edge;
 
