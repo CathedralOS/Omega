@@ -354,8 +354,60 @@ struct SemiringLicense {
     mul_machine: SymbolHandle,
 }
 
+/// Each machine's entry-state symbol with the machine's position, sorted by
+/// symbol; an entry state shared by two machines selects neither. Unfolding
+/// looks up one machine per application, and a whole-table scan per unfold
+/// dominated entailment over the core Rat and Nat proofs. Built once per root
+/// judge; arm and site clones share it.
+struct EntryMachines(Vec<((u32, u32), u32)>);
+
+impl EntryMachines {
+    fn of(program: &TypedTrees) -> Self {
+        let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut entries = program
+            .machines()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, machine)| {
+                let entry = program.machine_states(machine).first()?;
+                Some((key(entry.symbol), u32::try_from(position).ok()?))
+            })
+            .collect::<Vec<_>>();
+        entries.sort_unstable();
+        let mut unique = Vec::with_capacity(entries.len());
+        let mut index = 0;
+        while index < entries.len() {
+            let run = entries[index..]
+                .iter()
+                .take_while(|(symbol, _)| *symbol == entries[index].0)
+                .count();
+            if run == 1 {
+                unique.push(entries[index]);
+            }
+            index += run;
+        }
+        Self(unique)
+    }
+
+    /// The machine whose entry state is `target`, as
+    /// `structural_terms::selected_application_machine` selects it.
+    fn machine<'program>(
+        &self,
+        program: &'program TypedTrees,
+        target: SymbolHandle,
+    ) -> Option<&'program Machine> {
+        if !target.is_valid() {
+            return None;
+        }
+        let key = (target.arena_index(), target.generation());
+        let found = self.0.binary_search_by_key(&key, |(symbol, _)| *symbol).ok()?;
+        program.machines().get(self.0[found].1 as usize)
+    }
+}
+
 pub(super) struct StructuralJudge<'program> {
     program: &'program TypedTrees,
+    entry_machines: std::rc::Rc<EntryMachines>,
     machine_symbol: SymbolHandle,
     resolve_applications: bool,
     runtime_body_values: bool,
@@ -383,6 +435,7 @@ impl Clone for StructuralJudge<'_> {
     fn clone(&self) -> Self {
         Self {
             program: self.program,
+            entry_machines: std::rc::Rc::clone(&self.entry_machines),
             machine_symbol: self.machine_symbol,
             resolve_applications: self.resolve_applications,
             runtime_body_values: self.runtime_body_values,
@@ -447,6 +500,7 @@ impl<'program> StructuralJudge<'program> {
             );
         let mut judge = Self {
             program,
+            entry_machines: std::rc::Rc::new(EntryMachines::of(program)),
             machine_symbol: judged_machine.symbol,
             resolve_applications,
             runtime_body_values: false,
@@ -900,7 +954,7 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let machine = super::structural_terms::selected_application_machine(program, target)?;
+        let machine = self.entry_machines.machine(program, target)?;
         let machine_parameters: Vec<&typed_trees::data::TypeParameter> = program
             .machine_type_parameters(machine)
             .iter()
@@ -941,6 +995,11 @@ impl<'program> StructuralJudge<'program> {
             .zip(arguments.iter())
             .map(|(parameter, argument)| (parameter.name.as_str().to_owned(), argument.clone()))
             .collect();
+        // The leading entries are the caller's arguments, which `resolve_at`
+        // resolved before unfolding. Resolving one again as an arm subject
+        // re-attempts every unfold nested inside it, once per arm and per
+        // enclosing unfold, which grows exponentially with the term's depth.
+        let parameter_count = environment.len();
 
         // CITE the callee's proven ensures first (extraction into consumer
         // proofs): a lemma with a functional `ensures result == <term>`
@@ -1052,13 +1111,21 @@ impl<'program> StructuralJudge<'program> {
                         Some(state),
                         guard,
                     )?;
-                    let (_, subject_term) =
-                        environment.iter().find(|(name, _)| name == &subject_name)?;
+                    let position = environment
+                        .iter()
+                        .position(|(name, _)| name == &subject_name)?;
+                    let local_subject;
+                    let subject_term = if position < parameter_count {
+                        &environment[position].1
+                    } else {
+                        local_subject = self.resolve_at(environment[position].1.clone(), depth + 1);
+                        &local_subject
+                    };
                     let StructuralTerm::Constructor {
                         data: got_data,
                         case: got_case,
                         ..
-                    } = self.resolve_at(subject_term.clone(), depth + 1)
+                    } = subject_term
                     else {
                         // The matched argument is not (yet) a constructor:
                         // arm selection is undecidable, no unfold.
