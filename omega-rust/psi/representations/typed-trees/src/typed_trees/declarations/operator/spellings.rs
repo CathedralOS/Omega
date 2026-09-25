@@ -43,9 +43,11 @@ pub fn resolve_spelling<'program>(
         .filter(|operator| operator.spelling == Some(spelling))
         .map(|operator| SpelledOperator {
             operator,
-            domain: program.domain_definitions().iter().find(|domain| {
-                operator.home_domain.is_valid() && domain.symbol == operator.home_domain
-            }),
+            domain: operator
+                .home_domain
+                .is_valid()
+                .then(|| crate::domain::domain_by_symbol(program, operator.home_domain))
+                .flatten(),
         });
     let domain_candidates = program.domain_definitions().iter().flat_map(|domain| {
         program
