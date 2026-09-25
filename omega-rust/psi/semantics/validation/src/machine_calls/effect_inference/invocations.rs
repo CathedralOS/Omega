@@ -15,6 +15,10 @@ use typed_trees::statement::{StatementNode, TableCall};
 
 use flow_effects::{InvocationInferencePlan, InvocationTarget, MachineInvocationInference};
 
+use crate::proof_contracts::default_domains::call_summaries::{
+    StateToMachine, state_to_machine_index,
+};
+
 #[derive(Debug, Clone)]
 struct MachineWork {
     symbol: SymbolHandle,
@@ -33,10 +37,11 @@ struct CallWork {
 }
 
 pub fn infer_synchronous_invocations(program: &TypedTrees) -> InvocationInferencePlan {
+    let state_to_machine = state_to_machine_index(program);
     let mut work = program
         .machines()
         .iter()
-        .map(|machine| build_machine_work(program, machine))
+        .map(|machine| build_machine_work(program, machine, &state_to_machine))
         .collect::<Vec<_>>();
 
     loop {
@@ -176,13 +181,25 @@ pub fn has_self_forwarded_boundary_parameter(
         })
 }
 
-fn build_machine_work(program: &TypedTrees, machine: &Machine) -> MachineWork {
+fn build_machine_work(
+    program: &TypedTrees,
+    machine: &Machine,
+    state_to_machine: &StateToMachine,
+) -> MachineWork {
     let published = declared_machine_invocations(program, machine);
     let mut direct = Vec::new();
     let mut calls = Vec::new();
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            collect_statement_calls(program, machine, state, statement, &mut direct, &mut calls);
+            collect_statement_calls(
+                program,
+                machine,
+                state,
+                statement,
+                &mut direct,
+                &mut calls,
+                state_to_machine,
+            );
         }
     }
     MachineWork {
@@ -204,35 +221,98 @@ fn collect_statement_calls(
     statement: &StatementNode,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     match statement {
         StatementNode::RootBinding(binding) => {
             for expression in [binding.receiver, binding.implementation_operand] {
                 if expression.is_valid() {
-                    collect_expression_calls(program, machine, state, expression, direct, calls);
+                    collect_expression_calls(
+                        program,
+                        machine,
+                        state,
+                        expression,
+                        direct,
+                        calls,
+                        state_to_machine,
+                    );
                 }
             }
         }
         StatementNode::AssemblyFact(_) => {}
         StatementNode::Assignment(assignment) => {
-            collect_expression_calls(program, machine, state, assignment.target, direct, calls);
-            collect_expression_calls(program, machine, state, assignment.value, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                assignment.target,
+                direct,
+                calls,
+                state_to_machine,
+            );
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                assignment.value,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
         StatementNode::Call(call) => {
-            collect_table_call(program, machine, state, call, direct, calls);
+            collect_table_call(
+                program,
+                machine,
+                state,
+                call,
+                direct,
+                calls,
+                state_to_machine,
+            );
             for argument in program.statement_table.expression_handles(call.arguments) {
-                collect_expression_calls(program, machine, state, *argument, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
-        StatementNode::Expression(expression) => {
-            collect_expression_calls(program, machine, state, *expression, direct, calls)
-        }
+        StatementNode::Expression(expression) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            *expression,
+            direct,
+            calls,
+            state_to_machine,
+        ),
         StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-            collect_expression_calls(program, machine, state, local.initial_value, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                local.initial_value,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
         StatementNode::Transition(transition) => {
             if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_calls(program, machine, state, guard, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    guard,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
             collect_transition_target_expression_calls(
                 program,
@@ -241,6 +321,7 @@ fn collect_statement_calls(
                 transition.target,
                 direct,
                 calls,
+                state_to_machine,
             );
             if transition.continuation.is_valid() {
                 collect_transition_target_expression_calls(
@@ -250,6 +331,7 @@ fn collect_statement_calls(
                     transition.continuation,
                     direct,
                     calls,
+                    state_to_machine,
                 );
             }
         }
@@ -264,6 +346,7 @@ fn collect_transition_target_expression_calls(
     target: typed_trees::statement::TransitionTargetHandle,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     if !target.is_valid() {
         return;
@@ -311,14 +394,31 @@ fn collect_transition_target_expression_calls(
                     arguments,
                     direct,
                     calls,
+                    state_to_machine,
                 );
             }
             for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_calls(program, machine, state, *argument, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
         typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_calls(program, machine, state, *expression, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                *expression,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
         typed_trees::statement::TransitionTargetNode::SelfTarget
         | typed_trees::statement::TransitionTargetNode::Terminal => {}
@@ -332,6 +432,7 @@ fn collect_expression_calls(
     expression: ExpressionHandle,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     if !expression.is_valid() {
         return;
@@ -340,51 +441,177 @@ fn collect_expression_calls(
         ExpressionNode::Match(dispatch) => {
             for child in crate::value_custody::expression_types::match_children(program, *dispatch)
             {
-                collect_expression_calls(program, machine, state, child, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    child,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
-        ExpressionNode::Atomic(atomic) => {
-            collect_expression_calls(program, machine, state, atomic.value, direct, calls)
-        }
+        ExpressionNode::Atomic(atomic) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            atomic.value,
+            direct,
+            calls,
+            state_to_machine,
+        ),
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_expression_calls(program, machine, state, *value, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    *value,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_expression_calls(program, machine, state, binary.left, direct, calls);
-            collect_expression_calls(program, machine, state, binary.right, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                binary.left,
+                direct,
+                calls,
+                state_to_machine,
+            );
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                binary.right,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_calls(program, machine, state, cast.value, direct, calls)
-        }
+        ExpressionNode::Cast(cast) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            cast.value,
+            direct,
+            calls,
+            state_to_machine,
+        ),
         ExpressionNode::Call(call) => {
-            collect_expression_call(program, machine, state, call, direct, calls);
-            collect_expression_calls(program, machine, state, call.receiver, direct, calls);
+            collect_expression_call(
+                program,
+                machine,
+                state,
+                call,
+                direct,
+                calls,
+                state_to_machine,
+            );
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                call.receiver,
+                direct,
+                calls,
+                state_to_machine,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_calls(program, machine, state, *argument, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            collect_expression_calls(program, machine, state, indexed.collection, direct, calls);
-            collect_expression_calls(program, machine, state, indexed.index, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                indexed.collection,
+                direct,
+                calls,
+                state_to_machine,
+            );
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                indexed.index,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
-        ExpressionNode::Member(member) => {
-            collect_expression_calls(program, machine, state, member.receiver, direct, calls)
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_expression_calls(program, machine, state, inner.target, direct, calls)
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_calls(program, machine, state, unary.operand, direct, calls)
-        }
+        ExpressionNode::Member(member) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            member.receiver,
+            direct,
+            calls,
+            state_to_machine,
+        ),
+        ExpressionNode::Borrow(inner) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            inner.target,
+            direct,
+            calls,
+            state_to_machine,
+        ),
+        ExpressionNode::Unary(unary) => collect_expression_calls(
+            program,
+            machine,
+            state,
+            unary.operand,
+            direct,
+            calls,
+            state_to_machine,
+        ),
         ExpressionNode::Range(range) => {
-            collect_expression_calls(program, machine, state, range.start, direct, calls);
-            collect_expression_calls(program, machine, state, range.end, direct, calls);
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                range.start,
+                direct,
+                calls,
+                state_to_machine,
+            );
+            collect_expression_calls(
+                program,
+                machine,
+                state,
+                range.end,
+                direct,
+                calls,
+                state_to_machine,
+            );
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                collect_expression_calls(program, machine, state, field.value, direct, calls);
+                collect_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    direct,
+                    calls,
+                    state_to_machine,
+                );
             }
         }
         ExpressionNode::Boolean(_)
@@ -403,6 +630,7 @@ fn collect_table_call(
     call: &TableCall,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     let receiver = origin_for_statement_receiver(program, machine, state, call);
     let arguments = program
@@ -419,6 +647,7 @@ fn collect_table_call(
         arguments,
         direct,
         calls,
+        state_to_machine,
     );
 }
 
@@ -468,10 +697,7 @@ fn boundary_service_for_receiver_path(
             .type_reference_table
             .type_reference(type_reference)
             .type_symbol(&program.type_reference_table);
-        let definition = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == owner_symbol)?;
+        let definition = data_definition_by_symbol(program, owner_symbol)?;
         let field = program.data_members(definition).iter().find_map(|member| {
             let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
@@ -502,10 +728,7 @@ fn type_reference_for_symbol(
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == machine.attached_data_symbol)?;
+            let definition = data_definition_by_symbol(program, machine.attached_data_symbol)?;
             program.data_members(definition).iter().find_map(|member| {
                 let typed_trees::data::DataMember::Field(field) = member else {
                     return None;
@@ -515,6 +738,20 @@ fn type_reference_for_symbol(
         })
 }
 
+/// A data definition by symbol, resolved through the build-scope memo when
+/// one is open — receiver-path and attached-data walks otherwise re-scan
+/// the declaration table per member hop.
+fn data_definition_by_symbol<'program>(
+    program: &'program TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
+        program, symbol,
+    )
+    .first_position()
+    .and_then(|position| program.data_definitions().get(position as usize))
+}
+
 fn collect_expression_call(
     program: &TypedTrees,
     machine: &Machine,
@@ -522,6 +759,7 @@ fn collect_expression_call(
     call: &TableCallExpression,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     let receiver = origin_for_expression(program, machine, state, call.receiver);
     let arguments = program
@@ -538,6 +776,7 @@ fn collect_expression_call(
         arguments,
         direct,
         calls,
+        state_to_machine,
     );
 }
 
@@ -549,6 +788,7 @@ fn push_call(
     arguments: Vec<Option<InvocationTarget>>,
     direct: &mut Vec<InvocationTarget>,
     calls: &mut Vec<CallWork>,
+    state_to_machine: &StateToMachine,
 ) {
     let boundary_signature = boundary_trait_for_signature(program, target);
     let crosses_boundary = receiver.is_some() || boundary_signature.is_some();
@@ -584,7 +824,10 @@ fn push_call(
         target_machine: if crosses_boundary {
             SymbolHandle::invalid()
         } else {
-            machine_symbol_for_state(program, target)
+            state_to_machine
+                .get(&target)
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid)
         },
         arguments,
         declared,
@@ -618,20 +861,6 @@ fn boundary_trait_for_signature(
                 .any(|signature| signature.symbol == symbol)
         })
         .map(|definition| definition.symbol)
-}
-
-fn machine_symbol_for_state(program: &TypedTrees, state: SymbolHandle) -> SymbolHandle {
-    program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state)
-        })
-        .map(|machine| machine.symbol)
-        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn declared_targets(
