@@ -188,3 +188,23 @@ pub(crate) fn resolve(
     }
     Ok((binding.source, path, case.id))
 }
+
+/// The declared cases of the whole-root sum `source` binds, in declaration
+/// order. The binding's declarations are retained on the binding itself, so a
+/// dispatch built from them never reaches for the module's type catalog.
+pub(crate) fn sum_cases(
+    bindings: &[StructuralCaseBinding],
+    source: PlaceId,
+) -> Option<&[terminal_psi::StructuralCaseDeclaration]> {
+    let binding = bindings.iter().find(|binding| binding.source == source)?;
+    let declaration = binding
+        .declarations
+        .iter()
+        .find(|declaration| declaration.id == binding.structural_type)?;
+    match &declaration.shape {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            Some(cases.as_slice())
+        }
+        _ => None,
+    }
+}

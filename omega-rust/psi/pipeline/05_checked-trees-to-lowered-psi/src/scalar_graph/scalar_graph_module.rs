@@ -115,6 +115,16 @@ fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
                 pending.push((*when_false_target, false));
                 pending.push((*when_true_target, false));
             }
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                ..
+            } => {
+                pending.push((*fallback_target, false));
+                for arm in armed {
+                    pending.push((arm.target, false));
+                }
+            }
             LoweredScalarBranchTerminator::Return { .. }
             | LoweredScalarBranchTerminator::Crash(_) => {}
         }
