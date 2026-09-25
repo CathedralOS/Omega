@@ -3,7 +3,7 @@
 //! qualified fields inside the selected case so borrow and Terminal consumers
 //! see the same Case/Field path; never repair a conflicting retained identity.
 
-use crate::lookup::{first_valid_name_path_symbol, machine_by_symbol};
+use crate::lookup::{data_definition_by_symbol, first_valid_name_path_symbol, machine_by_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
@@ -142,11 +142,7 @@ fn container_member_type_position(
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::Data => {
-            let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == parent)
-            else {
+            let Some(data) = data_definition_by_symbol(program, parent) else {
                 return ContainerOutcome::Unmapped;
             };
             program
@@ -167,11 +163,7 @@ fn container_member_type_position(
             if !grandparent.is_valid() {
                 return ContainerOutcome::Unmapped;
             }
-            let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == grandparent)
-            else {
+            let Some(data) = data_definition_by_symbol(program, grandparent) else {
                 return ContainerOutcome::Unmapped;
             };
             let Some(variant) = program
@@ -750,10 +742,7 @@ pub(crate) fn effective_member_symbol_from_position(
         let selected = receiver_position
             .map(|position| position_leaf_symbol(program, position))
             .and_then(|type_symbol| {
-                let declaration = program
-                    .data_definitions()
-                    .iter()
-                    .find(|row| row.symbol == type_symbol)?;
+                let declaration = data_definition_by_symbol(program, type_symbol)?;
                 let variant =
                     program
                         .data_members(declaration)
@@ -813,10 +802,7 @@ pub(super) fn resolve_case_member_symbol_from_type_symbol(
     case_name: &str,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    let declaration = program
-        .data_definitions()
-        .iter()
-        .find(|row| row.symbol == type_symbol)?;
+    let declaration = data_definition_by_symbol(program, type_symbol)?;
     let variant = program
         .data_members(declaration)
         .iter()
@@ -840,11 +826,7 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    if let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == type_symbol)
-    {
+    if let Some(data) = data_definition_by_symbol(program, type_symbol) {
         for member in program.data_members(data) {
             match member {
                 typed_trees::data::DataMember::Field(field)
