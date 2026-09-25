@@ -420,6 +420,63 @@ pub(super) fn capture_call<Value: CapturedValue>(
     None
 }
 
+/// Borrow state rows bucketed by their (machine, state) key once per borrow
+/// ledger. `exact_call_occurrence` runs per captured call site; a whole-ledger
+/// rescan per site is O(states x calls) on large programs. Freshness anchors
+/// on the ledger pointer plus arena lens and the first state's storage
+/// address, so stale buckets from a previously visited ledger can never
+/// redirect a lookup on a different program at the same stack address.
+struct BorrowStateIndex {
+    by_key: std::collections::HashMap<
+        (SymbolHandle, SymbolHandle),
+        Vec<arena::Handle<checked_trees::borrow::StateBorrowFact>>,
+    >,
+}
+
+thread_local! {
+    static BORROW_STATE_INDEX: std::cell::RefCell<
+        Option<(*const BorrowFacts, usize, BorrowStateIndex)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn borrow_facts_fingerprint(borrow: &BorrowFacts) -> usize {
+    let states_len = borrow.states.len();
+    let calls_len = borrow.calls.len();
+    let first_state = borrow
+        .states
+        .iter()
+        .next()
+        .map(|(_, state)| state as *const checked_trees::borrow::StateBorrowFact as usize)
+        .unwrap_or(0);
+    (borrow as *const BorrowFacts) as usize
+        ^ states_len.rotate_left(17)
+        ^ calls_len.rotate_left(31)
+        ^ first_state
+}
+
+fn with_borrow_state_index<R>(borrow: &BorrowFacts, run: impl FnOnce(&BorrowStateIndex) -> R) -> R {
+    BORROW_STATE_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fingerprint = borrow_facts_fingerprint(borrow);
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, borrow as *const _) && *seen == fingerprint);
+        if !fresh {
+            let mut index = BorrowStateIndex {
+                by_key: std::collections::HashMap::new(),
+            };
+            for (handle, state) in borrow.states.iter() {
+                index
+                    .by_key
+                    .entry((state.machine_symbol, state.state_symbol))
+                    .or_default()
+                    .push(handle);
+            }
+            *slot = Some((borrow as *const BorrowFacts, fingerprint, index));
+        }
+        run(&slot.as_ref().unwrap().2)
+    })
+}
+
 /// The borrow row for this exact call occurrence. A statement can carry
 /// further call occurrences beside the captured one — an index selector on
 /// the target is itself a call — so the row is selected by target, receiver
@@ -436,15 +493,20 @@ fn exact_call_occurrence<'facts>(
     call: &typed_trees::expression::TableCallExpression,
     receiver_root: Option<SymbolHandle>,
 ) -> Option<&'facts checked_trees::BorrowCallFact> {
-    let (machine_index, _) = context.state_location(program, caller_state)?;
+    let (machine_index, caller_state_index) = context.state_location(program, caller_state)?;
     let owner = &program.machines()[machine_index];
-    let mut states = borrow.states.iter().filter(|(_, state)| {
-        state.machine_symbol == owner.symbol && state.state_symbol == caller_state
+    let caller = &program.machine_states(owner)[caller_state_index];
+    let bucket = with_borrow_state_index(borrow, |index| {
+        index
+            .by_key
+            .get(&(owner.symbol, caller_state))
+            .cloned()
+            .unwrap_or_default()
     });
-    let (_, state) = states.next()?;
-    if states.next().is_some() {
+    let &[state_handle] = bucket.as_slice() else {
         return None;
-    }
+    };
+    let state = borrow.states.get(state_handle);
     let receiver_root = receiver_root.unwrap_or_default();
     let mut calls = borrow
         .calls
@@ -456,10 +518,10 @@ fn exact_call_occurrence<'facts>(
                 && candidate.has_receiver == call.receiver.is_valid()
                 && candidate.receiver_symbol == receiver_root
                 && matches!(
-                    crate::semantic::calls::find_call_site(
+                    crate::semantic::calls::find_call_site_in_state(
                         program,
-                        owner.symbol,
-                        caller_state,
+                        owner,
+                        caller,
                         statement_index,
                         candidate.call_ordinal,
                     ),
