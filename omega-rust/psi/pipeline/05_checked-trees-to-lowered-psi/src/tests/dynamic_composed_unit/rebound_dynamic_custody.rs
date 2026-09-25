@@ -1374,3 +1374,149 @@ fn lowers_joined_ordering_guard_into_entry_less_than() {
         comparison.result.expect_scalar().id
     );
 }
+
+const JOINED_INDEXED_FIELD_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Slot [copy] { flag: bool; }
+
+    data Main [copy] { first: Item; second: Item; items: [Slot; 2]; }
+
+    machine Main::run(&self) {
+        transition self.items[0].flag {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_indexed_field_guard_into_entry_indexed_read() {
+    let caller = lower_joined_guard_caller(JOINED_INDEXED_FIELD_GUARD_SOURCE);
+    assert!(caller.parameters.is_empty());
+    let [read] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "indexed field guard lowers to a single field read: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    let OperationKind::BooleanStructuralField {
+        source, ref path, ..
+    } = read.kind
+    else {
+        panic!("indexed field guard lowers to BooleanStructuralField: {read:?}")
+    };
+    assert_eq!(source, caller.structural_places[0].id);
+    assert_eq!(path.len(), 2);
+    assert!(matches!(
+        path[0],
+        semantic_vocabulary::CanonicalStructuralPathSegment::Field(_)
+    ));
+    assert!(matches!(
+        path[1],
+        semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)
+    ));
+    assert_eq!(
+        joined_entry_condition(&caller),
+        read.result.expect_scalar().id
+    );
+}
+
+const JOINED_INDEXED_ELEMENT_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; counts: [u64; 4]; }
+
+    machine Main::run(&self) {
+        transition self.counts[2] < 5 {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_indexed_element_guard_into_entry_primitive_read() {
+    let caller = lower_joined_guard_caller(JOINED_INDEXED_ELEMENT_GUARD_SOURCE);
+    assert!(caller.parameters.is_empty());
+    let operations = caller.blocks[0].operations.as_slice();
+    assert_eq!(
+        operations.len(),
+        3,
+        "indexed element guard lowers to a read, a constant, and a comparison: {operations:?}"
+    );
+    let (read, constant, comparison) = (&operations[0], &operations[1], &operations[2]);
+    assert!(matches!(
+        comparison.kind,
+        OperationKind::IntegerLessThan { .. }
+    ));
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    assert_eq!(
+        read.result.expect_scalar().id,
+        match comparison.kind {
+            OperationKind::IntegerLessThan { left, .. } => left,
+            _ => panic!("integer comparison"),
+        }
+    );
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}
