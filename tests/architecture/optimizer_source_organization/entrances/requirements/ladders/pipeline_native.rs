@@ -19,7 +19,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/context.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/reviewer.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/operations.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review/tests.rs",
         ],
     },
     SemanticLadder {
@@ -31,9 +30,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/classification.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/inventory.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/commitment.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/tests/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/tests/inventory.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy/tests/foreign_rows.rs",
         ],
     },
     SemanticLadder {
@@ -61,9 +57,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/boundary.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/exact_plan.rs",
             "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/normalized_foreign_call.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/tests/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/tests/exact_evidence.rs",
-            "omega-rust/omega/compiler/native-realization/src/native_realization/providers/settlements/tests/fixtures.rs",
         ],
     },
     SemanticLadder {

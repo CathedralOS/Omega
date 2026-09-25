@@ -51,18 +51,14 @@ DOCUMENTATION_FILES = {
 
 # Measured multi-minute library tests by owning package
 # (wiki/drafts/measurements/test_cycle_selection_remeasurement.md), and the routine-diff
-# exclusion list decided for them. A reverse-dependency selection that picks up
-# native-realization otherwise drags ~800 s of runtime stress cases its diff
-# cannot affect; a diff under the owner's own src/ keeps its tail because that
-# tail is the affected behavior. --with-slow-tail restores excluded members and
-# --full never excludes; keep both this table and the remeasurement note current
-# before relying on a narrow run.
-SLOW_TEST_OWNERS = {
-    "native-realization": [
-        ("stack_probe_commit", 324),
-        ("runtime_spill_pressure", 356),
-    ],
-}
+# exclusion list decided for them. A reverse-dependency selection would otherwise
+# drag a listed owner's slow cases into a diff that cannot affect them; a diff
+# under the owner's own src/ keeps its tail because that tail is the affected
+# behavior. --with-slow-tail restores excluded members and --full never
+# excludes; keep both this table and the remeasurement note current before
+# relying on a narrow run. Empty since native-realization's library tests
+# (`stack_probe_commit`, `runtime_spill_pressure`) were deleted.
+SLOW_TEST_OWNERS: dict[str, list[tuple[str, int]]] = {}
 
 
 def is_documentation(filename):

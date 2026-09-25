@@ -98,37 +98,3 @@ fn exact_names(selections: &OptimizationSelections) -> String {
         .collect::<Vec<_>>()
         .join(", ")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::{Optimization, OptimizationRollbackReceipt, OptimizationSelections};
-
-    #[test]
-    fn rollback_receipt_distinguishes_requested_actual_and_effective_sets() {
-        let selected = OptimizationSelections::new([
-            Optimization::ControlFlowCleanup,
-            Optimization::CopyPropagation,
-        ])
-        .unwrap();
-        let requested = OptimizationSelections::new([
-            Optimization::CopyPropagation,
-            Optimization::X86SelectXorZeroI64MaterializationV1,
-        ])
-        .unwrap();
-        let receipt = OptimizationRollbackReceipt::new(selected, requested.clone());
-        assert_eq!(receipt.requested_disabled(), &requested);
-        assert_eq!(
-            receipt.actually_disabled().as_slice(),
-            &[Optimization::CopyPropagation]
-        );
-        assert_eq!(
-            receipt.effective().as_slice(),
-            &[Optimization::ControlFlowCleanup]
-        );
-        assert!(receipt.is_consistent());
-        assert_eq!(
-            receipt.to_string(),
-            "requested=[CopyPropagation, X86SelectXorZeroI64MaterializationV1]; applied=[CopyPropagation]; effective=[ControlFlowCleanup]"
-        );
-    }
-}

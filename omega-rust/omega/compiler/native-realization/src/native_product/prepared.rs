@@ -125,7 +125,7 @@ impl PreparedNativeCompilation {
     }
 }
 
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 impl NativeInputReuseKey {
     /// Build one reuse key from its parts so tests outside this crate can
     /// check which prepared inputs an invocation shares.

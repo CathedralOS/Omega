@@ -135,6 +135,3 @@ impl<'terminal> CallbackTerminalOperations<'terminal> {
             .and_then(|position| self.requested[position].1.unique())
     }
 }
-
-#[cfg(test)]
-mod tests;

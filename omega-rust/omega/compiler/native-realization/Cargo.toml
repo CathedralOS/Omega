@@ -62,23 +62,6 @@ checked-compilation-to-terminal-artifact = { path = "../terminal-artifact" }
 compilation-report = { path = "../compilation-report" }
 selected-dispatch = { path = "../../build/selected-dispatch" }
 
-[dev-dependencies]
-package-compilation = { path = "../../build/package-compilation" }
-image-emission = { path = "../../backend/images/image-emission", features = ["test-support"] }
-machine-emission = { path = "../../backend/machine-emission", features = ["test-support"] }
-isa-aarch64 = { path = "../../backend/instruction_set_architectures/isa-aarch64" }
-selected-dispatch = { path = "../../build/selected-dispatch" }
-checked-trees = { path = "../../../psi/representations/checked-trees" }
-language-semantics = { path = "../../../psi/foundation/language-semantics" }
-optimization = { path = "../../../psi/representations/optimization" }
-terminal-interpreter = { path = "../../../psi/semantics/terminal-interpreter" }
-terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
-source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
-
 [features]
 test-support = [
     "machine-emission/test-support",

@@ -27,9 +27,8 @@ pub(super) struct CompiledFragmentEntry {
     pub signature: program_entry_plan::SelectedProgramEntrySourceSignature,
 }
 
-/// The source-to-checked ladder mirrors
-/// `native-realization/src/tests/fixtures/checked_source.rs`: one source-free
-/// resolution, typed lowering, then settled checking.
+/// The source-to-checked ladder: one source-free resolution, typed lowering,
+/// then settled checking.
 fn checked_source(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

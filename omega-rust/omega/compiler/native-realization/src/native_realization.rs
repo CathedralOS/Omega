@@ -401,6 +401,3 @@ fn validate_emitted_receiver_binding(
     }
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

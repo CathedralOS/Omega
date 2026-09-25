@@ -8,16 +8,16 @@
 //! composes target lowering to exercise the complete route in isolation.
 
 mod error;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 mod input;
 mod model;
 mod phase_selections;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 mod test_support;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
-#[cfg(any(test, feature = "test-support"))]
+#[cfg(feature = "test-support")]
 pub use input::stage_optimized_verified_physical_pipeline_with_provider_executions;
 pub use model::StagedOptimizedVerifiedPhysicalPipeline;
 use optimization_core::PostTerminalOptimizationSelections;

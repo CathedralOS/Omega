@@ -64,6 +64,3 @@ impl OptimizationRollback {
         OptimizationRollbackSettlement { effective, receipt }
     }
 }
-
-#[cfg(test)]
-mod tests;

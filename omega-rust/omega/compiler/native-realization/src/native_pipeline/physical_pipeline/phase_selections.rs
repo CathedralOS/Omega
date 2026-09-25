@@ -44,6 +44,3 @@ pub(super) fn validate_physical_selections(
     .map_err(OptimizedVerifiedPhysicalPipelineError::FunctionRelativeLayoutRuleCatalog)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;

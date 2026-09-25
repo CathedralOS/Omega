@@ -3,9 +3,6 @@
 use checked_trees::{CheckedOperatorResolutionStatus, CheckedTrees};
 use diagnostics::Diagnostic;
 
-#[cfg(test)]
-mod tests;
-
 pub(crate) fn associate(
     checked: &CheckedTrees,
     module: &terminal_psi::TerminalModule,

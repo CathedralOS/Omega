@@ -18,7 +18,7 @@ pub struct ProductionCompilationManifestIdentity([u8; 32]);
 impl ProductionCompilationManifestIdentity {
     /// Substitute a different claimed identity into a stored manifest so
     /// custody coverage can prove the digest is consulted on replay.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub const fn for_test(bytes: [u8; 32]) -> Self {
         Self(bytes)
@@ -356,7 +356,7 @@ impl ProductionCompilationManifest {
     /// and identity are recomputed, but no artifact join runs. Custody
     /// coverage uses this for self-consistent manifests whose subject or
     /// artifact coordinate `for_native`/`for_terminal` would refuse.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub fn for_test(
         subject: ProductionCompilationSubject,
@@ -369,7 +369,7 @@ impl ProductionCompilationManifest {
     /// coordinate, canonical bytes, and identity are retained exactly as
     /// given so stale or forged substitutions can be exercised through
     /// `validate` and the downstream joins.
-    #[cfg(any(test, feature = "test-support"))]
+    #[cfg(feature = "test-support")]
     #[doc(hidden)]
     pub const fn for_test_parts(
         subject: ProductionCompilationSubject,

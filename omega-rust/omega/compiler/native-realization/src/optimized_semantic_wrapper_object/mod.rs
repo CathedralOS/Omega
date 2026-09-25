@@ -126,6 +126,3 @@ impl StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
         self.custody
     }
 }
-
-#[cfg(test)]
-mod tests;

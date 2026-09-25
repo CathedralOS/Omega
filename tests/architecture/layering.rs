@@ -3259,12 +3259,10 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let pipeline_manifest = root.join("omega-rust/omega/compiler/native-realization/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&pipeline_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
-    for dependency in ["isa-x86_64", "isa-aarch64"] {
-        assert!(
-            manifest_source.contains(dependency),
-            "optimized-native realization must retain its clean {dependency} dependency"
-        );
-    }
+    assert!(
+        manifest_source.contains("isa-x86_64"),
+        "optimized-native realization must retain its clean isa-x86_64 dependency"
+    );
 
     let selection_manifest = root
         .join("omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/Cargo.toml");

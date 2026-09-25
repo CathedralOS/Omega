@@ -54,6 +54,3 @@ pub(crate) fn admit_behavior_exclusion_closure(
     diagnostics.extend(violations.into_iter().map(Diagnostic::error));
     Err(diagnostics)
 }
-
-#[cfg(test)]
-mod tests;

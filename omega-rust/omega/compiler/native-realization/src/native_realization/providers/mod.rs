@@ -6,9 +6,6 @@ mod compiler_builtins;
 mod installation;
 mod settlements;
 
-#[cfg(test)]
-pub(crate) use adapters::project_selected_provider_adapters_for_requirements;
-
 use crate::native_realization::realization_request::{
     NativeRealizationInput, NativeRealizationRequest,
 };
