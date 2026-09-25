@@ -82,18 +82,7 @@ only. These items land in order, and each deletes the side doors it replaces.
   loads 22 sources and takes 102 s on the Windows host, of which the itemized
   Psi stages are 15 s; the rest is the per-target dependency package compile.
   Acceptance: `PreparedCheckedSource` assembles once for any target set and
-  the `Step: assemble` timing row appears once per compilation. Open
-  regression from `cc96b888c3`: stage 02's const classifier
-  (`const_evaluation::anonymous::has_no_authored_spelling`) still scans every
-  loaded root item for an operator spelling, so the joined std `Float`
-  spellings make `generics/const_data_expression_division_by_zero` defer
-  `8 / (3 - 3)` to validation's anonymous-division message. The typed
-  resolvers already select spellings only from the use site's own source,
-  package and imports (`SymbolTable::source_reference_may_select_symbol`);
-  the syntax-level scan needs the same scope, which means carrying the
-  assembled source map and import bindings into generic-data preparation.
-  `generics/runtime_const_data_where_fact_exit` also rejects, but it already
-  rejected at `0f87cf2c24` on both routes, so it is not this union's.
+  the `Step: assemble` timing row appears once per compilation.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:

@@ -497,7 +497,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
             }
         }
         ExpressionNode::Binary(binary) => {
-            if !super::anonymous::has_builtin_const_operator(syntax, binary.operator) {
+            if !super::anonymous::has_builtin_const_operator(syntax, binary) {
                 return Err("const operator application requires declaration selection".to_owned());
             }
             validate_anonymous_remainder(syntax, binary)?;
