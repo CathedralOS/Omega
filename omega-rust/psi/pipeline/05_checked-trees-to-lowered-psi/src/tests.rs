@@ -3,6 +3,7 @@
 //! live in `crate::front_end` (`tests/support/front_end.rs`), which the
 //! integration `suite` target includes from the same file.
 
+mod array_literal_stores;
 mod attached_unit_cases;
 mod borrow_certificate_replay;
 mod borrowed_named_results;

@@ -180,9 +180,10 @@ pub(crate) fn validate(
         let primitive_stores = plan.operations.iter().filter(|operation| {
             matches!(operation, CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index)
         }).count();
+        // Several primitive stores are one array literal's element roster,
+        // rejoined below by `primitive_store::validate_element_rosters`.
         if primitive_stores != 0 {
-            if primitive_stores != 1
-                || !byte_stores.is_empty()
+            if !byte_stores.is_empty()
                 || stores
                     .iter()
                     .any(|store| store.statement_index == statement_index)
@@ -242,6 +243,11 @@ pub(crate) fn validate(
             )?,
         }
     }
+    crate::emission::primitive_store::validate_element_rosters(
+        checked,
+        plan.state,
+        &plan.operations,
+    )?;
     for operation in &plan.operations {
         if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
             statement_index,

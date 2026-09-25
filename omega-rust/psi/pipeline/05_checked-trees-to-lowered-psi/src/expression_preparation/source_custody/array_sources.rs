@@ -43,6 +43,7 @@ pub(crate) fn construction_expression(
                     Some(state),
                     assignment.target,
                 )
+                .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
                 .map(|reference| (assignment.value, reference)),
                 _ => None,
             }
