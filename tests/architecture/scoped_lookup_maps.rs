@@ -36,6 +36,14 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "omega-rust/psi/semantics/validation/src/machine_calls/calls/write_frames/isolation.rs",
         "definition indexes for a spelling with no resolved symbol — the cache          indexes `by_symbol` first and consults `by_name` only when          `symbol.is_valid()` is false, or for a `TableStructLiteral`, whose          `type_name` is a spelling the literal carries in place of a symbol",
     ),
+    (
+        "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/structural_judgment.rs",
+        "the conformance slot index keyed by (trait conformance symbol, bound          requirement spelling): `TraitConformance::requirement` carries a          `Name` and no requirement symbol, and a conformance that names none          falls back to the conforming machine's own spelling, so the symbol          tree has no requirement entry to key on",
+    ),
+    (
+        "omega-rust/psi/semantics/validation/src/machine_calls/effect_inference/plan_scope.rs",
+        "the per-program cache of that same conformance slot index, holding the          key its producer builds",
+    ),
     // One generic application's own parameter spellings bound to chosen
     // arguments — substitution environments, not declaration lookup.
     (
