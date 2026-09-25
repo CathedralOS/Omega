@@ -81,7 +81,7 @@ fn structural_rosters_fingerprint(
     }
     // States' member spans can be repointed while arena lengths stay fixed,
     // so span starts and counts enter the fingerprint beside element samples.
-    let states_len = program.tables.machine_states.len() as usize;
+    let states_len = program.tables.machine_states.len();
     for position in [0usize, states_len / 2, states_len.saturating_sub(1)] {
         let state = program
             .tables
@@ -227,11 +227,11 @@ fn local_data_positions(
     })
 }
 
-fn rostered_data_member<'p>(
-    program: &'p TypedTrees,
+fn rostered_data_member(
+    program: &TypedTrees,
     data_index: u32,
     member_index: u32,
-) -> &'p typed_trees::data::DataMember {
+) -> &typed_trees::data::DataMember {
     &program.data_members(&program.data_definitions()[data_index as usize])[member_index as usize]
 }
 
@@ -248,10 +248,10 @@ fn data_field_positions(
     })
 }
 
-fn rostered_data_field<'p>(
-    program: &'p TypedTrees,
+fn rostered_data_field(
+    program: &TypedTrees,
     position: (u32, u32, u32),
-) -> Option<&'p typed_trees::data::DataField> {
+) -> Option<&typed_trees::data::DataField> {
     let member = rostered_data_member(program, position.0, position.1);
     if position.2 == u32::MAX {
         match member {

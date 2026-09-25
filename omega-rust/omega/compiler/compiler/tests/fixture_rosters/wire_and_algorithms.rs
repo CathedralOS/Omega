@@ -114,6 +114,8 @@ pub(crate) const RUNTIME_INDEXED_READ_THEN_GUARD_EXIT: &str =
     "collections/runtime_indexed_read_then_guard_exit";
 pub(crate) const RUNTIME_ROW_CONST_COLUMN_WRITE_EXIT: &str =
     "collections/runtime_row_const_column_write_exit";
+pub(crate) const RUNTIME_NESTED_RUNTIME_INDEXED_WRITES_EXIT: &str =
+    "collections/runtime_nested_runtime_indexed_writes_exit";
 pub(crate) const RUNTIME_NESTED_ARRAY_CONST_INDEX_EXIT: &str =
     "collections/runtime_nested_array_const_index_exit";
 pub(crate) const RUNTIME_WHOLE_ARRAY_VALUE_COPY_EXIT: &str =
@@ -195,6 +197,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     STD_OPTION_RUNTIME_MATCH_EXIT,
     RUNTIME_INDEXED_READ_THEN_GUARD_EXIT,
     RUNTIME_ROW_CONST_COLUMN_WRITE_EXIT,
+    RUNTIME_NESTED_RUNTIME_INDEXED_WRITES_EXIT,
     RUNTIME_NESTED_ARRAY_CONST_INDEX_EXIT,
     RUNTIME_WHOLE_ARRAY_VALUE_COPY_EXIT,
     RUNTIME_WHOLE_STRUCT_VALUE_COPY_EXIT,

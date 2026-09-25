@@ -204,10 +204,7 @@ fn with_domain_symbol_index<R>(
 
 /// The declaration carrying `symbol`, resolving through a cached symbol map
 /// instead of rescanning `domain_definitions()` per query.
-pub fn domain_by_symbol<'a>(
-    program: &'a TypedTrees,
-    symbol: SymbolHandle,
-) -> Option<&'a DomainDefinition> {
+pub fn domain_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&DomainDefinition> {
     let definitions = program.domain_definitions();
     let position =
         with_domain_symbol_index(definitions, |index| index.by_symbol.get(&symbol).copied())?;

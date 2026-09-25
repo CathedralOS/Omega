@@ -473,7 +473,7 @@ fn index_latest_call_selection(
             span.span.end,
             selection.compiler_partition(),
         ))
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(program.authored_declaration_selections().len() - 1);
 }
 

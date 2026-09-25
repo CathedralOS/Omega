@@ -6,7 +6,7 @@ use super::{
 };
 use typed_trees::expression::ExpressionHandle;
 
-pub(super) fn elements(
+pub(in crate::execution::terminal_unit) fn elements(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: SymbolHandle,
