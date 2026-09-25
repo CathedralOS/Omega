@@ -1,0 +1,1 @@
+machine `widen` state `entry` widens write-only parameter `value` to `&mut`
