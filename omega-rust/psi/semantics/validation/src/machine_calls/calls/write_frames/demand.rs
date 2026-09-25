@@ -97,6 +97,10 @@ pub struct CallFrameResolver<'program> {
             )>,
         >,
     >,
+    /// Per-machine member/state symbol tables: `MachineSymbols::build` walks
+    /// the machine's children once per query otherwise. `None` retains the
+    /// build's non-empty-diagnostics verdict so callers keep failing closed.
+    machine_symbols: Mutex<HashMap<SymbolHandle, Option<std::sync::Arc<MachineSymbols<'program>>>>>,
 }
 
 /// Run `compute` once per key for the resolver's immutable program. The lock
@@ -331,6 +335,21 @@ impl<'program> CallFrameResolver<'program> {
             inferred_machine_frames: Mutex::new(HashMap::default()),
             complete_state_summaries: Mutex::new(HashMap::default()),
             call_plans: Mutex::new(None),
+            machine_symbols: Mutex::new(HashMap::default()),
+        })
+    }
+
+    /// The machine's member/state symbol table, built once per machine for
+    /// this resolver. `None` is the build's diagnostics verdict — the exact
+    /// contract the inline `diagnostics.is_empty()` checks encoded.
+    fn machine_symbols(
+        &self,
+        machine: &'program Machine,
+    ) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
+        memoized(&self.machine_symbols, machine.symbol, || {
+            let mut diagnostics = Vec::new();
+            let built = MachineSymbols::build(self.program, machine, &mut diagnostics);
+            diagnostics.is_empty().then(|| std::sync::Arc::new(built))
         })
     }
 
@@ -379,11 +398,8 @@ impl<'program> CallFrameResolver<'program> {
             return frame.clone();
         }
 
-        let mut diagnostics = Vec::new();
-        let machine_symbols =
-            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
         let frame =
-            if diagnostics.is_empty() {
+            if let Some(machine_symbols) = self.machine_symbols(current_machine) {
                 with_caller_origins(
                     self.program,
                     current_machine,
@@ -540,12 +556,9 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         expression: ExpressionHandle,
     ) -> NormalizedWriteFrame {
-        let mut diagnostics = Vec::new();
-        let machine_symbols =
-            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
+        let Some(machine_symbols) = self.machine_symbols(current_machine) else {
             return NormalizedWriteFrame::opaque();
-        }
+        };
         if !expression_has_calls(self.program, expression) {
             return NormalizedWriteFrame::complete(Vec::new());
         }
@@ -603,12 +616,9 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         statement: &StatementNode,
     ) -> NormalizedWriteFrame {
-        let mut diagnostics = Vec::new();
-        let machine_symbols =
-            MachineSymbols::build(self.program, current_machine, &mut diagnostics);
-        if !diagnostics.is_empty() {
+        let Some(machine_symbols) = self.machine_symbols(current_machine) else {
             return NormalizedWriteFrame::opaque();
-        }
+        };
         self.statement_value_write_frame_with_symbols(current_machine, &machine_symbols, statement)
     }
 
