@@ -1853,164 +1853,44 @@ enum SuccessorGuard {
 }
 
 impl SuccessorEdge {
+    /// The trace phase naming `guard` on this successor edge. Every phase is
+    /// `state graph: terminator: <edge>: <guard>`, spelled at compile time.
     fn phase(self, guard: SuccessorGuard) -> &'static str {
-        match (self, guard) {
-            (Self::Jump, SuccessorGuard::TransitionForm) => {
-                "state graph: terminator: jump successor: transition form"
-            }
-            (Self::Jump, SuccessorGuard::TargetState) => {
-                "state graph: terminator: jump successor: target state"
-            }
-            (Self::Jump, SuccessorGuard::ArgumentCount) => {
-                "state graph: terminator: jump successor: argument count"
-            }
-            (Self::Jump, SuccessorGuard::StructuralArgument) => {
-                "state graph: terminator: jump successor: structural argument"
-            }
-            (Self::Jump, SuccessorGuard::ReceiverTransfer) => {
-                "state graph: terminator: jump successor: receiver transfer"
-            }
-            (Self::Jump, SuccessorGuard::SubsliceTransfer) => {
-                "state graph: terminator: jump successor: byte-subslice transfer"
-            }
-            (Self::Jump, SuccessorGuard::ResultTransfer) => {
-                "state graph: terminator: jump successor: result-local transfer"
-            }
-            (Self::Jump, SuccessorGuard::CasePayloadTransfer) => {
-                "state graph: terminator: jump successor: case-payload transfer"
-            }
-            (Self::Jump, SuccessorGuard::ParameterTransfer) => {
-                "state graph: terminator: jump successor: parameter transfer"
-            }
-            (Self::Jump, SuccessorGuard::ScalarArguments) => {
-                "state graph: terminator: jump successor: scalar arguments"
-            }
-            (Self::Jump, SuccessorGuard::ErasedArguments) => {
-                "state graph: terminator: jump successor: erased arguments"
-            }
-            (Self::Jump, SuccessorGuard::ErasedProofArguments) => {
-                "state graph: terminator: jump successor: erased proof arguments"
-            }
-            (Self::Jump, SuccessorGuard::EdgeCleanup) => {
-                "state graph: terminator: jump successor: edge cleanup"
-            }
-            (Self::Conditional, SuccessorGuard::TransitionForm) => {
-                "state graph: terminator: conditional successors: transition form"
-            }
-            (Self::Conditional, SuccessorGuard::TargetState) => {
-                "state graph: terminator: conditional successors: target state"
-            }
-            (Self::Conditional, SuccessorGuard::ArgumentCount) => {
-                "state graph: terminator: conditional successors: argument count"
-            }
-            (Self::Conditional, SuccessorGuard::StructuralArgument) => {
-                "state graph: terminator: conditional successors: structural argument"
-            }
-            (Self::Conditional, SuccessorGuard::ReceiverTransfer) => {
-                "state graph: terminator: conditional successors: receiver transfer"
-            }
-            (Self::Conditional, SuccessorGuard::SubsliceTransfer) => {
-                "state graph: terminator: conditional successors: byte-subslice transfer"
-            }
-            (Self::Conditional, SuccessorGuard::ResultTransfer) => {
-                "state graph: terminator: conditional successors: result-local transfer"
-            }
-            (Self::Conditional, SuccessorGuard::CasePayloadTransfer) => {
-                "state graph: terminator: conditional successors: case-payload transfer"
-            }
-            (Self::Conditional, SuccessorGuard::ParameterTransfer) => {
-                "state graph: terminator: conditional successors: parameter transfer"
-            }
-            (Self::Conditional, SuccessorGuard::ScalarArguments) => {
-                "state graph: terminator: conditional successors: scalar arguments"
-            }
-            (Self::Conditional, SuccessorGuard::ErasedArguments) => {
-                "state graph: terminator: conditional successors: erased arguments"
-            }
-            (Self::Conditional, SuccessorGuard::ErasedProofArguments) => {
-                "state graph: terminator: conditional successors: erased proof arguments"
-            }
-            (Self::Conditional, SuccessorGuard::EdgeCleanup) => {
-                "state graph: terminator: conditional successors: edge cleanup"
-            }
-            (Self::GuardedJump, SuccessorGuard::TransitionForm) => {
-                "state graph: terminator: guarded jump successors: transition form"
-            }
-            (Self::GuardedJump, SuccessorGuard::TargetState) => {
-                "state graph: terminator: guarded jump successors: target state"
-            }
-            (Self::GuardedJump, SuccessorGuard::ArgumentCount) => {
-                "state graph: terminator: guarded jump successors: argument count"
-            }
-            (Self::GuardedJump, SuccessorGuard::StructuralArgument) => {
-                "state graph: terminator: guarded jump successors: structural argument"
-            }
-            (Self::GuardedJump, SuccessorGuard::ReceiverTransfer) => {
-                "state graph: terminator: guarded jump successors: receiver transfer"
-            }
-            (Self::GuardedJump, SuccessorGuard::SubsliceTransfer) => {
-                "state graph: terminator: guarded jump successors: byte-subslice transfer"
-            }
-            (Self::GuardedJump, SuccessorGuard::ResultTransfer) => {
-                "state graph: terminator: guarded jump successors: result-local transfer"
-            }
-            (Self::GuardedJump, SuccessorGuard::CasePayloadTransfer) => {
-                "state graph: terminator: guarded jump successors: case-payload transfer"
-            }
-            (Self::GuardedJump, SuccessorGuard::ParameterTransfer) => {
-                "state graph: terminator: guarded jump successors: parameter transfer"
-            }
-            (Self::GuardedJump, SuccessorGuard::ScalarArguments) => {
-                "state graph: terminator: guarded jump successors: scalar arguments"
-            }
-            (Self::GuardedJump, SuccessorGuard::ErasedArguments) => {
-                "state graph: terminator: guarded jump successors: erased arguments"
-            }
-            (Self::GuardedJump, SuccessorGuard::ErasedProofArguments) => {
-                "state graph: terminator: guarded jump successors: erased proof arguments"
-            }
-            (Self::GuardedJump, SuccessorGuard::EdgeCleanup) => {
-                "state graph: terminator: guarded jump successors: edge cleanup"
-            }
-            (Self::ClosedCase, SuccessorGuard::TransitionForm) => {
-                "state graph: terminator: closed-sum case successor: transition form"
-            }
-            (Self::ClosedCase, SuccessorGuard::TargetState) => {
-                "state graph: terminator: closed-sum case successor: target state"
-            }
-            (Self::ClosedCase, SuccessorGuard::ArgumentCount) => {
-                "state graph: terminator: closed-sum case successor: argument count"
-            }
-            (Self::ClosedCase, SuccessorGuard::StructuralArgument) => {
-                "state graph: terminator: closed-sum case successor: structural argument"
-            }
-            (Self::ClosedCase, SuccessorGuard::ReceiverTransfer) => {
-                "state graph: terminator: closed-sum case successor: receiver transfer"
-            }
-            (Self::ClosedCase, SuccessorGuard::SubsliceTransfer) => {
-                "state graph: terminator: closed-sum case successor: byte-subslice transfer"
-            }
-            (Self::ClosedCase, SuccessorGuard::ResultTransfer) => {
-                "state graph: terminator: closed-sum case successor: result-local transfer"
-            }
-            (Self::ClosedCase, SuccessorGuard::CasePayloadTransfer) => {
-                "state graph: terminator: closed-sum case successor: case-payload transfer"
-            }
-            (Self::ClosedCase, SuccessorGuard::ParameterTransfer) => {
-                "state graph: terminator: closed-sum case successor: parameter transfer"
-            }
-            (Self::ClosedCase, SuccessorGuard::ScalarArguments) => {
-                "state graph: terminator: closed-sum case successor: scalar arguments"
-            }
-            (Self::ClosedCase, SuccessorGuard::ErasedArguments) => {
-                "state graph: terminator: closed-sum case successor: erased arguments"
-            }
-            (Self::ClosedCase, SuccessorGuard::ErasedProofArguments) => {
-                "state graph: terminator: closed-sum case successor: erased proof arguments"
-            }
-            (Self::ClosedCase, SuccessorGuard::EdgeCleanup) => {
-                "state graph: terminator: closed-sum case successor: edge cleanup"
-            }
+        macro_rules! guard_phase {
+            ($edge:literal, $guard:literal) => {
+                concat!("state graph: terminator: ", $edge, ": ", $guard)
+            };
+            ($edge:literal) => {
+                match guard {
+                    SuccessorGuard::TransitionForm => guard_phase!($edge, "transition form"),
+                    SuccessorGuard::TargetState => guard_phase!($edge, "target state"),
+                    SuccessorGuard::ArgumentCount => guard_phase!($edge, "argument count"),
+                    SuccessorGuard::StructuralArgument => {
+                        guard_phase!($edge, "structural argument")
+                    }
+                    SuccessorGuard::ReceiverTransfer => guard_phase!($edge, "receiver transfer"),
+                    SuccessorGuard::SubsliceTransfer => {
+                        guard_phase!($edge, "byte-subslice transfer")
+                    }
+                    SuccessorGuard::ResultTransfer => guard_phase!($edge, "result-local transfer"),
+                    SuccessorGuard::CasePayloadTransfer => {
+                        guard_phase!($edge, "case-payload transfer")
+                    }
+                    SuccessorGuard::ParameterTransfer => guard_phase!($edge, "parameter transfer"),
+                    SuccessorGuard::ScalarArguments => guard_phase!($edge, "scalar arguments"),
+                    SuccessorGuard::ErasedArguments => guard_phase!($edge, "erased arguments"),
+                    SuccessorGuard::ErasedProofArguments => {
+                        guard_phase!($edge, "erased proof arguments")
+                    }
+                    SuccessorGuard::EdgeCleanup => guard_phase!($edge, "edge cleanup"),
+                }
+            };
+        }
+        match self {
+            Self::Jump => guard_phase!("jump successor"),
+            Self::Conditional => guard_phase!("conditional successors"),
+            Self::GuardedJump => guard_phase!("guarded jump successors"),
+            Self::ClosedCase => guard_phase!("closed-sum case successor"),
         }
     }
 }

@@ -645,3 +645,69 @@ fn view_member_result_machines_advance_past_signature() {
         );
     }
 }
+
+#[test]
+fn float_member_record_tail_statement_plans() {
+    let checked = checked(
+        r#"
+        data TrackableTaskHandle<'a> {
+            name: &'a [u8];
+            progress: f32;
+            task_identifier: &'a [u8];
+        }
+        machine TrackableTaskHandle::clone<'a>(source: &'a TrackableTaskHandle<'a>) -> TrackableTaskHandle<'a> {
+            TrackableTaskHandle { name: source.name, progress: source.progress, task_identifier: source.task_identifier }
+        }
+        "#,
+    );
+    // A floating member read through a structural parameter projection names
+    // the same statically known storage an integer leaf does: the record
+    // tail admits the clone literal as a statement-sequence structural root.
+    let machine = machine_named(&checked, "clone");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine)
+            .is_none(),
+        "an f32 member read must not decline the statement sequence"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_some(),
+        "the clone literal tail admits an ordinary statement-sequence plan"
+    );
+}
+
+#[test]
+fn addr_member_parameter_projection_still_declines() {
+    let checked = checked(
+        r#"
+        data Handle { pointer: addr; tag: u64; }
+        machine Handle::clone<'a>(source: &'a Handle) -> Handle {
+            Handle { pointer: source.pointer, tag: source.tag }
+        }
+        "#,
+    );
+    // An address carrier still has no admitted runtime observation: the
+    // record tail keeps declining at the statement-sequence kind gate.
+    let stage = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .omission_for_machine(machine_named(&checked, "clone"))
+        .map(|row| row.stage.clone());
+    assert!(
+        matches!(
+            stage,
+            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
+                if *phase == "statement sequence: unsupported statement kind"
+        ),
+        "an addr member read still declines the statement sequence, got {stage:?}"
+    );
+}
