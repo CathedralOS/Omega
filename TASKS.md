@@ -93,7 +93,12 @@ backend-visible; full corpus runs only at the end of an item.
   `specialized_{boundary,fixed}_operator_physical_custody`, three
   `specialized_*_operator_hosted_native`), the `pass/float` named-provider
   fixtures reach the same native state they had before, and the corpus has no
-  `applies boundary operator` diagnostic. A `self` requirement's member call
+  `applies boundary operator` diagnostic. `samples/cli/arithmetic/sensor_min_max`
+  is a waiting customer: it reaches `applies boundary operator `F64::minimum``
+  once the float store source policy in
+  `structural_scalar_store/value.rs::admits` also admits
+  `StructuralParameterField` and `StructuralParameterIndexedRead`, which is
+  recorded under **CANARY-CORPUS** and belongs in this change. A `self` requirement's member call
   has no native route (its borrowed field operand fails Unit planning at
   "call operation: structural arguments: parameter source", and the verifier's
   provider signature compares `is_self` flags that differ between requirement
@@ -567,13 +572,17 @@ the complete product bar; focused successes below do not establish that baseline
   literal, a parameter or a local, so `self.lo = self.nums[0]` and
   `self.cur = self.nums[self.i]` are refused although neither read is a floating
   operation and both are already admitted at an integer carrier. Widening it to
-  the two structural-read forms advances the sample from state 0 statement 7 to
-  state 2 statement 1, where `self.lo = min(self.lo, self.cur)` stops at
-  `statement sequence: assignment: call source result type`: a builtin `min`
-  leaves `call.target_symbol` as the builtin function, and
-  `flow::call_target_return_type` resolves no state, signature, asm intrinsic or
-  trait for it, exactly as the integer operand route did before 636633c144.
-  `--target macos_arm64` fails identically, so this is not target filtering.
+  `StructuralParameterField` and `StructuralParameterIndexedRead` clears both
+  stores, and the sample then stops on "unimplemented: `Main::main` applies
+  boundary operator `F64::minimum`, whose selected provider has no
+  requirement-level Terminal route for Omega to install" -- the diagnostic
+  **OPERATOR-BOUNDARY-CALLS** exists to remove. The widening is a prerequisite
+  for that item's customer, not an independent repair: land it with that work,
+  where the sample's own `omega --check` is the acceptance.
+
+  No corpus fixture sees that diagnostic at all -- a full record carries zero
+  occurrences -- because the pass tier compiles targetless through Check and
+  never installs a provider. The sample is the only witness either half has.
 
   No corpus fixture can pin that policy, and the reason is the route, not the
   program. The sample reduces to a console call, a literal `[f64; 6]` fill,
