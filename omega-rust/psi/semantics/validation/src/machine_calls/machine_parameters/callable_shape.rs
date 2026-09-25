@@ -1,8 +1,8 @@
 use super::contract_facts::validate_contract_facts;
 use super::type_refinement::{BinderBinding, TypeBinding, required_type_matches};
 use super::{
-    MachineBlockingRow, MachineSuspensionRow, machine_and_state, machine_parameter_contract,
-    machine_parameter_signature,
+    MachineBlockingRow, MachineStateIndex, MachineSuspensionRow, machine_and_state,
+    machine_parameter_contract, machine_parameter_signature,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -54,6 +54,7 @@ impl<'a> CallableParts<'a> {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_selected_callable_shape(
     program: &TypedTrees,
+    index: &MachineStateIndex,
     suspensions: &[MachineSuspensionRow],
     blockings: &[MachineBlockingRow],
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -67,7 +68,8 @@ pub(super) fn validate_selected_callable_shape(
     bindings: &mut Vec<TypeBinding>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if let Some((actual_machine, actual_state)) = machine_and_state(program, selected_symbol) {
+    if let Some((actual_machine, actual_state)) = machine_and_state(program, index, selected_symbol)
+    {
         validate_callable_shape(
             program,
             suspensions,
