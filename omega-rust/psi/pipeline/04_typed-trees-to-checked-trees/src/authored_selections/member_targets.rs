@@ -513,13 +513,22 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 authored_operand_descriptor(program, binary.left),
                 authored_operand_descriptor(program, binary.right),
             ];
-            if operand_types.iter().all(|operand| operand.is_unknown())
-                || !typed_trees::operator::resolve_spelling_for_operand_types(
-                    program,
-                    spelling,
-                    &operand_types,
-                )
-                .is_empty()
+            if operand_types.iter().all(|operand| operand.is_unknown()) {
+                // Neither operand names an authored type. When both are
+                // anonymous -- literals or nested anonymous arithmetic --
+                // the operator is exact builtin arithmetic that lands after
+                // evaluation (language guide chapter 5), so an authored
+                // spelling for some carrier never selects it. Any other
+                // unknown operand keeps the question unanswered here.
+                return expression_is_anonymous_arithmetic(program, binary.left)
+                    && expression_is_anonymous_arithmetic(program, binary.right);
+            }
+            if !typed_trees::operator::resolve_spelling_for_operand_types(
+                program,
+                spelling,
+                &operand_types,
+            )
+            .is_empty()
             {
                 return false;
             }
@@ -541,6 +550,33 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     type_reference
         .and_then(|type_reference| program.primitive_type_reference(type_reference))
         .is_some()
+}
+
+/// Whether an expression is anonymous arithmetic: a literal that has not
+/// landed (no width suffix and no captured carrier), or arithmetic whose
+/// operands are all anonymous. Such an expression carries no type of its own
+/// until it lands, so no authored operator spelling applies to it.
+fn expression_is_anonymous_arithmetic(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use typed_trees::expression::BinaryOperator;
+    match program.tables.expression_table.expression(expression) {
+        ExpressionNode::Float(literal) => literal.landing().is_none(),
+        ExpressionNode::Integer(literal) => literal.landing().is_none(),
+        ExpressionNode::Binary(binary) => {
+            matches!(
+                binary.operator,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+            ) && expression_is_anonymous_arithmetic(program, binary.left)
+                && expression_is_anonymous_arithmetic(program, binary.right)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
