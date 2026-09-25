@@ -21,6 +21,7 @@ use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
 mod state;
+mod successor_edge;
 
 /// One composed-control machine's emission in flight: the checked plan and
 /// admitted graph, the shared catalogs and their identity counters, the per
