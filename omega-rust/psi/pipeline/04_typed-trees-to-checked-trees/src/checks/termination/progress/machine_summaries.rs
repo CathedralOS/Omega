@@ -336,6 +336,9 @@ fn call_argument_subject(
     )
 }
 
+/// The single subject a call argument names, or `None` when it names none or
+/// when a dynamic selector leaves several — `call_argument_subjects_with_parameters`
+/// is what reads that set.
 pub(crate) fn call_argument_subject_with_parameters(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -345,6 +348,28 @@ pub(crate) fn call_argument_subject_with_parameters(
     parameter_symbol: SymbolHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<ProgressSubject> {
+    let mut subjects = call_argument_subjects_with_parameters(
+        program,
+        machine,
+        state_flow,
+        call,
+        parameters,
+        parameter_symbol,
+        call_frames,
+    )?;
+    (subjects.len() == 1).then(|| subjects.pop()).flatten()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn call_argument_subjects_with_parameters(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state_flow: &FlowStateFact,
+    call: &FlowCallFact,
+    parameters: &[typed_trees::signature::StateParameter],
+    parameter_symbol: SymbolHandle,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ProgressSubject>> {
     let call_site = find_call_site(
         program,
         machine.symbol,
@@ -421,7 +446,85 @@ pub(crate) fn call_argument_subject_with_parameters(
         place,
         call_frames,
     )?;
-    subject_from_place(place.root, &place.segments)
+    if let Some(subject) = subject_from_place(place.root, &place.segments) {
+        return Some(vec![subject]);
+    }
+    dynamic_selector_subjects(program, state_flow, call, &place, call_frames)
+}
+
+/// The subjects a demand behind a DYNAMIC selector names, when the selected
+/// carrier is a closed array literal.
+///
+/// `boxes[i].view.scheduler` has no single origin: `i` is not a constant, so
+/// the premise surface, which carries field projections and no selectors,
+/// refuses the place. The array's length is closed and its elements are
+/// spelled, though, so the demand names one of finitely many exact places --
+/// the same shape as a callee whose routes disagree. Every element must name
+/// one, and the caller conjoins a premise apiece; one it cannot name leaves
+/// the whole demand unproven.
+fn dynamic_selector_subjects(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    call: &FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ProgressSubject>> {
+    let selector = place
+        .segments
+        .iter()
+        .position(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))?;
+    // Only one selector: a second would multiply two element sets together,
+    // which is a different obligation than this conjunction.
+    if place.segments[selector + 1..]
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+    {
+        return None;
+    }
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let typed_state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;
+    let statements = program
+        .statement_table
+        .statements(typed_state.statement_nodes);
+    let local =
+        statements
+            .get(..call.statement_index)?
+            .iter()
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root => {
+                    Some(local)
+                }
+                _ => None,
+            })?;
+    let typed_trees::expression::ExpressionNode::ArrayLiteral(elements) =
+        program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    let elements = program.expression_table.expression_handles(*elements);
+    if elements.is_empty() {
+        return None;
+    }
+    let relative = &place.segments[selector + 1..];
+    let mut subjects = Vec::with_capacity(elements.len());
+    for element in elements {
+        let element_place = origins::call_argument_place(
+            program,
+            state_flow,
+            call.statement_index,
+            *element,
+            local.type_reference,
+            relative,
+            call_frames,
+        )?;
+        let subject = subject_from_place(element_place.root, &element_place.segments)?;
+        if !subjects.contains(&subject) {
+            subjects.push(subject);
+        }
+    }
+    Some(subjects)
 }
 
 fn is_local_state_transition(
