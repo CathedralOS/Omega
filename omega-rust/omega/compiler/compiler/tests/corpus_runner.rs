@@ -258,7 +258,7 @@ fn realize_fail_fixture(
     let options = CompileOptions {
         root_path: root_path.to_path_buf(),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: declared_realization_target(root_path),
     };
     let package_inputs = reviewed_repository_fixture_package_inputs(root_path, None)?;
     let mut request = CompileRequest::new(options)
@@ -271,6 +271,20 @@ fn realize_fail_fixture(
         .map(|_| ());
     let _ = fs::remove_dir_all(&build_dir);
     result
+}
+
+/// The first target the fixture's own `build.omg` binds a program-entry root
+/// for. A fixture that declares only `uefi_x86_64` or `windows_x86_64` refuses
+/// an absent `--target` with "selected target `<host>` has no bound required
+/// root slot", which is this harness choosing a target the fixture never
+/// declared, not the refusal the fixture pins. `None` keeps the host default
+/// for a fixture with no build declaration.
+fn declared_realization_target(root_path: &Path) -> Option<String> {
+    let text = fs::read_to_string(root_path.parent()?.join("build.omg")).ok()?;
+    let marker = "roots.bind(";
+    let rest = &text[text.find(marker)? + marker.len()..];
+    let target = rest[..rest.find("::")?].trim();
+    (!target.is_empty()).then(|| target.to_string())
 }
 
 /// Whether the fixture's expected fragments all appear in the diagnostics it
