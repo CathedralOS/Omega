@@ -52,10 +52,7 @@ impl LocalCaseBinding {
             let checked_trees::data::DataMember::Variant(variant) = member else {
                 continue;
             };
-            let identity = variant
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| variant.name.as_str().to_owned());
+            let identity = variant.path_identity();
             let case = cases.iter().find(|case| case.identity == identity).ok_or(
                 LoweringError::Unsupported("observed local has a missing declared case"),
             )?;

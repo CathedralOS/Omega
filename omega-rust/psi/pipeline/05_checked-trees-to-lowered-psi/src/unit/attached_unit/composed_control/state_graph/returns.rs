@@ -230,10 +230,7 @@ pub(super) fn validate_case(
         .ok_or(LoweringError::Unsupported(
             "case return selected a foreign case",
         ))?;
-    let identity = variant
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| variant.name.as_str().to_owned());
+    let identity = variant.path_identity();
     let declarations = checked.data_payload_fields(variant);
     if identity != *case_identity
         || authored.len() != fields.len()
@@ -248,10 +245,7 @@ pub(super) fn validate_case(
             .ok_or(LoweringError::Unsupported(
                 "case return field has a foreign declaration",
             ))?;
-        let identity = declaration
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| declaration.name.as_str().to_owned());
+        let identity = declaration.path_identity();
         if field.field_ordinal as usize != field_index
             || identity != field.field_identity
             || checked.primitive_type_reference(declaration.type_reference)

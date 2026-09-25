@@ -431,10 +431,7 @@ fn authored_owned_field(
     {
         return unsupported("owned scalar field differs from its declared place type");
     }
-    let identity = field
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| field.name.as_str().to_owned());
+    let identity = field.path_identity();
     Ok(Some((
         parameter.symbol,
         primitive,
