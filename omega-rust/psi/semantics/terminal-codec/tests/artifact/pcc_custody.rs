@@ -14,9 +14,18 @@
 //! substitution therefore either fails to form a canonical envelope at
 //! construction or decoding, or decodes to a different offer the replay joins
 //! reject — even when the artifact commitment is honestly recomputed over
-//! substituted artifact bytes.
+//! substituted artifact bytes. Every one-field substitution of the offered
+//! (artifact, sidecar) pair is declared once in `pcc_custody_fields.rs` and
+//! driven by the shared one-field substitution matrix.
+
+#[path = "pcc_custody_fields.rs"]
+mod pcc_custody_fields;
 
 use super::{canonical_artifact, kernel_bundle, operation_id, semantic_module};
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+use pcc_custody_fields::PccOfferFieldForTest;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{BoundaryMachineId, ServiceId};
 use std::ops::Range;
@@ -317,6 +326,178 @@ fn swap(encoded: &[u8], first: &Range<usize>, second: &Range<usize>) -> Vec<u8> 
     mutated
 }
 
+/// The record family under substitution: the artifact bytes and sidecar
+/// bytes a receiver is offered together.
+#[derive(Debug, Clone, PartialEq)]
+struct PccOffer {
+    artifact: Vec<u8>,
+    sidecar: Vec<u8>,
+}
+
+/// The family's independent checker result: the replay's named rejection,
+/// plus the canonical decoding error when the sidecar envelope itself is
+/// refused.
+#[derive(Debug, PartialEq)]
+struct PccCheck {
+    subject: String,
+    decode: Option<CodecError>,
+}
+
+/// The honest offer's claim fields and wire spans the substitution hook
+/// rewrites.
+struct PccFixture {
+    spec: SidecarSpec,
+    encoded: Vec<u8>,
+    spans: SidecarSpans,
+}
+
+impl PccFixture {
+    /// The PCC offer family's honest-recomputation hook. Claim-field lanes
+    /// rebuild the sidecar through the canonical constructor; the commitment
+    /// lanes substitute the offered artifact bytes and honestly recompute the
+    /// artifact commitment over them, drawing the foreign artifact from the
+    /// donor; wire lanes rewrite exactly one encoded field.
+    fn substitute_pcc_offer_for_test(
+        &self,
+        offer: &mut PccOffer,
+        field: PccOfferFieldForTest,
+        donor: &PccOffer,
+    ) {
+        use PccOfferFieldForTest as Field;
+        let spans = &self.spans;
+        let mut spec = self.spec.clone();
+        let mut wire = self.encoded.clone();
+        match field {
+            Field::ProductKind => spec.product = PccProductKind::Native,
+            Field::ArtifactCommitment => spec.commitment = [0xAA; 32],
+            Field::SemanticProfile => spec.semantic_profile = "foreign-semantics".into(),
+            Field::CheckerProfile => spec.checker_profile = "foreign-checker".into(),
+            Field::GuaranteeIdentity => spec.guarantees[0].identity = "foreign-guarantee".into(),
+            Field::GuaranteeAdded => spec.guarantees.push(PccGuarantee {
+                identity: "aaa-extra-guarantee".into(),
+                premises: Vec::new(),
+            }),
+            Field::PremiseAdded => spec.guarantees[0]
+                .premises
+                .push("test::invented-premise".into()),
+            Field::Evidence => spec.evidence = vec![0x42],
+            Field::AssumptionSubstituted => spec.assumptions[0] = "zz-foreign-assumption".into(),
+            Field::AssumptionAdded => spec.assumptions.push("zz-foreign-assumption".into()),
+            Field::AssumptionDropped => {
+                spec.assumptions.pop();
+            }
+            Field::DependencyIdentity => {
+                spec.dependencies[0].identity = "foreign-dependency".into();
+            }
+            Field::DependencyCommitment => spec.dependencies[0].content_commitment = [0xCC; 32],
+            Field::DependencyAdded => spec.dependencies.push(PccDependency {
+                identity: "zz-foreign-dependency".into(),
+                content_commitment: [0xDD; 32],
+            }),
+            Field::DependencyDropped => {
+                spec.dependencies.pop();
+            }
+            Field::ArtifactTruncatedUnderRecomputedCommitment => {
+                offer.artifact.pop();
+                spec.commitment = pcc_artifact_commitment(&offer.artifact);
+            }
+            Field::ArtifactForeignUnderRecomputedCommitment => {
+                offer.artifact.clone_from(&donor.artifact);
+                spec.commitment = pcc_artifact_commitment(&offer.artifact);
+            }
+            Field::Magic => wire[spans.magic.start] ^= 0xFF,
+            Field::FormatMarker => {
+                wire[spans.format_marker.clone()].copy_from_slice(&u16::MAX.to_le_bytes());
+            }
+            Field::ProductTagUnknown => wire[spans.product.start] = 0x03,
+            Field::SemanticProfileLengthOverLong => {
+                wire[spans.semantic_profile.len.clone()].copy_from_slice(&u32::MAX.to_le_bytes());
+            }
+            Field::SemanticProfileEmptyOnWire => {
+                wire = splice(&wire, &spans.semantic_profile.whole(), &0_u32.to_le_bytes());
+            }
+            Field::CheckerProfileEmptyOnWire => {
+                wire = splice(&wire, &spans.checker_profile.whole(), &0_u32.to_le_bytes());
+            }
+            Field::SemanticProfileNonUtf8 => wire[spans.semantic_profile.text.start] = 0xFF,
+            Field::GuaranteeCountZero => {
+                wire[spans.guarantee_count.clone()].copy_from_slice(&0_u32.to_le_bytes());
+            }
+            Field::GuaranteeCountOverCeiling => {
+                wire[spans.guarantee_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
+            }
+            Field::PremiseCountOverCeiling => {
+                wire[spans.guarantees[0].premise_count.clone()]
+                    .copy_from_slice(&4_097_u32.to_le_bytes());
+            }
+            Field::GuaranteeIdentityEmptyOnWire => {
+                wire = splice(
+                    &wire,
+                    &spans.guarantees[0].identity.whole(),
+                    &0_u32.to_le_bytes(),
+                );
+            }
+            Field::EvidenceLengthOverCeiling => {
+                wire[spans.evidence_len.clone()].copy_from_slice(&u64::MAX.to_le_bytes());
+            }
+            Field::AssumptionCountOverCeiling => {
+                wire[spans.assumption_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
+            }
+            Field::DependencyCountOverCeiling => {
+                wire[spans.dependency_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
+            }
+            Field::DependencyIdentityEmptyOnWire => {
+                wire = splice(
+                    &wire,
+                    &spans.dependencies[0].identity.whole(),
+                    &0_u32.to_le_bytes(),
+                );
+            }
+            // Evidence bytes and dependency commitments are opaque on the
+            // wire. The evidence length prefix must grow with the bytes or
+            // the wire desynchronizes before any claim field is read.
+            Field::EvidenceBytesOnWire => {
+                let mut evidence_field = Vec::with_capacity(9);
+                evidence_field.extend_from_slice(&1_u64.to_le_bytes());
+                evidence_field.push(0x42);
+                wire = splice(
+                    &wire,
+                    &(spans.evidence_len.start..spans.evidence.end),
+                    &evidence_field,
+                );
+            }
+            Field::DependencyCommitmentOnWire => {
+                wire[spans.dependencies[0].commitment.start] ^= 0xFF;
+            }
+            Field::TrailingByte => wire.push(0),
+        }
+        offer.sidecar = if wire == self.encoded {
+            spec.build()
+                .unwrap_or_else(|error| {
+                    panic!("{field:?} must still form a canonical sidecar: {error:?}")
+                })
+                .to_bytes()
+        } else {
+            wire
+        };
+    }
+}
+
+/// The receiver's independent check of one offer: canonical sidecar decoding
+/// and replay of every claim under the pinned policy.
+fn check_pcc_offer(offer: &PccOffer, policy: &PccReceiverPolicy) -> Result<PccOffer, PccCheck> {
+    match verify_psi_proof_sidecar(&offer.artifact, &offer.sidecar, policy) {
+        PccVerificationOutcome::Complete(_) => Ok(offer.clone()),
+        PccVerificationOutcome::Reject(rejection) => Err(PccCheck {
+            subject: rejection.subject,
+            decode: PccProofSidecar::from_bytes(&offer.sidecar).err(),
+        }),
+        incomplete @ PccVerificationOutcome::Incomplete(_) => {
+            panic!("expected a named rejection, got {incomplete:?}")
+        }
+    }
+}
+
 #[test]
 fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
     let (artifact, policy) = artifact_and_receiver();
@@ -348,146 +529,149 @@ fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
     );
     let honest_spec = SidecarSpec::of(&honest);
 
-    // A substituted claim field still forms a canonical envelope — it decodes
-    // to the mutated offer — and independent replay rejects it with the named
-    // subject under the receiver's pinned policy.
-    let rejects_at_replay = |name: &'static str, spec: SidecarSpec, subject: &'static str| {
-        let mutated = spec.build().unwrap_or_else(|error| {
-            panic!("{name} must still form a canonical sidecar: {error:?}")
-        });
-        assert_ne!(mutated, honest, "{name} must change the sidecar");
-        let mutated_bytes = mutated.to_bytes();
-        assert_ne!(mutated_bytes, encoded, "{name} must change the wire");
-        assert_eq!(
-            PccProofSidecar::from_bytes(&mutated_bytes),
-            Ok(mutated),
-            "{name} must decode to the substituted offer"
-        );
-        assert_eq!(
-            rejecting_subject(verify_psi_proof_sidecar(
-                &artifact_bytes,
-                &mutated_bytes,
-                &policy
-            )),
-            subject,
-            "{name}"
-        );
-    };
-
-    // --- independently representable claim fields, each rejected by replay ---
-
-    let mut spec = honest_spec.clone();
-    spec.product = PccProductKind::Native;
-    rejects_at_replay("the product kind", spec, "product kind");
-
-    let mut spec = honest_spec.clone();
-    spec.commitment = [0xAA; 32];
-    rejects_at_replay("the artifact commitment", spec, "artifact bytes");
-
-    let mut spec = honest_spec.clone();
-    spec.semantic_profile = "foreign-semantics".into();
-    rejects_at_replay("the semantic profile", spec, "semantic profile");
-
-    let mut spec = honest_spec.clone();
-    spec.checker_profile = "foreign-checker".into();
-    rejects_at_replay("the checker profile", spec, "checker profile");
-
-    let mut spec = honest_spec.clone();
-    spec.guarantees[0].identity = "foreign-guarantee".into();
-    rejects_at_replay(
-        "a substituted guarantee identity",
-        spec,
-        "required guarantee",
-    );
-
-    let mut spec = honest_spec.clone();
-    spec.guarantees.push(PccGuarantee {
-        identity: "aaa-extra-guarantee".into(),
-        premises: Vec::new(),
-    });
-    rejects_at_replay("an added guarantee", spec, "guarantees");
-
-    let mut spec = honest_spec.clone();
-    spec.guarantees[0]
-        .premises
-        .push("test::invented-premise".into());
-    rejects_at_replay("an added premise", spec, "guarantee premise");
-
-    let mut spec = honest_spec.clone();
-    spec.evidence = vec![0x42];
-    rejects_at_replay("non-empty evidence", spec, "psi evidence");
-
-    let mut spec = honest_spec.clone();
-    spec.assumptions[0] = "zz-foreign-assumption".into();
-    rejects_at_replay("a substituted assumption", spec, "assumption");
-
-    let mut spec = honest_spec.clone();
-    spec.assumptions.push("zz-foreign-assumption".into());
-    rejects_at_replay("an added assumption", spec, "assumption");
-
-    let mut spec = honest_spec.clone();
-    spec.assumptions.pop();
-    rejects_at_replay("a dropped assumption", spec, "assumption closure");
-
-    let mut spec = honest_spec.clone();
-    spec.dependencies[0].identity = "foreign-dependency".into();
-    rejects_at_replay("a substituted dependency identity", spec, "dependency");
-
-    let mut spec = honest_spec.clone();
-    spec.dependencies[0].content_commitment = [0xCC; 32];
-    rejects_at_replay("a substituted dependency commitment", spec, "dependency");
-
-    let mut spec = honest_spec.clone();
-    spec.dependencies.push(PccDependency {
-        identity: "zz-foreign-dependency".into(),
-        content_commitment: [0xDD; 32],
-    });
-    rejects_at_replay("an added dependency", spec, "dependency");
-
-    let mut spec = honest_spec.clone();
-    spec.dependencies.pop();
-    rejects_at_replay("a dropped dependency", spec, "dependency inventory");
-
-    // --- the containing commitment honestly recomputed ---
-
-    // Recomputing the artifact commitment over truncated artifact bytes does
-    // not launder the substitution: the commitment join passes on the offered
-    // bytes and the artifact leg rejects them.
-    let truncated = &artifact_bytes[..artifact_bytes.len() - 1];
-    let mut spec = honest_spec.clone();
-    spec.commitment = pcc_artifact_commitment(truncated);
-    let mutated = spec
-        .build()
-        .expect("a recomputed commitment still encodes canonically");
-    assert_eq!(
-        rejecting_subject(verify_psi_proof_sidecar(
-            truncated,
-            &mutated.to_bytes(),
-            &policy
-        )),
-        "psi artifact",
-        "a recomputed commitment over truncated bytes must still reject"
-    );
-
-    // A different canonical artifact under an honestly recomputed commitment
-    // reaches claim reconstruction, where the offered dependency inventory
-    // diverges from what the substituted artifact establishes.
+    // An authentic foreign offer: a different canonical artifact with the
+    // sidecar honestly built for it.
     let foreign_artifact = canonical_artifact(&semantic_module(), &kernel_bundle(), None);
     let foreign_bytes = foreign_artifact.to_bytes();
-    let mut spec = honest_spec.clone();
-    spec.commitment = pcc_artifact_commitment(&foreign_bytes);
-    let mutated = spec
-        .build()
-        .expect("a recomputed commitment still encodes canonically");
-    assert_eq!(
-        rejecting_subject(verify_psi_proof_sidecar(
+    let donor = PccOffer {
+        sidecar: build_psi_proof_sidecar(
+            &foreign_artifact,
+            &policy.admission_profile,
             &foreign_bytes,
-            &mutated.to_bytes(),
-            &policy
-        )),
-        "dependency inventory",
-        "a recomputed commitment over a foreign artifact must still reject"
-    );
+        )
+        .expect("foreign sidecar")
+        .to_bytes(),
+        artifact: foreign_bytes,
+    };
+
+    let fixture = PccFixture {
+        spec: honest_spec.clone(),
+        encoded: encoded.clone(),
+        spans,
+    };
+    let spans = &fixture.spans;
+    let honest_offer = PccOffer {
+        artifact: artifact_bytes.clone(),
+        sidecar: encoded.clone(),
+    };
+
+    let outcome = |field: PccOfferFieldForTest| -> MutationOutcome<PccCheck> {
+        use PccOfferFieldForTest as Field;
+        // A substituted claim field still forms a canonical envelope and
+        // independent replay rejects it with the named subject.
+        let replay = |subject: &str| {
+            MutationOutcome::ExactError(PccCheck {
+                subject: subject.to_owned(),
+                decode: None,
+            })
+        };
+        // A wire-level substitution rejects at canonical decoding, and the
+        // replay rejects the envelope before any claim join.
+        let envelope = |error| {
+            MutationOutcome::ExactError(PccCheck {
+                subject: "sidecar envelope".to_owned(),
+                decode: Some(error),
+            })
+        };
+        match field {
+            // --- independently representable claim fields, each rejected by
+            // replay ---
+            Field::ProductKind => replay("product kind"),
+            Field::ArtifactCommitment => replay("artifact bytes"),
+            Field::SemanticProfile => replay("semantic profile"),
+            Field::CheckerProfile => replay("checker profile"),
+            Field::GuaranteeIdentity => replay("required guarantee"),
+            Field::GuaranteeAdded => replay("guarantees"),
+            Field::PremiseAdded => replay("guarantee premise"),
+            Field::Evidence | Field::EvidenceBytesOnWire => replay("psi evidence"),
+            Field::AssumptionSubstituted | Field::AssumptionAdded => replay("assumption"),
+            Field::AssumptionDropped => replay("assumption closure"),
+            Field::DependencyIdentity
+            | Field::DependencyCommitment
+            | Field::DependencyAdded
+            | Field::DependencyCommitmentOnWire => replay("dependency"),
+            Field::DependencyDropped => replay("dependency inventory"),
+            // --- the containing commitment honestly recomputed ---
+            //
+            // Recomputing the artifact commitment over truncated artifact
+            // bytes does not launder the substitution: the commitment join
+            // passes on the offered bytes and the artifact leg rejects them.
+            Field::ArtifactTruncatedUnderRecomputedCommitment => replay("psi artifact"),
+            // A different canonical artifact under an honestly recomputed
+            // commitment reaches claim reconstruction, where the offered
+            // dependency inventory diverges from what the substituted
+            // artifact establishes.
+            Field::ArtifactForeignUnderRecomputedCommitment => replay("dependency inventory"),
+            // --- wire-level substitutions rejected at canonical decoding ---
+            Field::Magic => envelope(CodecError::InvalidMagic),
+            Field::FormatMarker => envelope(CodecError::UnsupportedFormatMarker(u16::MAX)),
+            Field::ProductTagUnknown => envelope(CodecError::InvalidTag("pcc product kind", 0x03)),
+            Field::SemanticProfileLengthOverLong => {
+                envelope(CodecError::StringTooLong("pcc semantic profile"))
+            }
+            Field::SemanticProfileEmptyOnWire | Field::CheckerProfileEmptyOnWire => envelope(
+                CodecError::MalformedStructuralFoundation("pcc sidecar profiles must be non-empty"),
+            ),
+            Field::SemanticProfileNonUtf8 => {
+                envelope(CodecError::InvalidUtf8("pcc semantic profile"))
+            }
+            Field::GuaranteeCountZero | Field::GuaranteeCountOverCeiling => {
+                envelope(CodecError::CollectionTooLong("pcc guarantees"))
+            }
+            Field::PremiseCountOverCeiling => {
+                envelope(CodecError::CollectionTooLong("pcc premises"))
+            }
+            Field::GuaranteeIdentityEmptyOnWire => {
+                envelope(CodecError::MalformedStructuralFoundation(
+                    "pcc guarantee identity must be non-empty",
+                ))
+            }
+            Field::EvidenceLengthOverCeiling => {
+                envelope(CodecError::CollectionTooLong("pcc sidecar evidence"))
+            }
+            Field::AssumptionCountOverCeiling => {
+                envelope(CodecError::CollectionTooLong("pcc assumptions"))
+            }
+            Field::DependencyCountOverCeiling => {
+                envelope(CodecError::CollectionTooLong("pcc dependencies"))
+            }
+            Field::DependencyIdentityEmptyOnWire => {
+                envelope(CodecError::MalformedStructuralFoundation(
+                    "pcc dependency identity must be non-empty",
+                ))
+            }
+            // --- trailing bytes reject at decoding ---
+            Field::TrailingByte => envelope(CodecError::TrailingBytes(1)),
+        }
+    };
+
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "pcc proof sidecar offer",
+        fields: PccOfferFieldForTest::INVENTORY,
+        honest: &|| honest_offer.clone(),
+        donor,
+        custody: &PccOffer::clone,
+        substitute: &|offer, field, donor| {
+            fixture.substitute_pcc_offer_for_test(offer, field, donor);
+        },
+        check: &|offer| check_pcc_offer(offer, &policy),
+        outcome: &outcome,
+        // A replay-rejected sidecar still forms a canonical envelope: it
+        // decodes to a different offer that re-encodes byte-exact.
+        joined_replay: Some(&|offer, field| {
+            let MutationOutcome::ExactError(PccCheck { decode: None, .. }) = outcome(field) else {
+                return;
+            };
+            let decoded = PccProofSidecar::from_bytes(&offer.sidecar)
+                .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
+            assert_ne!(decoded, honest, "{field:?} must change the sidecar");
+            assert_eq!(
+                decoded.to_bytes(),
+                offer.sidecar,
+                "{field:?} must decode to the substituted offer"
+            );
+        }),
+    });
 
     // --- substitutions the receiver policy admits still reject at the
     // established-claim join ---
@@ -689,7 +873,8 @@ fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
         );
     }
 
-    // --- wire-level substitutions rejected at canonical decoding ---
+    // --- roster reorders: a swap of two well-formed rows rejects at
+    // canonical decoding and before any claim join ---
 
     let rejects_at_decode = |name: &'static str, mutated: Vec<u8>, expected: CodecError| {
         assert_eq!(
@@ -703,158 +888,6 @@ fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
             "{name} must reject the envelope before any claim join"
         );
     };
-
-    let mut mutated = encoded.clone();
-    mutated[spans.magic.start] ^= 0xFF;
-    rejects_at_decode("the magic", mutated, CodecError::InvalidMagic);
-
-    let mut mutated = encoded.clone();
-    mutated[spans.format_marker.clone()].copy_from_slice(&u16::MAX.to_le_bytes());
-    rejects_at_decode(
-        "the format marker",
-        mutated,
-        CodecError::UnsupportedFormatMarker(u16::MAX),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.product.start] = 0x03;
-    rejects_at_decode(
-        "an unknown product tag",
-        mutated,
-        CodecError::InvalidTag("pcc product kind", 0x03),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.semantic_profile.len.clone()].copy_from_slice(&u32::MAX.to_le_bytes());
-    rejects_at_decode(
-        "an over-long semantic profile length",
-        mutated,
-        CodecError::StringTooLong("pcc semantic profile"),
-    );
-
-    rejects_at_decode(
-        "an empty semantic profile",
-        splice(
-            &encoded,
-            &spans.semantic_profile.whole(),
-            &0_u32.to_le_bytes(),
-        ),
-        CodecError::MalformedStructuralFoundation("pcc sidecar profiles must be non-empty"),
-    );
-
-    rejects_at_decode(
-        "an empty checker profile",
-        splice(
-            &encoded,
-            &spans.checker_profile.whole(),
-            &0_u32.to_le_bytes(),
-        ),
-        CodecError::MalformedStructuralFoundation("pcc sidecar profiles must be non-empty"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.semantic_profile.text.start] = 0xFF;
-    rejects_at_decode(
-        "non-UTF-8 semantic profile bytes",
-        mutated,
-        CodecError::InvalidUtf8("pcc semantic profile"),
-    );
-
-    for (name, count) in [
-        ("a zero guarantee count", 0_u32),
-        ("an over-ceiling guarantee count", 4_097),
-    ] {
-        let mut mutated = encoded.clone();
-        mutated[spans.guarantee_count.clone()].copy_from_slice(&count.to_le_bytes());
-        rejects_at_decode(
-            name,
-            mutated,
-            CodecError::CollectionTooLong("pcc guarantees"),
-        );
-    }
-
-    let mut mutated = encoded.clone();
-    mutated[spans.guarantees[0].premise_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
-    rejects_at_decode(
-        "an over-ceiling premise count",
-        mutated,
-        CodecError::CollectionTooLong("pcc premises"),
-    );
-
-    rejects_at_decode(
-        "an empty guarantee identity on the wire",
-        splice(
-            &encoded,
-            &spans.guarantees[0].identity.whole(),
-            &0_u32.to_le_bytes(),
-        ),
-        CodecError::MalformedStructuralFoundation("pcc guarantee identity must be non-empty"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.evidence_len.clone()].copy_from_slice(&u64::MAX.to_le_bytes());
-    rejects_at_decode(
-        "an over-ceiling evidence length",
-        mutated,
-        CodecError::CollectionTooLong("pcc sidecar evidence"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.assumption_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
-    rejects_at_decode(
-        "an over-ceiling assumption count",
-        mutated,
-        CodecError::CollectionTooLong("pcc assumptions"),
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.dependency_count.clone()].copy_from_slice(&4_097_u32.to_le_bytes());
-    rejects_at_decode(
-        "an over-ceiling dependency count",
-        mutated,
-        CodecError::CollectionTooLong("pcc dependencies"),
-    );
-
-    rejects_at_decode(
-        "an empty dependency identity on the wire",
-        splice(
-            &encoded,
-            &spans.dependencies[0].identity.whole(),
-            &0_u32.to_le_bytes(),
-        ),
-        CodecError::MalformedStructuralFoundation("pcc dependency identity must be non-empty"),
-    );
-
-    // Evidence bytes and dependency commitments are opaque on the wire: a
-    // substitution there still decodes canonically and rejects at the replay
-    // join that owns it. The evidence length prefix must grow with the bytes
-    // or the wire desynchronizes before any claim field is read.
-    let mut evidence_field = Vec::with_capacity(9);
-    evidence_field.extend_from_slice(&1_u64.to_le_bytes());
-    evidence_field.push(0x42);
-    let mutated = splice(
-        &encoded,
-        &(spans.evidence_len.start..spans.evidence.end),
-        &evidence_field,
-    );
-    let decoded = PccProofSidecar::from_bytes(&mutated).expect("wire evidence bytes still decode");
-    assert_ne!(decoded, honest);
-    assert_eq!(
-        rejecting_subject(verify_psi_proof_sidecar(&artifact_bytes, &mutated, &policy)),
-        "psi evidence",
-        "wire-level evidence substitution must reject at the Psi evidence join"
-    );
-
-    let mut mutated = encoded.clone();
-    mutated[spans.dependencies[0].commitment.start] ^= 0xFF;
-    let decoded =
-        PccProofSidecar::from_bytes(&mutated).expect("a wire dependency commitment still decodes");
-    assert_ne!(decoded, honest);
-    assert_eq!(
-        rejecting_subject(verify_psi_proof_sidecar(&artifact_bytes, &mutated, &policy)),
-        "dependency",
-        "a wire-level dependency commitment substitution must reject at possession"
-    );
 
     // A roster reorder on the wire is non-canonical even when every row is
     // otherwise well-formed. The rich fixture carries two of each roster so
@@ -933,7 +966,7 @@ fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
         CodecError::NonCanonicalOrder("pcc dependencies"),
     );
 
-    // --- truncation and trailing bytes reject at decoding ---
+    // --- truncation rejects at decoding ---
 
     for cut in [
         spans.magic.end - 1,
@@ -954,8 +987,4 @@ fn pcc_proof_sidecar_rejects_every_one_field_substitution() {
             "truncation at byte {cut} must reject"
         );
     }
-
-    let mut mutated = encoded.clone();
-    mutated.push(0);
-    rejects_at_decode("trailing bytes", mutated, CodecError::TrailingBytes(1));
 }
