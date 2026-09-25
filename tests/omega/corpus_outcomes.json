@@ -17736,12 +17736,10 @@
  {
   "fixture": "pass/control_flow/runtime_branching_helper_string",
   "tier": "pass",
-  "status": "rejected",
+  "status": "checked",
   "millis": 56,
   "expected_satisfied": null,
-  "diagnostics": [
-   "assignment stores a borrow-carrying value in persistent field `out` of machine `Main::main`; persistent loans must be propagated through graph-state transitions before this write can be admitted"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/control_flow/runtime_branching_helper_struct",

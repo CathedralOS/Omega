@@ -1441,3 +1441,70 @@ fn accepts_precise_reference_local_reassignment() {
     check_program(source)
         .expect("reference replacement should release the old source and retain the new source");
 }
+
+/// An immutable local names the value its `let` bound, so naming the local and
+/// writing the call directly must reach the same verdict. `pick` returns only
+/// string literals, whose loans outlive every state, so the persistent store is
+/// admitted either way.
+#[test]
+fn accepts_a_static_call_result_reaching_a_persistent_field_through_a_local() {
+    let source = r#"
+        data Main {
+            out: &[u8];
+        }
+
+        machine Main::main(&mut self) {
+            let picked: &[u8] = self.pick(true);
+            self.out = picked;
+        }
+
+        machine Main::pick(&mut self, flag: bool) -> &[u8] {
+            transition flag {
+                true -> "Gate"
+                false -> "Branch Room"
+            }
+        }
+    "#;
+
+    check_program(source)
+        .expect("a local bound to a statically-sourced call carries that call's loans");
+}
+
+/// The control for the test above: only the multiplicity of the binding
+/// differs. A `let mut` may be pointed at a state-local loan after this read,
+/// so its current initializer does not describe what the field will hold and
+/// the fence stays closed.
+#[test]
+fn rejects_a_mutable_local_reaching_a_persistent_field() {
+    let source = r#"
+        data Main {
+            out: &[u8];
+        }
+
+        machine Main::main(&mut self) {
+            let mut picked: &[u8] = self.pick(true);
+            self.out = picked;
+        }
+
+        machine Main::pick(&mut self, flag: bool) -> &[u8] {
+            transition flag {
+                true -> "Gate"
+                false -> "Branch Room"
+            }
+        }
+    "#;
+
+    let diagnostics =
+        check_program(source).expect_err("a mutable local may be repointed after this read");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("assignment stores a borrow-carrying value in persistent field `out`")),
+        "expected the persistent-loan fence, got:\n{}",
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
