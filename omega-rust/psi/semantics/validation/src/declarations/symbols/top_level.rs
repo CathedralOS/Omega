@@ -1,7 +1,6 @@
 use diagnostics::Diagnostic;
-use std::collections::HashMap;
 use std::sync::Mutex;
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::{SymbolHandle, SymbolKeyMap as HashMap, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;

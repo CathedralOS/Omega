@@ -59,12 +59,12 @@ struct DirectServiceReach {
 // the maps are built once -- locally for the plan pass, cached for the
 // per-call target index.
 struct CallTargetIndex {
-    boundary_machine_by_state: std::collections::HashMap<SymbolHandle, u32>,
-    parameter_signature: std::collections::HashMap<SymbolHandle, (u32, u32)>,
-    trait_by_symbol: std::collections::HashMap<SymbolHandle, u32>,
-    trait_signature: std::collections::HashMap<SymbolHandle, (u32, u32)>,
+    boundary_machine_by_state: symbols::SymbolKeyMap<SymbolHandle, u32>,
+    parameter_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
+    trait_by_symbol: symbols::SymbolKeyMap<SymbolHandle, u32>,
+    trait_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
     parameter_contract:
-        std::collections::HashMap<SymbolHandle, arena::Handle<typed_trees::data::TypeParameter>>,
+        symbols::SymbolKeyMap<SymbolHandle, arena::Handle<typed_trees::data::TypeParameter>>,
 }
 
 thread_local! {
@@ -99,11 +99,11 @@ fn with_call_target_index<R>(program: &TypedTrees, run: impl FnOnce(&CallTargetI
             if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
         if !fresh {
             let mut index = CallTargetIndex {
-                boundary_machine_by_state: std::collections::HashMap::new(),
-                parameter_signature: std::collections::HashMap::new(),
-                trait_by_symbol: std::collections::HashMap::new(),
-                trait_signature: std::collections::HashMap::new(),
-                parameter_contract: std::collections::HashMap::new(),
+                boundary_machine_by_state: symbols::SymbolKeyMap::default(),
+                parameter_signature: symbols::SymbolKeyMap::default(),
+                trait_by_symbol: symbols::SymbolKeyMap::default(),
+                trait_signature: symbols::SymbolKeyMap::default(),
+                parameter_contract: symbols::SymbolKeyMap::default(),
             };
             for (machine_index, machine) in program.machines().iter().enumerate() {
                 if machine.supply_mode.is_boundary_declaration() {
@@ -270,7 +270,7 @@ pub fn infer_service_reaches(
         .iter()
         .enumerate()
         .map(|(index, machine)| (machine.symbol, index))
-        .collect::<std::collections::HashMap<_, _>>();
+        .collect::<symbols::SymbolKeyMap<_, _>>();
     loop {
         let previous = work
             .iter()
@@ -487,13 +487,13 @@ fn concrete_effective_services(machine: &MachineReachWork) -> &[ServiceReachId] 
 
 thread_local! {
     static OPERATIONAL_INDEX: std::cell::RefCell<
-        Option<(*const OperationalPlan, usize, std::collections::HashMap<SymbolHandle, usize>)>,
+        Option<(*const OperationalPlan, usize, symbols::SymbolKeyMap<SymbolHandle, usize>)>,
     > = const { std::cell::RefCell::new(None) };
 }
 
 fn with_operational_index<R>(
     operational: &OperationalPlan,
-    run: impl FnOnce(&std::collections::HashMap<SymbolHandle, usize>) -> R,
+    run: impl FnOnce(&symbols::SymbolKeyMap<SymbolHandle, usize>) -> R,
 ) -> R {
     OPERATIONAL_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();

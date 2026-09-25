@@ -47,9 +47,9 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
 use crate::machine_calls::calls::write_frames::{
     alias_bindings, local_aliases, reference_subjects, stored_origins, wire_codecs,
 };
-use std::collections::HashMap;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;

@@ -1141,7 +1141,7 @@ fn validate_place_read(
 /// declaration index, preserving the prefix scan's membership semantics.
 struct RootCurrencyIndex {
     parameters: std::collections::HashSet<SymbolHandle>,
-    local_first: std::collections::HashMap<SymbolHandle, usize>,
+    local_first: symbols::SymbolKeyMap<SymbolHandle, usize>,
 }
 
 fn root_currency_fingerprint(state: &State) -> usize {
@@ -1191,7 +1191,7 @@ fn with_root_currency<R>(
         if stale {
             let mut index = RootCurrencyIndex {
                 parameters: std::collections::HashSet::new(),
-                local_first: std::collections::HashMap::new(),
+                local_first: symbols::SymbolKeyMap::default(),
             };
             for parameter in program.state_parameters(state) {
                 index.parameters.insert(parameter.symbol);
