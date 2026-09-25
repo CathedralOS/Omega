@@ -1,10 +1,10 @@
 //! Prepare checked source, execute its build continuation, and seal selected execution.
 
-mod build_continuation;
-mod checked_compilation;
+pub(crate) mod build_continuation;
+pub(crate) mod checked_compilation;
 pub(crate) mod compile_thread;
 mod const_evaluation;
-mod execution_settlement;
+pub(crate) mod execution_settlement;
 pub(crate) mod phase_transitions;
 
 pub use checked_compilation::CheckedCompilation;
@@ -209,7 +209,7 @@ pub struct PreparedCheckedSource {
     shared_timings: CompileTimings,
 }
 
-struct CheckedChildExecution<'a> {
+pub(crate) struct CheckedChildExecution<'a> {
     selected_target_profile: Option<target::TargetProfile>,
     /// `None` admits the compiler host without a catalogued profile.
     build_execution_profile: Option<target::TargetProfile>,
@@ -217,7 +217,7 @@ struct CheckedChildExecution<'a> {
     build_dir: Option<&'a Path>,
     filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
-    build_snapshot: Option<&'a build_evaluation::BuildSnapshotRequest>,
+    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: crate::checked::OptimizationRollback,
     /// Discovery write target owned by the compiling call: the evaluated
     /// `Independent` selections and evaluation usage are recorded between
@@ -233,7 +233,60 @@ struct CheckedChildExecution<'a> {
     permit_unsettled_fused_service_fields: bool,
 }
 
-impl CheckedChildExecution<'_> {}
+impl<'a> CheckedChildExecution<'a> {
+    /// One target of an ordinary compile: the caller's package inputs, build
+    /// staging and rollback, the compiler host as build execution profile, no
+    /// sponsors or discovery. An explicit snapshot narrows build authority;
+    /// otherwise a packaged root binding carrying the compiler-captured
+    /// canonical Source metadata index is sealed package custody, and every
+    /// build activation over it runs against a fresh private materialization
+    /// of the captured inventory with no invocation roster -- exactly what the
+    /// package manager's review route requests -- so a retained Terminal
+    /// production and the review evidence it must rejoin record the same build
+    /// observation identity. A binding without that index keeps its live root.
+    pub(crate) fn for_target(
+        selected_target_profile: Option<target::TargetProfile>,
+        package_inputs: Option<&'a PackageCompilationInputs>,
+        build_dir: &'a Path,
+        optimization_rollback: &crate::checked::OptimizationRollback,
+        build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    ) -> Self {
+        let automatic_snapshot = package_inputs
+            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
+            .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
+        Self {
+            selected_target_profile,
+            build_execution_profile: target::TargetProfile::host_if_supported(),
+            package_inputs,
+            build_dir: Some(build_dir),
+            filesystem_sponsor: None,
+            evaluation_sponsor: None,
+            // The request narrows authority explicitly. Never replace it with
+            // automatic package membership or silently fall back after failure.
+            build_snapshot: build_snapshot.cloned().or(automatic_snapshot),
+            optimization_rollback: optimization_rollback.clone(),
+            independent_component_discovery: None,
+            restricted_build_grants: None,
+            permit_unsettled_fused_service_fields: false,
+        }
+    }
+
+    pub(crate) fn package_inputs(&self) -> Option<&'a PackageCompilationInputs> {
+        self.package_inputs
+    }
+
+    pub(crate) fn selected_target_profile(&self) -> Option<target::TargetProfile> {
+        self.selected_target_profile
+    }
+
+    pub(crate) fn optimization_rollback(&self) -> &crate::checked::OptimizationRollback {
+        &self.optimization_rollback
+    }
+
+    pub(crate) fn permit_unsettled_fused_service_fields(&self) -> bool {
+        self.permit_unsettled_fused_service_fields
+    }
+}
 
 impl PreparedCheckedSource {
     /// Check another child from this immutable source frontier. Target attachments,
@@ -270,7 +323,7 @@ impl PreparedCheckedSource {
             build_dir: request.build_dir.as_deref(),
             filesystem_sponsor: request.filesystem_sponsor,
             evaluation_sponsor: request.evaluation_sponsor,
-            build_snapshot: request.build_snapshot.as_ref(),
+            build_snapshot: request.build_snapshot,
             optimization_rollback: request.optimization_rollback,
             independent_component_discovery: Some(independent_component_discovery),
             restricted_build_grants: request.restricted_build_grants,
@@ -327,62 +380,23 @@ impl PreparedCheckedSource {
         })
     }
 
-    /// Check the prepared source for one target. `root_path` must be the
-    /// root the checkpoint was prepared from; `build_dir` receives build
-    /// evaluation output. An explicit snapshot supplies the caller's inventory
-    /// and output requirements; otherwise canonical package custody selects
-    /// its automatic full-inventory snapshot as before.
-    pub fn check(
-        self,
-        root_path: &std::path::Path,
-        target_name: Option<&str>,
-        build_dir: std::path::PathBuf,
-        package_inputs: Option<&PackageCompilationInputs>,
-        optimization_rollback: &crate::checked::OptimizationRollback,
-        build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        if root_path != self.root_path {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        let selected_target_profile = target_name
-            .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])?;
-        // A packaged root binding that carries the compiler-captured canonical
-        // Source metadata index is sealed package custody. Every build
-        // activation over such custody runs against a fresh private
-        // materialization of the captured inventory with no invocation
-        // roster, exactly what the package manager's review route requests,
-        // so a retained Terminal production and the accepted review evidence
-        // it must rejoin record the same build observation identity. A
-        // binding without that index has no validated inventory to capture
-        // against and keeps the live root it names.
-        let automatic_snapshot = package_inputs
-            .filter(|inputs| inputs.canonical_source_metadata(inputs.root()).is_some())
-            .map(|_| build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>()));
-        self.compile_child(CheckedChildExecution {
-            selected_target_profile,
-            build_execution_profile: target::TargetProfile::host_if_supported(),
-            package_inputs,
-            build_dir: Some(&build_dir),
-            filesystem_sponsor: None,
-            evaluation_sponsor: None,
-            // The request narrows authority explicitly. Never replace it with
-            // automatic package membership or silently fall back after failure.
-            build_snapshot: build_snapshot.or(automatic_snapshot.as_ref()),
-            optimization_rollback: optimization_rollback.clone(),
-            independent_component_discovery: None,
-            restricted_build_grants: None,
-            permit_unsettled_fused_service_fields: false,
-        })
-    }
-
     fn compile_child(
         self,
         child: CheckedChildExecution<'_>,
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+        let root_path = self.root_path.clone();
+        let assembled = self.assemble(&child)?;
+        compile_assembled_checked_child(&root_path, child, assembled)
+    }
+
+    /// Assemble this target's source set: the shared parsed sources plus the
+    /// target's package imports and dependency-generated sources. Generated
+    /// build results belong to their execution profile, so a dependency's
+    /// generated declarations are validated against it first.
+    pub(crate) fn assemble(
+        self,
+        child: &CheckedChildExecution<'_>,
+    ) -> Result<AssembledSource, Vec<Diagnostic>> {
         // Validate on every child, including prepared-source reuse: parsing is
         // shared, but generated build results belong to their execution profile.
         // This must precede assembly of the dependency's generated declarations.
@@ -425,7 +439,11 @@ impl PreparedCheckedSource {
             assembly_started.elapsed().as_micros(),
             artifacts::allocations::AllocationDelta::default(),
         );
-        compile_assembled_checked_child(&self.root_path, child, source_file_count, syntax, timings)
+        Ok(AssembledSource {
+            source_file_count,
+            syntax,
+            timings,
+        })
     }
 }
 
@@ -501,13 +519,24 @@ fn compile_checked_worker(
     Ok((checked, retained_source))
 }
 
+/// One target's assembled syntax, its physical source count and the timing
+/// ladder the rest of its compile extends.
+pub(crate) struct AssembledSource {
+    pub(crate) source_file_count: usize,
+    pub(crate) syntax: crate::sources::AssembledSyntax,
+    pub(crate) timings: CompileTimings,
+}
+
 fn compile_assembled_checked_child(
     root_path: &Path,
     mut child: CheckedChildExecution<'_>,
-    source_file_count: usize,
-    syntax: crate::sources::AssembledSyntax,
-    mut timings: CompileTimings,
+    assembled: AssembledSource,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
+    let AssembledSource {
+        source_file_count,
+        syntax,
+        mut timings,
+    } = assembled;
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
     let optimization_rollback = child.optimization_rollback.clone();

@@ -60,24 +60,6 @@ deletes the side doors it replaces. Validate with `tools/corpus_gate.py
 --filter` over the affected groups plus `--native --filter` for anything
 backend-visible; full corpus runs only at the end of an item.
 
-- **ONE-CRATE-COMPILER.** (split-of:ONE-DRIVER-PER-STAGE) Merge
-  `compiler/compiler`, `source-assembly`, `checked-compilation`,
-  `terminal-artifact`, `native-realization` and `compilation-report` into one
-  crate `compiler` at `omega-rust/omega/compiler/` (`src/lib.rs` plus one route
-  file `src/compiler.rs` plus folders). `compiler.rs` spells the stage chain as
-  flat calls a reader can follow without leaving the file: prepare sources,
-  Psi 00-03, build evaluation, then per requested target provider selection,
-  Psi 04-07, Omega 00-09, image emission, publication, report. Inline the
-  forwarding layers (`PreparedCheckedSource::check`, `compile_child`,
-  `compile_assembled_checked_child`, `check_selected_execution`,
-  `prepare_native_product`, `NativeInputReuse::realize`) into that sequence;
-  the per-target loop around Psi 04-07 stays until PROVIDER-SELECTION-AFTER-TERMINAL.
-  Package crates, `tests/native-differential` and the architecture guards
-  (layering, `optimizer_source_organization` ladders, `stage_crate_ownership`)
-  follow the new paths. No behavior change: acceptance is `compiler/`
-  gone, the five other crates gone from the workspace, and the full check and
-  Windows native corpus goldens unchanged.
-
 - **DEAD-SELECTED-OPERATOR-PLANS.** (new-scope) 089bd3290c stopped producing
   the selected-operator Unit plans; delete their vocabulary and consumers:
   `CheckedUnitEffectOperationPlan::{SelectedOperatorScalarCall,
