@@ -67,6 +67,74 @@ fn both_literal_endpoints_require_the_exact_adjacent_integer_and_cited_bound() {
 }
 
 #[test]
+fn a_strict_bound_moves_one_literal_endpoint_inward() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        let integer_type = IntegerType::new(sign, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let identity = ValueId::new(1).unwrap();
+        let value = ScalarTerm::value(identity, scalar_type);
+        let context = PropositionContext::from_value_types([(identity, scalar_type)]).unwrap();
+        let literal = |number| {
+            ScalarTerm::integer(
+                integer_type,
+                match sign {
+                    IntegerSign::Signed => IntegerValue::Signed(number),
+                    IntegerSign::Unsigned => IntegerValue::Unsigned(number as u128),
+                },
+            )
+            .unwrap()
+        };
+        for lower in [false, true] {
+            let premise = if lower {
+                Proposition::LessThan(literal(0), value.clone())
+            } else {
+                Proposition::LessThan(value.clone(), literal(2))
+            };
+            let goal = if lower {
+                Proposition::LessOrEqual(literal(1), value.clone())
+            } else {
+                Proposition::LessOrEqual(value.clone(), literal(1))
+            };
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(ProofNode {
+                        conclusion: premise.clone(),
+                        rule: ProofRule::SemanticAxiom { index: 0 },
+                    }),
+                },
+            };
+            check_certificate(&context, &goal, &[], std::slice::from_ref(&premise), &proof)
+                .unwrap();
+            assert!(check_certificate(&context, &goal, &[], &[], &proof).is_err());
+            // Two steps inward, the unmoved endpoint, or a strict conclusion
+            // are not the adjacent non-strict bound.
+            for wrong in [
+                Proposition::LessOrEqual(literal(2), value.clone()),
+                Proposition::LessOrEqual(value.clone(), literal(0)),
+                Proposition::LessOrEqual(literal(0), value.clone()),
+                Proposition::LessOrEqual(value.clone(), literal(2)),
+                premise.clone(),
+            ] {
+                let mut altered = proof.clone();
+                altered.conclusion = wrong.clone();
+                assert!(
+                    check_certificate(
+                        &context,
+                        &wrong,
+                        &[],
+                        std::slice::from_ref(&premise),
+                        &altered
+                    )
+                    .is_err(),
+                    "{wrong:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn adjacency_never_wraps_at_carrier_or_host_limits() {
     for bits in [8, 128] {
         for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {

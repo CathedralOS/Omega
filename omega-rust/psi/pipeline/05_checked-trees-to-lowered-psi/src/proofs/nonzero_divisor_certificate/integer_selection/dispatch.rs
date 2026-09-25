@@ -30,25 +30,53 @@ pub(super) fn prove_atomic(
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
         })),
         Proposition::LessOrEqual(left, right) => Some(
-            bound::prove(context, goal, assumptions, semantic_axioms, definitions).or_else(|| {
-                // The strict producer can reconstruct both exact SSA endpoints
-                // from prior literal equalities. Reuse that checked route and
-                // weaken its conclusion, rather than adding another evaluator
-                // or replacing the original non-strict call requirement.
-                let relation = strict::prove(
-                    context,
-                    &Proposition::LessThan(left.clone(), right.clone()),
-                    assumptions,
-                    semantic_axioms,
-                    definitions,
-                )?;
-                Some(ProofNode {
-                    conclusion: goal.clone(),
-                    rule: ProofRule::IntegerOrderWeakening {
-                        relation: Box::new(relation),
-                    },
+            bound::prove(context, goal, assumptions, semantic_axioms, definitions)
+                .or_else(|| {
+                    // The strict producer can reconstruct both exact SSA endpoints
+                    // from prior literal equalities. Reuse that checked route and
+                    // weaken its conclusion, rather than adding another evaluator
+                    // or replacing the original non-strict call requirement.
+                    let relation = strict::prove(
+                        context,
+                        &Proposition::LessThan(left.clone(), right.clone()),
+                        assumptions,
+                        semantic_axioms,
+                        definitions,
+                    )?;
+                    Some(ProofNode {
+                        conclusion: goal.clone(),
+                        rule: ProofRule::IntegerOrderWeakening {
+                            relation: Box::new(relation),
+                        },
+                    })
                 })
-            }),
+                .or_else(|| {
+                    // A literal endpoint one step outward turns a strict bound
+                    // into this goal: `0 < value` proves `1 <= value`.
+                    [
+                        strict::adjacent(left, false)
+                            .map(|previous| Proposition::LessThan(previous, right.clone())),
+                        strict::adjacent(right, true)
+                            .map(|next| Proposition::LessThan(left.clone(), next)),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .find_map(|strict_goal| {
+                        let relation = strict::prove(
+                            context,
+                            &strict_goal,
+                            assumptions,
+                            semantic_axioms,
+                            definitions,
+                        )?;
+                        Some(ProofNode {
+                            conclusion: goal.clone(),
+                            rule: ProofRule::IntegerOrderDiscreteness {
+                                relation: Box::new(relation),
+                            },
+                        })
+                    })
+                }),
         ),
         Proposition::LessThan(_, _) => Some(strict::prove(
             context,
