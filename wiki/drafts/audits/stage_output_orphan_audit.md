@@ -103,23 +103,10 @@ owned parts — and expose no accessor channel to audit.
   is live (it flows from `CheckedCompilation::callback_placements` into the
   retained terminal artifact's custody at `terminal_artifact.rs:94-137`), but
   this report-level view into it has no reader.
-- `SyntaxTrees::root_mathematical_definitions` — convenience iterator over
-  root definitions; every consumer takes the handle-keyed
-  `root_mathematical_definition(handle)` route instead.
 - `SyntaxTrees::snapshot_json_pretty` — the pretty-printed variant of the
   test-consumed `snapshot_json` inspection channel.
 - `SymbolResolvedTrees::machine_ranking_view` — one same-crate reader feeds
   the test-only `snapshot_json` surface; nothing external ranks machines.
-- `TypedTrees::normalized_machine_parameter_overload_identity` — the
-  requirement-side overload-identity query; its machine-side sibling is also
-  test-only (`machine_by_normalized_overload_identity`).
-- `TypedTrees::push_conformance_type_parameter` — a table-builder push with
-  no call anywhere; sibling `push_*_type_parameter` methods are pushed by
-  construction paths or tests.
-- `TypedTrees::wire_schema_version_era` — the versioned wire-schema era
-  discriminator query; `wire_field_fixed_array`/`wire_field_slice_element`
-  are internally routed inside `wire_schema_queries`, but this one has no
-  call site at all.
 - `SeededSymbolResolvedTrees::{into_unrebased_trees,
   rebase_authored_selections}` — the pre-typed-continuation accessors,
   superseded by the consumed `into_typing_continuation_parts` /
@@ -153,6 +140,13 @@ by compiler test suites (`executable_publication`,
 maintained for the test corpus, not orphaned product.
 
 ## Disposition
+
+`4917d984da` deleted four entries this audit listed, along with other Psi
+functions nothing called: `SyntaxTrees::root_mathematical_definitions`,
+`TypedTrees::normalized_machine_parameter_overload_identity`,
+`TypedTrees::push_conformance_type_parameter` and
+`TypedTrees::wire_schema_version_era`. The rest of this section describes
+the original audit change.
 
 No accessor was deleted in this change: the zero-reader set is dominated by
 `pub` representation API (`typed-trees`, `syntax-trees`, `compilation-report`)
