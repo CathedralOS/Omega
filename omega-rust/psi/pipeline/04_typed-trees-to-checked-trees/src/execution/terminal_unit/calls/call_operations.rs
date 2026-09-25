@@ -13,16 +13,14 @@ use crate::execution::terminal_unit::calls::service_forward;
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_integer_at, structural_call_arguments,
 };
-use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{base_type_identity, is_unit, machine_binders};
 use crate::execution::terminal_unit::{
     BuiltinFunction, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionEventKind,
-    PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
+    Multiplicity, PermissionEventKind, PrimitiveType, SymbolHandle, TypedTrees, is_reference,
     strips_erased_parameter,
 };
 use validation::exact_compiler_intrinsic_boundary_requirement;
@@ -30,6 +28,24 @@ use validation::exact_compiler_intrinsic_boundary_requirement;
 pub(in crate::execution) enum ExpectedCallValueResult<'result> {
     Scalar(PrimitiveType),
     Structural(&'result CheckedUnitStructuralResultBindingPlan),
+}
+
+/// A resolved call through an ordinary or bodyless-boundary target: the
+/// target, its contract and every argument lane, ready for the plan the
+/// call's expected result selects.
+pub(super) struct PlannedCall<'p> {
+    pub(super) coordinate: CheckedUnitCallCoordinate,
+    pub(super) source_site: Option<checked_trees::NominalMachineUseSite>,
+    pub(super) call: &'p checked_trees::FlowCallFact,
+    pub(super) target_machine: &'p typed_trees::machine::Machine,
+    pub(super) target_state: &'p typed_trees::state::State,
+    pub(super) target_contract: &'p checked_trees::MachineContractPlan,
+    pub(super) scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
+    pub(super) scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    pub(super) erased_scalar_arguments: Vec<checked_trees::CheckedCallScalarArgument>,
+    pub(super) erased_proof_arguments: Vec<checked_trees::CheckedProofTerm>,
+    pub(super) structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
+    pub(super) transfers: Vec<checked_trees::CheckedUnitClaimTransferPlan>,
 }
 
 /// Build one call with the scalar-callee evidence available to this pass.
@@ -488,213 +504,30 @@ pub(in crate::execution) fn build_call_operation(
             completion_receipts: transfers,
         })
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
-        phase("call operation: structural result loan");
-        let reference_loan = if crate::execution::terminal_unit::reference_results::parts(
+        super::structural_result_call::build(
             program,
-            target_state.return_type,
-        )
-        .is_some()
-        {
-            crate::execution::terminal_unit::reference_results::result_loan(
-                program,
-                facts,
-                machine.symbol,
-                state,
-                call,
-                result,
-            )?
-        } else {
-            arena::Handle::invalid()
-        };
-        // A result signature is available before its ordinary or graph body plan.
-        // The closure pass below retains this call only when that complete body
-        // was produced, avoiding an authored machine-order dependency.
-        phase("call operation: structural result operands");
-        let args_ok = structural_arguments
-            .iter()
-            .enumerate()
-            .all(|(argument_index, argument)| {
-                if argument.access == CheckedStructuralAccess::Owned
-                    && (argument.source_parameter_index().is_some()
-                        || argument
-                            .source_structural_result_binding_ordinal()
-                            .is_some())
-                    && program
-                        .state_parameters(target_state)
-                        .iter()
-                        .filter(|parameter| {
-                            program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_none()
-                                && !(parameter.is_self
-                                    && is_reference(program, parameter.type_reference))
-                        })
-                        .nth(argument_index)
-                        .is_some_and(|parameter| {
-                            !parameter.is_self
-                                && (validation::is_closed_primitive_array_type(
-                                    program,
-                                    parameter.type_reference,
-                                ) || validation::has_plain_owned_contents_with_numeric_constraints(
-                                    program,
-                                    parameter.type_reference,
-                                ) || validation::reference_result_custody::is_reference_record(
-                                    program,
-                                    parameter.type_reference,
-                                ))
-                                && base_type_identity(program, parameter.type_reference, &[])
-                                    .is_some_and(|identity| identity == argument.type_identity)
-                                // A projected owned operand names the exact
-                                // declared-field subtree whose captured leaf the
-                                // bare reference result loan already replayed.
-                                // Without that proven leaf custody the whole
-                                // carrier spelling stays mandatory.
-                                && (argument.path.is_empty()
-                                    || (reference_loan.is_valid()
-                                        && validation::reference_result_custody::is_reference_record(
-                                            program,
-                                            parameter.type_reference,
-                                        )
-                                        && argument.path.iter().all(|segment| {
-                                            matches!(
-                                                segment,
-                                                checked_trees::CheckedUnitStructuralPathSegment::Field(
-                                                    _
-                                                )
-                                            )
-                                        })))
-                        })
-                {
-                    return true;
-                }
-                (argument.source_parameter_index().is_some()
-                    || argument.byte_sequence_literal().is_some()
-                    || matches!(
-                        argument.source,
-                        CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { .. }
-                    ))
-                    && matches!(
-                        argument.access,
-                        CheckedStructuralAccess::SharedBorrow
-                            | CheckedStructuralAccess::MutableBorrow
-                    )
-            });
-        if args_ok
-            && transfers.is_empty()
-            && (reference_loan.is_valid()
-                || crate::execution::terminal_unit::reference_results::is_reference_record(
-                    program,
-                    target_state.return_type,
-                )
-                || (matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                ) && validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    target_state.return_type,
-                ) && matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(target_state.return_type),
-                    TypeReferenceNode::Named { .. }
-                ))
-                || (result.multiplicity == Multiplicity::Unrestricted
-                    && validation::is_closed_primitive_array_type(
-                        program,
-                        target_state.return_type,
-                    ))
-                // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
-                // storage through the caller frame: its plan is affine like
-                // the reference-record family above, and the result-shape arm
-                // already proved the identity.
-                || (result.multiplicity == Multiplicity::Affine
-                    && (crate::execution::terminal_unit::types::borrowed_slice_view(
-                        program,
-                        target_state.return_type,
-                    ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                        program,
-                        target_state.return_type,
-                    ))))
-            && program
-                .machine_states(target_machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == target_state.symbol)
-            && machine_binders(program, target_machine).is_empty()
-        {
-            return Some(CheckedUnitEffectOperationPlan::StructuralCall {
+            facts,
+            machine,
+            state,
+            caller_parameters,
+            caller_structural_results,
+            trace,
+            PlannedCall {
                 coordinate,
                 source_site,
-                result: result.clone(),
-                custody: checked_trees::CheckedStructuralCallCustodyPlan {
-                    reference_loan,
-                    ..Default::default()
-                },
-                target_machine: target_machine.symbol,
-                target_state: target_state.symbol,
-                target_contract_report_fingerprint: target_contract.report_fingerprint,
-                target_contract_commitment: target_contract.commitment,
-                service_reach: call.service_reach,
+                call,
+                target_machine,
+                target_state,
+                target_contract,
+                scalar_parameters,
                 scalar_arguments,
                 erased_scalar_arguments,
                 erased_proof_arguments,
                 structural_arguments,
-                discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                    && !reference_loan.is_valid(),
-            });
-        }
-        phase("call operation: claim-free affine result");
-        let target = facts
-            .flow
-            .terminal_structural_returns
-            .claim_free_affine_for_machine(target_machine.symbol)?;
-        let [argument] = structural_arguments.as_slice() else {
-            return None;
-        };
-        let source_matches = if let Some(index) = argument.source_parameter_index() {
-            let source = caller_parameters.get(usize::try_from(index).ok()?)?;
-            source.type_identity == argument.type_identity
-                && source.multiplicity == Multiplicity::Affine
-                && source.access == CheckedStructuralAccess::Owned
-                && source.qualifications.is_empty()
-        } else if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
-            caller_structural_results.iter().any(|(source, _)| {
-                source.binding_ordinal == ordinal
-                    && source.statement_index <= coordinate.statement_index
-                    && source.type_identity == argument.type_identity
-                    && source.multiplicity == Multiplicity::Affine
-            })
-        } else {
-            false
-        };
-        if target.state != target_state.symbol
-            || target.result.type_identity != result.type_identity
-            || result.multiplicity != Multiplicity::Affine
-            || target.scalar_parameters != scalar_parameters
-            || target.structural_parameter.type_identity != argument.type_identity
-            || !source_matches
-            || argument.access != CheckedStructuralAccess::Owned
-            || !argument.path.is_empty()
-            || !transfers.is_empty()
-            || !service_reach_is_empty(facts, call.service_reach)
-        {
-            return None;
-        }
-        Some(CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            source_site,
-            result: result.clone(),
-            custody: Default::default(),
-            target_machine: target_machine.symbol,
-            target_state: target_state.symbol,
-            target_contract_report_fingerprint: target_contract.report_fingerprint,
-            target_contract_commitment: target_contract.commitment,
-            service_reach: call.service_reach,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            discard_result_on_return: true,
-        })
+                transfers,
+            },
+            result,
+        )
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())
         // A scalar result over structural operands is a `ScalarCall` whose
