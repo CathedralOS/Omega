@@ -531,6 +531,13 @@ impl SymbolTable {
             return None;
         }
         let qualified = name.contains("::");
+        // An unqualified reference can only resolve here through a top-level
+        // module of the same name or a module import; both require Module in
+        // `kinds`. Type-only lookups provably find nothing — returning early
+        // skips the whole candidate walk and the import-binding filter.
+        if !qualified && !kinds.contains(&SymbolKind::Module) {
+            return None;
+        }
         // `display_path` walks the candidate's parent chain and allocates, so
         // it is built only when a consult below can engage: qualified
         // spellings, or a module-import binding for this source that reaches
@@ -541,11 +548,9 @@ impl SymbolTable {
         // bindings; filter once here instead of walking the whole binding list
         // for every candidate.
         let import_bindings: Vec<&SourceScopedTopLevelBinding> = self
-            .source_scoped_top_level_bindings
+            .source_scoped_bindings_for(reference.source_id)
             .iter()
-            .filter(|binding| {
-                binding.reference_source == reference.source_id && binding.module_import.is_some()
-            })
+            .filter(|binding| binding.module_import.is_some())
             .collect();
         let needs_candidate_path = qualified || !import_bindings.is_empty();
         let mut matches = Vec::new();
