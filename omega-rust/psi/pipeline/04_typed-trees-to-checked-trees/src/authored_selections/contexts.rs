@@ -1,6 +1,8 @@
 use crate::semantic::calls::MeasureReceiver;
 use checked_trees::{CheckFacts, ContractProofFactOwner};
 use language_semantics::declaration_selection::CollectionMeasure;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
@@ -35,15 +37,84 @@ struct TypeEnvironment {
     bindings: Vec<Binding>,
 }
 
+/// One queried expression's exact-owner rows. `environments` carries the
+/// collectors' environments in the same order `exact_owner_environments`
+/// produced them; `executable_sites` locates the statements containing the
+/// expression for `checked_machine_call_target_from_executable_owner`.
+#[derive(Default)]
+struct ExactOwnerEntry {
+    environments: Vec<TypeEnvironment>,
+    executable_sites: Vec<ExecutableSite>,
+}
+
+#[derive(Clone, Copy)]
+struct ExecutableSite {
+    machine: usize,
+    state: usize,
+    statement: usize,
+}
+
+/// Lazy whole-program index of every expression's exact owner rows. The
+/// exact-owner collectors answer each query by rescanning every contract,
+/// domain, proposition, measure, parameter, ranking, and statement; a walk
+/// that asks the question once per expression shares this single pass
+/// instead. Callers outside such a walk pass `None` and keep the per-query
+/// rescan — building the index costs more than one scan.
+#[derive(Default)]
+pub(crate) struct OwnerEnvironmentIndex(
+    RefCell<Option<HashMap<ExpressionHandle, ExactOwnerEntry>>>,
+);
+
+impl OwnerEnvironmentIndex {
+    fn environments(
+        &self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+        expression: ExpressionHandle,
+    ) -> Option<Vec<TypeEnvironment>> {
+        self.index(program, facts)
+            .get(&expression)
+            .map(|entry| entry.environments.clone())
+            .filter(|environments| !environments.is_empty())
+    }
+
+    fn executable_sites(
+        &self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+        expression: ExpressionHandle,
+    ) -> Vec<ExecutableSite> {
+        self.index(program, facts)
+            .get(&expression)
+            .map(|entry| entry.executable_sites.clone())
+            .unwrap_or_default()
+    }
+
+    fn index<'a>(
+        &'a self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+    ) -> std::cell::Ref<'a, HashMap<ExpressionHandle, ExactOwnerEntry>> {
+        {
+            let mut borrow = self.0.borrow_mut();
+            if borrow.is_none() {
+                *borrow = Some(build_owner_environment_index(program, facts));
+            }
+        }
+        std::cell::Ref::map(self.0.borrow(), |index| index.as_ref().unwrap())
+    }
+}
+
 pub(super) fn checked_member_target_from_exact_owner(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<OwnerMemberTarget> {
     let source_span = authored_member_source_span(program, expression)?;
     let mut target = None;
-    for environment in exact_owner_environments(program, facts, expression)? {
+    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
         let candidate = member_target_in_environment(program, member, &environment, source_span)?;
         retain_consistent(&mut target, candidate)?;
     }
@@ -83,9 +154,10 @@ pub(super) fn checked_expression_type_reference_from_exact_owner(
     facts: &CheckFacts,
     owner_expression: ExpressionHandle,
     expression: ExpressionHandle,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<TypeReferenceHandle> {
     let mut retained = None;
-    for environment in exact_owner_environments(program, facts, owner_expression)? {
+    for environment in exact_owner_environments(program, facts, owner_expression, owner_index)? {
         let InferredType::TypeReference(candidate) =
             infer_expression_type(program, expression, &environment, &mut Vec::new())?
         else {
@@ -107,6 +179,7 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
@@ -115,7 +188,7 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     // receiver's carrier type before the intrinsic is recorded.
     let expected = crate::semantic::calls::collection_view_call(program, call)?;
     let mut retained = None;
-    for environment in exact_owner_environments(program, facts, expression)? {
+    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
         let receiver =
             infer_expression_type(program, call.receiver, &environment, &mut Vec::new())?;
         let candidate = collection_view_operation_for_receiver(program, expected, receiver)?;
@@ -132,9 +205,18 @@ pub(super) fn checked_machine_call_target_from_exact_owner(
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
-    checked_machine_call_target_from_type_owners(program, facts, expression, call)
-        .or_else(|| checked_machine_call_target_from_executable_owner(program, expression, call))
+    checked_machine_call_target_from_type_owners(program, facts, expression, call, owner_index)
+        .or_else(|| {
+            checked_machine_call_target_from_executable_owner(
+                program,
+                facts,
+                expression,
+                call,
+                owner_index,
+            )
+        })
 }
 
 fn checked_machine_call_target_from_type_owners(
@@ -142,9 +224,10 @@ fn checked_machine_call_target_from_type_owners(
     facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
-    for environment in exact_owner_environments(program, facts, expression)? {
+    for environment in exact_owner_environments(program, facts, expression, owner_index)? {
         let candidate = call_target_in_environment(program, call, &environment)?;
         retain_consistent(&mut target, candidate)?;
     }
@@ -153,10 +236,42 @@ fn checked_machine_call_target_from_type_owners(
 
 fn checked_machine_call_target_from_executable_owner(
     program: &TypedTrees,
+    facts: &CheckFacts,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<SymbolHandle> {
     let mut target = None;
+    if let Some(owner_index) = owner_index {
+        for site in owner_index.executable_sites(program, facts, expression) {
+            let machine = &program.machines()[site.machine];
+            if program
+                .machine_specializations
+                .iter()
+                .any(|specialization| {
+                    specialization.instance == machine.symbol
+                        && specialization.template != specialization.instance
+                })
+            {
+                continue;
+            }
+            let state = &program.machine_states(machine)[site.state];
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let candidate = executable_site_call_candidate(
+                program,
+                machine,
+                state,
+                statements,
+                site.statement,
+                call,
+            );
+            if !candidate.is_valid() || target.is_some_and(|retained| retained != candidate) {
+                return None;
+            }
+            target = Some(candidate);
+        }
+        return target;
+    }
     for machine in program.machines() {
         if program
             .machine_specializations
@@ -180,61 +295,14 @@ fn checked_machine_call_target_from_executable_owner(
                 if !expressions.contains(&expression) {
                     continue;
                 }
-                let (receiver_symbol, receiver_path) =
-                    crate::lookup::call_receiver_parts(program, call.receiver);
-                let mut candidate = crate::lookup::resolve_state_call_target(
+                let candidate = executable_site_call_candidate(
                     program,
                     machine,
                     state,
-                    receiver_symbol,
-                    call.target_symbol,
-                    receiver_path.as_deref(),
-                    &call.target,
+                    statements,
+                    statement_index,
+                    call,
                 );
-                if !candidate.is_valid() && !call.receiver.is_valid() {
-                    let matching = program
-                        .machine_type_parameters(machine)
-                        .iter()
-                        .filter(|parameter| {
-                            parameter.name == call.target
-                                && matches!(
-                                    parameter.kind,
-                                    typed_trees::data::TypeParameterKind::Machine { .. }
-                                )
-                        })
-                        .map(|parameter| parameter.symbol)
-                        .collect::<Vec<_>>();
-                    if let [selected] = matching.as_slice() {
-                        candidate = *selected;
-                    }
-                }
-                if !candidate.is_valid() && call.receiver.is_valid() {
-                    let mut environment = machine_environment(program, machine, Some(state));
-                    environment.bindings.extend(
-                        statements
-                            .iter()
-                            .take(statement_index)
-                            .filter_map(|statement| match statement {
-                                typed_trees::statement::StatementNode::LocalData(local)
-                                    if local.type_reference.is_valid() =>
-                                {
-                                    Some(Binding {
-                                        name: local.name.as_str().to_owned(),
-                                        symbol: local.symbol,
-                                        type_reference: local.type_reference,
-                                    })
-                                }
-                                _ => None,
-                            }),
-                    );
-                    if let Some(receiver_type) =
-                        infer_expression_type(program, call.receiver, &environment, &mut Vec::new())
-                    {
-                        candidate =
-                            attached_machine_target(program, receiver_type, call.target.as_str())
-                                .unwrap_or_else(SymbolHandle::invalid);
-                    }
-                }
                 if !candidate.is_valid() || target.is_some_and(|retained| retained != candidate) {
                     return None;
                 }
@@ -243,6 +311,89 @@ fn checked_machine_call_target_from_executable_owner(
         }
     }
     target
+}
+
+/// The call target one executable site answers for `call`: the state's
+/// direct resolution, then the machine's type-parameter arm for a receiverless
+/// spelling, then the attached-machine lookup off the receiver's type
+/// inferred in the environment the statement's prefix bindings establish.
+fn executable_site_call_candidate(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statements: &[typed_trees::statement::StatementNode],
+    statement_index: usize,
+    call: &typed_trees::expression::TableCallExpression,
+) -> SymbolHandle {
+    let (receiver_symbol, receiver_path) =
+        crate::lookup::call_receiver_parts(program, call.receiver);
+    let mut candidate = crate::lookup::resolve_state_call_target(
+        program,
+        machine,
+        state,
+        receiver_symbol,
+        call.target_symbol,
+        receiver_path.as_deref(),
+        &call.target,
+    );
+    if !candidate.is_valid() && !call.receiver.is_valid() {
+        let matching = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter(|parameter| {
+                parameter.name == call.target
+                    && matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+            })
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>();
+        if let [selected] = matching.as_slice() {
+            candidate = *selected;
+        }
+    }
+    if !candidate.is_valid() && call.receiver.is_valid() {
+        let environment =
+            executable_site_environment(program, machine, state, statements, statement_index);
+        if let Some(receiver_type) =
+            infer_expression_type(program, call.receiver, &environment, &mut Vec::new())
+        {
+            candidate = attached_machine_target(program, receiver_type, call.target.as_str())
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+    }
+    candidate
+}
+
+/// The environment one statement position establishes: the machine's own
+/// environment extended by the `LocalData` bindings preceding the statement.
+fn executable_site_environment(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statements: &[typed_trees::statement::StatementNode],
+    statement_index: usize,
+) -> TypeEnvironment {
+    let mut environment = machine_environment(program, machine, Some(state));
+    environment.bindings.extend(
+        statements
+            .iter()
+            .take(statement_index)
+            .filter_map(|statement| match statement {
+                typed_trees::statement::StatementNode::LocalData(local)
+                    if local.type_reference.is_valid() =>
+                {
+                    Some(Binding {
+                        name: local.name.as_str().to_owned(),
+                        symbol: local.symbol,
+                        type_reference: local.type_reference,
+                    })
+                }
+                _ => None,
+            }),
+    );
+    environment
 }
 
 fn call_target_in_environment(
@@ -500,7 +651,11 @@ fn exact_owner_environments(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: ExpressionHandle,
+    owner_index: Option<&OwnerEnvironmentIndex>,
 ) -> Option<Vec<TypeEnvironment>> {
+    if let Some(owner_index) = owner_index {
+        return owner_index.environments(program, facts, expression);
+    }
     let mut environments = Vec::new();
     for (_, contract) in facts.proof.contract_facts.iter() {
         if !proof_fact_contains_expression(program, contract.fact, expression) {
@@ -735,27 +890,13 @@ fn collect_executable_environments(
                 if !expressions.contains(&expression) {
                     continue;
                 }
-                let mut environment = machine_environment(program, machine, Some(state));
-                environment
-                    .bindings
-                    .extend(
-                        statements
-                            .iter()
-                            .take(statement_index)
-                            .filter_map(|statement| match statement {
-                                typed_trees::statement::StatementNode::LocalData(local)
-                                    if local.type_reference.is_valid() =>
-                                {
-                                    Some(Binding {
-                                        name: local.name.as_str().to_owned(),
-                                        symbol: local.symbol,
-                                        type_reference: local.type_reference,
-                                    })
-                                }
-                                _ => None,
-                            }),
-                    );
-                environments.push(environment);
+                environments.push(executable_site_environment(
+                    program,
+                    machine,
+                    state,
+                    statements,
+                    statement_index,
+                ));
             }
         }
     }
@@ -1154,5 +1295,394 @@ fn collection_element_type(
         TypeReferenceNode::FixedArray { element_type, .. }
         | TypeReferenceNode::Slice { element_type } => Some(*element_type),
         _ => None,
+    }
+}
+
+/// Build the whole-program exact-owner index in one pass, preserving the
+/// collectors' per-expression ordering: contracts, domains, propositions,
+/// measures, parameter constraints, rankings, then executable sites.
+fn build_owner_environment_index(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+) -> HashMap<ExpressionHandle, ExactOwnerEntry> {
+    let mut index: HashMap<ExpressionHandle, ExactOwnerEntry> = HashMap::new();
+    for (_, contract) in facts.proof.contract_facts.iter() {
+        let Some(environment) = contract_owner_environment(program, contract.owner) else {
+            continue;
+        };
+        for expression in proof_fact_handle_reachable_expressions(program, contract.fact) {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(environment.clone());
+        }
+    }
+    for domain in program.domain_definitions() {
+        let mut reached = HashSet::new();
+        for fact in program.proof_facts(domain) {
+            reached.extend(proof_fact_reachable_expressions(program, fact));
+        }
+        for expression in reached {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(TypeEnvironment {
+                    self_type: Some(InferredType::TypeReference(domain.target_type)),
+                    ..Default::default()
+                });
+        }
+    }
+    index_proposition_environments(program, &mut index);
+    index_measure_environments(program, &mut index);
+    index_parameter_constraint_environments(program, &mut index);
+    index_ranking_environments(program, &mut index);
+    index_executable_environments(program, &mut index);
+    index
+}
+
+/// Every expression handle a proof fact's roots reach — the indexed shape of
+/// `proof_fact_value_contains_expression`, which asks membership in exactly
+/// this set.
+fn proof_fact_reachable_expressions(
+    program: &TypedTrees,
+    fact: &typed_trees::domain::ProofFact,
+) -> HashSet<ExpressionHandle> {
+    let mut reached = HashSet::new();
+    match fact {
+        typed_trees::domain::ProofFact::Expression(root) => {
+            reached.extend(
+                crate::authored_selections::member_targets::reachable_expressions(program, *root),
+            );
+        }
+        typed_trees::domain::ProofFact::Membership(membership) => {
+            reached.extend(
+                crate::authored_selections::member_targets::reachable_expressions(
+                    program,
+                    membership.value,
+                ),
+            );
+        }
+        typed_trees::domain::ProofFact::Proposition(application) => {
+            for root in program
+                .expression_table
+                .expression_handles(application.arguments)
+            {
+                reached.extend(
+                    crate::authored_selections::member_targets::reachable_expressions(
+                        program, *root,
+                    ),
+                );
+            }
+        }
+    }
+    reached
+}
+
+fn proof_fact_handle_reachable_expressions(
+    program: &TypedTrees,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
+) -> HashSet<ExpressionHandle> {
+    proof_fact_reachable_expressions(program, program.proof_facts.get(fact))
+}
+
+/// Every expression a type reference's embedded roots reach — the indexed
+/// shape of `type_reference_contains_expression`, whose recursion this walk
+/// mirrors arm for arm.
+fn type_reference_reachable_expressions(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> HashSet<ExpressionHandle> {
+    let mut reached = HashSet::new();
+    collect_type_reference_expressions(program, type_reference, &mut Vec::new(), &mut reached);
+    reached
+}
+
+fn collect_type_reference_expressions(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    visited: &mut Vec<TypeReferenceHandle>,
+    reached: &mut HashSet<ExpressionHandle>,
+) {
+    if !type_reference.is_valid() || visited.contains(&type_reference) {
+        return;
+    }
+    visited.push(type_reference);
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_reference_expressions(program, *referee, visited, reached)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            collect_type_reference_expressions(program, *base_type, visited, reached);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                match constraint {
+                    TypeConstraintNode::Range {
+                        minimum, maximum, ..
+                    } => {
+                        reached.extend(
+                            crate::authored_selections::member_targets::reachable_expressions(
+                                program, *minimum,
+                            ),
+                        );
+                        reached.extend(
+                            crate::authored_selections::member_targets::reachable_expressions(
+                                program, *maximum,
+                            ),
+                        );
+                    }
+                    TypeConstraintNode::Domain(domain) => {
+                        for argument in &domain.arguments {
+                            collect_type_reference_expressions(
+                                program, *argument, visited, reached,
+                            );
+                        }
+                    }
+                    TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
+                }
+            }
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            collect_type_reference_expressions(program, *element_type, visited, reached)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+            {
+                collect_type_reference_expressions(program, *argument, visited, reached);
+            }
+        }
+        TypeReferenceNode::ConstExpression(root) => {
+            reached.extend(
+                crate::authored_selections::member_targets::reachable_expressions(program, *root),
+            );
+        }
+        TypeReferenceNode::DynamicTrait { .. }
+        | TypeReferenceNode::Named { .. }
+        | TypeReferenceNode::Unit => {}
+    }
+}
+
+fn index_proposition_environments(
+    program: &TypedTrees,
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    use typed_trees::proposition::{PropositionBody, PropositionFormula};
+
+    for proposition in program.propositions() {
+        let PropositionBody::Transparent { proposition: body } = &proposition.body else {
+            continue;
+        };
+        let mut reached = HashSet::new();
+        match body {
+            PropositionFormula::Application(application) => {
+                for root in program
+                    .expression_table
+                    .expression_handles(application.arguments)
+                {
+                    reached.extend(
+                        crate::authored_selections::member_targets::reachable_expressions(
+                            program, *root,
+                        ),
+                    );
+                }
+            }
+            PropositionFormula::BooleanExpression(root) => {
+                reached.extend(
+                    crate::authored_selections::member_targets::reachable_expressions(
+                        program, *root,
+                    ),
+                );
+            }
+        }
+        let environment = environment_from_parameters(
+            program.proposition_parameters(proposition),
+            TypeReferenceHandle::invalid(),
+            None,
+        );
+        for expression in reached {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(environment.clone());
+        }
+    }
+}
+
+fn index_measure_environments(
+    program: &TypedTrees,
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    for measure in program.measures() {
+        let Some(parameter) = measure.parameter.as_ref() else {
+            continue;
+        };
+        let mut reached = HashSet::new();
+        for root in program.expression_table.expression_handles(measure.body) {
+            reached.extend(
+                crate::authored_selections::member_targets::reachable_expressions(program, *root),
+            );
+        }
+        let environment =
+            environment_from_parameters(std::slice::from_ref(parameter), measure.return_type, None);
+        for expression in reached {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(environment.clone());
+        }
+    }
+}
+
+fn index_parameter_constraint_environments(
+    program: &TypedTrees,
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let parameters = program.state_parameters(state);
+            for (parameter_index, parameter) in parameters.iter().enumerate() {
+                let environment = TypeEnvironment {
+                    self_type: machine
+                        .attached_data_symbol
+                        .is_valid()
+                        .then_some(InferredType::Nominal(machine.attached_data_symbol)),
+                    bindings: environment_from_parameters(
+                        &parameters[..parameter_index],
+                        TypeReferenceHandle::invalid(),
+                        None,
+                    )
+                    .bindings,
+                    ..Default::default()
+                };
+                for expression in
+                    type_reference_reachable_expressions(program, parameter.type_reference)
+                {
+                    index
+                        .entry(expression)
+                        .or_default()
+                        .environments
+                        .push(environment.clone());
+                }
+            }
+        }
+    }
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            index_telescope_parameters(
+                program,
+                program.state_signature_parameters(signature),
+                index,
+            );
+        }
+    }
+    for operator in program.operators().iter().chain(
+        program
+            .domain_definitions()
+            .iter()
+            .flat_map(|domain| program.domain_operators(domain)),
+    ) {
+        index_telescope_parameters(program, program.operator_parameters(operator), index);
+    }
+    for proposition in program.propositions() {
+        index_telescope_parameters(program, program.proposition_parameters(proposition), index);
+    }
+}
+
+fn index_telescope_parameters(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    for (parameter_index, parameter) in parameters.iter().enumerate() {
+        let environment = environment_from_parameters(
+            &parameters[..parameter_index],
+            TypeReferenceHandle::invalid(),
+            None,
+        );
+        for expression in type_reference_reachable_expressions(program, parameter.type_reference) {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(environment.clone());
+        }
+    }
+}
+
+fn index_ranking_environments(
+    program: &TypedTrees,
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    for custody in &program.ranking_expression_custody {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, custody.machine) else {
+            continue;
+        };
+        let mut reached = HashSet::new();
+        let roots = custody
+            .subjects
+            .iter()
+            .chain(&custody.view_arguments)
+            .copied()
+            .chain(custody.rank_range);
+        for root in roots {
+            reached.extend(
+                crate::authored_selections::member_targets::reachable_expressions(program, root),
+            );
+        }
+        let environment =
+            machine_environment(program, machine, program.machine_states(machine).first());
+        for expression in reached {
+            index
+                .entry(expression)
+                .or_default()
+                .environments
+                .push(environment.clone());
+        }
+    }
+}
+
+fn index_executable_environments(
+    program: &TypedTrees,
+    index: &mut HashMap<ExpressionHandle, ExactOwnerEntry>,
+) {
+    for (machine_index, machine) in program.machines().iter().enumerate() {
+        for (state_index, state) in program.machine_states(machine).iter().enumerate() {
+            let statements = program.statement_table.statements(state.statement_nodes);
+            for (statement_index, statement) in statements.iter().enumerate() {
+                let mut expressions = Vec::new();
+                crate::monomorphization::collect_statement_expression_trees(
+                    program,
+                    statement,
+                    &mut expressions,
+                );
+                if expressions.is_empty() {
+                    continue;
+                }
+                let environment = executable_site_environment(
+                    program,
+                    machine,
+                    state,
+                    statements,
+                    statement_index,
+                );
+                for expression in expressions {
+                    let entry = index.entry(expression).or_default();
+                    entry.environments.push(environment.clone());
+                    entry.executable_sites.push(ExecutableSite {
+                        machine: machine_index,
+                        state: state_index,
+                        statement: statement_index,
+                    });
+                }
+            }
+        }
     }
 }
