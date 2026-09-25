@@ -233,11 +233,13 @@ fn scalar_fixture_call_coordinate(
 }
 
 fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees {
-    // A proof-only carrier like the real enum: holding builtin `Int` inline
-    // classifies it proof-only, so ensures facts mentioning it route to the
-    // structural judge (closed_float_meaning_equality) instead of the
-    // polynomial engine.
-    const FLOAT_MEANING: &str = "pub data FloatMeaning { value: Int }";
+    // A proof-only carrier like the real enum, whose `Rat` payload has no
+    // layout: here the definition reaches itself inline, which classifies it
+    // proof-only, so ensures facts mentioning it route to the structural
+    // judge (closed_float_meaning_equality) instead of the polynomial engine.
+    // A relevant builtin `Int` field would be refused at its declaration.
+    const FLOAT_MEANING: &str =
+        "pub data FloatMeaning { case Zero; case Scaled(inner: FloatMeaning); }";
     const FLOAT_FORMAT: &str = r#"
         pub data FloatSpecialValues [copy] {
             signed_zero: bool;
