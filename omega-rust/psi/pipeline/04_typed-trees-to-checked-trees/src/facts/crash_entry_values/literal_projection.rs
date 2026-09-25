@@ -51,14 +51,8 @@ pub(super) fn entry_value_with_selector(
     depth: u32,
     selector: &mut impl FnMut(&State, usize, ExpressionHandle) -> Option<usize>,
 ) -> Option<CrashPredicateExpression> {
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let (machine, state) =
+        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
     projected_entry_value(
         program,
         machine,

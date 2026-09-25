@@ -512,14 +512,13 @@ fn entry_operand_at(
             Some(CrashPredicateExpression::Float(value.text().to_owned()))
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == machine_symbol)?;
-            let state = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == state_symbol)?;
+            let Some((machine, state)) = crate::lookup::symbols::machine_state_by_symbol(
+                program,
+                machine_symbol,
+                state_symbol,
+            ) else {
+                return None;
+            };
             let source = program.primitive_type_reference(
                 validation::expression_result_type_reference(program, machine, state, cast.value)?,
             )?;
@@ -793,14 +792,11 @@ fn entry_operand_name_at(
     {
         return None;
     }
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol)?;
+    let Some((machine, state)) =
+        crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)
+    else {
+        return None;
+    };
     let preceding = program
         .statement_table
         .statements(state.statement_nodes)
@@ -903,10 +899,7 @@ fn receiver_contents_stable(program: &TypedTrees, machine: &typed_trees::machine
     if owners.next().is_some()
         || !program.data_type_parameters(data).is_empty()
         || data.properties.multiplicity == language_semantics::Multiplicity::Linear
-        || program.machines().iter().any(|candidate| {
-            candidate.attached_data_symbol == data.symbol
-                && candidate.name.as_str().ends_with("::drop")
-        })
+        || crate::lookup::symbols::attached_drop_machine_exists(program, data.symbol)
     {
         return false;
     }
@@ -928,17 +921,10 @@ fn builtin_binary_meaning(
     state_symbol: SymbolHandle,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)
-    else {
+    let Some(machine) = crate::lookup::symbols::machine_by_symbol(program, machine_symbol) else {
         return false;
     };
-    let state = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_symbol);
+    let state = crate::lookup::symbols::state_by_symbol(program, machine, state_symbol);
     validation::has_builtin_binary_expression_meaning(program, machine, state, expression)
 }
 
@@ -965,9 +951,8 @@ fn state_parameter_entry_operand(
     depth: u32,
 ) -> Option<CrashPredicateExpression> {
     let states = program.machine_states(machine);
-    let state_index = states
-        .iter()
-        .position(|state| state.symbol == state_symbol)?;
+    let state_index =
+        crate::lookup::symbols::state_index_by_symbol(program, machine, state_symbol)?;
     let state = &states[state_index];
     let parameters = program.state_parameters(state);
     let (parameter_ordinal, parameter) = parameters
