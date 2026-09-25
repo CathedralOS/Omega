@@ -3,8 +3,8 @@
 // declares the required operation, a checked adapter `satisfies` it, and the
 // unique covering adapter is the declaration-era default. Checking retains
 // the public requirement contract and the exact ProviderPlan identity;
-// settlement records the requirement/realization association and redirects
-// the direct call to the selected ordinary machine in both engines.
+// the direct call stays on the requirement through Terminal Psi, and Omega
+// installs the selected adapter; the interpreter dispatches the same row.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -29,7 +29,9 @@ data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
+    // The result is the installed adapter's, read at runtime: native code
+    // passes it straight to the host exit rather than a value computed from
+    // it, which normalized foreign-call custody does not yet admit.
     let selected: i32 = CheckedMath::offset_zero(70);
-    let result: i32 = selected + 0i32;
-    self.console.exit_process(result);
+    self.console.exit_process(selected);
 }

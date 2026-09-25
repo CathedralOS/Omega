@@ -70,6 +70,23 @@ pub(super) fn discover(
             external.map_or_else(Vec::new, |roots| roots.scalar_roots.to_vec());
         let mut selected_scalar_roots = Vec::new();
         let mut structural_scalar_roots = Vec::new();
+        // A scalar provider joins the scalar closure as its call would; one
+        // taking structural operands needs the structural call custody too.
+        for candidate in candidates
+            .iter()
+            .filter(|candidate| candidate.body == ProviderBody::ScalarCallee)
+        {
+            if !ordinary_scalar_roots.contains(&candidate.candidate) {
+                ordinary_scalar_roots.push(candidate.candidate);
+            }
+            if !CheckedScalarCallee::find_for_unit_call(checked, candidate.candidate)?
+                .structural_parameters()
+                .is_empty()
+                && !structural_scalar_roots.contains(&candidate.candidate)
+            {
+                structural_scalar_roots.push(candidate.candidate);
+            }
+        }
         if scalar_entry {
             ordinary_scalar_roots.push(entry);
             structural_scalar_roots.push(entry);

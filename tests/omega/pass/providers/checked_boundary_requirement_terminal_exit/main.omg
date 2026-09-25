@@ -1,8 +1,8 @@
 // The Terminal leg of a selected top-level boundary requirement: the direct
-// call executes the adapter's ordinary checked body natively while the
-// retained association and the settlement journal keep the requirement. The
-// contract stays within the closed scalar predicate language so the adapter
-// body lowers as an ordinary scalar machine.
+// call stays a requirement-level boundary call owing the requirement's
+// `requires`, and Omega installs the adapter's ordinary checked body natively.
+// The contract stays within the closed scalar predicate language so the
+// adapter body lowers as an ordinary scalar machine.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -25,7 +25,9 @@ data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
+    // The result is the installed adapter's, read at runtime: native code
+    // passes it straight to the host exit rather than a value computed from
+    // it, which normalized foreign-call custody does not yet admit.
     let selected: i32 = CheckedMath::offset_zero(70);
-    let result: i32 = selected + 0i32;
-    self.console.exit_process(result);
+    self.console.exit_process(selected);
 }

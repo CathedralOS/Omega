@@ -984,12 +984,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/foundation/provider_candidates.rs",
-        sha256: Some("1251f4e0277a224e6eff4d3d529cad57f63d847f85a12853cbe867b2152813a3"),
+        sha256: Some("d7d129d0cdfcdee6153a5ac6cfe127f227466715b39981cf3c937557cbc131b6"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/foundation/provider_result.rs",
-        sha256: Some("0035f09a584b474d413d8d3ff09fb85b90e3c777e6a0870dddfefed4a828ce31"),
+        sha256: Some("6245f9eace98f0fd3789f0e5280b787800c2e8c9e7747d5af1adf8ef3b84a7bf"),
         inventory_machinery: false,
     },
     ImplementationSite {

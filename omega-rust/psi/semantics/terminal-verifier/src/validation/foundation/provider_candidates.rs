@@ -81,15 +81,14 @@ pub(super) fn validate_provider_candidates(
                 candidate: row.candidate,
             });
         }
-        let Some(attachment) = candidate
-            .attachment
-            .and_then(|attachment| types.get(&attachment))
-        else {
-            return Err(ModuleError::InvalidProviderCandidate {
-                boundary: row.boundary,
-                candidate: row.candidate,
-            });
-        };
+        // A receiver-free adapter (a static machine lowered as a scalar
+        // callee) has no attachment; the row's provider identity names its
+        // provider. An attachment that is present must resolve.
+        let attachment_resolves = candidate.attachment.is_none_or(|attachment| {
+            types
+                .get(&attachment)
+                .is_some_and(|declaration| !declaration.identity.is_empty())
+        });
         let boundary_signature = boundary
             .structural_parameters
             .iter()
@@ -113,7 +112,7 @@ pub(super) fn validate_provider_candidates(
                 .iter()
                 .zip(&candidate.parameters)
                 .all(|(boundary, candidate)| *boundary == candidate.scalar_type);
-        if attachment.identity.is_empty()
+        if !attachment_resolves
             || !scalar_signature_matches
             // A crash-free checked candidate refines any may-crash ceiling;
             // guarded candidate routes need the same positional substitution
