@@ -267,7 +267,7 @@ fn validate_nested_record_at_path(
             .iter()
             .copied()
             .find(|candidate| same_canonical_field(schema_field, candidate));
-        let field_path = format!("{path}.{}", canonical_segment(schema_field));
+        let field_path = format!("{path}.{}", schema_field.path_identity());
         if schema_field.relevance.is_erased() {
             validate_custody_leaf(
                 program,
@@ -325,7 +325,7 @@ fn validate_nested_record_at_path(
             diagnostics.push(Diagnostic::error(format!(
                 "custody conformance `{}` disagrees with `{plan_name}`: normalized custody projection has no `{path}.{}` path, but `{}` declares that extra canonical field path",
                 program.symbols.display_path(conformance.symbol, "::"),
-                canonical_segment(custody_leaf),
+                custody_leaf.path_identity(),
                 custody.name,
             )));
         }
@@ -389,7 +389,7 @@ fn push_missing_nested_paths(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for schema_field in program.data_members(nested_schema).iter().filter_map(field) {
-        let field_path = format!("{path}.{}", canonical_segment(schema_field));
+        let field_path = format!("{path}.{}", schema_field.path_identity());
         if schema_field.relevance.is_erased() {
             push_missing_custody_path(
                 program,
@@ -672,14 +672,7 @@ fn exact_layout_entry<'plan>(
 }
 
 fn canonical_path(owner: &typed_trees::data::DataDefinition, field: &DataField) -> String {
-    format!("{}.{}", owner.name, canonical_segment(field))
-}
-
-fn canonical_segment(field: &DataField) -> String {
-    match field.identity {
-        Some(identity) => format!("#{identity}"),
-        None => field.name.to_string(),
-    }
+    format!("{}.{}", owner.name, field.path_identity())
 }
 
 fn represented_field_diagnostic(

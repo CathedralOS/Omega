@@ -72,14 +72,12 @@ fn declared_cases(
                     Some(case) => checked
                         .data_payload_fields(case)
                         .iter()
-                        .find(|field| key(field.identity, field.name.as_str()) == *identity)?,
+                        .find(|field| field.path_identity() == *identity)?,
                     None => checked
                         .data_members(nominal(checked, reference)?)
                         .iter()
                         .find_map(|member| match member {
-                            DataMember::Field(field)
-                                if key(field.identity, field.name.as_str()) == *identity =>
-                            {
+                            DataMember::Field(field) if field.path_identity() == *identity => {
                                 Some(field)
                             }
                             _ => None,
@@ -99,9 +97,7 @@ fn declared_cases(
                         .data_members(nominal(checked, reference)?)
                         .iter()
                         .find_map(|member| match member {
-                            DataMember::Variant(case)
-                                if key(case.identity, case.name.as_str()) == *identity =>
-                            {
+                            DataMember::Variant(case) if case.path_identity() == *identity => {
                                 Some(case)
                             }
                             _ => None,
@@ -123,7 +119,7 @@ fn declared_cases(
         .data_members(nominal(checked, reference)?)
         .iter()
         .map(|member| match member {
-            DataMember::Variant(case) => Some(key(case.identity, case.name.as_str())),
+            DataMember::Variant(case) => Some(case.path_identity()),
             DataMember::Field(_) => None,
         })
         .collect()
@@ -181,10 +177,4 @@ fn fixed_element(
             _ => return None,
         }
     }
-}
-
-fn key(identity: Option<u64>, name: &str) -> String {
-    identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| name.to_owned())
 }

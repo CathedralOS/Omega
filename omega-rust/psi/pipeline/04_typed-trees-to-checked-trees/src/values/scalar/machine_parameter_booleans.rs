@@ -91,10 +91,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             let typed_trees::data::DataMember::Variant(variant) = member else {
                                 return None;
                             };
-                            let identity = variant
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            let identity = variant.path_identity();
                             (identity == *case).then_some(variant)
                         })?;
                         selected_case = Some(variant);
@@ -105,10 +102,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 .data_payload_fields(variant)
                                 .iter()
                                 .find_map(|candidate| {
-                                    let identity = candidate
-                                        .identity
-                                        .map(|identity| format!("#{identity}"))
-                                        .unwrap_or_else(|| candidate.name.as_str().to_owned());
+                                    let identity = candidate.path_identity();
                                     (identity == *field).then_some(candidate.type_reference)
                                 })?
                         } else {
@@ -170,12 +164,10 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     let typed_trees::data::DataMember::Variant(variant) = member else {
                         return None;
                     };
-                    program.data_payload_fields(variant).is_empty().then(|| {
-                        variant
-                            .identity
-                            .map(|identity| format!("#{identity}"))
-                            .unwrap_or_else(|| variant.name.as_str().to_owned())
-                    })
+                    program
+                        .data_payload_fields(variant)
+                        .is_empty()
+                        .then(|| variant.path_identity())
                 })
                 .collect()
         }
@@ -333,10 +325,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                     typed_trees::data::DataShapeKind::Empty => Some(()),
                     typed_trees::data::DataShapeKind::Record => {
                         for field in structural_record_fields(program, type_reference)? {
-                            let field_identity = field
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| field.name.as_str().to_owned());
+                            let field_identity = field.path_identity();
                             let mut left = left_path.to_vec();
                             left.push(CheckedStructuralPredicatePathSegment::Field(
                                 field_identity.clone(),
@@ -365,10 +354,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             let typed_trees::data::DataMember::Variant(variant) = member else {
                                 return None;
                             };
-                            let case = variant
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            let case = variant.path_identity();
                             let mut arm = vec![
                                 CheckedBooleanExpression::StructuralCaseMembership {
                                     subject: CheckedStructuralParameterField {
@@ -389,10 +375,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 if field.relevance.is_erased() {
                                     return None;
                                 }
-                                let field_identity = field
-                                    .identity
-                                    .map(|identity| format!("#{identity}"))
-                                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                                let field_identity = field.path_identity();
                                 let mut left = left_path.to_vec();
                                 left.push(CheckedStructuralPredicatePathSegment::Case(
                                     case.clone(),
@@ -461,10 +444,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             if field.relevance.is_erased() {
                                 return None;
                             }
-                            let field_identity = field
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| field.name.as_str().to_owned());
+                            let field_identity = field.path_identity();
                             let mut left = left_path.to_vec();
                             left.push(CheckedStructuralPredicatePathSegment::Field(
                                 field_identity.clone(),
@@ -490,10 +470,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                             let typed_trees::data::DataMember::Variant(variant) = member else {
                                 continue;
                             };
-                            let case = variant
-                                .identity
-                                .map(|identity| format!("#{identity}"))
-                                .unwrap_or_else(|| variant.name.as_str().to_owned());
+                            let case = variant.path_identity();
                             let mut arm = vec![
                                 CheckedBooleanExpression::StructuralCaseMembership {
                                     subject: CheckedStructuralParameterField {
@@ -514,10 +491,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                                 if field.relevance.is_erased() {
                                     return None;
                                 }
-                                let field_identity = field
-                                    .identity
-                                    .map(|identity| format!("#{identity}"))
-                                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                                let field_identity = field.path_identity();
                                 let mut left = left_path.to_vec();
                                 left.push(CheckedStructuralPredicatePathSegment::Case(
                                     case.clone(),
@@ -961,15 +935,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
                         };
                         (variant.symbol == case_symbol
                             && (membership || program.data_payload_fields(variant).is_empty()))
-                        .then(|| {
-                            (
-                                data.symbol,
-                                variant
-                                    .identity
-                                    .map(|identity| format!("#{identity}"))
-                                    .unwrap_or_else(|| variant.name.as_str().to_owned()),
-                            )
-                        })
+                        .then(|| (data.symbol, variant.path_identity()))
                     })
                 })
             };

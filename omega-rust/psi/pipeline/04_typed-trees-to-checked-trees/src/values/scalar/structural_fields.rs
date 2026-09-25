@@ -301,12 +301,7 @@ pub(super) fn structural_parameter_field_path(
         ExpressionNode::Member(member) => {
             let parameter =
                 structural_parameter_field_path(program, parameters, member.receiver, fields)?;
-            let field_identity = |field: &typed_trees::data::DataField| {
-                field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned())
-            };
+            let field_identity = |field: &typed_trees::data::DataField| field.path_identity();
             if parameters.get(usize::try_from(parameter).ok()?)?.is_self
                 && matches!(
                     program.expression_table.expression(member.receiver),
@@ -343,15 +338,7 @@ pub(super) fn structural_parameter_field_path(
                             .data_payload_fields(variant)
                             .iter()
                             .find(|field| field.symbol == member.member_symbol)
-                            .map(|field| {
-                                (
-                                    variant
-                                        .identity
-                                        .map(|identity| format!("#{identity}"))
-                                        .unwrap_or_else(|| variant.name.as_str().to_owned()),
-                                    field_identity(field),
-                                )
-                            })
+                            .map(|field| (variant.path_identity(), field_identity(field)))
                     })
                 })?;
                 fields.push(CheckedStructuralPredicatePathSegment::Case(case));
@@ -802,12 +789,7 @@ pub(super) fn structural_parameter_place(
                             _ => None,
                         })
                 })?;
-                CheckedStructuralPredicatePathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
-                )
+                CheckedStructuralPredicatePathSegment::Field(field.path_identity())
             }
             facts::PlaceSegment::Case { variant } => {
                 let case = program.data_definitions().iter().find_map(|definition| {
@@ -818,11 +800,7 @@ pub(super) fn structural_parameter_place(
                         (candidate.symbol == *variant).then_some(candidate)
                     })
                 })?;
-                CheckedStructuralPredicatePathSegment::Case(
-                    case.identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| case.name.as_str().to_owned()),
-                )
+                CheckedStructuralPredicatePathSegment::Case(case.path_identity())
             }
             facts::PlaceSegment::FixedIndex { index } => {
                 CheckedStructuralPredicatePathSegment::FixedIndex(u64::try_from(*index).ok()?)
@@ -885,10 +863,7 @@ pub(super) fn element_field_path(
             return None;
         }
         path.push(CheckedStructuralPredicatePathSegment::Field(
-            field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            field.path_identity(),
         ));
         current = field.type_reference;
     }

@@ -168,7 +168,7 @@ impl SourceTypes<'_> {
                         payload.push(self.field(field, substitutions)?);
                     }
                     cases.push(CheckedUnitStructuralCasePlan {
-                        identity: declaration_identity(variant.identity, variant.name.as_str()),
+                        identity: variant.path_identity(),
                         fields: payload,
                     });
                 }
@@ -210,17 +210,11 @@ impl SourceTypes<'_> {
             }
         };
         Ok(CheckedUnitStructuralFieldPlan {
-            identity: declaration_identity(field.identity, field.name.as_str()),
+            identity: field.path_identity(),
             relevance: field.relevance,
             field_type,
         })
     }
-}
-
-fn declaration_identity(identity: Option<u64>, name: &str) -> String {
-    identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| name.to_owned())
 }
 
 fn definition(

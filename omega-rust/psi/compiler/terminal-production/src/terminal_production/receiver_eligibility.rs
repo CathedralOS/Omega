@@ -217,10 +217,7 @@ fn collect_fused_service_fields(
         let DataMember::Field(field) = member else {
             continue;
         };
-        let field_identity = field
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| field.name.as_str().to_owned());
+        let field_identity = field.path_identity();
         match checked
             .bound_service_parameter_carrier(field.type_reference)
             .ok()?
@@ -564,11 +561,7 @@ fn zero_valid_first_case(
             let DataMember::Variant(variant) = member else {
                 return None;
             };
-            let matches = match variant.identity {
-                Some(identity) => case.identity == format!("#{identity}"),
-                None => case.identity == variant.name.as_str(),
-            };
-            matches.then_some(variant)
+            (case.identity == variant.path_identity()).then_some(variant)
         })
     });
     // A case carrying its own `where` facts must construct through its
@@ -604,11 +597,7 @@ fn source_payload_field_type(
         .data_payload_fields(variant)
         .iter()
         .find_map(|candidate| {
-            let matches = match candidate.identity {
-                Some(identity) => field.identity == format!("#{identity}"),
-                None => field.identity == candidate.name.as_str(),
-            };
-            matches.then_some(candidate.type_reference)
+            (field.identity == candidate.path_identity()).then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }
@@ -628,11 +617,7 @@ fn source_field_type(
             let DataMember::Field(candidate) = member else {
                 return None;
             };
-            let matches = match candidate.identity {
-                Some(identity) => field.identity == format!("#{identity}"),
-                None => field.identity == candidate.name.as_str(),
-            };
-            matches.then_some(candidate.type_reference)
+            (field.identity == candidate.path_identity()).then_some(candidate.type_reference)
         })
         .unwrap_or_default()
 }

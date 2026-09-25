@@ -82,9 +82,5 @@ pub(super) fn structural_case_name(
             typed_trees::data::DataMember::Variant(case) if case.symbol == selected => Some(case),
             _ => None,
         })?;
-    Some(
-        case.identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| case.name.as_str().to_owned()),
-    )
+    Some(case.path_identity())
 }

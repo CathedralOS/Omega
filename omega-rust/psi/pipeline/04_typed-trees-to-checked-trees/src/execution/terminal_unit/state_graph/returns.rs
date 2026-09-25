@@ -223,10 +223,7 @@ pub(super) fn constructor(
         let declaration = declarations
             .iter()
             .find(|declaration| declaration.symbol == *field_symbol)?;
-        let identity = declaration
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| declaration.name.as_str().to_owned());
+        let identity = declaration.path_identity();
         if planned
             .iter()
             .any(|field: &CheckedScalarCaseFieldPlan| field.field_identity == identity)
@@ -251,10 +248,7 @@ pub(super) fn constructor(
     }
     Some(checked_trees::CheckedStructuralCaseReturnPlan {
         statement_ordinal,
-        case_identity: variant
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| variant.name.as_str().to_owned()),
+        case_identity: variant.path_identity(),
         fields: planned,
     })
 }

@@ -3,7 +3,7 @@ use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
-use checked_trees::data::{DataMember, DataVariant};
+use checked_trees::data::DataMember;
 use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
@@ -52,13 +52,6 @@ pub(super) fn case_test(
         }
     }
     None
-}
-
-pub(super) fn identity(variant: &DataVariant) -> String {
-    variant
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| variant.name.as_str().to_owned())
 }
 
 fn result_source<'a>(
@@ -275,11 +268,8 @@ pub(super) fn validate_markers(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case destructure field missing",
                 ))?;
-            let field_identity = field
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| field.name.as_str().to_owned());
-            let spelling = (identity(variant), field_identity);
+            let field_identity = field.path_identity();
+            let spelling = (variant.path_identity(), field_identity);
             if spelled_fields.contains(&spelling) {
                 return unsupported("Unit case duplicated a destructure marker field");
             }
@@ -427,7 +417,9 @@ pub(super) fn validate(
                 let variant = declared
                     .iter()
                     .find_map(|member| match member {
-                        DataMember::Variant(variant) if identity(variant) == case.case_identity => {
+                        DataMember::Variant(variant)
+                            if variant.path_identity() == case.case_identity =>
+                        {
                             Some(variant)
                         }
                         _ => None,
@@ -461,7 +453,7 @@ pub(super) fn validate(
         }
         previous_case_order = Some(order);
         if tested_subject.is_some_and(|tested| !root(checked, tested, result_symbol))
-            || identity(variant) != case.case_identity
+            || variant.path_identity() != case.case_identity
             || cases[..offset]
                 .iter()
                 .any(|previous| previous.case_identity == case.case_identity)
@@ -487,13 +479,7 @@ pub(super) fn validate(
             let field = checked
                 .data_payload_fields(variant)
                 .iter()
-                .find(|field| {
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned())
-                        == payload.field_identity
-                })
+                .find(|field| field.path_identity() == payload.field_identity)
                 .ok_or(LoweringError::Unsupported(
                     "Unit case payload field missing",
                 ))?;

@@ -72,11 +72,7 @@ fn declared_cases(
         .data_members(sum)
         .iter()
         .map(|member| match member {
-            typed_trees::data::DataMember::Variant(case) => Some(
-                case.identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| case.name.as_str().to_owned()),
-            ),
+            typed_trees::data::DataMember::Variant(case) => Some(case.path_identity()),
             typed_trees::data::DataMember::Field(_) => None,
         })
         .collect()
