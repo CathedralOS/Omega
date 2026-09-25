@@ -3611,9 +3611,26 @@ syntax and other terminal services are not prerequisites.
   recover their actual replacement input. Remaining gaps are additional reference
   boundaries lacking independent load evidence, unresolved control-flow result
   routes, generic/dispatched callees and dynamic/unresolved projections.
-  In `progress/origins/tests.rs`, close the finite-alternative gaps in
-  `control_flow_route_helper_result_stays_unproven` and
-  `dynamic_index_carrier_argument_stays_unproven`.
+  Both finite-alternative gaps are read (237329e986, a2ea77c29c, 245a41fe2e).
+  A guarded callee body offers one route per arm, and a dynamic selector over a
+  closed array literal offers one place per element; in each, one alternative
+  the trace cannot name leaves the whole demand unproven. Where the
+  alternatives AGREE the demand now proves through the unchanged single-subject
+  callers. Where they DISAGREE the set is produced and tested
+  (`control_flow_route_helper_result_carries_every_disagreeing_arm`,
+  `dynamic_index_carrier_argument_carries_every_element`), and both
+  `..._stays_unproven` rows are preserved: the single-subject query declines a
+  disagreement rather than picking one.
+
+  What remains is consuming a disagreeing set, and the obstacle is a decision,
+  not plumbing. `ParameterLineage::Exact` already holds a `Vec<ProgressSubject>`
+  and `lineage::resolve` already expands one premise per subject; `at_call`
+  carries the route set into `machine_summaries` today. The selector set stops
+  at `instantiate_call_premise`, whose loop gates on `admitted_receipt_covers`
+  before branching on build-bound requirements -- whether coverage must hold
+  for ONE instance or for ALL of them is the choice to settle first, and it is
+  a soundness choice, not an ordering one. `lineage/transfers.rs` stays
+  single-valued for the same reason a transfer names one source.
 
   The guarded prefix routes are read (237329e986): `call_result_place` reads a
   callee body as a shared prefix plus one route per arm, and one unnameable

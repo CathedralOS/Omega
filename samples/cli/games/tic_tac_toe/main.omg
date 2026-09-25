@@ -26,11 +26,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Board [copy] {
+// A board has at most 9 moves: the `where` bound plus the modular-counter idiom
+// keeps the increment Exact-provable with no overflow domain.
+data Board [copy] where 0 <= move_count, move_count <= 9 {
     cells: [i32; 9];
-    // A board has at most 9 moves: ranged + the modular-counter idiom keeps the
-    // increment Exact-provable with no overflow domain.
-    move_count: i32 [0..=9];
+    move_count: i32;
     winner: i32;
 }
 
