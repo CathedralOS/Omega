@@ -35,6 +35,15 @@ pub(crate) fn construction_expression(
                 {
                     Some((*expression, state.return_type))
                 }
+                // A whole array-literal replacement: the literal lands at its
+                // target place's declared type.
+                StatementNode::Assignment(assignment) => validation::declared_place_type_raw(
+                    &checked.typed,
+                    owner,
+                    Some(state),
+                    assignment.target,
+                )
+                .map(|reference| (assignment.value, reference)),
                 _ => None,
             }
         }

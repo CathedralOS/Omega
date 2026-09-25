@@ -1,11 +1,8 @@
 // A 2D array (`[[i32; 2]; 2]`): const-indexed reads and writes both work, native==interp. Fill
 // all four cells and sum them (1+2+3+4 = 10), discriminating each cell. Exit 70 iff the sum is 10.
 //
-// NOTE (not exercised here): a 2D array indexed by a RUNTIME COLUMN --
-// `grid[anything][i]` where `i` is a runtime value -- is REFUSED, not silently dropped. The old
-// silent NO-OP on the write is historical; the shape now stops at the transitive Unit-plan
-// admission wall (fail/collections/deep_nested_runtime_indexed_write_rejected). A runtime ROW
-// with a const column (`grid[i][0]`) does work. This canary stays in the working const subset.
+// Runtime row and column selectors are exercised by
+// pass/collections/runtime_nested_runtime_indexed_writes_exit; this canary stays in the const subset.
 use omega_language_std::console;
 use omega::language::core::binding;
 

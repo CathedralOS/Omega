@@ -77,6 +77,13 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         state.return_type,
                         symbols::SymbolHandle::invalid(),
                     )),
+                    StatementNode::Assignment(assignment) => validation::declared_place_type_raw(
+                        program,
+                        machine,
+                        Some(state),
+                        assignment.target,
+                    )
+                    .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid())),
                     _ => None,
                 };
                 if let Some((expression, expected, destination)) = array_destination

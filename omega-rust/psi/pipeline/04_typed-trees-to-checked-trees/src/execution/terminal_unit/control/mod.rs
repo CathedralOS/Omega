@@ -12,7 +12,7 @@ mod call_occurrences;
 mod call_results;
 mod checked_machine;
 mod construction_trace;
-mod scalar_arrays;
+pub(in crate::execution::terminal_unit) mod scalar_arrays;
 pub(super) mod statement_sequence;
 pub(super) use statement_sequence::scalar_control;
 pub(super) mod structural_operands;

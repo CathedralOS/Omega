@@ -14,6 +14,10 @@
 //! stored-field snapshots), so a selector the planner cannot bound
 //! syntactically still composes and an unproven one still fails
 //! verification rather than being trusted here.
+//!
+//! A closed array literal stored into a primitive-array field is the same
+//! store once per element, over the field's path plus that element's
+//! literal indices (`array_literal_stores`).
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
@@ -70,32 +74,14 @@ pub(super) fn store_at(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let (authored_symbol, symbol, segments) = storage_place(
         program,
-        state.symbol,
-        usize::try_from(statement_index).ok()?,
+        facts,
+        machine,
+        state,
+        statement_index,
         assignment.target,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    // An erased borrow carrier names its captured referent's storage:
-    // substitute the checked alias root and prepend its captured projection.
-    // The scalar binding's destination keeps the authored root spelling.
-    let authored_symbol = symbol;
-    let (symbol, segments) =
-        match super::super::receiver_aliases::aliases(program, facts, machine, state)
-            .unwrap_or_default()
-            .iter()
-            .find(|alias| alias.owner == symbol)
-        {
-            Some(alias) => {
-                let mut segments = alias.segments.clone();
-                segments.extend_from_slice(&place.segments);
-                (alias.root, segments)
-            }
-            None => (symbol, place.segments.clone()),
-        };
     let path = primitive_path(
         program,
         facts,
@@ -120,63 +106,12 @@ pub(super) fn store_at(
             program.primitive_type_reference(local.type_reference)?,
         )
     } else {
-        let (parameter_index, destination) =
-            structural_parameters
-                .iter()
-                .enumerate()
-                .find(|(_, destination)| {
-                    program
-                        .state_parameters(state)
-                        .get(destination.position as usize)
-                        .is_some_and(|parameter| parameter.symbol == symbol)
-                })?;
-        if (whole
-            && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
-            || destination.multiplicity == Multiplicity::Linear
-            || !destination.qualifications.is_empty()
-            || !matches!(
-                destination.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-            )
-        {
-            return None;
-        }
-        let parameter = program
-            .state_parameters(state)
-            .get(destination.position as usize)?;
-        if parameter.is_self != destination.is_self || parameter.is_const || !parameter.is_mutable {
-            return None;
-        }
-        let TypeReferenceNode::Reference {
-            access, referee, ..
-        } = program
-            .type_reference_table
-            .type_reference(parameter.type_reference)
-        else {
-            return None;
-        };
-        let expected_access = match access {
-            language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
-            language_semantics::ReferenceAccess::WriteOnly => {
-                CheckedStructuralAccess::WriteOnlyBorrow
-            }
-            language_semantics::ReferenceAccess::Shared => return None,
-        };
-        if destination.access != expected_access
-            || (whole
-                && !matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Named { .. }
-                ))
-        {
-            return None;
-        }
+        let (destination, referee) =
+            borrowed_parameter_destination(program, state, structural_parameters, symbol, whole)?;
         (
-            checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
+            destination,
             program.primitive_type_reference(if whole {
-                *referee
+                referee
             } else {
                 validation::declared_place_type_raw(
                     program,
@@ -247,6 +182,233 @@ pub(super) fn store_at(
         path,
         value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
     })
+}
+
+/// The stores of a closed array literal written whole into a primitive-array
+/// field of an exclusive borrowed parameter: one `WriteOnlyPrimitiveStore`
+/// per row-major element, over the field's path plus that element's literal
+/// indices. Every element must be a closed value -- literals, parameters,
+/// locals and their compositions -- so no element observes a store the
+/// literal has already made; one that reads storage keeps declining.
+pub(super) fn array_literal_stores(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
+    let expected =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let extents = closed_array_extents(program, expected)?;
+    let (_, symbol, segments) = storage_place(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment.target,
+    )?;
+    if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
+        || !validation::place_has_builtin_coordinates(
+            program,
+            machine,
+            Some(state),
+            assignment.target,
+        )
+        || primitive_local_before(
+            program,
+            state,
+            usize::try_from(statement_index).ok()?,
+            symbol,
+        )
+        .is_some()
+    {
+        return None;
+    }
+    let (destination, _) =
+        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?;
+    let selectors = super::selectors::TargetSelectors::resolve(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment.target,
+    )?;
+    let path = checked_unit_path(program, &selectors, &segments)?;
+    let elements = super::super::control::scalar_arrays::elements(
+        program,
+        facts,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        checked_trees::CheckedArrayConstructionSource::Statement,
+        assignment.value,
+        expected,
+    )?;
+    elements
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, value)| {
+            let checked_trees::CheckedCallScalarArgument::Pure(expression) = &value else {
+                return None;
+            };
+            if !scalar_expression_needs_no_bindings(expression) {
+                return None;
+            }
+            let mut element_path = path.clone();
+            element_path.extend(
+                row_major_indices(u64::try_from(ordinal).ok()?, &extents)?
+                    .into_iter()
+                    .map(CheckedUnitStructuralPathSegment::FixedIndex),
+            );
+            Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                statement_index,
+                destination,
+                path: element_path,
+                value,
+            })
+        })
+        .collect()
+}
+
+/// The literal extents of a closed primitive array type, outermost first.
+fn closed_array_extents(
+    program: &TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<Vec<u64>> {
+    if !validation::is_closed_primitive_array_type(program, reference) {
+        return None;
+    }
+    let mut extents = Vec::new();
+    while let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(reference)
+    {
+        extents.push(u64::try_from(*length).ok()?);
+        reference = *element_type;
+    }
+    (!extents.is_empty()).then_some(extents)
+}
+
+/// The per-dimension indices of the `ordinal`th row-major element.
+fn row_major_indices(mut ordinal: u64, extents: &[u64]) -> Option<Vec<u64>> {
+    let mut indices = vec![0; extents.len()];
+    for (index, extent) in indices.iter_mut().zip(extents).rev() {
+        *index = ordinal.checked_rem(*extent)?;
+        ordinal /= extent;
+    }
+    (ordinal == 0).then_some(indices)
+}
+
+/// The storage an assignment target writes: the authored root symbol, the
+/// root whose storage is written, and the place segments from it. An erased
+/// borrow carrier names its captured referent's storage, so the checked
+/// alias root replaces it and its captured projection is prepended; the
+/// scalar binding's destination keeps the authored root spelling.
+fn storage_place(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    target: typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        usize::try_from(statement_index).ok()?,
+        target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    Some(
+        match super::super::receiver_aliases::aliases(program, facts, machine, state)
+            .unwrap_or_default()
+            .iter()
+            .find(|alias| alias.owner == symbol)
+        {
+            Some(alias) => {
+                let mut segments = alias.segments.clone();
+                segments.extend_from_slice(&place.segments);
+                (symbol, alias.root, segments)
+            }
+            None => (symbol, symbol, place.segments.clone()),
+        },
+    )
+}
+
+/// The primitive store destination of an exclusive borrowed parameter, with
+/// its referee type. A whole store additionally needs an unrestricted,
+/// non-self parameter over a named referee.
+fn borrowed_parameter_destination(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    symbol: SymbolHandle,
+    whole: bool,
+) -> Option<(
+    checked_trees::CheckedPrimitiveStoreDestination,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    let (parameter_index, destination) =
+        structural_parameters
+            .iter()
+            .enumerate()
+            .find(|(_, destination)| {
+                program
+                    .state_parameters(state)
+                    .get(destination.position as usize)
+                    .is_some_and(|parameter| parameter.symbol == symbol)
+            })?;
+    if (whole && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
+        || destination.multiplicity == Multiplicity::Linear
+        || !destination.qualifications.is_empty()
+        || !matches!(
+            destination.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
+    {
+        return None;
+    }
+    let parameter = program
+        .state_parameters(state)
+        .get(destination.position as usize)?;
+    if parameter.is_self != destination.is_self || parameter.is_const || !parameter.is_mutable {
+        return None;
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    else {
+        return None;
+    };
+    let expected_access = match access {
+        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        language_semantics::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+        language_semantics::ReferenceAccess::Shared => return None,
+    };
+    if destination.access != expected_access
+        || (whole
+            && !matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Named { .. }
+            ))
+    {
+        return None;
+    }
+    Some((
+        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
+            parameter_index: u32::try_from(parameter_index).ok()?,
+        },
+        *referee,
+    ))
 }
 
 /// The checked path from the destination root to its primitive leaf: empty

@@ -7,6 +7,7 @@ use crate::tests::front_end::{checked_program, typed_program};
 use checked_trees::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan};
 
 mod arithmetic_policies;
+mod array_literal_fields;
 mod borrowed_arrays;
 mod borrowed_records;
 mod byte_view_writes;
