@@ -22,15 +22,29 @@ pub(crate) fn resolved_transition_target_state(
     if !target.is_valid() {
         return None;
     }
-    program.machines().iter().find_map(|machine| {
-        let states = program.machine_states(machine);
-        let state = if machine.symbol == target {
-            states.first()
-        } else {
-            states.iter().find(|state| state.symbol == target)
-        }?;
-        Some((machine, state))
-    })
+    // A machine symbol selects that machine's entry state outright; a state
+    // symbol's declaration parent is its machine, so the table answers the
+    // owner directly instead of scanning every machine's states.
+    if let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target)
+    {
+        return program
+            .machine_states(machine)
+            .first()
+            .map(|state| (machine, state));
+    }
+    let machine_symbol = program.symbols.get(target).parent;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == target)
+        .map(|state| (machine, state))
 }
 
 /// Named state transfers remain control flow; named machine and requirement
