@@ -69,6 +69,29 @@ type ConformanceSlotCarriersSlot = Option<
         HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>>,
     )>,
 >;
+/// Whole-program symbol -> data-definition position map, shared by `Rc` —
+/// the claim-frontier walk's per-call table builds otherwise rescan the
+/// declaration slice once per missed type reference.
+type DataDefinitionPositionsSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        std::rc::Rc<HashMap<symbols::SymbolHandle, usize>>,
+    )>,
+>;
+type TypeParameterMultiplicitySlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        std::rc::Rc<
+            HashMap<
+                symbols::SymbolHandle,
+                (
+                    language_semantics::Multiplicity,
+                    typed_trees::data::TypeParameterKind,
+                ),
+            >,
+        >,
+    )>,
+>;
 
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
@@ -90,6 +113,12 @@ thread_local! {
     /// and semiring license builders both read it per judged machine.
     static CONFORMANCE_SLOT_CARRIERS_SLOT: RefCell<ConformanceSlotCarriersSlot> =
         const { RefCell::new(None) };
+    /// The data-definition position table, shared once per scoped program.
+    static DATA_DEF_POSITIONS_SLOT: RefCell<DataDefinitionPositionsSlot> =
+        const { RefCell::new(None) };
+    /// The type-parameter multiplicity table, shared once per scoped program.
+    static TYPE_PARAMETER_MULTIPLICITY_SLOT: RefCell<TypeParameterMultiplicitySlot> =
+        const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -101,6 +130,8 @@ pub struct ProgramPlanScopeGuard {
     data_def_lookups: DataDefinitionLookupSlot,
     drop_hooks: DropHookSlot,
     conformance_slot_carriers: ConformanceSlotCarriersSlot,
+    data_def_positions: DataDefinitionPositionsSlot,
+    type_parameter_multiplicities: TypeParameterMultiplicitySlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -123,6 +154,12 @@ impl Drop for ProgramPlanScopeGuard {
         CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
             *cell.borrow_mut() = self.conformance_slot_carriers.take();
         });
+        DATA_DEF_POSITIONS_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.data_def_positions.take();
+        });
+        TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.type_parameter_multiplicities.take();
+        });
     }
 }
 
@@ -141,6 +178,10 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         drop_hooks: DROP_HOOK_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        data_def_positions: DATA_DEF_POSITIONS_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        type_parameter_multiplicities: TYPE_PARAMETER_MULTIPLICITY_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -406,6 +447,134 @@ pub(crate) fn memoized_conformance_slot_carriers(
         });
     }
     index
+}
+
+/// The symbol -> data-definition position table, built once per scoped
+/// program and shared by `Rc`: the claim-frontier walk built this table per
+/// missed type reference, rescans of the declaration slice dominated its
+/// cost.
+pub(crate) fn memoized_data_definition_positions(
+    program: &typed_trees::TypedTrees,
+) -> std::rc::Rc<HashMap<symbols::SymbolHandle, usize>> {
+    enum SlotState {
+        NoScope,
+        Hit(std::rc::Rc<HashMap<symbols::SymbolHandle, usize>>),
+        Miss,
+        ForeignProgram,
+    }
+    let state = DATA_DEF_POSITIONS_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    SlotState::Hit(std::rc::Rc::clone(map))
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(map) = state {
+        return map;
+    }
+    let map = std::rc::Rc::new(
+        program
+            .data_definitions()
+            .iter()
+            .enumerate()
+            .map(|(index, definition)| (definition.symbol, index))
+            .collect::<HashMap<symbols::SymbolHandle, usize>>(),
+    );
+    if matches!(state, SlotState::Miss) {
+        DATA_DEF_POSITIONS_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                *scope = Some((program, map.clone()));
+            }
+        });
+    }
+    map
+}
+
+/// The symbol -> (multiplicity, kind) table over the type-parameter
+/// declarations, built once per scoped program and shared by `Rc` for the
+/// same reason as the data-definition positions.
+pub(crate) fn memoized_type_parameter_multiplicities(
+    program: &typed_trees::TypedTrees,
+) -> std::rc::Rc<
+    HashMap<
+        symbols::SymbolHandle,
+        (
+            language_semantics::Multiplicity,
+            typed_trees::data::TypeParameterKind,
+        ),
+    >,
+> {
+    enum SlotState {
+        NoScope,
+        Hit(
+            std::rc::Rc<
+                HashMap<
+                    symbols::SymbolHandle,
+                    (
+                        language_semantics::Multiplicity,
+                        typed_trees::data::TypeParameterKind,
+                    ),
+                >,
+            >,
+        ),
+        Miss,
+        ForeignProgram,
+    }
+    let state = TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    SlotState::Hit(std::rc::Rc::clone(map))
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(map) = state {
+        return map;
+    }
+    let map = std::rc::Rc::new(
+        program
+            .data_type_parameters
+            .iter()
+            .filter(|(_, parameter)| parameter.symbol.is_valid())
+            .map(|(_, parameter)| {
+                (
+                    parameter.symbol,
+                    (parameter.bounds.multiplicity, parameter.kind.clone()),
+                )
+            })
+            .collect::<HashMap<
+                symbols::SymbolHandle,
+                (
+                    language_semantics::Multiplicity,
+                    typed_trees::data::TypeParameterKind,
+                ),
+            >>(),
+    );
+    if matches!(state, SlotState::Miss) {
+        TYPE_PARAMETER_MULTIPLICITY_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                *scope = Some((program, map.clone()));
+            }
+        });
+    }
+    map
 }
 
 pub fn memoized_service_reach_plan(
