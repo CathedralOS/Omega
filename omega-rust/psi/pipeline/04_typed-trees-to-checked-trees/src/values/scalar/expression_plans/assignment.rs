@@ -1,7 +1,12 @@
 //! An assignment: an atomic carrier's authored operands, each index of the
 //! target place (`AssignmentIndex`) and the stored value (`AssignmentValue`).
 
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    ExpressionNode, StatementPlanner, assignment_target_primitive_type, lower_call_arguments,
+    lower_index_expression, lower_return_expression, retain_call_arguments,
+    retain_subslice_endpoints, scalar_qualified_call_expression,
+};
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,

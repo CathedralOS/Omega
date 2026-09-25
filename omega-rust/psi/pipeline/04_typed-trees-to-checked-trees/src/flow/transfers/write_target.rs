@@ -3,7 +3,10 @@
 //! a reference local may reach. A selector whose value is already pinned
 //! narrows to the one element it names.
 
-use super::*;
+use super::{
+    CanonicalPlace, ExpressionHandle, FactPlan, FlowBuildContext, PlaceHandle, PlaceRoot,
+    StatementNode, SymbolHandle, contextual_expression_place,
+};
 
 /// The place one statement writes and the value it writes there.
 pub(super) struct StatementWrite {

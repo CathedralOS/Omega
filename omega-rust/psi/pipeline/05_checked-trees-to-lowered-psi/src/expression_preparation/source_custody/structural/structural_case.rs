@@ -3,7 +3,10 @@
 //! complete and in order, and each payload field is either a scalar operand
 //! of its declared carrier or a structural value queued for replay.
 
-use super::*;
+use super::{
+    CheckedScalarExpressionRole, CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError,
+    Replay, SourceArm, SymbolHandle, TypeReferenceHandle, unsupported, validate_operand,
+};
 use arena::HandleSpan;
 use checked_trees::CheckedStructuralRecordField;
 

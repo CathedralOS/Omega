@@ -2,7 +2,10 @@
 //! assignment whose destination is a closed primitive array plans each
 //! element as a scalar expression under its `ArrayElement` role.
 
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    StatementNode, StatementPlanner, lower_return_expression,
+};
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode) {
     let StatementPlanner {

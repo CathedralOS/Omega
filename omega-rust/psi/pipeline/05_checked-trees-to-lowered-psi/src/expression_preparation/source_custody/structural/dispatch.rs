@@ -3,7 +3,11 @@
 //! order, each value pattern keeps its operand role and selected equality,
 //! and each arm's value is queued for replay under that arm.
 
-use super::*;
+use super::{
+    CheckedScalarComputationHandle, CheckedScalarDispatchPattern, CheckedScalarExpressionRole,
+    CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, MatchPattern, PrimitiveType,
+    Replay, TypeReferenceHandle, unsupported, validate_operand,
+};
 use arena::HandleSpan;
 use checked_trees::CheckedStructuralDispatchArm;
 

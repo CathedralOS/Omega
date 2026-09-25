@@ -3,7 +3,14 @@
 //! `LocalInitializer` or `StorageInitializer` role. Every primitive local
 //! then joins the state's local roster, which later statements read.
 
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, PrimitiveType, ScalarLocal,
+    StatementPlanner, lower_call_arguments, lower_direct_call_binding_arguments,
+    lower_machine_parameter_boolean_expression, lower_return_expression,
+    lower_selected_operator_operands, retain_call_arguments, retain_subslice_endpoints,
+    scalar_qualified_call_expression,
+};
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,
