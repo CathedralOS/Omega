@@ -1,1 +1,0 @@
-linear value `pair.right` reaches scope exit

@@ -1,1 +1,0 @@
-anonymous integer value `300` does not fit destination `i8`

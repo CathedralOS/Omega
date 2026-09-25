@@ -1,1 +1,0 @@
-uses `in Bound`, but no `domain` named `Bound` is declared

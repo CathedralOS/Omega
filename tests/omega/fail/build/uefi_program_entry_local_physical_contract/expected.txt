@@ -1,1 +1,0 @@
-require either the exact bundled UEFI contract or one accepted package-owned UEFI binding

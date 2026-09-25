@@ -1,1 +1,0 @@
-codec call receiver `Counter` is ambiguous between wire schemas

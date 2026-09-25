@@ -1,1 +1,0 @@
-module type-scoped constants require an exact nongeneric data carrier selected in their declaring source

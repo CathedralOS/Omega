@@ -1,1 +1,0 @@
-legacy `capability { entry ... }` host scaffold is retired

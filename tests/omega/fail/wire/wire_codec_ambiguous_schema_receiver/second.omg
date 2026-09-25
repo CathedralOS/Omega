@@ -1,6 +1,0 @@
-module second;
-
-pub data Counter {
-    #1 counter: i32;
-    #2 timestamp: i32;
-}

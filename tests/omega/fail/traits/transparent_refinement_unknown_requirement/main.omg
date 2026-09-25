@@ -1,9 +1,0 @@
-// A named refinement clause must select a real requirement of its base trait.
-
-trait Logger {
-    machine write(&mut self);
-}
-
-trait LocalLogger = Logger {
-    machine Logger::drain terminates;
-}

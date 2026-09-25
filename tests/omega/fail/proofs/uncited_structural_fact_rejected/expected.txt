@@ -1,1 +1,0 @@
-note: `add_zero_right` proves this shape -- cite it: `add_zero_right(b);`

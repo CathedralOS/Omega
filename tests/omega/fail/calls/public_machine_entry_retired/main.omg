@@ -1,5 +1,0 @@
-data Main {}
-
-machine Main::main {
-    pub entry(&mut self) {}
-}

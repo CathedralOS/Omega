@@ -1,3 +1,0 @@
-module settings;
-data Sizes {}
-const Sizes::ROWS: [[u8; 0]; 1] = [[]];

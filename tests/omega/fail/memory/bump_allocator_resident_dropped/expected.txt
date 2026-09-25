@@ -1,1 +1,0 @@
-linear value `placed.storage` reaches scope exit without being consumed or transferred

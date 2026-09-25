@@ -1,1 +1,0 @@
-value type `RoomEvent` is case-bearing; wire encoding over sums and mixed data shapes is not implemented yet

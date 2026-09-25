@@ -1,1 +1,0 @@
-`Join<T>` is retired

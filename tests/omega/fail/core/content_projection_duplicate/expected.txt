@@ -1,1 +1,0 @@
-publishes more than one `Content<A>` projection

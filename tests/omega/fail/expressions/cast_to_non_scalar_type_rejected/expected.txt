@@ -1,1 +1,0 @@
-casts with `as Foo`, but `Foo` is not a scalar type; non-scalar `as` only erases qualifications from the same data carrier

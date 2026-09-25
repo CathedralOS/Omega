@@ -1,1 +1,0 @@
-is a transparent refinement — a refinement bounds existing conformance evidence

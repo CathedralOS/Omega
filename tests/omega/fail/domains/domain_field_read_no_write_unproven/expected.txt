@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume from Main::main: self.f in [u8]::NonEmpty

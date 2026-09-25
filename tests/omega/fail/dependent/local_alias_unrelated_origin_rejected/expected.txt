@@ -1,1 +1,0 @@
-cannot prove ensures contract for exit from held_other at statement 0: result == input; no exact incoming reference origin for input

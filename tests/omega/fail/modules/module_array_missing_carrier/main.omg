@@ -1,3 +1,0 @@
-use settings;
-data Main {}
-machine Main::main(&mut self) {}

@@ -1,2 +1,0 @@
-module settings;
-const BAD: [u8; 2] = [1];

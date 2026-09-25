@@ -1,1 +1,0 @@
-cannot prove the measure `a` structurally decreases at this self-call

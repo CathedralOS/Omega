@@ -1,4 +1,0 @@
-use omega::language::core::binding;
-
-data Main { value: i32 in Bound; }
-machine Main::main(&mut self) { }

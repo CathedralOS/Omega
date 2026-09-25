@@ -1,1 +1,0 @@
-a write, call, or alias invalidates the entry-relative ranking

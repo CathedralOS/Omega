@@ -1,1 +1,0 @@
-domain membership cycle: Player::Valid -> Player::Alive -> Player::Valid

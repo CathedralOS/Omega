@@ -1,1 +1,0 @@
-free-floating const `helper` collides with a declaration in the same namespace

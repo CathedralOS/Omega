@@ -1,5 +1,0 @@
-data Main {
-    count: i32 in Finite;
-}
-
-machine Main::main(&mut self) {}

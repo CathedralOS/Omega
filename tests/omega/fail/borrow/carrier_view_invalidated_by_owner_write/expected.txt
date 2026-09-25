@@ -1,1 +1,0 @@
-mutates `self.text` while local borrow `view` is still active

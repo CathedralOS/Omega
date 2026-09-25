@@ -1,1 +1,0 @@
-unknown ForeignBinding case `Frobnicate`

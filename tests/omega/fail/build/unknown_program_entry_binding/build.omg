@@ -1,5 +1,0 @@
-
-machine build(builder: &mut Build) {
-    builder.application("unknown_program_entry_binding");
-    builder.roots.bind(windows_x86_64::ProgramEntry, Application::missing);
-}

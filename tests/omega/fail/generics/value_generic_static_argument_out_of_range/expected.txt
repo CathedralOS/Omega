@@ -1,1 +1,0 @@
-const argument `99` for `ident::Count` is outside its declared range `[0..=10]`

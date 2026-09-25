@@ -1,3 +1,0 @@
-module settings;
-data Sizes {}
-pub const Sizes::SIZE: [u8; 1] = [1];

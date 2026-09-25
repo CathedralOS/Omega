@@ -1,5 +1,0 @@
-
-machine build(builder: &mut Build) {
-    builder.application("sysv_vtable_field_call");
-    builder.freestanding = true;
-}

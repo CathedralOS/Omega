@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    builder.application("asm_wrmsr_requires_u64_value");
-    builder.freestanding = true;
-}

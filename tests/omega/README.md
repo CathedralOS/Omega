@@ -17,7 +17,6 @@ Inside each bucket, prefer feature folders when a group becomes noisy:
 - `control_flow/`
 - `ownership/`
 - `parameters/`
-- `rewards/`
 - `slices/`
 - `storage/`
 - `text/`
@@ -36,6 +35,13 @@ Conventions:
 - Name cases by the behavior under test, not by the fix that motivated them.
 - If a case graduates into a clearer feature family, move the directory and
   update the suite path rather than duplicating it.
+- Cover each spec rule once. A pass case pins one feature or feature
+  interaction the spec defines; a fail case pins one rejection rule. Before
+  adding a case, look for one that already exercises the rule and extend it
+  instead of adding a renamed variant, another integer width, a reordered
+  argument list, or the same body with an extra statement. A regression for an
+  incidental source arrangement belongs in the rule's existing case, not in a
+  new directory.
 
 Every fixture here is a test. `tools/corpus_gate.py` compiles each one through
 the `corpus_runner` target and diffs its outcome record (checked or rejected,

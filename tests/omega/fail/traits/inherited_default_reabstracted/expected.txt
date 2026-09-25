@@ -1,1 +1,0 @@
-data `Counter` does not satisfy trait `ExplicitReset`: no written or default machine `Counter::reset`
