@@ -22,17 +22,21 @@ Independent fragment, object, and image replay still check the complete join.
 
 ## Multi-target reuse
 
-[Target selection](../../../../wiki/spec/build/configuration.md) defines child
-identity and isolation. The compiler batch route prepares each child's canonical
-Terminal artifact independently. [PreparedNativeRealizationInput](src/native_realization/input_preparation.rs)
+[Multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)
+produces one Terminal Psi for every target; realizing each target in the
+realization set starts from that same artifact and the target's companion rows.
+Today the compiler batch route still prepares each child's Terminal artifact
+independently, and [PreparedNativeRealizationInput](src/native_realization/input_preparation.rs)
 shares target-neutral decoding, proof admission, and abstract-input lowering
 only for equal complete `TerminalArtifactIdentity`, exact `AdmissionProfile`,
 and exact `PostTerminalOptimizationSelections`; it rechecks that key on use.
-An optimized/unoptimized Boolean alone is not its key.
+An optimized/unoptimized Boolean alone is not its key. Once provider selection
+moves behind Terminal Psi (board item PROVIDER-SELECTION-AFTER-TERMINAL), that
+shared input is the ordinary stage 00 input rather than a reuse cache.
 
 Target, entry/calling plans, provider/external settlements, authority policies,
 callbacks, FMA admission, physical evidence, and machine/image lowering remain
-child-local. This reuse is an implementation optimization, not review, proof,
+per realization. This reuse is an implementation optimization, not review, proof,
 or audit evidence. Equal Terminal artifacts may enter different ISA lowerers;
 different target-selected root artifacts must remain separate.
 

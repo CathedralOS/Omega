@@ -95,16 +95,20 @@ No debug/release mode, assertion primitive, or new crash cause is implied.
 
 ## Exact target requests
 
-Accept one exact profile or a caller-supplied nonempty set, normalized to
-canonical order with duplicates removed. Reject `all`, `*`, empty sets, and
-inference from source, dependencies, or the complete toolchain catalog. That
-catalog includes abstract/local modes and cannot define deployment intent.
+An absent selection realizes every deployable target profile the toolchain
+closure provides. An explicit selection accepts one exact profile or a
+caller-supplied nonempty set, normalized to canonical order with duplicates
+removed; it narrows realization, never checking. Reject `all`, `*`, empty
+explicit sets, and inference from source or dependencies. The catalog's
+abstract/local modes and inactive bindings cannot define deployment intent and
+realize only when selected explicitly.
 Authored target-policy/activation declarations are not admitted source syntax
 and do not define a support matrix.
 
-A CLI Host convenience resolves before semantic evaluation; Host is not artifact
-identity. Each child sees immutable `Build.target` and cannot assign, substitute,
-or multiply it, or branch dependency discovery on it. Target schemas and
+A CLI Host convenience selects the realization set before semantic
+evaluation; Host is not artifact identity. The Build does not observe a
+selected target: target-dependent selections are rows keyed by target, and
+dependency discovery cannot branch on a target. Target schemas and
 observation vocabulary are closed and toolchain-owned; concrete profiles come
 from validated target packages in the selected toolchain closure, not authored
 reinterpretation or a forever-fixed compiler enum. Use exact canonical spellings,
@@ -135,34 +139,45 @@ does not require a Rust Alpha backend. Profile and slot identity remain
 target-package facts; do not create a parallel bootstrap selection mechanism or
 infer support from the mere presence of those declarations.
 
-## Staged multi-target execution
+## Multi-target compilation
 
-Share acquisition, immutable source, parsing, and syntax-projectable project
-role/name and unconditional dependency rows. Fan out at each first target-
-sensitive consumer: roots, declaration filtering, semantics/admission,
-provider/foreign selection, build execution, and native realization. Parsed
-target-qualified rows may be shared; slot/schema validation and entry selection
-remain child-local. Evaluated Build state, observations, generated output, and
-optimization/provider selections are not shared build facts.
+One compilation serves every provided target. Psi runs once: source loading,
+parsing, resolution, typing, checking, proof, and Terminal Psi production do
+not observe a selected target. A target-scoped machine declaration
+(`windows_x86_64 machine Owner::name(...)`) is one body of a family keyed by
+target under one path; every body of every family is resolved, typed, and
+checked on every compilation, so a compile on a Windows host reports a macOS
+body's errors. Terminal Psi carries every body with its target tag. A family
+is data selected by target, never a branch removed before checking.
 
-Each child has the same subject, identity, diagnostics, and outcome as its
-standalone exact-target invocation. Adding siblings cannot alter it; one failure
-cannot suppress another child's checking. Return one outcome per canonical
-target. An aggregate exit code or human summary is orchestration, not support,
-audit, or completeness evidence.
+Build evaluation runs once for the whole compilation. It does not observe a
+single selected target and cannot branch on one; target-dependent selections
+(provider plans, program entry, subsystem, application intent, opaque
+representation, grants, behavior exclusions) are rows keyed by target in the
+one evaluated Build. A row for a target outside the realization set is checked
+and retained, not realized.
 
-Immutable target-neutral products may feed multiple children only after their
-governing strong identities match. Each consumer retains its own target,
-admission, provider/external bindings, and realization authority, and may reject
-independently. Share additional work only when it is exactly the fact each
-independent child would consume, never mutable target state or authority.
-No unresolved target branch is encoded inside Terminal Psi.
+Realization is per target. The realization set defaults to every deployable
+target profile the toolchain closure provides; an explicit `--target` selection
+narrows realization only and never narrows checking. Omega selects each
+family's body and each row for the target it realizes. A realized target with
+no body for a called family, or no row for a required selection, rejects that
+realization; it does not invalidate the portable semantics or another target's
+realization. Return one outcome per realized target; one realization's failure
+cannot suppress another's. An aggregate exit code or human summary is
+orchestration, not support, audit, or completeness evidence.
 
-An optional batch manifest binds the explicit set and child commitments/outcomes,
-not completeness of a support/test/deployment matrix. A fat/universal artifact
-is a separate explicit envelope over independently committed subjects. CI may
-cross-compile several targets on one host or check without physical realization;
-neither activity creates a language support set.
+An optional batch manifest binds the realization set and each realization's
+commitment/outcome, not completeness of a support/test/deployment matrix. A
+fat/universal artifact is a separate explicit envelope over independently
+committed realizations. CI may cross-compile several targets on one host or
+check without physical realization; neither activity creates a language
+support set.
+
+The Rust reference compiler does not implement this contract yet: it filters
+target-scoped declarations before resolution, evaluates the Build per target,
+and settles providers on checked trees before Terminal Psi. The
+[pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
 
 ## Directional wire compatibility
 

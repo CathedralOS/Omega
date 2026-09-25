@@ -255,6 +255,13 @@ physical import, while `satisfies` selects the exact requirement and inherits
 its full contract. The provider must refine that contract; the import bytes
 and a matching value signature are not permission to execute it.
 
+A target prefix (`windows_x86_64 machine ...`) declares one body of a family
+keyed by target under a single path. Every body of every family is resolved,
+typed, and checked in every compilation, whatever host or target set is being
+realized: a compile on Windows reports an error in a `macos_arm64` body.
+Callers name the family; realizing a target selects that target's body, and a
+realized target with no body for a called family rejects that realization only.
+
 If the trait has lifetime parameters, the satisfaction path supplies them
 explicitly. [Foreign bindings](../spec/build/foreign_bindings.md) defines exact
 application identity, target-specific locators, calling plans, and admission.
