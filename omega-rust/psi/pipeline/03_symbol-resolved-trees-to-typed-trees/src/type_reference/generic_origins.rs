@@ -158,11 +158,9 @@ fn use_key(
 /// addresses: fixture programs forge identical symbol arenas, but a
 /// `DiagnosticName`'s text pointer is a distinct allocation per program.
 struct GenericOriginIndex {
-    origins_by_symbol: std::collections::HashMap<
-        SymbolHandle,
-        Vec<Handle<resolved::types::GenericApplicationOrigin>>,
-    >,
-    definitions_by_symbol: std::collections::HashMap<SymbolHandle, Vec<usize>>,
+    origins_by_symbol:
+        symbols::SymbolKeyMap<SymbolHandle, Vec<Handle<resolved::types::GenericApplicationOrigin>>>,
+    definitions_by_symbol: symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
     malformed: bool,
 }
 
@@ -204,8 +202,8 @@ fn with_generic_origin_index<R>(
             let origins = &source.tables.types.generic_application_origins;
             let references = &source.tables.declarations.child_type_references;
             let mut index = GenericOriginIndex {
-                origins_by_symbol: std::collections::HashMap::new(),
-                definitions_by_symbol: std::collections::HashMap::new(),
+                origins_by_symbol: symbols::SymbolKeyMap::default(),
+                definitions_by_symbol: symbols::SymbolKeyMap::default(),
                 malformed: false,
             };
             for (handle, origin) in origins.iter() {

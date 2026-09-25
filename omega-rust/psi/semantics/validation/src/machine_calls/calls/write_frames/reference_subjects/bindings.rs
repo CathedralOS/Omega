@@ -9,9 +9,9 @@ use super::super::{
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
-use std::collections::HashMap;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 
 /// A checked local carrier can capture a reference binding without exposing
 /// it to another machine. Every call operand inside that initializer still
