@@ -4,7 +4,8 @@
 Builds the `corpus_runner` test target once (a `harness = false` binary that
 compiles every `tests/omega/{pass,fail,run}` fixture through the same routes
 the canary suite asserts on), runs it, and diffs the emitted per-fixture
-outcome records against `tests/omega/corpus_outcomes.json`.
+outcome records against `tests/omega/corpus_outcomes.txt` (format:
+`tools/corpus_records.py`).
 
 The golden records outcome *classes* — `checked`/`rejected`, diagnostic
 messages, and whether each fail fixture's expected.txt fragments were
@@ -70,8 +71,10 @@ import sys
 import urllib.request
 import threading
 
+import corpus_records
+
 ROOT = Path(__file__).resolve().parent.parent
-GOLDEN = ROOT / "tests" / "omega" / "corpus_outcomes.json"
+GOLDEN = ROOT / "tests" / "omega" / "corpus_outcomes.txt"
 
 
 def build_runner() -> Path:
@@ -129,11 +132,11 @@ def run_runner(binary: Path) -> list[dict]:
         sys.stderr.writelines(list(buffered_stderr)[-200:])
         raise SystemExit(f"corpus_gate: runner exited {proc.returncode}")
     try:
-        return json.loads(stdout)
+        return corpus_records.parse(stdout)
     except ValueError as error:
         sys.stderr.write(stdout[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
-        raise SystemExit(f"corpus_gate: runner emitted no JSON: {error}")
+        raise SystemExit(f"corpus_gate: runner emitted unreadable records: {error}")
 
 
 # --- Jev advisory (--jev): per-diff classification + record verdict ---
@@ -288,6 +291,13 @@ def jev_advise(diffs: list) -> None:
               file=sys.stderr)
 
 
+def shown(value) -> str:
+    """One field of a record, as a diff line shows it."""
+    if isinstance(value, list):
+        return " | ".join(value) if value else "(no diagnostics)"
+    return str(value)
+
+
 def baseline_path() -> Path:
     """This checkout's baseline file, named for the commit it was recorded at.
 
@@ -302,7 +312,7 @@ def baseline_path() -> Path:
         ["git", "rev-parse", "HEAD"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     ).stdout.strip() or "unknown"
-    return ROOT / "build" / "corpus_baselines" / f"{revision}.json"
+    return ROOT / "build" / "corpus_baselines" / f"{revision}.txt"
 
 
 def main() -> int:
@@ -357,7 +367,7 @@ def main() -> int:
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
     binary = options.runner or build_runner()
     records = run_runner(binary)
-    rendered = json.dumps(records, indent=1, ensure_ascii=False) + "\n"
+    rendered = corpus_records.render(records)
 
     if options.record:
         # A subset record merges into the golden: fixtures that ran get their
@@ -365,15 +375,15 @@ def main() -> int:
         # recordings assemble the same file an unfiltered record would.
         if subset and options.golden.is_file():
             prior = {record["fixture"]: record
-                     for record in json.loads(options.golden.read_text())}
+                     for record in corpus_records.read(options.golden)}
             prior.update({record["fixture"]: record for record in records})
             merged = [prior[fixture] for fixture in sorted(prior)]
-            rendered = json.dumps(merged, indent=1, ensure_ascii=False) + "\n"
+            rendered = corpus_records.render(merged)
         elif subset:
             print(f"corpus_gate: warning — no golden at {options.golden}; "
                   f"recording only the {len(records)} selected fixtures",
                   file=sys.stderr)
-        options.golden.write_text(rendered)
+        options.golden.write_text(rendered, encoding="utf-8", newline="\n")
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}")
         return 0
@@ -382,7 +392,7 @@ def main() -> int:
         print(f"corpus_gate: no golden at {options.golden}; "
               f"run --record first", file=sys.stderr)
         return 2
-    golden_records = json.loads(options.golden.read_text())
+    golden_records = corpus_records.read(options.golden)
     golden = {record["fixture"]: record for record in golden_records}
     actual = {record["fixture"]: record for record in records}
 
@@ -406,8 +416,8 @@ def main() -> int:
             if record[field] != before[field]:
                 structural_moves.append(
                     f"~ {fixture}: {field} moved\n"
-                    f"    - {json.dumps(before[field])[:300]}\n"
-                    f"    + {json.dumps(record[field])[:300]}")
+                    f"    - {shown(before[field])[:300]}\n"
+                    f"    + {shown(record[field])[:300]}")
                 structured_diffs.append(
                     {"fixture": fixture,
                      "before": {"status": before["status"],

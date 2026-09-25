@@ -205,7 +205,7 @@ file; see `omega-rust/omega/compiler/compiler/tests/README.md`.
 compiles every `tests/omega/{pass,fail,run}` fixture through the compile and
 checked-compile routes) and diffs per-fixture outcome records —
 checked/rejected, diagnostic messages, expected-fragment satisfaction, and
-per-fixture compile time — against `tests/omega/corpus_outcomes.json`. A diff
+per-fixture compile time — against `tests/omega/corpus_outcomes.txt`. A diff
 means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 

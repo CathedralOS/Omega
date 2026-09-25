@@ -83,23 +83,24 @@ class Surfaces(unittest.TestCase):
 
 class CorpusRecords(unittest.TestCase):
     def test_records_read_as_per_tier_verdicts(self):
-        import json
         import tempfile
 
         records = [
-            {"fixture": "pass/core/ok", "tier": "pass", "status": "checked"},
-            {"fixture": "pass/core/broken", "tier": "pass", "status": "rejected",
-             "diagnostics": ["cannot lower `x` at 3"]},
-            {"fixture": "run/loop", "tier": "run", "status": "checked"},
-            {"fixture": "fail/core/right", "tier": "fail", "status": "rejected",
-             "expected_satisfied": True},
-            {"fixture": "fail/core/wrong_reason", "tier": "fail", "status": "rejected",
-             "expected_satisfied": False},
-            {"fixture": "fail/core/accepted", "tier": "fail", "status": "checked"},
+            ("pass/core/ok", "checked", None, []),
+            ("pass/core/broken", "rejected", None, ["cannot lower `x` at 3"]),
+            ("run/loop", "checked", None, []),
+            ("fail/core/right", "rejected", True, ["no"]),
+            ("fail/core/wrong_reason", "rejected", False, ["other"]),
+            ("fail/core/accepted", "checked", None, []),
+        ]
+        records = [
+            {"fixture": fixture, "status": status, "millis": 1,
+             "expected_satisfied": expected, "diagnostics": diagnostics}
+            for fixture, status, expected, diagnostics in records
         ]
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "outcomes.json"
-            path.write_text(json.dumps(records), encoding="utf-8")
+            path = Path(directory) / "outcomes.txt"
+            path.write_text(progress.corpus_records.render(records), encoding="utf-8")
             outcomes = progress.parse_corpus_outcomes(path)
         self.assertEqual(outcomes["pass"]["members"], 2)
         self.assertEqual(list(outcomes["pass"]["failed_members"]), ["core/broken"])

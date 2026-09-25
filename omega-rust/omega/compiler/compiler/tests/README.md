@@ -14,7 +14,7 @@ neighbours: it depends on `source/library/std` and binds the program entry roots
 
 `corpus_runner.rs` compiles every fixture and prints one outcome record each.
 `tools/corpus_gate.py` diffs those records against
-`tests/omega/corpus_outcomes.json`:
+`tests/omega/corpus_outcomes.txt`:
 
 ```bash
 python3 tools/corpus_gate.py --filter providers/          # the loop
