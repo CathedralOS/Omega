@@ -77,6 +77,7 @@ pub(super) fn known_wire_codec_call_written_paths(
                 let (state, _, _) = caller_statement_at_site(
                     program,
                     current_machine,
+                    symbols,
                     CallerWriteSite::Call(call),
                 )?;
                 let mut reference =

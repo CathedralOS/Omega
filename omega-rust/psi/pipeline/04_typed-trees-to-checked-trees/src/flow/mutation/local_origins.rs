@@ -64,16 +64,33 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
     let resolver = resolver?;
     let origins = resolver.local_write_origins_before_statement(machine, statement)?;
     let storage = places.clone();
+    // Root normalization and per-origin place assembly are loop invariants:
+    // the same roots and aliases recur across every origin-by-place pair.
+    let mut normalized_roots: std::collections::HashMap<facts::PlaceRoot, facts::PlaceRoot> =
+        std::collections::HashMap::new();
+    let mut seen: std::collections::HashSet<CanonicalPlace> = storage.iter().cloned().collect();
     for origin in origins {
         let (source, exact) = origin_place(program, state, statement_index, &origin)?;
+        let normalized_source_root = *normalized_roots
+            .entry(source.root)
+            .or_insert_with(|| crate::flow::normalized_event_place_root(program, source.root));
+        // The alias base is per-origin; it is built lazily so a `None` from
+        // `canonical_place_from_symbol` only surfaces when a root-matching
+        // place pair actually reaches it, as before.
+        let mut base_alias: Option<CanonicalPlace> = None;
         for place in &storage {
-            if crate::flow::normalized_event_place_root(program, source.root)
-                != crate::flow::normalized_event_place_root(program, place.root)
-            {
+            let normalized_place_root = *normalized_roots
+                .entry(place.root)
+                .or_insert_with(|| crate::flow::normalized_event_place_root(program, place.root));
+            if normalized_source_root != normalized_place_root {
                 continue;
             }
-            let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
-            alias.segments.extend_from_slice(&origin.local_segments);
+            if base_alias.is_none() {
+                let mut alias = canonical_place_from_symbol(origin.local_symbol)?;
+                alias.segments.extend_from_slice(&origin.local_segments);
+                base_alias = Some(alias);
+            }
+            let mut alias = base_alias.clone().unwrap();
             if !canonical_place_segments_may_overlap(program, &place.segments, &source.segments) {
                 continue;
             }
@@ -82,7 +99,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
                     .segments
                     .extend_from_slice(&place.segments[source.segments.len()..]);
             }
-            if !places.contains(&alias) {
+            if seen.insert(alias.clone()) {
                 places.push(alias);
             }
         }
@@ -149,7 +166,8 @@ pub(super) fn assignment_storage_places(
     }
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
-    let Some(target) = resolver.assignment_write_target(machine, statement) else {
+    let target = resolver.assignment_write_target(machine, statement);
+    let Some(target) = target else {
         // The resolver cannot classify a write through a reference local it
         // has no origin for; a local of finite candidate origins still names
         // exactly those places (`rebase_local_write_places`), anything else

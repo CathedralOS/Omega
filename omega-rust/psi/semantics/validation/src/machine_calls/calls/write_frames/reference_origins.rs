@@ -1,6 +1,6 @@
 //! Proven exclusive-reference origins shared by boundary and method receivers.
 
-use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_at_site};
+use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_owner};
 use super::isolation::{
     data_definition_has_only_owned_storage, type_is_caller_isolated_local,
     type_is_caller_isolated_local_in,
@@ -76,7 +76,7 @@ fn receiver_referee_name(
     current_machine: &Machine,
     receiver: ExpressionHandle,
 ) -> Option<String> {
-    let (state, _, _) = caller_statement_at_site(
+    let (state, _, _) = caller_statement_owner(
         program,
         current_machine,
         CallerWriteSite::Expression(receiver),
@@ -234,7 +234,7 @@ pub(super) fn exclusive_reference_origins(
                     let type_parameters = program.machine_type_parameters(callee_machine);
                     let mut bindings = Vec::new();
                     if !type_parameters.is_empty() {
-                        let (state, _, _) = caller_statement_at_site(
+                        let (state, _, _) = caller_statement_owner(
                             program,
                             current_machine,
                             CallerWriteSite::Expression(actual),
@@ -399,7 +399,7 @@ fn carried_reference_origin(
         return None;
     }
     let (state, _, _) =
-        caller_statement_at_site(program, machine, CallerWriteSite::Expression(expression))?;
+        caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
     let reference = crate::value_custody::places::declared_place_type_raw(
         program,
         machine,
@@ -514,7 +514,7 @@ pub(super) fn owned_receiver_origin(
         _ => return None,
     };
     let origin = owned_receiver_origin(program, current_machine, parent, symbols, inference)?;
-    let (state, _, _) = caller_statement_at_site(
+    let (state, _, _) = caller_statement_owner(
         program,
         current_machine,
         CallerWriteSite::Expression(expression),
