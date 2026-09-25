@@ -15,12 +15,14 @@ pub(crate) struct CompileArguments {
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
     pub(crate) root_path: PathBuf,
-    pub(crate) target_name: Option<String>,
+    /// Every `--target` named, in the order given, repeats removed. Empty
+    /// means none was named.
+    pub(crate) target_names: Vec<String>,
     pub(crate) optimization_rollback: OptimizationRollback,
 }
 
 pub(crate) fn usage() -> &'static str {
-    "usage: omega [--check] [--offline] [--accept-admissions] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>] [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
+    "usage: omega [--check] [--offline] [--accept-admissions] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega refresh-samples [samples-dir]\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
 }
 
 pub(crate) fn parse_arguments(
@@ -35,7 +37,7 @@ pub(crate) fn parse_arguments(
     let mut timings = false;
     let mut report_file = None;
     let mut root_path = None;
-    let mut target_name = None;
+    let mut target_names: Vec<String> = Vec::new();
 
     while let Some(argument) = arguments.next() {
         if argument == "--offline" {
@@ -84,10 +86,13 @@ pub(crate) fn parse_arguments(
         }
 
         if argument == "--target" {
-            target_name =
-                option_value(&mut arguments).and_then(|target_name| target_name.into_string().ok());
-            if target_name.is_none() {
-                return Err("--target requires a UTF-8 target name".into());
+            let target_name = option_value(&mut arguments)
+                .and_then(|target_name| target_name.into_string().ok())
+                .ok_or_else(|| "--target requires a UTF-8 target name".to_owned())?;
+            // The selection is a set: naming a target twice adds nothing
+            // (wiki/spec/build/configuration.md#exact-target-requests).
+            if !target_names.contains(&target_name) {
+                target_names.push(target_name);
             }
             continue;
         }
@@ -155,7 +160,7 @@ pub(crate) fn parse_arguments(
         timings,
         report_file,
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
-        target_name,
+        target_names,
         optimization_rollback,
     })
 }

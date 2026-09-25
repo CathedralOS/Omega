@@ -3,18 +3,19 @@
 use super::{admissions::report_unsettled_admissions, arguments::CompileArguments};
 use compiler::CompileOptions;
 use omega::compilation::{
-    CompileProjectError, CompileProjectRequest, ProjectProduct, compile_project,
+    CompileProjectError, CompileProjectRequest, ProjectProduct, TargetProjectOutcome,
+    compile_project, compile_project_for_targets,
 };
 
 pub(crate) fn compile_project_command(arguments: CompileArguments) {
     let started = arguments.timings.then(std::time::Instant::now);
     let report_file = arguments.report_file.clone();
-    let report_target_name = arguments.target_name.clone();
+    let target_names = arguments.target_names;
     let request = CompileProjectRequest {
         options: CompileOptions {
             build_dir: arguments.build_dir,
             root_path: arguments.root_path,
-            target_name: arguments.target_name,
+            target_name: None,
         },
         product: if arguments.check_only {
             ProjectProduct::Check
@@ -30,28 +31,19 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
             .build_inputs
             .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
     };
+    if target_names.len() > 1 {
+        compile_several_targets(request, &target_names, started, report_file.as_deref());
+        return;
+    }
+    let mut request = request;
+    request.options.target_name = target_names.first().cloned();
+    let report_target_name = request.options.target_name.clone();
     let result = compile_project(request);
     if let Some(started) = started {
         if let Ok(outcome) = &result {
-            for timing in outcome.timings.phases() {
-                eprintln!(
-                    "{:>10.3} ms  {}",
-                    timing.microseconds as f64 / 1_000.0,
-                    timing.phase
-                );
-            }
-            for timing in outcome.report.timings() {
-                eprintln!(
-                    "{:>10.3} ms  {}",
-                    timing.microseconds as f64 / 1_000.0,
-                    timing.phase
-                );
-            }
+            print_timings(outcome);
         }
-        eprintln!(
-            "{:>10.3} ms  total elapsed",
-            started.elapsed().as_secs_f64() * 1_000.0
-        );
+        print_elapsed(started);
     }
     let outcome = match result {
         Ok(outcome) => outcome,
@@ -65,7 +57,8 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         }
     };
     if let Some(path) = &report_file
-        && let Err(error) = write_report_file(path, report_target_name.as_deref(), &outcome)
+        && let Err(error) =
+            write_report_text(path, &report_text(report_target_name.as_deref(), &outcome))
     {
         eprintln!(
             "cannot write compile report to `{}`: {error}",
@@ -73,7 +66,99 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         );
         std::process::exit(1);
     }
-    if let Some(path) = outcome.executable_path {
+    print_outcome(&outcome);
+}
+
+/// Several targets: one block per target in canonical order. A failed target
+/// is reported and the rest still run; the command fails if any target did.
+fn compile_several_targets(
+    request: CompileProjectRequest,
+    target_names: &[String],
+    started: Option<std::time::Instant>,
+    report_file: Option<&std::path::Path>,
+) {
+    let outcomes = match compile_project_for_targets(request, target_names) {
+        Ok(outcomes) => outcomes,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
+    let mut report_contents = String::new();
+    let mut failed = Vec::new();
+    for TargetProjectOutcome { target, result } in &outcomes {
+        let name = target.target_name();
+        println!("target {name}:");
+        match result {
+            Ok(outcome) => {
+                if started.is_some() {
+                    print_timings(outcome);
+                }
+                print_outcome(outcome);
+                report_contents.push_str(&report_text(Some(name), outcome));
+            }
+            Err(error) => {
+                match error {
+                    CompileProjectError::UnsettledAdmissions(settlement) => {
+                        report_unsettled_admissions(settlement);
+                    }
+                    error => eprintln!("{error}"),
+                }
+                println!("target {name} failed");
+                report_contents.push_str(&format!("target: {name}\nfailed: {error}\n"));
+                failed.push(name);
+            }
+        }
+    }
+    if let Some(started) = started {
+        print_elapsed(started);
+    }
+    if let Some(path) = report_file
+        && let Err(error) = write_report_text(path, &report_contents)
+    {
+        eprintln!(
+            "cannot write compile report to `{}`: {error}",
+            path.display()
+        );
+        std::process::exit(1);
+    }
+    if !failed.is_empty() {
+        eprintln!(
+            "{} of {} targets failed: {}",
+            failed.len(),
+            outcomes.len(),
+            failed.join(", ")
+        );
+        std::process::exit(1);
+    }
+}
+
+fn print_timings(outcome: &omega::compilation::CompileProjectOutcome) {
+    for timing in outcome.timings.phases() {
+        eprintln!(
+            "{:>10.3} ms  {}",
+            timing.microseconds as f64 / 1_000.0,
+            timing.phase
+        );
+    }
+    for timing in outcome.report.timings() {
+        eprintln!(
+            "{:>10.3} ms  {}",
+            timing.microseconds as f64 / 1_000.0,
+            timing.phase
+        );
+    }
+}
+
+fn print_elapsed(started: std::time::Instant) {
+    eprintln!(
+        "{:>10.3} ms  total elapsed",
+        started.elapsed().as_secs_f64() * 1_000.0
+    );
+}
+
+fn print_outcome(outcome: &omega::compilation::CompileProjectOutcome) {
+    if let Some(path) = &outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             println!("optimizer rollback: {receipt}");
         }
@@ -102,14 +187,13 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     }
 }
 
-/// Render the produced outcome as the plain-text observation file
-/// `--report-file` requests: the requested product, the named target, the
-/// report summary, and every publication line the console reports.
-fn write_report_file(
-    path: &std::path::Path,
+/// Render the produced outcome as the plain-text observation `--report-file`
+/// requests: the requested product, the named target, the report summary,
+/// and every publication line the console reports.
+fn report_text(
     target_name: Option<&str>,
     outcome: &omega::compilation::CompileProjectOutcome,
-) -> std::io::Result<()> {
+) -> String {
     let mut contents = String::new();
     contents.push_str(match outcome.executable_path.is_some() {
         true => "product: native artifact\n",
@@ -150,6 +234,10 @@ fn write_report_file(
             directory.display()
         ));
     }
+    contents
+}
+
+fn write_report_text(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
     if let Some(parent) = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
@@ -161,7 +249,7 @@ fn write_report_file(
 
 #[cfg(test)]
 mod tests {
-    use super::write_report_file;
+    use super::{report_text, write_report_text};
     use artifacts::compile_timings::CompileTimings;
     use compiler::CompileReport;
     use omega::compilation::CompileProjectOutcome;
@@ -185,7 +273,8 @@ mod tests {
             executable_path: None,
         };
 
-        write_report_file(&path, Some("linux_x86_64"), &outcome).expect("report write");
+        write_report_text(&path, &report_text(Some("linux_x86_64"), &outcome))
+            .expect("report write");
 
         let contents = std::fs::read_to_string(&path).expect("report read");
         assert!(contents.starts_with("product: check\ntarget: linux_x86_64\n"));
