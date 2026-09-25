@@ -190,6 +190,10 @@ pub(super) fn collect_state_argument_facts<'program>(
     let mut contributions = vec![Vec::new(); states.len()];
     let mut dirty = vec![false; states.len()];
     dirty[0] = true;
+    // One lazy whole-program bound index for the whole propagation fixpoint:
+    // the bound maps are program data, so every pass and state shares the
+    // cell and the maps build at most once for the walk.
+    let bound_lookup = std::rc::Rc::new(std::cell::RefCell::new(None));
     for _ in 0..MAX_PROPAGATION_PASSES {
         for (state_index, (state, calls)) in states.iter().zip(calls).enumerate() {
             if !dirty[state_index] {
@@ -209,6 +213,8 @@ pub(super) fn collect_state_argument_facts<'program>(
                 call_frames,
             };
             let mut facts = RangeFacts::new(field_lengths);
+            facts.bound_program = Some(program);
+            facts.bound_lookup = bound_lookup.clone();
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_calls = Some(calls);
             facts.checked_operators = Some(operators);
@@ -329,6 +335,9 @@ fn collect_state_argument_facts_whole_pass<'program>(
     };
     let mut collected: Vec<StateArgumentFacts> = Vec::new();
 
+    // Same shared whole-program bound index: the maps are program data and
+    // build at most once across the propagation fixpoint.
+    let bound_lookup = std::rc::Rc::new(std::cell::RefCell::new(None));
     for _ in 0..MAX_PROPAGATION_PASSES {
         let previous = std::mem::take(&mut collected);
 
@@ -348,6 +357,8 @@ fn collect_state_argument_facts_whole_pass<'program>(
             };
             tests::STATE_TRANSFERS.set(tests::STATE_TRANSFERS.get() + 1);
             let mut facts = RangeFacts::new(field_lengths);
+            facts.bound_program = Some(program);
+            facts.bound_lookup = bound_lookup.clone();
             // Only range contributions change between states and passes.
             // Borrow the invocation's completed source/borrow summaries before
             // any branch snapshots clone these per-state facts.

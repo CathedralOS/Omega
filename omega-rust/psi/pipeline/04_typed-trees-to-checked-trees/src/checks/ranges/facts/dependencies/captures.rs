@@ -8,7 +8,7 @@ use crate::checks::ranges::facts::dependencies::collect_reads;
 use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
 
-impl RangeFacts<'_> {
+impl<'field> RangeFacts<'field> {
     pub(in crate::checks::ranges) fn alias_integer_place_value(
         &mut self,
         program: &TypedTrees,
@@ -26,7 +26,7 @@ impl RangeFacts<'_> {
             return;
         }
         let mut reads = Vec::new();
-        let mut bounds = None;
+        let bound_lookup = self.bound_lookup().clone();
         if collect_reads(
             program,
             machine,
@@ -37,7 +37,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut reads,
             0,
-            &mut bounds,
+            &bound_lookup,
         ) {
             self.alias_index(&program.expression_table.display_name(expression), name);
             self.alias_captured_selector(program, machine, state, expression, symbol);
@@ -57,7 +57,7 @@ impl RangeFacts<'_> {
             return;
         }
         let mut captured_reads = Vec::new();
-        let mut bounds = None;
+        let bound_lookup = self.bound_lookup().clone();
         if !collect_reads(
             program,
             machine,
@@ -68,7 +68,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut captured_reads,
             0,
-            &mut bounds,
+            &bound_lookup,
         ) {
             return;
         }
@@ -76,8 +76,8 @@ impl RangeFacts<'_> {
         let originals = self.expression_dependencies.clone();
         // The bound index scans the whole program once; the candidate walk
         // below asks for an identity per expression node per original, so it
-        // must live outside the loop rather than rebuild per original.
-        let bound_lookup = validation::ImmutableBoundLookup::new(program);
+        // shares the snapshot's lazy cell rather than rebuild per original.
+        let bound_lookup = self.bound_lookup().clone();
         for original in originals {
             if !transferable.contains(&original.label) {
                 continue;
@@ -94,7 +94,6 @@ impl RangeFacts<'_> {
                 continue;
             }
             let mut selector_reads = Vec::new();
-            let mut bounds = None;
             if !collect_reads(
                 program,
                 machine,
@@ -105,7 +104,7 @@ impl RangeFacts<'_> {
                 self.checked_operators,
                 &mut selector_reads,
                 0,
-                &mut bounds,
+                &*self.bound_lookup(),
             ) || !same_reads(program, Some(&captured_reads), Some(&selector_reads))
             {
                 continue;
@@ -145,7 +144,7 @@ impl RangeFacts<'_> {
                     continue;
                 }
                 let mut reads = Vec::new();
-                let mut bounds = None;
+                let bound_lookup = self.bound_lookup().clone();
                 // The current binding now exists. Later immutable copies may
                 // already have typed uses but do not introduce a new value.
                 // Read those uses through the shared captured-value identity,
@@ -169,7 +168,7 @@ impl RangeFacts<'_> {
                     self.checked_operators,
                     &mut reads,
                     0,
-                    &mut bounds,
+                    &bound_lookup,
                 ) || !reads
                     .iter()
                     .all(|read| reads::root_is_current(program, machine, state, prefix, read.root))

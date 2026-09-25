@@ -11,7 +11,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-pub(super) fn collect_reads<'a>(
+pub(super) fn collect_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -21,7 +21,7 @@ pub(super) fn collect_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     // Depth bound shared with the captures.rs walks and pinned by
     // tests/depth.rs.
@@ -49,7 +49,7 @@ pub(super) fn collect_reads<'a>(
                 operators,
                 reads,
                 depth + 1,
-                bounds,
+                bound_lookup,
             ) && collect_reads(
                 program,
                 machine,
@@ -60,7 +60,7 @@ pub(super) fn collect_reads<'a>(
                 operators,
                 reads,
                 depth + 1,
-                bounds,
+                bound_lookup,
             )
         }
         ExpressionNode::Unary(unary) => collect_reads(
@@ -73,7 +73,7 @@ pub(super) fn collect_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ),
         ExpressionNode::Cast(cast) => collect_reads(
             program,
@@ -85,7 +85,7 @@ pub(super) fn collect_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ),
         // A borrow's value is a reference into its target place, so its
         // footprint is exactly the target's reads. For a call operand this is
@@ -101,7 +101,7 @@ pub(super) fn collect_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ),
         // A call's value is not a pure function of its argument expressions:
         // the callee may also read receiver `self` storage. Admit a footprint
@@ -145,7 +145,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth + 1,
-                    bounds,
+                    bound_lookup,
                 )
             {
                 return false;
@@ -161,7 +161,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth + 1,
-                    bounds,
+                    bound_lookup,
                 ) {
                     return false;
                 }
@@ -227,7 +227,7 @@ pub(super) fn collect_reads<'a>(
             operators,
             reads,
             depth,
-            bounds,
+            bound_lookup,
         ),
         ExpressionNode::Member(member) => collect_member_reads(
             program,
@@ -240,7 +240,7 @@ pub(super) fn collect_reads<'a>(
             operators,
             reads,
             depth,
-            bounds,
+            bound_lookup,
         ),
         // Builtin `items[i]`/`items[a..b]` syntax projects element or window
         // storage and keeps the ordinary place footprint while the chain
@@ -285,7 +285,7 @@ pub(super) fn collect_reads<'a>(
                         operators,
                         reads,
                         depth + 1,
-                        bounds,
+                        bound_lookup,
                     ) && capture_place_read(
                         program,
                         machine,
@@ -294,7 +294,7 @@ pub(super) fn collect_reads<'a>(
                         place,
                         expression,
                         reads,
-                        bounds,
+                        bound_lookup,
                     )
                 } else {
                     collect_reads(
@@ -307,7 +307,7 @@ pub(super) fn collect_reads<'a>(
                         operators,
                         reads,
                         depth + 1,
-                        bounds,
+                        bound_lookup,
                     ) && collect_operand_reads(
                         program,
                         machine,
@@ -318,7 +318,7 @@ pub(super) fn collect_reads<'a>(
                         operators,
                         reads,
                         depth,
-                        bounds,
+                        bound_lookup,
                     )
                 }
             } else {
@@ -333,7 +333,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth,
-                    bounds,
+                    bound_lookup,
                 )
             }
         }
@@ -353,7 +353,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth,
-                    bounds,
+                    bound_lookup,
                 ))
                 && (!range.end.is_valid()
                     || collect_operand_reads(
@@ -366,7 +366,7 @@ pub(super) fn collect_reads<'a>(
                         operators,
                         reads,
                         depth,
-                        bounds,
+                        bound_lookup,
                     ))
         }
         // Every array literal element is evaluated at the literal site.
@@ -385,7 +385,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth,
-                    bounds,
+                    bound_lookup,
                 )
             }),
         // Authored and synthesized erased-field initializers alike are
@@ -405,7 +405,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth,
-                    bounds,
+                    bound_lookup,
                 )
             }),
         // A match reads its subject, every pattern compared against it, and
@@ -423,7 +423,7 @@ pub(super) fn collect_reads<'a>(
                 operators,
                 reads,
                 depth,
-                bounds,
+                bound_lookup,
             ) && program
                 .expression_table
                 .match_arms(dispatch.arms)
@@ -441,7 +441,7 @@ pub(super) fn collect_reads<'a>(
                                 operators,
                                 reads,
                                 depth,
-                                bounds,
+                                bound_lookup,
                             )
                         }
                         typed_trees::expression::MatchPattern::Wildcard => true,
@@ -455,7 +455,7 @@ pub(super) fn collect_reads<'a>(
                         operators,
                         reads,
                         depth,
-                        bounds,
+                        bound_lookup,
                     )
                 })
         }
@@ -495,7 +495,7 @@ pub(super) fn collect_reads<'a>(
                             operators,
                             reads,
                             depth + 1,
-                            bounds,
+                            bound_lookup,
                         )
                         && reads.len() > footprint_start
                 }
@@ -510,7 +510,7 @@ pub(super) fn collect_reads<'a>(
                     operators,
                     reads,
                     depth,
-                    bounds,
+                    bound_lookup,
                 ),
             }
         }
@@ -568,7 +568,7 @@ fn static_application_carries_no_caller_storage(
 /// missing carrier, illegal ordering plan, non-scalar custody,
 /// missing/substituted result destination, or unrecognized update shape
 /// leaves the footprint incomplete.
-fn collect_atomic_write_reads<'a>(
+fn collect_atomic_write_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -579,7 +579,7 @@ fn collect_atomic_write_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::atomic::AtomicOrderingPlan;
     // Canonical scalar custody is the only result form a scalar read set can
@@ -678,7 +678,7 @@ fn collect_atomic_write_reads<'a>(
         operators,
         reads,
         depth + 1,
-        bounds,
+        bound_lookup,
     ) && operands.iter().all(|operand| {
         collect_operand_reads(
             program,
@@ -690,7 +690,7 @@ fn collect_atomic_write_reads<'a>(
             operators,
             reads,
             depth,
-            bounds,
+            bound_lookup,
         )
     }) && result_symbol.is_none_or(|symbol| {
         // The result destination is a slot the carrier owns: join its exact
@@ -911,7 +911,7 @@ fn atomic_compare_exchange_operands(
 /// to whatever the child can prove. Every other non-builtin node — an
 /// authored comparison, an unresolved selection — stays incomplete rather
 /// than pretending only its visible places were read.
-fn collect_operand_reads<'a>(
+fn collect_operand_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -921,7 +921,7 @@ fn collect_operand_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if validation::has_builtin_bound_expression_meaning(program, machine, Some(state), operand) {
         return collect_reads(
@@ -934,7 +934,7 @@ fn collect_operand_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         );
     }
     if depth >= EXPRESSION_WALK_DEPTH_BOUND
@@ -963,7 +963,7 @@ fn collect_operand_reads<'a>(
                 operators,
                 reads,
                 depth + 1,
-                bounds,
+                bound_lookup,
             );
         }
         ExpressionNode::Unary(unary) => {
@@ -977,7 +977,7 @@ fn collect_operand_reads<'a>(
                 operators,
                 reads,
                 depth + 1,
-                bounds,
+                bound_lookup,
             );
         }
         ExpressionNode::Binary(binary) => binary,
@@ -1009,7 +1009,7 @@ fn collect_operand_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ) && collect_operand_reads(
             program,
             machine,
@@ -1020,7 +1020,7 @@ fn collect_operand_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         );
     }
     collect_selected_arithmetic_reads(
@@ -1034,7 +1034,7 @@ fn collect_operand_reads<'a>(
         operators,
         reads,
         depth,
-        bounds,
+        bound_lookup,
     )
 }
 
@@ -1049,7 +1049,7 @@ fn collect_operand_reads<'a>(
 /// the recorded coordinate would be builtin arithmetic's value rather than
 /// whatever the selected declaration produces, and the read set would
 /// claim disjointness the declaration never established.
-fn collect_selected_arithmetic_reads<'a>(
+fn collect_selected_arithmetic_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1060,7 +1060,7 @@ fn collect_selected_arithmetic_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if program
         .expression_table
@@ -1091,7 +1091,7 @@ fn collect_selected_arithmetic_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         )
     })
 }
@@ -1234,7 +1234,7 @@ pub(super) fn root_is_current(
 
 /// A name, member, or builtin-indexed expression contributes its own storage
 /// place plus the selector reads needed to address it.
-fn collect_place_read<'a>(
+fn collect_place_read<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1244,7 +1244,7 @@ fn collect_place_read<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if !collect_selector_reads(
         program,
@@ -1256,7 +1256,7 @@ fn collect_place_read<'a>(
         operators,
         reads,
         depth + 1,
-        bounds,
+        bound_lookup,
     ) {
         return false;
     }
@@ -1276,7 +1276,7 @@ fn collect_place_read<'a>(
         place,
         expression,
         reads,
-        bounds,
+        bound_lookup,
     )
 }
 
@@ -1285,7 +1285,7 @@ fn collect_place_read<'a>(
 /// `collect_member_reads` and the selector-chain split call this with the
 /// place they already resolved for their root-kind gate, so the read is
 /// canonicalized once instead of twice.
-fn capture_place_read<'a>(
+fn capture_place_read<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1293,7 +1293,7 @@ fn capture_place_read<'a>(
     mut place: CanonicalPlace,
     expression: ExpressionHandle,
     reads: &mut Vec<CanonicalPlace>,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     let Some(root) = validate_place_read(program, machine, state, statement_index, &mut place)
     else {
@@ -1311,7 +1311,7 @@ fn capture_place_read<'a>(
             program,
             // The gates above reject almost every read; on the rare pass the
             // index is built once and shared by the whole walk.
-            bounds.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
+            bound_lookup,
             state,
             expression,
         )
@@ -1344,7 +1344,7 @@ fn capture_place_read<'a>(
 /// receiver keeps the place floor either way: `(&x).f` is `x.f`, while a
 /// borrow of a temporary has no statement-use place custody to lend the
 /// projection.
-fn collect_member_reads<'a>(
+fn collect_member_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1355,7 +1355,7 @@ fn collect_member_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     let receiver_is_borrow = matches!(
         program.expression_table.expression(member.receiver),
@@ -1372,7 +1372,7 @@ fn collect_member_reads<'a>(
             operators,
             reads,
             depth,
-            bounds,
+            bound_lookup,
         );
     }
     if let Some(place) =
@@ -1389,7 +1389,7 @@ fn collect_member_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ) && capture_place_read(
             program,
             machine,
@@ -1398,7 +1398,7 @@ fn collect_member_reads<'a>(
             place,
             expression,
             reads,
-            bounds,
+            bound_lookup,
         );
     }
     temporary_member_symbol(program, machine, state, member).is_valid()
@@ -1412,7 +1412,7 @@ fn collect_member_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         )
 }
 
@@ -1527,7 +1527,7 @@ fn temporary_receiver_leaf(
 /// applies. Each operand recurses through the ordinary read scan, so a
 /// nested call or a selected nested indexing still has to prove its own
 /// complete footprint.
-fn collect_selected_index_reads<'a>(
+fn collect_selected_index_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1538,7 +1538,7 @@ fn collect_selected_index_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     use language_core::OperatorSpelling;
 
@@ -1572,7 +1572,7 @@ fn collect_selected_index_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         )
     })
 }
@@ -1630,7 +1630,7 @@ fn selected_operator_operands(
 /// Check typed identities before contextual spelling recovery, and collect the
 /// storage read to select this place. Do not read the whole collection merely
 /// to address one element: parent replacement overlaps its child path already.
-fn collect_selector_reads<'a>(
+fn collect_selector_reads<'a, 'b>(
     program: &'a TypedTrees,
     machine: &Machine,
     state: &State,
@@ -1640,7 +1640,7 @@ fn collect_selector_reads<'a>(
     operators: Option<&CheckedOperatorFacts>,
     reads: &mut Vec<CanonicalPlace>,
     depth: usize,
-    bounds: &mut Option<validation::ImmutableBoundLookup<'a>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'b>,
 ) -> bool {
     if depth >= EXPRESSION_WALK_DEPTH_BOUND
         || !program.expression_table.expression_is_valid(expression)
@@ -1688,7 +1688,7 @@ fn collect_selector_reads<'a>(
                     operators,
                     reads,
                     depth + 1,
-                    bounds,
+                    bound_lookup,
                 )
         }
         // An explicit `&`/`&mut` inside a place chain addresses exactly its
@@ -1707,7 +1707,7 @@ fn collect_selector_reads<'a>(
             operators,
             reads,
             depth + 1,
-            bounds,
+            bound_lookup,
         ),
         ExpressionNode::Indexed(indexed) => {
             // The general bound-meaning query treats places as symbolic leaves.
@@ -1734,7 +1734,7 @@ fn collect_selector_reads<'a>(
                 operators,
                 reads,
                 depth + 1,
-                bounds,
+                bound_lookup,
             ) && collect_operand_reads(
                 program,
                 machine,
@@ -1745,7 +1745,7 @@ fn collect_selector_reads<'a>(
                 operators,
                 reads,
                 depth,
-                bounds,
+                bound_lookup,
             )
         }
         _ => false,

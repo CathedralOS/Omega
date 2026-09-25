@@ -13,9 +13,12 @@ use typed_trees::types::PrimitiveType;
 /// every machine's statements and parameter lists per leaf. `None` entries
 /// preserve the scans' ambiguity verdicts: a name or symbol owned by more
 /// than one declaration has no bound identity.
+#[derive(Clone)]
 pub struct ImmutableBoundLookup<'program> {
     program: &'program TypedTrees,
-    maps: std::cell::OnceCell<BoundMaps<'program>>,
+    /// Shared through clones: a cloned lookup reads the same maps, built at
+    /// most once across the whole clone family.
+    maps: std::rc::Rc<std::cell::OnceCell<BoundMaps<'program>>>,
 }
 
 struct BoundMaps<'program> {
@@ -93,7 +96,7 @@ impl<'program> ImmutableBoundLookup<'program> {
     pub fn new(program: &'program TypedTrees) -> Self {
         ImmutableBoundLookup {
             program,
-            maps: std::cell::OnceCell::new(),
+            maps: std::rc::Rc::new(std::cell::OnceCell::new()),
         }
     }
 

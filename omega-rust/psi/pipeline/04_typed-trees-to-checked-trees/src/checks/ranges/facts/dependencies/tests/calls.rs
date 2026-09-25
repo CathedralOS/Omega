@@ -67,6 +67,7 @@ fn a_selected_call_reads_only_its_established_operand_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -105,6 +106,7 @@ fn borrow_arguments_carry_the_callee_readable_place() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -145,6 +147,7 @@ fn a_self_receiver_callee_reads_the_callers_machine_storage() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -191,6 +194,7 @@ fn a_nested_call_selector_extends_the_indexed_read_set() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -242,6 +246,7 @@ fn missing_or_foreign_occurrence_evidence_keeps_the_read_set_incomplete() {
     let foreign =
         RangeCallContext::new(other_machine, other_state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&foreign);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -250,6 +255,7 @@ fn missing_or_foreign_occurrence_evidence_keeps_the_read_set_incomplete() {
     // is the same incomplete answer.
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index + 1;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -281,6 +287,7 @@ fn a_static_binder_or_hidden_argument_keeps_the_footprint_incomplete() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -311,6 +318,7 @@ fn a_type_applied_generic_call_reads_its_established_operand_footprint() {
         let (borrows, flow, frames) = checked_facts(&program);
         let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_calls = Some(&context);
         facts.statement_index = statement_index;
         facts.record_expression_dependencies(&program, machine, state, expression);
@@ -354,6 +362,7 @@ fn a_const_applied_generic_call_reads_its_operand_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -397,6 +406,7 @@ fn a_type_applied_self_receiver_call_reads_the_callers_machine_storage() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -452,6 +462,7 @@ fn a_machine_valued_or_nested_static_application_stays_incomplete() {
         let (borrows, flow, frames) = checked_facts(&program);
         let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_calls = Some(&context);
         facts.statement_index = statement_index;
         facts.record_expression_dependencies(&program, machine, state, expression);
@@ -499,6 +510,7 @@ fn only_storage_free_static_selections_admit_the_applied_call_footprint() {
         let (borrows, flow, frames) = checked_facts(&program);
         let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_calls = Some(&context);
         facts.statement_index = statement_index;
         facts.record_expression_dependencies(&program, machine, state, expression);
@@ -532,6 +544,7 @@ fn a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index;
@@ -573,6 +586,7 @@ fn a_wrapped_arithmetic_selector_still_proves_its_call_operand_footprint() {
         );
     }
     let mut without_calls = RangeFacts::new(&[]);
+    without_calls.bound_program = Some(&program);
     without_calls.checked_operators = Some(&operators);
     without_calls.statement_index = statement_index;
     without_calls.record_expression_dependencies(&program, machine, state, expression);

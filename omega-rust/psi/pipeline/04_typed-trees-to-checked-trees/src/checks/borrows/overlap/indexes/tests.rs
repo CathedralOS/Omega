@@ -211,6 +211,7 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
         &right_place,
         &checked_trees::BorrowAccessKind::Mutable,
         &[],
+        &mut None,
     );
     assert!(compatibility.disjoint);
     assert!(compatibility.non_interfering);
@@ -235,6 +236,7 @@ fn symbolic_exclusive_adjacency_requires_the_exact_resolved_boundary() {
         &changed_place,
         &checked_trees::BorrowAccessKind::Mutable,
         &[],
+        &mut None,
     );
     assert!(!changed.disjoint);
     assert!(!changed.non_interfering);
@@ -265,6 +267,7 @@ fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
         right,
         right_location,
         &mut capture,
+        &mut None,
     ));
     let snapshot = capture.finish().expect("closed captured snapshot").snapshot;
     assert_eq!(
@@ -308,6 +311,7 @@ fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
         right,
         right_location,
         &mut replay,
+        &mut None,
     ));
     assert_eq!(
         replay.finish().map(|closure| closure.snapshot),
@@ -324,6 +328,7 @@ fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
         right,
         right_location,
         &mut replay,
+        &mut None,
     );
     assert!(
         replay.finish().is_err(),
@@ -376,6 +381,7 @@ fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
         right,
         right_location,
         &mut capture,
+        &mut None,
     ));
     let snapshot = capture.finish().expect("closed unknown snapshot").snapshot;
     assert_eq!(snapshot.len(), 4);
@@ -390,6 +396,7 @@ fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
         right,
         right_location,
         &mut replay,
+        &mut None,
     ));
     assert!(replay.finish().is_ok());
 
@@ -403,6 +410,7 @@ fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
         right,
         right_location,
         &mut replay,
+        &mut None,
     );
     assert!(
         replay.finish().is_err(),
@@ -620,6 +628,7 @@ fn shared_symbol_offset_snapshot_preserves_plain_and_shifted_values() {
             segment_index: 0,
         },
         &mut selectors,
+        &mut None,
     ));
     let snapshot = selectors
         .finish()
@@ -690,6 +699,7 @@ fn wrapping_symbol_offset_remains_unknown() {
             segment_index: 0,
         },
         &mut selectors,
+        &mut None,
     ));
     let snapshot = selectors
         .finish()

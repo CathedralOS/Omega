@@ -387,7 +387,7 @@ fn containment_bounds_survive_the_selector_snapshot_round_trip() {
     let right = [index(mid)];
 
     let (may_overlap, containment, closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[], &mut None);
     let snapshot = closure.snapshot;
     assert!(may_overlap);
     assert_eq!(containment, CapturedPlaceContainment::Same);
@@ -411,7 +411,15 @@ fn containment_bounds_survive_the_selector_snapshot_round_trip() {
         "both point bounds are frozen at their exact selector positions"
     );
     assert_eq!(
-        place_segments_compatibility_from_snapshot(&program, &left, &right, &snapshot, &[], &[]),
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &snapshot,
+            &[],
+            &[],
+            &mut None
+        ),
         Ok((may_overlap, containment))
     );
 
@@ -424,13 +432,22 @@ fn containment_bounds_survive_the_selector_snapshot_round_trip() {
             &snapshot[..1],
             &[],
             &[],
+            &mut None,
         ),
         Err(CompatibilityReplayDrift::SelectorSnapshot)
     );
     let mut reordered = snapshot.clone();
     reordered.swap(0, 1);
     assert_eq!(
-        place_segments_compatibility_from_snapshot(&program, &left, &right, &reordered, &[], &[],),
+        place_segments_compatibility_from_snapshot(
+            &program,
+            &left,
+            &right,
+            &reordered,
+            &[],
+            &[],
+            &mut None
+        ),
         Err(CompatibilityReplayDrift::SelectorSnapshot)
     );
 }
@@ -476,7 +493,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
     // Without the stated relation the symbolic point stays conservatively
     // inside the window.
     let (unpremised_overlap, _, unpremised_closure) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[], &mut None);
     assert!(unpremised_overlap);
     assert!(unpremised_closure.premises.is_empty());
 
@@ -490,6 +507,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
         &left,
         &right,
         std::slice::from_ref(&premise),
+        &mut None,
     );
     assert!(
         !may_overlap,
@@ -510,6 +528,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
             &closure.snapshot,
             std::slice::from_ref(&premise),
             &closure.premises,
+            &mut None,
         ),
         Ok((false, CapturedPlaceContainment::None))
     );
@@ -526,6 +545,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
             &closure.snapshot,
             &[],
             &closure.premises,
+            &mut None,
         ),
         Err(CompatibilityReplayDrift::Premise)
     );
@@ -539,6 +559,7 @@ fn stated_premise_disjoins_a_symbolic_point_from_a_window() {
             &closure.snapshot,
             std::slice::from_ref(&premise),
             &tampered,
+            &mut None,
         ),
         Err(CompatibilityReplayDrift::Premise)
     );
@@ -555,7 +576,7 @@ fn stated_premise_disjoins_two_symbolic_points() {
     let right = [index(j)];
 
     let (unpremised_overlap, _, _) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[], &mut None);
     assert!(
         unpremised_overlap,
         "unordered symbols remain conservatively overlapping"
@@ -571,6 +592,7 @@ fn stated_premise_disjoins_two_symbolic_points() {
         &left,
         &right,
         std::slice::from_ref(&premise),
+        &mut None,
     );
     assert!(!may_overlap);
     assert_eq!(containment, CapturedPlaceContainment::None);
@@ -583,6 +605,7 @@ fn stated_premise_disjoins_two_symbolic_points() {
             &closure.snapshot,
             std::slice::from_ref(&premise),
             &closure.premises,
+            &mut None,
         ),
         Ok((false, CapturedPlaceContainment::None))
     );
@@ -600,7 +623,7 @@ fn stated_premise_disjoins_a_fixed_index_before_a_symbolic_window() {
     let right = [index(window)];
 
     let (unpremised_overlap, _, _) =
-        place_segments_compatibility_with_snapshot(&program, &left, &right, &[]);
+        place_segments_compatibility_with_snapshot(&program, &left, &right, &[], &mut None);
     assert!(unpremised_overlap);
 
     let premise = ordering_premise(
@@ -613,6 +636,7 @@ fn stated_premise_disjoins_a_fixed_index_before_a_symbolic_window() {
         &left,
         &right,
         std::slice::from_ref(&premise),
+        &mut None,
     );
     assert!(
         !may_overlap,
@@ -644,6 +668,7 @@ fn stated_equality_premise_proves_two_points_the_same_extent() {
         &left,
         &right,
         std::slice::from_ref(&premise),
+        &mut None,
     );
     assert!(may_overlap);
     assert_eq!(containment, CapturedPlaceContainment::Same);
@@ -674,6 +699,7 @@ fn a_stated_ordering_premise_cannot_move_a_point_inside_the_window() {
         &left,
         &right,
         std::slice::from_ref(&premise),
+        &mut None,
     );
     assert!(may_overlap);
     assert!(

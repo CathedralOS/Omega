@@ -47,6 +47,7 @@ fn indexed_reads_retain_element_coordinates_and_each_selector_dependency() {
         let expression = binary.right;
         let label = program.expression_table.display_name(expression);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = facts.expression_dependencies[0]
             .reads
@@ -111,6 +112,7 @@ fn selector_constant_folding_requires_the_selected_builtin_arithmetic() {
             .expect("window");
         let state = &program.machine_states(machine)[0];
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(
             &program,
             machine,
@@ -156,6 +158,7 @@ fn missing_selector_expression_or_symbol_does_not_establish_complete_reads() {
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(facts.expression_dependencies[0].reads.is_none());
     }
@@ -182,6 +185,7 @@ fn authored_index_operators_do_not_claim_builtin_element_reads() {
             .expect("window");
         let state = &program.machine_states(machine)[0];
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(
             &program,
             machine,
@@ -206,6 +210,7 @@ fn a_selected_index_operator_reads_exactly_its_checked_operands() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
@@ -250,6 +255,7 @@ fn a_selected_range_operator_reads_its_window_operands() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
@@ -314,6 +320,7 @@ fn a_selected_index_operator_needs_stable_checked_custody() {
             .expect("checked use row");
         mutate(operators.uses.get_mut(handle));
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
@@ -340,6 +347,7 @@ fn a_second_use_row_disagreeing_with_the_selection_is_inconsistent_custody() {
     duplicate.status = checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
     operators.uses.append(duplicate);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -391,6 +399,7 @@ fn a_selected_index_operator_reads_the_captured_selector_value() {
     ));
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -470,6 +479,7 @@ fn a_selected_index_operand_keeps_independent_custody_from_the_outer_read() {
                 checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.statement_index = 0;
         facts.record_expression_dependencies(&program, machine, state, inner_expression);
@@ -534,6 +544,7 @@ fn a_selected_index_operator_with_an_open_range_stays_incomplete() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -560,6 +571,7 @@ fn a_requires_scope_selected_operator_has_no_statement_use_custody() {
     let expression = binary.right;
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(
@@ -579,6 +591,7 @@ fn dynamic_contract_reads_retain_current_parameter_identities() {
     let machine = &program.machines()[0];
     let state = &program.machine_states(machine)[0];
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     crate::checks::ranges::requirements::seed_state_requires(&program, &mut facts, machine, state);
     let rows = facts
         .expression_dependencies
@@ -628,6 +641,7 @@ fn a_reference_read_below_an_index_is_not_an_integer_snapshot() {
         })
         .expect("reference copy");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.prove_index_upper_bound(program.expression_table.display_name(expression), 5);
     facts.alias_integer_place_value(&program, machine, state, expression, local.symbol, "cut");
     assert!(!facts.index_upper_bound_is_proven("cut", 5));
@@ -647,6 +661,7 @@ fn a_builtin_range_window_reads_its_collection_and_both_bounds() {
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -699,6 +714,7 @@ fn a_constant_range_window_keeps_its_exact_extent() {
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -766,6 +782,7 @@ fn an_open_builtin_window_reads_only_its_present_bounds() {
         let (machine, state) = window(&program);
         let expression = initializer(&program, state);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = facts.expression_dependencies[0]
             .reads
@@ -819,6 +836,7 @@ fn a_window_bound_with_authored_arithmetic_and_no_checked_custody_stays_incomple
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -856,6 +874,7 @@ fn a_selected_arithmetic_window_bound_reads_its_checked_operands() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
@@ -939,6 +958,7 @@ fn a_selected_arithmetic_point_selector_reads_its_operands_and_stays_conservativ
     ));
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -1053,6 +1073,7 @@ fn a_constant_shaped_selected_arithmetic_application_stays_incomplete() {
         *statement_index = 0;
         operators.uses.append(fabricated);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
@@ -1096,6 +1117,7 @@ fn a_selected_arithmetic_bound_needs_stable_checked_custody() {
             .expect("checked use row for the arithmetic bound");
         mutate(operators.uses.get_mut(handle));
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
@@ -1135,6 +1157,7 @@ fn nested_selected_arithmetic_bounds_each_keep_their_own_custody() {
                 checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = &facts.expression_dependencies[0].reads;
@@ -1178,6 +1201,7 @@ fn a_builtin_operator_over_a_selected_application_reads_every_leaf_operand() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
@@ -1227,6 +1251,7 @@ fn a_requires_scope_selected_arithmetic_selector_has_no_statement_use_custody() 
     let expression = binary.right;
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(
@@ -1277,6 +1302,7 @@ fn a_wrapped_authored_arithmetic_selector_reads_every_operand() {
         let expression = initializer(&program, state);
         let operators = selected_operator_facts(&program);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = facts.expression_dependencies[0]
@@ -1362,6 +1388,7 @@ fn a_wrapper_over_a_refused_operand_family_stays_incomplete() {
                 checked_trees::CheckedOperatorResolutionStatus::Ambiguous;
         }
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_operators = Some(&operators);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
@@ -1395,6 +1422,7 @@ fn a_requires_scope_wrapped_arithmetic_selector_has_no_statement_use_custody() {
     let expression = binary.right;
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(
