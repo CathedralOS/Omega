@@ -165,6 +165,18 @@ the complete product bar; focused successes below do not establish that baseline
   locals use established initializer/guard/call facts. `T in D` is reserved for
   an intentionally named domain identity, not generated interval sugar.
 
+  **Its `range_*` library tests are nondeterministic on main, measured
+  2026-09-25 at 7650781232.** One unchanged tree failed
+  `range_expression_dependencies::operand_writes_retire_direct_uses_and_later_
+  captures_but_keep_earlier_copies` on one run and two different
+  `range_index_dependencies` tests on the next. It reproduces under
+  `--test-threads=1`, so it is not cross-test leakage; the verdict caches in
+  `machine_calls/calls/write_frames/isolation.rs` include
+  `HashMap<*const DataDefinition, bool>`, and iteration order over pointer keys
+  moves with ASLR between runs. Until this is settled, a failure COUNT
+  attributes nothing: compare `-E 'not test(/range_/)'`, which is 0 on main,
+  and read the named failures rather than the total.
+
   **Owner directive (2026-09-24): do not replace a scalar range with a named
   domain whose only meaning is that range.** This is a source-quality and
   semantic-modeling requirement, not a suggestion or optimization preference.
