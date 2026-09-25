@@ -55,7 +55,9 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state classify(&mut self, index: u64 [0..=15]) {
+    state classify(&mut self, index: u64)
+    requires index <= 15
+    {
         let token: Token = self.tokens[index];
         transition token {
             Token::Word -> word(index, token.start)
@@ -63,18 +65,22 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state word(&mut self, index: u64 [0..=15], start: u64 in Trapping) {
+    state word(&mut self, index: u64, start: u64 in Trapping)
+    requires index <= 15
+    {
         self.total = self.total + start;
         transition { _ -> scan(index + 1) }
     }
 
     state number(
         &mut self,
-        index: u64 [0..=15],
+        index: u64,
         start: u64 in Trapping,
         value: u64 in Trapping,
         kind: Kind
-    ) {
+    )
+    requires index <= 15
+    {
         transition kind {
             Kind::Weighted { weight } -> weighted(index, start, value, weight)
             _ -> plain(index, start, value)
@@ -83,25 +89,31 @@ machine Main::main(&mut self) reaches Console {
 
     state weighted(
         &mut self,
-        index: u64 [0..=15],
+        index: u64,
         start: u64 in Trapping,
         value: u64 in Trapping,
         weight: u64 in Trapping
-    ) {
+    )
+    requires index <= 15
+    {
         transition start == 4 {
             true -> accumulate(index, value * weight)
             _ -> bad()
         }
     }
 
-    state plain(&mut self, index: u64 [0..=15], start: u64 in Trapping, value: u64 in Trapping) {
+    state plain(&mut self, index: u64, start: u64 in Trapping, value: u64 in Trapping)
+    requires index <= 15
+    {
         transition start == 9 {
             true -> accumulate(index, value)
             _ -> bad()
         }
     }
 
-    state accumulate(&mut self, index: u64 [0..=15], amount: u64 in Trapping) {
+    state accumulate(&mut self, index: u64, amount: u64 in Trapping)
+    requires index <= 15
+    {
         self.total = self.total + amount;
         transition { _ -> scan(index + 1) }
     }

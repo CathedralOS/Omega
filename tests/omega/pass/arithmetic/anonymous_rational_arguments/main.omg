@@ -16,7 +16,9 @@ ensures result == 6
     identity(7i32 / 2 * 2)
 }
 
-machine bounded(value: i32 [7..=7]) {}
+machine bounded(value: i32)
+requires value == 7
+{}
 
 machine bounded_argument()
 {

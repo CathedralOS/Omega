@@ -11,7 +11,9 @@ data Main {
     cells: [Cell; 3];
     r: i32;
 }
-machine Main::pick(&self, cells: [Cell; 3], i: u64 [0..=2]) -> i32 {
+machine Main::pick(&self, cells: [Cell; 3], i: u64) -> i32
+requires i <= 2
+{
     transition { _ -> (cells[i].x + 5) }
 }
 machine Main::main(&mut self) reaches Console {

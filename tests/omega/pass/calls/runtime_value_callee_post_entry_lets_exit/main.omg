@@ -9,19 +9,25 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::swap_digits(&self, x: i32 [0..=99]) -> i32 {
+machine Main::swap_digits(&self, x: i32) -> i32
+requires 0 <= x && x <= 99
+{
     transition x > 0 {
         true -> work(x)
         false -> 0
     }
-    state work(&self, x: i32 [0..=99]) -> i32 {
+    state work(&self, x: i32) -> i32
+    requires 0 <= x && x <= 99
+    {
         let tens: i32 [0..=9] = x / 10;
         let ones: i32 [0..=9] = x % 10;
         transition {
             _ -> emit(ones, tens)
         }
     }
-    state emit(&self, ones: i32 [0..=9], tens: i32 [0..=9]) -> i32 {
+    state emit(&self, ones: i32, tens: i32) -> i32
+    requires 0 <= ones && ones <= 9 && 0 <= tens && tens <= 9
+    {
         let combined: i32 [0..=99] = ones * 10 + tens;
         transition {
             _ -> (combined)
