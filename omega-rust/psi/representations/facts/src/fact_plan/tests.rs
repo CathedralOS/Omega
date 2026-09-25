@@ -246,6 +246,7 @@ fn expression_places_resolve_attached_data_members() {
     let mut machine = typed_trees::machine::Machine {
         symbol: machine_symbol,
         name: Identifier::generated("Main::main"),
+        target: None,
         supply_mode: Default::default(),
         termination_plan: Default::default(),
         service_reach_row: Default::default(),

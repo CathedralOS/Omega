@@ -109,20 +109,19 @@ pub(super) fn interior_byte_region_source(
     let offset = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Integer(literal) => literal.value_i64().filter(|offset| *offset >= 0),
         _ => {
-            let declared_high = crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                indexed.index,
-            )
-            .and_then(|raw| {
-                let interval =
-                    crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-                        program, raw,
-                    )?;
-                let high = interval.high()?;
-                (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
-            });
+            // The offset place's standing bounds: its declared range, an
+            // immutable parameter's `requires`, or its data's `where` facts.
+            let declared_high =
+                crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+                    program,
+                    machine,
+                    state,
+                    indexed.index,
+                )
+                .and_then(|interval| {
+                    let high = interval.high()?;
+                    (interval.low().is_none_or(|low| low >= 0) && high >= 0).then_some(high)
+                });
             // A composite offset (`k * 2`) bounds through the structural
             // walk over its own operands; where a declared range also
             // resolves, the tighter of the two upper bounds is the sound

@@ -109,6 +109,7 @@ pub enum MachineSupplySnapshot {
     TopLevelRequirement,
     Boundary,
     AdmissionClaim,
+    TargetSibling,
     ExternalRealization {
         #[serde(skip_serializing_if = "Option::is_none")]
         binding: Option<u32>,
@@ -333,6 +334,7 @@ fn machine_supply_snapshot(supply: language_semantics::MachineSupplyMode) -> Mac
         MachineSupplyMode::TopLevelRequirement => MachineSupplySnapshot::TopLevelRequirement,
         MachineSupplyMode::Boundary => MachineSupplySnapshot::Boundary,
         MachineSupplyMode::AdmissionClaim => MachineSupplySnapshot::AdmissionClaim,
+        MachineSupplyMode::TargetSibling => MachineSupplySnapshot::TargetSibling,
         MachineSupplyMode::ExternalRealization { binding, mechanism } => {
             MachineSupplySnapshot::ExternalRealization {
                 binding: binding.map(|binding| binding.0),

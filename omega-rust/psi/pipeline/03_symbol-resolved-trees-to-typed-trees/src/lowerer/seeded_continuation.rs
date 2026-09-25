@@ -613,7 +613,7 @@ fn exact_extension_machine_symbol(
     let type_parameters = source.data_type_parameters(machine.type_parameters);
     if !machine.symbol.is_valid()
         || source.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
-        || source.symbols.name(machine.symbol) != machine.name.as_str()
+        || source.symbols.name(machine.symbol) != machine.symbol_spelling()
         || !type_parameters
             .iter()
             .all(|parameter| {

@@ -1,6 +1,6 @@
 data RandomState {
     seed: u64 in Wrapping;
-    calls: UInt;
+    calls: u64 in Wrapping;
 }
 
 data Random {

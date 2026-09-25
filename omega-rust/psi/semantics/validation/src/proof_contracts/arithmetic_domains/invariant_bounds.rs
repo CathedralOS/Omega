@@ -89,6 +89,56 @@ pub fn immutable_integer_expression_bounds(
     Some((value.interval.low?, value.interval.high?))
 }
 
+/// A place's standing bounds at any read: the immutable bounds above, or for
+/// a mutable place what every store enforces -- its declared range and its
+/// data's `where` facts.
+pub(crate) fn standing_integer_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    let place_type = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        expression,
+    );
+    let interval = immutable_integer_expression_interval(program, machine, state, expression)
+        .or_else(|| {
+            let declared =
+                place_type.and_then(|handle| super::range_constraint_interval(program, handle));
+            let facts = crate::proof_contracts::default_domains::where_fact_interval(
+                program,
+                machine,
+                Some(state),
+                expression,
+            );
+            match (declared, facts) {
+                (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
+                (declared, facts) => declared.or(facts),
+            }
+        })?;
+    // A place's bare carrier range states nothing beyond its type; callers
+    // that report a missing bound must still see none.
+    let carrier = place_type
+        .and_then(|handle| program.primitive_type_reference(handle))
+        .and_then(super::integer_ranges::primitive_range);
+    (carrier != Some(interval)).then_some(interval)
+}
+
+/// [`standing_integer_interval`] as open-ended endpoints, for checkers
+/// outside validation.
+pub fn standing_integer_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    standing_integer_interval(program, machine, state, expression)
+        .map(|interval| (interval.low, interval.high))
+}
+
 /// The bounds every evaluation of one state parameter satisfies: its exact
 /// carrier and declared range, narrowed for an immutable parameter by its
 /// state's `requires` comparisons. Either endpoint may be open.

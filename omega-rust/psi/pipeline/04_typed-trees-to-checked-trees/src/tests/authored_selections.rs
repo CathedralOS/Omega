@@ -285,9 +285,16 @@ fn successful_checking_rejects_any_unresolved_authored_selection() {
     )
     .expect_err("unjoinable authored selection must fail before checked trees are issued");
 
-    assert!(diagnostic.message.contains(
-        "authored StaticArgument declaration selection occurrence 0 remained unresolved"
-    ));
+    assert!(
+        diagnostic
+            .message
+            .contains("authored StaticArgument declaration selection occurrence 0 (`")
+    );
+    assert!(
+        diagnostic
+            .message
+            .contains("remained unresolved after successful checking")
+    );
     assert!(!typed.authored_declaration_selections().all_finalized());
 }
 

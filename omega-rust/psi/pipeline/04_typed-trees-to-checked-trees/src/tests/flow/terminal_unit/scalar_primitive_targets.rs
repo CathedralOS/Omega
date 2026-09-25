@@ -392,6 +392,8 @@ fn requires_bound_runtime_index_produces_a_runtime_element_store() {
             "requires index < 4",
             "requires index >= 0 && index <= 3",
             "requires index <= 3 && value <= 9",
+            // The mirror spelling states the same bound.
+            "requires 4 > index",
         ] {
             let checked = checked_program(&format!(
                 r#"
@@ -451,11 +453,6 @@ fn requires_conjuncts_other_than_the_selector_bound_do_not_admit_the_store() {
         // A disjunction is not a closed interval endpoint.
         "machine forward(values: &mut [u16; 4], index: u64, flag: bool)
         requires index <= 3 || flag
-        { values[index] = 17; }",
-        // The mirror spelling `4 > index` does not seed the selector's own
-        // entry bound for the ordinary index proof.
-        "machine forward(values: &mut [u16; 4], index: u64)
-        requires 4 > index
         { values[index] = 17; }",
     ] {
         checked_program_result(&format!("boundary trait PortIo {{}}\n{source}"))

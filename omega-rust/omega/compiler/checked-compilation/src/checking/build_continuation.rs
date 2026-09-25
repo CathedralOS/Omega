@@ -360,7 +360,7 @@ fn lower_checked_frontend(
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typing_base = symbol_resolved_trees_to_seeded_base(resolved, timings)?;
-    selected_target_machine_declarations.admit_provider_default_calls(typing_base.typed_mut())?;
+    selected_target_machine_declarations.admit_provider_default_calls(typing_base.typed())?;
     let pending_pre_checks = pre_check
         .evaluate_or_defer(typing_base.typed_mut())?
         .into_iter()
@@ -456,7 +456,7 @@ fn try_seeded_extension(
             "generated-source continuation violated its retained-base invariant: {error:?}"
         ))]),
     }?;
-    selected_target_machine_declarations.admit_provider_default_calls(&mut typed)?;
+    selected_target_machine_declarations.admit_provider_default_calls(&typed)?;
     let mut pending_pre_checks = Vec::new();
     for pre_check in pre_checks {
         if let Some(pending) =

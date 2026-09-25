@@ -131,8 +131,13 @@ pub(crate) fn project_signature_service_reach_source_locations(
         != declared
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed signature `{}` authored reaches/invokes targets do not equal its exact normalized service-reach row",
+            "reviewed signature `{}` authored reaches/invokes targets do not equal its exact normalized service-reach row (row {:?} = {:?}, declared {:?})",
             signature.name,
+            signature.service_reach_row,
+            compilation
+                .service_reach_rows
+                .services(signature.service_reach_row),
+            declared,
         ))]);
     }
 

@@ -272,11 +272,7 @@ pub(crate) fn evaluate(
     for (probe_ordinal, (reference, carrier, bounds)) in probes.into_iter().enumerate() {
         // These names are private probe markers, not published type identity.
         let marker = format!("@const-argument-{probe_ordinal}");
-        let Some(machine) = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == marker)
-        else {
+        let Some(machine) = typed.realized_machine_named(&marker) else {
             continue;
         };
         let [state] = typed.machine_states(machine) else {

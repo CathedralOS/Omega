@@ -279,8 +279,12 @@ pub(crate) fn handle_assignment<'program>(
         .map(|(name, value)| (name.as_str(), *value))
         .collect();
     let mut all_hold = range_gates_hold(program, place);
-    let fact_spans =
-        std::iter::once(place.definition.where_facts).chain(case_fact_spans.iter().copied());
+    // Interval-only facts each bound one field, and every store to that field
+    // is range-checked against it, so they hold after any accepted store.
+    let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
+    let fact_spans = std::iter::once(place.definition.where_facts)
+        .filter(|_| !store_checked)
+        .chain(case_fact_spans.iter().copied());
     for fact in fact_spans.flat_map(|span| program.proof_facts.span_or_empty(span)) {
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {

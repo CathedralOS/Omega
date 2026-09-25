@@ -457,6 +457,8 @@ mod tests {
             spelling: None,
             is_public: false,
             supply_mode: Default::default(),
+            target: None,
+            target_symbol_name: Default::default(),
             body_is_present: true,
             has_structural_type_equations: false,
             structural_type_equations_pending: false,
