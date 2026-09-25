@@ -13,6 +13,6 @@ pub(crate) fn derive_checked_collection_view_intrinsic(
         return None;
     };
     super::contexts::checked_collection_view_intrinsic_from_exact_owner(
-        program, facts, expression, call,
+        program, facts, expression, call, None,
     )
 }
