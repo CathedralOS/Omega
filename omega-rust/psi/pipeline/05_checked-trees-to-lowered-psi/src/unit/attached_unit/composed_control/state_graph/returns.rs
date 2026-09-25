@@ -504,6 +504,8 @@ pub(super) fn validate_structural(
 
 pub(super) fn result(
     plan: &CheckedControlResultPlan,
+    reference_sources: &[checked_trees::CheckedReferenceResultSourcePlan],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
     catalogs: &mut catalogs::ComposedCatalogs,
     places: &mut Vec<StructuralPlaceDeclaration>,
 ) -> Result<TerminalMachineResult, LoweringError> {
@@ -523,9 +525,30 @@ pub(super) fn result(
         id: place,
         kind: StructuralPlaceKind::Result,
     });
+    // Each reference leaf names the entry parameter it borrows from, exactly
+    // as an ordinary structural return declares it; wire maps use canonical
+    // path order.
+    let mut reference_sources = reference_sources
+        .iter()
+        .map(|reference| {
+            let arguments = crate::unit::attached_unit::parameters::lower_structural_arguments(
+                std::slice::from_ref(&reference.source),
+                parameters,
+                &[],
+                &[],
+                &[],
+                &[],
+            )?;
+            Ok(terminal_psi::StructuralReferenceResultSource {
+                path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(&reference.path)?,
+                source: arguments[0].clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    reference_sources.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(TerminalMachineResult::Structural(
         StructuralResultDeclaration {
-            reference_sources: Vec::new(),
+            reference_sources,
             place,
             structural_type: lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
             multiplicity: match result.multiplicity {

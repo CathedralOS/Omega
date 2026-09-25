@@ -64,6 +64,7 @@ fn composed(plan: &CheckedUnitEffectMachinePlan) -> CheckedComposedUnitControlMa
     CheckedComposedUnitControlMachinePlan {
         machine: plan.machine,
         result: checked_trees::CheckedControlResultPlan::Unit,
+        result_reference_sources: Vec::new(),
         natural_ranks: Vec::new(),
         attachment_type_identity: plan.attachment_type_identity.clone(),
         provider_attachment_requirements: plan.provider_attachment_requirements.clone(),

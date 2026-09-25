@@ -2,9 +2,9 @@
 //! closed-sum successors.
 
 use crate::checked_trees::flow::terminal::{
-    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan, CheckedScalarBinding,
-    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
+    CheckedCallScalarArgument, CheckedProviderAttachmentRequirementPlan,
+    CheckedReferenceResultSourcePlan, CheckedScalarBinding, CheckedScalarBranchDestination,
+    CheckedScalarGuardedExit, CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan,
@@ -19,6 +19,10 @@ use typed_trees::types::PrimitiveType;
 pub struct CheckedComposedUnitControlMachinePlan {
     pub machine: SymbolHandle,
     pub result: CheckedControlResultPlan,
+    /// For a structural result holding references: each reference leaf of
+    /// the result and the entry parameter it borrows from, as the ordinary
+    /// structural return names them. Empty for a reference-free result.
+    pub result_reference_sources: Vec<CheckedReferenceResultSourcePlan>,
     /// Exact cyclic-state subjects and natural-valued measures selected by the
     /// checked witness. Empty means this shared plan retains no witness.
     pub natural_ranks: Vec<CheckedStateNaturalRank>,
