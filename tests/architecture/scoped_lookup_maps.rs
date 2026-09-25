@@ -30,6 +30,12 @@ const MAP_MARKERS: [&str; 2] = ["HashMap", "BTreeMap"];
 /// cannot serve — the record the "measured reason" clause asks for, grouped
 /// by justification class as in the audit doc.
 const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
+    // A spelling the symbol tree has no entry for: the reference never
+    // resolved, or the construct carries a name and no symbol at all.
+    (
+        "omega-rust/psi/semantics/validation/src/machine_calls/calls/write_frames/isolation.rs",
+        "definition indexes for a spelling with no resolved symbol — the cache          indexes `by_symbol` first and consults `by_name` only when          `symbol.is_valid()` is false, or for a `TableStructLiteral`, whose          `type_name` is a spelling the literal carries in place of a symbol",
+    ),
     // One generic application's own parameter spellings bound to chosen
     // arguments — substitution environments, not declaration lookup.
     (

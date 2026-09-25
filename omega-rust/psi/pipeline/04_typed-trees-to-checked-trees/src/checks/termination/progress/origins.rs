@@ -20,7 +20,7 @@ pub(super) fn at_call(
     call: &FlowCallFact,
     subject: ProgressSubject,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<ProgressSubject> {
+) -> Option<Vec<ProgressSubject>> {
     let mut place = CanonicalPlace {
         root: PlaceRoot::Symbol(subject.root),
         segments: Vec::new(),
@@ -59,6 +59,9 @@ pub(super) fn at_call(
         &resolve,
     )
     .unwrap_or(place);
+    if let Some(subjects) = disagreeing_call_result_subjects(program, frames, state, call, &place) {
+        return Some(subjects);
+    }
     let place = flow::value_origin_at_call_resolving(
         program,
         flow,
@@ -78,6 +81,72 @@ pub(super) fn at_call(
         place.root,
         &place.segments,
     )
+    .map(|subject| vec![subject])
+}
+
+/// The subjects a demanded call result descends from when the callee's routes
+/// DISAGREE, or `None` when they do not.
+///
+/// The shared backward trace carries one origin: its `resolve` closure returns
+/// a single place, so a call whose arms name different inputs stays opaque to
+/// it however exactly each arm is known. The arms are each exact, so the result
+/// descends from one of them and the demand holds only if it holds for ALL --
+/// `lineage::resolve` already turns a subject set into one premise apiece.
+/// This reaches a demand that names the bound local itself; a projection the
+/// trace still has to walk keeps the single-origin path.
+fn disagreeing_call_result_subjects(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    place: &CanonicalPlace,
+) -> Option<Vec<ProgressSubject>> {
+    let PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
+    let statements = program
+        .statement_table
+        .statements(typed_state.statement_nodes);
+    let (statement_index, local) = statements
+        .get(..call.statement_index)?
+        .iter()
+        .enumerate()
+        .find_map(|(index, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == root => Some((index, local)),
+            _ => None,
+        })?;
+    let ExpressionNode::Call(initializer) =
+        program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    let places = call_result_place(
+        program,
+        frames,
+        ArgumentScope::Caller {
+            state,
+            statement_index,
+        },
+        initializer,
+        &place.segments,
+        16,
+    )?;
+    if places.len() < 2 {
+        // One route is the ordinary origin the shared trace already carries.
+        return None;
+    }
+    let mut subjects = Vec::with_capacity(places.len());
+    for place in places {
+        let subject = crate::checks::termination::progress::fact_subjects::subject_from_place(
+            place.root,
+            &place.segments,
+        )?;
+        if !subjects.contains(&subject) {
+            subjects.push(subject);
+        }
+    }
+    Some(subjects)
 }
 
 /// The exact caller-side place a premise-bearing call argument names. A
