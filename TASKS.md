@@ -122,10 +122,21 @@ the complete product bar; focused successes below do not establish that baseline
   (`runtime_provable_field_construction_exit`), or the entry's unit plan
   (`runtime_exact_guarded_shift_count_exit`,
   `runtime_exclusive_range_constraint_exit`,
-  `runtime_shift_count_proven_range_exit`). A machine `ensures` cannot use its
-  state's arrival `requires` (`bounded_guarded_increment`), and a state
-  `requires` is not proved across its guarded self-transition
-  (`runtime_dispatch_binary_call_argument_exit`). The
+  `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
+  19 further pass fixtures now use `requires`/`ensures`. The rest keep
+  brackets. Build-time evaluation refuses an authored `requires`: its
+  `closure_validation.rs` has no checked invocation proof before checking.
+  That blocks the plan-laid layout, wire-policy and interrupt-table
+  `evaluate` machines and `runtime_const_measured_recursion_exit`.
+  Terminal lowering proofs do not read parameter `requires`
+  (`runtime_post_entry_deep_chain_exit`). The call-requirement prover binds
+  parameters but not an immutable local bounded only by its guard
+  (`runtime_dispatch_binary_call_argument_exit`), a guarded field read
+  (`runtime_guard_narrowed_transition_arg_exit`), a nested value call's
+  result (`nested_value_call_arg_compile`), a library payload range
+  (`runtime_console_bounded_line_exit`), or an anonymous rational
+  transition actual (`anonymous_rational_arguments`). Ensures arithmetic
+  formation ignores `requires` (`accumulator_guarantee_exit`). The
   sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
   fields have their bracketed spelling back, and the four index fields run
   unbounded because Terminal infers their loop-header bounds. Their
