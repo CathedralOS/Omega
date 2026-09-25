@@ -205,7 +205,7 @@ machine MacosArm64::extent_shape(shape: ValueShape, signature: &BoundarySignatur
         }
     }
     state field_range(signature: &BoundarySignature, first_field: u64 [0..=254]) -> bool {
-        let second_field: u64 [1..=255] = first_field + 1;
+        let second_field: u64 = first_field + 1;
         transition second_field < signature.field_count {
             true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
             _ -> no()
