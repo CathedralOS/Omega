@@ -31,12 +31,12 @@ pub fn project_checked_callable_policy<'a>(
         ));
     }
     let build = compilation.custody.selected_build_machine_symbol();
-    let source = compilation
-        .custody
-        .pre_selected_dispatch_source_trees(&compilation.typed)?;
-    crate::capture::behavior::policy::validate_call_receiver_roots(&source, &compilation.facts)?;
-    let mutation_resolver = validation::CallFrameResolver::new(&source)
-        .ok_or_else(|| rejected("pre-selected-dispatch source has no exact call resolver"))?;
+    // Selected dispatch changes no checked body, so the settled trees are the
+    // authored source the policy callables classify.
+    let source = &compilation.typed;
+    crate::capture::behavior::policy::validate_call_receiver_roots(source, &compilation.facts)?;
+    let mutation_resolver = validation::CallFrameResolver::new(source)
+        .ok_or_else(|| rejected("checked source has no exact call resolver"))?;
     let mut projected_build = false;
     let mut callables = Vec::new();
     let operational = validation::infer_operational_may(compilation);
@@ -94,7 +94,7 @@ pub fn project_checked_callable_policy<'a>(
             behavior::reachable_capability_flows(compilation, projected.realized)?;
         let mutation = behavior::mutation(
             compilation,
-            &source,
+            source,
             &mutation_resolver,
             machine,
             projected.entry,

@@ -165,9 +165,12 @@ fn produce_admitted_entry_artifact<C>(
             })
         })
         .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{product_label} production failed: {error}"
-            ))]
+            vec![Diagnostic::error(
+                match error.error().unimplemented_report() {
+                    Some(report) => report.to_owned(),
+                    None => format!("{product_label} production failed: {error}"),
+                },
+            )]
         })?;
     merge_terminal_production_timings(stage_timings, &production_timings);
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {

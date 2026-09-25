@@ -840,15 +840,6 @@ fn statement_call_target(
     Some(call.target_symbol)
 }
 
-/// The checker's selected applications a body's locals may bind: boundary
-/// operator realizations and compiler-intrinsic IEEE FMA.
-pub(in crate::execution::terminal_unit) struct SelectedApplications<'applications> {
-    pub(in crate::execution::terminal_unit) operators:
-        &'applications [crate::SelectedOperatorApplication],
-    pub(in crate::execution::terminal_unit) ieee_float_fma:
-        &'applications [crate::SelectedIeeeFloatFmaUnitApplication],
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn build(
     program: &TypedTrees,
@@ -863,7 +854,6 @@ pub(in crate::execution::terminal_unit) fn build(
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
-    selected: SelectedApplications<'_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
@@ -1040,7 +1030,6 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_parameters: &mut *structural_parameters,
                     entry_claims,
                     trivial_affine_locals,
-                    selected: &selected,
                     trace,
                     binders: &binders,
                     erased_locals: &erased_locals,

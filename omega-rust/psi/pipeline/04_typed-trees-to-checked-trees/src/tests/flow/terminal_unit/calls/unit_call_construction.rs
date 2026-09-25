@@ -763,8 +763,6 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
             boundary_returns: &missing_cleanup.flow.terminal_boundary_scalar_returns,
             structural_returns: &missing_cleanup.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rejected
@@ -805,8 +803,6 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rejected
@@ -1114,8 +1110,6 @@ fn rejects_the_whole_composed_control_plan_when_one_leaf_loses_scalar_evidence()
             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         plans

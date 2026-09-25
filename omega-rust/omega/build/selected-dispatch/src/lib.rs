@@ -13,7 +13,6 @@ mod core_service_fixture;
 mod intrinsic_review;
 mod selected_dispatch;
 mod service_custody;
-mod source_edits;
 
 pub use boundary_dispatch::{
     selected_boundary_family_specializations, settle_selected_boundary_adapter_dispatch,
@@ -33,7 +32,6 @@ pub use service_custody::{
     derive_fused_program_entry_establishments, program_entry_service_requirements,
     validate_fused_service_terminal_custody,
 };
-pub use source_edits::SelectedDispatchSourceEdits;
 
 pub use selected_dispatch::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
@@ -42,6 +40,5 @@ pub use selected_dispatch::{
     derive_checked_specialized_operator_application_realizations,
     derive_selected_compiler_intrinsic_execution_identity,
     derive_selected_primitive_float_binary_execution, settle_selected_execution_dispatch,
-    settle_selected_execution_dispatch_with_source_edits, settle_selected_float_intrinsic_dispatch,
     validate_selected_operator_terminal_custody,
 };

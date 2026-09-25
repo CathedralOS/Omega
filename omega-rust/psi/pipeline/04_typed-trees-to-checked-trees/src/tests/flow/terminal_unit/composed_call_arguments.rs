@@ -262,8 +262,6 @@ fn composed_boundary_operands_reject_missing_duplicate_and_stale_custody() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.composed_for_machine(machine).is_none(),
@@ -404,8 +402,6 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
             boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     assert!(
         rebuilt.composed_for_machine(machine).is_none(),

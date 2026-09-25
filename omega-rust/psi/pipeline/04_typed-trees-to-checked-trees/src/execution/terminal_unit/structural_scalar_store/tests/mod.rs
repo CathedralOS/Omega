@@ -250,8 +250,6 @@ fn structural_entry_field_write_retains_its_ordered_unit_plan() {
         },
         &mut shapes,
         machine,
-        &[],
-        &[],
         None,
     )
     .expect("store plus crashing scalar argument call retains Unit machine plan");

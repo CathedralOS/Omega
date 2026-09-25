@@ -237,6 +237,38 @@ impl CheckedTrees {
     pub fn with_roots(typed: typed_trees::TypedTrees, facts: CheckFacts) -> Self {
         Self { typed, facts }
     }
+
+    /// The report for a machine whose missing Unit plan traces, through
+    /// unavailable callees, to a body that applies a boundary operator whose
+    /// selected provider has no requirement-level Terminal route. Every
+    /// consumer that explains a missing plan leads with this sentence.
+    pub fn uninstalled_operator_report(&self, machine: symbols::SymbolHandle) -> Option<String> {
+        let plans = &self.facts.flow.terminal_unit_effects;
+        let mut current = machine;
+        let mut visited = Vec::new();
+        loop {
+            let row = plans.omission_for_machine(current)?;
+            match row.stage {
+                CheckedUnitPlanOmissionStage::UninstalledOperator { operator } => {
+                    return Some(format!(
+                        "unimplemented: `{}` applies boundary operator `{}`, whose selected provider has no requirement-level Terminal route for Omega to install",
+                        self.symbols.display_path(current, "::"),
+                        self.symbols.display_path(operator, "::"),
+                    ));
+                }
+                CheckedUnitPlanOmissionStage::UnavailableCallee { target }
+                | CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target }
+                | CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => {
+                    if visited.contains(&target) {
+                        return None;
+                    }
+                    visited.push(current);
+                    current = target;
+                }
+                _ => return None,
+            }
+        }
+    }
 }
 
 impl std::ops::Deref for CheckedTrees {

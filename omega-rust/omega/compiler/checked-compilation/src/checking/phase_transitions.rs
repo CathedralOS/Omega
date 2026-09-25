@@ -28,7 +28,6 @@ pub(crate) struct CheckedProgramSurface {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SelectedExecutionSettlementSurface {
     pub(crate) program: Arc<CheckedProgram>,
-    pub(crate) dispatch_source_edits: selected_dispatch::SelectedDispatchSourceEdits,
     pub(crate) selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub(crate) selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     pub(crate) callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
@@ -336,12 +335,10 @@ pub(crate) fn settle_selected_execution(
             settlement.exact_component_progress_root,
             None,
         )?;
-    let (program, dispatch_source_edits) =
-        selected_dispatch::settle_selected_execution_dispatch_with_source_edits(
-            checked.program,
-            &checked.selected_provider_plan_facts,
-        )?;
-    checked.program = program;
+    checked.program = selected_dispatch::settle_selected_execution_dispatch(
+        checked.program,
+        &checked.selected_provider_plan_facts,
+    )?;
     let resolved_exit_bindings =
         selected_dispatch::retain_selected_compiler_intrinsic_review_identities(
             &checked.program,
@@ -398,7 +395,6 @@ pub(crate) fn settle_selected_execution(
 
     Ok(SelectedExecutionSettlementSurface {
         program: checked.program,
-        dispatch_source_edits,
         selected_provider_plan_facts: checked.selected_provider_plan_facts,
         selected_provider_grants: checked.selected_provider_grants,
         callback_placements: checked.callback_placements,

@@ -105,10 +105,6 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         &outer,
         &[],
         0,
-        control::statement_sequence::SelectedApplications {
-            operators: &[],
-            ieee_float_fma: &[],
-        },
         None,
         &control::LocalConstructionTrace::default(),
     )
@@ -122,8 +118,6 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
         },
         &mut shapes,
         machine,
-        &[],
-        &[],
         None,
     )
     .expect("retain complete ordinary Unit candidate");
@@ -157,8 +151,6 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
         },
         &mut ShapeCollector::new(program),
         machine,
-        &[],
-        &[],
         None,
     )
     .expect("call RHS belongs to the field store, not a dropped Unit call");
@@ -328,8 +320,6 @@ fn field_call_assignment_rejects_missing_stale_and_substituted_root_custody() {
                 },
                 &mut ShapeCollector::new(program),
                 machine,
-                &[],
-                &[],
                 None,
             )
             .is_none(),

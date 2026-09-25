@@ -271,8 +271,6 @@ fn initializer_call_computations_require_exact_outer_and_unique_nested_occurrenc
                     boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
                 },
-                &[],
-                &[],
             );
             assert!(
                 rebuilt.for_machine(machine.symbol).is_none(),

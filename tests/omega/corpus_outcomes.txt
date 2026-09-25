@@ -1,6 +1,7 @@
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
-# `expected` or `unexpected` when its expected.txt fragments were weighed.
+# `expected` or `unexpected` when its expected.txt fragments were weighed,
+# then any execution facts such as exit:70 or stdout:match.
 # Tab-indented lines under a fixture are its diagnostics, in order.
 fail/arithmetic/anonymous_remainder_rejected rejected 0ms expected
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
@@ -2816,13 +2817,13 @@ pass/arithmetic/runtime_f32_field_guard_exit checked 5147ms
 pass/arithmetic/runtime_float32_array_conversion_exit checked 4951ms
 pass/arithmetic/runtime_float_compare_bool_exit checked 5114ms
 pass/arithmetic/runtime_float_compare_cast_exit checked 5407ms
-pass/arithmetic/runtime_float_min_max_abs_clamp_exit checked 5668ms
+pass/arithmetic/runtime_float_min_max_abs_clamp_exit checked 25838ms
 pass/arithmetic/runtime_float_nan_comparison_exit checked 5606ms
 pass/arithmetic/runtime_float_negative_ops_exit checked 5437ms
 pass/arithmetic/runtime_float_nested_operand_exit checked 5574ms
 pass/arithmetic/runtime_float_operations_exit rejected 616ms
 	anonymous value `79/10` cannot land exactly in cast target `i32` in machine `Main::main` state `main` assignment; type an operand before division if integer division was intended
-pass/arithmetic/runtime_float_running_min_max_fold_exit checked 5246ms
+pass/arithmetic/runtime_float_running_min_max_fold_exit checked 25860ms
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 4980ms
 pass/arithmetic/runtime_fnv1a_hash_exit checked 199ms
 pass/arithmetic/runtime_gcd_euclid_exit checked 162ms
@@ -2882,7 +2883,7 @@ pass/arithmetic/runtime_shl_saturating_exit checked 173ms
 pass/arithmetic/runtime_shl_saturating_value_overflow_exit checked 174ms
 pass/arithmetic/runtime_signed_division_exit checked 174ms
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 171ms
-pass/arithmetic/runtime_sqrt_builtin_exit checked 5036ms
+pass/arithmetic/runtime_sqrt_builtin_exit checked 25326ms
 pass/arithmetic/runtime_struct_field_range_narrowing_exit checked 163ms
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 178ms
 pass/arithmetic/runtime_transition_arg_guard_narrowing_exit checked 184ms
@@ -3350,7 +3351,7 @@ pass/collections/std_option_runtime_match_exit checked 182ms
 pass/collections/std_option_storage_write checked 2ms
 pass/collections/std_option_surface checked 1ms
 pass/collections/zero_length_byte_array_admission checked 1ms
-pass/comptime/provider_boundary_range_endpoint_exit checked 212ms
+pass/comptime/provider_boundary_range_endpoint_exit checked 7840ms
 pass/comptime/runtime_const_array_length_bare_call_arm_exit rejected 18ms
 	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: machine `table_size` is not build-time admissible: machine call path `table_size -> burn` has no ordinary checked `Terminates` guarantee; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 pass/comptime/runtime_const_array_length_exit checked 204ms
@@ -3958,9 +3959,9 @@ pass/filesystem/wrapper_param_shadow_exit checked 5609ms
 pass/filesystem/wrapper_times_owner_lstat_exit checked 5644ms
 pass/float/anonymous_exact_rat_const_exit rejected 2345ms
 	authored Operator declaration selection occurrence 108 remained unresolved after successful checking (CheckedOperator)
-pass/float/build_runtime_semantics_twins checked 5878ms
-pass/float/build_runtime_semantics_twins_windows_x64 checked 5600ms
-pass/float/build_runtime_semantics_twins_x86_baseline checked 5566ms
+pass/float/build_runtime_semantics_twins checked 30479ms
+pass/float/build_runtime_semantics_twins_windows_x64 checked 29487ms
+pass/float/build_runtime_semantics_twins_x86_baseline checked 29898ms
 pass/float/exclusive_float_range_below_endpoint checked 57ms
 pass/float/expansion_float_local_guard_exit checked 5234ms
 pass/float/f32_arg_const_arith_landed_exit checked 5106ms
@@ -3978,41 +3979,36 @@ pass/float/float_trapping_invalid_traps checked 4950ms
 pass/float/float_trapping_overflow_traps checked 5124ms
 pass/float/float_trapping_propagated_infinity_traps checked 5328ms
 pass/float/float_trapping_propagated_nan_traps checked 5191ms
-pass/float/foreign_control_state_restore rejected 5027ms
-	selected operator expression Handle { arena_index: 33, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained
-pass/float/named_float_to_integer_no_context_compile checked 2272ms
-pass/float/named_provider_classification_predicates_exit checked 5194ms
-pass/float/named_provider_classify_exit checked 5255ms
-pass/float/named_provider_directed_add_exit checked 5273ms
-pass/float/named_provider_directed_divide_exit checked 5276ms
-pass/float/named_provider_directed_fused_multiply_add_exit checked 5222ms
-pass/float/named_provider_directed_multiply_exit checked 5124ms
-pass/float/named_provider_directed_square_root_exit checked 5370ms
-pass/float/named_provider_directed_subtract_exit checked 5542ms
-pass/float/named_provider_fused_multiply_add_exit checked 5344ms
-pass/float/named_provider_min_max_sqrt_exit checked 5480ms
-pass/float/named_provider_multiply_then_add_exit checked 5081ms
-pass/float/named_provider_negate_is_nan_exit checked 5303ms
-pass/float/named_requirement_fused_multiply_add_exit checked 5204ms
+pass/float/foreign_control_state_restore checked 25461ms
+pass/float/named_float_to_integer_no_context_compile checked 7178ms
+pass/float/named_provider_classification_predicates_exit checked 26069ms
+pass/float/named_provider_classify_exit checked 26159ms
+pass/float/named_provider_directed_add_exit checked 25913ms
+pass/float/named_provider_directed_divide_exit checked 12306ms
+pass/float/named_provider_directed_fused_multiply_add_exit checked 12356ms
+pass/float/named_provider_directed_multiply_exit checked 14231ms
+pass/float/named_provider_directed_square_root_exit checked 13953ms
+pass/float/named_provider_directed_subtract_exit checked 13067ms
+pass/float/named_provider_fused_multiply_add_exit checked 12967ms
+pass/float/named_provider_min_max_sqrt_exit checked 13094ms
+pass/float/named_provider_multiply_then_add_exit checked 12946ms
+pass/float/named_provider_negate_is_nan_exit checked 13297ms
+pass/float/named_requirement_fused_multiply_add_exit checked 13091ms
 pass/float/native_float_arg checked 5098ms
 pass/float/native_float_return checked 5095ms
 pass/float/native_float_two_args checked 5166ms
-pass/float/runtime_named_float_to_integer_conversion_exit checked 5447ms
-pass/float/runtime_named_float_to_integer_trapping_nan_traps checked 5336ms
-pass/float/runtime_named_float_to_integer_trapping_overflow_traps checked 5241ms
-pass/float/runtime_named_format_conversion_exit rejected 5231ms
-	selected operator expression Handle { arena_index: 44, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained
-	selected operator expression Handle { arena_index: 47, generation: 1 } is nested inside a Unit local initializer; selected Unit calls must remain direct initializers until effectful expression sequencing is retained
-pass/float/runtime_named_integer_to_float_conversion_exit checked 5072ms
+pass/float/runtime_named_float_to_integer_conversion_exit checked 13140ms
+pass/float/runtime_named_float_to_integer_trapping_nan_traps checked 12385ms
+pass/float/runtime_named_float_to_integer_trapping_overflow_traps checked 12421ms
+pass/float/runtime_named_format_conversion_exit checked 12171ms
+pass/float/runtime_named_integer_to_float_conversion_exit checked 11921ms
 pass/float/runtime_policy_adapter_matrix_exit checked 5252ms
 pass/float/runtime_std_is_finite_exit checked 5176ms
 pass/float/runtime_total_order_satisfiers_exit checked 5611ms
 pass/float/suffix_f32_single_rounding_exit checked 5342ms
 pass/float/unsuffixed_f32_argument_single_rounding_exit checked 5104ms
 pass/float/unsuffixed_f32_destination_single_rounding_exit checked 4999ms
-pass/float/x86_fma_plan_association rejected 628ms
-	machine `build` state `entry` reads a nested member `x86_deployment_features`, but data `Build` has no field `x86_deployment_features` (check the spelling of the field name)
-	machine `build` state `entry` assignment: data `Build` has no field `x86_deployment_features` (check the spelling of the field name)
+pass/float/x86_fma_plan_association checked 11803ms
 pass/generics/authored_const_application_local_destination checked 5ms
 pass/generics/closed_indexed_quantity checked 7619ms
 pass/generics/closed_sum_case_membership checked 3ms
@@ -4362,20 +4358,20 @@ pass/proofs/runtime_ranked_accumulator_guarantee_exit rejected 89ms
 pass/proofs/signature_call_premises checked 1ms
 pass/proofs/signed_rat_metric_compile checked 1052ms
 pass/providers/adapter_satisfies_compile checked 205ms
-pass/providers/checked_boundary_operator_const_application_alternate_exit checked 215ms
-pass/providers/checked_boundary_operator_const_application_exit checked 205ms
-pass/providers/checked_boundary_operator_const_application_selected_exit checked 229ms
-pass/providers/checked_boundary_operator_const_length_exit checked 242ms
-pass/providers/checked_boundary_operator_dispatch_exit checked 170ms
-pass/providers/checked_boundary_operator_physical_custody checked 176ms
+pass/providers/checked_boundary_operator_const_application_alternate_exit checked 10662ms
+pass/providers/checked_boundary_operator_const_application_exit checked 10686ms
+pass/providers/checked_boundary_operator_const_application_selected_exit checked 10600ms
+pass/providers/checked_boundary_operator_const_length_exit checked 4215ms
+pass/providers/checked_boundary_operator_dispatch_exit checked 3421ms
+pass/providers/checked_boundary_operator_physical_custody checked 3478ms
 pass/providers/checked_boundary_requirement_dispatch_exit checked 181ms
 pass/providers/checked_boundary_requirement_statement_call_exit checked 173ms
 pass/providers/checked_boundary_requirement_terminal_exit checked 192ms
-pass/providers/checked_fixed_operator_dispatch_exit checked 192ms
-pass/providers/checked_fixed_operator_physical_custody checked 182ms
-pass/providers/checked_named_boundary_operator_const_application_exit checked 254ms
-pass/providers/checked_named_boundary_operator_const_length_exit checked 213ms
-pass/providers/checked_operator_fragment_publication checked 118ms
+pass/providers/checked_fixed_operator_dispatch_exit checked 3433ms
+pass/providers/checked_fixed_operator_physical_custody checked 3336ms
+pass/providers/checked_named_boundary_operator_const_application_exit checked 9610ms
+pass/providers/checked_named_boundary_operator_const_length_exit checked 4035ms
+pass/providers/checked_operator_fragment_publication checked 3322ms
 pass/providers/component_owner_provider_override_compile checked 56ms
 pass/providers/external_boundary_requirement_via_exit checked 78ms
 pass/providers/external_leaf_dllimport_compile checked 71ms
@@ -4399,13 +4395,13 @@ pass/providers/runtime_import_call_argument_exit checked 68ms
 pass/providers/runtime_result_domain_requirement_overload_exit checked 193ms
 pass/providers/service_fused_erasure_compile checked 61ms
 pass/providers/service_fused_root_establishment checked 76ms
-pass/providers/specialized_boundary_operator_physical_custody checked 178ms
-pass/providers/specialized_fixed_operator_physical_custody checked 171ms
-pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 130ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 121ms
-pass/providers/specialized_structural_fixed_operator_hosted_native checked 144ms
-pass/providers/specialized_structural_fixed_operator_terminal_custody checked 82ms
-pass/providers/specialized_structural_fixed_operator_unit_terminal_custody checked 79ms
+pass/providers/specialized_boundary_operator_physical_custody checked 3598ms
+pass/providers/specialized_fixed_operator_physical_custody checked 3564ms
+pass/providers/specialized_mixed_structural_fixed_operator_hosted_native checked 3371ms
+pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 3271ms
+pass/providers/specialized_structural_fixed_operator_hosted_native checked 3199ms
+pass/providers/specialized_structural_fixed_operator_terminal_custody checked 1677ms
+pass/providers/specialized_structural_fixed_operator_unit_terminal_custody checked 1724ms
 pass/providers/test_owner_provider_override_compile checked 59ms
 pass/range/runtime_element_range_dataflow_exit checked 181ms
 pass/range/runtime_funnel_guard_agreement_exit checked 174ms

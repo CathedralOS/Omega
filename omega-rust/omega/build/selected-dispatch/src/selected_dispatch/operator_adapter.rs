@@ -1,15 +1,14 @@
-//! Checked boundary-operator ProviderPlan execution bridge.
+//! Checked boundary-operator ProviderPlan applications.
 //!
-//! Semantic checking and retained facts continue to name the public boundary
-//! operator. After selection, a named or fixed-token use whose exact plan row
-//! is a checked adapter redirects execution to that ordinary Omega machine
-//! body. This is the operator analogue of boundary-trait adapter dispatch;
-//! compiler intrinsics remain in `float_intrinsic_dispatch`.
+//! Semantic checking and retained facts name the public boundary operator,
+//! and execution keeps naming it: a named or fixed-token use whose exact plan
+//! row is a checked adapter is found here only so its missing requirement-level
+//! route reports `unimplemented:`. Application realizations for review and
+//! Terminal coverage derive from the same checked facts.
 
 mod application_realization;
 mod specialized_application_realization;
 mod spelled;
-mod unit;
 
 pub use application_realization::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
@@ -26,42 +25,14 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees_to_checked_trees::{SettledOperatorAdapterCall, SettledOperatorAdapterSource};
 
+/// One authored boundary-operator use whose selected row is a checked
+/// adapter, keyed by the requirement it names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OperatorAdapterRewrite {
     pub(super) expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
-    requirement_operator: symbols::SymbolHandle,
-    provider_plan_report_fingerprint: u64,
-    provider_plan_commitment: checked_trees::CheckedProviderPlanCommitment,
-    machine_symbol: symbols::SymbolHandle,
-    machine: String,
-    entry_symbol: symbols::SymbolHandle,
-    source: OperatorAdapterSource,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum OperatorAdapterSource {
-    NamedCall,
-    Spelled(Box<[ExpressionHandle]>),
-}
-
-impl OperatorAdapterRewrite {
-    /// The settlement row Psi applies for this planned rewrite.
-    pub(super) fn settled_call(&self) -> SettledOperatorAdapterCall {
-        SettledOperatorAdapterCall {
-            expression: self.expression,
-            machine: self.machine.clone(),
-            entry_symbol: self.entry_symbol,
-            source: match &self.source {
-                OperatorAdapterSource::NamedCall => SettledOperatorAdapterSource::NamedCall,
-                OperatorAdapterSource::Spelled(operands) => {
-                    SettledOperatorAdapterSource::Spelled(operands.clone())
-                }
-            },
-        }
-    }
+    pub(super) origin: CheckedValueOrigin,
+    pub(super) requirement_operator: symbols::SymbolHandle,
 }
 
 /// Rejoin every retained selected Unit call to the exact ProviderPlan still
@@ -421,26 +392,6 @@ fn stage_operator_adapter_rewrite(
     rewrites.push(rewrite);
 }
 
-pub(super) fn selected_operator_applications(
-    checked: &CheckedTrees,
-    rewrites: &[OperatorAdapterRewrite],
-) -> Result<Vec<typed_trees_to_checked_trees::SelectedOperatorApplication>, Diagnostic> {
-    rewrites
-        .iter()
-        .map(|rewrite| unit::selected_application(checked, rewrite))
-        .collect()
-}
-
-pub(super) fn validate_selected_unit_applications(
-    checked: &CheckedTrees,
-    rewrites: &[OperatorAdapterRewrite],
-) -> Result<(), Diagnostic> {
-    for rewrite in rewrites {
-        unit::validate_selected_unit_application(checked, rewrite)?;
-    }
-    Ok(())
-}
-
 fn resolve_selected_operator_adapter_call(
     checked: &CheckedTrees,
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
@@ -461,11 +412,6 @@ fn resolve_operator_adapter_call(
     operator_use: &checked_trees::CheckedNamedOperatorUseFact,
     plan: &effects::provider_plan::ProviderPlan,
 ) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
-    unit::validate_selected_unit_source_shape(
-        checked,
-        operator_use.expression,
-        operator_use.origin,
-    )?;
     let operator = exact_operator_definition(
         checked,
         operator_use.expression,
@@ -504,22 +450,16 @@ fn resolve_operator_adapter_call(
         )));
     }
 
-    let Some((machine_symbol, machine, entry_symbol)) =
-        resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
-    else {
+    if resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
+        .is_none()
+    {
         return Ok(None);
-    };
+    }
 
     Ok(Some(OperatorAdapterRewrite {
         expression: operator_use.expression,
         origin: operator_use.origin,
         requirement_operator: operator_use.selected_operator_symbol,
-        provider_plan_report_fingerprint: operator_use.provider_plan_report_fingerprint,
-        provider_plan_commitment: operator_use.provider_plan_commitment,
-        machine_symbol,
-        machine,
-        entry_symbol,
-        source: OperatorAdapterSource::NamedCall,
     }))
 }
 
@@ -784,6 +724,3 @@ pub(super) fn resolve_exact_selected_plan<'plans>(
     };
     Ok(*plan)
 }
-
-#[cfg(test)]
-mod tests;

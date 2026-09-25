@@ -129,20 +129,35 @@ only. These items land in order, and each deletes the side doors it replaces.
   on BUILD-EVALUATES-ONCE. Acceptance: Psi stages 00-07 run once for a
   two-target request and produce one Terminal artifact identity, and each
   target's native artifact is byte-identical to the single-target output for
-  the `samples_compile` corpus. Dispatch settlement no longer rewrites a
-  receiver-free top-level requirement call: it stays a requirement-level
+  the `samples_compile` corpus. Dispatch settlement rewrites no checked body.
+  A receiver-free top-level requirement call stays a requirement-level
   `BoundaryCall` owing the declaration's `scalar_requires`, stage 05 catalogs
   the checked adapters, and Omega stage 00 installs the selected one
   (`checked_boundary_requirement_*`, `lifetime_boundary_requirement_dispatch_exit`
-  run natively). Still rewritten in Psi: a `self` requirement's member call
-  (`requirement_adapter`, receiver rows only), operator adapters and float
-  intrinsics. The `self` route has no native customer on either route today:
-  a member call on a field plans as a scalar computation and its borrowed
-  field operand fails Unit planning ("call operation: structural arguments:
-  parameter source"), and the verifier's provider signature compares
-  `is_self` flags that differ between the requirement receiver and the
-  adapter's leading parameter. Scalar `ensures` of a requirement are not yet
-  retained on its Terminal declaration.
+  run natively). A boundary-operator application whose selected row is a
+  checked adapter or a compiler-known float realization also stays on the
+  operator, but Terminal Psi has no requirement-level operator application
+  for Omega to install, so the applying machine gets no Unit plan and native
+  and Terminal production reject with `unimplemented: ... applies boundary
+  operator ...` (`selected_dispatch/uninstalled.rs` names the omission). The
+  eight native builds this regressed are `providers/checked_fixed_operator_dispatch_exit`
+  (was exit 70), `checked_boundary_operator_physical_custody`,
+  `checked_fixed_operator_physical_custody`,
+  `specialized_{boundary,fixed}_operator_physical_custody` and the three
+  `specialized_*_operator_hosted_native` fixtures; the named-float fixtures
+  in `pass/float` and `pass/arithmetic` already failed natively. Lowering an
+  operator application as a `BoundaryCall` on the operator's requirement
+  (its catalog rows already name the adapters) restores them, and the float
+  realizations then need Omega-side builtin installation. A `self`
+  requirement's member call is no longer rewritten either and has no native
+  customer: a member call on a field plans as a scalar computation and its
+  borrowed field operand fails Unit planning ("call operation: structural
+  arguments: parameter source"), and the verifier's provider signature
+  compares `is_self` flags that differ between the requirement receiver and
+  the adapter's leading parameter. Selection still reaches checked facts
+  through `bind_selected_provider_plan_facts` (operator-use plan stamps) and
+  the selected float-comparison executions. Scalar `ensures` of a
+  requirement are not yet retained on its Terminal declaration.
 
 - **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` calls Psi 00-07 straight
   through, then maps the realization set over Omega 00-09 and image emission;
@@ -4463,16 +4478,16 @@ syntax and other terminal services are not prerequisites.
   adaptation, witnessed by the
   `providers/lifetime_boundary_requirement_dispatch_exit` canary;
   `selected-dispatch/boundary_dispatch.rs` still restricts direct requirements
-  to nongeneric, receiver-free signatures otherwise, and
-  `selected_dispatch/requirement_adapter.rs` separately rejects family rows.
+  to nongeneric, receiver-free signatures otherwise.
   Compose external satisfiers with structural arguments and interpreter
   provider execution. Preserve the mixed borrowed-record external customer,
   its initialized fields and reused returned value; the macOS ARM64 scalar
   control `top_level_external_requirement_returns_and_reuses_its_result_natively`
   does not establish that broader route or other-host execution.
 
-  Replace shape-specific post-check adapter rewrites with settled call-target
-  substitution keyed on the actual flow occurrence. Retain the requirement's
+  Post-check adapter rewrites are deleted; a call keeps its requirement and
+  Omega installs the selected adapter (PROVIDER-SELECTION-AFTER-TERMINAL
+  records which routes that reaches). Retain the requirement's
   package-qualified operation, complete static telescope, signature, contract,
   visibility, selected provider/adapter and era through ordinary lowering.
   This is a canonical requirement kind distinct from trait-keyed conformance

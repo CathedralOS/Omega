@@ -14,12 +14,8 @@ fn initial_finalization_restores_complete_rosters_without_changing_check_evidenc
     facts.flow.terminal_boundary_scalar_returns = Default::default();
     facts.flow.terminal_structural_scalar_returns = Default::default();
     facts.flow.terminal_unit_effects = Default::default();
-    let rebuilt = crate::execution::finalize_execution::finalize_execution(
-        &checked.typed,
-        facts,
-        crate::execution::finalize_execution::SelectedExecution::default(),
-    )
-    .expect("complete initial execution plans");
+    let rebuilt = crate::execution::finalize_execution::finalize_execution(&checked.typed, facts)
+        .expect("complete initial execution plans");
     assert_eq!(rebuilt, expected);
 }
 
@@ -72,7 +68,6 @@ fn failed_settlement_publishes_no_intermediate_facts() {
     let initial_diagnostics = crate::execution::finalize_execution::finalize_execution(
         &checked.typed,
         checked.facts.clone(),
-        crate::execution::finalize_execution::SelectedExecution::default(),
     )
     .expect_err("initial finalization must also reject the missing cleanup premise");
     assert!(initial_diagnostics.iter().any(|diagnostic| {
@@ -80,9 +75,8 @@ fn failed_settlement_publishes_no_intermediate_facts() {
             .message
             .contains("cannot prove automatic cleanup requires at scalar return edge")
     }));
-    let diagnostics =
-        crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
-            .expect_err("missing cleanup premise rejects the complete settlement");
+    let diagnostics = crate::settle_checked_execution(checked)
+        .expect_err("missing cleanup premise rejects the complete settlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -115,8 +109,6 @@ fn unit_planning_uses_explicit_callees_without_publishing_them() {
             boundary_returns: &boundary_returns,
             structural_returns: &structural_returns,
         },
-        &[],
-        &[],
     );
     assert_eq!(
         rebuilt, expected,
@@ -214,8 +206,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
-        .expect("full selected rebuild");
+    checked = crate::settle_checked_execution(checked).expect("full selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
@@ -225,8 +216,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         Some(&ordered_callee)
     );
     let rebuilt = checked.clone();
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
-        .expect("repeated full selected rebuild");
+    checked = crate::settle_checked_execution(checked).expect("repeated full selected rebuild");
     assert_eq!(checked, rebuilt, "full rebuild is idempotent");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
@@ -277,7 +267,7 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         );
     assert!(independent.for_machine(primitive_machine).is_some());
     assert!(independent.for_machine(nominal_machine).is_none());
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
+    checked = crate::settle_checked_execution(checked)
         .expect("full rebuild retains dependent nominal cleanup");
     assert_eq!(
         checked
@@ -550,8 +540,6 @@ fn primitive_scalar_call_borrows_the_body_for_a_deleted_registration_and_rejects
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         // A deleted registration leaves the callee's complete ordinary
         // scalar-result body, which the candidate closure borrows
@@ -656,16 +644,13 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(caller).is_none(),
             "result position {substituted_position} must not replace the exact result home"
         );
     }
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
-        .expect("full selected rebuild");
+    checked = crate::settle_checked_execution(checked).expect("full selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)

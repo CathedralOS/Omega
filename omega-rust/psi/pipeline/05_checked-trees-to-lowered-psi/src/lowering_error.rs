@@ -104,6 +104,21 @@ pub enum LoweringError {
     InvalidCrashPredicate(PropositionError),
 }
 
+impl LoweringError {
+    /// The `unimplemented:` report when a Unit plan is missing because the
+    /// compiler has no route for what the body does, not because the body is
+    /// invalid.
+    pub fn unimplemented_report(&self) -> Option<&str> {
+        match self {
+            Self::InvalidUnitMachinePlan {
+                omission: Some(omission),
+                ..
+            } if omission.starts_with("unimplemented:") => Some(omission),
+            _ => None,
+        }
+    }
+}
+
 impl std::fmt::Display for LoweringError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "{self:?}")

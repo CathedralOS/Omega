@@ -183,8 +183,6 @@ fn statement_call_computations_require_complete_unique_occurrence_custody() {
                     boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                     structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
                 },
-                &[],
-                &[],
             );
             assert!(
                 rebuilt.for_machine(symbol).is_none(),

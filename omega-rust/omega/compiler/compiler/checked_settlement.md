@@ -20,7 +20,7 @@ closes callback and provider receipts transactionally before checked ownership
 is shared. A compact identifier is not a replacement for these retained inputs.
 
 Selected execution then produces `SelectedExecutionSettlementSurface`. Its
-ordered work closes component-entry progress, operator/float selections,
+ordered work closes component-entry progress, selected-dispatch settlement,
 provenance, boundary-adapter associations, and task activations. Preserve that order and
 each independent sidecar when moving coordinator code; duplicating or reordering
 settlement is not a new pipeline stage.
@@ -32,8 +32,9 @@ neither selection nor evaluation fabricates replacement source calls. Terminal
 publication borrows the checked program directly. Package review reads the same
 authored boundary calls and independently checks their write frames.
 
-Operator/FMA settlement still rebuilds selected lowering plans and changes
-operator expressions. Its expression-only `SelectedDispatchSourceEdits` guards
-operand, binding and type custody for package source queries. This separate
-operator mechanism is not used to restore boundary calls. No statement undo
-journal or boundary restoration tree remains.
+Settlement changes no checked body, so package source queries read the
+settled trees directly. An operator application whose selected provider is a
+checked adapter or a compiler-known float realization keeps naming the
+operator; until Terminal Psi carries a requirement-level operator application
+for Omega to install, the machine applying it has no Unit plan and the
+omission reports `unimplemented:`.

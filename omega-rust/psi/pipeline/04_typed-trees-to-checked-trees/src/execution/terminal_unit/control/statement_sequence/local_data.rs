@@ -13,8 +13,8 @@ use super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
-    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, SelectedApplications, ShapeCollector,
-    SymbolHandle, TypeReferenceNode, TypedTrees, checked_boolean_contains_short_circuit,
+    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
+    TypeReferenceNode, TypedTrees, checked_boolean_contains_short_circuit,
     checked_structural_result_type, consume_results, consume_value_places,
     is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
     structural_operands,
@@ -32,7 +32,6 @@ pub(super) struct Planner<'a, 'program, 'shapes> {
     pub(super) entry_claims: &'a [CheckedUnitEntryClaimPlan],
     pub(super) trivial_affine_locals:
         &'a [(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
-    pub(super) selected: &'a SelectedApplications<'a>,
     pub(super) trace: &'a LocalConstructionTrace,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) erased_locals: &'a [SymbolHandle],
@@ -73,7 +72,6 @@ pub(super) fn plan(
         structural_parameters,
         entry_claims,
         trivial_affine_locals,
-        selected,
         trace,
         binders,
         erased_locals,
@@ -134,88 +132,6 @@ pub(super) fn plan(
             )?,
         ));
         *scalar_count = scalar_count.checked_add(1)?;
-        return Some(LocalPlan::Planned);
-    }
-    // A local binding a selected boundary-operator application
-    // invokes that operator's realization: scalar results bind in
-    // the scalar namespace, structural results as owned bindings.
-    local_phase("statement sequence: local data: selected operator");
-    if let Some(application) = super::super::super::selected_operator::selected_operator_application(
-        machine,
-        state,
-        index,
-        local,
-        selected.operators,
-    ) {
-        if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
-            let result = CheckedUnitScalarResultBindingPlan {
-                statement_index,
-                binding_ordinal: u32::try_from(*scalar_count).ok()?,
-                primitive_type,
-            };
-            let operation = super::super::super::selected_operator::build_selected_operator_scalar_call(
-                program, facts, state, application, result,
-            )
-            .or_else(|| {
-                super::super::super::selected_operator::build_selected_operator_structural_scalar_call(
-                    program, facts, scalar_callees, shapes, machine, state,
-                    structural_parameters, entry_claims, application, result,
-                )
-            })?;
-            *scalar_count = scalar_count.checked_add(1)?;
-            operations.push(operation);
-            return Some(LocalPlan::Planned);
-        }
-        let result = super::super::super::selected_operator::selected_operator_structural_result(
-            program,
-            shapes,
-            machine,
-            local,
-            statement_index,
-            u32::try_from(*structural_count).ok()?,
-        )?;
-        let operation =
-            super::super::super::selected_operator::build_selected_operator_structural_call(
-                program,
-                facts,
-                shapes,
-                machine,
-                state,
-                structural_parameters,
-                entry_claims,
-                application,
-                result.clone(),
-            )?;
-        *structural_count = structural_count.checked_add(1)?;
-        structural_local_symbols.push(local.symbol);
-        structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
-        operations.push(operation);
-        return Some(LocalPlan::Planned);
-    }
-    local_phase("statement sequence: local data: selected IEEE FMA");
-    if let Some(application) =
-        super::super::super::selected_ieee_float::selected_ieee_float_fma_application(
-            machine,
-            state,
-            index,
-            local,
-            selected.ieee_float_fma,
-        )
-    {
-        let result = CheckedUnitScalarResultBindingPlan {
-            statement_index,
-            binding_ordinal: u32::try_from(*scalar_count).ok()?,
-            primitive_type: program.primitive_type_reference(local.type_reference)?,
-        };
-        let operation = super::super::super::selected_ieee_float::build_selected_ieee_float_fma(
-            program,
-            facts,
-            state,
-            application,
-            result,
-        )?;
-        *scalar_count = scalar_count.checked_add(1)?;
-        operations.push(operation);
         return Some(LocalPlan::Planned);
     }
     // A consuming move out of exclusive borrowed storage opens a

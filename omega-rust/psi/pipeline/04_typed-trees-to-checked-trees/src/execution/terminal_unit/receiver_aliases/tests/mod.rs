@@ -44,8 +44,6 @@ fn forward_plan(
             boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     );
     let machine = checked
         .machines()

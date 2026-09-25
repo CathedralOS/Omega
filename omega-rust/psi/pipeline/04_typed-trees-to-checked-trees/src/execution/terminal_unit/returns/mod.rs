@@ -15,7 +15,6 @@ mod boundary_scalar_returns;
 mod guarded_call_returns;
 pub(super) mod primitive_effects;
 mod scalar_return_expressions;
-mod selected_operator;
 mod structural_return_machine;
 mod structural_scalar_returns;
 
@@ -96,8 +95,7 @@ use super::{
     CheckedStructuralCallReturnPlans, CheckedStructuralReturnPlans,
     CheckedStructuralScalarReturnMachinePlan, CheckedStructuralScalarReturnPlans,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitStructuralParameterPlan,
-    Diagnostic, ExpressionNode, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode,
-    TypedTrees,
+    Diagnostic, MachineSupplyMode, Multiplicity, StatementNode, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
@@ -106,7 +104,6 @@ use crate::execution::terminal_unit::control::build_static_boundary_requirements
 use crate::execution::terminal_unit::returns::affine_returns::build_claim_free_affine_structural_return_machine;
 use crate::execution::terminal_unit::returns::guarded_call_returns::build_payloadless_guarded_call_return_machine;
 use crate::execution::terminal_unit::returns::structural_scalar_returns::build_trait_operator_scalar_return_machine;
-use selected_operator::build_selected_operator_structural_scalar_return_machine;
 
 /// Build the exact checked carriers for `T in D -> T in D` whole-root
 /// passthrough and claim-free affine identity returns. Every wider ownership
@@ -217,7 +214,6 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
     unit_effects: &CheckedUnitEffectPlans,
-    selected_operator_applications: &[crate::SelectedOperatorApplication],
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedStructuralScalarReturnPlans {
     let mut shapes = ShapeCollector::new(program);
@@ -233,21 +229,6 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                 &mut shapes,
                 machine,
                 diagnostics,
-            )
-        })
-        .collect::<Vec<_>>();
-    let selected_operator_machines = program
-        .machines()
-        .iter()
-        .filter(|machine| machine.supply_mode == MachineSupplyMode::CheckedBody)
-        .filter_map(|machine| {
-            build_selected_operator_structural_scalar_return_machine(
-                program,
-                facts,
-                &mut shapes,
-                machine,
-                &machines,
-                selected_operator_applications,
             )
         })
         .collect::<Vec<_>>();
@@ -285,18 +266,12 @@ pub(crate) fn build_checked_structural_scalar_return_plans(
                         .map(|parameter| parameter.type_identity.as_str()),
                 )
         }))
-        .chain(selected_operator_machines.iter().flat_map(|machine| {
-            machine
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.type_identity.as_str())
-        }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
     CheckedStructuralScalarReturnPlans {
         structural_types: shapes.types.into_values().collect(),
         machines,
-        selected_operator_machines,
+        selected_operator_machines: Vec::new(),
         trait_operator_machines,
     }
 }

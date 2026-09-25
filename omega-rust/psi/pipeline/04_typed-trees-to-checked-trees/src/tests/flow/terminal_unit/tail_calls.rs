@@ -158,8 +158,6 @@ fn unit_tail_rejects_stale_outer_call_capture() {
                 boundary_returns: &changed.facts.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.facts.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(symbol).is_none(),

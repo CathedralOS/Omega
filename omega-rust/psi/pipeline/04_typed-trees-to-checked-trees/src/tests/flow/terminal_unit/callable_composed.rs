@@ -241,8 +241,6 @@ fn without_interleaved_local_evidence(
             boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
             structural_returns: &facts.flow.terminal_structural_scalar_returns,
         },
-        &[],
-        &[],
     )
 }
 

@@ -128,14 +128,13 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
                         == CheckedUnitStructuralTypeShape::PrimitiveScalar(PrimitiveType::U64)
             })
     );
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
-        .expect("selected rebuild");
+    checked = crate::settle_checked_execution(checked).expect("selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
     );
     let rebuilt = checked.clone();
-    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
+    checked = crate::settle_checked_execution(checked)
         .expect("repeated full rebuild retains primitive local storage custody");
     assert_eq!(checked, rebuilt, "full rebuild is idempotent");
 }
@@ -392,8 +391,6 @@ fn primitive_local_rejects_stale_scalar_facts_and_source_custody() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(caller).is_none(),
@@ -498,8 +495,6 @@ fn primitive_local_rejects_missing_or_substituted_borrow_events() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(caller).is_none(),
@@ -569,8 +564,6 @@ fn primitive_local_returned_binding_rejects_input_or_storage_namespace_substitut
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(caller).is_none(),
@@ -675,8 +668,6 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
                 boundary_returns: &changed.flow.terminal_boundary_scalar_returns,
                 structural_returns: &changed.flow.terminal_structural_scalar_returns,
             },
-            &[],
-            &[],
         );
         assert!(
             rebuilt.for_machine(owner).is_none(),

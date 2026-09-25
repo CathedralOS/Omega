@@ -89,6 +89,10 @@ pub enum CheckedUnitPlanOmissionStage {
     /// A scalar call has neither a registered scalar target nor an ordinary
     /// body to borrow.
     UnavailableScalarTarget { target: SymbolHandle },
+    /// The body applies a boundary operator whose selected provider has no
+    /// requirement-level Terminal route yet. Settlement names it in place of
+    /// the local-construction stop that route's absence caused.
+    UninstalledOperator { operator: SymbolHandle },
 }
 
 impl CheckedUnitEffectPlans {

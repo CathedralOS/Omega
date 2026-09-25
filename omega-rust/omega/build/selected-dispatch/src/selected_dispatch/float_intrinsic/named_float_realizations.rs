@@ -1,48 +1,14 @@
 //! Named and directed float realizations of builtins and operators.
 
 use crate::selected_dispatch::float_intrinsic::{
-    DirectedFloatBinaryOperation, NamedFloatRealization, StagedNamedFloatExecution,
+    DirectedFloatBinaryOperation, NamedFloatRealization,
 };
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::RoundingDirection;
 use numerics::literals::FloatFormat;
 use provider_planning::IntrinsicRequirement;
 use symbols::BuiltinFunction;
-
-pub(crate) fn preflight_named_float_execution(
-    checked: &CheckedTrees,
-    requirement: &IntrinsicRequirement<'_>,
-    realization: NamedFloatRealization,
-) -> Result<StagedNamedFloatExecution, Diagnostic> {
-    if let NamedFloatRealization::Negate(format) = realization {
-        return Ok(StagedNamedFloatExecution::Negate(format));
-    }
-    if let NamedFloatRealization::Convert(domain) = realization {
-        if !requirement.return_type.is_valid() {
-            return Err(Diagnostic::error(
-                "selected named conversion intrinsic has no exact return type",
-            ));
-        }
-        return Ok(StagedNamedFloatExecution::Convert {
-            domain,
-            target_type: requirement.return_type,
-        });
-    }
-    let function = named_float_realization_builtin(realization)?;
-    let symbol = checked
-        .typed
-        .symbols
-        .builtin_function_symbol(function)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "compiler builtin `{}` is absent while preflighting a selected named float intrinsic",
-                function.name(),
-            ))
-        })?;
-    Ok(StagedNamedFloatExecution::Builtin { function, symbol })
-}
 
 pub(crate) fn named_float_realization_builtin(
     realization: NamedFloatRealization,
