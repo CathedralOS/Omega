@@ -36,6 +36,236 @@ enum ReceiverType<'program> {
     Data(SymbolHandle),
 }
 
+// Every projected member-call repeats the same linear scans: the prior
+// statements for a local receiver type, the parameter roster for a
+// parameter receiver, the data-definition roster for each projection hop,
+// and the attached-machine roster for the call target. The positions are
+// stable within a program, so each roster is bucketed once and reused;
+// the statement index only grows its watermark since a state's stamped
+// prefix strictly appends.
+fn statement_sample(statement: &Statement) -> usize {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::mem::discriminant(statement).hash(&mut hasher);
+    if let Statement::LocalData(local) = statement {
+        local.symbol.arena_index().hash(&mut hasher);
+    }
+    hasher.finish() as usize
+}
+
+// Every projected member-call repeats the same linear scans: the prior
+// statements for a local receiver type, the parameter roster for a
+// parameter receiver, the data-definition roster for each projection hop,
+// and the attached-machine roster for the call target. The positions are
+// stable within a program, so each roster is bucketed once and reused;
+// the statement index only grows its watermark since a state's stamped
+// prefix strictly appends. A fresh program can recycle the same slice
+// address with different contents, so each slot carries content samples
+// of the indexed prefix alongside the pointer.
+thread_local! {
+    static LOCAL_STATEMENT_POSITIONS: std::cell::RefCell<
+        Option<(
+            *const Statement,
+            usize,
+            [usize; 3],
+            std::collections::HashMap<SymbolHandle, u32>,
+        )>,
+    > = const { std::cell::RefCell::new(None) };
+    static PARAMETER_POSITIONS: std::cell::RefCell<
+        Option<(
+            *const StateParameter,
+            usize,
+            usize,
+            std::collections::HashMap<SymbolHandle, u32>,
+        )>,
+    > = const { std::cell::RefCell::new(None) };
+    static DATA_DEFINITION_POSITIONS: std::cell::RefCell<
+        Option<(
+            *const arena::OrderedRootArena<symbol_resolved_trees::data::DataDefinition>,
+            usize,
+            usize,
+            std::collections::HashMap<SymbolHandle, u32>,
+        )>,
+    > = const { std::cell::RefCell::new(None) };
+    static ATTACHED_MACHINES_BY_OWNER: std::cell::RefCell<
+        Option<(
+            *const super::super::scope::AttachedMachine,
+            usize,
+            usize,
+            std::collections::HashMap<SymbolHandle, Vec<usize>>,
+        )>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+// Returns the first `Statement::LocalData` position naming `symbol`
+// within `statements[..len]`; positions below the watermark are
+// already indexed and stay valid for any shorter prefix of the same
+// backing slice.
+pub(in crate::symbols) fn local_statement_position(
+    statements: &[Statement],
+    symbol: SymbolHandle,
+) -> Option<u32> {
+    fn samples(statements: &[Statement], watermark: usize) -> [usize; 3] {
+        [
+            statement_sample(&statements[0]),
+            statement_sample(&statements[watermark / 2]),
+            statement_sample(&statements[watermark - 1]),
+        ]
+    }
+    LOCAL_STATEMENT_POSITIONS.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fresh = match &*slot {
+            Some((ptr, watermark, stored_samples, _)) => {
+                std::ptr::eq(*ptr, statements.as_ptr())
+                    && *watermark <= statements.len()
+                    && (*watermark == 0 || samples(statements, *watermark) == *stored_samples)
+            }
+            None => false,
+        };
+        if !fresh {
+            *slot = Some((
+                statements.as_ptr(),
+                0,
+                [0; 3],
+                std::collections::HashMap::new(),
+            ));
+        }
+        let (_, watermark, stored_samples, positions) =
+            slot.as_mut().expect("index slot is populated");
+        for (position, statement) in statements.iter().enumerate().skip(*watermark) {
+            if let Statement::LocalData(local) = statement {
+                positions.entry(local.symbol).or_insert(position as u32);
+            }
+        }
+        *watermark = statements.len();
+        *stored_samples = if *watermark == 0 {
+            [0; 3]
+        } else {
+            samples(statements, *watermark)
+        };
+        positions.get(&symbol).copied()
+    })
+}
+
+pub(in crate::symbols) fn parameter_position(
+    parameters: &[StateParameter],
+    symbol: SymbolHandle,
+) -> Option<u32> {
+    PARAMETER_POSITIONS.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let len = parameters.len();
+        let sample = |index: usize| -> usize {
+            if index < len {
+                parameters[index].symbol.arena_index() as usize
+            } else {
+                0
+            }
+        };
+        let fingerprint = sample(0).rotate_left(11)
+            ^ sample(len / 2).rotate_left(23)
+            ^ sample(len.saturating_sub(1));
+        let fresh = matches!(&*slot, Some((ptr, count, seen, _))
+            if std::ptr::eq(*ptr, parameters.as_ptr())
+                && *count == len
+                && *seen == fingerprint);
+        if !fresh {
+            let mut positions = std::collections::HashMap::new();
+            for (position, parameter) in parameters.iter().enumerate() {
+                positions.entry(parameter.symbol).or_insert(position as u32);
+            }
+            *slot = Some((parameters.as_ptr(), len, fingerprint, positions));
+        }
+        slot.as_ref()
+            .expect("index slot is populated")
+            .3
+            .get(&symbol)
+            .copied()
+    })
+}
+
+pub(in crate::symbols) fn data_definition_position(
+    definitions: &arena::OrderedRootArena<symbol_resolved_trees::data::DataDefinition>,
+    symbol: SymbolHandle,
+) -> Option<u32> {
+    DATA_DEFINITION_POSITIONS.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let len = definitions.len();
+        let sample = |index: usize| -> usize {
+            if index < len {
+                let definition = &definitions[index];
+                definition.symbol.arena_index() as usize
+                    ^ definition.name.as_str().as_ptr() as usize
+            } else {
+                0
+            }
+        };
+        let fingerprint = (definitions as *const _) as usize
+            ^ len.rotate_left(17)
+            ^ sample(0).rotate_left(31)
+            ^ sample(len / 2).rotate_left(45)
+            ^ sample(len.saturating_sub(1));
+        let fresh = matches!(&*slot, Some((ptr, count, seen, _))
+            if std::ptr::eq(*ptr, definitions as *const _)
+                && *count == len
+                && *seen == fingerprint);
+        if !fresh {
+            let mut positions = std::collections::HashMap::new();
+            for (position, definition) in definitions.iter().enumerate() {
+                positions
+                    .entry(definition.symbol)
+                    .or_insert(position as u32);
+            }
+            *slot = Some((definitions as *const _, len, fingerprint, positions));
+        }
+        slot.as_ref()
+            .expect("index slot is populated")
+            .3
+            .get(&symbol)
+            .copied()
+    })
+}
+
+pub(in crate::symbols) fn attached_machines_for_owner(
+    attached: &[super::super::scope::AttachedMachine],
+    owner: SymbolHandle,
+) -> Vec<usize> {
+    ATTACHED_MACHINES_BY_OWNER.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let len = attached.len();
+        let sample = |index: usize| -> usize {
+            if index < len {
+                attached[index].owner.arena_index() as usize
+                    ^ (attached[index].machine.arena_index() as usize).rotate_left(9)
+            } else {
+                0
+            }
+        };
+        let fingerprint = sample(0).rotate_left(11)
+            ^ sample(len / 2).rotate_left(23)
+            ^ sample(len.saturating_sub(1));
+        let fresh = matches!(&*slot, Some((ptr, count, seen, _))
+            if std::ptr::eq(*ptr, attached.as_ptr())
+                && *count == len
+                && *seen == fingerprint);
+        if !fresh {
+            let mut by_owner = std::collections::HashMap::new();
+            for (index, entry) in attached.iter().enumerate() {
+                by_owner
+                    .entry(entry.owner)
+                    .or_insert_with(Vec::new)
+                    .push(index);
+            }
+            *slot = Some((attached.as_ptr(), len, fingerprint, by_owner));
+        }
+        slot.as_ref()
+            .expect("index slot is populated")
+            .3
+            .get(&owner)
+            .cloned()
+            .unwrap_or_default()
+    })
+}
+
 fn peel<'program>(
     mut reference: &'program TypeReference,
     children: &'program Arena<TypeReference>,
@@ -109,20 +339,16 @@ pub(super) fn call_target(
             let reference = match declaration.kind {
                 SymbolKind::Parameter => {
                     &parameters
-                        .iter()
-                        .find(|parameter| parameter.symbol == name.symbol)?
+                        .get(parameter_position(parameters, name.symbol)? as usize)?
                         .type_reference
                 }
                 SymbolKind::Local => {
-                    machine
-                        .prior_statements
-                        .iter()
-                        .find_map(|statement| match statement {
-                            Statement::LocalData(local) if local.symbol == name.symbol => {
-                                Some(&local.type_reference)
-                            }
-                            _ => None,
-                        })?
+                    let position = local_statement_position(machine.prior_statements, name.symbol)?;
+                    let Statement::LocalData(local) = &machine.prior_statements[position as usize]
+                    else {
+                        return None;
+                    };
+                    &local.type_reference
                 }
                 _ => return None,
             };
@@ -146,10 +372,11 @@ pub(super) fn call_target(
                 }
                 ExpressionNode::Member(member) => {
                     let owner = receiver.nominal(children)?;
-                    let definition = machine
-                        .data_definitions
-                        .iter()
-                        .find(|definition| definition.symbol == owner && owner.is_valid())?;
+                    if !owner.is_valid() {
+                        return None;
+                    }
+                    let definition = &machine.data_definitions
+                        [data_definition_position(machine.data_definitions, owner)? as usize];
                     let members = machine
                         .data_members
                         .span_or_empty(definition.storage.members);
