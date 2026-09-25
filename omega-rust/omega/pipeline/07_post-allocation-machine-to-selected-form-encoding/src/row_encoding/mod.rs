@@ -1,3 +1,34 @@
+//! Encoding of one selected instruction's row: its bytes, or the reason its
+//! bytes wait for later layout, checked against what the post-allocation
+//! machine instruction declared.
+//!
+//! `encode_row` is the entry; `selected_form_encoding::compute` calls it for
+//! every instruction and block terminator in order, with the address
+//! `frame_address::resolve` produced for it. It takes the route the selected
+//! instruction kind declares (`route::route_of`):
+//!
+//! - a resolved-address route requires an address in the declared operation
+//!   family and encodes the memory or hosted byte form
+//!   (`encode_address_routed`);
+//! - an internal call template encodes the call with an unresolved fixup
+//!   (`scalar_call`);
+//! - a normalized foreign call template encodes the call with an unresolved
+//!   import fixup (`normalized_foreign`);
+//! - deferred control flow records that the bytes wait for resolved branch
+//!   layout;
+//! - an ordinary route encodes the self-contained form or the hosted process
+//!   exit (`encode_scalar`).
+//!
+//! Every route other than resolved-address rejects a present address. Each
+//! form is encoded by the x86-64 or AArch64 encoder for the target's
+//! architecture, and each encoded form is checked against the machine
+//! alternative: the registers it reads and writes must be those of the
+//! operands the declared effects name (`validate_operand_footprint`), and
+//! its size must be one the alternative permits (`validate_size`). The
+//! memory and ordinary forms must also produce exactly the declared encoded
+//! effects. `validation::row` checks the produced rows again with its own
+//! kind matching and does not read these routes.
+
 use isa_aarch64::encode_aarch64_selected_form;
 use isa_x86_64::encode_x86_64_selected_form;
 use physical_instructions::PostAllocationMachineInstruction;

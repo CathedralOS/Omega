@@ -1,3 +1,38 @@
+//! Statement loans: the borrows a `let` or an assignment forms. Each loan
+//! records its owner (the local, and the field path inside it that holds the
+//! reference), the place it borrows, its access kind and its lineage.
+//!
+//! `statement_borrow_loans` is the entry; `state::append_state_borrow_facts`
+//! calls it for each statement in order and records every returned
+//! `StatementBorrowLoan` as a loan fact. Loans come from:
+//!
+//! - a `let` of reference type (`reference_local_borrow_loans`);
+//! - a `let` of borrow-carrying data (`borrow_carrying_data_loans`), one loan
+//!   for each reference its initializer supplies (`aggregate`);
+//! - an assignment to an earlier local, or to a field of one, whose target is
+//!   a reference or borrow-carrying data, handled as the equivalent `let`
+//!   with the field path prefixed to each loan's owner path.
+//!
+//! For a reference `let`, `returned_carriers` is tried first, for a value
+//! taken from a call result whose fields carry borrows, and a `match` lends
+//! each arm's target. Otherwise the borrowed place comes from the borrow,
+//! recast, place expression or view-returning call
+//! (`helper_call_borrow_loan_place`, which resolves the call's returned-view
+//! source through `view_link`). A place rooted at a local that already holds
+//! a loan in this state is rebased onto that loan's place, once per such
+//! loan. `retained_reference_lineage` gives a cast, or a call that declares
+//! no direct view source, `UnretainedDerived` unless it is an explicit
+//! reborrow; otherwise a place that was not rebased is `DirectRoot`, an
+//! explicit reborrow through a single retained parent loan is `Reborrow`,
+//! and the rest are `UnretainedDerived`.
+//!
+//! `owner_paths` matches owner field paths against place segments, and
+//! `types` answers whether a type is a reference and with which access.
+//! Other modules use `borrow_initializer_expressions` (persistent storage
+//! check), `helper_call_borrow_loan_place` and
+//! `call_declares_direct_view_source` (resource lineage replay), and
+//! `types::reference_borrow_access_kind` (borrow check details).
+
 use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
     resolve_signature_view_return_source,

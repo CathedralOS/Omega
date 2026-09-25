@@ -1,3 +1,25 @@
+//! Contract fact places: the storage a callee's contract fact names,
+//! rewritten into the caller's terms at one call, and the place builders that
+//! fact construction and flow facts share.
+//!
+//! `instantiate_call_contract_place` is the entry;
+//! `semantic::facts::contracts` calls it for each contract fact of a call.
+//! For an expression or membership fact it first tries `expression`, which
+//! builds the place from the contract expression with the call's argument,
+//! receiver or result in place of each callee name. Otherwise it takes the
+//! fact's declared place (`semantic::facts::contract_fact_place`) and, when
+//! that place is rooted at a callee parameter, replaces the root with the
+//! place of the matching argument or receiver (`substitution`), keeping the
+//! remaining segments.
+//!
+//! `receiver` finds the place of a call's receiver for `expression` and
+//! `substitution`. `place_builders` appends places and segments to a
+//! `facts::FactPlan` and converts canonical flow places into fact places;
+//! flow facts and contract facts call it directly. `expression` also exports
+//! `instantiate_outcome_contract_expression_place`, which binds `result` to a
+//! given result expression, and `call_contract_argument_projection`, which
+//! the contract prover uses.
+
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::call_target_parameters;

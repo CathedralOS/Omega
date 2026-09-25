@@ -1,3 +1,38 @@
+//! Native physical evidence: for each operation that survives optimization,
+//! the machine, object and final-image byte spans that realize it, bound to
+//! the operator, boundary or dynamic call occurrence it realizes.
+//!
+//! This file defines the evidence records: the surviving occurrence roster
+//! (`NativeOptimizationProjection`), the validated scope that admits it
+//! (`ValidatedOptimizedNativePhysicalEvidenceScope`), each physical child
+//! with its parent, spans, byte digests and relocation disposition
+//! (`NativePhysicalChild`), boundary settlements, dynamic call dispatches,
+//! normalized foreign call relocations and import fields, and the gap that
+//! names where a derivation stopped (`NativePhysicalEvidenceGap`). Their
+//! fields are private. The constructor functions at the end of this file are
+//! used only by the children below; code outside `physical` reads the
+//! records, and several public records can be rebuilt from replayed parts.
+//!
+//! Three entries, all called from `native_artifact`:
+//!
+//! - `derive_validated_optimization_scope` (`projection`) builds the scope
+//!   of a validated optimized abstract plan: its surviving operator,
+//!   boundary and dynamic call occurrences, checked against the Terminal
+//!   boundary-application coverage.
+//! - `derive_fragment_publication_scope` (`fragment_publication`) first
+//!   replays the function fragment object and its normalized foreign call
+//!   custody, then builds the same scope and binds the publication to it.
+//! - `derive_physical_evidence` (`derivation`) derives the evidence for an
+//!   emitted artifact within its scope: one child per boundary occurrence,
+//!   from its installed settlement or normalized foreign call; a check that
+//!   every retained privileged port effect was consumed by a settlement; then
+//!   one child per operator occurrence and per dynamic call occurrence, whose
+//!   spans `operator_applications` derives. It returns `Complete` evidence,
+//!   `Blocked` with a gap naming the first occurrence or retained record it
+//!   could not bind, or `Unavailable` when the scope admits no derivation.
+//!   The native artifact types call it when built from emitted parts, when
+//!   rebuilt from replayed parts and when validated.
+
 mod derivation;
 mod fragment_publication;
 mod operator_applications;

@@ -25,7 +25,8 @@
 //! 10. `execution` completes the plans a checked machine executes.
 //!
 //! Beside the route, `conformance` closes trait applications, `labels` names
-//! things for diagnostics, and `product_pruning` and `package_review` are
+//! things for diagnostics and for the operator labels that facts retain and
+//! later checks compare, and `product_pruning` and `package_review` are
 //! orchestration seams rather than steps: the compiler calls them after a
 //! checked tree exists, to prune a product and to rederive retained facts it
 //! must be able to reject when they drift.

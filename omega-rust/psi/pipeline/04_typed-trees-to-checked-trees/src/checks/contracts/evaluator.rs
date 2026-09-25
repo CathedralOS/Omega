@@ -1,3 +1,31 @@
+//! Direct evaluation of a callee's Boolean contract expression at one call
+//! site. The callee's parameters are replaced by the call's argument
+//! expressions, and the value is computed from literals, constant integers,
+//! declared integer ranges, known collection lengths and earlier immutable
+//! local initializers, without reading the flow fact contexts.
+//!
+//! Two entries build one `ContractExpressionEvaluator` for the call and ask
+//! it for `boolean_value`:
+//!
+//! - `call_site_proves_boolean_contract_expression`, which
+//!   `prover::call_entry_contexts_prove_boolean_contract_expression` tries
+//!   when the entry contexts do not prove a `requires` expression. It passes
+//!   the checked operator facts, which Boolean equality needs, and an unknown
+//!   value counts as not proved.
+//! - `call_site_boolean_contract_expression_value`, re-exported from
+//!   `contracts` for `facts::crash_calls::route_substitution`, which refines
+//!   published crash routes before operator facts exist. It returns `None`
+//!   for an unknown value, distinct from `false`, because a crash route may
+//!   be discarded only when its guard is proved false.
+//!
+//! The children extend the evaluator: `booleans` evaluates `&&`, `||`, `!`
+//! and comparisons, `integers` computes constant values and bounds,
+//! `collections` computes collection lengths, and `resolution` follows names
+//! to call arguments, local initializers, and array and struct literal
+//! members. Name and integer evaluation record the expressions in progress
+//! and give up on a cycle, which a call to the machine's own states can
+//! create.
+
 use std::cell::RefCell;
 
 use checked_trees::{FlowCallFact, FlowStateFact};

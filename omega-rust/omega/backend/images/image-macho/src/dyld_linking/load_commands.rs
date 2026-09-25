@@ -1,3 +1,21 @@
+//! Writers for the Mach-O header and load commands of a dyld-linked
+//! executable. Each writer appends one command's bytes to the output; this
+//! module does not choose the order, sizes or offsets.
+//!
+//! `emit_macho_executable_signed` in `lib.rs` calls the writers in file
+//! order, with sizes and offsets from the image plan: the Mach-O header
+//! (`header`); the `__PAGEZERO`, `__TEXT` and optional `__DATA` segments
+//! with their sections (`segments`); `LC_LOAD_DYLINKER`, `LC_UUID` (written
+//! by `header`), `LC_BUILD_VERSION`, `LC_MAIN` and one `LC_LOAD_DYLIB` per
+//! linked dylib (`dynamic_linking`); then the dyld info command, written only
+//! when the image has rebases or imports, the `__LINKEDIT` segment, empty
+//! `LC_SYMTAB` and `LC_DYSYMTAB` commands and `LC_CODE_SIGNATURE`
+//! (`linkedit`).
+//!
+//! `dynamic_linking` also defines `MachoDylib`, the install name and version
+//! fields of one linked dylib, which the import roster (`imports`) and the
+//! file layout plan (`file_layout::plan`) use.
+
 mod dynamic_linking;
 mod header;
 mod linkedit;

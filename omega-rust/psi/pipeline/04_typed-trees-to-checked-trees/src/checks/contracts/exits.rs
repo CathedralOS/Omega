@@ -1,3 +1,34 @@
+//! Exit checks: at each normal return, the machine's `ensures` clauses and
+//! the declared domains of its result and of its readable `&mut` referents
+//! must be proved from the facts at that exit.
+//!
+//! `contracts::check_flow_call_contracts` creates one
+//! `CyclicHeaderInvariants` for the pass and, for each state, calls:
+//!
+//! - for each call, `check_scalar_tail_result_domains` (`result_domains`);
+//! - for each exit, in order, `check_scalar_result_domains`,
+//!   `check_exit_ensures`, `check_result_field_domains` and
+//!   `check_mutable_referent_field_domains`.
+//!
+//! `check_exit_ensures`, defined here, checks each `ensures` fact of an exit.
+//! It skips an owner-authorized boundary result, which is established at the
+//! admitted crossing. Otherwise the fact holds when the machine's exit
+//! entailment proves the expression, when it is a named witness-bearing
+//! `ensures` that the evidence-forwarding proof pass discharges, or, when no
+//! entry parameter it names lacks an exact incoming origin, when the entry
+//! contexts prove it or another exit prover does: result domains
+//! (`result_domains`), scalar returns (`scalars`), content preservation,
+//! integer embeddings, float meaning reflexivity, integral parameter
+//! reflexivity, transparent propositions, or an authorized domain
+//! establishment route. A proved loop header invariant (`cyclic_headers`)
+//! also satisfies it. A fact nothing proves is reported with the entry
+//! parameters that lack an origin.
+//!
+//! `cases` observes which case an exit returns, for `scalars` and
+//! `result_domains`. `result_domains` also exports `exact_scalar_membership`
+//! to the nominal input and field write checks, and domain queries used by
+//! flow facts, fact construction, content checks and proof.
+
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
