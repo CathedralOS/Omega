@@ -494,10 +494,10 @@ fn domain_index_fingerprint(program: &typed_trees::TypedTrees) -> usize {
     fingerprint.rotate_left(11) ^ sample(domains.len().saturating_sub(1))
 }
 
-fn domain_by_symbol<'program>(
-    program: &'program typed_trees::TypedTrees,
+fn domain_by_symbol(
+    program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::domain::DomainDefinition> {
+) -> Option<&typed_trees::domain::DomainDefinition> {
     DOMAIN_SYMBOL_INDEX.with(|cell| {
         let mut slot = cell.borrow_mut();
         let fingerprint = domain_index_fingerprint(program);

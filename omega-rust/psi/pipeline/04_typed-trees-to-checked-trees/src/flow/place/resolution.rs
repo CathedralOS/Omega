@@ -132,14 +132,14 @@ fn container_member_type_position(
             ) {
                 return ContainerOutcome::Position(MemberPosition::Reference(field.type_reference));
             }
-            return program
+            program
                 .machine_owned_data(machine)
                 .iter()
                 .find(|owned| owned.symbol == symbol)
                 .map(|owned| {
                     ContainerOutcome::Position(MemberPosition::Reference(owned.type_reference))
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::Data => {
             let Some(data) = program
@@ -149,7 +149,7 @@ fn container_member_type_position(
             else {
                 return ContainerOutcome::Unmapped;
             };
-            return program
+            program
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
@@ -158,7 +158,7 @@ fn container_member_type_position(
                     ),
                     _ => None,
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         // A payload field's parent is its variant and the variant's parent
         // is the data row, so two hops reach the same field list the scan
@@ -186,14 +186,14 @@ fn container_member_type_position(
             else {
                 return ContainerOutcome::Unmapped;
             };
-            return program
+            program
                 .data_payload_fields(variant)
                 .iter()
                 .find(|field| field.symbol == symbol)
                 .map(|field| {
                     ContainerOutcome::Position(MemberPosition::Reference(field.type_reference))
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         // States and trait signatures share SymbolKind::State; the row's own
         // parent separates them — a signature's parent names its trait, a
@@ -216,14 +216,14 @@ fn container_member_type_position(
             else {
                 return ContainerOutcome::Unmapped;
             };
-            return program
+            program
                 .state_signature_parameters(signature)
                 .iter()
                 .find(|parameter| parameter.symbol == symbol)
                 .map(|parameter| {
                     ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::State => {
             let Some(state) = crate::semantic::calls::find_state(program, parent) else {
@@ -238,7 +238,7 @@ fn container_member_type_position(
                     parameter.type_reference,
                 ));
             }
-            return program
+            program
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
@@ -252,7 +252,7 @@ fn container_member_type_position(
                     }
                     _ => None,
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         // Domain operators chain through the domain row the way signatures
         // chain through traits; a top-level operator's parameters resolve on
@@ -275,14 +275,14 @@ fn container_member_type_position(
             else {
                 return ContainerOutcome::Unmapped;
             };
-            return program
+            program
                 .operator_parameters(operator)
                 .iter()
                 .find(|parameter| parameter.symbol == symbol)
                 .map(|parameter| {
                     ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         symbols::SymbolKind::Operator => {
             let Some(operator) = program
@@ -292,14 +292,14 @@ fn container_member_type_position(
             else {
                 return ContainerOutcome::Unmapped;
             };
-            return program
+            program
                 .operator_parameters(operator)
                 .iter()
                 .find(|parameter| parameter.symbol == symbol)
                 .map(|parameter| {
                     ContainerOutcome::Position(MemberPosition::Reference(parameter.type_reference))
                 })
-                .unwrap_or(ContainerOutcome::MappedMiss);
+                .unwrap_or(ContainerOutcome::MappedMiss)
         }
         _ => ContainerOutcome::Unmapped,
     }
@@ -345,9 +345,7 @@ pub(super) fn symbol_type_position(
         symbols::SymbolKind::Machine => {
             // A machine's position is its attached data declaration; resolve
             // that row directly instead of walking every unrelated machine.
-            let Some(machine) = machine_by_symbol(program, symbol) else {
-                return None;
-            };
+            let machine = machine_by_symbol(program, symbol)?;
             if machine.attached_data_application.is_valid() {
                 return Some(MemberPosition::Reference(machine.attached_data_application));
             }
