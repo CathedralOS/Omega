@@ -11,7 +11,7 @@
 //! inference; fact-seeding consumers without a bound environment still refuse
 //! generic signatures rather than reading uninstantiated contracts.
 
-use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
+use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
@@ -221,7 +221,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             if !receiver_symbol.is_valid() {
                 return None;
             }
-            let (state, _, _) = caller_statement_at_site(program, current_machine, site)?;
+            let (state, _, _) = caller_statement_owner(program, current_machine, site)?;
             if let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
                 parameter.symbol == receiver_symbol && parameter.name.as_str() == receiver
             }) {

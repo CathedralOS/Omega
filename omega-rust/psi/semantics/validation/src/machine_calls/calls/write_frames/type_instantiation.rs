@@ -6,7 +6,7 @@
 //! without allocating type nodes. Evidence only narrows: an unbound
 //! parameter stays a named leaf for the existing conservative fallbacks.
 
-use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
+use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, TypeParameter, TypeParameterKind};
@@ -222,7 +222,7 @@ fn signature_call_type_bindings_in(
     }) {
         return None;
     }
-    let (state, _, _) = caller_statement_at_site(program, current_machine, site)?;
+    let (state, _, _) = caller_statement_owner(program, current_machine, site)?;
     let parameters = program
         .state_signature_parameters(signature)
         .iter()

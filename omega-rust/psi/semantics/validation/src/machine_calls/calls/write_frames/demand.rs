@@ -20,7 +20,9 @@ use super::{
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::permuted_cycle_frames::summarize_state_written_paths_with_permuted_cycles;
-use crate::machine_calls::calls::write_frames::state_write_walk::summarize_state_written_paths;
+use crate::machine_calls::calls::write_frames::state_write_walk::{
+    CollectedStatementPrefix, summarize_state_written_paths,
+};
 use facts::NormalizedWriteFrame;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -64,6 +66,11 @@ pub struct CallFrameResolver<'program> {
     assignment_targets: Mutex<HashMap<(SymbolHandle, usize), Option<AssignmentWriteTarget>>>,
     assignment_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     local_write_origins: Mutex<HashMap<(SymbolHandle, usize), Option<Vec<LocalWriteOrigin>>>>,
+    /// One prefix-walk snapshot per statement index, built once per
+    /// (machine, state): replaces a fresh O(index) prefix walk per demand
+    /// site with a single O(statements) walk per state.
+    state_write_collections:
+        Mutex<HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>>,
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
@@ -247,6 +254,7 @@ impl<'program> CallFrameResolver<'program> {
                     current_machine,
                     &self.symbols,
                     statement,
+                    &self.state_write_collections,
                 )
             },
         )
@@ -268,6 +276,7 @@ impl<'program> CallFrameResolver<'program> {
             assignment_targets: Mutex::new(HashMap::new()),
             assignment_frames: Mutex::new(HashMap::new()),
             local_write_origins: Mutex::new(HashMap::new()),
+            state_write_collections: Mutex::new(HashMap::new()),
             expression_frames: Mutex::new(HashMap::new()),
             statement_value_frames: Mutex::new(HashMap::new()),
             inferred_state_frames: Mutex::new(HashMap::new()),

@@ -11,9 +11,13 @@ use super::{
     append_place_suffix, statement_value_expression_roots, type_is_caller_isolated_local,
     type_may_carry_write,
 };
+use crate::declarations::symbols::PrefixSiteEntry;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    StateWriteQuery, walk_state_write_prefix,
+    CollectedStatementPrefix, StateWriteQuery, collect_state_write_prefixes,
+    walk_state_write_prefix,
 };
+use std::collections::HashMap;
+use std::sync::Mutex;
 use typed_trees::signature::StateParameter;
 
 pub(super) fn caller_binding_type(
@@ -46,7 +50,7 @@ pub(super) fn caller_name_root_type(
     if !root.is_valid() || (members.len() == 1 && root != name.symbol) {
         return None;
     }
-    let (state, _, index) = caller_statement_at_site(
+    let (state, _, index) = caller_statement_owner(
         program,
         current_machine,
         CallerWriteSite::Expression(argument),
@@ -170,7 +174,12 @@ fn assignment_evidence(
     let StatementNode::Assignment(assignment) = statement else {
         return None;
     };
-    let site = caller_prefix_site(program, machine, CallerWriteSite::Statement(statement))?;
+    let site = caller_prefix_site(
+        program,
+        machine,
+        symbols,
+        CallerWriteSite::Statement(statement),
+    )?;
     if matches!(site, CallerPrefixSite::Untracked)
         && let Some(path) = super::coarse_place_path(program, assignment.target)
     {
@@ -216,9 +225,63 @@ pub(super) fn local_write_origins_before_statement(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
+    collections: &Mutex<
+        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+    >,
 ) -> Option<Vec<LocalWriteOrigin>> {
-    let site = caller_prefix_site(program, machine, CallerWriteSite::Statement(statement))?;
-    let evidence = caller_aliases_at_prefix(program, machine, symbols, site)?;
+    let site = caller_prefix_site(
+        program,
+        machine,
+        symbols,
+        CallerWriteSite::Statement(statement),
+    )?;
+    let evidence = match site {
+        CallerPrefixSite::Tracked { state, index, .. } => {
+            let key = (machine.symbol, state.symbol);
+            let known = collections
+                .lock()
+                .ok()
+                .is_some_and(|cache| cache.contains_key(&key));
+            if !known {
+                let built = collect_state_write_prefixes(program, machine, state, symbols);
+                if let Ok(mut cache) = collections.lock() {
+                    cache.insert(key, built);
+                }
+            }
+            let prefix = collections.lock().ok().and_then(|cache| {
+                cache
+                    .get(&key)
+                    .and_then(|entry| entry.as_ref())
+                    .and_then(|prefixes| prefixes.get(index))
+                    .cloned()
+                    .flatten()
+            })?;
+            let statements = program.statement_table.statements(state.statement_nodes);
+            let statement = statements.get(index)?;
+            if super::stored_origins::statement_exposes_frozen_binding(
+                program,
+                machine,
+                state,
+                statement,
+                &prefix.stored,
+                &prefix.aliases,
+            ) {
+                return None;
+            }
+            CallerPrefixEvidence {
+                state: Some(state),
+                aliases: prefix.aliases,
+                divergent: prefix.divergent,
+                stored: prefix.stored,
+            }
+        }
+        CallerPrefixSite::Untracked => CallerPrefixEvidence {
+            state: None,
+            aliases: Vec::new(),
+            divergent: Vec::new(),
+            stored: Vec::new(),
+        },
+    };
     let mut origins = evidence
         .stored
         .into_iter()
@@ -530,10 +593,10 @@ struct CallerPrefixEvidence<'program> {
 fn caller_aliases_at_site<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
-    symbols: &TopLevelSymbols<'_>,
+    symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
 ) -> Option<CallerPrefixEvidence<'program>> {
-    let site = caller_prefix_site(program, machine, site)?;
+    let site = caller_prefix_site(program, machine, symbols, site)?;
     caller_aliases_at_prefix(program, machine, symbols, site)
 }
 
@@ -547,11 +610,107 @@ enum CallerPrefixSite<'program> {
     },
 }
 
+fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
+    match site {
+        CallerWriteSite::Call(call) => (0, std::ptr::from_ref(call).addr()),
+        CallerWriteSite::Statement(statement) => (1, std::ptr::from_ref(statement).addr()),
+        CallerWriteSite::Expression(expression) => (2, expression.arena_index() as usize),
+    }
+}
+
+fn memoized<K, V>(cache: &Mutex<HashMap<K, V>>, key: K, compute: impl FnOnce() -> V) -> V
+where
+    K: Eq + std::hash::Hash,
+    V: Clone,
+{
+    if let Ok(cache) = cache.lock()
+        && let Some(hit) = cache.get(&key)
+    {
+        return hit.clone();
+    }
+    let value = compute();
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(key, value.clone());
+    }
+    value
+}
+
+/// Whether any of the machine's states can carry caller origins: an incoming
+/// non-reference carrier parameter, or a local declaration able to hold one.
+/// The scan covers every statement of every state; it is a pure property of
+/// the machine, so it memoizes on the shared symbol index rather than
+/// repeating for every demand site in the machine.
+fn machine_has_tracked_origins(
+    program: &TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'_>,
+) -> bool {
+    memoized(
+        &symbols.caller_sites.tracked_origin_machines,
+        machine.symbol,
+        || {
+            let may_declare_origins = |statement: &StatementNode| {
+                matches!(statement, StatementNode::LocalData(local)
+                    if super::stored_origins::has_aggregate_case_shape(program, local.type_reference)
+                        || (type_may_carry_write(program, local.type_reference)
+                            && !type_is_caller_isolated_local(program, local.type_reference)))
+            };
+            program.machine_states(machine).iter().any(|state| {
+                program.state_parameters(state).iter().any(|parameter| {
+                    !super::type_reference_is_reference(program, parameter.type_reference)
+                        && type_may_carry_write(program, parameter.type_reference)
+                        && !type_is_caller_isolated_local(program, parameter.type_reference)
+                }) || program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(may_declare_origins)
+            })
+        },
+    )
+}
+
 fn caller_prefix_site<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
+    symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
 ) -> Option<CallerPrefixSite<'program>> {
+    let (kind, id) = caller_site_key(site);
+    let entry = memoized(
+        &symbols.caller_sites.prefix_site_entries,
+        (machine.symbol, kind, id),
+        || caller_prefix_entry(program, machine, symbols, site),
+    )?;
+    Some(match entry {
+        PrefixSiteEntry::Untracked => CallerPrefixSite::Untracked,
+        PrefixSiteEntry::Tracked {
+            state: state_symbol,
+            index,
+        } => {
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)?;
+            let statement = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(index)?;
+            CallerPrefixSite::Tracked {
+                state,
+                statement,
+                index,
+            }
+        }
+    })
+}
+
+fn caller_prefix_entry<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'program>,
+    site: CallerWriteSite<'_>,
+) -> Option<PrefixSiteEntry> {
     let may_declare_origins = |statement: &StatementNode| {
         matches!(statement, StatementNode::LocalData(local)
             if super::stored_origins::has_aggregate_case_shape(program, local.type_reference)
@@ -565,27 +724,19 @@ fn caller_prefix_site<'program>(
                 && !type_is_caller_isolated_local(program, parameter.type_reference)
         })
     };
-    if !program.machine_states(machine).iter().any(|state| {
-        has_incoming_carrier(state)
-            || program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(may_declare_origins)
-    }) {
-        return Some(CallerPrefixSite::Untracked);
+    if !machine_has_tracked_origins(program, machine, symbols) {
+        return Some(PrefixSiteEntry::Untracked);
     }
-    let (state, statement, index) = caller_statement_at_site(program, machine, site)?;
+    let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
     if !has_incoming_carrier(state)
         && !program.statement_table.statements(state.statement_nodes)[..index]
             .iter()
             .any(may_declare_origins)
     {
-        return Some(CallerPrefixSite::Untracked);
+        return Some(PrefixSiteEntry::Untracked);
     }
-    Some(CallerPrefixSite::Tracked {
-        state,
-        statement,
+    Some(PrefixSiteEntry::Tracked {
+        state: state.symbol,
         index,
     })
 }
@@ -635,7 +786,40 @@ fn caller_aliases_at_prefix<'program>(
 }
 
 /// Locate a unique retained occurrence without resolving declarations by name.
+/// The whole-machine statement scan is a pure identity of (machine, site);
+/// it memoizes on the shared symbol index, and a hit rebuilds the borrowed
+/// state/statement references instead of storing addresses.
 pub(super) fn caller_statement_at_site<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    symbols: &TopLevelSymbols<'program>,
+    site: CallerWriteSite<'_>,
+) -> Option<(
+    &'program typed_trees::state::State,
+    &'program StatementNode,
+    usize,
+)> {
+    let (kind, id) = caller_site_key(site);
+    let (state_symbol, index) = memoized(
+        &symbols.caller_sites.site_statements,
+        (machine.symbol, kind, id),
+        || {
+            caller_statement_owner(program, machine, site)
+                .map(|(state, _statement, index)| (state.symbol, index))
+        },
+    )?;
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(index)?;
+    Some((state, statement, index))
+}
+
+pub(super) fn caller_statement_owner<'program>(
     program: &'program TypedTrees,
     machine: &Machine,
     site: CallerWriteSite<'_>,

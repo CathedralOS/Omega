@@ -25,7 +25,7 @@ pub(crate) use resolution::{
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct CanonicalPlace {
     pub(crate) root: facts::PlaceRoot,
     pub(crate) segments: Vec<facts::PlaceSegment>,

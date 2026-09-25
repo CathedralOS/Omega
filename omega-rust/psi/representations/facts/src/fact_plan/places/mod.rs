@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum PlaceRoot {
     #[default]
     Unknown,
@@ -16,7 +16,7 @@ pub enum PlaceRoot {
     TypeReference(TypeReferenceHandle),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PlaceSegment {
     Field {
         symbol: SymbolHandle,
