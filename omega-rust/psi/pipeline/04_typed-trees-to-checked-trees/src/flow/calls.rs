@@ -729,7 +729,57 @@ fn call_result_qualification_identities_indexed<'plans>(
     };
     let parameters = memoized_call_target_parameters(program, build, target);
     let contracts = collect_callable_contracts_indexed(program, build, target);
-    result_identity_rows(program, return_type, parameters, &contracts)
+    if !result_type_carries_identity_rows(program, return_type) {
+        return Vec::new();
+    }
+    let domain_rows = build
+        .result_identity_domain_rows
+        .entry(return_type)
+        .or_insert_with(|| std::rc::Rc::new(result_type_domain_rows(program, return_type)))
+        .clone();
+    let mut domains = (*domain_rows).clone();
+    append_ensures_result_rows(program, parameters, &contracts, &mut domains);
+    domains
+}
+
+/// Whether a return type can produce identity rows at all: types whose
+/// peeled carrier is a reference yield none, so every caller can skip the
+/// row build without consulting the (return_type-keyed) domain rows.
+fn result_type_carries_identity_rows(
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let mut carrier = return_type;
+    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier)
+    {
+        carrier = *base_type;
+    }
+    !matches!(
+        program.type_reference_table.type_reference(carrier),
+        typed_trees::types::TypeReferenceNode::Reference { .. }
+    )
+}
+
+/// The return-type-driven identity rows: declared owned-field domains plus
+/// type-level constraint domains. Independent of the callable's contracts,
+/// so callers may memoize them per return type.
+fn result_type_domain_rows(
+    program: &typed_trees::TypedTrees,
+    return_type: typed_trees::types::TypeReferenceHandle,
+) -> Vec<(
+    Vec<facts::PlaceSegment>,
+    SymbolHandle,
+    language_semantics::SemanticDomainId,
+)> {
+    let mut domains =
+        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
+    domains.extend(
+        crate::facts::field_domain::domain_constraint_identities(program, return_type)
+            .into_iter()
+            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
+    );
+    domains
 }
 
 fn result_identity_rows(
@@ -742,25 +792,24 @@ fn result_identity_rows(
     SymbolHandle,
     language_semantics::SemanticDomainId,
 )> {
-    let mut carrier = return_type;
-    while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(carrier)
-    {
-        carrier = *base_type;
-    }
-    if matches!(
-        program.type_reference_table.type_reference(carrier),
-        typed_trees::types::TypeReferenceNode::Reference { .. }
-    ) {
+    if !result_type_carries_identity_rows(program, return_type) {
         return Vec::new();
     }
-    let mut domains =
-        crate::facts::field_domain::declared_owned_field_domain_identities(program, return_type);
-    domains.extend(
-        crate::facts::field_domain::domain_constraint_identities(program, return_type)
-            .into_iter()
-            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
-    );
+    let mut domains = result_type_domain_rows(program, return_type);
+    append_ensures_result_rows(program, parameters, contracts, &mut domains);
+    domains
+}
+
+fn append_ensures_result_rows(
+    program: &typed_trees::TypedTrees,
+    parameters: Option<&[typed_trees::signature::StateParameter]>,
+    contracts: &[&typed_trees::signature::SignatureContract],
+    domains: &mut Vec<(
+        Vec<facts::PlaceSegment>,
+        SymbolHandle,
+        language_semantics::SemanticDomainId,
+    )>,
+) {
     for contract in contracts
         .iter()
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Ensures)
@@ -798,7 +847,6 @@ fn result_identity_rows(
             }
         }
     }
-    domains
 }
 
 /// The out-parameter obligation vocabulary for the provisional publisher and
