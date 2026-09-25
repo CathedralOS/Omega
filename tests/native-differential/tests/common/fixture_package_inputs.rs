@@ -61,9 +61,9 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 // The compiler test target owns the exact provider and entry acceptance these
 // harnesses must replay; including those modules keeps both test trees on one
 // derivation.
-#[path = "../../../../omega-rust/omega/compiler/compiler/tests/support/console_acceptance.rs"]
+#[path = "../../../../omega-rust/omega/compiler/tests/support/console_acceptance.rs"]
 pub mod console_acceptance;
-#[path = "../../../../omega-rust/omega/compiler/compiler/tests/support/linux_entry_acceptance.rs"]
+#[path = "../../../../omega-rust/omega/compiler/tests/support/linux_entry_acceptance.rs"]
 pub mod linux_entry_acceptance;
 
 /// The repository checkout this crate tree lives in, canonicalized so every

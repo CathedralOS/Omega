@@ -9,6 +9,7 @@ mod front_end;
 mod tests;
 
 use abstract_operations_to_target_operations::*;
+use compiler::native::*;
 use machine_code::{
     SelectedFormEncodingState, TargetFrameProtocolEncodingIdentity,
     TargetFrameProtocolEncodingPlan, TargetFrameProtocolEncodingPolicy,
@@ -16,7 +17,6 @@ use machine_code::{
 use machine_emission::frame_layout::*;
 use machine_emission::*;
 use native_artifact::*;
-use native_realization::*;
 use object_file::*;
 use post_allocation_machine_to_selected_form_encoding::*;
 use register_environment::*;

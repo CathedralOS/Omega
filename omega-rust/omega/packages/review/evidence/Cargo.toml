@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 build-evaluation = { path = "../../../build/build-evaluation" }
-compiler = { path = "../../../compiler/compiler" }
+compiler = { path = "../../../compiler" }
 package-compilation = { path = "../../../build/package-compilation" }
 provider-planning = { path = "../../../build/provider-planning" }
 calling-conventions = { path = "../../../representations/calling-conventions" }

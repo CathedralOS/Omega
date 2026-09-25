@@ -2,7 +2,7 @@
 
 Contract: [concurrency and atomic observation](../../../../wiki/spec/language/concurrency.md).
 [atomic.rs](src/atomic/mod.rs) owns the shared normalized atomic ordering vocabulary.
-[Core surface tests](../../../omega/compiler/compiler/tests/atomic_core_surface.rs)
+[Core surface tests](../../../omega/compiler/tests/atomic_core_surface.rs)
 pin exact public outcome identities and payload shapes. The
 [access-plan owner](../access-plans/README.md) separately validates placed
 permissions, resident custody, and specialized requests.

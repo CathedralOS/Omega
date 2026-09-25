@@ -1,11 +1,11 @@
 use abstract_operations::AbstractOperation;
 use abstract_operations_to_abstract_operations::test_support::WrappingIntegerAddConstantsRule;
 use abstract_operations_to_target_operations::*;
+use compiler::native::*;
 use machine_code::{NonAuthoritativeCalleeSaveStoragePolicy, TargetFrameLayoutPolicy};
 use machine_emission::frame_layout::{
     stage_non_authoritative_callee_save_storage, stage_target_frame_layout,
 };
-use native_realization::*;
 use optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
 use optimization_unit::PsiRewritePatch;
 use post_allocation_machine_to_selected_form_encoding::*;

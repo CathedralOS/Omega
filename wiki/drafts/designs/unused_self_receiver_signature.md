@@ -52,7 +52,7 @@ machine Main::main(&mut self) {
 ```
 
 Registration seat: `CHECKED_ONLY_PASS_CANARIES` in
-`omega-rust/omega/compiler/compiler/tests/canary_suite.rs` — the same
+`omega-rust/omega/compiler/tests/canary_suite.rs` — the same
 array carrying `core/self_read_only_receiver_compile` and
 `calls/nested_value_call_arg_compile` (checked-semantics compile
 members). Note `canary_suite/roster.rs` is only the inventory harness
@@ -66,9 +66,9 @@ Landing the fixture without a seat fails
 (`InventoryScope::CompleteCorpus` — every on-disk member must be
 rostered).
 
-- `omega-rust/omega/compiler/compiler/tests/canary_suite/roster.rs`:
+- `omega-rust/omega/compiler/tests/canary_suite/roster.rs`:
   NEW-APR-TRAPPING-SHIFT-REFUSAL-PIN (Devin / z30), expires ~14:23Z.
-- `omega-rust/omega/compiler/compiler/tests/canary_suite.rs`
+- `omega-rust/omega/compiler/tests/canary_suite.rs`
   (the actual seat): PROOF-SUBJECT-CHECKED-CALL-ATTRIBUTION
   (Devin / devin-5389), expires ~16:19Z Sep 21.
 - `tests/omega/pass/calls/member_call_unused_self_receiver`: unfenced.

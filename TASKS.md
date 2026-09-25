@@ -74,7 +74,7 @@ backend-visible; full corpus runs only at the end of an item.
   the per-target loop around Psi 04-07 stays until PROVIDER-SELECTION-AFTER-TERMINAL.
   Package crates, `tests/native-differential` and the architecture guards
   (layering, `optimizer_source_organization` ladders, `stage_crate_ownership`)
-  follow the new paths. No behavior change: acceptance is `compiler/compiler/`
+  follow the new paths. No behavior change: acceptance is `compiler/`
   gone, the five other crates gone from the workspace, and the full check and
   Windows native corpus goldens unchanged.
 
@@ -1257,7 +1257,7 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   public ceilings are not absence proofs.
 
   Owners: `build-evaluation/src/admission/behavior_exclusions.rs`,
-  `compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs`,
+  `compiler/src/terminal/terminal_artifact/behavior_exclusions.rs`,
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
 
@@ -2520,7 +2520,7 @@ syntax and other terminal services are not prerequisites.
   proposal validation, native lowering and image replay. Psi's
   `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
   lowering. The remaining exact single-`u64` identity/Unit recognizer is in
-  `compiler/terminal-artifact/src/native_proposal/mod.rs`;
+  `compiler/src/terminal/native_proposal/mod.rs`;
   native thunk/image consumers also reject call-bearing bodies. Replace those
   shape restrictions with requirement, ABI and call-custody checking, not more
   admitted body families. Close hosted private-stack callback occupancy and
@@ -2529,7 +2529,7 @@ syntax and other terminal services are not prerequisites.
   Owners: native proposal construction, `native-realization`'s
   `retained_native_product` and `callback_thunks`, selected-call ABI transport,
   and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/compiler/native-realization/README.md#callback-custody-boundaries).
+  [receiving custody limits](omega-rust/omega/compiler/native_realization.md#callback-custody-boundaries).
   Acceptance: the direct witness and
   `source/library/std/tests/callback_materialization_closure.omg` two-slot
   registrar produce native images binding exact function, symbol, relocation,
@@ -3227,7 +3227,7 @@ syntax and other terminal services are not prerequisites.
 
   Acceptance: close the `checked-trees-to-lowered-psi --test suite value_dispatch`
   gaps and native `scalar_case_results` /
-  [float Match customers](omega-rust/omega/compiler/compiler/float_realization.md#operation-and-control-custody).
+  [float Match customers](omega-rust/omega/compiler/float_realization.md#operation-and-control-custody).
   Preserve effects, skipped trapping arms, overlapping patterns, full coverage,
   and independent replay. Retain `match_anonymous_result_landing`,
   `numeric_operand_destinations`, and `dutch_flag`'s native exit-70 oracle with
@@ -4628,7 +4628,7 @@ syntax and other terminal services are not prerequisites.
   Std may be replaced, split or absent; only core and the specified
   compiler-injected vocabulary retain toolchain authority. Standalone
   std/alloc still receive broad `Toolchain` classification in
-  `compiler/source-assembly/src/source/source_storage.rs`.
+  `compiler/src/sources/source/source_storage.rs`.
   Remove that fallback as remaining consumers acquire exact source-byte
   catalog roles or accepted semantic bindings, not by relabeling a directory.
 
@@ -5324,7 +5324,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
   The package-name snake_case migration that `runtime_value_generics` waited on
   is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  omega-rust/omega/compiler/compiler/tests/` now returns nothing. Reobserve that
+  omega-rust/omega/compiler/tests/` now returns nothing. Reobserve that
   target before attributing its failures again.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:

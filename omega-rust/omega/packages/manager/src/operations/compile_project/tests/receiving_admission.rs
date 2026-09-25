@@ -19,7 +19,7 @@ use super::super::{
 };
 use super::{TemporaryProject, accepted_lock::accept_project};
 use crate::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use native_realization::{
+use compiler::native::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
     current_terminal_authority_permission_policy, current_terminal_authority_policy,
     terminal_authority_permission_policy_with_rows,

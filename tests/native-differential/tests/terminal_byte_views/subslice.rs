@@ -73,9 +73,13 @@ fn assert_subslice_execution(module: &TerminalModule, caller: &str) {
             compiler_baseline_request_v1(&selections),
         )
         .expect("canonical subslice reaches the optimizer");
-        let physical = native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
-            optimized, NativeTarget::host(), &[],
-        ).expect("checked subslices reach the complete physical pipeline");
+        let physical =
+            compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                NativeTarget::host(),
+                &[],
+            )
+            .expect("checked subslices reach the complete physical pipeline");
         let fragments = machine_emission::stage_optimized_function_fragment_emission(
             physical.into_function_fragment_emission_source(),
         )

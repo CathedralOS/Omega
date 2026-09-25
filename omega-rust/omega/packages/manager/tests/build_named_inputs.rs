@@ -241,7 +241,7 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },

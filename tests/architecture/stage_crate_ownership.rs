@@ -13,12 +13,9 @@ use std::path::{Path, PathBuf};
 
 /// Stage outputs that leave `pipeline/` for a documented owner instead of a
 /// follow-on `Y-to-*` stage. The terminal artifact hands off to
-/// `native-realization`; the resolved layout hands off to `machine-emission`.
+/// the `compiler` crate; the resolved layout hands off to `machine-emission`.
 const HANDOFF_TERMINALS: [(&str, &str); 2] = [
-    (
-        "terminal-artifact",
-        "omega-rust/omega/compiler/native-realization",
-    ),
+    ("terminal-artifact", "omega-rust/omega/compiler"),
     (
         "resolved-layout",
         "omega-rust/omega/backend/machine-emission",

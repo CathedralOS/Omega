@@ -6,7 +6,7 @@
 #[path = "common/front_end.rs"]
 mod front_end;
 
-use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
+use compiler::native::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use selected_form_encoding_to_resolved_layout::{
@@ -93,7 +93,7 @@ fn byte_view_length_helper_executes_with_original_descriptor() {
                 compiler_baseline_request_v1(&selections),
             )
             .unwrap();
-            let physical = native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+            let physical = compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized, NativeTarget::host(), &[],
         ).expect("borrowed helper reaches the complete physical pipeline");
             let fragments = machine_emission::stage_optimized_function_fragment_emission(

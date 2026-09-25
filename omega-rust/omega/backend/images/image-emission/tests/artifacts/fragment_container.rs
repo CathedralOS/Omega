@@ -125,11 +125,11 @@ fn fragment_container(
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .expect("proof bytes");
     let selections = optimization_core::OptimizationSelections::new([]).expect("empty selections");
-    let optimized = native_realization::optimize_artifact_sections(
+    let optimized = compiler::native::optimize_artifact_sections(
         &semantic,
         &proof,
         &proof_admission::AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
+        compiler::native::compiler_baseline_request_v1(&selections),
     )
     .expect("canonical artifact independently verifies and optimizes");
     let post_terminal = optimized.selections().project_post_terminal();
@@ -139,7 +139,7 @@ fn fragment_container(
             abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .expect("verified plan lowers to target operations");
-    let physical = native_realization::stage_optimized_verified_physical_pipeline(
+    let physical = compiler::native::stage_optimized_verified_physical_pipeline(
         optimized_target,
         post_terminal.selections(),
     )

@@ -31,7 +31,7 @@ container, manifest, and custody receipt. Its composition, shape and template
 validation, manifest replay, and codec live under `semantic_wrapper_object/`.
 The native-realization stage that binds these records to settlement and
 encoding custody stays in
-[native-realization](../../../compiler/native-realization/src/optimized_semantic_wrapper_object/mod.rs). Follow
+[native-realization](../../../compiler/src/native/optimized_semantic_wrapper_object/mod.rs). Follow
 [physical/derivation.rs](src/physical/derivation.rs) for independent physical
 evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
 retained carriers.

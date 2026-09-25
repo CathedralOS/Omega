@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
+use compiler::native::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
@@ -62,7 +62,7 @@ fn publish(
                 target_operations::TargetUnitOperation::EstablishPrimitiveLocal { .. }
             ))
     );
-    let physical = native_realization::stage_optimized_verified_physical_pipeline(
+    let physical = compiler::native::stage_optimized_verified_physical_pipeline(
         target_operations,
         post_terminal.selections(),
     )
@@ -117,9 +117,8 @@ fn publish(
     );
     let canonical = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     let selected_digest = effects::SelectedProviderPlanFacts::default().identity_digest();
-    let physical_policy =
-        native_realization::current_compiler_intrinsic_terminal_authority_policy();
-    let permission_policy = native_realization::current_terminal_authority_permission_policy();
+    let physical_policy = compiler::native::current_compiler_intrinsic_terminal_authority_policy();
+    let permission_policy = compiler::native::current_terminal_authority_permission_policy();
     let closure_review = effects::TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
         *canonical.manifest().identity().as_bytes(),
         target,
@@ -215,7 +214,7 @@ fn replay_fixture(
         abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
     )
     .unwrap();
-    native_realization::stage_optimized_verified_physical_pipeline(
+    compiler::native::stage_optimized_verified_physical_pipeline(
         targeted,
         post_terminal.selections(),
     )

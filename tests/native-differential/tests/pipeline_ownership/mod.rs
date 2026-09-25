@@ -140,7 +140,7 @@ use std::collections::BTreeSet;
 use abstract_operations::{AbstractOperation, ValueBinding};
 use abstract_operations_to_abstract_operations::OptimizationRunError;
 use calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
-use native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions;
+use compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions;
 use optimization_core::{
     Optimization, OptimizationReportRequest, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage,

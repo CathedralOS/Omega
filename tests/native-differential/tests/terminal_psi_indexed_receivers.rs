@@ -86,11 +86,11 @@ fn optimize(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
 ) -> abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan {
     let selections = optimization_core::OptimizationSelections::new([]).unwrap();
-    let optimized = native_realization::optimize_artifact_sections(
+    let optimized = compiler::native::optimize_artifact_sections(
         artifact.semantic_bytes(),
         artifact.proof_bytes(),
         &proof_admission::AdmissionProfile::default(),
-        native_realization::compiler_baseline_request_v1(&selections),
+        compiler::native::compiler_baseline_request_v1(&selections),
     )
     .expect("source-produced receiver contract survives independent Omega admission");
     assert_eq!(optimized.plan(), optimized.verified_input().plan());
@@ -147,7 +147,7 @@ fn native_text_for(
 ) -> machine_emission::StagedOptimizedFixedFrameTextSection {
     let artifact = artifact_for(source, entry);
     let physical =
-        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+        compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimize(&artifact),
             target,
             &[],

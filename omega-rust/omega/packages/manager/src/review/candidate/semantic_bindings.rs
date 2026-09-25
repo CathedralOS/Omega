@@ -187,14 +187,13 @@ pub(super) fn candidate_semantic_binding_inputs(
             {
                 let settled_permission_rows = match role {
                     AcceptedSemanticBindingRole::FilesystemHostService => {
-                        native_realization::filesystem_host_permission_rows(
+                        compiler::native::filesystem_host_permission_rows(
                             candidate.service_schema(),
                         )
                         .ok()
                     }
                     AcceptedSemanticBindingRole::TimeHostService => {
-                        native_realization::time_host_permission_rows(candidate.service_schema())
-                            .ok()
+                        compiler::native::time_host_permission_rows(candidate.service_schema()).ok()
                     }
                     _ => None,
                 };

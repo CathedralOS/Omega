@@ -93,7 +93,7 @@ specialization retains canonical template bytes, exact arguments, conformance
 and contract commitments, and admission custody. Replay its domain-separated
 commitment before using it as proof-producer identity; compact reports are not
 authority. Omega's coordinator owns the
-[ordered settlement boundary](../../../omega/compiler/compiler/checked_settlement.md)
+[ordered settlement boundary](../../../omega/compiler/checked_settlement.md)
 outside this crate.
 
 [Specialization](src/monomorphization/mod.rs) runs explicit fixed-point rounds:

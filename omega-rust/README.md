@@ -40,9 +40,9 @@ implies deletion.
   Terminal-to-native route, and placement rules for new work.
 - [Psi](psi/README.md) and its [frontend](psi/pipeline/README.md): source identity,
   syntax, typing, checking, and portable publication.
-- [Compiler coordination](omega/compiler/compiler/README.md): product boundaries,
+- [Compiler coordination](omega/compiler/README.md): product boundaries,
   optional reports, and multi-target source reuse.
-- [Native realization](omega/compiler/native-realization/README.md): source-free
+- [Native realization](omega/compiler/native_realization.md): source-free
   lowering with separately supplied authority.
 - [Native representations](omega/representations/README.md) and
   [optimization](optimization.md): current data, exact rewrites, and replay.

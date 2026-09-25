@@ -179,7 +179,7 @@ normal invocations do not collect optional timing measurements.
 summary, and publication lines) as a plain-text observation file; there is no
 `--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
-[compiler product contract](omega-rust/omega/compiler/compiler/README.md#product-boundaries-and-observations).
+[compiler product contract](omega-rust/omega/compiler/README.md#product-boundaries-and-observations).
 
 The bundled `source/library/` location is derived from the compiler checkout
 captured at build time. Rebuild the binary from the retained checkout before
@@ -196,7 +196,7 @@ mbx nextest run -p terminal-verifier boundary_requires
 The `compiler` crate has no Rust test targets besides `corpus_runner`. Its
 behavior is tested end to end: a fixture under `tests/omega/{pass,fail,run}` is
 the test, and the corpus gate below runs it. Add a fixture, not a Rust test
-file; see `omega-rust/omega/compiler/compiler/tests/README.md`.
+file; see `omega-rust/omega/compiler/tests/README.md`.
 
 ### Corpus outcome gate
 
@@ -390,7 +390,7 @@ and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
 Use [main.rs](omega-rust/omega/src/main.rs) and
-[compiler.rs](omega-rust/omega/compiler/compiler/src/compiler.rs) as the gold
+[compiler.rs](omega-rust/omega/compiler/src/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
 shows shared preparation, product selection, per-target realization, and outcomes.
 Copy their visible orchestration principle, not their filenames or line counts.

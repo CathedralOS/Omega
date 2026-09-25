@@ -9,7 +9,7 @@ mod front_end;
 #[path = "common/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
+use compiler::native::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use target::NativeTarget;
@@ -137,7 +137,7 @@ fn publish(
             abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .unwrap_or_else(|error| panic!("lower scalar-case source on {target:?}: {error:#?}"));
-    let physical = native_realization::stage_optimized_verified_physical_pipeline(
+    let physical = compiler::native::stage_optimized_verified_physical_pipeline(
         target_operations,
         post_terminal.selections(),
     )

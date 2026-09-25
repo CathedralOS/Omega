@@ -220,11 +220,11 @@ fn source_installed_provider_retains_literal_arguments_and_affine_results() {
         NativeTarget::windows_x64(),
     ] {
         let selections = optimization_core::OptimizationSelections::new([]).unwrap();
-        let optimized = native_realization::optimize_artifact_sections(
+        let optimized = compiler::native::optimize_artifact_sections(
             &semantic,
             &proof,
             &proof_admission::AdmissionProfile::default(),
-            native_realization::compiler_baseline_request_v1(&selections),
+            compiler::native::compiler_baseline_request_v1(&selections),
         )
         .unwrap();
         let installation = terminal_psi_to_abstract_operations::admit_provider_installation(
@@ -247,7 +247,7 @@ fn source_installed_provider_retains_literal_arguments_and_affine_results() {
                 },
             )
             .unwrap();
-        let physical = native_realization::stage_optimized_verified_physical_pipeline(
+        let physical = compiler::native::stage_optimized_verified_physical_pipeline(
             target,
             selections.project_post_terminal().selections(),
         )

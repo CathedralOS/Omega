@@ -1,7 +1,7 @@
 //! Mixed scalar/reference calls retain native frames and resolved call occurrences.
 
+use compiler::native::{compiler_baseline_request_v1, optimize_artifact_sections};
 use machine_emission::StagedOptimizedFixedFrameTextSection;
-use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{MachineId, OperationId};
@@ -45,7 +45,7 @@ pub(super) fn stage_call_text_with_settlements(
     )
     .expect("guarded helper calls verify before native projection");
     let physical =
-        native_realization::stage_optimized_verified_physical_pipeline_with_provider_executions(
+        compiler::native::stage_optimized_verified_physical_pipeline_with_provider_executions(
             optimized,
             target,
             settlements,
