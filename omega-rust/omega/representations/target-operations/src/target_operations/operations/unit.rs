@@ -57,11 +57,16 @@ pub enum TargetUnitOperation {
         destination: PlaceId,
         value: AbstractResult,
     },
+    /// One fresh observation of a primitive local or of a primitive leaf
+    /// beneath a readable borrowed root. `path` is the verified Terminal
+    /// projection; `indices` resolves each of its `RuntimeIndex` segments, in
+    /// path order, to the operand the address scales by its array stride.
     PrimitiveScalarRead {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     StructuralCaseMembership {
         psi_operation: OperationId,
@@ -77,19 +82,6 @@ pub enum TargetUnitOperation {
         result: AbstractResult,
         source: StructuralArgument,
         field: StructuralFieldId,
-    },
-    /// One element of a fixed-array leaf read at the exact dominating `u64`
-    /// index. `source` names the readable root and its runtime path;
-    /// `path` is the same projection in canonical form, ending at the array.
-    /// `obligation` certifies `index < extent`, so selection realizes the
-    /// read with the element-width address model the indexed store uses.
-    IndexedPrimitiveRead {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        source: StructuralArgument,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: TargetUnitScalarArgumentSource,
-        obligation: semantic_vocabulary::ObligationId,
     },
     /// One byte copy of a subtree out of a live readable root into a fresh
     /// home. `source` names the root place and `path`/`byte_offset` the
@@ -208,37 +200,27 @@ pub enum TargetUnitOperation {
         result: ValueId,
         value: bool,
     },
-    /// Non-observing primitive replacement through an exact mutable or write-only
-    /// root and declaration-identified static projection.
+    /// Non-observing primitive replacement through an exact mutable or
+    /// write-only root and its verified Terminal projection. `indices`
+    /// resolves each `RuntimeIndex` segment of `path`, in path order, to the
+    /// operand the address scales by its array stride; the segment keeps the
+    /// obligation proving it inside the array.
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        path: Vec<StructuralPathSegment>,
         destination_type: StructuralTypeDeclaration,
         destination_placement: ValuePlacement,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
-    },
-    /// One verified runtime-indexed primitive element write through an exact
-    /// mutable or write-only root. `path` resolves from the destination root
-    /// to the fixed array itself; `index` is the exact dominating u64 scalar
-    /// definition and `obligation` certifies `index < extent`, so the write
-    /// always lands inside the declared array. Selection must not realize
-    /// this operation without an exact element-width address model.
-    WriteOnlyIndexedPrimitiveStore {
-        psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        index: TargetUnitScalarArgumentSource,
-        destination_type: StructuralTypeDeclaration,
-        destination_placement: ValuePlacement,
-        source: TargetUnitScalarArgumentSource,
-        obligation: semantic_vocabulary::ObligationId,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// One verifier-approved fixed-width integer write into an exact field of
     /// a staged attached-Unit structural parameter (receiver or ordinary
     /// parameter). Semantic location and
     /// physical offset remain together so assignment and emission can replay
-    /// the join independently.
+    /// the join independently. `field_byte_offset` is the static part of the
+    /// carrier path plus the field; `indices` resolves each runtime element
+    /// of the carrier, in path order, as for a primitive store.
     StructuralScalarFieldStore {
         psi_operation: OperationId,
         destination: StructuralParameterDeclaration,
@@ -247,6 +229,7 @@ pub enum TargetUnitOperation {
         destination_placement: ValuePlacement,
         field_byte_offset: u32,
         source: TargetUnitScalarArgumentSource,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     IeeeFloatConstant {
         psi_operation: OperationId,
@@ -497,11 +480,11 @@ pub enum TargetUnitOperation {
     },
 }
 
-/// A runtime `RuntimeIndex` traversal inside a structural leaf copy: the
-/// resolved operand scales by `stride` before joining the static byte offset.
-/// The operand carries the caller's published bound evidence verbatim — the
-/// segment's `selector` names the same dense parameter position as
-/// `operand`'s `parameter_index` when it resolves to an incoming parameter.
+/// One `RuntimeIndex` traversal of a structural projection (a leaf copy, a
+/// primitive read or store, or a scalar field store's carrier): the resolved
+/// operand scales by the array's element `stride` before joining the static
+/// byte offset, in path order. The path segment itself keeps the obligation
+/// proving the operand inside the array; this row never restates a bound.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetStructuralRuntimeIndex {
     pub operand: TargetUnitScalarArgumentSource,

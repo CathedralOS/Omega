@@ -16,6 +16,35 @@ fn proof_rejects(program: &typed_trees::TypedTrees) {
 }
 
 #[test]
+fn an_ensured_result_bound_feeds_the_callers_exact_arithmetic() {
+    let source = r#"
+        data Main { hits: u64 in Wrapping; }
+        machine Main::small(&mut self, value: u32) -> u32
+        requires value <= 20
+        ensures result <= 20
+        {
+            self.hits = self.hits + 1;
+            value
+        }
+        machine Main::caller(&mut self, value: u32) -> u32
+        requires value <= 20
+        { self.small(self.small(value)) + 1 }
+    "#;
+    crate::tests::front_end::checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        &source.replace("ensures result <= 20", ""),
+    )
+    .expect_err("an unguaranteed result may reach the carrier maximum");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("may overflow")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn guarded_arrival_requirement_proves_bounded_increment() {
     let source = r#"
         data Main {}

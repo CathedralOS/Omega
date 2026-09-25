@@ -1426,10 +1426,22 @@ pub(super) fn analyze(
             // NEUTRAL (opaque/unbounded, as before); attaching a bare type's full
             // range + primitive to an otherwise-unbounded call result would turn a
             // previously-unchecked expression into a spurious overflow.
+            // A callee's `ensures result <= K` is the same enforced guarantee.
             if let Some((primitive, interval)) =
                 call_return_type(program, call).and_then(|return_type| {
-                    range_constraint_interval(program, return_type)
-                        .map(|interval| (program.primitive_type_reference(return_type), interval))
+                    let primitive = program.primitive_type_reference(return_type);
+                    let declared = range_constraint_interval(program, return_type);
+                    let ensured = super::return_ranges::ensured_call_result_interval(program, call)
+                        .map(|ensured| {
+                            primitive
+                                .and_then(primitive_range)
+                                .map_or(ensured, |carrier| ensured.intersect(carrier))
+                        });
+                    match (declared, ensured) {
+                        (Some(declared), Some(ensured)) => Some(declared.intersect(ensured)),
+                        (declared, ensured) => declared.or(ensured),
+                    }
+                    .map(|interval| (primitive, interval))
                 })
             {
                 return Analysis {

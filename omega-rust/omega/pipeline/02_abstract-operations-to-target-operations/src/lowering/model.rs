@@ -175,13 +175,6 @@ pub enum LoweringError {
         machine: MachineId,
         operation: OperationId,
     },
-    /// The verified indexed store retains its runtime index and bounds
-    /// obligation; this reports custody or realization gaps the selected
-    /// lowering cannot replay.
-    UnsupportedWriteOnlyIndexedPrimitiveStore {
-        machine: MachineId,
-        operation: OperationId,
-    },
     UnsupportedStructuralReturn(MachineId),
     UnsupportedStructuralReturnShape {
         machine: MachineId,

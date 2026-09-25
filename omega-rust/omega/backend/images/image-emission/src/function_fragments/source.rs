@@ -17,8 +17,7 @@ mod tests;
 pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
     operations.iter().any(|operation| {
         if matches!(operation,
-            AbstractOperation::WriteOnlyPrimitiveStore { path, .. }
-            | AbstractOperation::WriteOnlyIndexedPrimitiveStore { path, .. } if !path.is_empty())
+            AbstractOperation::WriteOnlyPrimitiveStore { path, .. } if !path.is_empty())
         {
             return true;
         }
@@ -239,6 +238,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::PrimitiveScalarRead { path, .. } if !path.is_empty() => {
                     structural_fields::retained(abstracted, operation, targeted)
+                        && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::IntegerStructuralField { .. }
                 | AbstractOperation::StructuralByteSequenceFieldLength { .. }
@@ -411,21 +411,19 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 // A Trapping form replays its form, operands and carriers;
                 // its check and inline trap are the kind's own encoding.
                 | AbstractOperation::TrappingInteger { .. } => true,
+                // A static store writes one exact place row; a store through
+                // runtime-selected elements publishes one row per element.
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, destination, .. } => {
-                    selected.memory_accesses.iter().any(|access| {
-                        access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
-                            && access.place == destination.place
-                            && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
-                    })
-                }
-                AbstractOperation::IndexedPrimitiveRead { .. } => {
-                    structural_fields::indexed_read_retained(abstracted, operation, targeted)
-                        && structural_fields::indexed_read_footprint_retained(operation, &selected.memory_accesses)
-                }
-                AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
-                    structural_fields::write_only_indexed_store_retained(abstracted, operation, targeted)
-                        && structural_fields::write_only_indexed_footprint_retained(operation, &selected.memory_accesses)
+                    if operation.runtime_indices().is_empty() {
+                        selected.memory_accesses.iter().any(|access| {
+                            access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
+                                && access.place == destination.place
+                                && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
+                        })
+                    } else {
+                        structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
+                    }
                 }
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),

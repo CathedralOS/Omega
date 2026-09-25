@@ -13,7 +13,10 @@ data Main {
     hits: u64 in Wrapping;
 }
 
-machine Main::bump_and_value(&mut self, value: u32 [0..=20]) -> u32 [0..=20] {
+machine Main::bump_and_value(&mut self, value: u32) -> u32
+requires value <= 20
+ensures result <= 20
+{
     self.hits = self.hits + 1;
     value
 }
@@ -51,7 +54,9 @@ machine Main::main(&mut self) reaches Console {
         transition { _ -> take_pair(10) }
     }
 
-    state take_pair(&mut self, seed: u32 [0..=10]) {
+    state take_pair(&mut self, seed: u32)
+    requires seed <= 10
+    {
         transition true {
             true -> consume_pair(
                 self.bump_and_value(seed),

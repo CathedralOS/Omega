@@ -59,7 +59,10 @@ pub data TableEntry [copy] {
 // leaf table's (bits 12..21). The shift `39 - 9 * depth` stays nonnegative
 // because the parameter's own range caps it at 3, and the mask result is the
 // ranged slot every table store expects.
-pub machine level_index(virtual_base: u64, depth: u64 [0..=3]) -> u64 [0..=511] {
+pub machine level_index(virtual_base: u64, depth: u64) -> u64
+requires depth <= 3
+ensures result <= 511
+{
     (virtual_base >> (39 - 9 * depth)) & 511
 }
 

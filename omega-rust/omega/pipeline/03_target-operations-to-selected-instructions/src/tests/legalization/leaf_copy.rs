@@ -254,11 +254,13 @@ pub(crate) fn endpoint_fixture(
         TargetLoweringRequest::new(native),
     )
     .expect("a readable root admits a static leaf copy");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
+    let unit = super::accept_referenced_obligations(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap(),
+    );
     optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("leaf copy graph keeps canonical custody");
     (source, target, unit)
@@ -795,11 +797,13 @@ fn runtime_index_fixture() -> (
         TargetLoweringRequest::new(NativeTarget::linux_x64()),
     )
     .expect("a bounded runtime index admits a leaf copy");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
+    let unit = super::accept_referenced_obligations(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap(),
+    );
     optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("runtime-index leaf copy graph keeps canonical custody");
     (source, target, unit)
@@ -867,13 +871,17 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
     assert_eq!(*shape, calling_conventions::ValueShape::integer(16, 8));
     assert_eq!(
         indices.as_slice(),
-        &[legalized_operations::LegalizedRuntimeIndexOperand {
-            operand: abstract_operations::AbstractResult {
+        &[super::runtime_operand(
+            &unit,
+            OperationId::new(1).unwrap(),
+            abstract_operations::AbstractResult {
                 value: ValueId::new(9).unwrap(),
                 scalar_type: u64_type(),
             },
-            stride: 16,
-        }]
+            16,
+            2,
+            semantic_vocabulary::ObligationId::new(1).unwrap(),
+        )]
     );
     let environment = register_environment::baseline_target_register_environment(native).unwrap();
     let constraints = selection_constraints(&legal, &environment);
@@ -935,6 +943,25 @@ fn leaf_copy_runtime_index_copies_through_dynamic_address() {
         })
         .collect();
     assert_eq!(stores, [0, 8]);
+    // A load through the runtime element does not address the static offset
+    // alone: each chunk's source row names the element, its stride and its
+    // certificate, so no later rewrite reads it as a fixed extent.
+    let source_rows = function
+        .memory_accesses
+        .iter()
+        .filter(|access| access.place == PlaceId::new(1).unwrap())
+        .map(|access| (access.byte_offset, access.role))
+        .collect::<Vec<_>>();
+    assert_eq!(source_rows.len(), 2, "one element row per loaded chunk");
+    assert!(source_rows.iter().all(|(_, role)| matches!(
+        role,
+        selected_instructions::SelectedMemoryAccessRole::ReadIndexedPrimitive {
+            index,
+            stride: 16,
+            extent: 2,
+            ..
+        } if *index == ValueId::new(9).unwrap()
+    )));
 }
 
 #[test]
@@ -954,11 +981,13 @@ fn leaf_copy_runtime_index_widens_integer_selectors() {
             TargetLoweringRequest::new(NativeTarget::linux_x64()),
         )
         .unwrap_or_else(|error| panic!("{scalar:?} selector admits a leaf copy: {error:?}"));
-        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-            &source,
-            FuelScheduleIdentity::new(1).unwrap(),
-        )
-        .unwrap();
+        let unit = super::accept_referenced_obligations(
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap(),
+        );
         optimization_unit_semantics::validate_psi_optimization_unit(&unit)
             .expect("integer-index leaf copy graph keeps canonical custody");
         let legal = legalize_target_operations(&target, &source, &unit)
@@ -1079,11 +1108,13 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
         TargetLoweringRequest::new(native),
     )
     .expect("bounded runtime indices admit a leaf copy");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
+    let unit = super::accept_referenced_obligations(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap(),
+    );
     optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("runtime-index leaf copy graph keeps canonical custody");
     let copies: Vec<_> = target.functions[0]
@@ -1156,20 +1187,28 @@ fn leaf_copy_nested_runtime_indices_copy_through_chained_addresses() {
     assert_eq!(
         indices.as_slice(),
         &[
-            legalized_operations::LegalizedRuntimeIndexOperand {
-                operand: abstract_operations::AbstractResult {
+            super::runtime_operand(
+                &unit,
+                OperationId::new(1).unwrap(),
+                abstract_operations::AbstractResult {
                     value: ValueId::new(9).unwrap(),
                     scalar_type: u64_type(),
                 },
-                stride: 48,
-            },
-            legalized_operations::LegalizedRuntimeIndexOperand {
-                operand: abstract_operations::AbstractResult {
+                48,
+                2,
+                semantic_vocabulary::ObligationId::new(1).unwrap(),
+            ),
+            super::runtime_operand(
+                &unit,
+                OperationId::new(1).unwrap(),
+                abstract_operations::AbstractResult {
                     value: ValueId::new(10).unwrap(),
                     scalar_type: u64_type(),
                 },
-                stride: 16,
-            },
+                16,
+                3,
+                semantic_vocabulary::ObligationId::new(2).unwrap(),
+            ),
         ]
     );
     let environment = register_environment::baseline_target_register_environment(native).unwrap();
@@ -1286,11 +1325,13 @@ fn leaf_copy_fragment_backed_owned_param_selects_and_validates() {
         TargetLoweringRequest::new(native),
     )
     .expect("an owned fragment-backed root admits a whole-root leaf copy");
-    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
-        &source,
-        FuelScheduleIdentity::new(1).unwrap(),
-    )
-    .unwrap();
+    let unit = super::accept_referenced_obligations(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap(),
+    );
     optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
     let legal = legalize_target_operations(&target, &source, &unit)
         .expect("leaf copy from a fragment-backed owned param legalizes");

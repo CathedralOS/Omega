@@ -88,6 +88,29 @@ pub fn immutable_integer_expression_bounds(
     Some((value.interval.low?, value.interval.high?))
 }
 
+/// The bounds every evaluation of one state parameter satisfies: its exact
+/// carrier and declared range, narrowed for an immutable parameter by its
+/// state's `requires` comparisons. Either endpoint may be open.
+pub fn state_parameter_integer_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    parameter: SymbolHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|candidate| candidate.symbol == parameter)?;
+    if parameter.is_self || parameter.is_const {
+        return None;
+    }
+    let mut interval = type_bounds(program, parameter.type_reference)?.interval;
+    if !parameter.is_mutable {
+        interval = interval.intersect(requires_interval(program, machine, state, parameter.symbol));
+    }
+    Some((interval.low, interval.high))
+}
+
 /// The same bounds with either endpoint allowed to be open: an unrestricted
 /// u64 keeps its zero floor although its ceiling does not fit an i64.
 pub(crate) fn immutable_integer_expression_interval(
@@ -315,6 +338,28 @@ fn bounds(
             program,
             fields::type_reference(program, state?, expression, declared_mutable_leaves)?,
         ),
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::BitwiseAnd | BinaryOperator::ShiftRight
+            ) =>
+        {
+            let left = bounds(
+                program,
+                machine,
+                state,
+                binary.left,
+                declared_mutable_leaves,
+            )?;
+            let right = bounds(
+                program,
+                machine,
+                state,
+                binary.right,
+                declared_mutable_leaves,
+            )?;
+            unsigned_bitwise_bounds(program, binary.operator, left, right)
+        }
         ExpressionNode::Binary(binary) => {
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
@@ -456,6 +501,75 @@ fn bounds(
         }
         _ => None,
     }
+}
+
+/// Unsigned `&` and `>>` have no selectable spelling, so their meaning is
+/// builtin. A mask keeps the smaller bounded operand's ceiling; a right shift
+/// by a count inside the carrier's width scales both endpoints down. Signed
+/// carriers and out-of-width counts stay unbounded here.
+fn unsigned_bitwise_bounds(
+    program: &TypedTrees,
+    operator: BinaryOperator,
+    left: Bounds,
+    right: Bounds,
+) -> Option<Bounds> {
+    let primitive = left.primitive?;
+    if !matches!(
+        primitive,
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
+    ) {
+        return None;
+    }
+    if operator == BinaryOperator::BitwiseAnd
+        && right.primitive.is_some_and(|other| other != primitive)
+    {
+        return None;
+    }
+    let right_carrier = right.primitive.unwrap_or(primitive);
+    for (value, carrier) in [
+        (&left.constant_value, primitive),
+        (&right.constant_value, right_carrier),
+    ] {
+        if let Some(value) = value {
+            typed_trees::closed_numeric::land_integer(value, carrier)?;
+        }
+    }
+    if left.interval.low? < 0 || right.interval.low? < 0 {
+        return None;
+    }
+    let interval = match operator {
+        BinaryOperator::BitwiseAnd => Interval {
+            low: Some(0),
+            high: match (left.interval.high, right.interval.high) {
+                (Some(left), Some(right)) => Some(left.min(right)),
+                (bounded, None) | (None, bounded) => bounded,
+            },
+        },
+        BinaryOperator::ShiftRight => {
+            let width = super::integer_bit_width(primitive)?;
+            let (low_count, high_count) = (right.interval.low?, right.interval.high?);
+            if high_count >= width {
+                return None;
+            }
+            Interval {
+                low: Some(left.interval.low? >> high_count),
+                high: left.interval.high.map(|high| high >> low_count),
+            }
+        }
+        _ => return None,
+    };
+    let mut result_type = left.type_reference?;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(result_type)
+    {
+        result_type = *base_type;
+    }
+    Some(Bounds {
+        interval,
+        constant_value: None,
+        primitive: Some(primitive),
+        type_reference: Some(result_type),
+    })
 }
 
 /// The literal comparisons on `parameter` in the clause every arrival proves:

@@ -24,7 +24,6 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
-        | O::WriteOnlyIndexedPrimitiveStore { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }
@@ -69,7 +68,6 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::ByteSequenceLength { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
-        | O::IndexedPrimitiveRead { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }

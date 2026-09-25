@@ -22,7 +22,9 @@ reaches Console
         ByteRead::Eof -> eof(before.value)
     }
 
-    state byte(&mut self, value: i32 [0..=255], retained: Scratch, observed: i32) {
+    state byte(&mut self, value: i32, retained: Scratch, observed: i32)
+    requires 0 <= value && value <= 255
+    {
         self.console.write_byte(value);
         let second: ByteRead = block self.console.read_byte();
     }

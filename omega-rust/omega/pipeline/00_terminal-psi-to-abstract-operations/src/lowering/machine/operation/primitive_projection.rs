@@ -1,62 +1,37 @@
-//! Split a Terminal primitive-leaf projection for the abstract operations.
+//! Reconstruct a Terminal primitive-leaf projection for the abstract operations.
 //!
 //! Terminal spells a primitive leaf (`PrimitiveScalarRead`,
 //! `WriteOnlyPrimitiveStore`) as one structural path whose elements may be
-//! runtime-selected; each runtime element's bound is an obligation the
-//! verifier already discharged. The abstract operations still take either a
-//! canonical static path, or a canonical path to a fixed array plus one
-//! trailing runtime element (`IndexedPrimitiveRead`,
-//! `WriteOnlyIndexedPrimitiveStore`). A field or a further index after a
-//! runtime element is refused here until lowering composes `(index, stride)`
-//! runs for primitive leaves the way leaf copies already do.
+//! runtime-selected at any depth (`grid[i][j]`, `ents[i].hp`); each runtime
+//! element's bound is an obligation the verifier already discharged at the
+//! operation. The abstract read and store keep that exact path, so there is
+//! one route whatever the mix of fields and literal or runtime elements, and
+//! target lowering scales each runtime element into the address as an
+//! `(index, stride)` run the way leaf copies do. Lowering reconstructs only
+//! the leaf's scalar type and that every selector is an integer carrier the
+//! 64-bit address model can extend; it never restates or re-derives a bound.
 
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ObligationId, ScalarType, StructuralTypeId, ValueId,
-};
-use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
+use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
+use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
 
-pub(super) enum PrimitiveProjection {
-    /// Every element is literal: the canonical path to the primitive leaf.
-    Static(Vec<CanonicalStructuralPathSegment>),
-    /// A canonical path to a fixed array of primitive `element`s, and the one
-    /// runtime element that ends the Terminal path.
-    TrailingRuntimeIndex {
-        array: Vec<CanonicalStructuralPathSegment>,
-        element: ScalarType,
-        index: ValueId,
-        obligation: ObligationId,
-    },
-}
-
-pub(super) fn split(
+/// The primitive leaf `path` selects beneath `root`, when every runtime
+/// selector has an integer type of at most 64 bits.
+pub(super) fn leaf_type(
     structural_types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-) -> Option<PrimitiveProjection> {
-    let Some((last, prefix)) = path.split_last() else {
-        return Some(PrimitiveProjection::Static(Vec::new()));
-    };
-    let Some((index, obligation)) = last.runtime_index() else {
-        return terminal_semantics::canonical_primitive_path(structural_types.iter(), root, path)
-            .map(PrimitiveProjection::Static);
-    };
-    let (array, tip) =
-        terminal_semantics::canonical_static_projection(structural_types.iter(), root, prefix)?;
-    let StructuralTypeShape::FixedArray { element, .. } = tip.shape else {
-        return None;
-    };
-    let element = match structural_types
-        .iter()
-        .find(|declaration| declaration.id == element)?
-        .shape
-    {
-        StructuralTypeShape::PrimitiveScalar(scalar) => scalar,
-        _ => return None,
-    };
-    Some(PrimitiveProjection::TrailingRuntimeIndex {
-        array,
-        element,
-        index,
-        obligation,
-    })
+    selector_type: impl Fn(ValueId) -> Option<ScalarType>,
+) -> Option<ScalarType> {
+    path.iter()
+        .filter_map(StructuralPathSegment::runtime_index)
+        .all(|(index, _)| runtime_selector(selector_type(index)))
+        .then(|| terminal_semantics::primitive_projection_type(structural_types.iter(), root, path))
+        .flatten()
+}
+
+/// Whether a selector's type is an integer carrier the address model scales:
+/// narrower carriers are sign- or zero-extended to 64 bits, and a signed
+/// selector's `0 <= index` is part of the verified obligation.
+pub(super) fn runtime_selector(selector: Option<ScalarType>) -> bool {
+    matches!(selector, Some(ScalarType::Integer(integer)) if integer.bits() <= 64)
 }

@@ -107,6 +107,14 @@ pub(in crate::selection) fn read(
         .find(|(stored, _)| *stored == place)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(|| invalid())?;
+    // A primitive leaf reached through runtime elements scales each selector
+    // into the address first; every other read loads at its static offset.
+    let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
+        LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
+        _ => &[],
+    };
+    let pointer =
+        super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
@@ -133,13 +141,14 @@ pub(in crate::selection) fn read(
         ),
         _ => return Err(invalid()),
     };
-    memory(
+    super::runtime_address::footprint(
         builder,
         row,
         place,
         byte_offset,
         u32::from(shape.byte_size),
-        SelectedMemoryAccessRole::ReadPlace,
+        indices,
+        None,
     )?;
     builder.emit(
         instruction,
@@ -147,7 +156,11 @@ pub(in crate::selection) fn read(
         &[pointer, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
-            values: vec![definition.value],
+            values: indices
+                .iter()
+                .map(|index| index.operand.value)
+                .chain([definition.value])
+                .collect(),
             fuel: row.fuel.clone(),
             ..Default::default()
         },

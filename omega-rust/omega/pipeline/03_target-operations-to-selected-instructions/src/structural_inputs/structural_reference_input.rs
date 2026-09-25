@@ -4,9 +4,7 @@
 use calling_conventions::{
     IndirectPointerLocation, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
-use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, ScalarType, StructuralFieldId, StructuralTypeId,
-};
+use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -65,13 +63,52 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
+/// One runtime-selected element of a structural projection: the selector
+/// value, the obligation the verified Terminal attached to the segment, the
+/// array's element `stride`, and its declared `extent`. The address model
+/// scales `index` by `stride`; the obligation, not this layout, is what
+/// proves `index < extent`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RuntimeElement {
+    pub(crate) index: semantic_vocabulary::ValueId,
+    pub(crate) obligation: semantic_vocabulary::ObligationId,
+    pub(crate) stride: u32,
+    pub(crate) extent: u64,
+}
+
+/// Whether legalized runtime traversals are exactly a projection's runtime
+/// elements, in path order: the same selector, obligation, stride and
+/// extent. The accepted certificate beside each was joined by legalization.
+pub(crate) fn runtime_indices_match(
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    elements: &[RuntimeElement],
+) -> bool {
+    indices.len() == elements.len()
+        && indices.iter().zip(elements).all(|(index, element)| {
+            index.operand.value == element.index
+                && index.obligation == element.obligation
+                && index.stride == element.stride
+                && index.extent == element.extent
+        })
+}
+
+/// The farthest a projection's runtime elements move its access past the
+/// static offset: each element's last in-extent position times its stride.
+/// This is layout geometry — every access the verified obligations admit
+/// stays inside the root — not a bound on any selector.
+fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
+    elements.iter().try_fold(0u64, |reach, element| {
+        reach.checked_add(u64::from(element.stride).checked_mul(element.extent.checked_sub(1)?)?)
+    })
+}
+
 /// Reconstruct a primitive write without inventing a carrier record or field.
 pub(crate) fn primitive_store(
     destination: &terminal_psi::StructuralParameterDeclaration,
-    path: &[CanonicalStructuralPathSegment],
+    path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8)> {
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
     if destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || (path.is_empty()
             && destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
@@ -89,24 +126,17 @@ pub(crate) fn primitive_store(
     primitive_geometry(destination.structural_type, path, scalar, declarations)
 }
 
-/// Reconstruct the selected primitive and its footprint within the original root.
+/// Reconstruct the selected primitive leaf and its footprint within the
+/// original root: the static byte offset, the leaf width, and each runtime
+/// element of the projection in path order. Every access the elements can
+/// select must stay inside the root.
 pub(crate) fn primitive_geometry(
     root: StructuralTypeId,
-    path: &[CanonicalStructuralPathSegment],
+    path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8)> {
-    let (leaf, offset) = project_inner(
-        root,
-        path.iter().map(|segment| match segment {
-            CanonicalStructuralPathSegment::Field(field) => Projection::FieldId(*field),
-            CanonicalStructuralPathSegment::FixedIndex(position) => {
-                Projection::FixedIndex(*position)
-            }
-            _ => Projection::Unsupported,
-        }),
-        declarations,
-    )?;
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    let (leaf, offset, elements) = runtime_projection(root, path, declarations)?;
     let mut matches = declarations
         .iter()
         .filter(|declaration| declaration.id == leaf);
@@ -116,81 +146,11 @@ pub(crate) fn primitive_geometry(
         return None;
     }
     let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
-    (offset.checked_add(u32::from(bytes))? <= u32::from(shape(root, declarations)?.byte_size))
-        .then_some((offset, bytes))
-}
-
-/// Reconstruct a runtime-indexed primitive write: `path` resolves to the fixed
-/// array itself and the dynamic index selects one element. Returns the array's
-/// byte offset within the original root, the element footprint (which is the
-/// addressing stride for scalar elements) and the declared extent.
-pub(crate) fn indexed_primitive_store(
-    destination: &terminal_psi::StructuralParameterDeclaration,
-    path: &[CanonicalStructuralPathSegment],
-    scalar: ScalarType,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8, u64)> {
-    if destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || (path.is_empty()
-            && destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
-        || !matches!(
-            destination.access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
-    {
-        return None;
-    }
-    indexed_array_layout(destination.structural_type, path, scalar, declarations)
-}
-
-/// The fixed array of `scalar` elements at `path` beneath `root`: its base
-/// offset within the referent, the element width that is also the stride,
-/// and the declared extent. Indexed reads and stores address one element of
-/// this layout at a proven runtime position.
-pub(crate) fn indexed_array_layout(
-    root: StructuralTypeId,
-    path: &[CanonicalStructuralPathSegment],
-    scalar: ScalarType,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8, u64)> {
-    if matches!(scalar, ScalarType::Integer(integer) if integer.is_address()) {
-        return None;
-    }
-    let (carrier, offset) = project_inner(
-        root,
-        path.iter().map(|segment| match segment {
-            CanonicalStructuralPathSegment::Field(field) => Projection::FieldId(*field),
-            CanonicalStructuralPathSegment::FixedIndex(position) => {
-                Projection::FixedIndex(*position)
-            }
-            _ => Projection::Unsupported,
-        }),
-        declarations,
-    )?;
-    let mut matches = declarations
-        .iter()
-        .filter(|declaration| declaration.id == carrier);
-    let declaration = matches.next()?;
-    if matches.next().is_some() {
-        return None;
-    }
-    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-        return None;
-    };
-    let mut elements = declarations
-        .iter()
-        .filter(|declaration| declaration.id == element);
-    let element = elements.next()?;
-    if elements.next().is_some() || element.shape != StructuralTypeShape::PrimitiveScalar(scalar) {
-        return None;
-    }
-    let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
-    (u64::from(offset).checked_add(u64::from(bytes).checked_mul(length)?)?
+    (u64::from(offset)
+        .checked_add(runtime_reach(&elements)?)?
+        .checked_add(u64::from(bytes))?
         <= u64::from(shape(root, declarations)?.byte_size))
-    .then_some((offset, bytes, length))
+    .then_some((offset, bytes, elements))
 }
 
 pub(crate) fn shape(
@@ -783,7 +743,6 @@ pub(crate) fn project(
 
 enum Projection<'a> {
     FieldName(&'a str),
-    FieldId(StructuralFieldId),
     FixedIndex(u64),
     Unsupported,
 }
@@ -811,10 +770,7 @@ fn project_inner<'a>(
                     .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
                 carrier = *element;
             }
-            (
-                projection @ (Projection::FieldName(_) | Projection::FieldId(_)),
-                StructuralTypeShape::Record { fields },
-            ) => {
+            (Projection::FieldName(name), StructuralTypeShape::Record { fields }) => {
                 let mut field_offset = 0;
                 let mut found = None;
                 for field in fields.iter().filter(|field| {
@@ -823,11 +779,7 @@ fn project_inner<'a>(
                 }) {
                     let layout = field_shape(&field.field_type, declarations, &mut Vec::new())?;
                     field_offset = align(field_offset, layout.alignment)?;
-                    if match projection {
-                        Projection::FieldName(name) => field.identity == name,
-                        Projection::FieldId(identity) => field.id == identity,
-                        _ => false,
-                    } {
+                    if field.identity == name {
                         let nested = match &field.field_type {
                             StructuralFieldType::Structural(nested) => *nested,
                             leaf => {
@@ -853,28 +805,25 @@ fn project_inner<'a>(
     Some((carrier, offset))
 }
 
-/// Resolve a leaf-copy projection that may traverse `RuntimeIndex`
-/// segments. Static segments before, between, and after the dynamic
-/// segments fold into the returned byte offset; each dynamic segment
-/// contributes `(index, stride)` so the copy scales every runtime operand
-/// into the same address in path order. The segment's bound is the
-/// obligation the terminal verifier discharged; only the array shape is
+/// Resolve a projection that may traverse `RuntimeIndex` segments at any
+/// depth — a leaf copy's extent, a primitive leaf, or a field store's
+/// carrier. Static segments before, between, and after the runtime elements
+/// fold into the returned byte offset; each runtime element contributes its
+/// selector, obligation, stride and extent so the access scales every
+/// operand into the same address in path order. The element's bound is the
+/// obligation the terminal verifier discharged; only array shape is
 /// resolved here.
-pub(crate) fn leaf_copy_projection(
+pub(crate) fn runtime_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(
-    StructuralTypeId,
-    u32,
-    Vec<(semantic_vocabulary::ValueId, u32)>,
-)> {
+) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
     let mut container = root;
     let mut byte_offset = 0u32;
-    let mut indices = Vec::new();
+    let mut elements = Vec::new();
     let mut segment_start = 0usize;
     for (position, segment) in path.iter().enumerate() {
-        let StructuralPathSegment::RuntimeIndex { index, .. } = segment else {
+        let StructuralPathSegment::RuntimeIndex { index, obligation } = segment else {
             continue;
         };
         if position > segment_start {
@@ -883,7 +832,7 @@ pub(crate) fn leaf_copy_projection(
             container = selected;
             byte_offset = byte_offset.checked_add(run_offset)?;
         }
-        let StructuralTypeShape::FixedArray { element, .. } = &declarations
+        let StructuralTypeShape::FixedArray { element, length } = &declarations
             .iter()
             .find(|declaration| declaration.id == container)?
             .shape
@@ -892,22 +841,31 @@ pub(crate) fn leaf_copy_projection(
         };
         let element_shape = shape(*element, declarations)?;
         let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
-        indices.push((*index, stride));
+        elements.push(RuntimeElement {
+            index: *index,
+            obligation: *obligation,
+            stride,
+            extent: *length,
+        });
         container = *element;
         segment_start = position + 1;
     }
     let (endpoint, tail_offset) = project(container, &path[segment_start..], declarations)?;
-    Some((endpoint, byte_offset.checked_add(tail_offset)?, indices))
+    Some((endpoint, byte_offset.checked_add(tail_offset)?, elements))
 }
 
+/// The field-store geometry: the static offset of `field` beneath the
+/// carrier `path`, its width, and each runtime element of the carrier in
+/// path order. The carrier composes record fields and literal or runtime
+/// elements in any order (`is_structural_scalar_store_path`).
 pub(crate) fn store(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
-) -> Option<(u32, u8)> {
-    if !terminal_psi::is_bounded_structural_scalar_store_path(path) {
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    if !terminal_psi::is_structural_scalar_store_path(path) {
         return None;
     }
     // Current-IR validation binds every bounded write to its accepted range
@@ -924,8 +882,8 @@ fn scalar_field_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
     observes_byte_length: bool,
-) -> Option<(u32, u8)> {
-    let (carrier, carrier_offset) = project(root, path, declarations)?;
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    let (carrier, carrier_offset, elements) = runtime_projection(root, path, declarations)?;
     let StructuralTypeShape::Record { fields } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
@@ -964,12 +922,14 @@ fn scalar_field_geometry(
             }
             let offset = carrier_offset.checked_add(offset)?;
             let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
-            if offset.checked_add(u32::from(bytes))?
-                > u32::from(shape(root, declarations)?.byte_size)
+            if u64::from(offset)
+                .checked_add(runtime_reach(&elements)?)?
+                .checked_add(u64::from(bytes))?
+                > u64::from(shape(root, declarations)?.byte_size)
             {
                 return None;
             }
-            return Some((offset, bytes));
+            return Some((offset, bytes, elements));
         }
         offset = offset.checked_add(u32::from(layout.byte_size))?;
     }
@@ -994,6 +954,7 @@ pub(crate) fn field_read(
     }
     plain_record_shape(structural_type, declarations)?;
     scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
+        .map(|(offset, bytes, _)| (offset, bytes))
 }
 
 /// Bounded inline byte storage starts with an aligned u64 live length, followed
@@ -1012,6 +973,7 @@ pub(crate) fn byte_field_length(
     }
     plain_record_shape(structural_type, declarations)?;
     scalar_field_geometry(structural_type, path, field, scalar, declarations, true)
+        .map(|(offset, bytes, _)| (offset, bytes))
 }
 
 /// Metadata and inline backing share a field, but capacity bounds the destination

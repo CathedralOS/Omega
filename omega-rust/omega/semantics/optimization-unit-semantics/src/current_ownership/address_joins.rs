@@ -233,7 +233,6 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
         | O::StructuralByteSequenceFieldByteStore { destination, .. }
         | O::StructuralByteSequenceFieldStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. }
-        | O::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | O::StructuralScalarFieldStore { destination, .. }
         | O::StoreStructuralField { destination, .. } => vec![destination.place],
         O::MoveStructuralField { source, .. } => vec![source.place],

@@ -1,12 +1,16 @@
-//! Atomic memory events retain their normalized event kind, exact place,
+//! Atomic memory events retain their normalized event kind, exact location
+//! (root place, static carrier path, scalar field),
 //! operand identity, observed results, and proof-static ordering. Ordering
 //! and single-attempt custody are encoded as data so identity changes when
 //! either changes; legality remains the event's own recheck.
 
-use crate::optimization_unit::identity::carrier_encoding::encode_abstract_result;
+use crate::optimization_unit::identity::carrier_encoding::{
+    encode_abstract_result, encode_structural_path_segment,
+};
 use crate::optimization_unit::identity::structural_encoding::encode_structural_operation_result;
 
 use super::{AbstractOperation, CanonicalBytes};
+use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
     AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicModificationAfter,
     AtomicReadsFrom,
@@ -31,34 +35,34 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     bytes.id(*psi_operation);
     match event {
         E::Load {
-            place,
+            location,
             ordering,
             result,
         } => {
             bytes.u8(1);
-            bytes.id(*place);
+            encode_location(bytes, location);
             encode_memory_ordering(bytes, *ordering);
             encode_abstract_result(bytes, *result);
         }
         E::Store {
-            place,
+            location,
             ordering,
             value,
         } => {
             bytes.u8(2);
-            bytes.id(*place);
+            encode_location(bytes, location);
             encode_memory_ordering(bytes, *ordering);
             bytes.id(*value);
         }
         E::ReadModifyWrite {
-            place,
+            location,
             operation,
             ordering,
             operand,
             prior,
         } => {
             bytes.u8(3);
-            bytes.id(*place);
+            encode_location(bytes, location);
             bytes.u8(match operation {
                 AbstractAtomicReadModifyWrite::FetchAdd => 1,
                 AbstractAtomicReadModifyWrite::FetchSub => 2,
@@ -71,19 +75,19 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_abstract_result(bytes, *prior);
         }
         E::Swap {
-            place,
+            location,
             ordering,
             value,
             prior,
         } => {
             bytes.u8(4);
-            bytes.id(*place);
+            encode_location(bytes, location);
             encode_memory_ordering(bytes, *ordering);
             bytes.id(*value);
             encode_abstract_result(bytes, *prior);
         }
         E::CompareExchange {
-            place,
+            location,
             success,
             failure,
             expected,
@@ -91,7 +95,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             observed,
         } => {
             bytes.u8(5);
-            bytes.id(*place);
+            encode_location(bytes, location);
             encode_memory_ordering(bytes, *success);
             encode_memory_ordering(bytes, *failure);
             bytes.id(*expected);
@@ -99,7 +103,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_abstract_result(bytes, *observed);
         }
         E::CompareExchangeOnce {
-            place,
+            location,
             success,
             failure,
             expected,
@@ -108,7 +112,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             custody,
         } => {
             bytes.u8(6);
-            bytes.id(*place);
+            encode_location(bytes, location);
             encode_memory_ordering(bytes, *success);
             encode_memory_ordering(bytes, *failure);
             bytes.id(*expected);
@@ -169,4 +173,12 @@ fn encode_memory_ordering(bytes: &mut CanonicalBytes, ordering: MemoryOrdering) 
         MemoryOrdering::ReceivePublish => 4,
         MemoryOrdering::GlobalOrder => 5,
     });
+}
+
+/// The exact location: root place, every carrier path segment, and the
+/// scalar field, so a substituted field or element changes identity.
+fn encode_location(bytes: &mut CanonicalBytes, location: &AbstractAtomicLocation) {
+    bytes.id(location.root);
+    bytes.slice(&location.path, encode_structural_path_segment);
+    bytes.id(location.field);
 }

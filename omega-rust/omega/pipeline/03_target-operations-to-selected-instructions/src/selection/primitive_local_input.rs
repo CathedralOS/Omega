@@ -80,7 +80,7 @@ pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
 pub(super) fn readable(
     source: &LegalizedScalarFunction,
     place: PlaceId,
-    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    path: &[terminal_psi::StructuralPathSegment],
     scalar: ScalarType,
 ) -> bool {
     if super::scalar_call_abi::scalar_shape(scalar).is_none() {
@@ -121,29 +121,36 @@ pub(super) fn read_geometry(
 ) -> Option<(PlaceId, u32)> {
     let scalar = row.result?.scalar_type;
     match &row.kind {
+        // A projection through runtime elements returns its static offset;
+        // the row's traversals must be exactly the path's runtime elements,
+        // which the read scales into the address before the load.
         Instruction::PrimitiveScalarRead {
             source: place,
             path,
+            indices,
         } => {
             if !readable(source, *place, path, scalar) {
                 return None;
             }
             if local(source, *place).is_some() {
-                return Some((*place, 0));
+                return indices.is_empty().then_some((*place, 0));
             }
             let signature = source.structural.as_ref()?;
             let parameter = signature
                 .parameters
                 .iter()
                 .find(|parameter| parameter.semantic.place == *place)?;
-            let (offset, _) =
+            let (offset, _, elements) =
                 crate::structural_inputs::structural_reference_input::primitive_geometry(
                     parameter.semantic.structural_type,
                     path,
                     scalar,
                     &signature.structural_types,
                 )?;
-            Some((*place, offset))
+            crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices, &elements,
+            )
+            .then_some((*place, offset))
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,

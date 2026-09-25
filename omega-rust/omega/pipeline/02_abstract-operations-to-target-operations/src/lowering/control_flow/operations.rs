@@ -66,11 +66,9 @@ pub(super) fn lower_operation(
         | AbstractOperation::StructuralLeafCopy { source, .. }
         | AbstractOperation::StructuralCase { source, .. }
         | AbstractOperation::IntegerStructuralField { source, .. }
-        | AbstractOperation::IndexedPrimitiveRead { source, .. }
         | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
         AbstractOperation::WriteOnlyPrimitiveStore { destination, .. }
-        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
             Some(destination.place)
         }
@@ -397,7 +395,6 @@ pub(super) fn lower_operation(
         | AbstractOperation::PrimitiveScalarRead { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
-        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::BooleanStructuralField { .. } => super::primitive_storage::lower(
             operation,
             function,
@@ -558,6 +555,7 @@ pub(super) fn lower_operation(
                 &live.integers,
                 &live.booleans,
                 &live.ieee_float_constants,
+                &super::scalar_sources::ScalarSources::from(&*live),
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 operations,
@@ -575,16 +573,6 @@ pub(super) fn lower_operation(
                 &live.ieee_float_constants,
                 &live.scalar_homes,
                 live.scalar_block_parameters.get(&value.value).copied(),
-                operations,
-                provenance,
-            )
-        }
-        AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
-            crate::lowering::unit::write_only_indexed_primitive_store::lower_write_only_indexed_primitive_store(
-                operation,
-                function,
-                structural_types,
-                parameters_by_place,
                 &super::scalar_sources::ScalarSources::from(&*live),
                 operations,
                 provenance,

@@ -685,3 +685,51 @@ fn rejects_store_path_field_value_and_integer_read_artifact_corruption() {
         .scalar_type = ScalarType::Boolean;
     assert!(encode_module(&read).is_err());
 }
+
+#[test]
+fn verified_field_store_through_a_runtime_element_keeps_the_general_carrier() {
+    // `self.ents[index].hp = 5`: the carrier crosses a runtime element before
+    // the field, which the bounded carrier grammar excluded. The store keeps
+    // Terminal's carrier path, whose runtime element carries its selector and
+    // the obligation the verifier discharged.
+    let plan = super::write_only_primitive_store::verified_plan(
+        r#"
+        data Entity {
+            tag: u8;
+            hp: i32;
+        }
+        data World {
+            ents: [Entity; 2];
+        }
+        machine World::hit(&mut self, index: u64 [0..=1]) {
+            self.ents[index].hp = 5;
+        }
+        "#,
+        "World::hit",
+    );
+    let [function] = plan.functions.as_slice() else {
+        panic!("one store function")
+    };
+    let [index] = function.parameters.as_slice() else {
+        panic!("one runtime selector")
+    };
+    let path = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::StructuralScalarFieldStore { path, .. } => Some(path),
+            _ => None,
+        })
+        .expect("one scalar field store");
+    let [
+        StructuralPathSegment::Field(carrier),
+        StructuralPathSegment::RuntimeIndex {
+            index: selector, ..
+        },
+    ] = path.as_slice()
+    else {
+        panic!("the carrier is a field then a runtime element: {path:?}")
+    };
+    assert_eq!(carrier, "ents");
+    assert_eq!(*selector, index.value);
+}

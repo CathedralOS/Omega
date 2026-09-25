@@ -6,8 +6,8 @@ use abstract_operations::AbstractOperation;
 use terminal_psi::{OperationKind, TerminalDynamicDispatchCatalog, TerminalMachine};
 
 use super::{
-    LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, boolean, borrowed_windows,
-    calls, effects, ieee_float, integer_bitwise, integer_constants_and_relations,
+    LoweredAffineLocal, ScalarType, StructuralLiteral, arithmetic, atomic_events, boolean,
+    borrowed_windows, calls, effects, ieee_float, integer_bitwise, integer_constants_and_relations,
     integer_conversion, shifts, structural_establishment, structural_leaf_copy,
     structural_scalar_fields, trapping_integer,
 };
@@ -423,7 +423,7 @@ pub(super) fn lower(
         | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
         OperationKind::TrappingInteger { .. } => trapping_integer::lower(operation, value_types),
         OperationKind::AtomicAccess { .. } => {
-            Err(LoweringError::UnsupportedAtomicAccess(operation.id))
+            atomic_events::lower(operation, machine, structural_types)
         }
     }
 }

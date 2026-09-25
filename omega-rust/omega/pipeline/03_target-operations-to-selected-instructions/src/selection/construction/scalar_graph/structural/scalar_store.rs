@@ -1,18 +1,20 @@
-//! Exact non-observing writes through original borrowed pointers.
+//! Exact non-observing writes through original borrowed pointers. A path
+//! through runtime-selected elements scales each selector into the address
+//! first (`runtime_address`); the store then applies the static offset.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    StructuralAccess, memory,
+    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::structural_inputs::structural_reference_input::runtime_indices_match;
 
 pub(super) fn emit(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let (destination, value, byte_offset, byte_size) = match &row.kind {
+    let (destination, value, byte_offset, byte_size, indices) = match &row.kind {
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
             destination,
             path,
@@ -20,19 +22,24 @@ pub(super) fn emit(
             value,
             byte_offset,
             byte_size,
+            indices,
         } => {
             let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-            if crate::structural_inputs::structural_reference_input::store(
-                destination.structural_type,
-                path,
-                *field,
-                value.scalar_type,
-                &signature.structural_types,
-            ) != Some((*byte_offset, *byte_size))
+            let (offset, size, elements) =
+                crate::structural_inputs::structural_reference_input::store(
+                    destination.structural_type,
+                    path,
+                    *field,
+                    value.scalar_type,
+                    &signature.structural_types,
+                )
+                .ok_or_else(|| invalid())?;
+            if (offset, size) != (*byte_offset, *byte_size)
+                || !runtime_indices_match(indices, &elements)
             {
                 return Err(invalid());
             }
-            (destination, value, *byte_offset, *byte_size)
+            (destination, value, *byte_offset, *byte_size, indices)
         }
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
             destination,
@@ -40,19 +47,24 @@ pub(super) fn emit(
             value,
             byte_offset,
             byte_size,
+            indices,
         } => {
             let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-            if !signature.entry_claims.is_empty()
-                || crate::structural_inputs::structural_reference_input::primitive_store(
+            let (offset, size, elements) =
+                crate::structural_inputs::structural_reference_input::primitive_store(
                     destination,
                     path,
                     value.scalar_type,
                     &signature.structural_types,
-                ) != Some((*byte_offset, *byte_size))
+                )
+                .ok_or_else(|| invalid())?;
+            if !signature.entry_claims.is_empty()
+                || (offset, size) != (*byte_offset, *byte_size)
+                || !runtime_indices_match(indices, &elements)
             {
                 return Err(invalid());
             }
-            (destination, value, *byte_offset, *byte_size)
+            (destination, value, *byte_offset, *byte_size, indices)
         }
         _ => return Err(invalid()),
     };
@@ -80,13 +92,22 @@ pub(super) fn emit(
     if scalar != value.scalar_type {
         return Err(invalid());
     }
-    memory(
+    let address = super::runtime_address::scale(
+        builder,
+        row,
+        destination.place,
+        byte_offset,
+        pointer,
+        indices,
+    )?;
+    super::runtime_address::footprint(
         builder,
         row,
         destination.place,
         byte_offset,
         u32::from(byte_size),
-        SelectedMemoryAccessRole::WritePlace,
+        indices,
+        Some(value.value),
     )?;
     builder.emit(
         SelectedInstructionKind::Store {
@@ -94,10 +115,14 @@ pub(super) fn emit(
             byte_size,
         },
         builder.constraints.keys.store.ok_or_else(|| invalid())?,
-        &[pointer, register],
+        &[address, register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
-            values: vec![value.value],
+            values: indices
+                .iter()
+                .map(|index| index.operand.value)
+                .chain([value.value])
+                .collect(),
             fuel: row.fuel.clone(),
             ..Default::default()
         },

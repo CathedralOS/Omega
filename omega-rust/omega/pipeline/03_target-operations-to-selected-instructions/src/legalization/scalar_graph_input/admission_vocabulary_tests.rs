@@ -182,7 +182,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerBitwiseXor { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IntegerEqual { .. }
-        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::IntegerExactCast { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
@@ -213,7 +212,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::WrappingIntegerShiftLeft { .. }
         | AbstractOperation::WrappingIntegerShiftRight { .. }
         | AbstractOperation::WrappingIntegerSubtract { .. }
-        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. } => AdmissionRoute::BodyAdmitted,
         AbstractOperation::Conditional { .. }
         | AbstractOperation::Crash { .. }

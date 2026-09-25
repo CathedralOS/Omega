@@ -24,16 +24,15 @@ mod state_edges;
 mod static_fallback;
 mod struct_fields;
 
-/// A parameter's `requires` supplies entry membership exactly as a declared
-/// refinement does, because every arrival proves it; the rejection then
-/// belongs to the back-edge's descent inside the range.
-fn reject_descent(source: &str) {
-    let diagnostics = crate::checks::termination::check_machine_termination(&typed_program(source))
-        .expect_err(source);
+/// A parameter's `requires` supplies entry membership and a positive floor
+/// exactly as a declared refinement does, because every arrival proves it.
+/// Complete checking rejects the back-edge whose actual leaves the clause.
+fn reject_back_edge(source: &str) {
+    let diagnostics = checked_program_result(source).expect_err(source);
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("cannot prove the `terminates by` ranking")),
+            .contains("cannot prove requires contract for call walk")),
         "{source}\n{diagnostics:#?}"
     );
 }

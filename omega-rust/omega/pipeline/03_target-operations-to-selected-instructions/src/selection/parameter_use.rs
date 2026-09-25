@@ -30,10 +30,6 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                     source: argument,
                     ..
-                }
-                | LegalizedScalarInstructionKind::IndexedPrimitiveRead {
-                    source: argument,
-                    ..
                 } => argument.place == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                     destination,
@@ -45,11 +41,9 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
                 LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                     destination, ..
                 }
-                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. }
-                | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-                    destination,
-                    ..
-                } => destination.place == place,
+                | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => {
+                    destination.place == place
+                }
                 LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }

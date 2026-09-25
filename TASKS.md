@@ -122,10 +122,21 @@ the complete product bar; focused successes below do not establish that baseline
   (`runtime_provable_field_construction_exit`), or the entry's unit plan
   (`runtime_exact_guarded_shift_count_exit`,
   `runtime_exclusive_range_constraint_exit`,
-  `runtime_shift_count_proven_range_exit`). A machine `ensures` cannot use its
-  state's arrival `requires` (`bounded_guarded_increment`), and a state
-  `requires` is not proved across its guarded self-transition
-  (`runtime_dispatch_binary_call_argument_exit`). The
+  `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
+  19 further pass fixtures now use `requires`/`ensures`. The rest keep
+  brackets. Build-time evaluation refuses an authored `requires`: its
+  `closure_validation.rs` has no checked invocation proof before checking.
+  That blocks the plan-laid layout, wire-policy and interrupt-table
+  `evaluate` machines and `runtime_const_measured_recursion_exit`.
+  Terminal lowering proofs do not read parameter `requires`
+  (`runtime_post_entry_deep_chain_exit`). The call-requirement prover binds
+  parameters but not an immutable local bounded only by its guard
+  (`runtime_dispatch_binary_call_argument_exit`), a guarded field read
+  (`runtime_guard_narrowed_transition_arg_exit`), a nested value call's
+  result (`nested_value_call_arg_compile`), a library payload range
+  (`runtime_console_bounded_line_exit`), or an anonymous rational
+  transition actual (`anonymous_rational_arguments`). Ensures arithmetic
+  formation ignores `requires` (`accumulator_guarantee_exit`). The
   sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
   fields have their bracketed spelling back, and the four index fields run
   unbounded because Terminal infers their loop-header bounds. Their
@@ -354,24 +365,23 @@ the complete product bar; focused successes below do not establish that baseline
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
   boundary call, which is [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md)
   (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
-  otherwise; `proofs/cauchy_predicates_compile` on a cited callee's
-  premises; `control_flow/runtime_branching_helper_string` on a borrow-carrying
-  value stored in a persistent field; `core/extent_root_provider_adapter` on
-  the provider-selection subject route below.
-  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
-  `providers/external_leaf_dllimport_compile`, and
-  `domains/explicit_domain_erasure` check and leave this list.
+  otherwise; `proofs/cauchy_predicates_compile` on the two checker
+  capabilities `source/library/core/cauchy.omg` names above
+  `doubled_nat_max_modulus`, both reported at once and both inside
+  `converges_together_at_triangle_split`: `rat_close_triangle_split`'s
+  positivity requires cannot be discharged from a static-machine call's field
+  projection `(Middle(middle_index)).den` -- inlining the `let` does not help,
+  so it is the projection and not the local that the site cannot match -- and
+  its `ensures` names a machine-parameterized `converges_together_at`
+  application that "no entailment tier judges yet". Advancing this probe means
+  owning both; the second is a tier question, not a matching defect;   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
+  `providers/external_leaf_dllimport_compile`,
+  `domains/explicit_domain_erasure`, `core/extent_root_provider_adapter`, and
+  `control_flow/runtime_branching_helper_string` check and leave this list.
   Reproduce a selected customer on the working base, repair its owning
   capability, and rerun the same outer command.
 
   Concrete repair routes:
-  - `core/extent_root_provider_adapter`: establish a legitimate build-visible
-    selection route for a public core-owned boundary trait. In
-    `symbols::find_product_declaration_from_source`, an unqualified operand
-    fails `same_product_package_instance` against toolchain-injected core;
-    core has no package manifest for an authored dependency alternative.
-    Resolve that ownership/visibility route under the package contract, without
-    inventing fixture-local authority or weakening exact declaration selection.
   - `capabilities/windows_provides_import_exit`: preserve the producing
     statement for `self.m = self.beeper.beep(self.v)`. The packaged Windows
     fixture reaches `05_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
@@ -1412,13 +1422,14 @@ syntax and other terminal services are not prerequisites.
   whose path composes fields and literal or runtime elements in any order
   (`self.grid[i][j]`, `self.ents[i].pos.y`); c2l's `emission/runtime_elements.rs`
   evaluates the selectors before the value, and the verifier re-proves each
-  element's bound. The backend still executes only a static path or one
-  trailing runtime element for primitive leaves (t2a
-  `primitive_projection::split`, `UnsupportedRuntimeIndexProjection`) and only
-  fields-then-one-literal-element field carriers
-  (`is_bounded_structural_scalar_store_path`, `UnsupportedScalarFieldCarrier`):
-  lower the general path as `(index, stride)` runs the way leaf copies do and
-  retire the abstract `IndexedPrimitiveRead`/`WriteOnlyIndexedPrimitiveStore`.
+  element's bound; the Omega backend lowers each runtime element as an
+  `(index, stride)` run carrying its accepted certificate (a2t
+  `structural_layout::runtime_projection`, t2s `legalization/runtime_indices.rs`,
+  selection `runtime_address.rs`). `runtime_machine_owned_indexed_integer_write_exit`
+  and `compiler_body_machine_indexed_integer_write` stop at the element-view
+  field read `room_slice[index].exit_count` (`UnsupportedElementViewFieldRead`,
+  TERMINAL-SLICE-VIEW-VOCABULARY). Leaf copies still admit only
+  incoming-parameter selectors (a2t `control_flow/leaf_copy.rs`).
   Field-held loop counters
   (`runtime_{write_first_loop_index,nested_loop_fill,indexed_rmw_loop}_exit`)
   reach c2l, but no fact at the store bounds the field read
@@ -1487,7 +1498,7 @@ syntax and other terminal services are not prerequisites.
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but
-  `checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+  `checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
   compares Floor/Ceiling members and malformed-input probes.
   `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
   that probe's gaps are empty. Finite examples do not establish the general
@@ -1696,9 +1707,12 @@ syntax and other terminal services are not prerequisites.
     the four bound targets. Remaining stops the old refusal masked:
     `runtime_numeric_signed_conversion_surface_exit` reaches
     `narrow_i16_to_i8_exact`, whose sub-64-bit signed-to-signed
-    `IntegerExactCast` lies outside `exact_cast_has_native_carriers`
-    (`Selection(Legalization(SourceCustodyMismatch))` in
-    `03_target-operations-to-selected-instructions/.../nodes.rs`);
+    `IntegerExactCast` no longer lies outside `exact_cast_has_native_carriers`
+    -- that gate is now `scalar_shape` on both carriers plus
+    `can_exact_cast_to`, which asks only that both be `Fixed`, and
+    `scalar_graph_input/exact_cast_carrier_tests.rs` asserts
+    `(Signed, 16) -> (Signed, 8)` is admitted. Rerun the fixture for its
+    current stop rather than reusing the `SourceCustodyMismatch` attribution;
     `runtime_numeric_cross_signed_conversion_surface` stops at "direct scalar
     call has no matching checked crash-refinement row" (the `clamp` call
     inside the cross-signed saturating narrowings); `runtime_addr_field_exit`
@@ -3797,15 +3811,18 @@ syntax and other terminal services are not prerequisites.
   compare-exchange on a record's atomic field reaches Terminal Psi as one
   verified `AtomicAccess` event (codec tag 93) at an exact root place, static
   carrier path and scalar field, with its orderings, operands and observed
-  prior; the interpreter executes it serially. The eight `runtime_atomic_*_exit`
-  canaries verify at Terminal and stop where terminal-to-abstract lowering
-  refuses the event. The abstract-event checker still validates bounded
-  single-function reads-from/modification-predecessor claims only from
-  hand-built events. Unadmitted: atomic cells behind a shared receiver
-  (`shared_receiver_atomic_store`; Terminal types do not mark atomic cells),
-  bounded fields, fences, single-attempt compare-exchange, and scalar-result
-  machines (`atomic_global_order_operations` stops at ordered scalar control).
-  None of this establishes a concurrent memory model.
+  prior; the interpreter executes it serially. Terminal-to-abstract lowering
+  keeps it as one abstract event at the same location, with reads-from and
+  modification-after edges from a reaching-writes pass that the optimization
+  unit's bounded happens-before replay rechecks. An event with no single
+  latest write refuses. The eight `runtime_atomic_*_exit` canaries now stop in
+  abstract-to-target lowering (`UnsupportedControlFlow`). No target
+  operation, selection or encoding realizes an atomic event yet. Unadmitted:
+  atomic cells behind a shared receiver (`shared_receiver_atomic_store`;
+  Terminal types do not mark atomic cells), bounded fields, fences,
+  single-attempt compare-exchange, and scalar-result machines
+  (`atomic_global_order_operations` stops at ordered scalar control). None of
+  this establishes a concurrent memory model.
 
   - Complete independently checkable `sequenced_before`, `reads_from`,
     `modification_order`, `synchronizes_with`, `happens_before` and
@@ -4549,14 +4566,6 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `instantiated_methods_keep_each_package_use_authority`. Fixture/provider and
   name-collision repairs have since landed: reproduce before assigning more
   repair, retaining exact selection and package-use authority checks.
-  macw8b collateral: the package-name snake_case rule reddens
-  `compiler/compiler/tests` — 29 distinct hyphenated identities remain
-  (runtime_value_generics: 10 failures; no_selection_golden::rollback: 4).
-  Find them with `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  --include='*.rs' omega-rust/omega/compiler/compiler/tests/`. `-p compiler`
-  is excluded from `land_tight.sh`'s workspace check, so these stay red
-  without blocking anything.
-
   Package command fixtures: reproduce `fixture module path ends in ::fixture`
   in `named_workspace_install::cases`. Fix caller-specific child-test selection
   in `packages/manager/tests/support/named_workspace.rs` and exercise all four
@@ -4852,10 +4861,10 @@ but report the missing runtime leg explicitly; it does not close that host row.
   six went with them. Bisected: `04f74670ff5` first bad, parent `0f75a052f09`
   green.
 
-  The remainder of `runtime_value_generics` (10) is the package-name
-  snake_case migration, not a compiler gap: 29 hyphenated identities remain in
-  `compiler/compiler/tests`. That directory is claimed, so it is noted to its
-  holder rather than renamed here.
+  The package-name snake_case migration that `runtime_value_generics` waited on
+  is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
+  omega-rust/omega/compiler/compiler/tests/` now returns nothing. Reobserve that
+  target before attributing its failures again.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
@@ -4904,16 +4913,12 @@ release acceptance still requires complete coverage. Remaining reported failures
   sample gates above on Linux x86-64 and resolve remaining failures through
   their owning capability tasks.
 
-  One attributed defect blocks emitted execution. `9e20e91559` emits an
-  unconditional `DT_RELA` plus `DT_RELASZ=0` pair for the empty general
-  relocation table but never `DT_RELAENT` (tag 9, `sizeof(Elf64_Rela)` = 24),
-  and glibc dereferences `l_info[DT_RELAENT]` whenever `DT_RELA` is present,
-  so the image faults in `ld-linux-x86-64.so.2` before `_start`. Masking the
-  `DT_RELA` row in the emitted bytes makes the same image exit 70, which
-  isolates it. `ElfDynamicTag`
-  (`image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`) skips
-  from tag 8 to tag 10; emit the entry size beside the pair, or emit neither
-  when the table is empty. Verification needs a Linux host.
+  The `DT_RELAENT` defect that blocked emitted execution is repaired:
+  `ElfDynamicTag::GeneralRelocationEntrySize` is tag 9 and
+  `GeneralRelocationEntryByteCount` is emitted beside the `DT_RELA`/`DT_RELASZ`
+  pair in
+  `image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`. The image
+  has not been run since, because verification needs a Linux host.
 
   **SAMPLE-CORPUS** owns current shared sample failures;
   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns the canonical filesystem plan's

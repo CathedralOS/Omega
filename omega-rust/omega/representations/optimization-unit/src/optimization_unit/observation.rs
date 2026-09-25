@@ -420,7 +420,6 @@ fn operation_observations(
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
-        | O::WriteOnlyIndexedPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
@@ -455,7 +454,6 @@ fn operation_observations(
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
-        | O::IndexedPrimitiveRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
