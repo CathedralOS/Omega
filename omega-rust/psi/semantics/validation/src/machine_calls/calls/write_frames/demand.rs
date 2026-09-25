@@ -80,6 +80,19 @@ pub struct CallFrameResolver<'program> {
     /// frames. Retain them across resolver queries; opaque and cycle fallback
     /// results remain one-shot so the conservative frontier is unchanged.
     complete_state_summaries: Mutex<Vec<(SymbolHandle, Vec<String>)>>,
+    /// Whole-program operational and service-reach plans an operand Call node
+    /// consumes to test call-candidate totality. Both are pure over this
+    /// resolver's immutable program, so one lazy pair serves every operand
+    /// the fixpoint evaluates instead of a fresh whole-program derivation per
+    /// call expression.
+    call_plans: Mutex<
+        Option<
+            std::sync::Arc<(
+                flow_effects::OperationalPlan,
+                flow_effects::ServiceReachInferencePlan,
+            )>,
+        >,
+    >,
 }
 
 /// Run `compute` once per key for the resolver's immutable program. The lock
@@ -100,6 +113,33 @@ where
         cache.insert(key, value.clone());
     }
     value
+}
+
+fn compute_call_plans(
+    program: &TypedTrees,
+) -> (
+    flow_effects::OperationalPlan,
+    flow_effects::ServiceReachInferencePlan,
+) {
+    let operational = crate::infer_operational_may(program);
+    let service_reaches = crate::infer_service_reaches(program, &operational);
+    (operational, service_reaches)
+}
+
+/// Whole-program call plans for operand call-candidate checks. A live
+/// resolver shares its once-computed pair; resolver-free sites compute a
+/// one-shot pair under the same law.
+pub fn operand_call_plans(
+    program: &TypedTrees,
+    frames: Option<&CallFrameResolver<'_>>,
+) -> std::sync::Arc<(
+    flow_effects::OperationalPlan,
+    flow_effects::ServiceReachInferencePlan,
+)> {
+    match frames {
+        Some(frames) => frames.call_plans(),
+        None => std::sync::Arc::new(compute_call_plans(program)),
+    }
 }
 
 impl<'program> CallFrameResolver<'program> {
@@ -282,7 +322,28 @@ impl<'program> CallFrameResolver<'program> {
             inferred_state_frames: Mutex::new(HashMap::new()),
             inferred_machine_frames: Mutex::new(HashMap::new()),
             complete_state_summaries: Mutex::new(Vec::new()),
+            call_plans: Mutex::new(None),
         })
+    }
+
+    /// Whole-program call plans, derived once per resolver and shared by
+    /// every operand call-candidate check this resolver serves.
+    pub fn call_plans(
+        &self,
+    ) -> std::sync::Arc<(
+        flow_effects::OperationalPlan,
+        flow_effects::ServiceReachInferencePlan,
+    )> {
+        if let Ok(cache) = self.call_plans.lock()
+            && let Some(plans) = cache.as_ref()
+        {
+            return plans.clone();
+        }
+        let plans = std::sync::Arc::new(compute_call_plans(self.program));
+        if let Ok(mut cache) = self.call_plans.lock() {
+            *cache = Some(plans.clone());
+        }
+        plans
     }
 
     pub fn may_write_paths(
