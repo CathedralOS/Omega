@@ -1,7 +1,6 @@
 //! Input-only custody for functions whose structural places are local literals.
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarInstructionKind};
 use semantic_vocabulary::StructuralPlaceKind;
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
     let Some(signature) = &source.structural else {
