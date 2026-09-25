@@ -136,6 +136,7 @@ impl SymbolTable {
             import.exact_source = false;
         }
         self.source_scoped_top_level_bindings.push(binding);
+        self.binding_source_index.clear();
     }
 
     /// An imported source with an authored module must supply the exact

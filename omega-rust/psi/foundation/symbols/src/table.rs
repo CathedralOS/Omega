@@ -29,9 +29,9 @@ pub struct SymbolTable {
     /// module-qualified name walk.
     source_module_index: Vec<SymbolHandle>,
     root_names: RootNameIndexCache,
-    /// The binding table is frozen after `finish`, so this index needs no
-    /// invalidation: it exists because three lookup paths scanned the whole
-    /// binding list per query.
+    /// `source_scoped_top_level_bindings` bucketed by reference source,
+    /// because three lookup paths scanned the whole binding list per query.
+    /// Cleared wherever bindings are appended after `finish`.
     binding_source_index: BindingSourceIndexCache,
 }
 
@@ -141,10 +141,17 @@ struct BindingSourceIndex {
 }
 
 /// `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
-/// the first scoped lookup. The binding list is immutable once the table
-/// finishes, so the index never needs clearing; equality ignores it.
+/// the first scoped lookup. A finished table still gains bindings when an
+/// extension begins or a syntax-only import is registered, and both clear
+/// the index; equality ignores it.
 #[derive(Clone, Default)]
 struct BindingSourceIndexCache(std::sync::OnceLock<BindingSourceIndex>);
+
+impl BindingSourceIndexCache {
+    fn clear(&mut self) {
+        self.0.take();
+    }
+}
 
 impl PartialEq for BindingSourceIndexCache {
     fn eq(&self, _: &Self) -> bool {
@@ -319,6 +326,7 @@ impl SymbolTable {
         self.sources = sources;
         self.source_scoped_top_level_bindings
             .extend(additional_source_scoped_top_level_bindings);
+        self.binding_source_index.clear();
         SymbolTableExtension { table: self }
     }
 
@@ -777,7 +785,7 @@ impl SymbolTable {
     }
 
     /// The bindings visible to `reference_source`, in binding order, via the
-    /// frozen-table index instead of a whole-list scan per lookup.
+    /// per-source index instead of a whole-list scan per lookup.
     pub(super) fn source_scoped_bindings_for(
         &self,
         reference_source: SourceId,

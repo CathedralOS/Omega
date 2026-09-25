@@ -149,3 +149,62 @@ fn source_scoped_top_level_binding_fails_closed_with_ambiguous_targets() {
         None,
     );
 }
+
+/// The per-source binding index a scoped lookup builds is cleared when an
+/// extension appends bindings, so a seeded extension sees its own imports.
+#[test]
+fn a_binding_added_by_an_extension_after_a_lookup_is_followed() {
+    let mut sources = SourceMap::default();
+    let main_source = sources
+        .add(PathBuf::from("main.omg"), String::from("Build"))
+        .source_id;
+    let prelude_source = sources
+        .add(PathBuf::from("<build-prelude>"), String::from("Build"))
+        .source_id;
+    let extension_source = sources
+        .add(PathBuf::from("generated.omg"), String::from("Build"))
+        .source_id;
+    let sources = Arc::new(sources);
+    let mut builder =
+        SymbolTableBuilder::with_sources_and_top_level_bindings(Some(sources.clone()), Vec::new());
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(main_source, Span::new(0, 5))),
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::Source(SourceSpan::new(prelude_source, Span::new(0, 5))),
+            ),
+        ],
+    ))
+    .collect::<Vec<_>>();
+    let resolve = |symbols: &crate::SymbolTable, source_id| {
+        symbols.find_top_level_by_name_and_kinds_from_source(
+            "Build",
+            &[SymbolKind::Data],
+            SourceSpan::new(source_id, Span::new(0, 5)),
+        )
+    };
+    let symbols = builder.finish();
+    assert_eq!(resolve(&symbols, main_source), Some(declarations[0]));
+
+    let symbols = symbols
+        .begin_extension(
+            Some(sources),
+            vec![SourceScopedTopLevelBinding::new(
+                extension_source,
+                prelude_source,
+                "Build",
+            )],
+        )
+        .finish();
+    assert_eq!(
+        resolve(&symbols, extension_source),
+        Some(declarations[1]),
+        "the extension's binding selects the prelude declaration",
+    );
+}
