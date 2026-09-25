@@ -12,7 +12,9 @@
 //! generic signatures rather than reading uninstantiated contracts.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
-use super::isolation::{aggregate_storage_types_match_in, type_is_caller_isolated_local_in};
+use super::isolation::{
+    TypeIdentityMemo, aggregate_storage_types_match_in, type_is_caller_isolated_local_in,
+};
 use super::place_paths::{
     FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
     push_unique_origin, split_place_root,
@@ -1373,7 +1375,14 @@ fn owned_storage_may_hold(
     bindings: &mut TypeBindings,
 ) -> Option<bool> {
     let referent = substituted_head(program, referent, bindings);
-    owned_storage_may_hold_inner(program, container, referent, &mut Vec::new(), bindings)
+    owned_storage_may_hold_inner(
+        program,
+        container,
+        referent,
+        &mut Vec::new(),
+        bindings,
+        &mut TypeIdentityMemo::new(),
+    )
 }
 
 /// `visiting` records the *instantiated* containers already on the path, so
@@ -1385,11 +1394,12 @@ fn owned_storage_may_hold_inner(
     referent: TypeReferenceHandle,
     visiting: &mut Vec<TypeReferenceHandle>,
     bindings: &mut TypeBindings,
+    identities: &mut TypeIdentityMemo,
 ) -> Option<bool> {
     let container =
         live_unconstrained_type(program, substituted_head(program, container, bindings))?;
     let referent = substituted_head(program, referent, bindings);
-    if aggregate_storage_types_match_in(program, container, referent, bindings) {
+    if aggregate_storage_types_match_in(program, container, referent, bindings, identities) {
         return Some(true);
     }
     if program.primitive_type_reference(container).is_some() {
@@ -1403,17 +1413,23 @@ fn owned_storage_may_hold_inner(
             // references cannot lend exclusive reach; an exclusive one may
             // still route the result into its own untracked storage.
             if access.is_exclusive()
-                && owned_storage_may_hold_inner(program, *referee, referent, visiting, bindings)
-                    != Some(false)
+                && owned_storage_may_hold_inner(
+                    program, *referee, referent, visiting, bindings, identities,
+                ) != Some(false)
             {
                 return None;
             }
             Some(false)
         }
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            owned_storage_may_hold_inner(program, *element_type, referent, visiting, bindings)
-        }
+        | TypeReferenceNode::Slice { element_type } => owned_storage_may_hold_inner(
+            program,
+            *element_type,
+            referent,
+            visiting,
+            bindings,
+            identities,
+        ),
         TypeReferenceNode::Named { symbol, .. }
         | TypeReferenceNode::Generic {
             base_symbol: symbol,
@@ -1432,7 +1448,7 @@ fn owned_storage_may_hold_inner(
                 return Some(true);
             }
             if visiting.iter().any(|visited| {
-                aggregate_storage_types_match_in(program, *visited, container, bindings)
+                aggregate_storage_types_match_in(program, *visited, container, bindings, identities)
             }) {
                 // A recursive instantiation cannot finish the proof; a
                 // stored exclusive link in the cycle may still reach the
@@ -1470,7 +1486,7 @@ fn owned_storage_may_hold_inner(
                 };
                 for field_type in field_types {
                     match owned_storage_may_hold_inner(
-                        program, field_type, referent, visiting, bindings,
+                        program, field_type, referent, visiting, bindings, identities,
                     ) {
                         Some(true) => found = true,
                         Some(false) => {}
@@ -1513,9 +1529,16 @@ fn storage_holds_referent_only_at_root(
     else {
         return false;
     };
-    aggregate_storage_types_match_in(program, container, referent, bindings)
-        && storage_member_may_hold(program, container, referent, &mut Vec::new(), bindings)
-            == Some(false)
+    let mut identities = TypeIdentityMemo::new();
+    aggregate_storage_types_match_in(program, container, referent, bindings, &mut identities)
+        && storage_member_may_hold(
+            program,
+            container,
+            referent,
+            &mut Vec::new(),
+            bindings,
+            &mut identities,
+        ) == Some(false)
 }
 
 /// `Some` answers whether a proper member or element position inside
@@ -1528,6 +1551,7 @@ fn storage_member_may_hold(
     referent: TypeReferenceHandle,
     visiting: &mut Vec<TypeReferenceHandle>,
     bindings: &mut TypeBindings,
+    identities: &mut TypeIdentityMemo,
 ) -> Option<bool> {
     let container = substituted_head(program, container, bindings);
     if program.primitive_type_reference(container).is_some() {
@@ -1535,9 +1559,14 @@ fn storage_member_may_hold(
     }
     match program.type_reference_table.type_reference(container) {
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => {
-            owned_storage_may_hold_inner(program, *element_type, referent, visiting, bindings)
-        }
+        | TypeReferenceNode::Slice { element_type } => owned_storage_may_hold_inner(
+            program,
+            *element_type,
+            referent,
+            visiting,
+            bindings,
+            identities,
+        ),
         TypeReferenceNode::Named { symbol, .. }
         | TypeReferenceNode::Generic {
             base_symbol: symbol,
@@ -1550,7 +1579,9 @@ fn storage_member_may_hold(
             let definition = definitions.next()?;
             if definitions.next().is_some()
                 || visiting.iter().any(|visited| {
-                    aggregate_storage_types_match_in(program, *visited, container, bindings)
+                    aggregate_storage_types_match_in(
+                        program, *visited, container, bindings, identities,
+                    )
                 })
             {
                 // An ambiguous nominal cannot be inspected, and a recursive
@@ -1589,7 +1620,7 @@ fn storage_member_may_hold(
                     };
                     for field_type in field_types {
                         match owned_storage_may_hold_inner(
-                            program, field_type, referent, visiting, bindings,
+                            program, field_type, referent, visiting, bindings, identities,
                         ) {
                             Some(false) => {}
                             outcome => return outcome.map(|_| true),
