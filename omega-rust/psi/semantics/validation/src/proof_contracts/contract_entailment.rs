@@ -93,7 +93,7 @@ mod specification_calls;
 mod stand_downs;
 mod strict_arithmetic;
 mod structural_case_arms;
-mod structural_judgment;
+pub(crate) mod structural_judgment;
 mod structural_terms;
 mod transparent_applications;
 
