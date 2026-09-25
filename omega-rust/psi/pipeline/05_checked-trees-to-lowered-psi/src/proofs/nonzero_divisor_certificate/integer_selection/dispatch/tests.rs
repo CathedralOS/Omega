@@ -89,6 +89,47 @@ fn non_strict_call_requirements_reuse_exact_strict_endpoint_certificates() {
 }
 
 #[test]
+fn a_strict_guard_proves_the_adjacent_non_strict_arrival_bound() {
+    for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+        let integer_type = IntegerType::new(sign, 32).expect("fixed integer type");
+        let subject = value(1, integer_type);
+        // `0 < n` from a taken `n > 0` edge proves `1 <= n`, and `n < 1001`
+        // proves `n <= 1000`; one step further does not follow.
+        for (fact, goal, admitted) in [
+            (
+                Proposition::LessThan(literal(0, integer_type), subject.clone()),
+                Proposition::LessOrEqual(literal(1, integer_type), subject.clone()),
+                true,
+            ),
+            (
+                Proposition::LessThan(subject.clone(), literal(1001, integer_type)),
+                Proposition::LessOrEqual(subject.clone(), literal(1000, integer_type)),
+                true,
+            ),
+            (
+                Proposition::LessThan(literal(0, integer_type), subject.clone()),
+                Proposition::LessOrEqual(literal(2, integer_type), subject.clone()),
+                false,
+            ),
+        ] {
+            let axioms = [fact];
+            let proof = produce_checked_canonical_integer_proof(
+                &context(integer_type),
+                &goal,
+                &[],
+                &axioms,
+                &BTreeSet::new(),
+            );
+            assert_eq!(proof.is_some(), admitted, "{sign:?}: {goal:?}");
+            if let Some(proof) = proof {
+                check_certificate(&context(integer_type), &goal, &[], &axioms, &proof)
+                    .expect("independent kernel checks the inward step");
+            }
+        }
+    }
+}
+
+#[test]
 fn non_strict_endpoint_transport_keeps_nested_and_reversed_citation_custody() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let goal = Proposition::LessOrEqual(value(1, integer_type), value(2, integer_type));

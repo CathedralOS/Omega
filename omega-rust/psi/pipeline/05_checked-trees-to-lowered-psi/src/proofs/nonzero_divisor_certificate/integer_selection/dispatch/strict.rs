@@ -187,7 +187,7 @@ fn prove_without_subtract(
     complete(&session, goal, closed)
 }
 
-fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
+pub(super) fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
     let (integer_type, value) = literal.integer_value()?;
     if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.is_address() {
         return None;

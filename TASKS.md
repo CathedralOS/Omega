@@ -123,13 +123,12 @@ the complete product bar; focused successes below do not establish that baseline
   (`runtime_exact_guarded_shift_count_exit`,
   `runtime_exclusive_range_constraint_exit`,
   `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
-  19 further pass fixtures now use `requires`/`ensures`. The rest keep
+  20 further pass fixtures now use `requires`/`ensures`. The rest keep
   brackets. Build-time evaluation refuses an authored `requires`: its
   `closure_validation.rs` has no checked invocation proof before checking.
   That blocks the plan-laid layout, wire-policy and interrupt-table
   `evaluate` machines and `runtime_const_measured_recursion_exit`.
-  Terminal lowering proofs do not read parameter `requires`
-  (`runtime_post_entry_deep_chain_exit`). The call-requirement prover binds
+  The call-requirement prover binds
   parameters but not an immutable local bounded only by its guard
   (`runtime_dispatch_binary_call_argument_exit`), a guarded field read
   (`runtime_guard_narrowed_transition_arg_exit`), a nested value call's
