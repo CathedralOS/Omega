@@ -87,7 +87,8 @@ pub use package_review::{
 pub use product_pruning::{
     CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
     CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,
-    prune_checked_tree_product,
+    prune_checked_tree_product, prune_target_siblings, prune_target_siblings_typed,
+    target_sibling_selection_occurrences,
 };
 
 /// The privileged-service asm-intrinsic discharge (each instruction's

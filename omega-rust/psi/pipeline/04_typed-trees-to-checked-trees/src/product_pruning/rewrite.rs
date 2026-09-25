@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 
 use super::CheckedTreeProductRoots;
@@ -21,8 +22,17 @@ pub(super) fn apply_pruning(
     pruned: &HashSet<SymbolHandle>,
     index: &MachineIndex,
 ) {
-    let program = &mut checked.typed;
+    apply_typed_pruning(&mut checked.typed, retained, pruned);
+    apply_fact_pruning(checked, retained, pruned, index);
+}
 
+/// Rebuild the typed declaration arena and every typed sidecar keyed by a
+/// machine so only `retained` machines remain.
+pub(super) fn apply_typed_pruning(
+    program: &mut TypedTrees,
+    retained: &HashSet<SymbolHandle>,
+    pruned: &HashSet<SymbolHandle>,
+) {
     // Machine declarations: rebuild the arena so `roots.machines` covers
     // exactly the retained declaration surface in source order.
     let retained_machines: Vec<Machine> = program
@@ -40,9 +50,11 @@ pub(super) fn apply_pruning(
     program
         .machine_specializations
         .retain(|row| retained.contains(&row.instance));
+    // Trait requirement signatures own reach rows too; only rows owned by a
+    // pruned machine leave.
     program
         .authored_service_reach_rows
-        .retain(|row| retained.contains(&row.owner));
+        .retain(|row| !pruned.contains(&row.owner));
     program
         .evidence_forwardings
         .retain(|row| retained.contains(&row.machine_symbol));
@@ -55,7 +67,14 @@ pub(super) fn apply_pruning(
     program
         .ranking_expression_custody
         .retain(|row| retained.contains(&row.machine));
+}
 
+fn apply_fact_pruning(
+    checked: &mut CheckedTrees,
+    retained: &HashSet<SymbolHandle>,
+    pruned: &HashSet<SymbolHandle>,
+    index: &MachineIndex,
+) {
     let facts = &mut checked.facts;
 
     facts

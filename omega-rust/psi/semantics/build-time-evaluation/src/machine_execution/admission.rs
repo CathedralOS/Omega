@@ -463,9 +463,7 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
     ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
         let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor(program, machine)?;
         checked_interpreter::evaluate_build_time_machine(
@@ -484,9 +482,7 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
         let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         self.require_common_floor_for_invocation(program, machine, custody)?;
         checked_interpreter::evaluate_build_time_machine(
@@ -589,9 +585,7 @@ impl BuildTimeAdmissionPlan {
         arguments: Vec<BuildTimeValue>,
     ) -> Result<BuildTimeValue, String> {
         let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         let discharge = self.zero_argument_invocation_discharge(program, machine, &arguments, None);
         self.require_floor(program, machine, None, discharge)?;
@@ -618,9 +612,7 @@ impl BuildTimeAdmissionPlan {
         custody: BuildTimeInvocationCustody,
     ) -> Result<BuildTimeValue, String> {
         let machine = program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         let discharge =
             self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));

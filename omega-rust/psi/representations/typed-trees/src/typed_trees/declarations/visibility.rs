@@ -42,6 +42,25 @@ pub const fn requires_declaration_visibility(kind: SymbolKind) -> bool {
 /// genuine nested member which inherits its exact semantic owner's visibility.
 /// Operators are checked before parent traversal because domain-homed operators
 /// own visibility independently of their carrier domain.
+/// Whether the machine that owns `symbol` (the nearest machine ancestor, if
+/// any) still has a declaration record. A symbol under a pruned machine, such
+/// as a field slot of a target sibling checked for another target, belongs to
+/// no declaration of this realization.
+pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    let mut current = symbol;
+    while current.is_valid() {
+        let entry = program.symbols.get(current);
+        if entry.kind == SymbolKind::Machine {
+            return program
+                .machines()
+                .iter()
+                .any(|declaration| declaration.symbol == current);
+        }
+        current = entry.parent;
+    }
+    true
+}
+
 pub fn declaration_visibility(
     program: &TypedTrees,
     symbol: SymbolHandle,

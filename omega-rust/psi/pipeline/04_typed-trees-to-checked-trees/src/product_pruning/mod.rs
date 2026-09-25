@@ -73,12 +73,14 @@ use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use symbols::SymbolHandle;
+use typed_trees::{AuthoredDeclarationSelectionOccurrenceId, TypedTrees};
 
 mod dependencies;
 mod rewrite;
+mod sibling_evidence;
 
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
-use rewrite::{apply_pruning, validate_pruned_product};
+use rewrite::{apply_pruning, apply_typed_pruning, validate_pruned_product};
 
 const PRODUCT_SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.psi.checked-tree-product-selection.v1\0";
 
@@ -295,6 +297,140 @@ pub fn prune_checked_tree_product(
 }
 
 /// Domain-separated SHA-256 identity of one executed product selection.
+/// Drop every target sibling once checking has committed: their bodies were
+/// checked for their own targets, and this realization supplies nothing from
+/// them. Transitional: realization-time selection between siblings belongs
+/// to Omega (board item PROVIDER-SELECTION-AFTER-TERMINAL), after which every
+/// body travels through Terminal Psi instead of being pruned here.
+pub fn prune_target_siblings(mut checked: CheckedTrees) -> Result<CheckedTrees, Vec<Diagnostic>> {
+    let pruned: HashSet<SymbolHandle> = checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.target.is_some())
+        .map(|machine| machine.symbol)
+        .collect();
+    if pruned.is_empty() {
+        return Ok(checked);
+    }
+    let index = MachineIndex::build(&checked.typed);
+    let mut dead = sibling_evidence::DeadEvidence::default();
+    for machine in checked
+        .typed
+        .machines()
+        .iter()
+        .filter(|machine| pruned.contains(&machine.symbol))
+    {
+        sibling_evidence::collect_machine_evidence(&checked.typed, machine, &mut dead);
+    }
+    sibling_evidence::drop_dead_operator_evidence(&mut checked.facts, &dead);
+    let retained_in_order: Vec<SymbolHandle> = checked
+        .typed
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .filter(|symbol| !pruned.contains(symbol))
+        .collect();
+    let retained: HashSet<SymbolHandle> = retained_in_order.iter().copied().collect();
+    apply_pruning(&mut checked, &retained, &pruned, &index);
+    let roots =
+        CheckedTreeProductRoots::new(retained_in_order.iter().copied()).map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "target sibling pruning roots: {error:?}"
+            ))]
+        })?;
+    validate_pruned_product(&checked, &retained, &pruned, &roots).map_err(|failures| {
+        failures
+            .into_iter()
+            .map(|failure| {
+                Diagnostic::error(format!(
+                    "target sibling pruning internal validation failed: {failure}"
+                ))
+            })
+            .collect::<Vec<_>>()
+    })?;
+    Ok(checked)
+}
+
+/// Drop every target sibling from typed trees that will only be checked
+/// provisionally (the preliminary pass before build evaluation): their bodies
+/// are checked once, in the settled pass. Transitional like
+/// `prune_target_siblings`.
+pub fn prune_target_siblings_typed(
+    typed: &mut TypedTrees,
+) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
+    let pruned: HashSet<SymbolHandle> = typed
+        .machines()
+        .iter()
+        .filter(|machine| machine.target.is_some())
+        .map(|machine| machine.symbol)
+        .collect();
+    if pruned.is_empty() {
+        return HashSet::new();
+    }
+    // The selections recorded inside the pruned bodies stay late-bound in a
+    // provisional check; the caller skips them instead of reporting them.
+    let dead_occurrences = target_sibling_selection_occurrences(typed);
+    let retained: HashSet<SymbolHandle> = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.symbol)
+        .filter(|symbol| !pruned.contains(symbol))
+        .collect();
+    apply_typed_pruning(typed, &retained, &pruned);
+    dead_occurrences
+}
+
+/// The authored declaration selections recorded inside every target sibling,
+/// present or already pruned from `typed`: another target's realization
+/// resolves them, so
+/// this realization's checking and admission do not report the late-bound
+/// ones. Ownership follows source position: a selection belongs to the last
+/// top-level declaration that starts before it in its file, which is robust
+/// to typing re-homing an occurrence onto an expression no statement reaches.
+pub fn target_sibling_selection_occurrences(
+    typed: &TypedTrees,
+) -> HashSet<AuthoredDeclarationSelectionOccurrenceId> {
+    // A sibling still carries its record; a sibling this program already
+    // pruned keeps only its machine symbol.
+    let owner_is_sibling = |symbol: SymbolHandle| match typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+    {
+        Some(machine) => machine.target.is_some(),
+        None => typed.symbols.get(symbol).kind == symbols::SymbolKind::Machine,
+    };
+    let mut starts: Vec<(usize, usize, SymbolHandle)> = typed
+        .symbols
+        .child_handles(typed.symbols.root())
+        .into_iter()
+        .flatten()
+        .filter_map(|symbol| {
+            let span = typed.symbols.symbol_source_span(symbol)?;
+            Some((span.source_id.0, span.span.start, symbol))
+        })
+        .collect();
+    starts.sort_unstable_by_key(|(source, start, _)| (*source, *start));
+    typed
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            let span = selection.source_span();
+            let owner = starts
+                .partition_point(|(source, start, _)| {
+                    (*source, *start) <= (span.source_id.0, span.span.start)
+                })
+                .checked_sub(1)
+                .and_then(|index| starts.get(index))
+                .filter(|(source, _, _)| *source == span.source_id.0)
+                .map(|(_, _, symbol)| *symbol);
+            owner.is_some_and(owner_is_sibling)
+        })
+        .map(|selection| selection.occurrence_id())
+        .collect()
+}
+
 fn selection_identity(
     roots: &[SymbolHandle],
     retained: &[SymbolHandle],

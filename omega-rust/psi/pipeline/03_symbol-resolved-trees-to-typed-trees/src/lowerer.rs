@@ -408,6 +408,7 @@ impl Lowerer<'_> {
             &mut trees,
         )?;
         crate::type_reference::validate_range_arguments(self.source_trees, &trees)?;
+        crate::declarations::provider_defaults::finalize_provider_default_calls(&mut trees)?;
         Ok(trees)
     }
 }

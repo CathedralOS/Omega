@@ -74,9 +74,7 @@ fn evaluate_policy(
     policy_kind: &str,
 ) -> Result<BuildTimeValue, String> {
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == policy_machine)
+        .realized_machine_named(policy_machine)
         .ok_or_else(|| format!("no machine named `{policy_machine}` exists"))?;
     BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
     checked_interpreter::evaluate_build_time_machine(

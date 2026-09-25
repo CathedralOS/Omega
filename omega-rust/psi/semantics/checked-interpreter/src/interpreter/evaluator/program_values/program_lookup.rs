@@ -7,9 +7,7 @@ impl<'program> Evaluator<'program> {
         name: &str,
     ) -> Option<&'program Machine> {
         self.program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
+            .realized_machine_named(name)
     }
 
     pub(in crate::interpreter::evaluator) fn find_machine_by_symbol(

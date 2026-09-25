@@ -194,12 +194,9 @@ impl<'program> MachineSymbols<'program> {
 /// the authored derivation. Their generated field, owned-data, and state
 /// children still resolve under the machine symbol itself.
 fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHandle {
-    let authored = retained_child_symbol(
-        program,
-        program.symbols.root(),
-        machine.symbol,
-        machine.name.as_str(),
-    );
+    let spelling = machine.symbol_spelling();
+    let authored =
+        retained_child_symbol(program, program.symbols.root(), machine.symbol, &spelling);
     if authored.is_valid() {
         return authored;
     }
@@ -207,7 +204,7 @@ fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHan
     if symbol.is_valid()
         && program.symbols.get(symbol).kind == symbols::SymbolKind::Machine
         && program.symbols.get(symbol).generated_from.is_valid()
-        && program.symbols.name(symbol) == machine.name.as_str()
+        && program.symbols.name(symbol) == spelling
     {
         symbol
     } else {

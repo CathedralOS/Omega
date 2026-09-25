@@ -162,9 +162,7 @@ mod tests {
         name: &str,
     ) -> &'a typed_trees::machine::Machine {
         program
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
+            .realized_machine_named(name)
             .expect("machine exists")
     }
 

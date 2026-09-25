@@ -128,10 +128,7 @@ pub(crate) fn evaluate_independent_lengths(
     let mut evaluated = Vec::new();
     let mut diagnostics = Vec::new();
     for (handle, name, source) in pending {
-        if let Some(root) = execution
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == name)
+        if let Some(root) = execution.realized_machine_named(&name)
             && admission.closure_needs_operator_selection(execution, root.symbol, &facts)
         {
             deferred = true;
@@ -350,9 +347,7 @@ pub fn evaluate_zero_argument_machine(
     custody: Option<crate::BuildTimeInvocationCustody>,
 ) -> Result<BigInt, String> {
     let machine = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
+        .realized_machine_named(machine_name)
         .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
 
     // Stage 1 scope: a zero-argument machine. (This also discharges the

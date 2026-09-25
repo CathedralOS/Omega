@@ -174,10 +174,13 @@ committed realizations. CI may cross-compile several targets on one host or
 check without physical realization; neither activity creates a language
 support set.
 
-The Rust reference compiler does not implement this contract yet: it filters
-target-scoped declarations before resolution, evaluates the Build per target,
-and settles providers on checked trees before Terminal Psi. The
-[pipeline route items](../../../TASKS.md#pipeline-route) own the repair.
+The Rust reference compiler does not implement this contract yet. It checks
+every target's bodies on every compilation (the other targets' bodies lower as
+sibling declarations and are pruned once checking has committed), but it
+still selects the realized target's declarations before resolution, evaluates
+the Build per target, and settles providers on checked trees before Terminal
+Psi. The [pipeline route items](../../../TASKS.md#pipeline-route) own the
+repair.
 
 ## Directional wire compatibility
 

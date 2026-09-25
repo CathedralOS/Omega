@@ -17,6 +17,7 @@ pub(crate) mod mathematical;
 pub(crate) mod measure;
 pub(crate) mod operator;
 pub(crate) mod proposition;
+pub(crate) mod provider_defaults;
 pub(crate) mod state;
 pub(crate) mod trait_definition;
 pub(crate) mod wire;
