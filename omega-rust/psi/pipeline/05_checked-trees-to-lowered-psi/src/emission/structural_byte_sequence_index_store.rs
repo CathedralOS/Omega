@@ -185,7 +185,7 @@ pub(crate) fn emit(
         field.field_type,
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                | terminal_psi::ByteSequenceCarrier::BorrowedView
+                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
         )
     ) || !matches!(
         index.scalar_type(),

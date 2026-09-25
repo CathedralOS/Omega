@@ -101,7 +101,9 @@ pub(super) fn validate_byte_sequence_literals(
         };
         if !matches!(
             declaration.shape,
-            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            )
         ) {
             return Err(
                 ModuleError::ByteSequenceLiteralDeclarationRequiresBorrowedView {

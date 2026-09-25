@@ -194,8 +194,8 @@ pub use checked_trees::{
     SynchronousInvocationFacts, TerminationFacts, VacuousQualificationUse, admissibility, borrow,
     byte_predicates, canonical_suspension_crossing_id, contract_identity,
     contract_report_fingerprint, data, domain, expression, facts, finite_family, flow, identity,
-    machine, name, operators, proof, proof_only, proposition, ranking, service_parameter,
-    signature, state, statement, trait_definition, types, values, wire,
+    is_borrowed_view, machine, name, operators, proof, proof_only, proposition, ranking,
+    service_parameter, signature, state, statement, trait_definition, types, values, wire,
 };
 /// The identity request a consumer builds when it asks the typed program
 /// behind a checked carrier for a binder-aware type identity.

@@ -140,7 +140,19 @@ pub(crate) fn decode_canonical_structural_field(
 
 pub(crate) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
     match carrier {
-        ByteSequenceCarrier::BorrowedView => writer.u8(1),
+        // The access byte follows the tag rather than preceding it, so a
+        // reader that has already dispatched on the tag reads it in place.
+        // Zero is the absent access of a standalone view type; the bound
+        // accesses a field carries all encode nonzero.
+        ByteSequenceCarrier::BorrowedView { access } => {
+            writer.u8(1);
+            match access {
+                Some(access) => {
+                    super::structural_signature_wire::encode_structural_access(writer, access);
+                }
+                None => writer.u8(0),
+            }
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             writer.u8(2);
             writer.u64(capacity);
@@ -152,7 +164,16 @@ pub(crate) fn decode_byte_sequence_carrier(
     reader: &mut Reader<'_>,
 ) -> Result<ByteSequenceCarrier, CodecError> {
     match reader.u8()? {
-        1 => Ok(ByteSequenceCarrier::BorrowedView),
+        1 => Ok(ByteSequenceCarrier::BorrowedView {
+            access: match reader.u8()? {
+                0 => None,
+                1 => Some(terminal_psi::StructuralAccess::Owned),
+                2 => Some(terminal_psi::StructuralAccess::SharedBorrow),
+                3 => Some(terminal_psi::StructuralAccess::MutableBorrow),
+                4 => Some(terminal_psi::StructuralAccess::WriteOnlyBorrow),
+                tag => return Err(CodecError::InvalidTag("StructuralAccess", tag)),
+            },
+        }),
         2 => Ok(ByteSequenceCarrier::BoundedOwned {
             capacity: reader.u64()?,
         }),

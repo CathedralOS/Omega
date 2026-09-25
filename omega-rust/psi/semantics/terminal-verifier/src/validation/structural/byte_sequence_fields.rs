@@ -129,18 +129,25 @@ fn field_path(
         .iter()
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
     // A borrowed-view field's length rides the view descriptor, so a read is
-    // admissible. A byte store still requires the bounded-owned carrier: the
-    // `BorrowedView` carrier records no access, so this module cannot tell an
-    // exclusive `&'r mut [u8]` field from a shared `&'r [u8]` one, and a
-    // producer's mint gate is not verifier authority. Writes through a
-    // borrowed view wait for the carrier to carry its access
-    // (TASKS.md BORROWED-VIEW-CARRIER-ACCESS).
+    // admissible whatever the view's access. A store needs write authority,
+    // and the carrier now states it: the exclusive accesses admit one, a
+    // shared view does not. This is read from the field declaration rather
+    // than taken from a producer's mint gate, which is not verifier authority.
     let carrier_admitted = match field.field_type {
         StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             ..
         }) => true,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access,
+        }) => {
             !writing
+                || matches!(
+                    access,
+                    Some(
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    )
+                )
         }
         _ => false,
     };

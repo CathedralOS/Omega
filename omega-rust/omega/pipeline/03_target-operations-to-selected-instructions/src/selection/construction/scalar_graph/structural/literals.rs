@@ -26,8 +26,7 @@ pub(super) fn establish(
     };
     if row.result.is_some()
         || !matches!(destination.kind, StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
-        || structural_type.shape
-            != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        || !structural_type.shape.is_borrowed_byte_view()
         || builder
             .transport
             .pointers

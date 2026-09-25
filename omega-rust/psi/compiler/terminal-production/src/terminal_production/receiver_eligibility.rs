@@ -783,7 +783,9 @@ mod tests {
                     }
                     2 => {
                         fields[0].field_type = StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                         )
                     }
                     _ => declaration.identity = "named(name(OtherChild))".into(),

@@ -534,7 +534,7 @@ fn byte_parameter(
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                     )
                 )
         })

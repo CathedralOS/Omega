@@ -494,7 +494,9 @@ pub(super) fn lower_operation(
                 } if declared == structural_type.id
             ) || !matches!(
                 structural_type.shape,
-                StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
             ) || structural_types.get(&structural_type.id).copied() != Some(structural_type)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));

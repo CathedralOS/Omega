@@ -70,6 +70,19 @@ pub struct StructuralFieldDeclaration {
     pub field_type: StructuralFieldType,
 }
 
+impl StructuralTypeShape {
+    /// Whether this shape is a borrowed `[u8]` view, whatever access the view
+    /// carries. Most readers ask only that -- the descriptor geometry is the
+    /// same for a shared and an exclusive view -- and comparing against a
+    /// constructed carrier would silently answer no for the other access.
+    pub const fn is_borrowed_byte_view(&self) -> bool {
+        matches!(
+            self,
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralFieldType {
     Scalar(ScalarType),
@@ -130,9 +143,14 @@ impl StructuralFieldType {
     /// view, whereas a path ending at that field never stands for one.
     pub fn leaf_copy_shape(&self) -> Option<StructuralTypeShape> {
         match self {
-            Self::ByteSequence(ByteSequenceCarrier::BorrowedView) => Some(
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-            ),
+            // The copy yields a whole borrowed view TYPE, whose identity
+            // peels the reference shell, so the field's own access does not
+            // travel with it.
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
+                Some(StructuralTypeShape::ByteSequence(
+                    ByteSequenceCarrier::BorrowedView { access: None },
+                ))
+            }
             other => other.canonical_leaf_shape(),
         }
     }
@@ -140,6 +158,19 @@ impl StructuralFieldType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteSequenceCarrier {
-    BorrowedView,
-    BoundedOwned { capacity: u64 },
+    /// A `&'r [u8]` or `&'r mut [u8]` descriptor.
+    ///
+    /// `access` is the view's access where one binds, and `None` where none
+    /// does. A record field binds one: independent verification has nothing
+    /// else to read a byte store's authority from, and without it a shared and
+    /// an exclusive view field are the same carrier after checking. A
+    /// standalone view type binds none -- its identity deliberately peels the
+    /// reference shell, so `&mut [u8]` and `&write [u8]` share one identity and
+    /// could not share one carrier if the access rode inside it.
+    BorrowedView {
+        access: Option<crate::terminal_module::ownership::StructuralAccess>,
+    },
+    BoundedOwned {
+        capacity: u64,
+    },
 }

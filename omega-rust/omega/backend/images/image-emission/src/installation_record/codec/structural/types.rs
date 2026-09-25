@@ -36,7 +36,7 @@ pub(crate) fn encode_structural_types(
             terminal_psi::StructuralTypeShape::ByteSequence(carrier) => {
                 bytes.extend_from_slice(&[4, 0, 0, 0]);
                 match carrier {
-                    terminal_psi::ByteSequenceCarrier::BorrowedView => {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                         bytes.extend_from_slice(&[1, 0, 0, 0]);
                         push_u64(bytes, 0);
                     }
@@ -119,7 +119,9 @@ pub(crate) fn decode_structural_types(
                 }
                 let capacity = reader.u64()?;
                 terminal_psi::StructuralTypeShape::ByteSequence(match carrier_tag {
-                    1 if capacity == 0 => terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    1 if capacity == 0 => terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                     2 => terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                     tag => {
                         return Err(InstallationError::InvalidStructuralTypeShapeTag(tag));

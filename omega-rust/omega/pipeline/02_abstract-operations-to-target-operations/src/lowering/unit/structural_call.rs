@@ -688,7 +688,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                 .get(&callee_parameter.structural_type)
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             ))
         );
         if !presented_is_byte_view

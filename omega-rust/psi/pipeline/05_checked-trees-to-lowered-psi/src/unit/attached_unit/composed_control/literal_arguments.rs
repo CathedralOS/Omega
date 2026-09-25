@@ -221,7 +221,7 @@ fn establish(
             declaration.id == structural_type
                 && matches!(
                     declaration.shape,
-                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
                 )
         })
     {

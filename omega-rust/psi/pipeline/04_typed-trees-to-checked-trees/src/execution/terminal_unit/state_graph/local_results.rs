@@ -34,7 +34,7 @@ fn validate(
     let expected_identity =
         if matches!(
             super::super::types::byte_sequence_carrier(program, local.type_reference, &[]),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
         ) || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
             .is_some()
         {

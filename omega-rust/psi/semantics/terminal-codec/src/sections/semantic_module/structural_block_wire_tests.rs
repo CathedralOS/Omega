@@ -208,7 +208,9 @@ fn structural_block_module() -> TerminalModule {
     module.structural_types.push(StructuralTypeDeclaration {
         id: id(1),
         identity: "Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = &mut module.machines[0];
     machine.structural_parameters = vec![borrowed_parameter(1, 0), borrowed_parameter(2, 1)];
@@ -374,7 +376,9 @@ fn unit_byte_field_module() -> TerminalModule {
         StructuralTypeDeclaration {
             id: id(1),
             identity: "BytesView".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         },
         StructuralTypeDeclaration {
             id: id(2),

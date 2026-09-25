@@ -162,8 +162,55 @@ pub struct CheckedFusedServiceParameterReceipt {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedByteSequenceCarrier {
-    BorrowedView,
-    BoundedOwned { capacity: u64 },
+    /// A `&'r [u8]` or `&'r mut [u8]` descriptor. `access` binds on a record
+    /// field, which is what a byte store's authority is read from, and is
+    /// absent on a standalone view type, whose identity peels the reference
+    /// shell so that `&mut [u8]` and `&write [u8]` share it. Terminal's twin
+    /// carries the same distinction.
+    BorrowedView {
+        access: Option<CheckedStructuralAccess>,
+    },
+    BoundedOwned {
+        capacity: u64,
+    },
+}
+
+impl From<language_core::ReferenceAccess> for CheckedStructuralAccess {
+    /// An authored reference's access as the structural one. Every producer
+    /// that turns a `&T` type reference into a structural plan needs this, and
+    /// repeating the arms per producer is how a carrier ends up shared when
+    /// the source said `&mut`.
+    fn from(access: language_core::ReferenceAccess) -> Self {
+        match access {
+            language_core::ReferenceAccess::Shared => Self::SharedBorrow,
+            language_core::ReferenceAccess::Mutable => Self::MutableBorrow,
+            language_core::ReferenceAccess::WriteOnly => Self::WriteOnlyBorrow,
+        }
+    }
+}
+
+impl CheckedByteSequenceCarrier {
+    /// Whether this is a borrowed view, whatever access it carries. A reader
+    /// that only needs the descriptor shape asks this; comparing against a
+    /// constructed carrier would answer no for the other access.
+    pub const fn is_borrowed_view(self) -> bool {
+        matches!(self, Self::BorrowedView { .. })
+    }
+}
+
+/// [`CheckedByteSequenceCarrier::is_borrowed_view`] over an absent carrier.
+pub fn is_borrowed_view(carrier: Option<CheckedByteSequenceCarrier>) -> bool {
+    carrier.is_some_and(CheckedByteSequenceCarrier::is_borrowed_view)
+}
+
+impl CheckedByteSequenceCarrier {
+    /// This carrier as a standalone view type's, which binds no access.
+    pub const fn without_access(self) -> Self {
+        match self {
+            Self::BorrowedView { .. } => Self::BorrowedView { access: None },
+            other => other,
+        }
+    }
 }
 
 /// One normalized structural qualification required by a retained parameter.

@@ -20,7 +20,9 @@ fn buffer_module() -> TerminalModule {
     let mut module = projected_boundary_qualification_module();
     module.structural_domains.clear();
     module.structural_types[0].shape =
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView);
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
         unreachable!()
     };
@@ -91,7 +93,9 @@ fn boundary_buffer_keeps_inline_capacity_and_exact_path() {
 fn boundary_buffer_rejects_wrong_leaf_erasure_access_and_type() {
     for field_type in [
         StructuralFieldType::Scalar(ScalarType::Boolean),
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     ] {
         let mut module = buffer_module();
         buffer_field(&mut module).field_type = field_type;
@@ -417,7 +421,9 @@ fn ordinary_unit_byte_subloan_rejects_wrong_leaf_type_access_and_path() {
             }
             1 => {
                 buffer_field(&mut module).field_type =
-                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    })
             }
             2 => buffer_field(&mut module).relevance = terminal_psi::BindingRelevance::Erased,
             3 => {

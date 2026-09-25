@@ -1176,23 +1176,18 @@ fn structural_type_shape_table_matches_codec() {
     );
 }
 
+/// The carrier has one encoder. `encode_structural_type` used to repeat its
+/// arms, and this test compared the two tag spaces for divergence; it now calls
+/// `encode_byte_sequence_carrier`, so there is one space and nothing to
+/// diverge. The documented table still has to match it.
 #[test]
-fn byte_sequence_carrier_table_matches_both_encoders() {
-    let type_encoder = code_tags(
-        &module_wire("structural_type_wire.rs"),
-        "encode_structural_type",
-        "ByteSequenceCarrier",
-    );
+fn byte_sequence_carrier_table_matches_its_encoder() {
     let field_encoder = code_tags(
         &module_wire("structural_field_wire.rs"),
         "encode_byte_sequence_carrier",
         "ByteSequenceCarrier",
     );
-    assert_eq!(
-        type_encoder, field_encoder,
-        "byte-sequence carrier tag spaces diverge between encoders"
-    );
-    assert_table_matches("<!-- byte-sequence-carrier-tags -->", type_encoder);
+    assert_table_matches("<!-- byte-sequence-carrier-tags -->", field_encoder);
 }
 
 #[test]
@@ -2664,12 +2659,9 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
         "decode_structural_type",
         "StructuralTypeShape",
     ),
-    (
-        "byte-sequence-carrier-tags",
-        "semantic_module/structural_type_wire.rs",
-        "decode_structural_type",
-        "ByteSequenceCarrier",
-    ),
+    // `decode_structural_type` delegates to `decode_byte_sequence_carrier`
+    // rather than repeating its arms, so the carrier's tag space has one
+    // decoder and this row names it.
     (
         "byte-sequence-carrier-tags",
         "semantic_module/structural_field_wire.rs",

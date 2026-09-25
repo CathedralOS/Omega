@@ -395,7 +395,9 @@ fn structural_successor_requires_exact_type_identity() {
     changed.structural_types.push(StructuralTypeDeclaration {
         id: different_type,
         identity: "test::different_byte_view".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = graph_mut(&mut changed);
     let Terminator::Jump {

@@ -38,7 +38,9 @@ fn fixture(
         .push(StructuralTypeDeclaration {
             id: structural_type,
             identity: "shared-view".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         });
     let caller = &mut source.functions[0];
     caller.parameters = vec![AbstractParameter {
@@ -155,7 +157,9 @@ fn block_parameter_source(
         .push(StructuralTypeDeclaration {
             id: structural_type,
             identity: "exclusive-view".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         });
     let caller = &mut source.functions[0];
     caller.parameters = vec![AbstractParameter {

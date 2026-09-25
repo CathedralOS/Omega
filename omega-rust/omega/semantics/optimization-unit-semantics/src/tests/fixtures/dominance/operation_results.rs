@@ -229,7 +229,9 @@ pub(crate) fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOp
         structural_types: vec![terminal_psi::StructuralTypeDeclaration {
             id: structural_type,
             identity: "validation::operation-result-availability".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         }]
         .into(),
         boundary_machines: Vec::new(),

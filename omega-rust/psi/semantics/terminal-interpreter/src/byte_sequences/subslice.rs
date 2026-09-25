@@ -1,9 +1,7 @@
 //! Validate and replace one operation-owned immutable byte descriptor.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind, ValueId};
-use terminal_psi::{
-    ByteSequenceCarrier, Operation, OperationKind, StructuralMultiplicity, StructuralTypeShape,
-};
+use terminal_psi::{Operation, OperationKind, StructuralMultiplicity};
 
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
@@ -84,8 +82,7 @@ impl TerminalExecution {
         }) || !matches!(
             self.structural_types.get(&result.structural_type),
             Some(declaration)
-                if declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                if declaration.shape.is_borrowed_byte_view()
         ) || bytes.len() != length
             || source_value.structural_type != result.structural_type
             || !source_value.path.is_empty()

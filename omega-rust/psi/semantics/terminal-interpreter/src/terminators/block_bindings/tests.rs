@@ -4,9 +4,8 @@ use crate::effects::AcceptTerminalEffects;
 use crate::execution::ExecutableMachine;
 use crate::results::{TerminalExecutionResult, TerminalExecutionStatus};
 use crate::terminators::block_bindings::{
-    BTreeMap, BlockId, ByteSequenceCarrier, PlaceId, StructuralArgument, StructuralPlaceKind,
-    StructuralTypeShape, TerminalExecution, TerminalInterpretError, TerminalScalarValue,
-    TerminalStructuralValue, ValueId,
+    BTreeMap, BlockId, PlaceId, StructuralArgument, StructuralPlaceKind, TerminalExecution,
+    TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue, ValueId,
 };
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
@@ -16,6 +15,7 @@ use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, SuccessorEdge, TerminalMachineResult, Terminator, ValueDeclaration,
 };
+use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 #[path = "tests/owned.rs"]
 mod owned;
@@ -129,7 +129,9 @@ fn execution(terminator: Terminator) -> TerminalExecution {
             StructuralTypeDeclaration {
                 id: structural_type,
                 identity: "bytes".into(),
-                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                }),
             },
         )]),
         machines: BTreeMap::from([(machine_id, machine)]).into(),

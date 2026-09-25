@@ -106,7 +106,7 @@ pub use structural_type_plans::{
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralFieldPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, is_borrowed_view,
 };
 pub use terminal_selections::{
     CheckedTerminalDebugPlans, CheckedTerminalMachineDebugPlan, CheckedTerminalMachineSelection,

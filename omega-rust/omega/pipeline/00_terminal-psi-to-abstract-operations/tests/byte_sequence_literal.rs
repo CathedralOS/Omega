@@ -218,7 +218,9 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
             identity: "test::BorrowedBytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         }],
         structural_domains: Vec::new(),
         services: Vec::new(),
