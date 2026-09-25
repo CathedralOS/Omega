@@ -451,8 +451,7 @@ fn validate_join_control_plan<Call: DynamicCall>(
     if when_true.target_state != true_call.caller_state
         || when_false.target_state != false_call.caller_state
         || false_call.caller_machine != caller_machine
-        || when_true.statement_ordinal != 0
-        || when_false.statement_ordinal != 1
+        || when_false.statement_ordinal != when_true.statement_ordinal + 1
         || !when_true.transfers.is_empty()
         || !when_false.transfers.is_empty()
         || !when_true.scalar_arguments.is_empty()
@@ -494,10 +493,11 @@ fn validate_join_control_plan<Call: DynamicCall>(
         return unsupported("joined dynamic control lost its exact entry state");
     };
     let calls = checked.facts.flow.control.calls.span_or_empty(entry.calls);
+    let arm_ordinal = when_true.statement_ordinal as usize;
     if calls.len() != 2
         || [
-            (0_usize, when_true.target_state),
-            (1_usize, when_false.target_state),
+            (arm_ordinal, when_true.target_state),
+            (arm_ordinal + 1, when_false.target_state),
         ]
         .into_iter()
         .any(|(statement_index, target)| {
