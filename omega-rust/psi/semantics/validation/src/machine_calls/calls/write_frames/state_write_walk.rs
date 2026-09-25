@@ -61,7 +61,7 @@ pub(crate) fn summarize_state_written_paths(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     summarize_complete_state_written_paths(
         program,
@@ -102,12 +102,9 @@ pub(crate) fn summarize_complete_state_written_paths(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
-    if let Some((_, paths)) = complete_state_summaries
-        .iter()
-        .find(|(symbol, _)| *symbol == state.symbol)
-    {
+    if let Some(paths) = complete_state_summaries.get(&state.symbol) {
         return Some(paths.clone());
     }
     if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
@@ -131,7 +128,9 @@ pub(crate) fn summarize_complete_state_written_paths(
         complete_state_summaries,
         Some(StateWriteQuery::Complete),
     )?;
-    complete_state_summaries.push((state.symbol, prefix.written.clone()));
+    complete_state_summaries
+        .entry(state.symbol)
+        .or_insert_with(|| prefix.written.clone());
     Some(prefix.written)
 }
 
@@ -177,7 +176,7 @@ pub(crate) fn walk_state_write_prefix_collected(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     include_shared: bool,
 ) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
     inference.with_local_scope(|inference| {
@@ -219,7 +218,7 @@ pub(crate) fn collect_state_write_prefixes(
         .len();
     let mut prefixes = Vec::new();
     let mut inference = FrameInference::default();
-    let mut complete_state_summaries = Vec::new();
+    let mut complete_state_summaries = HashMap::default();
     // The walk's own result is unused here: `prefixes` and
     // `complete_state_summaries` carry everything the caller reads.
     let _ = inference.with_local_scope(|inference| {
@@ -289,7 +288,7 @@ pub(crate) fn walk_state_write_prefix(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
 ) -> Option<StateWritePrefix> {
     inference.with_local_scope(|inference| {
@@ -312,7 +311,7 @@ fn walk_state_write_prefix_inner(
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     query: Option<StateWriteQuery<'_>>,
     mut collect: Option<&mut Vec<Option<CollectedStatementPrefix>>>,
 ) -> Option<StateWritePrefix> {
