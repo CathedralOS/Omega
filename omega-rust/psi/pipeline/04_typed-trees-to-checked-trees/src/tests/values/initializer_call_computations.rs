@@ -315,3 +315,54 @@ fn initializer_call_computations_preserve_the_free_scalar_whole_result_route() {
         [checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 }]
     );
 }
+
+/// A `let` whose initializer converts a call's result (`widen(x) as i32`)
+/// keeps the call's per-occurrence argument rows, exactly as the direct call
+/// does: lowering rejoins each computed call operand through those rows. (A
+/// direct call additionally binds the local to its result, which a converted
+/// result is not.)
+#[test]
+fn a_cast_wrapped_initializer_call_retains_its_argument_rows() {
+    let argument_rows = |local: &str| {
+        let source = format!(
+            "data Root {{ value: u8; }}
+             machine widen(input: u8) -> i32 {{ input as i32 }}
+             machine Root::enter(&mut self) {{
+                 {local}
+             }}"
+        );
+        let checked = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Root::enter")
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expressions
+            .iter()
+            .filter(|expression| {
+                expression.state == state.symbol
+                    && expression.statement_ordinal == 0
+                    && matches!(
+                        expression.role,
+                        checked_trees::CheckedScalarExpressionRole::UnitCallArgument { .. }
+                    )
+            })
+            .count()
+    };
+    let direct = argument_rows("let converted: i32 = widen(self.value);");
+    assert!(direct > 0, "the direct call retains its argument rows");
+    assert_eq!(
+        argument_rows("let converted: i32 = widen(self.value) as i32;"),
+        direct
+    );
+    assert_eq!(
+        argument_rows("let converted: i32 in Saturating = widen(self.value) as i32 in Saturating;"),
+        direct
+    );
+}
