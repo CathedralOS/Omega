@@ -298,109 +298,16 @@ pub(super) fn emit(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let mut literal_arguments = Vec::new();
-    for operation in &plan.operations {
-        let structural_arguments = operation.call_structural_arguments();
-        let Some(target_machine) = call_target_machine(operation) else {
-            continue;
-        };
-        literal_arguments.extend(
-            structural_arguments
-                .iter()
-                .enumerate()
-                .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
-                .map(|(index, argument)| (argument, target_machine, index)),
-        );
-    }
-    let mut literal_qualifications = Vec::new();
-    let literal_places = literal_arguments
-        .iter()
-        .enumerate()
-        .map(|(ordinal, (argument, target_machine, argument_index))| {
-            // The literal occurrence replays the domain memberships checking
-            // discharged on its bytes: the target parameter's declared
-            // qualifications are exactly the admitted set.
-            let qualifications = match lowered_boundary_parameters
-                .iter()
-                .find(|boundary| boundary.source == *target_machine)
-            {
-                Some(boundary) => boundary
-                    .structural
-                    .get(*argument_index)
-                    .ok_or(LoweringError::Unsupported(
-                        "literal call boundary target parameter is absent",
-                    ))?
-                    .qualifications
-                    .clone(),
-                // A Unit body or a scalar callee: the same entry roster
-                // `CheckedScalarCallee` resolves for every scalar target.
-                None if UnitBody::contains(plans, *target_machine) => {
-                    UnitBody::find(plans, *target_machine)?
-                        .entry()?
-                        .structural_parameters
-                        .get(*argument_index)
-                        .ok_or(LoweringError::Unsupported(
-                            "literal call target parameter is absent",
-                        ))?
-                        .qualifications
-                        .iter()
-                        .map(|domain| lookup_domain_id(domain_ids, *domain))
-                        .collect::<Result<Vec<_>, _>>()?
-                }
-                None => {
-                    crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-                        checked,
-                        *target_machine,
-                    )?
-                    .structural_parameters()
-                    .get(*argument_index)
-                    .ok_or(LoweringError::Unsupported(
-                        "literal call target parameter is absent",
-                    ))?
-                    .qualifications
-                    .iter()
-                    .map(|domain| lookup_domain_id(domain_ids, *domain))
-                    .collect::<Result<Vec<_>, _>>()?
-                }
-            };
-            literal_qualifications.push(qualifications);
-            Ok(StructuralPlaceDeclaration {
-                id: place_id(allocate_dense(&mut next_place)?),
-                kind: StructuralPlaceKind::ByteSequenceLiteral {
-                    declaration_ordinal: u32::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported("byte-sequence literal count exceeds u32")
-                    })?,
-                    structural_type: lookup_type_id(type_ids, &argument.type_identity)?,
-                },
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    let operation_identity_base = next_operation
-        .checked_sub(1)
-        .expect("terminal operation identity starts at one");
-    let mut operations = OperationBuffer::new(operation_identity_base);
-    for ((argument, _, _), (place, qualifications)) in literal_arguments
-        .iter()
-        .zip(literal_places.iter().zip(&literal_qualifications))
-    {
-        let bytes = argument
-            .byte_sequence_literal()
-            .ok_or(LoweringError::Unsupported(
-                "byte-sequence literal payload is absent",
-            ))?;
-        let id = operations.allocate();
-        operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: terminal_psi::OperationResult::Unit,
-            kind: OperationKind::EstablishByteSequenceLiteral {
-                destination: place.id,
-                bytes: bytes.to_vec(),
-                qualifications: qualifications.clone(),
-            },
-        });
-    }
+    let (literal_places, operations) = establish_call_literals(
+        checked,
+        plan,
+        plans,
+        lowered_boundary_parameters,
+        type_ids,
+        domain_ids,
+        &mut next_place,
+        next_operation,
+    )?;
     let next_literal_argument = 0usize;
     let call_literal_count = literal_places.len();
     let next_value_identity = next_value;
@@ -946,6 +853,127 @@ pub(super) fn emit(
         selected_ieee_float_comparisons,
         selected_integer_comparisons,
     })
+}
+
+/// Establish every byte-sequence literal the body passes as a structural
+/// call argument: one private place per literal, qualified with the domain
+/// memberships the target parameter declares, and one establishment
+/// operation per place ahead of the body. Returns the places and the
+/// operation buffer that now starts with those establishments.
+fn establish_call_literals(
+    checked: &CheckedTrees,
+    plan: &CheckedUnitEffectMachinePlan,
+    plans: UnitPlans<'_>,
+    lowered_boundary_parameters: &[super::operation_frame::BoundaryParameters],
+    type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    next_place: &mut u64,
+    next_operation: u64,
+) -> Result<(Vec<StructuralPlaceDeclaration>, OperationBuffer), LoweringError> {
+    let mut literal_arguments = Vec::new();
+    for operation in &plan.operations {
+        let structural_arguments = operation.call_structural_arguments();
+        let Some(target_machine) = call_target_machine(operation) else {
+            continue;
+        };
+        literal_arguments.extend(
+            structural_arguments
+                .iter()
+                .enumerate()
+                .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
+                .map(|(index, argument)| (argument, target_machine, index)),
+        );
+    }
+    let mut literal_qualifications = Vec::new();
+    let literal_places = literal_arguments
+        .iter()
+        .enumerate()
+        .map(|(ordinal, (argument, target_machine, argument_index))| {
+            // The literal occurrence replays the domain memberships checking
+            // discharged on its bytes: the target parameter's declared
+            // qualifications are exactly the admitted set.
+            let qualifications = match lowered_boundary_parameters
+                .iter()
+                .find(|boundary| boundary.source == *target_machine)
+            {
+                Some(boundary) => boundary
+                    .structural
+                    .get(*argument_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "literal call boundary target parameter is absent",
+                    ))?
+                    .qualifications
+                    .clone(),
+                // A Unit body or a scalar callee: the same entry roster
+                // `CheckedScalarCallee` resolves for every scalar target.
+                None if UnitBody::contains(plans, *target_machine) => {
+                    UnitBody::find(plans, *target_machine)?
+                        .entry()?
+                        .structural_parameters
+                        .get(*argument_index)
+                        .ok_or(LoweringError::Unsupported(
+                            "literal call target parameter is absent",
+                        ))?
+                        .qualifications
+                        .iter()
+                        .map(|domain| lookup_domain_id(domain_ids, *domain))
+                        .collect::<Result<Vec<_>, _>>()?
+                }
+                None => {
+                    crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+                        checked,
+                        *target_machine,
+                    )?
+                    .structural_parameters()
+                    .get(*argument_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "literal call target parameter is absent",
+                    ))?
+                    .qualifications
+                    .iter()
+                    .map(|domain| lookup_domain_id(domain_ids, *domain))
+                    .collect::<Result<Vec<_>, _>>()?
+                }
+            };
+            literal_qualifications.push(qualifications);
+            Ok(StructuralPlaceDeclaration {
+                id: place_id(allocate_dense(next_place)?),
+                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal: u32::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported("byte-sequence literal count exceeds u32")
+                    })?,
+                    structural_type: lookup_type_id(type_ids, &argument.type_identity)?,
+                },
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let operation_identity_base = next_operation
+        .checked_sub(1)
+        .expect("terminal operation identity starts at one");
+    let mut operations = OperationBuffer::new(operation_identity_base);
+    for ((argument, _, _), (place, qualifications)) in literal_arguments
+        .iter()
+        .zip(literal_places.iter().zip(&literal_qualifications))
+    {
+        let bytes = argument
+            .byte_sequence_literal()
+            .ok_or(LoweringError::Unsupported(
+                "byte-sequence literal payload is absent",
+            ))?;
+        let id = operations.allocate();
+        operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: terminal_psi::OperationResult::Unit,
+            kind: OperationKind::EstablishByteSequenceLiteral {
+                destination: place.id,
+                bytes: bytes.to_vec(),
+                qualifications: qualifications.clone(),
+            },
+        });
+    }
+    Ok((literal_places, operations))
 }
 
 impl MachineEmission<'_> {
