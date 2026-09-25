@@ -1151,6 +1151,49 @@ fn euclid_gcd_retains_service_call_entry_plan() {
     );
 }
 
+/// How long one sample executable may run. Every documented sample exits in
+/// well under a second; a miscompiled loop must fail its sample, not hang the
+/// suite.
+const SAMPLE_RUN_DEADLINE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Run `executable` with stdin closed, killing it at `deadline`. Output goes
+/// to files in `build_dir` so a chatty sample cannot block on a full pipe
+/// while this waits.
+fn run_to_deadline(
+    executable: &Path,
+    build_dir: &Path,
+    deadline: std::time::Duration,
+) -> Result<std::process::Output, String> {
+    let stdout_path = build_dir.join("sample.stdout");
+    let stderr_path = build_dir.join("sample.stderr");
+    let mut child = Command::new(executable)
+        .stdin(Stdio::null())
+        .stdout(fs::File::create(&stdout_path).map_err(|error| error.to_string())?)
+        .stderr(fs::File::create(&stderr_path).map_err(|error| error.to_string())?)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    let started = std::time::Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            break status;
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "still running after {}s; killed",
+                deadline.as_secs()
+            ));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    };
+    Ok(std::process::Output {
+        status,
+        stdout: fs::read(&stdout_path).map_err(|error| error.to_string())?,
+        stderr: fs::read(&stderr_path).map_err(|error| error.to_string())?,
+    })
+}
+
 #[test]
 fn samples_with_documented_exit_run_correctly() {
     let sample_mains = sample_mains();
@@ -1185,6 +1228,8 @@ fn samples_with_documented_exit_run_correctly() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-sample-run-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
+        let started = std::time::Instant::now();
+        let failures_before = failures.len();
 
         match compile_native_and_publish(CompileOptions {
             root_path: main_path.clone(),
@@ -1208,7 +1253,7 @@ fn samples_with_documented_exit_run_correctly() {
                     ));
                     continue;
                 };
-                match Command::new(executable).stdin(Stdio::null()).output() {
+                match run_to_deadline(executable, &build_dir, SAMPLE_RUN_DEADLINE) {
                     Ok(output) => {
                         if output.status.code() != Some(expected) {
                             failures.push(format!(
@@ -1237,13 +1282,23 @@ fn samples_with_documented_exit_run_correctly() {
                 }
             }
         }
+        // One line per sample under `--no-capture`, so a slow compile or run
+        // names itself while the suite is still going.
+        eprintln!(
+            "sample {name}: {} in {:.1}s",
+            if failures.len() == failures_before {
+                "ok"
+            } else {
+                "failed"
+            },
+            started.elapsed().as_secs_f64()
+        );
         let _ = fs::remove_dir_all(&build_dir);
     }
 
     assert!(
         failures.is_empty(),
-        "{} samples ran with the wrong exit (a runtime miscompile that still \
-         compiles):\n{}",
+        "{} samples failed to compile or to reach their documented exit:\n{}",
         failures.len(),
         failures.join("\n")
     );
