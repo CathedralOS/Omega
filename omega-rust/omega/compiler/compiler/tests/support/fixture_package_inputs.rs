@@ -458,6 +458,54 @@ pub fn standard_library_package_inputs(
     .unwrap_or_else(|errors| panic!("fixture {}: {errors:#?}", project_root.display()))
 }
 
+/// `location` itself when it is disjoint from every bound root, or a staged
+/// copy of it when it nests. Acquisition gives each package its own directory
+/// in the real build; a fixture compiled in place has no such step, and a
+/// member authored inside its requester would otherwise present two source
+/// roots where one contains the other.
+///
+/// The copy is keyed by the member's canonical path and this process, so
+/// concurrent corpus workers never share one staging directory, and it is
+/// refreshed on every call rather than reused across runs.
+fn staged_member_root(location: &Path, bound: &HashMap<PathBuf, PackageKeyIdentity>) -> PathBuf {
+    let nests = bound
+        .keys()
+        .any(|root| location.starts_with(root) && location != root || root.starts_with(location));
+    if !nests {
+        return location.to_path_buf();
+    }
+    let mut key = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(&location, &mut key);
+    let staged = std::env::temp_dir().join(format!(
+        "omega-fixture-member-{}-{:016x}",
+        std::process::id(),
+        std::hash::Hasher::finish(&key),
+    ));
+    let _ = fs::remove_dir_all(&staged);
+    copy_member_tree(location, &staged).unwrap_or_else(|error| {
+        panic!(
+            "fixture member {} could not be staged at {}: {error}",
+            location.display(),
+            staged.display()
+        )
+    });
+    staged
+}
+
+fn copy_member_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_member_tree(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 fn fixture_package_inputs_bound_to(
     authored_root: &Path,
     bound_root: &Path,
@@ -502,10 +550,20 @@ fn fixture_package_inputs_bound_to(
                             .expect("fixture package markers stay distinct");
                         fixture_package_identity(marker)
                     };
+                    // Source roots must be disjoint. A fixture may author its
+                    // member inside its own directory (`depend_as("leaf",
+                    // Source::Path { location: "leaf" })`), which the real
+                    // build accepts because acquisition snapshots every
+                    // package into its own cache directory before compiling.
+                    // Binding the authored nesting directly instead would
+                    // report overlapping roots, so stage the member the same
+                    // way. The walk continues from the AUTHORED location, so
+                    // the member's own relative rows still resolve.
+                    let bound_location = staged_member_root(&dependency.location, &bound);
                     packages.push(PackageSourceBinding::new(
                         identity,
                         dependency.package_name.clone(),
-                        dependency.location.clone(),
+                        bound_location,
                     ));
                     bound.insert(dependency.location.clone(), identity);
                     pending.push((dependency.location.clone(), identity));
