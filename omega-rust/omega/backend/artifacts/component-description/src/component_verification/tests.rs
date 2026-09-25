@@ -114,6 +114,7 @@ fn minimal_module() -> TerminalModule {
 fn boundary_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: "IndexedRequirement::apply".into(),
         attachment: None,
@@ -134,6 +135,7 @@ fn boundary_module() -> TerminalModule {
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: BoundaryMachineId::new(1).expect("boundary identity"),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -151,6 +153,7 @@ fn boundary_module() -> TerminalModule {
 fn provider_module() -> TerminalModule {
     let mut module = minimal_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: "IndexedRequirement::apply".into(),
         attachment: None,
@@ -218,6 +221,7 @@ fn bounded_provider_module() -> TerminalModule {
     });
     let bounded = BoundaryMachineId::new(2).expect("boundary identity");
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: bounded,
         identity: "MachineControl::mask".into(),
         attachment: None,
@@ -238,6 +242,7 @@ fn bounded_provider_module() -> TerminalModule {
         id: OperationId::new(1).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: bounded,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -909,6 +914,7 @@ fn described_module() -> TerminalModule {
         parents: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(2).expect("boundary identity"),
         identity: "Unsealed::requirement".into(),
         attachment: None,
@@ -924,6 +930,7 @@ fn described_module() -> TerminalModule {
         published_service_ceiling: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(3).expect("boundary identity"),
         identity: "Bound::requirement".into(),
         attachment: None,
@@ -944,6 +951,7 @@ fn described_module() -> TerminalModule {
         id: OperationId::new(2).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: BoundaryMachineId::new(2).expect("boundary identity"),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -956,6 +964,7 @@ fn described_module() -> TerminalModule {
         id: OperationId::new(3).expect("operation identity"),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: BoundaryMachineId::new(3).expect("boundary identity"),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

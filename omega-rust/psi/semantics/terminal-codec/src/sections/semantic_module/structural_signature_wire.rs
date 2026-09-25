@@ -23,6 +23,7 @@ use super::content_wire::{
     decode_content_conservation_guarantee, encode_content_conservation_guarantee,
 };
 use super::contract_wire::{decode_crash_routes, encode_crash_routes};
+use super::proposition_wire::{decode_proposition, encode_proposition};
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::structural_place_wire::{
@@ -88,6 +89,13 @@ pub(crate) fn encode_boundary_machine(
     for requirement in &declaration.requires {
         writer.u32(requirement.argument_index);
         writer.id(requirement.domain);
+    }
+    writer.len(
+        "boundary scalar requires",
+        declaration.scalar_requires.len(),
+    )?;
+    for proposition in &declaration.scalar_requires {
+        encode_proposition(writer, proposition, 0)?;
     }
     writer.len(
         "program-local root introduction schemas",
@@ -267,6 +275,7 @@ pub(crate) fn decode_boundary_machine(
                 domain: reader.id("StructuralDomainId")?,
             })
         })?,
+        scalar_requires: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
         program_local_root_introductions: decode_counted(reader, |reader| {
             let argument_index = reader.u32()?;
             let source_parameter_position = reader.u32()?;

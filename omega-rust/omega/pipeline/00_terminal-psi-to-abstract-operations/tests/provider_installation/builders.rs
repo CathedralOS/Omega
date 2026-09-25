@@ -64,6 +64,7 @@ pub(super) fn provider_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: REQUIREMENT.into(),
@@ -119,6 +120,7 @@ pub(super) fn provider_module() -> TerminalModule {
                     id: operation_id(1),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
+                        requirement_obligations: Vec::new(),
                         boundary: boundary_id(1),
                         arguments: Vec::new(),
                         structural_arguments: Vec::new(),

@@ -131,9 +131,9 @@ impl LoweredComposedBoundary {
     pub(super) fn roster(boundaries: &[BoundaryParameters]) -> Vec<Self> {
         boundaries
             .iter()
-            .map(|(source, id, _, _)| Self {
-                source: *source,
-                id: *id,
+            .map(|boundary| Self {
+                source: boundary.source,
+                id: boundary.id,
             })
             .collect()
     }

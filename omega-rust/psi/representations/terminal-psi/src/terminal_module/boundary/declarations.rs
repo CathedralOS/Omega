@@ -4,8 +4,8 @@ use crate::{
 };
 use semantic_vocabulary::{
     BoundaryMachineId, ContentAlgebra, ContentConservation, ContentProjectionExpression,
-    ContentProjectionIdentity, ContentProjectionScalar, ScalarType, ServiceId, StructuralDomainId,
-    StructuralTypeId, ValueId,
+    ContentProjectionIdentity, ContentProjectionScalar, Proposition, ScalarType, ServiceId,
+    StructuralDomainId, StructuralTypeId, ValueId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -82,6 +82,12 @@ pub struct BoundaryMachineDeclaration {
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.
     pub requires: Vec<StructuralDomainRequirement>,
+    /// The requirement's scalar `requires` propositions, in canonical order
+    /// and in this declaration's scalar-formal namespace (the crash routes'
+    /// namespace). Every `BoundaryCall` owes one obligation per row at the
+    /// same index, the row instantiated at that call's scalar actuals. A
+    /// selected provider cannot weaken what callers must establish.
+    pub scalar_requires: Vec<Proposition>,
     /// Exact portable schemas authorized by this requirement's domain routes.
     /// These rows describe per-occurrence capacity but introduce no authority;
     /// installation must still bind a concrete occurrence and cardinality.

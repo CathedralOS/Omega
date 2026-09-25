@@ -160,6 +160,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
     } else {
         module.machines[0].structural_parameters.clear();
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "produce_pair".into(),
@@ -181,6 +182,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
             crash_routes: Vec::new(),
         });
         OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

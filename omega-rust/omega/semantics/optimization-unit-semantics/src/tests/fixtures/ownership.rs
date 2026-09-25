@@ -449,6 +449,7 @@ pub(crate) fn affine_claim_join_unit(settle_false_arm: bool) -> PsiOptimizationU
         }]
         .into(),
         boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "validation::affine-claim-settlement".into(),

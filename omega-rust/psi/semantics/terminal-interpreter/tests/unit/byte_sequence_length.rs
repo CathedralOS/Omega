@@ -333,6 +333,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
                 id: operation_id(21),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: vec![value_id(20)],
                     structural_arguments: Vec::new(),

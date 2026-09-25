@@ -20,7 +20,7 @@ const LEGACY_UNIT: &[u8] = &[
 // at block offset 264 and module offset 309 (end); these are part of the
 // current body, not markers.
 const CURRENT_UNIT: &[u8] = &[
-    80, 83, 73, 84, 69, 82, 77, 0, 106, 0, 108, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    80, 83, 73, 84, 69, 82, 77, 0, 107, 0, 109, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -405,6 +405,7 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             id: boundary,
             identity: "Installer::step".into(),
             attachment: None,
@@ -428,6 +429,7 @@ fn fixed_boundary_service_module() -> terminal_psi::TerminalModule {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             result: terminal_psi::OperationResult::Unit,
             kind: terminal_psi::OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

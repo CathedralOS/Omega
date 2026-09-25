@@ -47,6 +47,7 @@ pub(crate) fn build_boundary_machine(
         &binders,
     )?;
     let contract = facts.contract_plans.for_machine(machine.symbol)?;
+    let scalar_requires = boundary_scalar_requires(program, machine, contract)?;
     let state_flow = state_flow(facts, machine.symbol, state.symbol)?;
 
     Some(CheckedBoundaryMachinePlan {
@@ -58,11 +59,66 @@ pub(crate) fn build_boundary_machine(
         scalar_parameters,
         result,
         domain_requirements,
+        scalar_requires,
         contract_report_fingerprint: contract.report_fingerprint,
         contract_commitment: contract.commitment,
         contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
         service_reach: state_flow.service_reach,
     })
+}
+
+/// The requirement's scalar `requires` rows, paired clause by clause with the
+/// closed contract: a clause that is wholly structural membership travels as
+/// a domain requirement and must have no scalar row; every other authored
+/// clause must have closed to a scalar value, or the boundary does not form.
+/// Integer parameter ranges follow. A floating parameter range has no
+/// proposition form here and, as before this lane existed, is not published.
+fn boundary_scalar_requires(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    contract: &checked_trees::MachineContractPlan,
+) -> Option<Vec<checked_trees::ClosedScalarContractValue>> {
+    use checked_trees::ClosedScalarContractValue;
+    use typed_trees::domain::ProofFact;
+    use typed_trees::signature::SignatureContractKind;
+
+    let closed = &contract.closed_scalar_values;
+    let authored = program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|clause| clause.kind == SignatureContractKind::Requires && clause.binding.is_none())
+        .collect::<Vec<_>>();
+    if authored.len() != closed.authored_requires().len() {
+        return None;
+    }
+    let mut rows = Vec::new();
+    for (clause, row) in authored.into_iter().zip(closed.authored_requires()) {
+        let facts = program.proof_facts.span_or_empty(clause.facts);
+        let membership = !facts.is_empty()
+            && facts
+                .iter()
+                .all(|fact| matches!(fact, ProofFact::Membership(_)));
+        match (membership, row) {
+            (true, None) => {}
+            (
+                false,
+                Some(
+                    value @ (ClosedScalarContractValue::Predicate(_)
+                    | ClosedScalarContractValue::Boolean(_)
+                    | ClosedScalarContractValue::Integer(_)),
+                ),
+            ) => rows.push(value.clone()),
+            _ => return None,
+        }
+    }
+    for row in &closed.requires()[closed.authored_requires().len()..] {
+        match row {
+            Some(value @ ClosedScalarContractValue::Predicate(_)) => rows.push(value.clone()),
+            Some(ClosedScalarContractValue::FloatRange(_)) => {}
+            _ => return None,
+        }
+    }
+    Some(rows)
 }
 
 /// Project the narrow static boundary-trait surface used by checked-adapter
@@ -346,6 +402,9 @@ pub(crate) fn build_static_boundary_requirements(
                 scalar_parameters,
                 result,
                 domain_requirements,
+                // Admission above accepted only contracts that are exact
+                // parameter qualifications, so no scalar predicate remains.
+                scalar_requires: Vec::new(),
                 contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
                 contract_commitment: capsule.target_contract_commitment(),
                 contract_service_reach: language_semantics::ServiceReachPlan {

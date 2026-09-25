@@ -1026,6 +1026,7 @@ mod tests {
                 crash_continuations: Vec::new(),
             },
             OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: semantic_id(1, semantic_vocabulary::BoundaryMachineId::new),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

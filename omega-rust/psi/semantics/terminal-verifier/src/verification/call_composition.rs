@@ -458,10 +458,53 @@ pub(super) fn compose_call_operation(
         (
             CallResultRule::BoundaryDeclaredResult,
             OperationKind::BoundaryCall {
+                boundary,
+                arguments,
                 structural_arguments,
+                requirement_obligations,
                 ..
             },
         ) => {
+            // The declaration's scalar `requires` rows live in its positional
+            // formal telescope; one simultaneous substitution of this call's
+            // actuals yields each obligation, proven from the pre-call facts
+            // exactly as an ordinary callee's requires are.
+            let boundary = module
+                .boundary_machines
+                .iter()
+                .find(|candidate| candidate.id == *boundary)
+                .expect("validated boundary call target exists");
+            if !boundary.scalar_requires.is_empty() {
+                let substitutions = boundary
+                    .scalar_contract_parameters()
+                    .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| (parameter.id, value_term(*argument, value_types)))
+                    .collect::<BTreeMap<_, _>>();
+                for (requirement_position, (required, obligation)) in boundary
+                    .scalar_requires
+                    .iter()
+                    .zip(requirement_obligations)
+                    .enumerate()
+                {
+                    operation_obligations.push(ReconstructedOperationObligation {
+                        owner: ReconstructedTerminalObligationOwner::CallRequires {
+                            machine: machine.id,
+                            operation: operation.id,
+                            requirement_position: u32::try_from(requirement_position)
+                                .expect("validated boundary requirement position fits u32"),
+                        },
+                        obligation: Obligation {
+                            id: *obligation,
+                            proposition: substitute_proposition_values(required, &substitutions),
+                            class: ObligationClass::Derivable,
+                        },
+                        semantic_axioms: axioms.clone(),
+                        canonical_certificate: false,
+                    });
+                }
+            }
             invalidate_mutated_arguments(
                 module,
                 machine,

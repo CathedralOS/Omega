@@ -512,6 +512,8 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         arguments,
         structural_arguments,
         completion_receipts,
+        // Proof lane: verified in Psi, no physical correspondence.
+        requirement_obligations: _,
     } = &operation.kind
     else {
         return Err("installed D41 settlement owner is not a Terminal boundary call");
@@ -729,6 +731,8 @@ pub(crate) fn derive_normalized_foreign_child(
         arguments,
         structural_arguments,
         completion_receipts,
+        // Proof lane: verified in Psi, no physical correspondence.
+        requirement_obligations: _,
     } = &operation.kind
     else {
         return Err("normalized foreign D41 occurrence is not a Terminal boundary call");

@@ -305,9 +305,7 @@ pub(super) fn emit(
             let boundary = catalog
                 .boundary_parameters
                 .iter()
-                .find_map(|(source, identity, _, _)| {
-                    (*source == *target_machine).then_some(*identity)
-                })
+                .find_map(|boundary| (boundary.source == *target_machine).then_some(boundary.id))
                 .ok_or(LoweringError::Unsupported(
                     "scalar wrapper boundary is absent from the shared catalog",
                 ))?;

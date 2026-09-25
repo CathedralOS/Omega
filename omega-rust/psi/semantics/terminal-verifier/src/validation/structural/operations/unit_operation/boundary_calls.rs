@@ -23,6 +23,8 @@ pub(in crate::validation) fn validate_boundary_call(
         arguments: _,
         structural_arguments,
         completion_receipts,
+        // Registered with the other obligation lanes in custody validation.
+        requirement_obligations: _,
     } = &operation.kind
     else {
         unreachable!("dispatched validate_boundary_call")

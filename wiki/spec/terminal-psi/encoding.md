@@ -404,7 +404,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 32 | SaturatingIntegerRemainder | left value id + right value id + obligation id |
 | 33 | Call | callee machine id + counted value ids + scalar term list + proof term list + obligation id list + crash routes |
 | 34 | CallUnit | callee machine id + counted value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
-| 35 | BoundaryCall | boundary machine id + counted value ids + counted structural arguments + counted completion receipts |
+| 35 | BoundaryCall | boundary machine id + counted value ids + counted structural arguments + counted completion receipts + counted requirement obligation ids |
 | 36 | PortWrite | service id + `u16` port + `u8` value |
 | 37 | EstablishTrivialAffineLocal | place id |
 | 38 | BooleanStructuralField | source place id + scalar field carrier path + field id |
@@ -535,8 +535,8 @@ next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
 lane-count mismatches reject. Reordering a valid roster changes the semantic
 identity even when the parameters have identical physical shapes.
 
-Module bytes are `PSITERM\0` + `u16` format marker 106 + `u16` vocabulary
-marker 108 + the entry machine id, followed by the module's counted tables in
+Module bytes are `PSITERM\0` + `u16` format marker 107 + `u16` vocabulary
+marker 109 + the entry machine id, followed by the module's counted tables in
 the declaration order below and ending with the machine roster.
 
 <!-- module-table-order -->
@@ -912,7 +912,7 @@ are not re-sorted by the canonical-order checker.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted program-local root introductions + counted content guarantees + fixed service reach + published service ceiling |
+| boundary machine | boundary machine id + identity string + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted program-local root introductions + counted content guarantees + fixed service reach + published service ceiling |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
@@ -976,8 +976,9 @@ reverse of the content-place segment table; the two tag spaces are
 independent and a receiver must not share the decode table.
 
 Boundary machines are strictly ordered by boundary machine id with canonical
-crash routes, dense parameter positions, strictly ordered requirements and
-strictly ordered service ceilings. Provider candidates are strictly ordered
+crash routes, dense parameter positions, strictly ordered requirements,
+canonical strictly increasing scalar requires propositions (the machine
+contract `requires` rule) and strictly ordered service ceilings. Provider candidates are strictly ordered
 by boundary machine id, then provider identity, then candidate identity, then
 candidate machine id.
 
@@ -1694,14 +1695,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module, sealed proof section, obligation ledger, and
-debug map envelopes then carry the shared `u16` vocabulary marker (108). A
+debug map envelopes then carry the shared `u16` vocabulary marker (109). A
 receiver rejects an unknown magic or stale marker before reading any counted
 table. The installation record `PSIINST\0` is emitted outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 106 | yes |
+| semantic module | `PSITERM\0` | 107 | yes |
 | proof bundle | `PSIPRF\0\0` | 34 | no |
 | sealed proof section | `PSIPSC\0\0` | 1 | yes |
 | obligation ledger | `PSIOBLG\0` | 3 | yes |

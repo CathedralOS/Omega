@@ -159,6 +159,7 @@ fn boundary_requirement_consumes_a_dominating_operation_result_qualification() {
     let boundary = id(4_702, BoundaryMachineId::new);
     unit.boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "validation::qualified-operation-result-boundary".into(),
@@ -284,6 +285,7 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
     let boundary = id(4_712, BoundaryMachineId::new);
     unit.boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "validation::preserved-roster-boundary".into(),

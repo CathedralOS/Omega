@@ -459,12 +459,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             arguments,
             structural_arguments,
             completion_receipts,
+            requirement_obligations,
         } => call_operations::encode_boundary_call(
             writer,
             boundary,
             arguments,
             structural_arguments,
             completion_receipts,
+            requirement_obligations,
         )?,
         OperationKind::PortWrite {
             service,

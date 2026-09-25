@@ -53,6 +53,7 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
             id: id(1),
@@ -71,6 +72,7 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
             published_service_ceiling: Vec::new(),
         });
     module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        requirement_obligations: Vec::new(),
         boundary: id(1),
         arguments: Vec::new(),
         structural_arguments,

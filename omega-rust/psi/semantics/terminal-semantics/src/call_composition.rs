@@ -512,6 +512,7 @@ mod tests {
 
     fn boundary_call() -> OperationKind {
         OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: BoundaryMachineId::new(1).unwrap(),
             arguments: vec![ValueId::new(2).unwrap(), ValueId::new(1).unwrap()],
             structural_arguments: Vec::new(),

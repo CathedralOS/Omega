@@ -170,6 +170,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
             claims: Vec::new(),
         }),
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -187,6 +188,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         ];
         let kind = if boundary {
             OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(2),
                 arguments: Vec::new(),
                 structural_arguments,
@@ -237,6 +239,7 @@ fn shared_result_module(boundary: bool, scalar: bool, duplicate: bool) -> Termin
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

@@ -743,6 +743,7 @@ fn claims_are_linear_across_unit_operations_and_return() {
         id: operation_id(4),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

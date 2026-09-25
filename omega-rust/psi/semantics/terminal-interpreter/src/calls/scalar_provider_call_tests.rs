@@ -155,6 +155,7 @@ fn scalar_provider_module(
             id: operation_id(10),
             result: OperationResult::Scalar(scalar_declaration(10, boundary_result)),
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(1),
                 arguments: scalar_arguments,
                 structural_arguments: Vec::new(),
@@ -211,6 +212,7 @@ fn scalar_provider_module(
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "test::combine".into(),

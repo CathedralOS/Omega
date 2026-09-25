@@ -671,6 +671,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id,
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -704,6 +705,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         },
     };
     let boundary = BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id,

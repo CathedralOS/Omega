@@ -19,7 +19,9 @@ use super::{
     lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
+use crate::terminal_identities::value_id;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
+use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
 /// Declare each retained boundary, in roster order, with the parameter roster
 /// its callers bind against. Structural parameters take places from
@@ -47,8 +49,11 @@ pub(super) fn lower_declarations(
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
         let requires = lower_requirements(plan, parameters.len(), domain_ids)?;
+        let scalar_requires = lower_scalar_requires(plan, &scalar_parameters)?;
+        let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
+            scalar_requires,
             parameter_order: lower_boundary_parameter_order(
                 &plan.scalar_parameters,
                 &plan.structural_parameters,
@@ -84,9 +89,64 @@ pub(super) fn lower_declarations(
                 service_ids,
             )?,
         });
-        parameter_rosters.push((plan.machine, id, parameters, scalar_parameters));
+        parameter_rosters.push(BoundaryParameters {
+            source: plan.machine,
+            id,
+            structural: parameters,
+            scalar: scalar_parameters,
+            requirement_count,
+        });
     }
     Ok((declarations, parameter_rosters))
+}
+
+/// A boundary's scalar `requires` rows in its declaration-local formal
+/// telescope (scalar lane position `k` is formal `ValueId` `k + 1`, the crash
+/// routes' namespace), normalized as a callee's published requires are: no
+/// `true` rows, conjunctions split into rows, canonical order, no repeats.
+fn lower_scalar_requires(
+    plan: &CheckedBoundaryMachinePlan,
+    scalar_types: &[ScalarType],
+) -> Result<Vec<Proposition>, LoweringError> {
+    if plan.scalar_requires.is_empty() {
+        return Ok(Vec::new());
+    }
+    let formals = scalar_types
+        .iter()
+        .enumerate()
+        .map(|(position, scalar_type)| {
+            Ok(ValueDeclaration {
+                id: value_id(dense_identity(position)?),
+                scalar_type: *scalar_type,
+                qualifications: Default::default(),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let mut pending = plan
+        .scalar_requires
+        .iter()
+        .map(|row| {
+            crate::scalar_graph::scalar_contracts::clauses(
+                std::slice::from_ref(&Some(row.clone())),
+                &formals,
+                &[],
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .rev()
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    while let Some(row) = pending.pop() {
+        match row {
+            Proposition::Truth => {}
+            Proposition::Conjunction(conjuncts) => pending.extend(conjuncts.into_iter().rev()),
+            other => rows.push(other),
+        }
+    }
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut rows)?;
+    Ok(rows)
 }
 
 /// A boundary's structural domain requirements, each naming one of its

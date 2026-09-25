@@ -671,6 +671,13 @@ pub(super) fn boundary_domain_requirements(
     let mut output = Vec::new();
     for checked in checked_requires {
         let ProofFact::Membership(membership) = program.proof_facts.get(checked.fact) else {
+            // A machine-level scalar predicate is not a qualification check:
+            // it travels as a checked scalar requires row
+            // (`boundary_scalar_requires`), which refuses any clause the
+            // closed contract did not lower. State-level clauses have no row.
+            if matches!(checked.owner, ContractProofFactOwner::Machine { .. }) {
+                continue;
+            }
             return None;
         };
         let place = crate::flow::canonical_place_from_expression_in_state(

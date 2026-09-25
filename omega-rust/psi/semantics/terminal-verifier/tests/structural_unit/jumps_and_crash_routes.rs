@@ -457,6 +457,7 @@ fn affine_structural_arguments_transfer_at_most_once() {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

@@ -74,6 +74,7 @@ fn selected_plan(
 
 fn boundary(id: u32, requirement: &str) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: semantic_vocabulary::BoundaryMachineId::new(u64::from(id)).unwrap(),
         identity: requirement.to_owned(),

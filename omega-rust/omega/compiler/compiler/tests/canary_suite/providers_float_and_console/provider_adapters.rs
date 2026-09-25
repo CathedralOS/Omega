@@ -1681,6 +1681,11 @@ fn assert_selected_external_requirement_terminal_call(
         1,
         "{label} boundary declaration keeps the authored scalar signature",
     );
+    assert_eq!(
+        boundary.scalar_requires.len(),
+        1,
+        "{label} boundary declaration retains the requirement's scalar requires",
+    );
     let entry = module
         .machines
         .iter()
@@ -1691,13 +1696,17 @@ fn assert_selected_external_requirement_terminal_call(
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match &operation.kind {
-            terminal_psi::OperationKind::BoundaryCall { boundary: id, .. } => Some(*id),
+            terminal_psi::OperationKind::BoundaryCall {
+                boundary: id,
+                requirement_obligations,
+                ..
+            } => Some((*id, requirement_obligations.len())),
             _ => None,
         })
         .collect::<Vec<_>>();
     assert!(
-        boundary_calls.contains(&boundary.id),
-        "{label} entry keeps an exact BoundaryCall into the requirement boundary",
+        boundary_calls.contains(&(boundary.id, 1)),
+        "{label} entry keeps an exact BoundaryCall into the requirement boundary, owing its one requires obligation: {boundary_calls:?}",
     );
 
     let proposal_rows = proposal

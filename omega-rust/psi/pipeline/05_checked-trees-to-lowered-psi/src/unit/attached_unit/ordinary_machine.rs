@@ -36,16 +36,15 @@ use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ClaimId,
     ContractClause, LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
-    PermissionClaimIdentity, PlaceId, ScalarType, SemanticDomainId, StructuralDomainId,
-    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense,
-    content_conservation, contract_id, dense_identity, edge_id, lookup_domain_id, lookup_type_id,
+    PermissionClaimIdentity, PlaceId, SemanticDomainId, StructuralDomainId, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, content_conservation,
+    contract_id, dense_identity, edge_id, lookup_domain_id, lookup_type_id,
     lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, obligation_id,
     place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
-    BoundaryMachineId, MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration,
-    StructuralTypeDeclaration,
+    MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 use lowered_psi::{
@@ -62,12 +61,7 @@ pub(super) struct ClosureCatalog<'a> {
     pub(super) type_ids: &'a [(String, StructuralTypeId)],
     pub(super) domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
-    pub(super) boundary_parameters: &'a [(
-        symbols::SymbolHandle,
-        BoundaryMachineId,
-        Vec<StructuralParameterDeclaration>,
-        Vec<ScalarType>,
-    )],
+    pub(super) boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     pub(super) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub(super) signatures: &'a [MachineSignature],
     pub(super) scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
@@ -107,12 +101,7 @@ pub(super) struct MachineEmission<'a> {
     type_ids: &'a [(String, StructuralTypeId)],
     domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
     service_ids: &'a [(ServiceReachId, ServiceId)],
-    lowered_boundary_parameters: &'a [(
-        symbols::SymbolHandle,
-        BoundaryMachineId,
-        Vec<StructuralParameterDeclaration>,
-        Vec<ScalarType>,
-    )],
+    lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     machine_signatures: &'a [MachineSignature],
     scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
@@ -243,7 +232,7 @@ pub(super) fn emit(
         .collect::<Vec<_>>();
     let provider_boundaries = lowered_boundary_parameters
         .iter()
-        .map(|(symbol, boundary, _, _)| (*symbol, *boundary))
+        .map(|boundary| (boundary.source, boundary.id))
         .collect::<Vec<_>>();
     let attachment = plan
         .attachment_type_identity
@@ -333,9 +322,10 @@ pub(super) fn emit(
             // qualifications are exactly the admitted set.
             let qualifications = match lowered_boundary_parameters
                 .iter()
-                .find(|(symbol, ..)| *symbol == *target_machine)
+                .find(|boundary| boundary.source == *target_machine)
             {
-                Some((_, _, parameters, _)) => parameters
+                Some(boundary) => boundary
+                    .structural
                     .get(*argument_index)
                     .ok_or(LoweringError::Unsupported(
                         "literal call boundary target parameter is absent",

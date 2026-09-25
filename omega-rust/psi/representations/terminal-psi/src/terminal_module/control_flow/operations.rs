@@ -572,6 +572,9 @@ pub enum OperationKind {
         arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         completion_receipts: Vec<CompletionReceipt>,
+        /// One obligation per declaration `scalar_requires` row, at the
+        /// same index, as an ordinary call's `requirement_obligations`.
+        requirement_obligations: Vec<ObligationId>,
     },
     /// Immediate x86 port-space byte output. This first closed variant retains
     /// exactly a `u16` port and `u8` value; runtime operands are a later slice.

@@ -130,6 +130,7 @@ fn call_unit(callee: MachineId) -> OperationKind {
 
 fn boundary_declaration(raw: u64) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: boundary_id(raw),
         identity: format!("test::boundary_{raw}"),
         attachment: None,
@@ -389,6 +390,7 @@ fn actual_console_invocation_is_prohibited_even_with_silent_provider() {
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -437,6 +439,7 @@ fn boundary_declared_trap_route_is_prohibited_conservatively() {
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -755,6 +758,7 @@ fn boundary_call_module(candidate_bodies: Vec<TerminalMachine>) -> TerminalModul
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -1330,6 +1334,7 @@ fn boundary_ownership_counts_the_owning_service_and_its_parents_without_fixed_re
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -1399,6 +1404,7 @@ fn boundary_without_a_canonical_requirement_identity_contributes_no_owner() {
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -1444,6 +1450,7 @@ fn qualified_and_escaped_owner_paths_rejoin_the_declaring_service() {
                 operations: vec![unit_operation(
                     1,
                     OperationKind::BoundaryCall {
+                        requirement_obligations: Vec::new(),
                         boundary: boundary_id(1),
                         arguments: Vec::new(),
                         structural_arguments: Vec::new(),
@@ -1487,6 +1494,7 @@ fn canonical_machine_overload_sharing_a_service_name_counts_conservatively() {
             operations: vec![unit_operation(
                 1,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -1605,6 +1613,7 @@ fn nominal_cleanup_reaching_an_excluded_service_is_prohibited() {
             operations: vec![unit_operation(
                 2,
                 OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(1),
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),

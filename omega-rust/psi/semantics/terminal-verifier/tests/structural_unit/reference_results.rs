@@ -673,6 +673,7 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
     let mut parameter = module.machines[2].structural_parameters[0].clone();
     parameter.place = place_id(40);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: boundary_id(1),
         identity: "primitive_boundary".into(),
         attachment: None,
@@ -692,6 +693,7 @@ fn reference_result_host_projection_rejects_without_widening_boundary_support() 
     });
     let operations = &mut module.machines[0].blocks[0].operations;
     operations[1].kind = OperationKind::BoundaryCall {
+        requirement_obligations: Vec::new(),
         boundary: boundary_id(1),
         arguments: vec![value_id(1)],
         structural_arguments: vec![argument(1, false)],
@@ -944,6 +946,7 @@ fn reference_record_rejects_unreplayed_producer_and_interface_custody() {
                 parameter.place = place_id(40);
                 parameter.structural_type = structural_type_id(3);
                 module.boundary_machines.push(BoundaryMachineDeclaration {
+                    scalar_requires: Vec::new(),
                     id: boundary_id(1),
                     identity: "stored_reference_boundary".into(),
                     attachment: None,

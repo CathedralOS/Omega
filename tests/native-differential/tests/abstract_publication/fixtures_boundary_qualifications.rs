@@ -41,6 +41,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -81,6 +82,7 @@ pub(super) fn boundary_qualification_verified() -> VerifiedPsiOptimizationUnit {
         },
     ];
     module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "test::consume_qualification".into(),
@@ -139,6 +141,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
                 id: operation,
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -200,6 +203,7 @@ pub(super) fn partial_path_boundary_qualification_verified() -> VerifiedPsiOptim
         },
     ];
     module.boundary_machines = vec![terminal_psi::BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "test::consume_projected_qualification".into(),

@@ -932,6 +932,7 @@ mod tests {
         }];
         module.root_service_reach.concrete = vec![service];
         module.boundary_machines = vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
             id: boundary,
@@ -1034,6 +1035,7 @@ mod tests {
                     scalar_type: u8_type,
                 }),
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary,
                     arguments: vec![flag, byte],
                     structural_arguments: vec![

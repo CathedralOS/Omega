@@ -77,6 +77,7 @@ fn unused_provider_attachment_module() -> TerminalModule {
         }],
     };
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
@@ -112,6 +113,7 @@ fn provider_boundary_call() -> Operation {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -154,6 +156,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
     module.structural_types = vec![leaf.clone(), root.clone()];
     module.structural_domains = vec![domain.clone()];
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
@@ -196,6 +199,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -348,6 +352,7 @@ fn hard_root_module() -> TerminalModule {
     let mut boundary_parameter = structural_parameter(place_id(9));
     boundary_parameter.qualifications.clear();
     let boundary = BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
@@ -467,6 +472,7 @@ fn hard_root_module() -> TerminalModule {
                     id: operation_id(3),
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
+                        requirement_obligations: Vec::new(),
                         boundary: boundary.id,
                         arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {

@@ -79,6 +79,7 @@ pub fn component_module(calls: &[&str], provides: &[(&str, &str, &str)]) -> Term
             id: OperationId::new(operation_id).expect("operation identity"),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),
@@ -150,6 +151,7 @@ pub fn component_module(calls: &[&str], provides: &[(&str, &str, &str)]) -> Term
 
 fn boundary_machine(id: BoundaryMachineId, requirement: &str) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id,
         identity: requirement.to_owned(),
         attachment: None,

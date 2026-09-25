@@ -62,6 +62,7 @@ fn boundary(ordinal: u64, places: &[u64]) -> Operation {
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: borrowed_arguments(places),

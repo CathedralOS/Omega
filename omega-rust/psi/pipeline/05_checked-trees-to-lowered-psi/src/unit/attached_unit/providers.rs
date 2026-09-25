@@ -297,9 +297,14 @@ pub(super) fn conformances(
     let mut conformances = candidates
         .iter()
         .map(|candidate| {
-            let (_, boundary, parameters, scalar_parameters) = boundary_parameters
+            let BoundaryParameters {
+                id: boundary,
+                structural: parameters,
+                scalar: scalar_parameters,
+                ..
+            } = boundary_parameters
                 .iter()
-                .find(|(symbol, _, _, _)| *symbol == candidate.boundary)
+                .find(|boundary| boundary.source == candidate.boundary)
                 .ok_or(LoweringError::Unsupported(
                     "provider candidate references an unlowered Unit boundary requirement",
                 ))?;

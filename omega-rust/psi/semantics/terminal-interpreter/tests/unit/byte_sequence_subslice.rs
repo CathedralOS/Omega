@@ -409,6 +409,7 @@ fn subslice_boundary_receives_only_the_window_and_preserves_caller_continuation(
                 id: operation_id(15),
                 result: OperationResult::Unit,
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary: boundary_id(3),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {

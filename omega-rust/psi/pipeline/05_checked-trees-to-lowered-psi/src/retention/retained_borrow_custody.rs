@@ -243,6 +243,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             parameter_order: Vec::new(),
             fixed_service_reach: Vec::new(),
             id,
@@ -396,6 +397,7 @@ mod tests {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: vec![
                 BoundaryMachineDeclaration {
+                    scalar_requires: Vec::new(),
                     id: submit,
                     identity: custody.callable_identity.clone(),
                     attachment: None,
@@ -427,6 +429,7 @@ mod tests {
                     published_service_ceiling: Vec::new(),
                 },
                 BoundaryMachineDeclaration {
+                    scalar_requires: Vec::new(),
                     id: reclaim,
                     identity: "Reader::reclaim".to_owned(),
                     attachment: None,
@@ -556,6 +559,7 @@ mod tests {
                                 }],
                             }),
                             kind: OperationKind::BoundaryCall {
+                                requirement_obligations: Vec::new(),
                                 boundary: submit,
                                 arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {
@@ -586,6 +590,7 @@ mod tests {
                                 }],
                             }),
                             kind: OperationKind::BoundaryCall {
+                                requirement_obligations: Vec::new(),
                                 boundary: reclaim,
                                 arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {

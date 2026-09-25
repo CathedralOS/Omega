@@ -334,6 +334,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
     module
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Extent::complete".into(),
@@ -358,6 +359,7 @@ fn completion_artifact() -> (Vec<u8>, Vec<u8>, semantic_vocabulary::BoundaryMach
             id: OperationId::new(3_632 + index as u64).unwrap(),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -400,6 +402,7 @@ fn provider_artifact() -> (
         parameter.place = PlaceId::new(3_622 + index as u64).unwrap();
     }
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "StructuralSink::accept".into(),
@@ -451,6 +454,7 @@ fn provider_artifact() -> (
             },
         });
     module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        requirement_obligations: Vec::new(),
         boundary,
         arguments: Vec::new(),
         structural_arguments: parameters

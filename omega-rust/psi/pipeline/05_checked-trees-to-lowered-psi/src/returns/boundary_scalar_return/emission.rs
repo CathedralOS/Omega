@@ -237,6 +237,7 @@ pub(crate) fn emit_boundary_scalar_return(
         id: operation_id,
         result: terminal_psi::OperationResult::Scalar(call_result),
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: identities.boundary,
             arguments,
             structural_arguments: lower_structural_arguments(

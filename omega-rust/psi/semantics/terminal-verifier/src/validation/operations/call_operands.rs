@@ -161,7 +161,7 @@ pub(super) fn validate_boundary_call(
     // The invocation's crash continuations are reconstructed — and covered by
     // certificate evidence — at verification, not searched during validation.
     // The formal telescope must still form so the reconstruction can bind it.
-    if !boundary.crash_routes.is_empty() {
+    if !boundary.crash_routes.is_empty() || !boundary.scalar_requires.is_empty() {
         boundary
             .scalar_contract_parameters()
             .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?;

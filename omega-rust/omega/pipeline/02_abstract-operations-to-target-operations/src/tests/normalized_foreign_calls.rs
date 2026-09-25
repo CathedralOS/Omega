@@ -133,6 +133,7 @@ fn declaration(
     result: terminal_psi::BoundaryMachineResult,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         parameter_order: std::iter::repeat_n(
             terminal_psi::BoundaryParameterKind::Scalar,
             scalar_parameters.len(),

@@ -100,6 +100,9 @@ pub(super) fn replay_installed_provider_calls(
                 arguments: terminal_arguments,
                 structural_arguments: terminal_structural_arguments,
                 completion_receipts: terminal_completion_receipts,
+                // Discharged by Terminal verification against the declaration;
+                // the provider refinement check covers the candidate's own rows.
+                requirement_obligations: _,
             } = &terminal_operation.kind
             else {
                 return Err(malformed());

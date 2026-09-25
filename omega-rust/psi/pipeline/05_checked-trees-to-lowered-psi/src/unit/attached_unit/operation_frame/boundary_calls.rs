@@ -29,6 +29,7 @@ struct BoundaryOperands {
     arguments: Vec<semantic_vocabulary::ValueId>,
     structural_arguments: Vec<terminal_psi::StructuralArgument>,
     completion_receipts: Vec<CompletionReceipt>,
+    requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
 }
 
 impl OperationFrame<'_, '_> {
@@ -261,11 +262,16 @@ impl OperationFrame<'_, '_> {
                 target_entry_claims: &[],
             }),
         )?;
-        let (_, boundary, _, target_scalar_parameters): &BoundaryParameters = self
+        let BoundaryParameters {
+            id: boundary,
+            scalar: target_scalar_parameters,
+            requirement_count,
+            ..
+        } = self
             .callees
             .boundaries
             .iter()
-            .find(|(symbol, _, _, _)| *symbol == *target_machine)
+            .find(|boundary| boundary.source == *target_machine)
             .ok_or(LoweringError::Unsupported(
                 "boundary call target is absent from the lowered closure",
             ))?;
@@ -301,11 +307,17 @@ impl OperationFrame<'_, '_> {
                 })
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
+        // One obligation per declared scalar `requires` row, in row order;
+        // proof finalization discharges each at this call's actuals.
+        let requirement_obligations = (0..*requirement_count)
+            .map(|_| self.calls.allocate_requirement())
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(BoundaryOperands {
             boundary: *boundary,
             arguments,
             structural_arguments,
             completion_receipts,
+            requirement_obligations,
         })
     }
 
@@ -465,6 +477,7 @@ impl BoundaryOperands {
             arguments: self.arguments,
             structural_arguments: self.structural_arguments,
             completion_receipts: self.completion_receipts,
+            requirement_obligations: self.requirement_obligations,
         }
     }
 }

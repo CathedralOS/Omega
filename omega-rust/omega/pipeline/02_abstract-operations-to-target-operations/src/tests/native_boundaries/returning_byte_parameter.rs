@@ -70,6 +70,7 @@ pub(super) fn fixture() -> AbstractOperationPlan {
         structural_types: Vec::new().into(),
         provider_candidates: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Console::write_byte(i32)->Unit".into(),

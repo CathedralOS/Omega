@@ -494,6 +494,7 @@ pub enum ModuleError {
     NonCanonicalBoundaryCrashRoutes(BoundaryMachineId),
     InvalidBoundaryCrashParameters(BoundaryMachineId),
     UnsupportedBoundaryCrashPredicate(BoundaryMachineId),
+    UnsupportedBoundaryRequiresProposition(BoundaryMachineId),
     UnknownMachineAttachment {
         machine: MachineId,
         attachment: StructuralTypeId,

@@ -98,6 +98,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "test::write_line".into(),
@@ -182,6 +183,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
+                            requirement_obligations: Vec::new(),
                             boundary: boundary_id(1),
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {
@@ -226,6 +228,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "test::observe".into(),
@@ -309,6 +312,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
+                            requirement_obligations: Vec::new(),
                             boundary: boundary_id(1),
                             arguments: vec![value_id(1), value_id(2)],
                             structural_arguments: Vec::new(),
@@ -410,6 +414,7 @@ pub(super) fn effect_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
             identity: "test::acknowledge".into(),
@@ -552,6 +557,7 @@ pub(super) fn effect_module() -> TerminalModule {
                         id: operation_id(3),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
+                            requirement_obligations: Vec::new(),
                             boundary: boundary_id(1),
                             arguments: Vec::new(),
                             structural_arguments: vec![StructuralArgument {

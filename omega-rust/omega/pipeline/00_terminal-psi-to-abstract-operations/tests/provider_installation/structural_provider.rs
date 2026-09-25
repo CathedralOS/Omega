@@ -92,6 +92,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
     module.boundary_machines[0].structural_parameters =
         vec![structural_parameter(place_id(9), resource)];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "Resource::settle".into(),
@@ -139,6 +140,7 @@ pub(super) fn structural_provider_module() -> TerminalModule {
             id: operation_id(index as u64 + 1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary,
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
