@@ -3840,6 +3840,24 @@ syntax and other terminal services are not prerequisites.
     action order, result homes and continuation across the real call;
     no-code disposal is not a substitute. **CML4** owns residual partitions
     and mixed dying-root schedules.
+
+    Two facts measured 3781c9e05c, before anyone plans this as a small edit.
+    Cleanup rides on the EDGE: `cleanup_actions` is a field of
+    `TargetControlSuccessor`, beside `bindings` and `target`, and an edge
+    executes no operations. A hook invocation therefore needs a synthesized
+    landing block that performs the call and jumps to the real target, with
+    the downstream consequences that carries through register allocation,
+    encoding and verification -- `plain_home_cleanup`'s `Ok(false)` is the
+    honest answer for the representation as it stands, not an oversight, and
+    its callers turn it into `unsupported_control_flow`.
+
+    The acceptance also has no customer yet. `drops/core_drop_owner_hook`,
+    `core_drop_owner_hook_body` and `core_drop_explicit_consume` carry no
+    `build.omg`, so native production refuses them with "requires one exact
+    selected program entry" before any cleanup lowering runs: they are
+    terminal-tier fixtures by construction. Adding entry bindings first would
+    only move them from checked-only to natively red, so bind them in the same
+    change that lands the landing block.
   - Reject reads through consumed owners using ordinary ownership/access
     checking, not a special case for `drop`. Re-witness
     `frontend_drop_expectations::core_drop_use_after_consume_is_currently_admitted`:
