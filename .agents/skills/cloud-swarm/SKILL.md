@@ -167,6 +167,18 @@ next settle actually wakes you.
    checkout and never carry a wedged tree forward.
 5. Append the ledger row (ISO-UTC, lane, sha, verdict summary, gate counts)
    to `.swarm/merge-ledger.tsv` or the wave outcomes file.
+
+**Never serialize a worker on a coordinator-side gate.** A merge gate,
+lock refresh, pin advance, or repro run that outlasts the worker's leg is
+coordinator work, not the worker's verdict — the moment the verdict is in,
+re-dispatch the worker and run the long gate in the background (`nohup`,
+never `timeout`-wrapped since a kill drops pending state). A merge is only
+a precondition for the next leg when the leg literally reads the merged
+output; when it is, hand the worker a slice whose dependency is already
+landed. Gates projected beyond ~30min get this treatment by default, and
+mechanical refreshes a pin advance will need (Squalr `omega update` lock
+refreshes, swarm-binaries republish) run inside the pin-advance pipeline
+itself so they are warm before any worker asks for them.
 6. Prune the remote ref only after the push lands.
 
 **Never park on a `blocked` verdict.** The LANE stays pushed for later
