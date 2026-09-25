@@ -189,3 +189,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T11:04Z	46af6a009e	leaf/generic-origin-index	coordinator	index application() origin/def rosters by instance symbol; scanned fallback on malformed
 2026-09-25T11:08Z	ff2ad427f7	leaf/borrow-state-index	coordinator	borrow.states bucketed by (machine,state); find_call_site_in_state reuses located owner
 2026-09-25T11:14Z	d880d6fbbc	leaf/transfer-domain-index	coordinator	domain_definitions bucketed by symbol; capture_bounds uses state_location index
+2026-09-25T11:20:51Z	702a5a2871	leaf/root-name-index	coordinator	symbols: per-table root name+leaf buckets behind top-level lookup
