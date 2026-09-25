@@ -5,9 +5,7 @@ use crate::flow::{self, CanonicalPlace};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::state::State;
-use typed_trees::statement::{
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{TypedTrees, machine::Machine};
 
@@ -184,7 +182,11 @@ fn call_result_value_place(
     result_relative: &[PlaceSegment],
     depth: usize,
 ) -> Option<CanonicalPlace> {
-    call_result_place(
+    // The shared backward trace names ONE origin. A call whose routes
+    // disagree has no single one, so it stays opaque here exactly as it did
+    // before the routes were enumerated; `call_result_alternatives` is what
+    // carries a disagreeing set, and only the progress lineage consumes it.
+    single_route(call_result_place(
         program,
         frames,
         ArgumentScope::Caller {
@@ -194,7 +196,15 @@ fn call_result_value_place(
         call,
         result_relative,
         depth,
-    )
+    ))
+}
+
+fn single_route(places: Option<Vec<CanonicalPlace>>) -> Option<CanonicalPlace> {
+    let mut places = places?;
+    if places.len() != 1 {
+        return None;
+    }
+    places.pop()
 }
 
 /// The callee-body half of `call_result_value_place`: the same gates and the
@@ -208,7 +218,7 @@ fn call_result_place(
     call: &TableCallExpression,
     result_relative: &[PlaceSegment],
     depth: usize,
-) -> Option<CanonicalPlace> {
+) -> Option<Vec<CanonicalPlace>> {
     if depth == 0 {
         return None;
     }
@@ -227,36 +237,87 @@ fn call_result_place(
     let statements = program
         .statement_table
         .statements(callee_state.statement_nodes);
-    let (terminal, prefix) = statements.split_last()?;
-    let result = match terminal {
-        StatementNode::Expression(result) => *result,
-        StatementNode::Transition(transition)
-            if transition.guard == TransitionGuardNode::Always
-                && transition.exit == TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            let TransitionTargetNode::Value(result) =
-                program.statement_table.transition_target(transition.target)
-            else {
+    // Every route the body can take, and the linear prefix they share. A body
+    // that ends in one expression or one unconditional value transition has a
+    // single route. A guarded body -- `transition flag { true -> a false -> b }`
+    // -- lowers to one transition statement per arm, each carrying its own
+    // guard and its own value target, and each is a route: the result is one
+    // of them, so the demand holds only if EVERY arm names an exact input.
+    // Statements before the first transition stay the shared prefix.
+    let (prefix, routes) = match statements
+        .iter()
+        .position(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        None => {
+            let (terminal, prefix) = statements.split_last()?;
+            let StatementNode::Expression(result) = terminal else {
                 return None;
             };
-            *result
+            (prefix, vec![*result])
         }
-        _ => return None,
+        Some(index) => {
+            let (prefix, arms) = statements.split_at(index);
+            let mut routes = Vec::with_capacity(arms.len());
+            for statement in arms {
+                // A binding route, a named successor or a continuation cannot
+                // select which input supplied the result.
+                let StatementNode::Transition(transition) = statement else {
+                    return None;
+                };
+                if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid()
+                {
+                    return None;
+                }
+                let TransitionTargetNode::Value(result) =
+                    program.statement_table.transition_target(transition.target)
+                else {
+                    return None;
+                };
+                routes.push(*result);
+            }
+            (prefix, routes)
+        }
     };
-    // An unresolved control-flow or binding route cannot select which input
-    // supplied the result; only the single linear prefix qualifies.
-    if prefix
-        .iter()
-        .any(|statement| matches!(statement, StatementNode::Transition(_)))
-    {
-        return None;
-    }
     let body = CalleeBody {
         machine: callee,
         state: callee_state,
         prefix,
     };
+    let mut places = Vec::with_capacity(routes.len());
+    for result in routes {
+        // One unknown route leaves the whole result unproven: an alternative
+        // the trace cannot name could have supplied it.
+        let place = call_route_place(
+            program,
+            frames,
+            scope,
+            call,
+            callee_state,
+            body,
+            result,
+            result_relative,
+            depth,
+        )?;
+        if !places.contains(&place) {
+            places.push(place);
+        }
+    }
+    Some(places)
+}
+
+/// One route's result place, mapped back to the caller's actual argument.
+#[allow(clippy::too_many_arguments)]
+fn call_route_place(
+    program: &TypedTrees,
+    frames: &validation::CallFrameResolver<'_>,
+    scope: ArgumentScope<'_>,
+    call: &TableCallExpression,
+    callee_state: &typed_trees::state::State,
+    body: CalleeBody<'_>,
+    result: typed_trees::expression::ExpressionHandle,
+    result_relative: &[PlaceSegment],
+    depth: usize,
+) -> Option<CanonicalPlace> {
     // `result_relative` is the demanded path into the call result; the callee
     // trace applies it inside its own body so a returned constructor routes
     // the demand to the operand that supplied that exact field or element.
@@ -405,7 +466,7 @@ fn caller_argument_place(
                     // callee projection and the subject's remainder appended
                     // in order.
                     ExpressionNode::Call(nested) => {
-                        return call_result_place(
+                        return single_route(call_result_place(
                             program,
                             frames,
                             ArgumentScope::Caller {
@@ -415,7 +476,7 @@ fn caller_argument_place(
                             nested,
                             &peeled,
                             depth,
-                        );
+                        ));
                     }
                     ExpressionNode::StructLiteral(_) | ExpressionNode::ArrayLiteral(_) => {
                         if peeled.is_empty() {
@@ -543,14 +604,14 @@ fn callee_value_place_leaf(
                 ExpressionNode::Call(nested) => {
                     let mut nested_relative = place.segments;
                     nested_relative.extend_from_slice(relative);
-                    return call_result_place(
+                    return single_route(call_result_place(
                         program,
                         frames,
                         ArgumentScope::Callee { body },
                         nested,
                         &nested_relative,
                         depth - 1,
-                    );
+                    ));
                 }
                 // A member or index peel over a returned constructor selects
                 // the operand that supplied the demanded projection, exactly
@@ -659,14 +720,14 @@ fn callee_demanded_origin(
                    _index: usize,
                    call: &TableCallExpression,
                    relative: &[PlaceSegment]| {
-        call_result_place(
+        single_route(call_result_place(
             program,
             frames,
             ArgumentScope::Callee { body },
             call,
             relative,
             depth - 1,
-        )
+        ))
     };
     flow::trace_value_origin_before_statement(
         program,

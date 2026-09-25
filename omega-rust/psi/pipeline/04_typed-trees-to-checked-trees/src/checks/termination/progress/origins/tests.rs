@@ -934,6 +934,23 @@ fn indexed_carrier_loads_derive_the_exact_element_source() {
     }
 }
 
+/// A guarded callee body is a route per arm. When every arm names the SAME
+/// input the result has one origin whatever the guard chooses, so the premise
+/// proves; the arms disagreeing is what leaves it unproven, not the guard.
+#[test]
+fn control_flow_route_helper_result_proves_when_every_arm_agrees() {
+    let fixture = Fixture::with_machines(
+        "let saved: SchedulerHandle = choose(replacement, context, true);",
+        "saved",
+        &[],
+        "machine choose(former: &Context, latter: &Context, flag: bool) -> SchedulerHandle { transition flag { true -> former.scheduler false -> former.scheduler } }",
+    );
+    assert_eq!(
+        fixture.query(fixture.subject("saved", &[])),
+        Some(fixture.subject("replacement", &[("Context", "scheduler")]))
+    );
+}
+
 /// A call result whose callee routes through a transition cannot name one
 /// input; the premise stays unproven rather than borrowing a same-shaped
 /// operand.
