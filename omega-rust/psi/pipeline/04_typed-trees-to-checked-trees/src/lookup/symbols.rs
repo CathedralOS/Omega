@@ -94,6 +94,163 @@ pub(crate) fn machine_by_symbol(
     machine_index_by_symbol(program, symbol).map(|index| &program.machines()[index])
 }
 
+// State tables are queried once per crash-entry operand through the facts
+// builders: a per-machine `.find` rescans every state of that machine per
+// query. Cache each (machine, state) query's exact scan verdict per program;
+// monomorphization may append states mid-compile, so a miss verdict also
+// records the state count it was taken under — a machine that grew states
+// since forces a rescan. Hit verdicts still verify the state's own symbol.
+thread_local! {
+    static STATE_INDEX: RefCell<
+        Option<(
+            *const typed_trees::TypedTrees,
+            usize,
+            Option<SymbolHandle>,
+            Option<SymbolHandle>,
+            std::collections::HashMap<
+                (SymbolHandle, SymbolHandle),
+                (usize, Option<usize>),
+            >,
+        )>,
+    > = const { RefCell::new(None) };
+}
+
+pub(crate) fn state_index_by_symbol(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    symbol: SymbolHandle,
+) -> Option<usize> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    let states = program.machine_states(machine);
+    STATE_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let machines = program.machines();
+        let first = machines.first().map(|machine| machine.symbol);
+        let last = machines.last().map(|machine| machine.symbol);
+        let stale = match &*slot {
+            Some((owner, len, first_anchor, last_anchor, _)) => {
+                !std::ptr::eq(*owner, program as *const _)
+                    || *len != machines.len()
+                    || *first_anchor != first
+                    || *last_anchor != last
+            }
+            None => true,
+        };
+        if stale {
+            *slot = Some((
+                program as *const typed_trees::TypedTrees,
+                machines.len(),
+                first,
+                last,
+                std::collections::HashMap::new(),
+            ));
+        }
+        let Some((_, _, _, _, verdicts)) = &mut *slot else {
+            return None;
+        };
+        let key = (machine.symbol, symbol);
+        match verdicts.get(&key) {
+            Some((states_len, Some(index))) if *states_len == states.len() => {
+                if states
+                    .get(*index)
+                    .is_some_and(|state| state.symbol == symbol)
+                {
+                    Some(*index)
+                } else {
+                    let found = states.iter().position(|state| state.symbol == symbol);
+                    verdicts.insert(key, (states.len(), found));
+                    found
+                }
+            }
+            Some((states_len, None)) if *states_len == states.len() => None,
+            _ => {
+                let found = states.iter().position(|state| state.symbol == symbol);
+                verdicts.insert(key, (states.len(), found));
+                found
+            }
+        }
+    })
+}
+
+// Whether a data declaration owns an attached `::drop` machine is queried
+// per field visit through the contents classifier: a whole-machine `.any`
+// per query rescans every machine. Cache each data symbol's verdict per
+// program; the machines-table freshness anchors match the machine index.
+thread_local! {
+    static DROP_HOOK_INDEX: RefCell<
+        Option<(
+            *const typed_trees::TypedTrees,
+            usize,
+            Option<SymbolHandle>,
+            Option<SymbolHandle>,
+            std::collections::HashMap<SymbolHandle, bool>,
+        )>,
+    > = const { RefCell::new(None) };
+}
+
+pub(crate) fn attached_drop_machine_exists(
+    program: &typed_trees::TypedTrees,
+    data_symbol: SymbolHandle,
+) -> bool {
+    if !data_symbol.is_valid() {
+        return false;
+    }
+    DROP_HOOK_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let machines = program.machines();
+        let first = machines.first().map(|machine| machine.symbol);
+        let last = machines.last().map(|machine| machine.symbol);
+        let stale = match &*slot {
+            Some((owner, len, first_anchor, last_anchor, _)) => {
+                !std::ptr::eq(*owner, program as *const _)
+                    || *len != machines.len()
+                    || *first_anchor != first
+                    || *last_anchor != last
+            }
+            None => true,
+        };
+        if stale {
+            *slot = Some((
+                program as *const typed_trees::TypedTrees,
+                machines.len(),
+                first,
+                last,
+                std::collections::HashMap::new(),
+            ));
+        }
+        let Some((_, _, _, _, verdicts)) = &mut *slot else {
+            return false;
+        };
+        *verdicts.entry(data_symbol).or_insert_with(|| {
+            machines.iter().any(|candidate| {
+                candidate.attached_data_symbol == data_symbol
+                    && candidate.name.as_str().ends_with("::drop")
+            })
+        })
+    })
+}
+
+pub(crate) fn state_by_symbol<'program>(
+    program: &'program typed_trees::TypedTrees,
+    machine: &'program typed_trees::machine::Machine,
+    symbol: SymbolHandle,
+) -> Option<&'program typed_trees::state::State> {
+    state_index_by_symbol(program, machine, symbol)
+        .map(|index| &program.machine_states(machine)[index])
+}
+
+pub(crate) fn machine_state_by_symbol(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
+    let machine = machine_by_symbol(program, machine_symbol)?;
+    let state = state_by_symbol(program, machine, state_symbol)?;
+    Some((machine, state))
+}
+
 pub(crate) fn machine_symbol_from_type_reference_handle(
     program: &typed_trees::TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
