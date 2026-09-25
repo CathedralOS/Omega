@@ -44,7 +44,7 @@ pub fn linear_claim_frontier(
         program,
         type_reference,
         &[],
-        &[],
+        &mut Vec::new(),
         &mut Vec::new(),
         &data_definitions_by_symbol,
         &mut claims,
@@ -56,7 +56,7 @@ fn append_linear_claim_frontier(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    path: &[facts::PlaceSegment],
+    path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     claims: &mut Vec<ClaimFrontierClaim>,
@@ -87,17 +87,17 @@ fn append_linear_claim_frontier(
             length: typed_trees::types::FixedArrayLength::Literal(length),
         } => {
             for index in 0..*length {
-                let mut element_path = path.to_vec();
-                element_path.push(facts::PlaceSegment::FixedIndex { index });
+                path.push(facts::PlaceSegment::FixedIndex { index });
                 append_linear_claim_frontier(
                     program,
                     *element_type,
                     substitutions,
-                    &element_path,
+                    path,
                     visiting,
                     data_definitions_by_symbol,
                     claims,
                 );
+                path.pop();
             }
             return;
         }
@@ -203,7 +203,7 @@ fn append_data_linear_claim_frontier(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    path: &[facts::PlaceSegment],
+    path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     claims: &mut Vec<ClaimFrontierClaim>,
@@ -215,40 +215,40 @@ fn append_data_linear_claim_frontier(
     for member in program.data_members(definition) {
         match member {
             typed_trees::data::DataMember::Field(field) => {
-                let mut field_path = path.to_vec();
-                field_path.push(facts::PlaceSegment::Field {
+                path.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 });
                 append_linear_claim_frontier(
                     program,
                     field.type_reference,
                     substitutions,
-                    &field_path,
+                    path,
                     visiting,
                     data_definitions_by_symbol,
                     claims,
                 );
+                path.pop();
             }
             typed_trees::data::DataMember::Variant(variant) => {
-                let mut case_path = path.to_vec();
-                case_path.push(facts::PlaceSegment::Case {
+                path.push(facts::PlaceSegment::Case {
                     variant: variant.symbol,
                 });
                 for field in program.data_payload_fields(variant) {
-                    let mut field_path = case_path.clone();
-                    field_path.push(facts::PlaceSegment::Field {
+                    path.push(facts::PlaceSegment::Field {
                         symbol: field.symbol,
                     });
                     append_linear_claim_frontier(
                         program,
                         field.type_reference,
                         substitutions,
-                        &field_path,
+                        path,
                         visiting,
                         data_definitions_by_symbol,
                         claims,
                     );
+                    path.pop();
                 }
+                path.pop();
             }
         }
     }
