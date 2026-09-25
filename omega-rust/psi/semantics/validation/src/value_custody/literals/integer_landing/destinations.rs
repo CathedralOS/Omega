@@ -510,6 +510,19 @@ fn call_argument_destinations(
     target: symbols::SymbolHandle,
     argument_count: usize,
 ) -> Option<Vec<TypeReferenceHandle>> {
+    crate::machine_calls::effect_inference::plan_scope::memoized_call_argument_destinations(
+        program,
+        target,
+        argument_count,
+        || call_argument_destinations_uncached(program, target, argument_count),
+    )
+}
+
+fn call_argument_destinations_uncached(
+    program: &TypedTrees,
+    target: symbols::SymbolHandle,
+    argument_count: usize,
+) -> Option<Vec<TypeReferenceHandle>> {
     let (machine, state) = crate::machine_calls::calls::machine_state_by_symbol(program, target)?;
     if !machine.symbol.is_valid()
         || !program.machine_type_parameters(machine).is_empty()
