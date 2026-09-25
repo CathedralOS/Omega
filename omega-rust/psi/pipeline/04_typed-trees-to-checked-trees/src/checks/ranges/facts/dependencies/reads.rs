@@ -1153,7 +1153,14 @@ fn collect_place_read(
         && path.symbol == root
         && path.head_symbol == root
         && super::captures::is_integer_value(program, machine, state, expression)
-        && let Some(value) = super::captures::integer_value_identity(program, state, expression)
+        && let Some(value) = super::captures::integer_value_identity(
+            program,
+            // The gates above reject almost every read; on the rare pass the
+            // index is built for this one identity question.
+            &validation::ImmutableBoundLookup::new(program),
+            state,
+            expression,
+        )
         && root_is_current(
             program,
             machine,

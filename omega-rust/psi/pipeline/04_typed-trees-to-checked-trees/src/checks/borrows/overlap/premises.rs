@@ -352,7 +352,9 @@ pub fn stated_ordering_premises(
     state: &State,
     incoming_guards: &IncomingGuardIndex,
 ) -> Vec<StatedOrderingPremise> {
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
+    // The bound index scans the whole program once; states with no
+    // applicable requires rows never reach it.
+    let mut bound_lookup = None;
     let mut premises = Vec::new();
     for (fact, row) in facts.proof.contract_facts.iter() {
         if row.kind != ContractProofFactKind::Requires || row.inherited_scope.is_some() {
@@ -361,11 +363,13 @@ pub fn stated_ordering_premises(
         if !state_requires_facts(program, machine, state).any(|candidate| candidate == row.fact) {
             continue;
         }
+        let bound_lookup =
+            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
         match program.proof_facts.get(row.fact) {
             typed_trees::domain::ProofFact::Expression(expression) => {
                 decompose_premise_expression(
                     program,
-                    &bound_lookup,
+                    bound_lookup,
                     PremiseScope::State { machine, state },
                     *expression,
                     false,
@@ -377,7 +381,7 @@ pub fn stated_ordering_premises(
             typed_trees::domain::ProofFact::Membership(membership) => {
                 domains::append_membership_premises(
                     program,
-                    &bound_lookup,
+                    bound_lookup,
                     machine,
                     state,
                     fact,
@@ -388,7 +392,7 @@ pub fn stated_ordering_premises(
             typed_trees::domain::ProofFact::Proposition(application) => {
                 propositions::append_proposition_premises(
                     program,
-                    &bound_lookup,
+                    bound_lookup,
                     machine,
                     state,
                     fact,
@@ -423,7 +427,7 @@ pub fn stated_ordering_premises(
         );
         decompose_premise_expression(
             program,
-            &bound_lookup,
+            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
             PremiseScope::State {
                 machine,
                 state: evaluation_state,
@@ -471,7 +475,9 @@ pub(in crate::checks::borrows) fn append_call_premises(
     else {
         return;
     };
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
+    // The bound index scans the whole program once; statements whose call
+    // guarantees list is empty never reach it.
+    let mut bound_lookup = None;
     let contexts: Vec<_> = facts
         .flow
         .semantic_constraint_contexts(statement_flow.entry_constraints)
@@ -485,7 +491,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
         let (statement_index, call_ordinal) = guarantee.coordinates();
         decompose_premise_expression(
             program,
-            &bound_lookup,
+            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program)),
             PremiseScope::Call {
                 guarantee: &guarantee,
                 result,
