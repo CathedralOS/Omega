@@ -58,9 +58,7 @@ pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
                 && place.kind == StructuralPlaceKind::ByteSequenceLiteral {
                     declaration_ordinal: ordinal as u32, structural_type: structural_type.id,
                 }
-                && structural_type.shape == terminal_psi::StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-}))
+                && structural_type.shape.is_borrowed_byte_view())
     }) && block.nodes.iter().filter(|node| matches!(node.operation, AbstractOperation::EstablishByteSequenceLiteral { .. })).count() == function.structural_places.len()
 }
 
@@ -125,12 +123,7 @@ pub(super) fn declaration_producer(
     if producers.next().is_some()
         || place != declaration
         || structural_type.id != identity
-        || structural_type.shape
-            != terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                },
-            )
+        || !structural_type.shape.is_borrowed_byte_view()
     {
         return None;
     }
