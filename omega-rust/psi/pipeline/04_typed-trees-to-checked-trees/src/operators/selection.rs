@@ -193,9 +193,9 @@ fn cast_selects_domain(
     if cast.semantic_domain.is_empty() {
         return false;
     }
-    let Some(domain) = program.domain_definitions().iter().find(|domain| {
-        domain.symbol == domain_symbol && domain.semantic_roles.denotation_dimension.is_some()
-    }) else {
+    let Some(domain) = typed_trees::domain::domain_by_symbol(program, domain_symbol)
+        .filter(|domain| domain.semantic_roles.denotation_dimension.is_some())
+    else {
         return false;
     };
     let authored = program

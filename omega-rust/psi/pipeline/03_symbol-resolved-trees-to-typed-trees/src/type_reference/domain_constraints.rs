@@ -188,10 +188,7 @@ fn normalize_constraint_span(
                         .join("::"),
                 )
             };
-            let declaration = program
-                .domain_definitions()
-                .iter()
-                .find(|candidate| candidate.symbol == atom.symbol);
+            let declaration = typed_trees::domain::domain_by_symbol(program, atom.symbol);
             let subject = if atom.symbol.is_valid() {
                 DomainConstraintSubject::Declared
             } else {
