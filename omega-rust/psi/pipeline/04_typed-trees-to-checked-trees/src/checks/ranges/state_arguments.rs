@@ -1,3 +1,35 @@
+//! State argument facts: what every edge into a state proves about its
+//! arguments, merged per state parameter so the range check can seed those
+//! facts before the state's statements run.
+//!
+//! `ranges::check_indexed_accesses` calls `collect_state_argument_facts` once
+//! per machine, and `seed_state_argument_facts` for each state after seeding
+//! the state's `requires`. `collect_state_argument_facts` iterates to a fixed
+//! point. The first pass runs the entry state; each later pass reruns the
+//! states whose incoming facts changed. Running a state builds a new
+//! `facts::RangeFacts` from its parameters, its `requires` and the facts
+//! collected for it so far, then replays each statement through the shared
+//! statement transfer (`statements`), recording what every call and
+//! transition to a state of the same machine carries. The recorded edges are
+//! then merged per target state:
+//!
+//! - an exact length, an exact integer value and non-negativity survive only
+//!   if every edge agrees;
+//! - a minimum length takes the smallest value and an exclusive upper bound
+//!   the largest, and one edge without a bound removes it;
+//! - a collection and index pair proved in range, and a receiver length,
+//!   survive only if every edge carries them.
+//!
+//! Edges into the entry state are dropped, since the entry can be called with
+//! any argument its declaration permits. If the facts have not settled after
+//! `MAX_PROPAGATION_PASSES` passes, no facts are published.
+//!
+//! `statements` implements the statement transfer's visitor hooks,
+//! `expressions` walks call and `match` expressions, and `calls` records one
+//! edge's facts for the target state's parameters. Tests compare the result
+//! with `collect_state_argument_facts_whole_pass`, which reruns every reached
+//! state on each pass.
+
 pub(crate) mod calls;
 mod expressions;
 mod statements;

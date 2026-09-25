@@ -1,3 +1,31 @@
+//! Borrow compatibility judgments: whether two captured places are disjoint,
+//! whether one contains the other, and whether accesses through them can
+//! coexist.
+//!
+//! Every judgment ends in one of two functions:
+//! `captured_place_compatibility_with_selector_snapshot` forms a new
+//! judgment, and `captured_place_compatibility_from_selector_snapshot`
+//! replays a retained one. Places with different valid roots are disjoint.
+//! Places with the same root are compared segment by segment (`segments`),
+//! and index segments by their evaluated bounds (`indexes`), using stated
+//! ordering premises (`premises`) where the bounds alone do not decide. Two
+//! reads never interfere; otherwise the places must be disjoint and must not
+//! name two sibling fields that one data `where` fact relates.
+//!
+//! A new judgment records the evaluated index bounds (the selector snapshot)
+//! and the premises it consumed; the borrow checks keep both in their
+//! certificates. A replay re-evaluates the pair against those records and
+//! returns `CompatibilityReplayDrift` when a snapshot row or premise no
+//! longer matches.
+//!
+//! The public wrappers adapt their inputs: the `captured_place_*` forms take
+//! two captured places, the `borrow_loan_*` forms two loan rows, and the
+//! `canonical_place_loan_*` forms a mutated place re-rooted against a loan
+//! (`canonical_place_for_loan`). `borrows`, `statements` and `calls` call
+//! them. `stated_ordering_premises` collects the premises a state starts
+//! with from its `requires` and incoming guards, and `append_call_premises`
+//! adds the call `ensures` available at one statement's entry.
+
 mod indexes;
 mod premises;
 mod segments;

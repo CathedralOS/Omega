@@ -1,3 +1,31 @@
+//! Target lowering coordination: admit the settlements and provider evidence
+//! that a plan's boundary calls use, derive each function's scalar calling
+//! convention, then lower every function.
+//!
+//! `lower_to_target_operations_with_settlements_and_installation` is the
+//! entry; `lowering::lower_to_target_operations` calls it after binding the
+//! admitted provider executions into settlement bindings. It runs, in order:
+//!
+//! 1. rejection of a plan with projected structural qualifications
+//!    (`projected_qualifications`) or with no function for its entry machine;
+//! 2. the fixed scalar ABI and the mixed structural scalar ABI of each
+//!    function that has one (`scalar_abi`);
+//! 3. the settlement index (`settlement_roster`), the IEEE float fused
+//!    multiply-add settlement check (`ieee_float_fma_settlements`), the
+//!    installed provider call and boundary call indexes
+//!    (`installed_provider_calls`), and the native callback argument binding
+//!    (`native_callbacks`);
+//! 4. validation of the installed provider calls against their boundary
+//!    calls, then of the settlement roster: every required boundary settled
+//!    exactly once, none unused, and none also served by an installed
+//!    provider;
+//! 5. `function::lower_function` for each function, with its ABIs attached;
+//! 6. a check that the lowered plan retains every bound native callback
+//!    argument row.
+//!
+//! `lower_to_target_operations_with_settlements` is a test entry with no
+//! installation, float settlements or native callbacks.
+
 use super::function::lower_function;
 use super::scalar_abi::{
     derive_fixed_scalar_function_abi, derive_mixed_structural_scalar_function_abi,

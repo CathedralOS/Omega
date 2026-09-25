@@ -1,3 +1,46 @@
+//! Machine termination: a machine that claims termination must prove the
+//! `terminates by` ranking of its local cycles. This module also derives the
+//! termination summary and plan that checked facts publish for each machine.
+//!
+//! `check_machine_termination_with_call_frames` is the check;
+//! `checks::check_checked_facts_recording_with_crash_admission` runs it last.
+//! It rejects the retired use-site subtraction spelling
+//! `terminates by upper - lower` on every machine. Then, for each machine
+//! that does not use it and whose normalized termination plan publishes
+//! `Terminates` or carries a ranking witness, it:
+//!
+//! 1. skips the machine when it has no local cycle (`graph`) and its witness
+//!    declares no rank range;
+//! 2. rejects a local cycle with no ranking witness;
+//! 3. skips a single-state machine with no local cycle that belongs to a
+//!    validated runtime recursive call component, since the component
+//!    judgment already covers it;
+//! 4. otherwise reports the outcome of `ranking::machine_decrease_outcome`.
+//!
+//! Fact construction uses the rest.
+//! `facts::machine_facts::build_termination_facts` calls
+//! `progress::analyze_checked_progress_with_call_frames`, which derives each
+//! machine's progress premises from its selected calls and rejects a
+//! published termination guarantee that the checked body does not support or
+//! whose premises do not cover them. It then calls
+//! `build_checked_termination_plan_with_summary`, which records the checked
+//! summary and the resolved ranking view in the machine's plan.
+//! `infer_machine_checked_summary` gives the body-local summary alone:
+//! `Terminates` for a checked-body machine that does not use the retired
+//! spelling and either has no local cycle or proves its ranking, and
+//! `NoGuarantee` otherwise. `progress` calls it, and
+//! `package_review::infer_machine_termination_summary` exposes it to
+//! admission sites that run before checked lowering.
+//!
+//! `order` resolves the well-founded order a `terminates by` clause selects;
+//! `ranking` uses it, and the ambiguous-order diagnostic here words its
+//! failure reasons. The remaining exports are queries for other modules:
+//! `named_transition_target_state_index` (from `graph`) for execution
+//! planning, scalar value plans and crash entry facts, the `proven_*` rank
+//! functions for execution planning, and
+//! `proves_ranked_entry_requirement_with_call_frames` for the contract
+//! checks' call bounds.
+
 mod graph;
 mod order;
 mod progress;

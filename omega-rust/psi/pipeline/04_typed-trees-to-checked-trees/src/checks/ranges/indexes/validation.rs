@@ -1,3 +1,38 @@
+//! The bounds judgment for one indexed access or subslice range: the index,
+//! or both range endpoints, must lie within the collection's length.
+//!
+//! `check_indexed_access` is the entry; `indexes::check_expression` calls it
+//! for each indexed expression after checking the collection and index
+//! expressions. It first asks `selected::obligation` to rejoin the checked
+//! operator selection at this `[]` or `[..]` occurrence, and rejects an
+//! inconsistent selection. When a selected operator governs a collection with
+//! builtin array or slice geometry, `obligation` also validates the
+//! operator's `requires` clauses and proves their non-negative operands, and
+//! every later failure message names that `requires`. The route then depends
+//! on what is known about the collection:
+//!
+//! 1. a known length, from the facts or a fixed array type:
+//!    `check_known_length_index`, which rejects a computed index that is not
+//!    literal-only arithmetic, proves a scalar index from facts, declared
+//!    ranges, callee `ensures` and hoisted index initializers, and checks a
+//!    range by its constant bounds or, when they do not fold, by the
+//!    unknown-length facts and then `known_ranges`;
+//! 2. a slice or bounded byte type with no known length:
+//!    `check_unknown_length_slice_index`;
+//! 3. a fixed array with a const-generic extent:
+//!    `check_symbolic_extent_index`;
+//! 4. anything else, or an extent still bound through a pending application,
+//!    is `Unsupported`.
+//!
+//! A proven range, or a proven index without a known length, must also have
+//! non-negative endpoints (`lower_bounds`). The result tells a proven scalar
+//! index, a proven range, a rejection and an unsupported collection apart.
+//!
+//! `is_builtin_scalar_index`, used by `assignment_lengths`, is true for a
+//! scalar index at which `selected::obligation` finds no operator `requires`
+//! to discharge. `ranges_seam_owns` (from `selected`) tells the operator
+//! `requires` check which indexed occurrences this check discharges.
+
 use diagnostics::Diagnostic;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{

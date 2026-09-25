@@ -1,3 +1,30 @@
+//! Replay of one ordered target Unit operation against the abstract
+//! operation it was lowered from, as part of legalization's input check of a
+//! scalar graph.
+//!
+//! `validate_operation` is the entry; `control_flow::validate` calls it for
+//! each non-terminator row of each block in order, with the scalar sources
+//! available so far and the block's reference custody state, and applies
+//! the operation to that custody afterwards. A boundary call whose origin is
+//! an installed operation (`call_origin::installed_operation`) is first
+//! rebound as an authored call and replayed against that operation.
+//! Otherwise `validate_operation` matches the target row with its abstract
+//! operation. It compares simple pairs field by field here (constants,
+//! primitive and empty-record locals, references, byte sequence and element
+//! view rows, structural case membership, and structural field reads and
+//! stores), and
+//! passes the other families to a child, to a sibling under `target`
+//! (`scalar_definitions`, `normalized_foreign`, `hosted_scalar`) or to
+//! `read_byte`. A row that defines a value adds it to the available sources,
+//! and a pair with no matching rule is a custody error.
+//!
+//! Each child checks one family: `aggregate_results` (aggregate constructors
+//! and structural leaf copies), `borrowed_windows` (structural field moves
+//! and stores), `direct_calls`, `indirect_calls` (calls through a borrowed
+//! descriptor parameter), `ieee_float` (float compare, constant and fused
+//! multiply-add) and `primitive_store` (write-only primitive stores).
+//! `runtime_indices_rejoin` is used by `primitive_store`.
+
 use super::super::ScalarType;
 use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
