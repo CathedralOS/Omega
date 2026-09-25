@@ -577,6 +577,25 @@ the complete product bar; focused successes below do not establish that baseline
   its fence, and if it is 9 the fixture belongs in the run tier with that exit
   rather than in `fail`.
 
+  Two UEFI fail fixtures are stale rather than unrefused, and the corpus gate
+  now shows it: `fail/build/uefi_program_entry_wrong_calling_policy` pins
+  "requires MicrosoftX64" and `fail/build/uefi_program_entry_local_physical\
+_contract` pins "require either the exact bundled UEFI contract or one accepted
+  package-owned UEFI binding", while both actually stop on a duplicate:
+  "trait `UefiApplication` parent `Calling` has 2 matching conformances" and
+  "target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded
+  `UefiApplication` boundary schema, but found 2".
+
+  The duplicate is the fixtures' own construction, not a compiler defect. Both
+  declare their own `UefiPhysicalEntry`, `EfiSystemTable` and `EfiStatus` and
+  import `omega::language::std::calling` with no `builder.depend` on std, so
+  the bundled `source/library/std/targets/uefi_x86_64/entry.omg` surface stands
+  beside the local one. The passing `pass/build/uefi_program_entry_storage\
+_roots` shows the current shape: `use omega_language_std::targets::uefi_x86_64`
+  plus `builder.depend(Source::Path { location: ".../source/library/std" })`,
+  with no local redeclaration. Rewrite both onto the library surface and vary
+  only the calling policy, then confirm each reaches its pinned fragment.
+
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
   `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
