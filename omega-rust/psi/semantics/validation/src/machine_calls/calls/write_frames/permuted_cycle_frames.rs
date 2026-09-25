@@ -48,6 +48,7 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
 };
 use crate::machine_calls::calls::write_frames::{alias_bindings, stored_origins, wire_codecs};
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -74,7 +75,7 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
     entry: &'program State,
     symbols: &TopLevelSymbols<'program>,
     outer_inference: &FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<Vec<String>> {
     // The prefix walk below re-enters this solver at every nested visit of a
     // state that reaches a named cycle. When a cyclic edge cannot pair the
@@ -217,7 +218,9 @@ pub(crate) fn summarize_state_written_paths_with_permuted_cycles<'program>(
     // record all of them in the shared memo so the next state's complete-frame
     // query reads this solve instead of re-running the same equation system.
     for (symbol, writes) in &summaries {
-        complete_state_summaries.push((*symbol, writes.clone()));
+        complete_state_summaries
+            .entry(*symbol)
+            .or_insert_with(|| writes.clone());
     }
     summaries
         .into_iter()
@@ -231,7 +234,7 @@ fn build_permuted_cycle_frame_equation<'program>(
     symbols: &TopLevelSymbols<'program>,
     machine_symbols: &MachineSymbols<'program>,
     outer_inference: &FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
 ) -> Option<PermutedCycleFrameEquation<'program>> {
     #[cfg(test)]
     super::CYCLE_EQUATIONS.with(|equations| equations.set(equations.get() + 1));
@@ -656,7 +659,7 @@ pub(crate) fn summarize_transition_target_written_paths(
     target: typed_trees::statement::TransitionTargetHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    complete_state_summaries: &mut HashMap<SymbolHandle, Vec<String>>,
     source_locals: &[String],
     require_complete: bool,
     origins: &CallOriginContext<'_>,

@@ -208,7 +208,7 @@ fn assignment_evidence(
         state,
         symbols,
         &mut FrameInference::default(),
-        &mut Vec::new(),
+        &mut HashMap::default(),
         Some(StateWriteQuery::Assignment(statement)),
     )?;
     Some(AssignmentEvidence {
