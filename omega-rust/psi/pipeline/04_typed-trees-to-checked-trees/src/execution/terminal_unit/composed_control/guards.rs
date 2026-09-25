@@ -74,21 +74,39 @@ fn admitted_guard_shape(
 }
 
 /// A retained-field read rooted at an authored structural parameter no
-/// deeper than the implicit `self` slot, walking record fields only; case
-/// and index segments decline. Authored structural parameters still decline
-/// at the unit-topology roster, so position 0 is what reaches here today.
+/// deeper than the implicit `self` slot, walking record fields — or the
+/// same walk crossing one literal index, mirroring the field-binding
+/// resolution grammar: the index may end the carrier before its field leaf
+/// or terminate the path as an inline element read. Case segments, deeper
+/// indexes, and indexes mid-carrier decline. Authored structural parameters
+/// still decline at the unit-topology roster, so position 0 is what reaches
+/// here today.
 fn retained_field_subject(
     parameter_position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> bool {
     parameter_position <= 1
         && !path.is_empty()
-        && path.iter().all(|segment| {
-            matches!(
-                segment,
-                checked_trees::CheckedStructuralPredicatePathSegment::Field(_)
-            )
-        })
+        && path
+            .iter()
+            .filter(|segment| {
+                matches!(
+                    segment,
+                    checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                )
+            })
+            .count()
+            <= 1
+        && path
+            .iter()
+            .enumerate()
+            .all(|(ordinal, segment)| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(_) => true,
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                    ordinal + 2 == path.len() || ordinal + 1 == path.len()
+                }
+                _ => false,
+            })
 }
 
 /// One Boolean operand of a joined equality: a Boolean parameter, a
