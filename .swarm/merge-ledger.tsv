@@ -185,3 +185,4 @@ leaf/storage-alias-closure	f3202cd42a	me	merged	2026-09-25T03:22:24Z	close() per
 fe92763306	leaf/machine-symbol-verdicts	machine_by_symbol per-program scan-verdict cache	5409/5409
 3a1d863553	leaf/isolation-verdict-cache	write_frames isolation verdict+index cache	5409+879
 17c98718bc	capability-verdict-cache	bindings-verdict cache + def index in write_frames	2026-09-25T10:35:57Z
+a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index in captures	2026-09-25T10:49:16Z
