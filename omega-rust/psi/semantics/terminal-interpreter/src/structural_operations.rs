@@ -581,6 +581,8 @@ impl TerminalExecution {
                             OperationKind::EstablishRecord { .. }
                                 | OperationKind::CallStructural { .. }
                                 | OperationKind::CallStructuralWithScalarArguments { .. }
+                                | OperationKind::StructuralLeafCopy { .. }
+                                | OperationKind::StructuralCaseLeafCopy { .. }
                         )
                     })
                     .filter_map(|producer| producer.result.structural())

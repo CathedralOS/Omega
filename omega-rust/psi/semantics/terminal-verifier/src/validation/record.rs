@@ -324,6 +324,8 @@ pub(super) fn completed_source<'a>(
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
             ) {
                 return None;
             }
@@ -443,6 +445,8 @@ pub(super) fn result(
                 OperationKind::EstablishRecord { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::StructuralLeafCopy { .. }
+                    | OperationKind::StructuralCaseLeafCopy { .. }
             )
         })
         .filter_map(|operation| operation.result.structural())
