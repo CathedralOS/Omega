@@ -2737,9 +2737,13 @@ syntax and other terminal services are not prerequisites.
      a state prefix (`state graph: prefix initializers: bound expression`,
      std `math::is_finite`) is a state-graph gap its callers already hit.
   3. The checked dynamic join (`composed_control/dynamic_join.rs`) still
-     requires an authored `_` fallback; other graphs accept an
-     exact-complement pair through
-     `execution::guard_complement::complementary`. The scalar and Unit call
+     requires an authored `_` fallback, but relaxing it to
+     `execution::guard_complement::complementary` has no customer yet: the
+     front end rejects a Unit two-guard tail without `_` unless it is a
+     `true`/`false` pair, which typing already lowers to `_`, and a two-case
+     sum subject (`transition choice { Choice::First -> .. Choice::Second ->
+     .. }`) checks but the join still declines it with the fallback check
+     relaxed. The scalar and Unit call
      plans still spell the same 33 custody fields, so the one builder moves
      them through `call_plans.rs::DynamicCallCustody` and a plan macro, and
      lowering and the checked join each borrow them through their own view
