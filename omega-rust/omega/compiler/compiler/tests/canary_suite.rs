@@ -1083,10 +1083,12 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // plans the record-literal field store.
     "relevance/erased_case_payload_field_exit",
     // Both pin a fix as a run canary, but only checked semantics ever ran
-    // them (the corpus outcome is `checked`); the native route refuses today.
-    // `sum_shared_receiver_exit` stops at Terminal production with the very
-    // gate it names as fixed: "shared case operand requires a whole scalar
-    // sum". `case_payload_record_member_read` stops at Terminal validation:
+    // them (the corpus outcome is `checked`). `sum_shared_receiver_exit` now
+    // passes Terminal production and stops in native target lowering: the
+    // callee dispatches with payload bindings on its borrowed `&self` sum,
+    // and target case lowering binds payloads only from an owned arrival or
+    // a live home (`control_flow/structural_case.rs::case_source`).
+    // `case_payload_record_member_read` stops at Terminal validation:
     // `UnknownStructuralArgument` for the staged member leaf copy's argument.
     // Promote each to ROOTED_BACKEND/ACTIVE once it compiles natively.
     "calls/sum_shared_receiver_exit",
