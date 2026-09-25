@@ -1,6 +1,9 @@
 use diagnostics::Diagnostic;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use typed_trees::TypedTrees;
+use typed_trees::domain::DomainDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::types::{DomainConstraint, DomainConstraintSubject, TypeConstraintNode};
 
@@ -237,6 +240,132 @@ fn normalize_constraint_span(
     Ok(())
 }
 
+/// Every spelling a domain answers to, bucketed once per program. Occurrences
+/// then consult two buckets instead of rescanning and re-spelling every
+/// declaration: a qualified-spelling match needs no exposure check, while the
+/// relative spellings (declared, member-relative, leaf) still require
+/// [`domain_exposed_to`]. The roster extends in place while the typed program
+/// keeps growing between queries.
+struct DomainCandidateIndex {
+    qualified: Vec<Box<str>>,
+    by_qualified: HashMap<Box<str>, Vec<u32>>,
+    by_relative: HashMap<Box<str>, Vec<u32>>,
+}
+
+fn domain_spelling_sample(domain: &DomainDefinition) -> usize {
+    (domain.symbol.arena_index() as usize)
+        ^ (domain.name.as_str().as_ptr() as usize).rotate_left(11)
+}
+
+fn spell_domain_range(
+    source: &SymbolResolvedTrees,
+    definitions: &[DomainDefinition],
+    index: &mut DomainCandidateIndex,
+    range: std::ops::Range<usize>,
+) {
+    for position in range {
+        let domain = &definitions[position];
+        let qualified = source.symbols.display_path(domain.symbol, "::");
+        index
+            .by_qualified
+            .entry(qualified.clone().into_boxed_str())
+            .or_default()
+            .push(position as u32);
+        index.qualified.push(qualified.into_boxed_str());
+        let local = domain.name.as_str();
+        let mut spellings = vec![local.to_owned()];
+        if let Some((_, members)) = local.split_once("::") {
+            spellings.push(members.to_owned());
+        }
+        let leaf = local.rsplit("::").next().unwrap_or(local);
+        if leaf != local {
+            spellings.push(leaf.to_owned());
+        }
+        spellings.sort_unstable();
+        spellings.dedup();
+        for spelling in spellings {
+            index
+                .by_relative
+                .entry(spelling.into_boxed_str())
+                .or_default()
+                .push(position as u32);
+        }
+    }
+}
+
+thread_local! {
+    static DOMAIN_CANDIDATE_INDEX: RefCell<
+        Option<(
+            *const SymbolResolvedTrees,
+            *const DomainDefinition,
+            usize,
+            [usize; 3],
+            DomainCandidateIndex,
+        )>,
+    > = const { RefCell::new(None) };
+}
+
+fn with_domain_candidate_index<R>(
+    source: &SymbolResolvedTrees,
+    program: &TypedTrees,
+    reader: impl FnOnce(&DomainCandidateIndex) -> R,
+) -> R {
+    let definitions = program.domain_definitions();
+    DOMAIN_CANDIDATE_INDEX.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let fresh = slot
+            .as_ref()
+            .is_some_and(|(owner, base, watermark, samples, index)| {
+                std::ptr::eq(*owner, source)
+                    && *base == definitions.as_ptr()
+                    && *watermark <= definitions.len()
+                    && [0usize, *watermark / 2, watermark.saturating_sub(1)]
+                        .iter()
+                        .enumerate()
+                        .all(|(slot, &position)| {
+                            definitions.get(position).is_some_and(|domain| {
+                                domain_spelling_sample(domain) == samples[slot]
+                            })
+                        })
+                    && index.qualified.len() == *watermark
+            });
+        if !fresh {
+            let mut index = DomainCandidateIndex {
+                qualified: Vec::with_capacity(definitions.len()),
+                by_qualified: HashMap::new(),
+                by_relative: HashMap::new(),
+            };
+            spell_domain_range(source, definitions, &mut index, 0..definitions.len());
+            *slot = Some((
+                source,
+                definitions.as_ptr(),
+                definitions.len(),
+                [0; 3],
+                index,
+            ));
+        }
+        {
+            let (owner, base, watermark, samples, index) =
+                slot.as_mut().expect("index just populated");
+            let _ = (owner, base);
+            if *watermark < definitions.len() {
+                spell_domain_range(source, definitions, index, *watermark..definitions.len());
+                *watermark = definitions.len();
+            }
+            for (slot, &position) in [0usize, *watermark / 2, watermark.saturating_sub(1)]
+                .iter()
+                .enumerate()
+            {
+                samples[slot] = definitions
+                    .get(position)
+                    .map(domain_spelling_sample)
+                    .unwrap_or_default();
+            }
+            reader(index)
+        }
+    })
+}
+
 /// Type annotations and qualification casts share source-aware selection.
 /// A retained symbol belongs to an already selected derived result; authored
 /// occurrences still resolve in their own dependency and visibility context.
@@ -257,36 +386,48 @@ pub(crate) fn select_domain_candidates(
             )
         })
         .or_else(|| (reference.is_none() && retained.is_valid()).then_some(retained));
-    let matches = program
-        .domain_definitions()
-        .iter()
-        .filter(|domain| {
-            if !source
-                .symbols
-                .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
-            {
-                return false;
+    let definitions = program.domain_definitions();
+    let visible = |domain: &DomainDefinition| {
+        source
+            .symbols
+            .source_reference_can_see_symbol(reference.unwrap_or_default(), domain.symbol)
+    };
+    let matches = if let Some(symbol) = selected {
+        typed_trees::domain::domain_by_symbol(program, symbol)
+            .filter(|domain| visible(domain) && domain_accepts_carrier(program, domain, carrier))
+            .cloned()
+            .into_iter()
+            .collect()
+    } else {
+        with_domain_candidate_index(source, program, |index| {
+            let mut merged: Vec<(u32, bool)> = Vec::new();
+            if let Some(bucket) = index.by_qualified.get(authored_name) {
+                merged.extend(bucket.iter().map(|position| (*position, false)));
             }
-            let name_matches = if let Some(symbol) = selected {
-                domain.symbol == symbol
-            } else {
-                let local = domain.name.as_str();
-                let qualified = source.symbols.display_path(domain.symbol, "::");
-                // A refinement-chain domain also answers to its carrier-relative
-                // member spelling: `Token in Issued::Fresh` names the
-                // `Token::Issued::Fresh` declaration the way `Token in Issued`
-                // names `Token::Issued`.
-                let member_relative = local.split_once("::").map(|(_, members)| members);
-                qualified == authored_name
-                    || ((local == authored_name
-                        || member_relative == Some(authored_name)
-                        || local.rsplit("::").next().unwrap_or(local) == authored_name)
-                        && domain_exposed_to(source, domain, &qualified, authored_name, reference))
-            };
-            name_matches && domain_accepts_carrier(program, domain, carrier)
+            if let Some(bucket) = index.by_relative.get(authored_name) {
+                merged.extend(bucket.iter().map(|position| (*position, true)));
+            }
+            merged.sort_by_key(|(position, _)| *position);
+            merged.dedup_by_key(|(position, _)| *position);
+            merged
+                .into_iter()
+                .filter_map(|(position, needs_exposure)| {
+                    let domain = &definitions[position as usize];
+                    (visible(domain)
+                        && (!needs_exposure
+                            || domain_exposed_to(
+                                source,
+                                domain,
+                                &index.qualified[position as usize],
+                                authored_name,
+                                reference,
+                            ))
+                        && domain_accepts_carrier(program, domain, carrier))
+                    .then(|| domain.clone())
+                })
+                .collect()
         })
-        .cloned()
-        .collect();
+    };
     prefer_local_domain(source, matches, reference)
 }
 
