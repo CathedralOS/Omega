@@ -1,5 +1,6 @@
 use ::symbols::SymbolHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use std::cell::RefCell;
 
 pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
     program
@@ -9,14 +10,88 @@ pub(crate) fn machine_state_count(program: &typed_trees::TypedTrees) -> usize {
         .sum()
 }
 
+// The machine table is queried once per expression through this module: a
+// whole-table `.find` per query rescans every machine. Cache each query's
+// exact scan verdict (hit AND miss) per program; monomorphization appends
+// machines mid-compile, so freshness is the owner pointer AND the current
+// machine count. Hits are still validated against the machine's own symbol,
+// so a stale or synthesized handle can only ever trigger a rescan.
+thread_local! {
+    static MACHINE_INDEX: RefCell<
+        Option<(
+            *const typed_trees::TypedTrees,
+            usize,
+            Option<SymbolHandle>,
+            Option<SymbolHandle>,
+            std::collections::HashMap<SymbolHandle, Option<usize>>,
+        )>,
+    > = RefCell::new(None);
+}
+
+fn machine_index_by_symbol(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<usize> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    MACHINE_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let machines = program.machines();
+        let first = machines.first().map(|machine| machine.symbol);
+        let last = machines.last().map(|machine| machine.symbol);
+        let stale = match &*slot {
+            Some((owner, len, first_anchor, last_anchor, _)) => {
+                !std::ptr::eq(*owner, program as *const _)
+                    || *len != machines.len()
+                    || *first_anchor != first
+                    || *last_anchor != last
+            }
+            None => true,
+        };
+        if stale {
+            *slot = Some((
+                program as *const typed_trees::TypedTrees,
+                machines.len(),
+                first,
+                last,
+                std::collections::HashMap::new(),
+            ));
+        }
+        let Some((_, _, _, _, verdicts)) = &mut *slot else {
+            return None;
+        };
+        match verdicts.get(&symbol) {
+            Some(Some(index)) => {
+                // A cached hit still verifies: a stale map under a reused
+                // address can only ever send the query back to the scan.
+                if machines
+                    .get(*index)
+                    .is_some_and(|machine| machine.symbol == symbol)
+                {
+                    Some(*index)
+                } else {
+                    verdicts.remove(&symbol);
+                    let found = machines.iter().position(|machine| machine.symbol == symbol);
+                    verdicts.insert(symbol, found);
+                    found
+                }
+            }
+            Some(None) => None,
+            None => {
+                let found = machines.iter().position(|machine| machine.symbol == symbol);
+                verdicts.insert(symbol, found);
+                found
+            }
+        }
+    })
+}
+
 pub(crate) fn machine_by_symbol(
     program: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&typed_trees::machine::Machine> {
-    program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == symbol)
+    machine_index_by_symbol(program, symbol).map(|index| &program.machines()[index])
 }
 
 pub(crate) fn machine_symbol_from_type_reference_handle(
