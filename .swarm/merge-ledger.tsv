@@ -202,3 +202,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T13:25:56Z	aa91745f6b	leaf/statement-prefix-collections	coordinator	boundary prefix queries served from per-state collections
 2026-09-25T13:41:16Z	54ac3f7d96	leaf/operational-verdict-memo	coordinator	memoize direct operational verdicts within a plan build
 2026-09-25T13:49:24Z	723b9b2ed3	leaf/statement-call-selection-index	coordinator	index authored statement-call selections by span+partition
+2026-09-25T13:56:56Z	cbdab5485b	leaf/symbol-key-hashing	coordinator	hash program-scoped index maps with a fast integer hasher
