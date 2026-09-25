@@ -9,7 +9,9 @@
 //! report fingerprint and commitment. Its wire fields — the roster count,
 //! each row's machine, position, six length-framed strings, the access tag,
 //! both binding booleans, the u64 fingerprint, and the 32-byte placement
-//! commitment — are each substituted independently. A substitution either
+//! commitment — are each substituted independently, every leg declared once
+//! in `placed_view_input_custody_fields.rs` and driven through the shared
+//! `run_one_field_substitution_matrix` driver. A substitution either
 //! fails canonical decoding or the verifier's module-bound validation
 //! (`Owned` access, a non-hermetic identity, a stale derived view identity,
 //! a zero fingerprint or commitment, a duplicate coordinate, or a reordered
@@ -38,6 +40,15 @@ use terminal_psi::{
     canonical_placed_view_identity,
 };
 use terminal_verifier::{ModuleError, ObligationEvidence, verify_module};
+
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+
+#[path = "placed_view_input_custody_fields.rs"]
+mod placed_view_input_custody_fields;
+
+use placed_view_input_custody_fields::PlacedViewInputCustodyFieldForTest;
 
 /// Byte offsets of every wire field inside the placed-view input roster.
 /// Every `string` field records its u32 length prefix and its content bytes
@@ -284,6 +295,370 @@ fn placed_view_bundle() -> terminal_verifier::ProofBundle {
     bundle
 }
 
+/// The family's combined independent checker verdict: canonical decoding
+/// first, then the retained artifact-manifest replay for a substitution that
+/// still decodes.
+#[derive(Debug, Clone, PartialEq)]
+enum PlacedViewCheck {
+    Decode(CodecError),
+    ManifestReplay(ArtifactManifestError),
+}
+
+/// A substitution that still forms a canonical module is rejected by the
+/// retained manifest replay.
+const REPLAYED: PlacedViewCheck =
+    PlacedViewCheck::ManifestReplay(ArtifactManifestError::ManifestMismatch);
+
+fn decoded(error: CodecError) -> PlacedViewCheck {
+    PlacedViewCheck::Decode(error)
+}
+
+fn invalid_first() -> PlacedViewCheck {
+    decoded(CodecError::InvalidModule(
+        ModuleError::InvalidPlacedViewInput {
+            machine: machine_id(1),
+            position: 0,
+        },
+    ))
+}
+
+fn put_u8(encoded: &[u8], range: Range<usize>, value: u8) -> Vec<u8> {
+    let mut mutated = encoded.to_vec();
+    mutated[range.start] = value;
+    mutated
+}
+
+fn put_bytes(encoded: &[u8], range: Range<usize>, value: &[u8]) -> Vec<u8> {
+    let mut mutated = encoded.to_vec();
+    mutated[range].copy_from_slice(value);
+    mutated
+}
+
+/// Replace one encoded string, keeping its length prefix honest.
+fn restring(
+    encoded: &[u8],
+    len_span: Range<usize>,
+    value_span: Range<usize>,
+    value: &str,
+) -> Vec<u8> {
+    let mut mutated = encoded[..len_span.start].to_vec();
+    mutated.extend_from_slice(
+        &u32::try_from(value.len())
+            .expect("string length fits u32")
+            .to_le_bytes(),
+    );
+    mutated.extend_from_slice(value.as_bytes());
+    mutated.extend_from_slice(&encoded[value_span.end..]);
+    mutated
+}
+
+fn roster_count(encoded: &[u8], count_span: Range<usize>) -> u32 {
+    u32::from_le_bytes(encoded[count_span].try_into().expect("roster count"))
+}
+
+/// Remove one roster row and decrement its roster count honestly.
+fn drop_row(encoded: &[u8], count_span: Range<usize>, row: Range<usize>) -> Vec<u8> {
+    let remaining = roster_count(encoded, count_span.clone()) - 1;
+    let mut mutated = encoded[..count_span.start].to_vec();
+    mutated.extend_from_slice(&remaining.to_le_bytes());
+    mutated.extend_from_slice(&encoded[count_span.end..row.start]);
+    mutated.extend_from_slice(&encoded[row.end..]);
+    mutated
+}
+
+/// Duplicate one roster row directly behind itself with an honest count.
+fn duplicate_row(encoded: &[u8], count_span: Range<usize>, row: Range<usize>) -> Vec<u8> {
+    let grown = roster_count(encoded, count_span.clone()) + 1;
+    let mut mutated = encoded[..count_span.start].to_vec();
+    mutated.extend_from_slice(&grown.to_le_bytes());
+    mutated.extend_from_slice(&encoded[count_span.end..row.end]);
+    mutated.extend_from_slice(&encoded[row.clone()]);
+    mutated.extend_from_slice(&encoded[row.end..]);
+    mutated
+}
+
+/// One declared leg over the canonical fixture encoding: the substituted wire
+/// form and the exact verdict the family's independent checker must reach.
+/// Keeping both in one arm keeps each substitution beside its rejection.
+fn placed_view_leg(
+    encoded: &[u8],
+    field: PlacedViewInputCustodyFieldForTest,
+) -> (Vec<u8>, PlacedViewCheck) {
+    use PlacedViewInputCustodyFieldForTest as Leg;
+    let spans = module_spans(encoded);
+    let first = &spans.inputs[0];
+    let second = &spans.inputs[1];
+    let u32_at =
+        |range: &Range<usize>, value: u32| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    let u64_at =
+        |range: &Range<usize>, value: u64| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    let u8_at = |range: &Range<usize>, value: u8| put_u8(encoded, range.clone(), value);
+    match field {
+        // --- roster axes -------------------------------------------------
+        //
+        // A roster count lying about its rows reads the following empty
+        // sections as a zero machine identity or starves the row.
+        Leg::RosterCountOver => (
+            u32_at(&spans.input_count, 3),
+            decoded(CodecError::ZeroIdentity("MachineId")),
+        ),
+        Leg::RosterCountMax => (
+            u32_at(&spans.input_count, u32::MAX),
+            decoded(CodecError::UnexpectedEnd),
+        ),
+        // Clearing the roster or dropping either row stays representable:
+        // the recomputed identity diverges and the retained custody replays
+        // reject.
+        Leg::RosterCleared => {
+            let mut cleared = encoded[..spans.input_count.start].to_vec();
+            cleared.extend_from_slice(&0_u32.to_le_bytes());
+            cleared.extend_from_slice(&encoded[second.row.end..]);
+            (cleared, REPLAYED)
+        }
+        Leg::FirstRowDropped => (
+            drop_row(encoded, spans.input_count.clone(), first.row.clone()),
+            REPLAYED,
+        ),
+        Leg::SecondRowDropped => (
+            drop_row(encoded, spans.input_count.clone(), second.row.clone()),
+            REPLAYED,
+        ),
+        // A duplicated row collides on the (machine, state, position)
+        // coordinate; a swapped roster violates the strict row order.
+        Leg::RowDuplicated => (
+            duplicate_row(encoded, spans.input_count.clone(), first.row.clone()),
+            decoded(CodecError::InvalidModule(
+                ModuleError::DuplicatePlacedViewInput {
+                    machine: machine_id(1),
+                    source_state_identity: std::str::from_utf8(
+                        &encoded[first.source_state.clone()],
+                    )
+                    .expect("the fixture source state identity is UTF-8")
+                    .to_owned(),
+                    position: 0,
+                },
+            )),
+        ),
+        Leg::RosterReordered => {
+            let mut swapped = encoded[..first.row.start].to_vec();
+            swapped.extend_from_slice(&encoded[second.row.clone()]);
+            swapped.extend_from_slice(&encoded[first.row.clone()]);
+            swapped.extend_from_slice(&encoded[second.row.end..]);
+            (
+                swapped,
+                decoded(CodecError::InvalidModule(
+                    ModuleError::NonCanonicalPlacedViewInputOrder,
+                )),
+            )
+        }
+
+        // --- machine and position ----------------------------------------
+        //
+        // The machine must name a module machine. Either direction between
+        // the fixture's two machines stays ordered and diverges the identity.
+        Leg::MachineZero => (
+            u64_at(&first.machine, 0),
+            decoded(CodecError::ZeroIdentity("MachineId")),
+        ),
+        Leg::MachineOutsideModule => (
+            u64_at(&first.machine, 9),
+            decoded(CodecError::InvalidModule(
+                ModuleError::InvalidPlacedViewInput {
+                    machine: machine_id(9),
+                    position: 0,
+                },
+            )),
+        ),
+        Leg::FirstRowReboundToSecondMachine => (u64_at(&first.machine, 2), REPLAYED),
+        Leg::SecondRowReboundToFirstMachine => (u64_at(&second.machine, 1), REPLAYED),
+        // The position is a free coordinate while the strict row order holds.
+        Leg::FirstPositionMoved => (u32_at(&first.position, 1), REPLAYED),
+        Leg::SecondPositionMoved => (u32_at(&second.position, 1), REPLAYED),
+
+        // --- source identities -------------------------------------------
+        //
+        // Each source identity must stay a canonical hermetic identity; any
+        // other hermetic spelling reidentifies the source and diverges.
+        Leg::SourceMachineRenamed => (
+            restring(
+                encoded,
+                first.source_machine_len.clone(),
+                first.source_machine.clone(),
+                &hermetic(0x31, "guest"),
+            ),
+            REPLAYED,
+        ),
+        Leg::SourceMachineEmptied => (
+            restring(
+                encoded,
+                first.source_machine_len.clone(),
+                first.source_machine.clone(),
+                "",
+            ),
+            invalid_first(),
+        ),
+        Leg::SourceMachineNonHermetic => (
+            restring(
+                encoded,
+                first.source_machine_len.clone(),
+                first.source_machine.clone(),
+                "host-machine",
+            ),
+            invalid_first(),
+        ),
+        Leg::SourceMachineNonUtf8 => (
+            u8_at(&first.source_machine, 0xFF),
+            decoded(CodecError::InvalidUtf8(
+                "placed-view source machine identity",
+            )),
+        ),
+        Leg::SourceStateRenamed => (
+            restring(
+                encoded,
+                first.source_state_len.clone(),
+                first.source_state.clone(),
+                &hermetic(0x32, "host::boot"),
+            ),
+            REPLAYED,
+        ),
+        Leg::SourceStateEmptied => (
+            restring(
+                encoded,
+                first.source_state_len.clone(),
+                first.source_state.clone(),
+                "",
+            ),
+            invalid_first(),
+        ),
+        Leg::SourceStateLengthLie => (
+            u32_at(&first.source_state_len, u32::MAX),
+            decoded(CodecError::StringTooLong(
+                "placed-view source state identity",
+            )),
+        ),
+        Leg::SourceParameterRenamed => (
+            restring(
+                encoded,
+                first.source_parameter_len.clone(),
+                first.source_parameter.clone(),
+                &hermetic(0x33, "host::init::input"),
+            ),
+            REPLAYED,
+        ),
+        Leg::SourceParameterNonHermetic => (
+            restring(
+                encoded,
+                first.source_parameter_len.clone(),
+                first.source_parameter.clone(),
+                "bare-parameter",
+            ),
+            invalid_first(),
+        ),
+
+        // --- access and binding flags ------------------------------------
+        //
+        // Every borrow access is representable; the `Owned` tag is not a
+        // placed view, and other bytes are not an access at all.
+        Leg::AccessWriteOnly => (u8_at(&first.access, 4), REPLAYED),
+        Leg::SecondAccessSharedBorrow => (u8_at(&second.access, 2), REPLAYED),
+        Leg::AccessOwned => (u8_at(&first.access, 1), invalid_first()),
+        Leg::AccessTagZero => (
+            u8_at(&first.access, 0),
+            decoded(CodecError::InvalidTag("StructuralAccess", 0)),
+        ),
+        Leg::AccessTagFive => (
+            u8_at(&first.access, 5),
+            decoded(CodecError::InvalidTag("StructuralAccess", 5)),
+        ),
+        Leg::AccessTagMax => (
+            u8_at(&first.access, u8::MAX),
+            decoded(CodecError::InvalidTag("StructuralAccess", u8::MAX)),
+        ),
+        Leg::BindingConstSet => (u8_at(&first.binding_const, 1), REPLAYED),
+        Leg::BindingConstNonBoolean => (
+            u8_at(&first.binding_const, 2),
+            decoded(CodecError::InvalidBoolean(2)),
+        ),
+        Leg::BindingMutableCleared => (u8_at(&first.binding_mutable, 0), REPLAYED),
+        Leg::BindingMutableNonBoolean => (
+            u8_at(&first.binding_mutable, 9),
+            decoded(CodecError::InvalidBoolean(9)),
+        ),
+
+        // --- view identity and its policy/schema join ---------------------
+        //
+        // The view identity is the derived canonical spelling of the policy
+        // and schema pair: substituting any one of the three strands the join.
+        Leg::ViewIdentityForged => (
+            restring(
+                encoded,
+                first.view_len.clone(),
+                first.view.clone(),
+                "placed-view:0::0:",
+            ),
+            invalid_first(),
+        ),
+        Leg::ViewIdentityEmptied => (
+            restring(encoded, first.view_len.clone(), first.view.clone(), ""),
+            invalid_first(),
+        ),
+        Leg::PolicySubstituted => (
+            restring(
+                encoded,
+                first.policy_len.clone(),
+                first.policy.clone(),
+                &hermetic(0x34, "policy::other"),
+            ),
+            invalid_first(),
+        ),
+        Leg::PolicyNonHermetic => (
+            restring(
+                encoded,
+                first.policy_len.clone(),
+                first.policy.clone(),
+                "policy",
+            ),
+            invalid_first(),
+        ),
+        Leg::SchemaSubstituted => (
+            restring(
+                encoded,
+                first.schema_len.clone(),
+                first.schema.clone(),
+                &hermetic(0x35, "schema::cell"),
+            ),
+            invalid_first(),
+        ),
+        // The policy-plan machine identity carries no derived join: another
+        // canonical hermetic spelling stays representable.
+        Leg::PlanRenamed => (
+            restring(
+                encoded,
+                first.plan_len.clone(),
+                first.plan.clone(),
+                "toolchain::other-plan",
+            ),
+            REPLAYED,
+        ),
+        Leg::PlanNonHermetic => (
+            restring(encoded, first.plan_len.clone(), first.plan.clone(), "plan"),
+            invalid_first(),
+        ),
+
+        // --- placement evidence -------------------------------------------
+        //
+        // The report fingerprint and commitment must be nonzero; any other
+        // nonzero value reidentifies the placement and diverges.
+        Leg::FingerprintZero => (u64_at(&first.fingerprint, 0), invalid_first()),
+        Leg::FingerprintSubstituted => (u64_at(&first.fingerprint, 0x5A5A), REPLAYED),
+        Leg::CommitmentZero => (
+            put_bytes(encoded, first.commitment.clone(), &[0; 32]),
+            invalid_first(),
+        ),
+        Leg::CommitmentSubstituted => (u8_at(&first.commitment, 0x77), REPLAYED),
+    }
+}
+
 #[test]
 fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
     let module = placed_view_module();
@@ -312,27 +687,55 @@ fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly recomputes
-    // a divergent semantic and artifact identity: the substituted module
-    // still verifies under the retained bundle (the roster carries no proof
-    // obligations), while the retained custody replays — the manifest join
-    // and the sealed proof subject join — reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
+    // Every declared wire leg substitutes independently. A substitution that
+    // still forms a canonical module honestly recomputes a divergent semantic
+    // and artifact identity and is rejected by the retained manifest replay;
+    // every other leg rejects inside the canonical decoder with an exact
+    // error. The donor is the producer's own canonical encoding of the
+    // fixture with only its first row retained.
+    let mut donor_module = module.clone();
+    donor_module.placed_view_inputs.truncate(1);
+    let donor = encode_module(&donor_module).expect("the single-row donor encodes canonically");
+    let check = |bytes: &Vec<u8>| -> Result<Vec<u8>, PlacedViewCheck> {
+        let substituted = decode_module(bytes).map_err(PlacedViewCheck::Decode)?;
+        let recomputed_optimization =
+            build_identity_optimization_execution_record(&substituted, &bundle)
+                .expect("identity optimization over the substituted module");
+        validate_artifact_manifest(
+            &substituted,
+            &bundle,
+            &recomputed_optimization,
+            None,
+            None,
+            retained,
+        )
+        .map_err(PlacedViewCheck::ManifestReplay)?;
+        Ok(bytes.clone())
+    };
+    // A leg that still decodes must also re-encode canonically, keep the
+    // substituted module verifiable under the retained bundle (the roster
+    // carries no proof obligations), diverge the honestly recomputed
+    // semantic and artifact identities, and reject at the sealed proof
+    // subject join.
+    let joined_replay = |bytes: &Vec<u8>, field: PlacedViewInputCustodyFieldForTest| {
+        if placed_view_leg(&encoded, field).1 != REPLAYED {
+            return;
+        }
+        let substituted = decode_module(bytes)
+            .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
+        assert_ne!(substituted, module, "{field:?} must change the module");
         assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
+            &encode_module(&substituted).expect("re-encode the substitution"),
+            bytes,
+            "{field:?} must re-encode canonically"
         );
         assert_ne!(
             terminal_psi_identity(&substituted).expect("substituted semantic identity"),
             semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
+            "{field:?} must diverge the honestly recomputed semantic identity"
         );
         verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
+            |error| panic!("{field:?} must keep the substituted module verifiable: {error:?}"),
         );
         let recomputed_optimization =
             build_identity_optimization_execution_record(&substituted, &bundle)
@@ -343,38 +746,36 @@ fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
         assert_ne!(
             recomputed.identity(),
             retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
-            validate_artifact_manifest(
-                &substituted,
-                &bundle,
-                &recomputed_optimization,
-                None,
-                None,
-                retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
+            "{field:?} must diverge the recomputed artifact identity"
         );
         assert!(
             matches!(
                 decode_proof_section_for(&substituted, artifact.proof_bytes()),
                 Err(ProofCodecError::ProofSubjectMismatch { .. })
             ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
-    // A substitution that cannot form a canonical module rejects inside the
-    // canonical decoder with an exact error.
-    let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
-        assert_eq!(
-            decode_module(mutated),
-            Err(expected),
-            "{name} must reject at canonical decoding"
+            "{field:?} must reject at the sealed proof subject join"
         );
     };
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "placed-view input roster",
+        fields: PlacedViewInputCustodyFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor,
+        custody: &|bytes: &Vec<u8>| bytes.clone(),
+        substitute: &|bytes, field, _donor| *bytes = placed_view_leg(bytes, field).0,
+        check: &check,
+        outcome: &|field| MutationOutcome::ExactError(placed_view_leg(&encoded, field).1),
+        joined_replay: Some(&joined_replay),
+    });
+    let replayed_legs = PlacedViewInputCustodyFieldForTest::INVENTORY
+        .iter()
+        .filter(|&&field| placed_view_leg(&encoded, field).1 == REPLAYED)
+        .count();
+    assert_eq!(
+        replayed_legs, 17,
+        "every representable placed-view substitution is declared as a replayed leg"
+    );
+
     // A module-level mutation the producer can express rejects inside the
     // canonical encoder's semantic validation.
     let encode_rejected =
@@ -385,61 +786,6 @@ fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
                 "{name} must reject at canonical encoding"
             );
         };
-    let put_u8 = |range: Range<usize>, value: u8| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range.start] = value;
-        mutated
-    };
-    let put_u32 = |range: Range<usize>, value: u32| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    let put_u64 = |range: Range<usize>, value: u64| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    // Replace one encoded string, keeping its length prefix honest.
-    let restring = |len_span: Range<usize>, value_span: Range<usize>, value: &str| -> Vec<u8> {
-        let mut mutated = encoded[..len_span.start].to_vec();
-        mutated.extend_from_slice(
-            &u32::try_from(value.len())
-                .expect("string length fits u32")
-                .to_le_bytes(),
-        );
-        mutated.extend_from_slice(value.as_bytes());
-        mutated.extend_from_slice(&encoded[value_span.end..]);
-        mutated
-    };
-    // Remove one roster row and decrement its roster count honestly.
-    let drop_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let remaining = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) - 1;
-        let mut mutated = encoded[..count_span.start].to_vec();
-        mutated.extend_from_slice(&remaining.to_le_bytes());
-        mutated.extend_from_slice(&encoded[count_span.end..row.start]);
-        mutated.extend_from_slice(&encoded[row.end..]);
-        mutated
-    };
-    // Duplicate one roster row directly behind itself with an honest count.
-    let duplicate_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let grown = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) + 1;
-        let mut mutated = encoded[..count_span.start].to_vec();
-        mutated.extend_from_slice(&grown.to_le_bytes());
-        mutated.extend_from_slice(&encoded[count_span.end..row.end]);
-        mutated.extend_from_slice(&encoded[row.clone()]);
-        mutated.extend_from_slice(&encoded[row.end..]);
-        mutated
-    };
-
     let first = &spans.inputs[0];
     let second = &spans.inputs[1];
     let invalid_first = || {
@@ -448,291 +794,6 @@ fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
             position: 0,
         })
     };
-
-    // --- roster axes -----------------------------------------------------
-
-    // A roster count lying about its rows reads the following empty sections
-    // as a zero machine identity or starves the row.
-    rejected(
-        "a placed-view roster count one over",
-        &put_u32(spans.input_count.clone(), 3),
-        CodecError::ZeroIdentity("MachineId"),
-    );
-    rejected(
-        "a maximal placed-view roster count",
-        &put_u32(spans.input_count.clone(), u32::MAX),
-        CodecError::UnexpectedEnd,
-    );
-    // Clearing the roster or dropping either row stays representable: the
-    // recomputed identity diverges and the retained custody replays reject.
-    let mut cleared = encoded[..spans.input_count.start].to_vec();
-    cleared.extend_from_slice(&0_u32.to_le_bytes());
-    cleared.extend_from_slice(&encoded[second.row.end..]);
-    divergent("a cleared placed-view roster", &cleared);
-    divergent(
-        "a dropped first placed-view row",
-        &drop_row(spans.input_count.clone(), first.row.clone()),
-    );
-    divergent(
-        "a dropped second placed-view row",
-        &drop_row(spans.input_count.clone(), second.row.clone()),
-    );
-    // A duplicated row collides on the (machine, state, position)
-    // coordinate; a swapped roster violates the strict row order.
-    rejected(
-        "a duplicated placed-view row",
-        &duplicate_row(spans.input_count.clone(), first.row.clone()),
-        CodecError::InvalidModule(ModuleError::DuplicatePlacedViewInput {
-            machine: machine_id(1),
-            source_state_identity: module.placed_view_inputs[0].source_state_identity.clone(),
-            position: 0,
-        }),
-    );
-    let mut swapped = encoded[..first.row.start].to_vec();
-    swapped.extend_from_slice(&encoded[second.row.clone()]);
-    swapped.extend_from_slice(&encoded[first.row.clone()]);
-    swapped.extend_from_slice(&encoded[second.row.end..]);
-    rejected(
-        "a reordered placed-view roster",
-        &swapped,
-        CodecError::InvalidModule(ModuleError::NonCanonicalPlacedViewInputOrder),
-    );
-
-    // --- machine and position ---------------------------------------------
-
-    // The machine must name a module machine. Either direction between the
-    // fixture's two machines stays ordered and diverges the identity.
-    rejected(
-        "a zero placed-view machine",
-        &put_u64(first.machine.clone(), 0),
-        CodecError::ZeroIdentity("MachineId"),
-    );
-    rejected(
-        "a placed-view machine outside the module",
-        &put_u64(first.machine.clone(), 9),
-        CodecError::InvalidModule(ModuleError::InvalidPlacedViewInput {
-            machine: machine_id(9),
-            position: 0,
-        }),
-    );
-    divergent(
-        "a placed-view row rebound to the second machine",
-        &put_u64(first.machine.clone(), 2),
-    );
-    divergent(
-        "a placed-view row rebound to the first machine",
-        &put_u64(second.machine.clone(), 1),
-    );
-
-    // The position is a free coordinate while the strict row order holds.
-    divergent(
-        "a moved placed-view position",
-        &put_u32(first.position.clone(), 1),
-    );
-    divergent(
-        "a moved second-row position",
-        &put_u32(second.position.clone(), 1),
-    );
-
-    // --- source identities -------------------------------------------------
-
-    // Each source identity must stay a canonical hermetic identity; any
-    // other hermetic spelling reidentifies the source and diverges.
-    divergent(
-        "a renamed source machine identity",
-        &restring(
-            first.source_machine_len.clone(),
-            first.source_machine.clone(),
-            &hermetic(0x31, "guest"),
-        ),
-    );
-    rejected(
-        "an emptied source machine identity",
-        &restring(
-            first.source_machine_len.clone(),
-            first.source_machine.clone(),
-            "",
-        ),
-        invalid_first(),
-    );
-    rejected(
-        "a non-hermetic source machine identity",
-        &restring(
-            first.source_machine_len.clone(),
-            first.source_machine.clone(),
-            "host-machine",
-        ),
-        invalid_first(),
-    );
-    rejected(
-        "a non-UTF-8 source machine identity",
-        &put_u8(first.source_machine.clone(), 0xFF),
-        CodecError::InvalidUtf8("placed-view source machine identity"),
-    );
-
-    divergent(
-        "a renamed source state identity",
-        &restring(
-            first.source_state_len.clone(),
-            first.source_state.clone(),
-            &hermetic(0x32, "host::boot"),
-        ),
-    );
-    rejected(
-        "an emptied source state identity",
-        &restring(
-            first.source_state_len.clone(),
-            first.source_state.clone(),
-            "",
-        ),
-        invalid_first(),
-    );
-    rejected(
-        "a source state identity length lie",
-        &put_u32(first.source_state_len.clone(), u32::MAX),
-        CodecError::StringTooLong("placed-view source state identity"),
-    );
-
-    divergent(
-        "a renamed source parameter identity",
-        &restring(
-            first.source_parameter_len.clone(),
-            first.source_parameter.clone(),
-            &hermetic(0x33, "host::init::input"),
-        ),
-    );
-    rejected(
-        "a non-hermetic source parameter identity",
-        &restring(
-            first.source_parameter_len.clone(),
-            first.source_parameter.clone(),
-            "bare-parameter",
-        ),
-        invalid_first(),
-    );
-
-    // --- access and binding flags ------------------------------------------
-
-    // Every borrow access is representable; the `Owned` tag is not a placed
-    // view, and other bytes are not an access at all.
-    divergent(
-        "a write-only placed-view access",
-        &put_u8(first.access.clone(), 4),
-    );
-    divergent(
-        "a shared-borrow second-row access",
-        &put_u8(second.access.clone(), 2),
-    );
-    rejected(
-        "an owned placed-view access",
-        &put_u8(first.access.clone(), 1),
-        invalid_first(),
-    );
-    for tag in [0, 5, u8::MAX] {
-        rejected(
-            "an unknown placed-view access tag",
-            &put_u8(first.access.clone(), tag),
-            CodecError::InvalidTag("StructuralAccess", tag),
-        );
-    }
-
-    divergent(
-        "a const-bound placed-view row",
-        &put_u8(first.binding_const.clone(), 1),
-    );
-    rejected(
-        "a non-boolean const binding",
-        &put_u8(first.binding_const.clone(), 2),
-        CodecError::InvalidBoolean(2),
-    );
-    divergent(
-        "a non-mutable placed-view binding",
-        &put_u8(first.binding_mutable.clone(), 0),
-    );
-    rejected(
-        "a non-boolean mutable binding",
-        &put_u8(first.binding_mutable.clone(), 9),
-        CodecError::InvalidBoolean(9),
-    );
-
-    // --- view identity and its policy/schema join ---------------------------
-
-    // The view identity is the derived canonical spelling of the policy and
-    // schema pair: substituting any one of the three strands the join.
-    rejected(
-        "a forged placed-view identity",
-        &restring(
-            first.view_len.clone(),
-            first.view.clone(),
-            "placed-view:0::0:",
-        ),
-        invalid_first(),
-    );
-    rejected(
-        "an emptied placed-view identity",
-        &restring(first.view_len.clone(), first.view.clone(), ""),
-        invalid_first(),
-    );
-    rejected(
-        "a substituted policy identity",
-        &restring(
-            first.policy_len.clone(),
-            first.policy.clone(),
-            &hermetic(0x34, "policy::other"),
-        ),
-        invalid_first(),
-    );
-    rejected(
-        "a non-hermetic policy identity",
-        &restring(first.policy_len.clone(), first.policy.clone(), "policy"),
-        invalid_first(),
-    );
-    rejected(
-        "a substituted schema identity",
-        &restring(
-            first.schema_len.clone(),
-            first.schema.clone(),
-            &hermetic(0x35, "schema::cell"),
-        ),
-        invalid_first(),
-    );
-
-    // The policy-plan machine identity carries no derived join: another
-    // canonical hermetic spelling stays representable.
-    divergent(
-        "a renamed policy-plan machine identity",
-        &restring(
-            first.plan_len.clone(),
-            first.plan.clone(),
-            "toolchain::other-plan",
-        ),
-    );
-    rejected(
-        "a non-hermetic policy-plan identity",
-        &restring(first.plan_len.clone(), first.plan.clone(), "plan"),
-        invalid_first(),
-    );
-
-    // --- placement evidence -------------------------------------------------
-
-    // The report fingerprint and commitment must be nonzero; any other
-    // nonzero value reidentifies the placement and diverges.
-    rejected(
-        "a zero placement report fingerprint",
-        &put_u64(first.fingerprint.clone(), 0),
-        invalid_first(),
-    );
-    divergent(
-        "a substituted placement report fingerprint",
-        &put_u64(first.fingerprint.clone(), 0x5A5A),
-    );
-    let mut zeroed = encoded.clone();
-    zeroed[first.commitment.clone()].fill(0);
-    rejected("a zero placement commitment", &zeroed, invalid_first());
-    divergent(
-        "a substituted placement commitment",
-        &put_u8(first.commitment.clone(), 0x77),
-    );
 
     // --- producer-side rejections ------------------------------------------
 
@@ -785,9 +846,9 @@ fn terminal_placed_view_inputs_reject_every_one_field_substitution() {
     }
     let mut trailing = encoded.clone();
     trailing.push(0);
-    rejected(
-        "a trailing byte after the module",
-        &trailing,
-        CodecError::TrailingBytes(1),
+    assert_eq!(
+        decode_module(&trailing),
+        Err(CodecError::TrailingBytes(1)),
+        "a trailing byte after the module must reject at canonical decoding"
     );
 }
