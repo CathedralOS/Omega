@@ -516,3 +516,132 @@ fn nested_record_field_record_result_still_declines_composed() {
         "an omitted non-scalar structural field stays outside the composed result signature"
     );
 }
+
+#[test]
+fn shared_byte_view_member_record_result_composes() {
+    let checked = checked(
+        r#"
+        data Handle<'e> { name: &'e [u8]; tag: u64; }
+        machine Probe::pick<'e>(&self, s: &'e [u8], flag: bool) -> Handle<'e> {
+            transition flag {
+                true -> left(s)
+                _ -> right(s)
+            }
+            state left(s: &'e [u8]) -> Handle<'e> { Handle { name: s, tag: 1 } }
+            state right(s: &'e [u8]) -> Handle<'e> { Handle { name: s, tag: 2 } }
+        }
+        data Probe {}
+    "#,
+    );
+    // A record result whose members are scalars plus shared byte views is an
+    // owned carrier of view descriptors: each `&` member keeps its own
+    // statically named loan while the record itself transfers whole.
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "pick"))
+            .is_some(),
+        "a shared byte-view member record result admits a composed signature"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine_named(&checked, "pick"))
+            .is_none()
+    );
+}
+
+#[test]
+fn mutable_byte_view_member_record_result_still_declines() {
+    let checked = checked(
+        r#"
+        data Handle<'e> { name: &'e mut [u8]; tag: u64; }
+        machine Probe::pick<'e>(&self, s: &'e mut [u8], flag: bool) -> Handle<'e> {
+            transition flag {
+                true -> left(s)
+                _ -> right(s)
+            }
+            state left(s: &'e mut [u8]) -> Handle<'e> { Handle { name: s, tag: 1 } }
+            state right(s: &'e mut [u8]) -> Handle<'e> { Handle { name: s, tag: 2 } }
+        }
+        data Probe {}
+    "#,
+    );
+    // An exclusive view member cannot ride a shared loan roster: `&mut`
+    // carriers stay declined at the signature gate.
+    let stage = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .omission_for_machine(machine_named(&checked, "pick"))
+        .map(|row| row.stage.clone());
+    assert!(
+        matches!(
+            stage,
+            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
+                if *phase == "state graph: result signature"
+        ),
+        "a mutable byte-view member still declines at result signature, got {stage:?}"
+    );
+}
+
+#[test]
+fn view_member_result_machines_advance_past_signature() {
+    let checked = checked(
+        r#"
+        data TrackableTaskHandle<'a> {
+            name: &'a [u8];
+            progress: f32;
+            task_identifier: &'a [u8];
+        }
+        machine TrackableTaskHandle::clone<'a>(source: &'a TrackableTaskHandle<'a>) -> TrackableTaskHandle<'a> {
+            TrackableTaskHandle { name: source.name, progress: source.progress, task_identifier: source.task_identifier }
+        }
+        data TrackableTask {
+            progress: f32;
+        }
+        machine TrackableTask::get_name<'a>(&self) -> &'a [u8] {
+            "task"
+        }
+        machine TrackableTask::get_task_identifier<'a>(&self) -> &'a [u8] {
+            "id"
+        }
+        machine TrackableTask::get_task_handle<'a>(&self) -> TrackableTaskHandle<'a> {
+            TrackableTaskHandle {
+                name: self.get_name(),
+                progress: self.progress,
+                task_identifier: self.get_task_identifier()
+            }
+        }
+        "#,
+    );
+    // The sweep-ledger shapes each advance past `state graph: result
+    // signature` to their own deeper walls: none of these omissions may name
+    // the signature gate again.
+    for name in [
+        "TrackableTaskHandle::clone",
+        "TrackableTask::get_name",
+        "TrackableTask::get_task_identifier",
+        "TrackableTask::get_task_handle",
+    ] {
+        let machine = machine_named(&checked, name);
+        let stage = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(machine)
+            .map(|row| row.stage.clone());
+        assert!(
+            !matches!(
+                stage,
+                Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
+                    if *phase == "state graph: result signature"
+            ),
+            "{name} still declines at result signature: {stage:?}"
+        );
+    }
+}

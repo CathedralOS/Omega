@@ -315,6 +315,17 @@ pub(super) fn validate_establish_record(
                 StructuralFieldType::Structural(_),
             ) if argument.access == terminal_psi::StructuralAccess::Owned
                 && argument.path.is_empty() => {}
+            // A borrowed-view member is an owned descriptor the record keeps:
+            // the declared access names the view's authority over its referent,
+            // not the field's custody, so the operand arrives as an owned
+            // whole-view argument exactly like a nested owned record.
+            (
+                terminal_psi::RecordFieldValue::Structural(argument),
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ),
+            ) if argument.access == terminal_psi::StructuralAccess::Owned
+                && argument.path.is_empty() => {}
             _ => return malformed("record field operand differs"),
         }
     }
