@@ -17675,6 +17675,14 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/control_flow/multi_case_sum_payload_binding",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 8163,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/control_flow/nested_parameter_receiver_call",
   "tier": "pass",
   "status": "checked",

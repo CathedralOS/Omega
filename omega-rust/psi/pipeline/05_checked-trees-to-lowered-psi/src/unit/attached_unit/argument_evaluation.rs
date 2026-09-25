@@ -1391,6 +1391,319 @@ fn emit_state(
                 },
             }
         }
+        LoweredScalarBranchTerminator::CaseDispatch {
+            source,
+            selected,
+            cases,
+            payloads,
+            when_true_target,
+            when_true_arguments,
+            when_true_erased_arguments,
+            when_true_erased_proof_arguments,
+            when_false_target,
+            when_false_arguments,
+            when_false_erased_arguments,
+            when_false_erased_proof_arguments,
+        } => {
+            // Case edges forward no values, so the selected outcome continues
+            // through a parameter-only block: its declared parameters are the
+            // case's scalar payloads, matching the edge's `payload_fields`
+            // roster. The dominating state's values stay in scope there.
+            let mut dispatch_namespace = values.clone();
+            let payload_parameters = payloads
+                .iter()
+                .map(|(_, value_type)| {
+                    let declaration = ValueDeclaration {
+                        qualifications: value_type.qualifications,
+                        id: value_id(allocate_dense(next_value)?),
+                        scalar_type: value_type.scalar_type,
+                    };
+                    dispatch_namespace.push(declaration);
+                    Ok(declaration)
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let selected_block = block_id(allocate_dense(next_block)?);
+            // A fallback edge exists only for declared cases outside the
+            // selected one; a single-case sum leaves the source `_` arm
+            // unreachable, so its continuation block must not be emitted.
+            let has_fallback = cases.iter().any(|case| *case != *selected);
+            let fallback_block = if has_fallback {
+                Some(block_id(allocate_dense(next_block)?))
+            } else {
+                None
+            };
+            let when_true_arguments = dispatch_arguments(
+                when_true_arguments,
+                &dispatch_namespace,
+                next_value,
+                operations,
+            )?;
+            let when_false_arguments = if has_fallback {
+                dispatch_arguments(when_false_arguments, &values, next_value, operations)?
+            } else {
+                Vec::new()
+            };
+            let when_true_erased_arguments = when_true_erased_arguments
+                .iter()
+                .map(|argument| {
+                    crate::proofs::crash_routes::lowered_direct_scalar_term(
+                        argument,
+                        &dispatch_namespace,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let when_true_erased_proof_arguments = when_true_erased_proof_arguments
+                .iter()
+                .map(|term| {
+                    crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                        term,
+                        &dispatch_namespace,
+                        &erased_formals,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let (when_false_erased_arguments, when_false_erased_proof_arguments) = if has_fallback {
+                (
+                    when_false_erased_arguments
+                        .iter()
+                        .map(|argument| {
+                            crate::proofs::crash_routes::lowered_direct_scalar_term(
+                                argument,
+                                &values,
+                                &erased_formals,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                    when_false_erased_proof_arguments
+                        .iter()
+                        .map(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                term,
+                                &values,
+                                &erased_formals,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?,
+                )
+            } else {
+                (Vec::new(), Vec::new())
+            };
+            blocks.push(Block {
+                structural_parameters: Vec::new(),
+                id: selected_block,
+                parameters: payload_parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Jump {
+                    structural_arguments: Vec::new(),
+                    edge: edge_id(allocate_dense(next_edge)?),
+                    target: *targets
+                        .get(*when_true_target)
+                        .ok_or(LoweringError::Unsupported("call true target is absent"))?,
+                    arguments: when_true_arguments,
+                    erased_arguments: when_true_erased_arguments,
+                    erased_proof_arguments: when_true_erased_proof_arguments,
+                    residual_affine_discards: Vec::new(),
+                    trivial_affine_discards: Vec::new(),
+                },
+            });
+            if let Some(fallback_block) = fallback_block {
+                blocks.push(Block {
+                    structural_parameters: Vec::new(),
+                    id: fallback_block,
+                    parameters: Vec::new(),
+                    erased_scalar_formals: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Jump {
+                        structural_arguments: Vec::new(),
+                        edge: edge_id(allocate_dense(next_edge)?),
+                        target: *targets
+                            .get(*when_false_target)
+                            .ok_or(LoweringError::Unsupported("call false target is absent"))?,
+                        arguments: when_false_arguments,
+                        erased_arguments: when_false_erased_arguments,
+                        erased_proof_arguments: when_false_erased_proof_arguments,
+                        residual_affine_discards: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                });
+            }
+            let mut case_edges = Vec::with_capacity(cases.len());
+            for case in cases {
+                case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                    edge: edge_id(allocate_dense(next_edge)?),
+                    target: if *case == *selected {
+                        selected_block
+                    } else {
+                        fallback_block.expect("non-selected case edge needs a fallback block")
+                    },
+                    case: *case,
+                    payload_fields: if *case == *selected {
+                        payloads.iter().map(|(field, _)| *field).collect()
+                    } else {
+                        Vec::new()
+                    },
+                    trivial_affine_discards: Vec::new(),
+                });
+            }
+            Terminator::StructuralCase {
+                source: *source,
+                cases: case_edges,
+            }
+        }
+        LoweredScalarBranchTerminator::CaseDispatchSplit {
+            source,
+            cases,
+            armed,
+            fallback_target,
+            fallback_arguments,
+            fallback_erased_arguments,
+            fallback_erased_proof_arguments,
+        } => {
+            // Every armed case's edge binds its own payloads through a
+            // parameter-only block, matching `Terminator::StructuralCase`'s
+            // per-edge `payload_fields` roster.
+            let mut case_edges = Vec::with_capacity(cases.len());
+            let mut fallback_block = None;
+            for case in cases {
+                if let Some(arm) = armed.iter().find(|arm| arm.case == *case) {
+                    let mut dispatch_namespace = values.clone();
+                    let mut payload_parameters = Vec::with_capacity(arm.payloads.len());
+                    for (_, value_type) in &arm.payloads {
+                        let declaration = ValueDeclaration {
+                            qualifications: value_type.qualifications,
+                            id: value_id(allocate_dense(next_value)?),
+                            scalar_type: value_type.scalar_type,
+                        };
+                        dispatch_namespace.push(declaration);
+                        payload_parameters.push(declaration);
+                    }
+                    let selected_block = block_id(allocate_dense(next_block)?);
+                    let arguments = dispatch_arguments(
+                        &arm.arguments,
+                        &dispatch_namespace,
+                        next_value,
+                        operations,
+                    )?;
+                    let erased_arguments = arm
+                        .erased_arguments
+                        .iter()
+                        .map(|argument| {
+                            crate::proofs::crash_routes::lowered_direct_scalar_term(
+                                argument,
+                                &dispatch_namespace,
+                                &erased_formals,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let erased_proof_arguments = arm
+                        .erased_proof_arguments
+                        .iter()
+                        .map(|term| {
+                            crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                term,
+                                &dispatch_namespace,
+                                &erased_formals,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    blocks.push(Block {
+                        structural_parameters: Vec::new(),
+                        id: selected_block,
+                        parameters: payload_parameters,
+                        erased_scalar_formals: Vec::new(),
+                        erased_proof_formals: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Jump {
+                            structural_arguments: Vec::new(),
+                            edge: edge_id(allocate_dense(next_edge)?),
+                            target: *targets.get(arm.target).ok_or(LoweringError::Unsupported(
+                                "call case arm target is absent",
+                            ))?,
+                            arguments,
+                            erased_arguments,
+                            erased_proof_arguments,
+                            residual_affine_discards: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    });
+                    case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        edge: edge_id(allocate_dense(next_edge)?),
+                        target: selected_block,
+                        case: *case,
+                        payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
+                        trivial_affine_discards: Vec::new(),
+                    });
+                } else {
+                    if fallback_block.is_none() {
+                        let block = block_id(allocate_dense(next_block)?);
+                        let arguments = dispatch_arguments(
+                            fallback_arguments,
+                            &values,
+                            next_value,
+                            operations,
+                        )?;
+                        let erased_arguments = fallback_erased_arguments
+                            .iter()
+                            .map(|argument| {
+                                crate::proofs::crash_routes::lowered_direct_scalar_term(
+                                    argument,
+                                    &values,
+                                    &erased_formals,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let erased_proof_arguments = fallback_erased_proof_arguments
+                            .iter()
+                            .map(|term| {
+                                crate::scalar_graph::scalar_contracts::lowered_proof_term(
+                                    term,
+                                    &values,
+                                    &erased_formals,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        blocks.push(Block {
+                            structural_parameters: Vec::new(),
+                            id: block,
+                            parameters: Vec::new(),
+                            erased_scalar_formals: Vec::new(),
+                            erased_proof_formals: Vec::new(),
+                            operations: Vec::new(),
+                            terminator: Terminator::Jump {
+                                structural_arguments: Vec::new(),
+                                edge: edge_id(allocate_dense(next_edge)?),
+                                target: *targets.get(*fallback_target).ok_or(
+                                    LoweringError::Unsupported(
+                                        "call case fallback target is absent",
+                                    ),
+                                )?,
+                                arguments,
+                                erased_arguments,
+                                erased_proof_arguments,
+                                residual_affine_discards: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        });
+                        fallback_block = Some(block);
+                    }
+                    case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
+                        edge: edge_id(allocate_dense(next_edge)?),
+                        target: fallback_block.expect("armed-edge loop emitted fallback"),
+                        case: *case,
+                        payload_fields: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    });
+                }
+            }
+            Terminator::StructuralCase {
+                source: *source,
+                cases: case_edges,
+            }
+        }
         _ => {
             return unsupported(
                 "call operand computation cannot return from its enclosing machine",
@@ -1407,4 +1720,32 @@ fn emit_state(
         terminator,
     });
     Ok(())
+}
+
+/// Dispatch edge arguments evaluate in the block that stages them: the
+/// namespace is the dispatch state's values plus the edge's bound payloads.
+fn dispatch_arguments(
+    expressions: &[LoweredDirectExpression],
+    namespace: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<Vec<ValueId>, LoweringError> {
+    expressions
+        .iter()
+        .map(|expression| {
+            validate_direct_parameter_types(
+                expression,
+                &namespace
+                    .iter()
+                    .map(|value| value.scalar_type)
+                    .collect::<Vec<_>>(),
+            )?;
+            if direct_expression_contains_short_circuit(expression) {
+                return unsupported("call computation transfer retains unexpanded Boolean control");
+            }
+            Ok(emit_direct_expression(
+                expression, namespace, next_value, operations,
+            ))
+        })
+        .collect()
 }

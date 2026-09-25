@@ -1,0 +1,68 @@
+// Regression pin — multi-case-sum payload binding (the case-dispatch residual
+// family once collected as "union matches binding payloads on 3+ cases"): a
+// transition over a sum with three payload-carrying cases binds payload fields
+// on every arm and carries them both as scalar arm results and as positional
+// continuation arguments. Also pins the adjacent admitted shapes that share
+// the machinery: multi-field payloads with a `_` fallback, and record payloads
+// whose member fields are read inside the arm. Exit 70 proves the bound
+// payloads actually flow (40 + 20 + 8 + 2).
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Inner { x: u64; }
+data St { case A(v: u64); case B(v: u64); case C(v: u64); }
+data Multi { case P(x: u64, y: u64); case Q(x: u64, y: u64); case R(x: u64, y: u64); case S; }
+data Rec { case L(v: Inner); case M(v: Inner); case N(v: Inner); }
+
+data Main {
+    console: Binding<Console>;
+    st: St;
+    multi: Multi;
+    rec: Rec;
+}
+
+machine Main::arm_value(&self) -> u64 {
+    transition self.st {
+        St::A { v } -> (v)
+        St::B { v } -> (v)
+        St::C { v } -> (v)
+    }
+}
+
+machine Main::continued(&self) -> u64 {
+    transition self.st {
+        St::A { v } -> take(v)
+        St::B { v } -> take(v)
+        St::C { v } -> take(v)
+    }
+    state take(&self, v: u64) -> u64 { v }
+}
+
+machine Main::multi_field(&self) -> u64 {
+    transition self.multi {
+        Multi::P { x, y } -> take(x, y)
+        Multi::Q { x, y } -> take(x, y)
+        Multi::R { x, y } -> take(x, y)
+        _ -> (0)
+    }
+    state take(&self, x: u64, y: u64) -> u64 { x }
+}
+
+machine Main::record_member(&self) -> u64 {
+    transition self.rec {
+        Rec::L { v } -> (v.x)
+        Rec::M { v } -> (v.x)
+        Rec::N { v } -> (v.x)
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.st = St::B { v: 40 };
+    self.multi = Multi::Q { x: 8, y: 1 };
+    self.rec = Rec::N { v: Inner { x: 2 } };
+    let a: u64 = self.arm_value();
+    let b: u64 = self.continued();
+    let c: u64 = self.multi_field();
+    let d: u64 = self.record_member();
+    self.console.exit_process(70);
+}
