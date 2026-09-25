@@ -208,3 +208,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T15:05:48Z	a1fc4931b9	leaf/machine-state-index	coordinator	per-pass machine/state symbol index in MP2b
 2026-09-25T15:07:40Z	9df4c50b93	leaf/literal-dest-index	coordinator	state index for fixed-byte-array call destinations
 2026-09-25T15:17:10Z	5ffdf1057e	leaf/claim-frontier-memo	coordinator	scoped memo for linear claim frontier
+2026-09-25T15:20:16Z	6b97557590	leaf/field-domain-memo	coordinator	scoped memo for owned field domain identities
