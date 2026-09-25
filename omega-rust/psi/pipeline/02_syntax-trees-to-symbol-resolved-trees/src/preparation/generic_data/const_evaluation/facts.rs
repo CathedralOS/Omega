@@ -212,7 +212,7 @@ fn evaluate_const_fact_expression_at(
             UnaryOperator::BitwiseNot => Ok(None),
         },
         ExpressionNode::Binary(binary) => {
-            if !has_builtin_const_operator(syntax, binary.operator) {
+            if !has_builtin_const_operator(syntax, binary) {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -1594,7 +1594,7 @@ pub(crate) fn evaluate_const_domain_expression(
             .map(|result| result.map(|proof| ConstFactValue::Boolean(proof.holds())))
         }
         ExpressionNode::Binary(binary) => {
-            if !has_builtin_const_operator(syntax, binary.operator) {
+            if !has_builtin_const_operator(syntax, binary) {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;

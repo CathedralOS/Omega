@@ -7,6 +7,7 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::BinaryOperator;
 use syntax_trees::expression::ExpressionHandle;
 use syntax_trees::expression::ExpressionNode;
+use syntax_trees::expression::TableBinaryExpression;
 use syntax_trees::item::Item;
 use syntax_trees::operator_spelling::OperatorSpelling;
 
@@ -16,8 +17,9 @@ pub(crate) struct AnonymousNumericValue {
 }
 
 /// Named values and prior landings stay with the declared integer evaluator.
-/// This pass has no declaration-selection authority: the shared anonymous
-/// classifier declines if an authored spelling could supply the meaning.
+/// Wholly anonymous arithmetic needs no declaration selection: it denotes an
+/// exact rational (wiki/spec/language/numeric_values.md), and operator
+/// spellings resolve by operand carrier, which anonymous operands lack.
 pub(super) fn evaluate_anonymous_integer_argument(
     syntax: &SyntaxTrees,
     expression: ExpressionHandle,
@@ -156,7 +158,7 @@ pub(super) fn requires_const_operator_selection(
 ) -> bool {
     match syntax.expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            !has_builtin_const_operator(syntax, binary.operator)
+            !has_builtin_const_operator(syntax, binary)
                 || requires_const_operator_selection(syntax, binary.left)
                 || requires_const_operator_selection(syntax, binary.right)
         }
@@ -165,8 +167,21 @@ pub(super) fn requires_const_operator_selection(
     }
 }
 
-pub(super) fn has_builtin_const_operator(syntax: &SyntaxTrees, operator: BinaryOperator) -> bool {
-    let spelling = match operator {
+/// Whether this pre-resolution pass may apply the builtin meaning of one
+/// binary node. Operator spellings resolve by operand carrier
+/// (wiki/spec/language/numeric_values.md), so a node whose operands are both
+/// wholly anonymous selects no declaration: it is exact builtin arithmetic or
+/// comparison, the rule checked-tree operator selection also applies.
+pub(super) fn has_builtin_const_operator(
+    syntax: &SyntaxTrees,
+    binary: &TableBinaryExpression,
+) -> bool {
+    if anonymous_numeric_expression(syntax, binary.left)
+        && anonymous_numeric_expression(syntax, binary.right)
+    {
+        return true;
+    }
+    let spelling = match binary.operator {
         BinaryOperator::Add => OperatorSpelling::Add,
         BinaryOperator::Subtract => OperatorSpelling::Subtract,
         BinaryOperator::Multiply => OperatorSpelling::Multiply,
@@ -190,10 +205,10 @@ pub(super) fn has_builtin_const_operator(syntax: &SyntaxTrees, operator: BinaryO
     has_no_authored_spelling(syntax, spelling)
 }
 
-pub(super) fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorSpelling) -> bool {
-    // This pre-resolution evaluator has no selected-operator authority. Any
-    // potentially relevant authored spelling makes this narrow builtin check
-    // decline; it does not authorize that declaration or certify the existing
+fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorSpelling) -> bool {
+    // This pre-resolution evaluator has no selected-operator authority. With a
+    // typed operand, any potentially relevant authored spelling makes this
+    // narrow builtin check decline; it does not authorize that declaration or certify the existing
     // const evaluator's handling of authored operator meanings. A fixed token
     // after `machine` authors the same spelling the retired `operator` head
     // did (`boundary machine % Math::remainder` is that slot's new spelling),
@@ -239,15 +254,17 @@ pub(super) fn anonymous_numeric_expression(
             ExpressionNode::Float(text)
                 if FloatLiteral::parse(text.as_str())
                     .is_some_and(|literal| literal.landing().is_none()) => {}
+            // No authored spelling can select an operator here: neither
+            // operand has a carrier until the completed value lands, the same
+            // rule the checked-tree operator selection applies.
             ExpressionNode::Binary(binary) => {
-                let spelling = match binary.operator {
-                    BinaryOperator::Add => OperatorSpelling::Add,
-                    BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                    BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                    BinaryOperator::Divide => OperatorSpelling::Divide,
-                    _ => return false,
-                };
-                if !has_no_authored_spelling(syntax, spelling) {
+                if !matches!(
+                    binary.operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                ) {
                     return false;
                 }
                 active.push(expression);

@@ -154,16 +154,22 @@ fn typed_and_named_remainder_operands_and_exact_quotients_still_normalize() {
 }
 
 #[test]
-fn authored_const_operator_spelling_does_not_trigger_builtin_remainder_rejection() {
+fn authored_spelling_cannot_select_wholly_anonymous_remainder() {
+    // Operator spellings resolve by operand carrier, and wholly anonymous
+    // operands have none (wiki/spec/language/numeric_values.md), so an
+    // authored `%` never rescues the builtin formation rule.
     for (operator, value) in [("%", "7 % 2"), ("*", "7 * 2 % 4")] {
         let source = format!(
             "operator {operator} u64::operation(left: u64, right: u64) -> u64; data Buffer<const N: u64> {{ values: [u8; N]; }} data Main {{ value: Buffer<{value}>; }}"
         );
-        normalize(&source).unwrap_or_else(|errors| {
-            panic!(
-                "authored spelling must not be rejected as builtin anonymous remainder: {errors:?}"
-            )
-        });
+        let errors =
+            normalize(&source).expect_err("wholly anonymous `%` has no integer operand meaning");
+        assert!(
+            errors.iter().any(|error| error
+                .message
+                .contains("builtin `%` requires an integer-typed operand")),
+            "{source}: {errors:?}"
+        );
     }
 }
 

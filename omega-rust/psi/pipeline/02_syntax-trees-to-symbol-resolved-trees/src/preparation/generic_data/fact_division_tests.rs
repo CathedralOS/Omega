@@ -239,28 +239,30 @@ fn integer_landing_warnings_require_a_discharged_operation() {
 }
 
 #[test]
-fn authored_operator_facts_remain_for_typed_declaration_selection() {
-    for (operator, result_type, expression) in [
-        ("/", "i64", "7 / 2 == 3"),
-        ("/", "i64", "7 / 2.0 == 3"),
-        ("*", "i64", "7 / 2 * 2 == 6"),
-        ("+", "i64", "7 / 2 + 1 / 2 == 3"),
-        ("%", "i64", "8 % 2 == 0"),
-        ("==", "bool", "7 / 2 == 3"),
-        (">", "bool", "7 / 2 > 4"),
+fn authored_spellings_do_not_select_wholly_anonymous_fact_operators() {
+    // A wholly anonymous operand pair has no carrier to select an authored
+    // declaration, so each fact evaluates exactly as it does without one.
+    for (operator, result_type, expression, expected_error) in [
+        ("/", "i64", "7 / 2 == 3", Some("is false")),
+        ("/", "i64", "7 / 2.0 == 3", Some("is false")),
+        ("*", "i64", "7 / 2 * 2 == 7", None),
+        ("+", "i64", "7 / 2 + 1 / 2 == 4", None),
+        (
+            "%",
+            "i64",
+            "8 % 2 == 0",
+            Some("builtin `%` requires an integer-typed operand"),
+        ),
+        ("==", "bool", "7 / 2 == 3", Some("is false")),
+        (">", "bool", "7 / 2 > 4", Some("is false")),
     ] {
         let declaration =
             format!("operator {operator} i64::authored(left: i64, right: i64) -> {result_type};");
+        assert_case(&generic_fact(expression), expected_error, false, 0);
         assert_case(
             &format!("{declaration} {}", generic_fact(expression)),
-            None,
-            true,
-            0,
-        );
-        assert_case(
-            &format!("{declaration} {}", domain_fact(expression, "Transitive")),
-            None,
-            true,
+            expected_error,
+            false,
             0,
         );
     }
