@@ -59,25 +59,30 @@ use self::escape::check_view_return_escape;
 use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
-pub(crate) fn check_flow_call_borrows(
-    program: &typed_trees::TypedTrees,
+pub(crate) fn check_flow_call_borrows<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &mut CheckFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    // The whole-program bound index builds on first use and is shared across
+    // every premise collection this pass performs.
+    let mut bound_lookup = None;
     let mut retained_diagnostics = validate_checked_borrow_compatibility_certificates(
         program,
         facts,
         incoming_guards,
         call_frames,
+        &mut bound_lookup,
     );
     retained_diagnostics.extend(validate_checked_borrow_mutation_certificates(
         program,
         facts,
         incoming_guards,
         call_frames,
+        &mut bound_lookup,
     ));
     retained_diagnostics.extend(calls::validate_compatibility(
         program,
@@ -85,6 +90,7 @@ pub(crate) fn check_flow_call_borrows(
         incoming_guards,
         call_frames,
         &mut diagnostics,
+        &mut bound_lookup,
     ));
     if retained_diagnostics.is_empty() {
         resources::replay_checked_direct_borrow_resources(program, facts, mutation_summaries)?;
@@ -145,7 +151,14 @@ pub(crate) fn check_flow_call_borrows(
                 .map(|machine| (machine, state))
         })
         .map(|(machine, state)| {
-            overlap::stated_ordering_premises(program, facts, machine, state, incoming_guards)
+            overlap::stated_ordering_premises(
+                program,
+                facts,
+                machine,
+                state,
+                incoming_guards,
+                &mut bound_lookup,
+            )
         })
         .unwrap_or_default();
 
@@ -163,6 +176,7 @@ pub(crate) fn check_flow_call_borrows(
             &mut retained_mutation_certificates_consumed,
             mutation_summaries,
             call_frames,
+            &mut bound_lookup,
         );
     }
 
@@ -191,6 +205,7 @@ pub(crate) fn check_flow_call_borrows(
             certificate,
             incoming_guards,
             call_frames,
+            &mut bound_lookup,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -221,6 +236,7 @@ pub(crate) fn check_flow_call_borrows(
             certificate,
             incoming_guards,
             call_frames,
+            &mut bound_lookup,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -264,11 +280,12 @@ pub(super) fn initialize_checked_borrow_call_certificates(
     calls::initialize_compatibility(program, facts)
 }
 
-fn validate_checked_borrow_compatibility_certificates(
-    program: &typed_trees::TypedTrees,
+fn validate_checked_borrow_compatibility_certificates<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -291,6 +308,7 @@ fn validate_checked_borrow_compatibility_certificates(
             certificate,
             incoming_guards,
             call_frames,
+            bound_lookup,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -316,12 +334,13 @@ fn compatibility_certificate_key_matches(
         && left.active_loan == right.active_loan
 }
 
-fn replay_checked_borrow_compatibility_certificate(
-    program: &typed_trees::TypedTrees,
+fn replay_checked_borrow_compatibility_certificate<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     certificate: &checked_trees::CheckedBorrowCompatibilityCertificate,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -369,7 +388,14 @@ fn replay_checked_borrow_compatibility_certificate(
             .map(|machine| (machine, state))
     })
     .map(|(machine, state)| {
-        overlap::stated_ordering_premises(program, facts, machine, state, incoming_guards)
+        overlap::stated_ordering_premises(
+            program,
+            facts,
+            machine,
+            state,
+            incoming_guards,
+            bound_lookup,
+        )
     })
     .unwrap_or_default();
     if let Some((_, state_flow)) = facts.flow.control.states.iter().find(|(_, state)| {
@@ -383,6 +409,7 @@ fn replay_checked_borrow_compatibility_certificate(
             certificate.formation.statement_index,
             call_frames,
             &mut stated_premises,
+            bound_lookup,
         );
     }
     let replayed = match overlap::borrow_loan_compatibility_from_selector_snapshot(
@@ -395,6 +422,7 @@ fn replay_checked_borrow_compatibility_certificate(
         &certificate.selector_snapshot,
         &stated_premises,
         &certificate.premises,
+        bound_lookup,
     ) {
         Ok(replayed) => replayed,
         Err(overlap::CompatibilityReplayDrift::Premise) => {
@@ -441,11 +469,12 @@ fn replay_checked_borrow_compatibility_certificate(
     Ok(())
 }
 
-fn validate_checked_borrow_mutation_certificates(
-    program: &typed_trees::TypedTrees,
+fn validate_checked_borrow_mutation_certificates<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
     let certificates = facts
         .borrow
@@ -468,6 +497,7 @@ fn validate_checked_borrow_mutation_certificates(
             certificate,
             incoming_guards,
             call_frames,
+            bound_lookup,
         ) {
             diagnostics.push(diagnostic);
         }
@@ -491,12 +521,13 @@ fn mutation_certificate_key_matches(
     left.formation == right.formation && left.active_loan == right.active_loan
 }
 
-fn replay_checked_borrow_mutation_certificate(
-    program: &typed_trees::TypedTrees,
+fn replay_checked_borrow_mutation_certificate<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     certificate: &checked_trees::CheckedBorrowMutationCertificate,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(), Diagnostic> {
     if !facts
         .borrow
@@ -611,7 +642,14 @@ fn replay_checked_borrow_mutation_certificate(
     let mut stated_premises =
         crate::lookup::machine_by_symbol(program, certificate.formation.machine_symbol)
             .map(|machine| {
-                overlap::stated_ordering_premises(program, facts, machine, state, incoming_guards)
+                overlap::stated_ordering_premises(
+                    program,
+                    facts,
+                    machine,
+                    state,
+                    incoming_guards,
+                    bound_lookup,
+                )
             })
             .unwrap_or_default();
     if let Some((_, state_flow)) = facts.flow.control.states.iter().find(|(_, state)| {
@@ -625,6 +663,7 @@ fn replay_checked_borrow_mutation_certificate(
             certificate.formation.statement_index,
             call_frames,
             &mut stated_premises,
+            bound_lookup,
         );
     }
     let replayed = match overlap::captured_place_loan_compatibility_from_selector_snapshot(
@@ -637,6 +676,7 @@ fn replay_checked_borrow_mutation_certificate(
         &certificate.selector_snapshot,
         &stated_premises,
         &certificate.premises,
+        bound_lookup,
     ) {
         Ok(replayed) => replayed,
         Err(overlap::CompatibilityReplayDrift::Premise) => {

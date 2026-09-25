@@ -58,6 +58,7 @@ fn transition_snapshots_follow_authored_targets_and_preserve_fallthrough() {
                 let statement = StatementNode::Transition(selected);
                 let clones = Cell::new(0);
                 let mut facts = RangeFacts::new(&[]);
+                facts.bound_program = Some(&program);
                 facts.checked_operators = Some(&operators);
                 facts.clone_work = CloneWork(Some(&clones));
                 // Include nonempty, String-bearing payload in every snapshot.

@@ -440,6 +440,7 @@ pub(super) fn index_expressions_may_overlap(
             segment_index: 0,
         },
         &mut selectors,
+        &mut None,
     )
 }
 
@@ -452,21 +453,32 @@ pub(super) fn index_expressions_may_overlap(
 /// stay conservatively overlapping. Disjointness needs ordering or singleton
 /// disequality, and a stated premise is consulted only when structural
 /// relations cannot settle it.
-pub(super) fn index_expressions_may_overlap_with_selectors(
-    program: &typed_trees::TypedTrees,
+pub(super) fn index_expressions_may_overlap_with_selectors<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: ExpressionHandle,
     left_location: SelectorLocation,
     right: ExpressionHandle,
     right_location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     if left == right {
         return true;
     }
-    let left_extent =
-        index_expression_extent_with_selectors(program, left, left_location, selectors);
-    let right_extent =
-        index_expression_extent_with_selectors(program, right, right_location, selectors);
+    let left_extent = index_expression_extent_with_selectors(
+        program,
+        left,
+        left_location,
+        selectors,
+        bound_lookup,
+    );
+    let right_extent = index_expression_extent_with_selectors(
+        program,
+        right,
+        right_location,
+        selectors,
+        bound_lookup,
+    );
     index_extents_may_overlap(left_extent, right_extent, selectors)
 }
 
@@ -523,6 +535,7 @@ pub(super) fn index_expression_may_contain_fixed(
             segment_index: 0,
         },
         &mut selectors,
+        &mut None,
     );
     index_extents_may_overlap(extent, fixed_index_extent(index), &mut selectors)
 }
@@ -699,15 +712,15 @@ fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool
 /// session, recording or replaying its bounds at the segment's exact path
 /// location. The bound positions match the overlap selectors: `Index` for a
 /// point expression, `RangeStart`/`RangeExclusiveEnd` for a range window.
-pub(super) fn index_expression_extent_with_selectors(
-    program: &typed_trees::TypedTrees,
+pub(super) fn index_expression_extent_with_selectors<'p>(
+    program: &'p typed_trees::TypedTrees,
     expression: ExpressionHandle,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> EvaluatedIndexExtent {
-    // The bound index scans the whole program once; a constant point
-    // expression folds without it, so build it on first use.
-    let mut bound_lookup = None;
+    // The bound index scans the whole program once; the caller shares one
+    // cell across every selector session this pass evaluates.
     match program.expression_table.expression(expression) {
         ExpressionNode::Range(range) => {
             let bound_lookup =

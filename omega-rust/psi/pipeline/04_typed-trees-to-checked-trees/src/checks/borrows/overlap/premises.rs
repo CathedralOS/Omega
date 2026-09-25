@@ -345,16 +345,16 @@ impl StatedOrderingPremise {
 /// Required domain predicates additionally bind their own definition scope.
 /// Facts that do not decompose into builtin integer comparisons over immutable
 /// bounds contribute no premise; mutable storage needs version evidence first.
-pub fn stated_ordering_premises(
-    program: &typed_trees::TypedTrees,
+pub fn stated_ordering_premises<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &checked_trees::CheckFacts,
     machine: &Machine,
     state: &State,
     incoming_guards: &IncomingGuardIndex,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<StatedOrderingPremise> {
-    // The bound index scans the whole program once; states with no
-    // applicable requires rows never reach it.
-    let mut bound_lookup = None;
+    // The bound index scans the whole program once; the caller shares one
+    // cell across every formation scope this pass visits.
     let mut premises = Vec::new();
     for (fact, row) in facts.proof.contract_facts.iter() {
         if row.kind != ContractProofFactKind::Requires || row.inherited_scope.is_some() {
@@ -447,13 +447,14 @@ pub fn stated_ordering_premises(
 
 /// Extend entry premises at the exact statement entry. Later calls and
 /// invalidated captures cannot license earlier loan formation or mutation.
-pub(in crate::checks::borrows) fn append_call_premises(
-    program: &typed_trees::TypedTrees,
+pub(in crate::checks::borrows) fn append_call_premises<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &checked_trees::CheckFacts,
     state_flow: &checked_trees::FlowStateFact,
     statement: usize,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     premises: &mut Vec<StatedOrderingPremise>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(frames) = call_frames else {
         return;
@@ -475,9 +476,8 @@ pub(in crate::checks::borrows) fn append_call_premises(
     else {
         return;
     };
-    // The bound index scans the whole program once; statements whose call
-    // guarantees list is empty never reach it.
-    let mut bound_lookup = None;
+    // The bound index scans the whole program once; the caller shares one
+    // cell across every statement entry this pass visits.
     let contexts: Vec<_> = facts
         .flow
         .semantic_constraint_contexts(statement_flow.entry_constraints)

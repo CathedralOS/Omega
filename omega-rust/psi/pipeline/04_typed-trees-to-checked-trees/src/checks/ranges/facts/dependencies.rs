@@ -44,7 +44,7 @@ impl ReceiverLength {
     }
 }
 
-impl RangeFacts<'_> {
+impl<'field> RangeFacts<'field> {
     pub(in crate::checks::ranges) fn forget_collection_expression(&mut self, label: &str) {
         self.forget_collection_facts(label);
         // A later state or binding can reuse the display label for different
@@ -69,7 +69,7 @@ impl RangeFacts<'_> {
             return None;
         }
         let mut reads = Vec::new();
-        let mut bounds = None;
+        let bound_lookup = self.bound_lookup().clone();
         if !collect_reads(
             program,
             machine,
@@ -80,7 +80,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut reads,
             0,
-            &mut bounds,
+            &bound_lookup,
         ) || reads.len() != 1
         {
             return None;
@@ -231,7 +231,7 @@ impl RangeFacts<'_> {
             Some(state),
             expression,
         ) && {
-            let mut bounds = None;
+            let bound_lookup = self.bound_lookup().clone();
             collect_reads(
                 program,
                 machine,
@@ -242,7 +242,7 @@ impl RangeFacts<'_> {
                 self.checked_operators,
                 &mut reads,
                 0,
-                &mut bounds,
+                &bound_lookup,
             )
         };
         self.recorded_expressions

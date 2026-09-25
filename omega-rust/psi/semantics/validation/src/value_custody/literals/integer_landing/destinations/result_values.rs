@@ -7,14 +7,17 @@ use typed_trees::types::TypeReferenceHandle;
 /// A selected range requests its collection's element type independently of
 /// runtime length. Reject a statically impossible footprint here, but leave
 /// dynamic footprint and write-permission checks to their assignment owners.
-pub(super) fn admit_assignment_value(
-    program: &TypedTrees,
+pub(super) fn admit_assignment_value<'p>(
+    program: &'p TypedTrees,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
     value: ExpressionHandle,
     admitted: &mut impl FnMut(TypeReferenceHandle, ExpressionHandle) -> bool,
     other_elements: &mut Vec<ExpressionHandle>,
+    bound_lookup: &mut Option<
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
+    >,
 ) -> bool {
     use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
@@ -50,12 +53,12 @@ pub(super) fn admit_assignment_value(
             return false;
         }
         let start = if range.start.is_valid() {
-            static_window_bound(program, range.start)
+            static_window_bound(program, bound_lookup, range.start)
         } else {
             WindowBound::Known(0)
         };
         let end = if range.end.is_valid() {
-            match static_window_bound(program, range.end) {
+            match static_window_bound(program, bound_lookup, range.end) {
                 WindowBound::Known(end) if range.end_inclusive => end
                     .checked_add(1)
                     .map_or(WindowBound::Invalid, WindowBound::Known),
@@ -132,11 +135,18 @@ impl WindowBound {
     }
 }
 
-fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> WindowBound {
-    let bound_lookup =
-        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
+fn static_window_bound<'p>(
+    program: &'p TypedTrees,
+    bound_lookup: &mut Option<
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
+    >,
+    expression: ExpressionHandle,
+) -> WindowBound {
+    let bound_lookup = bound_lookup.get_or_insert_with(|| {
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
+    });
     let Some(expression) =
-        crate::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
+        crate::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     else {
         return WindowBound::Unknown;
     };
@@ -146,7 +156,7 @@ fn static_window_bound(program: &TypedTrees, expression: ExpressionHandle) -> Wi
     ) {
         return WindowBound::Unknown;
     }
-    crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, expression)
+    crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, expression)
         .map_or(WindowBound::Invalid, WindowBound::Known)
 }
 

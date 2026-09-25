@@ -10,8 +10,8 @@ use super::super::details::active_loan_detail;
 use super::super::overlap::{StatedOrderingPremise, canonical_place_for_loan};
 use super::evidence::{CallCompatibility, argument_operand, loan_operand};
 
-pub(super) fn check_call_access_conflicts(
-    program: &typed_trees::TypedTrees,
+pub(super) fn check_call_access_conflicts<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
@@ -20,6 +20,7 @@ pub(super) fn check_call_access_conflicts(
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let accesses: Vec<_> = facts
         .borrow
@@ -54,6 +55,7 @@ pub(super) fn check_call_access_conflicts(
                     },
                     loan_operand(&facts.borrow, *loan_handle, loan),
                     stated_premises,
+                    bound_lookup,
                 )
             }) {
                 continue;
@@ -77,6 +79,7 @@ pub(super) fn check_call_access_conflicts(
                 argument_operand(&facts.borrow, index, access),
                 argument_operand(&facts.borrow, other_index, other_access),
                 stated_premises,
+                bound_lookup,
             ) {
                 continue;
             }
@@ -126,6 +129,7 @@ pub(super) fn check_call_access_conflicts(
                 argument_operand(&facts.borrow, index, access),
                 loan_operand(&facts.borrow, *loan_handle, loan),
                 stated_premises,
+                bound_lookup,
             ) {
                 continue;
             }

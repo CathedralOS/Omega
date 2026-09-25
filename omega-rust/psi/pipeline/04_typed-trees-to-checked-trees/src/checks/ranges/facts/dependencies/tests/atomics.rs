@@ -105,6 +105,7 @@ fn atomic_load_reads_are_exactly_the_resident_place() {
         local_initializer(&program, state, "probe"),
     );
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert_eq!(
         facts.expression_dependencies[0].reads.as_deref(),
@@ -158,6 +159,7 @@ fn atomic_store_reads_the_resident_place_and_stored_operand() {
     let counter = canonical_resident_place(&program, machine, state, target);
     let delta = parameter_place(&program, state, "delta");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert_eq!(
@@ -197,6 +199,7 @@ fn atomic_store_of_a_literal_reads_only_the_resident_place() {
     let (statement_index, target, value) = atomic_assignment(&program, state);
     let counter = canonical_resident_place(&program, machine, state, target);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert_eq!(
@@ -222,6 +225,7 @@ fn atomic_store_of_a_nested_load_reads_the_loaded_place_too() {
     };
     let other = canonical_resident_place(&program, machine, state, load.value);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     let reads = facts.expression_dependencies[0]
@@ -261,6 +265,7 @@ fn atomic_swap_reads_resident_replacement_and_result_destination() {
     let delta = parameter_place(&program, state, "delta");
     let prior = local_place(&program, state, "prior");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert_eq!(
@@ -318,6 +323,7 @@ fn atomic_fetch_reads_the_update_model_not_the_prior_placeholder() {
     let delta = parameter_place(&program, state, "delta");
     let prior = local_place(&program, state, "prior");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert_eq!(
@@ -349,6 +355,7 @@ fn atomic_compare_exchange_reads_expected_and_replacement_operands() {
     let next = parameter_place(&program, state, "next");
     let prior = local_place(&program, state, "prior");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert_eq!(
@@ -387,6 +394,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     let state = &program.machine_states(machine)[0];
     let (statement_index, _, value) = atomic_assignment(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -401,6 +409,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     let state = &program.machine_states(machine)[0];
     let (_, _, value) = atomic_assignment(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = 1;
     facts.record_expression_dependencies(&program, machine, state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -415,6 +424,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     atomic.result = value;
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -429,6 +439,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     atomic.ordering = AtomicOrderingPlan::Store(MemoryOrdering::Receive);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -446,6 +457,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
             language_core::atomic::AtomicCompareExchangeOnceResultCustody::CANONICAL,
         );
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -460,6 +472,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     atomic.result = ExpressionHandle::invalid();
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -479,6 +492,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     atomic.result = member;
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -499,6 +513,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     atomic.result = later;
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -518,6 +533,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     update.left = update.right;
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -538,6 +554,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
         failure: MemoryOrdering::NoOrdering,
     };
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -558,6 +575,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
         failure: MemoryOrdering::Receive,
     };
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -589,6 +607,7 @@ fn writing_atomic_axes_without_a_complete_footprint_stay_incomplete() {
     };
     sum.left = expected_operand;
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, &machine, &state, value);
     assert!(facts.expression_dependencies[0].reads.is_none());
