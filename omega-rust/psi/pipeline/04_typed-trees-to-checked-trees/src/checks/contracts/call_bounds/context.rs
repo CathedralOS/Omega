@@ -279,29 +279,29 @@ fn prove(
         .filter_map(|fact| {
             // Call substitution lives separately from the authored expression.
             // This adapter only consumes declaration-shaped caller facts.
-            let expression = match fact.payload {
+            match fact.payload {
                 facts::FactPayload::ContractBooleanExpression {
                     kind: facts::ContractFactKind::Requires,
                     expression,
                     instantiated,
                     ..
-                } if !instantiated.is_valid() => expression,
+                } if !instantiated.is_valid() => Some(expression),
                 facts::FactPayload::BooleanValue {
                     expression,
                     value: true,
-                } => expression,
-                _ => return None,
-            };
-            let expression =
-                positive_comparison_expression(program, facts, caller.machine_symbol, expression)?;
+                } => Some(expression),
+                _ => None,
+            }
+        })
+        .flat_map(|expression| true_conjuncts(program, facts, caller.machine_symbol, expression))
+        .filter(|expression| {
             comparison_is_supported(
                 program,
                 facts,
                 caller.machine_symbol,
                 caller_parameters,
-                expression,
+                *expression,
             )
-            .then_some(expression)
         })
         .collect::<Vec<_>>();
     Some(
@@ -314,6 +314,38 @@ fn prove(
             &argument_bindings,
         ) == StrictArithmeticImplicationJudgment::Proven,
     )
+}
+
+/// Every conjunct of a true builtin `&&` is itself a true fact. A guard
+/// such as `fuel > 1 && members[row].vector == at` keeps its arithmetic
+/// conjunct even though the other lies outside this vocabulary.
+fn true_conjuncts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    let mut pending = vec![expression];
+    let mut conjuncts = Vec::new();
+    while let Some(expression) = pending.pop() {
+        let Some(expression) = positive_comparison_expression(program, facts, owner, expression)
+        else {
+            continue;
+        };
+        if let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            && binary.operator == BinaryOperator::And
+            && !facts.operators.uses.iter().any(|(_, operator)| {
+                operator.expression == expression
+                    && operator.status
+                        != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+            })
+        {
+            pending.extend([binary.right, binary.left]);
+            continue;
+        }
+        conjuncts.push(expression);
+    }
+    conjuncts
 }
 
 // Boolean-pattern transition guards retain `comparison == true`. Peel only
