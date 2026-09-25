@@ -30,10 +30,35 @@ type ClaimFrontierSlot = Option<
         HashMap<TypeReferenceHandle, Vec<ClaimFrontierClaim>>,
     )>,
 >;
-type DataDefinitionPositionSlot = Option<
+/// The declaration-table answer for a symbol: absent, exactly one
+/// definition at a position, or a duplicate (first position retained —
+/// `find`-style consumers still read it).
+#[derive(Clone, Copy)]
+pub(crate) enum DataDefinitionLookup {
+    Missing,
+    Unique(u32),
+    Duplicate(u32),
+}
+
+impl DataDefinitionLookup {
+    pub(crate) fn first_position(self) -> Option<u32> {
+        match self {
+            Self::Unique(position) | Self::Duplicate(position) => Some(position),
+            Self::Missing => None,
+        }
+    }
+}
+
+type DataDefinitionLookupSlot = Option<
     Option<(
         *const typed_trees::TypedTrees,
-        HashMap<symbols::SymbolHandle, Option<u32>>,
+        HashMap<symbols::SymbolHandle, DataDefinitionLookup>,
+    )>,
+>;
+type DropHookSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        HashMap<symbols::SymbolHandle, bool>,
     )>,
 >;
 
@@ -46,10 +71,13 @@ thread_local! {
     /// The claim frontier memoizes per queried type reference rather than a
     /// single plan; the map itself is the stored plan for the scoped program.
     static CLAIM_FRONTIER_SLOT: RefCell<ClaimFrontierSlot> = const { RefCell::new(None) };
-    /// Data-definition lookups memoize a symbol's position in the
-    /// declaration table (including negative answers) rather than one plan.
-    static DATA_DEF_POSITION_SLOT: RefCell<DataDefinitionPositionSlot> =
+    /// Data-definition lookups memoize a symbol's declaration answer
+    /// (including negative and duplicate answers) rather than one plan.
+    static DATA_DEF_LOOKUP_SLOT: RefCell<DataDefinitionLookupSlot> =
         const { RefCell::new(None) };
+    /// Whether a machine attached to a data symbol realizes `::drop`,
+    /// memoized per (program, symbol).
+    static DROP_HOOK_SLOT: RefCell<DropHookSlot> = const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -58,7 +86,8 @@ pub struct ProgramPlanScopeGuard {
     operational: OperationalSlot,
     service_reach: ServiceReachSlot,
     claim_frontiers: ClaimFrontierSlot,
-    data_def_positions: DataDefinitionPositionSlot,
+    data_def_lookups: DataDefinitionLookupSlot,
+    drop_hooks: DropHookSlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -72,8 +101,11 @@ impl Drop for ProgramPlanScopeGuard {
         CLAIM_FRONTIER_SLOT.with(|cell| {
             *cell.borrow_mut() = self.claim_frontiers.take();
         });
-        DATA_DEF_POSITION_SLOT.with(|cell| {
-            *cell.borrow_mut() = self.data_def_positions.take();
+        DATA_DEF_LOOKUP_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.data_def_lookups.take();
+        });
+        DROP_HOOK_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.drop_hooks.take();
         });
     }
 }
@@ -88,7 +120,9 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         claim_frontiers: CLAIM_FRONTIER_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
-        data_def_positions: DATA_DEF_POSITION_SLOT
+        data_def_lookups: DATA_DEF_LOOKUP_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        drop_hooks: DROP_HOOK_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -173,20 +207,22 @@ pub(crate) fn memoized_claim_frontier(
     claims
 }
 
-/// The data-definition table's position for a symbol, memoized per
-/// (program, symbol) inside the scope — the `.find` over the declaration
-/// slice otherwise re-scans the whole table at every classification site.
-pub(crate) fn memoized_data_definition_position(
+/// The data-definition table's answer for a symbol, memoized per
+/// (program, symbol) inside the scope — the `.find`/`.filter` over the
+/// declaration slice otherwise re-scans the whole table at every
+/// classification site, and the uniqueness answer some callers require is
+/// recorded with the same walk.
+pub(crate) fn memoized_data_definition_lookup(
     program: &typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
-) -> Option<u32> {
+) -> DataDefinitionLookup {
     enum SlotState {
         NoScope,
-        Hit(Option<u32>),
+        Hit(DataDefinitionLookup),
         Miss,
         ForeignProgram,
     }
-    let state = DATA_DEF_POSITION_SLOT.with(|cell| {
+    let state = DATA_DEF_LOOKUP_SLOT.with(|cell| {
         let cell = cell.borrow();
         match cell.as_ref() {
             None => SlotState::NoScope,
@@ -202,32 +238,93 @@ pub(crate) fn memoized_data_definition_position(
             }
         }
     });
-    if let SlotState::Hit(position) = state {
-        return position;
+    if let SlotState::Hit(lookup) = state {
+        return lookup;
     }
-    let position = program
+    let mut matches = program
         .data_definitions()
         .iter()
-        .position(|definition| definition.symbol == symbol)
-        .map(|index| u32::try_from(index).expect("data definition position overflow"));
+        .enumerate()
+        .filter(|(_, definition)| definition.symbol == symbol)
+        .map(|(index, _)| u32::try_from(index).expect("data definition position overflow"));
+    let lookup = match (matches.next(), matches.next()) {
+        (None, _) => DataDefinitionLookup::Missing,
+        (Some(first), None) => DataDefinitionLookup::Unique(first),
+        (Some(first), Some(_)) => DataDefinitionLookup::Duplicate(first),
+    };
     if matches!(state, SlotState::Miss) {
-        DATA_DEF_POSITION_SLOT.with(|cell| {
+        DATA_DEF_LOOKUP_SLOT.with(|cell| {
             if let Ok(mut slot) = cell.try_borrow_mut()
                 && let Some(scope) = &mut *slot
             {
                 match scope {
                     Some((owner, map)) if std::ptr::eq(*owner, program) => {
-                        map.insert(symbol, position);
+                        map.insert(symbol, lookup);
                     }
                     slot_none @ None => {
-                        *slot_none = Some((program, HashMap::from([(symbol, position)])));
+                        *slot_none = Some((program, HashMap::from([(symbol, lookup)])));
                     }
                     Some(_) => {}
                 }
             }
         });
     }
-    position
+    lookup
+}
+
+/// Whether a machine attached to `symbol` realizes `::drop`, memoized per
+/// (program, symbol): storage-content classification asks it at every data
+/// node and the scan is otherwise O(machines) per node.
+pub(crate) fn memoized_owns_drop_hook(
+    program: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    enum SlotState {
+        NoScope,
+        Hit(bool),
+        Miss,
+        ForeignProgram,
+    }
+    let state = DROP_HOOK_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&symbol)
+                        .copied()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(owns_hook) = state {
+        return owns_hook;
+    }
+    let owns_hook = program.machines().iter().any(|machine| {
+        machine.attached_data_symbol == symbol && machine.name.as_str().ends_with("::drop")
+    });
+    if matches!(state, SlotState::Miss) {
+        DROP_HOOK_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert(symbol, owns_hook);
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((program, HashMap::from([(symbol, owns_hook)])));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    owns_hook
 }
 
 pub fn memoized_service_reach_plan(
