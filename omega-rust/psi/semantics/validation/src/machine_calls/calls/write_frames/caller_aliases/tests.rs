@@ -18,7 +18,7 @@ fn replayed_assignment_paths(
         return None;
     };
     let site = CallerWriteSite::Statement(statement);
-    let collections = std::sync::Mutex::new(std::collections::HashMap::new());
+    let collections = std::sync::Mutex::new(symbols::SymbolKeyMap::default());
     let evidence = caller_aliases_at_site(program, machine, symbols, site, &collections)?;
     let (aliases, stored) = (evidence.aliases, evidence.stored);
     let target = if aliases.is_empty()

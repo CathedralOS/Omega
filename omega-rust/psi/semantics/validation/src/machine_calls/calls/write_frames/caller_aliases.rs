@@ -15,8 +15,8 @@ use crate::declarations::symbols::PrefixSiteEntry;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, StateWriteQuery, collected_prefix_at, walk_state_write_prefix,
 };
-use std::collections::HashMap;
 use std::sync::Mutex;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::signature::StateParameter;
 
 pub(super) fn caller_binding_type(

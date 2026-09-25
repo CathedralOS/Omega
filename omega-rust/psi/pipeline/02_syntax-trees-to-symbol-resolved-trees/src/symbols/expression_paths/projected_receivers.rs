@@ -68,7 +68,7 @@ thread_local! {
             *const Statement,
             usize,
             [usize; 3],
-            std::collections::HashMap<SymbolHandle, u32>,
+            symbols::SymbolKeyMap<SymbolHandle, u32>,
         )>,
     > = const { std::cell::RefCell::new(None) };
     static PARAMETER_POSITIONS: std::cell::RefCell<
@@ -76,7 +76,7 @@ thread_local! {
             *const StateParameter,
             usize,
             usize,
-            std::collections::HashMap<SymbolHandle, u32>,
+            symbols::SymbolKeyMap<SymbolHandle, u32>,
         )>,
     > = const { std::cell::RefCell::new(None) };
     static DATA_DEFINITION_POSITIONS: std::cell::RefCell<
@@ -84,7 +84,7 @@ thread_local! {
             *const arena::OrderedRootArena<symbol_resolved_trees::data::DataDefinition>,
             usize,
             usize,
-            std::collections::HashMap<SymbolHandle, u32>,
+            symbols::SymbolKeyMap<SymbolHandle, u32>,
         )>,
     > = const { std::cell::RefCell::new(None) };
     static ATTACHED_MACHINES_BY_OWNER: std::cell::RefCell<
@@ -92,7 +92,7 @@ thread_local! {
             *const super::super::scope::AttachedMachine,
             usize,
             usize,
-            std::collections::HashMap<SymbolHandle, Vec<usize>>,
+            symbols::SymbolKeyMap<SymbolHandle, Vec<usize>>,
         )>,
     > = const { std::cell::RefCell::new(None) };
 }
@@ -127,7 +127,7 @@ pub(in crate::symbols) fn local_statement_position(
                 statements.as_ptr(),
                 0,
                 [0; 3],
-                std::collections::HashMap::new(),
+                symbols::SymbolKeyMap::default(),
             ));
         }
         let (_, watermark, stored_samples, positions) =
@@ -169,7 +169,7 @@ pub(in crate::symbols) fn parameter_position(
                 && *count == len
                 && *seen == fingerprint);
         if !fresh {
-            let mut positions = std::collections::HashMap::new();
+            let mut positions = symbols::SymbolKeyMap::default();
             for (position, parameter) in parameters.iter().enumerate() {
                 positions.entry(parameter.symbol).or_insert(position as u32);
             }
@@ -209,7 +209,7 @@ pub(in crate::symbols) fn data_definition_position(
                 && *count == len
                 && *seen == fingerprint);
         if !fresh {
-            let mut positions = std::collections::HashMap::new();
+            let mut positions = symbols::SymbolKeyMap::default();
             for (position, definition) in definitions.iter().enumerate() {
                 positions
                     .entry(definition.symbol)
@@ -248,7 +248,7 @@ pub(in crate::symbols) fn attached_machines_for_owner(
                 && *count == len
                 && *seen == fingerprint);
         if !fresh {
-            let mut by_owner = std::collections::HashMap::new();
+            let mut by_owner = symbols::SymbolKeyMap::default();
             for (index, entry) in attached.iter().enumerate() {
                 by_owner
                     .entry(entry.owner)

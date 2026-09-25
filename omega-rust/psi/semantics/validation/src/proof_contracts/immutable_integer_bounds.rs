@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
@@ -34,13 +34,13 @@ struct BoundMaps<'program> {
 impl<'program> BoundMaps<'program> {
     fn build(program: &'program TypedTrees) -> Self {
         let mut maps = BoundMaps {
-            locals_by_symbol: HashMap::new(),
-            locals_by_name: HashMap::new(),
-            parameters_by_symbol: HashMap::new(),
-            machine_self_parameters: HashMap::new(),
-            data_by_symbol: HashMap::new(),
-            machines_by_symbol: HashMap::new(),
-            data_by_name: HashMap::new(),
+            locals_by_symbol: HashMap::default(),
+            locals_by_name: HashMap::default(),
+            parameters_by_symbol: HashMap::default(),
+            machine_self_parameters: HashMap::default(),
+            data_by_symbol: HashMap::default(),
+            machines_by_symbol: HashMap::default(),
+            data_by_name: HashMap::default(),
         };
         for (position, definition) in program.data_definitions().iter().enumerate() {
             maps.data_by_symbol
