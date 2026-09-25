@@ -1,3 +1,7 @@
+//! One state's flow fact. `build_state_flow_fact` collects the declaration and
+//! state-entry contexts, rebases them (`entry_origins`), runs each statement
+//! (`statements`), drops loans expired at state exit, records the exit facts of a
+//! body that ends without a transition (`exits`), and appends the state row.
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_contiguous_borrow_root_constraints;

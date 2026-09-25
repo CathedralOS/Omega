@@ -1,3 +1,7 @@
+//! Transition and exit facts. `append_transition_flow_facts` evaluates a guard,
+//! then for the target and continuation arms adds the guard outcome (`guards`),
+//! evaluates the arm, and records its exit facts. `append_state_exit_facts`
+//! records one `FlowExitFact` for each matching contract exit.
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts_for_points;

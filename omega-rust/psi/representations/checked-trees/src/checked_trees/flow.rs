@@ -1,15 +1,41 @@
+//! Flow facts: what checking recorded along each state's control flow, and
+//! the terminal plans the lowering stage consumes.
+//!
+//! `FlowFacts` (in `roots`) holds the root of each fact family, the checked
+//! semantic dependencies, and the `terminal_*` plan lanes; it is stored as
+//! `CheckFacts::flow`. `typed-trees-to-checked-trees` builds the family
+//! roots in its `flow` module (`FlowFacts::with_roots`) and assigns the
+//! terminal lanes in `build_check_facts` (`src/facts.rs`) and its
+//! `execution` module. `checked-trees-to-lowered-psi` reads it through
+//! `checked.facts.flow`, and `lowered-psi-to-terminal-psi` reads its
+//! `terminal_unit_effects` plans.
+
+// `FlowFacts` and the root of each fact family.
+mod roots;
+
+// The fact families: semantic and constraint contexts, invalidations,
+// borrow activations and weakenings, ownership permission events and claim
+// outcomes, boundary edges, control records (states, statements, calls,
+// exits and operator invocations) with their operand referents, and
+// declaration-level semantic dependencies.
 mod borrow_lifetimes;
 mod boundaries;
 mod contexts;
 mod control;
-mod dynamic_scalar_calls;
 mod invalidations;
 mod operator_operand;
 mod ownership;
-mod queries;
-mod roots;
 mod semantic_dependencies;
+
+// Terminal plans the checker publishes for lowering: `terminal` holds the
+// plan carriers for each terminal machine kind, and `dynamic_scalar_calls`
+// the dynamic dispatch and structural field store plans the Unit-effect
+// plans use.
+mod dynamic_scalar_calls;
 mod terminal;
+
+// Lookup methods on `FlowFacts`.
+mod queries;
 
 pub use self::terminal::{
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,

@@ -1,10 +1,37 @@
-pub(crate) mod array_sources;
-pub(crate) mod borrow_occurrences;
-pub(crate) mod case_sources;
-pub(crate) mod comparisons;
-pub(crate) mod flow_calls;
-pub(crate) mod record_fields;
-pub(crate) mod structural;
+//! Source custody checks: each function here re-reads the authored typed
+//! program (`checked.typed`) and the checked facts to confirm that a retained
+//! checked plan row names the exact authored state, statement, expression,
+//! call, place or successor it claims, and rejects the row (usually with
+//! `LoweringError::Unsupported`) when it does not.
+//!
+//! No coordinator runs the children in sequence. The plan families (`unit`,
+//! `scalar_graph`, `returns`), `emission` and the rest of
+//! `expression_preparation` call the check each plan row needs, through the
+//! entries in this file or a child module directly:
+//!
+//! - `authored_state` finds the one authored machine and state that own a
+//!   state symbol. Most checks here and across the crate start from it.
+//! - `locate` resolves a statement ordinal and a
+//!   `CheckedScalarExpressionRole` to a `SourceRoot`: the authored
+//!   expression, its destination symbol and its primitive type. It selects
+//!   by role: `structural` for structural operands, `array_sources` for
+//!   array elements, the statement's subslice range for subslice endpoints,
+//!   the authored call for Unit and boundary call arguments, `successors` to
+//!   resolve transition targets, and `direct_calls` for direct call
+//!   arguments; other roles read the authored statement directly.
+//! - `validate_pure` checks one pure scalar binding: `locate`, then a
+//!   comparison of the located expression, destination and scalar type with
+//!   the binding, then `validate_namespace` (the state's non-erased primitive
+//!   parameters followed by the preceding immutable primitive locals) and
+//!   `storage_reads::validate` (the binding's reads).
+//! - `validate_successor` checks a scalar successor through `successors`.
+//!
+//! The re-exports after the module list name the storage-read,
+//! parameter-storage and computation-call checks callers use directly.
+//! Several children also call each other; for example, `guarded_exits` uses
+//! `guard_complement` and `storage_reads`, and `computation_calls` uses
+//! `case_sources`, `record_fields`, `comparisons` and `value_correspondence`.
+
 use super::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
     PrimitiveType, ScalarType, terminal_scalar_type, unsupported,
@@ -14,15 +41,36 @@ use checked_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-pub(crate) mod computation_calls;
-pub(crate) mod direct_calls;
-pub(crate) mod guard_complement;
-pub(crate) mod guarded_exits;
+// Reads, storage and borrows: the authored binding, parameter, place or
+// record field a scalar read names, the current state's mutable entry
+// storage, and primitive local borrows at their checked call occurrence.
+pub(crate) mod borrow_occurrences;
 mod parameters;
 pub(crate) mod primitive_references;
+pub(crate) mod record_fields;
 mod storage_reads;
-pub(crate) mod successors;
+
+// Calls and selected comparisons: direct calls, computed invocations, the
+// checked flow fact behind a Unit scalar call, and the boundary application
+// a selected comparison names.
+pub(crate) mod comparisons;
+pub(crate) mod computation_calls;
+pub(crate) mod direct_calls;
+pub(crate) mod flow_calls;
+
+// Constructed values: array and case constructors, structural construction
+// and dispatch, and the literal or operator meaning of retained operations.
+pub(crate) mod array_sources;
+pub(crate) mod case_sources;
+pub(crate) mod structural;
 pub(crate) mod value_correspondence;
+
+// Control: successor rosters, ordered guarded exits, and complementary guard
+// pairs.
+pub(crate) mod guard_complement;
+pub(crate) mod guarded_exits;
+pub(crate) mod successors;
+
 pub(crate) use computation_calls::validate_computation_calls;
 pub(crate) use parameters::parameter_storage;
 pub(crate) use storage_reads::validate_entry_read_expression;

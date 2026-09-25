@@ -1,3 +1,7 @@
+//! Statement facts for one state. Per statement, `append_state_statement_flow_facts`
+//! records entry contexts, runs a transition's arms (`exits`) or its calls
+//! (`expression`), retires and activates borrow loans, drops facts over written
+//! places, adds operator `ensures`, and propagates the written value's facts.
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_flow_contexts_for_points;

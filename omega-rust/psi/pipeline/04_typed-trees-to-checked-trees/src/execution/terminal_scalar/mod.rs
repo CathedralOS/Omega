@@ -1,3 +1,32 @@
+//! Checked scalar state graphs: for each machine the scalar lane can carry,
+//! a `CheckedScalarMachineGraph` of per-state parameters, bindings,
+//! primitive locals and terminators, with the arguments on each edge; and
+//! each machine's signature eligibility in `CheckedTerminalMachineSelections`.
+//!
+//! Four entries, called at two points:
+//!
+//! 1. While checked facts are built, `facts::build_check_facts` calls
+//!    `build_checked_scalar_graph_plans_with_call_frames`, then
+//!    `build_checked_terminal_machine_selections`. The graph builder collects
+//!    the guarded exits and tails of every state (`guarded_exits`), then
+//!    builds each machine's graph with `build_machine_graph`, which adds the
+//!    states of any machine whose entry an edge names and builds each state
+//!    with `checked_state_graph` (structural shapes and record locals from
+//!    `constructions`, local referents from `primitive_locals`). A machine is
+//!    dropped when `ranking` declines it or its edge arguments do not
+//!    resolve; `successors` resolves those arguments, then commits them to
+//!    the shared arenas.
+//! 2. After the check pass, `execution::finalize_execution` calls
+//!    `finalize_checked_scalar_graph_plans_with_call_frames`, which keeps a
+//!    graph only when `ranking` gives the same plan, `successors` validates
+//!    its edges, and `owned_parameters` validates every state's affine
+//!    parameter custody against the completed ownership facts. It then calls
+//!    `finalize_scalar_unit_operations` (`unit_operations`), which records
+//!    each state's ordered Unit operations.
+//!
+//! `checked_binding_prefix` and `checked_terminator` are also used by
+//! `execution::terminal_unit`.
+
 use checked_trees::{
     CheckedScalarBinding, CheckedScalarBindingValue, CheckedScalarBranchDestination,
     CheckedScalarGraphPlans, CheckedScalarMachineGraph, CheckedScalarParameterStorage,

@@ -1,3 +1,7 @@
+//! Borrow-loan expiry in the active constraints. `filter_expired_borrow_loans`
+//! drops loans past their last use, and `filter_reassigned_borrow_loans` drops
+//! loans carried by the place an assignment overwrites. Each dropped loan
+//! records a `FlowBorrowWeakeningFact`.
 use crate::flow::CanonicalPlace;
 use crate::flow::reference_spans;
 use checked_trees::{

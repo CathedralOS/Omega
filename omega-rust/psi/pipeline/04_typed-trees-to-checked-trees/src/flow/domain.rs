@@ -1,3 +1,7 @@
+//! Domain dependencies and fact invalidation. `build_domain_facts` records each
+//! domain's dependency paths before flow. `filter_contexts_after_place_mutations`
+//! drops each context holding a fact that a written place may overlap, directly or
+//! through a domain dependency, and records a `FlowInvalidationFact` for it.
 mod dependencies;
 mod invalidation;
 

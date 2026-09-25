@@ -1,3 +1,31 @@
+//! Operator facts: for each operator the program spells, the declared
+//! operators it could mean and the one resolution selected, recorded as
+//! `checked_trees::CheckedOperatorFacts`.
+//!
+//! `build_operator_facts` is the entry; `facts::build_check_facts` calls it
+//! right after the value facts. It walks the expression of every value row
+//! except nested-expression rows, and records an operator use with its
+//! candidates for each binary expression with at least one known operand
+//! type, each indexed expression and each floating-point match equality, and
+//! a named operator use for each named or builtin float operator call. It
+//! then adds the named requirement uses (`requirement_uses`), the operator
+//! crash contracts and the operator realization contracts.
+//!
+//! The other children run at separate points:
+//!
+//! - `token_bound_machine_calls`: before checking,
+//!   `checking::lower_typed_trees` calls `bind_token_bound_machine_calls`,
+//!   which rewrites each resolved binary use of a token-bearing machine into
+//!   an ordinary call on that machine's entry state.
+//! - `selection`: after the proof and semantic facts, `build_check_facts`
+//!   calls `select_pending_domain_operator_meanings`, which settles each
+//!   domain-pending use from its binding-site selections.
+//! - `applications`: `build_check_facts` then calls
+//!   `bind_boundary_operator_application_demands`, which records the
+//!   validated boundary operator applications on the operator facts.
+//! - `receiver`: `expression_type_reference_for_origin`, the operand type
+//!   lookup the other children and `authored_selections` use.
+
 use std::collections::HashSet;
 
 use arena::Arena;

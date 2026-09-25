@@ -1,11 +1,54 @@
-pub(crate) mod calls;
-mod details;
+//! Borrow checks: accesses must not conflict with active loans at calls and
+//! statements, a returned view must have one source and must not borrow a
+//! local, and a borrow-carrying value must not be stored beyond one state.
+//! The check also replays the borrow evidence retained in the checked facts
+//! and rebuilds the certificate ledgers.
+//!
+//! Before the check pass, `checking::lower_typed_trees` calls
+//! `initialize_checked_direct_borrow_resources` and
+//! `initialize_checked_borrow_call_certificates` (through `checks`) to fill
+//! the direct-borrow resource rows (`resources`) and the call compatibility
+//! certificates (`calls`). `check_flow_call_borrows` is the check;
+//! `checks::check_checked_facts_recording_with_crash_admission` runs it
+//! second, and `checks::replay_checked_borrow_certificates` runs it alone.
+//!
+//! `check_flow_call_borrows` runs:
+//!
+//! 1. replay of the retained compatibility and mutation certificates, and
+//!    reconstruction of the call compatibility ledger
+//!    (`calls::validate_compatibility`); if any of these fails, it still
+//!    replays the resource rows on a copy of the facts and returns every
+//!    diagnostic;
+//! 2. otherwise, replay of the direct-borrow resource rows (`resources`);
+//! 3. the signature check for returned views (`elision`), the body check for
+//!    returned views (`escape`) and the persistent storage check
+//!    (`persistent`);
+//! 4. for each state with borrow facts, the state's stated ordering premises
+//!    (`overlap`) and the statement check (`statements`), which builds new
+//!    compatibility and mutation certificates and consumes each retained one;
+//! 5. rejection of retained certificates left unconsumed and of new ones
+//!    that are duplicated or fail replay; with no diagnostics, the new
+//!    certificates replace the retained ledgers.
+//!
+//! `overlap` (loan and place compatibility judgments) and `details` (the
+//! access a reference binding lends, and loan descriptions for diagnostics)
+//! are shared by the steps.
+
+// Checks over signatures and bodies that retain no evidence.
 mod elision;
 mod escape;
-mod overlap;
 mod persistent;
+
+// Checks whose evidence is retained and replayed: call compatibility,
+// statement borrows and direct-borrow resources.
+pub(crate) mod calls;
 mod resources;
 mod statements;
+
+// Shared by the checks: compatibility judgments, and binding and loan
+// details.
+mod details;
+mod overlap;
 
 use super::ranges::incoming_guards::IncomingGuardIndex;
 use checked_trees::{CheckFacts, FlowStateFact};

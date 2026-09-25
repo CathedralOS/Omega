@@ -1,3 +1,7 @@
+//! The checked semantic-dependency table: the nominal declarations and cleanup
+//! machines each machine depends on, with their exposure, read from signatures,
+//! call return types, ownership events, and cleanup plans in the complete check
+//! facts. The check pass derives it after execution finalization, not during flow.
 use super::{CanonicalPlace, canonical_place_type_reference, project_type_reference_from_segments};
 use checked_trees::{
     CheckFacts, CheckedSemanticDependencies, CheckedSemanticDependency,

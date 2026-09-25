@@ -1,26 +1,69 @@
+//! Contract checks: each call's `requires`, each exit's `ensures`, each
+//! self-transition arrival requirement and each write into a domain-refined
+//! field must be proved from the checked facts at that point.
+//!
+//! Two entries, both called by
+//! `checks::check_checked_facts_recording_with_crash_admission`:
+//! `bind_call_evidence_arguments` runs first among the checks and binds the
+//! evidence arguments of contract expressions and calls into the proof facts
+//! (`evidence`); `check_flow_call_contracts` runs after the borrow check.
+//!
+//! `check_flow_call_contracts` builds the content conservation plans and the
+//! declared field requirements of nominal parameters (`nominal_inputs`),
+//! checks every state's `asm` requires and ensures assertions (`assembly`),
+//! and prepares the exit entailment results (`entailment`) and the cyclic
+//! header invariants (`exits`). It then walks each state's flow:
+//!
+//! 1. for each call: the scalar tail result domains (`exits`), the refusal of
+//!    erased formals on a dynamic-dispatch requirement
+//!    (`dynamic_erased_lane`), and the call's requirements (`calls`, which
+//!    also checks the nominal inputs);
+//! 2. for each exit: the scalar result domains, the `ensures` clauses, the
+//!    result field domains and the field domains of readable `&mut`
+//!    referents (`exits`);
+//! 3. the state's self-transition arrival requirements (`arrivals`);
+//! 4. writes into domain-refined fields (`writes`).
+//!
+//! The other children are not steps. `prover` decides whether fact contexts
+//! prove a Boolean expression or a contract fact, and reaches `direct`,
+//! `domains` and `evaluator`. `calls` also consults `call_bounds`,
+//! `guard_operands`, `intervals` and `reference_domains`; `exits` consults
+//! `content_preservation` and `integer_embeddings`; both consult
+//! `entailment`. `labels`, `places` and `return_values` are shared
+//! vocabulary: contract labels, place matching and exit return occurrences.
+
+// The steps: evidence binding, and the checks `check_flow_call_contracts`
+// runs.
 mod arrivals;
 mod assembly;
-mod call_bounds;
 pub(crate) mod calls;
-mod content_preservation;
-mod direct;
-mod domains;
 mod dynamic_erased_lane;
-mod entailment;
-mod evaluator;
 mod evidence;
 mod exits;
+mod nominal_inputs;
+mod writes;
+
+// The fact-context prover and the provers it reaches.
+mod direct;
+mod domains;
+mod evaluator;
+pub(in crate::checks) mod prover;
+
+// Provers the call requirement and exit checks consult directly.
+mod call_bounds;
+mod content_preservation;
+mod entailment;
 mod guard_operands;
 mod integer_embeddings;
 mod intervals;
-mod nominal_inputs;
-mod writes;
+mod reference_domains;
+
+// Shared vocabulary: contract labels, place matching and exit return
+// occurrences.
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
 // reuse the domain-derived boolean proving labels.
 pub(crate) mod labels;
 mod places;
-pub(in crate::checks) mod prover;
-mod reference_domains;
 mod return_values;
 
 use calls::check_call_requires;

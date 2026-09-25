@@ -1,3 +1,37 @@
+//! One composed Unit control state graph, checked against its authored
+//! source and then written as one Terminal machine.
+//!
+//! Three entries, all used by the parent `composed_control`:
+//! `has_shared_graph_custody` selects this route (called by
+//! `lower_composed_unit_control_machine` and `callable::admit`); `admit`
+//! checks a `CheckedComposedUnitControlMachinePlan` and returns an
+//! `AdmittedGraph` (called by `callable::admit`); `emit` writes the admitted
+//! graph (called by `callable::emit`).
+//!
+//! `admission::admit` checks the contract identity and the ranking witness
+//! (`ranking::validate_witness`), computes the reachable states
+//! (`topology::live`), then checks each state in authored order: its
+//! structural parameters (the persistent receiver through `parameters`), its
+//! scalar prefix (`scalars`), its body statements (`body`), and its
+//! terminator through `guarded`, `cases`, `returns` or `edges`. It then
+//! resolves claim transport across edges (`claims::resolve`) and admits the
+//! reachable states' calls.
+//!
+//! `emission::emit` lowers the machine result (`returns::result`) and the
+//! entry claims, emits each reachable state through `emission/state.rs`, and
+//! ends by retaining state ranks on the machine (`ranking::retain`). A state
+//! emits its scalar prefix (`scalars`), prepares closed-case payload bindings
+//! (`case_emission`), emits returns and guarded exits (`returns`, `guarded`),
+//! and lowers each successor edge in `emission/successor_edge.rs` with its
+//! discards (`result_custody`), view windows (`subslices`), copied case
+//! leaves (`case_leaf_copy`), scalar arguments (`scalars`) and ranks
+//! (`ranking`).
+//!
+//! Outside that route, `composed_control::scalar_calls` reads
+//! `edges::successors` and `scalars::successor_value`, the operation frame
+//! reads `case_emission::result`, and `machine_lowering` reads
+//! `topology::live` through `attached_unit::unit_graph_live_states`.
+
 /*
 We lower the shared checked state graph through the ordinary call catalog. The
 historical Unit name now includes normal scalar-sum results: returning a case
@@ -56,24 +90,37 @@ use checked_trees::{
     CheckedStructuralControlSuccessorPlan,
 };
 
+// The two steps: `admission` checks the graph against its authored source;
+// `emission` writes the admitted graph.
 mod admission;
+mod emission;
+
+// Whole-graph records: reachable states, claim transport across edges, and
+// state ranks with their edge comparisons.
+mod claims;
+mod ranking;
+mod topology;
+
+// Within one state: the persistent receiver, the body statements, and the
+// state-local scalar values.
 mod body;
+mod parameters;
+pub(super) mod scalars;
+
+// A state's terminator and successor edges: closed-case dispatch and
+// payloads, successor operands, guarded exits, returns, the locals each edge
+// disposes, and view windows.
 pub(super) mod case_emission;
 mod case_leaf_copy;
 mod cases;
-mod claims;
 mod edges;
-mod emission;
 mod guarded;
-mod parameters;
-mod ranking;
 mod result_custody;
 mod returns;
-pub(super) mod scalars;
 mod subslices;
+
 #[cfg(test)]
 mod tests;
-mod topology;
 
 pub(in crate::unit::attached_unit) use admission::AdmittedGraph;
 pub(super) use admission::admit;

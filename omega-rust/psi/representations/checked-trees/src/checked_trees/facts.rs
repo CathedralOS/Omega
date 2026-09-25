@@ -1,22 +1,46 @@
-mod blocking;
-mod calls;
-mod carry;
-mod checked_crash_operator_site;
+//! `CheckFacts`, the facts half of `CheckedTrees`, and the fact families that
+//! the sibling `borrow`, `flow`, `operators`, `proof` and `values` modules do
+//! not define.
+//!
+//! `CheckFacts` (in `collection`) holds a field for each fact family,
+//! including the families those five sibling modules define.
+//! `typed-trees-to-checked-trees` assembles it in `build_check_facts`
+//! (`src/facts.rs`), and `checked-trees-to-lowered-psi` reads it through
+//! `CheckedTrees::facts`. The module list below groups the families defined
+//! here.
+
+// `CheckFacts`, the root that holds every fact family.
 mod collection;
+
+// Machine contract and interface axes: contract and crash plans with
+// operator crash sites, termination, blocking, suspension, synchronous
+// invocation, service reach, mutation frames, and qualifications with their
+// content projections.
+mod blocking;
+mod checked_crash_operator_site;
 mod content;
 mod contract_plans;
-mod domains;
-mod dynamic_conformances;
-mod index_compatibility;
 mod mutation;
-mod nominal_machine_uses;
-mod placement;
 mod qualifications;
-mod requirement_call_specializations;
 mod service_reaches;
 mod suspensions;
 mod synchronous_invocations;
 mod termination;
+
+// Calls and selected machines: fact-call projections, intrinsic calls and
+// boundary adapter dispatch, nominal machine uses, generic requirement-call
+// specializations, and dynamic conformance selections.
+mod calls;
+mod dynamic_conformances;
+mod nominal_machine_uses;
+mod requirement_call_specializations;
+
+// Carry, domains and placement: carry policy, domain dependency and element
+// facts, index compatibility conditions, and placed view inputs.
+mod carry;
+mod domains;
+mod index_compatibility;
+mod placement;
 
 pub use blocking::{BlockingFacts, MachineBlockingFact};
 pub use calls::{

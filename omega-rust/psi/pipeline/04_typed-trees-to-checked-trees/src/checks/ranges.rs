@@ -1,24 +1,66 @@
-#[cfg(test)]
-mod alias_lengths_tests;
-mod arrays;
-mod assignment_lengths;
-#[cfg(test)]
-mod cache_tests;
+//! Index and range checks: every indexed access and subslice range in a
+//! machine body must be proved within its collection's length from the facts
+//! known at that statement.
+//!
+//! `check_indexed_accesses` is the entry;
+//! `checks::check_checked_facts_recording_with_crash_admission` calls it after
+//! the operator check and passes the incoming guard index it built from
+//! `incoming_guards`. It reads the fixed-array field lengths once (`arrays`),
+//! then for each machine prepares one `facts::RangeCallContext` per state and
+//! collects the facts that edge arguments carry into each state
+//! (`state_arguments`), the machine's incoming guards, and its loop
+//! invariants (`loop_invariants`). For each state it starts a new
+//! `facts::RangeFacts`, defines the state parameters as locals, and seeds, in
+//! order: the state's `requires` (`requirements`), the state argument facts,
+//! dependent parameter orderings (`dependent_params`), the incoming guard
+//! facts and the loop invariant facts. It then runs
+//! `statements::check_statement` on each statement.
+//!
+//! `check_statement` drives `statement_transfer::transfer_statement_facts`,
+//! the single statement fact transfer that `state_arguments` also replays,
+//! and checks each expression it reads with `indexes` and each transition
+//! target under its edge's facts. `assignment_lengths` decides how an
+//! assignment changes a collection's live length.
+//!
+//! The remaining children are shared vocabulary: `facts` is the per-state
+//! fact store, `guards` seeds facts from guard expressions, `expressions`,
+//! `types` and `proofs` answer integer, length, type and bound questions, and
+//! `diagnostics` words the failures. `incoming_guards`, `requirements` and
+//! `types` are also used by other checks, and `indexes` exports
+//! `ranges_seam_owns` for the operator `requires` check.
+
+// What a state starts with before its statements run: its `requires`, the
+// facts its incoming edges' arguments carry, dependent parameter orderings,
+// incoming guards and loop invariants.
 mod dependent_params;
+pub(in crate::checks) mod incoming_guards;
+mod loop_invariants;
+pub(in crate::checks) mod requirements;
+mod state_arguments;
+
+// Statement checking: the shared statement transfer, the statement check
+// that drives it, and the index and assignment-length checks it runs.
+mod assignment_lengths;
+mod indexes;
+pub(in crate::checks) use indexes::ranges_seam_owns;
+mod statement_transfer;
+mod statements;
+
+// Shared vocabulary: the per-state fact store, guard seeding, integer,
+// length, type and bound queries, and failure diagnostics.
+mod arrays;
 mod diagnostics;
 mod expressions;
 mod facts;
 mod guards;
-pub(in crate::checks) mod incoming_guards;
-mod indexes;
-pub(in crate::checks) use indexes::ranges_seam_owns;
-mod loop_invariants;
 mod proofs;
-pub(in crate::checks) mod requirements;
-mod state_arguments;
-mod statement_transfer;
-mod statements;
 pub(crate) mod types;
+
+// Tests.
+#[cfg(test)]
+mod alias_lengths_tests;
+#[cfg(test)]
+mod cache_tests;
 
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;

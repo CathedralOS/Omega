@@ -1,3 +1,32 @@
+//! Proof that a machine's `terminates by` ranking decreases, and the proven
+//! ranks exported to execution planning.
+//!
+//! `machine_decrease_outcome` is the judgment;
+//! `termination::check_machine_termination_with_call_frames` calls it for
+//! each terminating machine whose ranking witness must be proved locally. It
+//! resolves the witness subjects and view arguments against the root state,
+//! resolves the ranking order (`super::order`), picks the measure (one
+//! subject, or a two-subject distance), and reports a recorded view that
+//! differs from the resolved one. It then tries, in order:
+//!
+//! 1. `ranges::check`, when the witness declares a rank range;
+//! 2. a strict decrease on every edge inside each cyclic component: a
+//!    single-state self-loop through the order's own prover (`nat`, `slice`,
+//!    `struct_view` or `lexicographic`), and a multi-state cycle edge by edge
+//!    through `nat` over the edges `patterns` finds;
+//! 3. `ranges::proves_relational_decrease`, when the witness declares a rank
+//!    range;
+//! 4. for a bounded distance, the same edges with the subjects swapped, which
+//!    reports the clause as an inverted distance.
+//!
+//! The `proven_*` functions project the same judgment into checked rank
+//! evidence for `execution`. `entry_requirements` answers whether a ranked
+//! graph judgment proves an entry requirement, for the contract checks.
+//! `machine_resolved_view_path` gives the resolved view spelling that
+//! `termination` records in the checked termination plan. `write_preservation`
+//! is shared by `ranges` and `struct_view`: whether write frames preserve a
+//! ranked input path.
+
 mod entry_requirements;
 mod lexicographic;
 mod nat;

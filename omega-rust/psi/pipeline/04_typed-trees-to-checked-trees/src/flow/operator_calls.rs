@@ -1,3 +1,7 @@
+//! Named calls that dispatch to an operator or boundary definition, which have no
+//! borrow-call fact: resolve the operator, list the places its mutable operands
+//! write, and add its `ensures` onto the caller's operands. Statement calls and
+//! expression-form named uses share these rules.
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;

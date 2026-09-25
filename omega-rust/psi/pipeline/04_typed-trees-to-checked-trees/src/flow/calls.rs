@@ -1,3 +1,7 @@
+//! One call's flow fact. `build_call_flow_fact` joins the call into the callee's
+//! incoming values, builds entry, requires, invalidation, and exit contexts
+//! (`call_phases`), adds carry and domain facts to the exit, then appends boundary
+//! edges. The functions after it answer callee return-type and qualification queries.
 use crate::flow::CallFlowContexts;
 use crate::flow::FlowBuildContext;
 use crate::flow::append_call_boundary_edges;

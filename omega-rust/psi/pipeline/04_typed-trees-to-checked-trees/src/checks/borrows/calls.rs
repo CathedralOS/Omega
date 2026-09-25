@@ -1,3 +1,25 @@
+//! Borrow compatibility at each call: every argument access and the implicit
+//! receiver against the loans active at the call, and the writability of
+//! each `&mut` argument. Each comparison is recorded as a call compatibility
+//! certificate in the borrow facts.
+//!
+//! Two entries share `collect_compatibility`. `initialize_compatibility`
+//! fills the certificate ledger before the check pass (through
+//! `borrows::initialize_checked_borrow_call_certificates`).
+//! `validate_compatibility`, run by `borrows::check_flow_call_borrows`,
+//! rebuilds the certificates and reports drift when the retained ledger
+//! differs from them in any row or in order.
+//!
+//! `collect_compatibility` first matches the borrow call roster against the
+//! typed source (`correspondence`). For each state with borrow facts it
+//! matches the state's entry loans (`correspondence`) and gathers the
+//! state's stated ordering premises (`borrows::overlap`); for each call it
+//! adds the call's premises and runs `check_call_borrows`: argument accesses
+//! against active loans (`conflicts`), the implicit receiver (`receiver`),
+//! then mutable argument writability (`writability`). `evidence` records the
+//! comparisons. `receiver::check_exclusive_place_use` is also used by
+//! `borrows::statements`.
+
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
