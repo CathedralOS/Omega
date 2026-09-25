@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // One scalar consumes rdi. The following INTEGER/SSE record consumes rsi and
 // xmm0 atomically; the trailing scalar float independently advances to xmm1.
-pub data MixedPair {
-    integer: u64 [0..=100];
+pub data MixedPair where integer <= 100 {
+    integer: u64;
     floating: f64;
 }
 

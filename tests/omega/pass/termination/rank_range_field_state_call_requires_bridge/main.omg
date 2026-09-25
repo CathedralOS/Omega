@@ -9,9 +9,9 @@
 // own requires or the caller's entry premise -- it is the membership fact
 // the member already proved.
 
-data Countdown {
-    remaining: u64 [0..=9];
-    limit: u64 [0..=9];
+data Countdown where remaining <= 9, limit <= 9 {
+    remaining: u64;
+    limit: u64;
 }
 
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }

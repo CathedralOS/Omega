@@ -11,7 +11,7 @@ use omega::language::core::binding;
 // Keep loop/guard scalars before the framebuffer so this canary isolates provider
 // behavior from large frame-offset addressing. The framebuffer base itself is
 // materialized in a register.
-data Main {
+data Main where 0 <= pumped, pumped <= 16, 0 <= frame, frame <= 8, 0 <= i, i <= 4096 {
     console: Binding<Console>;
     gui: MacosGui;
     hwnd: u64;
@@ -20,10 +20,10 @@ data Main {
     have: u32;
     translated: u32;
     alive: u32;
-    pumped: i32 [0..=16];
+    pumped: i32;
     copied: u32;
-    frame: i32 [0..=8];
-    i: i32 [0..=4096];
+    frame: i32;
+    i: i32;
     c: i32;
     px: i32;
     cls: [u8; 7];

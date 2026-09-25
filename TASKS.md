@@ -211,14 +211,17 @@ the complete product bar; focused successes below do not establish that baseline
   `fc0fc2dcab` now use `requires`, data or case `where`, or initializers,
   except where that form checks or runs worse than the domain did; those
   have their pre-migration brackets back (8 of the 32 collection fixtures
-  and 14 of the 27 recast, layout, objc, text and struct fixtures). Data `where` facts on a field do not reach the index proof
-  (`runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`), a
-  call's `requires` (`runtime_mutable_call_before_transition_args_exit`), a
-  literal built from another bounded field
-  (`runtime_provable_field_construction_exit`), or the entry's unit plan
-  (`runtime_exact_guarded_shift_count_exit`,
-  `runtime_exclusive_range_constraint_exit`,
-  `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
+  and 14 of the 27 recast, layout, objc, text and struct fixtures). Data
+  `where` facts now bound field reads and constructions, and 20 more
+  fixtures state field ranges that way. They still do not reach index
+  proofs (`runtime_nested_const_row_indexed_read_exit`,
+  `zii_default_composite_exit`), a write whose value is not a known literal
+  (`runtime_argmax_index_exit`, `runtime_dutch_flag_partition_exit`), a
+  call's `requires` (`runtime_mutable_call_before_transition_args_exit`),
+  recast offsets and fact equivalence (`recast/runtime_*_mutable_write_exit`),
+  or the entry's unit plan (`runtime_exact_guarded_shift_count_exit` and ten
+  more canaries report "rejoins 0 Terminal attachment identities").
+  Parameter and result ranges in
   53 further pass fixtures now use `requires`/`ensures`. The rest keep
   brackets. A `mut` parameter's bracket is enforced on every store, while
   `requires` binds only the arrival value; converting one must re-prove

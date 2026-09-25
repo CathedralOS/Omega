@@ -15,10 +15,10 @@ pub boundary trait Clock {
     machine sleep(milliseconds: u32);
 }
 
-data Main {
+data Main where 0 <= ticks, ticks <= 3 {
     console: Binding<Console>;
     clock: Binding<Clock>;
-    ticks: i32 [0..=3];
+    ticks: i32;
 }
 
 machine Main::main(&mut self) reaches Clock + Console {

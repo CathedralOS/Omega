@@ -26,10 +26,10 @@ data Token [copy] {
     case Number(value: u64 in Trapping, kind: Kind);
 }
 
-data Main {
+data Main where count <= 16 {
     console: Binding<Console>;
     tokens: [Token; 16] in Trapping;
-    count: u64 [0..=16];
+    count: u64;
     total: u64 in Trapping;
 }
 
