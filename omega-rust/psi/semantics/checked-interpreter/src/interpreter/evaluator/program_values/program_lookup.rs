@@ -6,8 +6,7 @@ impl<'program> Evaluator<'program> {
         &self,
         name: &str,
     ) -> Option<&'program Machine> {
-        self.program
-            .realized_machine_named(name)
+        self.program.realized_machine_named(name)
     }
 
     pub(in crate::interpreter::evaluator) fn find_machine_by_symbol(
