@@ -396,10 +396,12 @@ the complete product bar; focused successes below do not establish that baseline
 
   Compiler dependencies: an attachment may now hold several provider fields
   and scalar-result provider candidates install through Omega stage 00
-  (`runtime_adapter_dispatch_exit` runs natively); the remaining provider
-  stops are `attached Unit closure contains a duplicate explicit root`
-  (`runtime_result_domain_requirement_overload_exit`) and the pinned
-  non-observation judgment for write-only stores in opaque provider candidates
+  (`runtime_adapter_dispatch_exit` and
+  `runtime_result_domain_requirement_overload_exit` run natively); the
+  remaining provider stop is stage 05's fence on write-only stores and atomic
+  events in opaque provider candidates (`attached_unit/call_catalog.rs`), which
+  needs a verifier-checked judgment that such stores reach only places the
+  requirement's `&mut` parameters expose
   (`runtime_selected_provider_adapter_exit`). Retain one occurrence-owned concrete
   provider receiver across calls, including nested services: a Fused receipt
   establishes service authority, not receiver storage, and

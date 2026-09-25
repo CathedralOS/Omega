@@ -140,12 +140,19 @@ pub(super) fn checked_unit_provider_candidates(
                     .machine_trait_conformances(machine)
                     .iter()
                     .any(|conformance| {
+                        // Same-named requirements may differ only by their
+                        // result domain; the conformance's exact overload
+                        // decides which one a provider serves.
                         conformance.external_binding.is_none()
                             && conformance.symbol == definition.symbol
-                            && conformance
-                                .requirement
-                                .as_ref()
-                                .is_some_and(|name| name == &signature.name)
+                            && if conformance.requirement_symbol.is_valid() {
+                                conformance.requirement_symbol == signature.symbol
+                            } else {
+                                conformance
+                                    .requirement
+                                    .as_ref()
+                                    .is_some_and(|name| name == &signature.name)
+                            }
                     })
         });
         for machine in candidates {
