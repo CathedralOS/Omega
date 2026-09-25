@@ -36,12 +36,8 @@ pub use liveness::{
 pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
 pub(crate) use machine_effects::validated_machine_effect_catalog;
 pub use machine_effects::{
-    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineEffectError,
-    MachineEffectStageError, PreAllocationMachineEffectDecodeError,
-    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
-    PreAllocationMachineEffectReceipt, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects, pre_allocation_machine_effect_identity, validate_machine_effects,
-    validate_pre_allocation_machine_effects,
+    MachineEffectError, MachineEffectStageError, ValidatedPreAllocationMachineEffects,
+    analyze_machine_effects, validate_machine_effects, validate_pre_allocation_machine_effects,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use reanalysis::OptimizedSelectedReanalysisCustodyFieldForTest;

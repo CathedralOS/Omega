@@ -9,8 +9,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, 
 use target::NativeTarget;
 
 use super::{
-    LiteralFoldPolicy, ORDERED_SELECTED_LOWERING_RULES, PairImmediateBound, PairMachineEffects,
-    PairOperandShape, PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
+    LiteralFoldPolicy, PairImmediateBound, PairMachineEffects, PairOperandShape,
+    PairResultDisposition, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
     SelectedInstructionPairRule, enabled_pair_rules, resolve_selected_lowering_rules,
 };
 use crate::RegisterAllocationRuleTargetApplicability;
@@ -24,10 +24,9 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
             optimization.execution_phase() == OptimizationExecutionPhase::SelectedLowering
         })
         .collect::<Vec<_>>();
-    assert_eq!(declared, ORDERED_SELECTED_LOWERING_RULES);
     assert_eq!(
-        SELECTED_LOWERING_RULE_CATALOG.map(|entry| entry.optimization()),
-        ORDERED_SELECTED_LOWERING_RULES,
+        declared,
+        SELECTED_LOWERING_RULE_CATALOG.map(|entry| entry.optimization())
     );
     assert!(SELECTED_LOWERING_RULE_CATALOG.iter().all(|entry| {
         entry.payload().target() == RegisterAllocationRuleTargetApplicability::TargetIndependent
@@ -39,10 +38,16 @@ fn catalog_exactly_matches_the_selected_lowering_vocabulary() {
         assert_eq!(selected, selections);
         assert_eq!(policy, entry.payload().policy());
     }
-    let composition = OptimizationSelections::new(ORDERED_SELECTED_LOWERING_RULES).unwrap();
+    let composition = OptimizationSelections::new(
+        SELECTED_LOWERING_RULE_CATALOG.map(|entry| entry.optimization()),
+    )
+    .unwrap();
     let phase = composition.project_phase(OptimizationExecutionPhase::SelectedLowering);
     let (selected, policy) = resolve_selected_lowering_rules(&phase).unwrap();
-    assert_eq!(selected.as_slice(), ORDERED_SELECTED_LOWERING_RULES);
+    assert_eq!(
+        selected.as_slice(),
+        SELECTED_LOWERING_RULE_CATALOG.map(|entry| entry.optimization())
+    );
     assert_eq!(
         policy,
         SELECTED_LOWERING_RULE_CATALOG

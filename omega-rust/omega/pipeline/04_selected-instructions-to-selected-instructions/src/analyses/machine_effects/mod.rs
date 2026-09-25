@@ -14,10 +14,7 @@ mod facts;
 
 pub use error::MachineEffectStageError;
 pub use facts::{
-    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineEffectError,
-    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, PreAllocationMachineEffectReceipt,
-    ValidatedPreAllocationMachineEffects, pre_allocation_machine_effect_identity,
+    MachineEffectError, ValidatedPreAllocationMachineEffects,
     validate_pre_allocation_machine_effects,
 };
 pub(crate) use facts::{analyze_pre_allocation_machine_effects, machine_semantic_kind};

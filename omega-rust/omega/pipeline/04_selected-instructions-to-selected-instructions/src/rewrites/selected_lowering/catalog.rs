@@ -239,33 +239,6 @@ pub(crate) fn enabled_pair_rules(
         .flat_map(|entry| entry.payload().pairs().iter().copied())
 }
 
-/// Compatibility view derived from the descriptor catalog.
-pub const ORDERED_SELECTED_LOWERING_RULES: [Optimization; 23] = [
-    SELECTED_LOWERING_RULE_CATALOG[0].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[1].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[2].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[3].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[4].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[5].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[6].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[7].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[8].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[9].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[10].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[11].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[12].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[13].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[14].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[15].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[16].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[17].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[18].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[19].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[20].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[21].optimization(),
-    SELECTED_LOWERING_RULE_CATALOG[22].optimization(),
-];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedLoweringRuleCatalogError {
     WrongPhase(OptimizationPhaseMismatch),

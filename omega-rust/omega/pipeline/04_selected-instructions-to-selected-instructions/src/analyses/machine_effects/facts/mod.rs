@@ -5,9 +5,7 @@ mod validate;
 
 pub(crate) use compute::machine_semantic_kind;
 pub use selected_instructions::{
-    BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects,
-    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, pre_allocation_machine_effect_identity,
+    PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
 };
 pub use validate::validate_pre_allocation_machine_effects;
 

@@ -1,6 +1,6 @@
 use super::Arc;
+use super::RuntimeSpillReceipt;
 use crate::RuntimeSpillError;
-use crate::RuntimeSpillReceipt;
 use crate::ValidatedRuntimeSpill;
 use crate::rewrites::runtime_spill::admission;
 use crate::spill_selected_runtime_value;

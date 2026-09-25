@@ -21,8 +21,8 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 pub use register_homes::{
-    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence, fixed_view_copy_identity,
+    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, fixed_view_copy_identity,
 };
 use selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
