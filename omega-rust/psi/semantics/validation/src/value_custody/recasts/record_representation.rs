@@ -149,10 +149,9 @@ fn mutable_record_representation_inner_body(
     if !visiting.insert(symbol_identity) {
         return None;
     }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == symbol)?;
+    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, symbol,
+    )?;
     if !data.where_facts.is_empty() || data.zero_gated {
         visiting.remove(&symbol_identity);
         return None;

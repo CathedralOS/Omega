@@ -303,10 +303,9 @@ fn closed_write_only_data_by_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&DataDefinition> {
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)?;
+    let definition = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, symbol,
+    )?;
     (definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && definition.lifetime_parameters.is_empty()
         && program.data_type_parameters(definition).is_empty()

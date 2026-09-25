@@ -310,10 +310,10 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_with_origi
                 {
                     return None;
                 }
-                let definition = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.symbol == symbol)?;
+                let definition =
+                    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                        program, symbol,
+                    )?;
                 let mut fields = Vec::new();
                 let mut local_segments = local_segments;
                 if let Some(case) = literal.case_name.as_ref() {

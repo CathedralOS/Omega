@@ -45,17 +45,19 @@ pub(super) fn validate_agreements(program: &TypedTrees, diagnostics: &mut Vec<Di
             // `Placed<P, T>` producer has evaluated this exact P/T pair.
             continue;
         };
-        let Some(schema) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == schema_symbol)
+        let Some(schema) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                schema_symbol,
+            )
         else {
             continue;
         };
-        let Some(custody) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == conformance.carrier_symbol)
+        let Some(custody) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                conformance.carrier_symbol,
+            )
         else {
             continue;
         };
@@ -521,10 +523,10 @@ fn type_contains_erased_descendant_bounded(
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, .. } => {
-            let Some(record) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *symbol)
+            let Some(record) =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )
             else {
                 return false;
             };
@@ -604,10 +606,9 @@ fn plain_record_for_type(
     else {
         return None;
     };
-    let record = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *symbol)?;
+    let record = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, *symbol,
+    )?;
     (record.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && record.generic_instance.is_none()
         && record.type_parameters.is_empty()

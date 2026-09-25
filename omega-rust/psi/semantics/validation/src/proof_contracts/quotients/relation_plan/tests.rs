@@ -68,10 +68,11 @@ fn quotient_type(
     relation_name: &'static str,
 ) -> TypeReferenceHandle {
     let carrier_symbol = symbol(500);
-    if !program
-        .data_definitions()
-        .iter()
-        .any(|definition| definition.symbol == carrier_symbol)
+    if !crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        carrier_symbol,
+    )
+    .is_some()
     {
         program.push_data_definition(DataDefinition {
             symbol: carrier_symbol,

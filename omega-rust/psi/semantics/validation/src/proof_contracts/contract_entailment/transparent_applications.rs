@@ -58,10 +58,11 @@ pub fn transparent_proposition_application_entailed(
                 typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                 _ => return structural_term(program, expression),
             };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == data_symbol)?;
+            let data =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program,
+                    data_symbol,
+                )?;
             // Product eta reconstructs plain records only. A sum's common
             // fields do not identify its case or active payload.
             if program

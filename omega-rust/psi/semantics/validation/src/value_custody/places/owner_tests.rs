@@ -139,13 +139,12 @@ fn place_type_uses_retained_nominal_symbol_without_name_fallback() {
             .symbol,
         owner
     );
-    let instance = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == owner)
-        .unwrap()
-        .generic_instance
-        .unwrap();
+    let instance = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        &program, owner,
+    )
+    .unwrap()
+    .generic_instance
+    .unwrap();
     let mut generic = program
         .type_reference_table
         .type_reference(instance)

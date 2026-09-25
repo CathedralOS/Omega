@@ -324,11 +324,10 @@ fn validate_closed_type_argument(
     if argument.const_literal.is_some() || argument.evidence_projection.is_some() {
         return Err(RelationPlanError::RepresentativeStaticArgumentCategoryMismatch(position));
     }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == argument.symbol)
-    else {
+    let Some(data) = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        argument.symbol,
+    ) else {
         let primitive = argument.application.is_none()
             && argument.path.len() == 1
             && PrimitiveType::from_name(argument.path[0].as_str()).is_some();

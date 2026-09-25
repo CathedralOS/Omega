@@ -61,10 +61,10 @@ fn expression_type(
                 TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                 _ => return None,
             };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == owner)?;
+            let data =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, owner,
+                )?;
             exact_data_member_field(
                 program,
                 data,

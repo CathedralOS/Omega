@@ -390,10 +390,11 @@ pub(super) fn validate_statement_call_receiver(
     let mut owner = if first.is_self_receiver() {
         // `self` resolves to the machine itself, never an erased binding;
         // its fields live on the attached data.
-        program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == machine.attached_data_symbol)
+
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            machine.attached_data_symbol,
+        )
     } else {
         receiver_root_type(program, state, call.receiver_root_symbol).and_then(|type_reference| {
             crate::value_custody::places::data_definition_for_type(program, type_reference)
