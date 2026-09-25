@@ -97,10 +97,10 @@ pub struct CallFrameResolver<'program> {
             )>,
         >,
     >,
-    /// Per-machine member/state symbol tables: `MachineSymbols::build` walks
-    /// the machine's children once per query otherwise. `None` retains the
-    /// build's non-empty-diagnostics verdict so callers keep failing closed.
-    machine_symbols: Mutex<HashMap<SymbolHandle, Option<std::sync::Arc<MachineSymbols<'program>>>>>,
+    /// Per-machine member/state symbol tables, built once with the resolver
+    /// so every write-frame query shares them. `None` retains the build's
+    /// non-empty-diagnostics verdict so callers keep failing closed.
+    machine_symbols: HashMap<SymbolHandle, Option<std::sync::Arc<MachineSymbols<'program>>>>,
 }
 
 /// Run `compute` once per key for the resolver's immutable program. The lock
@@ -335,7 +335,18 @@ impl<'program> CallFrameResolver<'program> {
             inferred_machine_frames: Mutex::new(HashMap::default()),
             complete_state_summaries: Mutex::new(HashMap::default()),
             call_plans: Mutex::new(None),
-            machine_symbols: Mutex::new(HashMap::default()),
+            machine_symbols: program
+                .machines()
+                .iter()
+                .map(|machine| {
+                    let mut diagnostics = Vec::new();
+                    let built = MachineSymbols::build(program, machine, &mut diagnostics);
+                    (
+                        machine.symbol,
+                        diagnostics.is_empty().then(|| std::sync::Arc::new(built)),
+                    )
+                })
+                .collect(),
         })
     }
 
@@ -346,11 +357,7 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &'program Machine,
     ) -> Option<std::sync::Arc<MachineSymbols<'program>>> {
-        memoized(&self.machine_symbols, machine.symbol, || {
-            let mut diagnostics = Vec::new();
-            let built = MachineSymbols::build(self.program, machine, &mut diagnostics);
-            diagnostics.is_empty().then(|| std::sync::Arc::new(built))
-        })
+        self.machine_symbols.get(&machine.symbol).cloned().flatten()
     }
 
     /// Whole-program call plans, derived once per resolver and shared by

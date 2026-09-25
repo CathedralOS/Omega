@@ -69,11 +69,11 @@ pub fn arrival_integer_expression_bounds(
     (low <= high).then_some((low, high))
 }
 
-pub(super) fn seed_state_requirements<'a>(
-    program: &'a TypedTrees,
-    machine: &'a Machine,
+pub(super) fn seed_state_requirements(
+    program: &TypedTrees,
+    machine: &Machine,
     state: &State,
-    frames: Option<&CallFrameResolver<'a>>,
+    frames: Option<&CallFrameResolver>,
     environment: &mut ValueEnvironment,
 ) {
     let is_entry = program
@@ -178,12 +178,12 @@ fn machine_requires_survives(
     retained == seeded
 }
 
-fn condition_belongs_to_state<'a>(
+fn condition_belongs_to_state(
     program: &TypedTrees,
-    machine: &'a Machine,
+    machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    frames: Option<&CallFrameResolver<'a>>,
+    frames: Option<&CallFrameResolver>,
 ) -> bool {
     if literal_i64(program, expression).is_some() {
         return true;
@@ -252,9 +252,9 @@ fn condition_belongs_to_state<'a>(
     }
 }
 
-pub(super) fn incoming_environments<'a>(
-    program: &'a TypedTrees,
-    machine: &'a Machine,
+pub(super) fn incoming_environments(
+    program: &TypedTrees,
+    machine: &Machine,
 ) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
     let mut current = states
@@ -306,7 +306,7 @@ struct ArrivalWalk<'program, 'frames> {
     joined: Vec<Option<ValueEnvironment>>,
 }
 
-impl<'program> ArrivalWalk<'program, '_> {
+impl ArrivalWalk<'_, '_> {
     fn join(&mut self, symbol: SymbolHandle, environment: ValueEnvironment) {
         if !symbol.is_valid() {
             return;
@@ -368,7 +368,7 @@ impl<'program> ArrivalWalk<'program, '_> {
 
     fn arguments(
         &mut self,
-        source: &'program State,
+        source: &State,
         arguments: &[ExpressionHandle],
         environment: &mut ValueEnvironment,
     ) -> Vec<Interval> {
@@ -516,7 +516,7 @@ impl<'program> ArrivalWalk<'program, '_> {
 
     fn target(
         &mut self,
-        source: &'program State,
+        source: &State,
         target: typed_trees::statement::TransitionTargetHandle,
         environment: &mut ValueEnvironment,
     ) {
@@ -541,8 +541,8 @@ impl<'program> ArrivalWalk<'program, '_> {
 
     fn statements(
         &mut self,
-        source: &'program State,
-        statements: &'program [StatementNode],
+        source: &State,
+        statements: &[StatementNode],
         environment: &mut ValueEnvironment,
     ) -> bool {
         for statement in statements {
@@ -681,7 +681,7 @@ impl<'program> ArrivalWalk<'program, '_> {
 
     fn expression(
         &mut self,
-        source: &'program State,
+        source: &State,
         expression: ExpressionHandle,
         environment: &mut ValueEnvironment,
     ) {
