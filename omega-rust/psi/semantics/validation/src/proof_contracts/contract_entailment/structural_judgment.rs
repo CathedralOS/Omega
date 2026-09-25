@@ -441,6 +441,10 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
+        let slot_carriers =
+            crate::machine_calls::effect_inference::plan_scope::memoized_conformance_slot_carriers(
+                program,
+            );
         let mut judge = Self {
             program,
             machine_symbol: judged_machine.symbol,
@@ -451,8 +455,8 @@ impl<'program> StructuralJudge<'program> {
             case_facts: Vec::new(),
             case_substitutions: Vec::new(),
             hypotheses_contradictory: false,
-            ring_licenses: compute_ring_licenses(program, judged_machine),
-            semiring_licenses: compute_semiring_licenses(program, judged_machine),
+            ring_licenses: compute_ring_licenses(&slot_carriers, program, judged_machine),
+            semiring_licenses: compute_semiring_licenses(&slot_carriers, program, judged_machine),
         };
         for fact in requires {
             judge.intake(program, *fact);
@@ -2318,6 +2322,35 @@ fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
     }
 }
 
+/// The (trait symbol, bound requirement name) -> conforming (carrier, entry
+/// symbol) index: conformances are fixed for the build, so per-law slot
+/// membership reads this instead of re-scanning every machine per candidate.
+pub(crate) fn conformance_slot_carriers_uncached(
+    program: &TypedTrees,
+) -> std::collections::HashMap<(SymbolHandle, String), Vec<(TypeReferenceHandle, SymbolHandle)>> {
+    let mut slot_carriers = std::collections::HashMap::new();
+    for candidate in program.machines() {
+        for conformance in program.machine_trait_conformances(candidate) {
+            let Some(requirement_name) = bound_requirement_name(conformance, candidate) else {
+                continue;
+            };
+            let Some(candidate_entry) = program.machine_states(candidate).first() else {
+                continue;
+            };
+            let carrier = program
+                .state_parameters(candidate_entry)
+                .first()
+                .map(|parameter| parameter.type_reference)
+                .unwrap_or(candidate_entry.return_type);
+            slot_carriers
+                .entry((conformance.symbol, requirement_name))
+                .or_insert_with(Vec::new)
+                .push((carrier, candidate_entry.symbol));
+        }
+    }
+    slot_carriers
+}
+
 /// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
 /// trait, find op slots carrying BOTH a commutativity law and an
 /// associativity law (matched by SHAPE over the trait's own requirement
@@ -2331,7 +2364,14 @@ fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) -> bool {
 /// proves ring-free. This kills self-licensing (add_comm rearranging its own
 /// goal into triviality) AND multi-machine cycles (two comm satisfiers each
 /// licensed by the other's conformance, none carrying a real proof).
-fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<RingLicense> {
+fn compute_ring_licenses(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
+    program: &TypedTrees,
+    judged_machine: &Machine,
+) -> Vec<RingLicense> {
     let mut licenses = Vec::new();
 
     for trait_definition in program.traits() {
@@ -2392,18 +2432,7 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
             .machine_trait_conformances(judged_machine)
             .iter()
             .filter(|conformance| conformance.symbol == trait_definition.symbol)
-            .filter_map(|conformance| {
-                conformance
-                    .requirement
-                    .as_ref()
-                    .map(|name| name.as_str().to_owned())
-                    .or_else(|| {
-                        judged_machine
-                            .attached_data
-                            .is_none()
-                            .then(|| judged_machine.name.as_str().to_owned())
-                    })
-            })
+            .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
             .collect();
         let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
             program
@@ -2424,17 +2453,11 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                     if conformance.symbol != trait_definition.symbol {
                         continue;
                     }
-                    let bound_requirement = conformance
-                        .requirement
-                        .as_ref()
-                        .map(|name| name.as_str().to_owned())
-                        .or_else(|| {
-                            candidate
-                                .attached_data
-                                .is_none()
-                                .then(|| candidate.name.as_str().to_owned())
-                        });
-                    if bound_requirement.as_deref() != Some(op_slot.as_str()) {
+                    let Some(bound_requirement) = bound_requirement_name(conformance, candidate)
+                    else {
+                        continue;
+                    };
+                    if bound_requirement != *op_slot {
                         continue;
                     }
                     let Some(candidate_entry) = program.machine_states(candidate).first() else {
@@ -2456,9 +2479,19 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
                     if judged_underpins_this_license {
                         continue;
                     }
-                    if slot_satisfier_exists(program, trait_definition, comm_law, carrier)
-                        && slot_satisfier_exists(program, trait_definition, assoc_law, carrier)
-                    {
+                    if slot_satisfier_exists(
+                        &slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        comm_law,
+                        carrier,
+                    ) && slot_satisfier_exists(
+                        &slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        assoc_law,
+                        carrier,
+                    ) {
                         licenses.push(RingLicense {
                             add_machine: candidate_entry.symbol,
                         });
@@ -2471,49 +2504,47 @@ fn compute_ring_licenses(program: &TypedTrees, judged_machine: &Machine) -> Vec<
     licenses
 }
 
+/// The requirement name a conformance binds: the authored `as Name` alias
+/// when present, else the standalone machine's own name. Attached machines
+/// bind nothing implicitly.
+fn bound_requirement_name(
+    conformance: &typed_trees::machine::TraitConformance,
+    machine: &Machine,
+) -> Option<String> {
+    conformance
+        .requirement
+        .as_ref()
+        .map(|name| name.as_str().to_owned())
+        .or_else(|| {
+            machine
+                .attached_data
+                .is_none()
+                .then(|| machine.name.as_str().to_owned())
+        })
+}
+
 /// Whether SOME machine conforms `(trait, requirement)` for this carrier.
 fn slot_satisfier_exists(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
     program: &TypedTrees,
-    trait_definition: &TraitDefinition,
+    trait_symbol: SymbolHandle,
     requirement_name: &str,
-    carrier: typed_trees::types::TypeReferenceHandle,
+    carrier: TypeReferenceHandle,
 ) -> bool {
-    program.machines().iter().any(|candidate| {
-        program
-            .machine_trait_conformances(candidate)
-            .iter()
-            .any(|conformance| {
-                if conformance.symbol != trait_definition.symbol {
-                    return false;
-                }
-                let bound_requirement = conformance
-                    .requirement
-                    .as_ref()
-                    .map(|name| name.as_str().to_owned())
-                    .or_else(|| {
-                        candidate
-                            .attached_data
-                            .is_none()
-                            .then(|| candidate.name.as_str().to_owned())
-                    });
-                if bound_requirement.as_deref() != Some(requirement_name) {
-                    return false;
-                }
-                let Some(candidate_entry) = program.machine_states(candidate).first() else {
-                    return false;
-                };
-                let candidate_carrier = program
-                    .state_parameters(candidate_entry)
-                    .first()
-                    .map(|parameter| parameter.type_reference)
-                    .unwrap_or(candidate_entry.return_type);
+    slot_carriers
+        .get(&(trait_symbol, requirement_name.to_owned()))
+        .is_some_and(|rows| {
+            rows.iter().any(|(candidate_carrier, _)| {
                 crate::value_custody::type_references::type_references_match(
                     program,
-                    candidate_carrier,
+                    *candidate_carrier,
                     carrier,
                 )
             })
-    })
+        })
 }
 
 /// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
@@ -2605,6 +2636,10 @@ fn distributivity_shape(
 /// that conformed ALL FIVE law slots. Same no-circularity rule: the judged
 /// machine binding ANY involved law slot gets nothing from this trait.
 fn compute_semiring_licenses(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
     program: &TypedTrees,
     judged_machine: &Machine,
 ) -> Vec<SemiringLicense> {
@@ -2680,18 +2715,7 @@ fn compute_semiring_licenses(
                 .machine_trait_conformances(judged_machine)
                 .iter()
                 .filter(|conformance| conformance.symbol == trait_definition.symbol)
-                .filter_map(|conformance| {
-                    conformance
-                        .requirement
-                        .as_ref()
-                        .map(|name| name.as_str().to_owned())
-                        .or_else(|| {
-                            judged_machine
-                                .attached_data
-                                .is_none()
-                                .then(|| judged_machine.name.as_str().to_owned())
-                        })
-                })
+                .filter_map(|conformance| bound_requirement_name(conformance, judged_machine))
                 .filter(|name| law_slots.iter().any(|law| law.as_str() == name))
                 .collect();
             let judged_carrier = program.machine_states(judged_machine).first().map(|entry| {
@@ -2708,17 +2732,10 @@ fn compute_semiring_licenses(
                     if conformance.symbol != trait_definition.symbol {
                         continue;
                     }
-                    let bound = conformance
-                        .requirement
-                        .as_ref()
-                        .map(|name| name.as_str().to_owned())
-                        .or_else(|| {
-                            add_candidate
-                                .attached_data
-                                .is_none()
-                                .then(|| add_candidate.name.as_str().to_owned())
-                        });
-                    if bound.as_deref() != Some(add_op.as_str()) {
+                    let Some(bound) = bound_requirement_name(conformance, add_candidate) else {
+                        continue;
+                    };
+                    if bound != *add_op {
                         continue;
                     }
                     let Some(entry) = program.machine_states(add_candidate).first() else {
@@ -2738,15 +2755,24 @@ fn compute_semiring_licenses(
                     {
                         continue;
                     }
-                    if !law_slots
-                        .iter()
-                        .all(|law| slot_satisfier_exists(program, trait_definition, law, carrier))
-                    {
+                    if !law_slots.iter().all(|law| {
+                        slot_satisfier_exists(
+                            slot_carriers,
+                            program,
+                            trait_definition.symbol,
+                            law,
+                            carrier,
+                        )
+                    }) {
                         continue;
                     }
-                    if let Some(mul_machine) =
-                        op_slot_satisfier(program, trait_definition, mul_op, carrier)
-                    {
+                    if let Some(mul_machine) = op_slot_satisfier(
+                        slot_carriers,
+                        program,
+                        trait_definition.symbol,
+                        mul_op,
+                        carrier,
+                    ) {
                         licenses.push(SemiringLicense {
                             add_machine: entry.symbol,
                             mul_machine,
@@ -2761,47 +2787,27 @@ fn compute_semiring_licenses(
 
 /// The NAME of the machine conforming `op_slot` for the given carrier.
 fn op_slot_satisfier(
+    slot_carriers: &std::collections::HashMap<
+        (SymbolHandle, String),
+        Vec<(TypeReferenceHandle, SymbolHandle)>,
+    >,
     program: &TypedTrees,
-    trait_definition: &TraitDefinition,
+    trait_symbol: SymbolHandle,
     op_slot: &str,
-    carrier: typed_trees::types::TypeReferenceHandle,
+    carrier: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    for candidate in program.machines() {
-        for conformance in program.machine_trait_conformances(candidate) {
-            if conformance.symbol != trait_definition.symbol {
-                continue;
-            }
-            let bound = conformance
-                .requirement
-                .as_ref()
-                .map(|name| name.as_str().to_owned())
-                .or_else(|| {
-                    candidate
-                        .attached_data
-                        .is_none()
-                        .then(|| candidate.name.as_str().to_owned())
-                });
-            if bound.as_deref() != Some(op_slot) {
-                continue;
-            }
-            let Some(entry) = program.machine_states(candidate).first() else {
-                continue;
-            };
-            let candidate_carrier = program
-                .state_parameters(entry)
-                .first()
-                .map(|parameter| parameter.type_reference)
-                .unwrap_or(entry.return_type);
-            if crate::value_custody::type_references::type_references_match(
-                program,
-                candidate_carrier,
-                carrier,
-            ) {
-                return Some(entry.symbol);
-            }
-        }
-    }
-    None
+    slot_carriers
+        .get(&(trait_symbol, op_slot.to_owned()))
+        .and_then(|rows| {
+            rows.iter().find_map(|(candidate_carrier, entry_symbol)| {
+                crate::value_custody::type_references::type_references_match(
+                    program,
+                    *candidate_carrier,
+                    carrier,
+                )
+                .then_some(*entry_symbol)
+            })
+        })
 }
 
 fn commutativity_shape(

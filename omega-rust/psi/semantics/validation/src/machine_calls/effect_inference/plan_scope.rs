@@ -61,6 +61,14 @@ type DropHookSlot = Option<
         HashMap<symbols::SymbolHandle, bool>,
     )>,
 >;
+/// (trait symbol, bound requirement name) -> conforming (carrier, entry
+/// symbol) pairs, built once per scoped program.
+type ConformanceSlotCarriersSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>>,
+    )>,
+>;
 
 thread_local! {
     /// Outer `None`: no scope is open — calls compute without memoizing.
@@ -78,6 +86,10 @@ thread_local! {
     /// Whether a machine attached to a data symbol realizes `::drop`,
     /// memoized per (program, symbol).
     static DROP_HOOK_SLOT: RefCell<DropHookSlot> = const { RefCell::new(None) };
+    /// Conformance slot carriers memoize the whole index at once — the ring
+    /// and semiring license builders both read it per judged machine.
+    static CONFORMANCE_SLOT_CARRIERS_SLOT: RefCell<ConformanceSlotCarriersSlot> =
+        const { RefCell::new(None) };
 }
 
 /// Restores the slots a scope opened on top of when it drops, so nested
@@ -88,6 +100,7 @@ pub struct ProgramPlanScopeGuard {
     claim_frontiers: ClaimFrontierSlot,
     data_def_lookups: DataDefinitionLookupSlot,
     drop_hooks: DropHookSlot,
+    conformance_slot_carriers: ConformanceSlotCarriersSlot,
 }
 
 impl Drop for ProgramPlanScopeGuard {
@@ -107,6 +120,9 @@ impl Drop for ProgramPlanScopeGuard {
         DROP_HOOK_SLOT.with(|cell| {
             *cell.borrow_mut() = self.drop_hooks.take();
         });
+        CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.conformance_slot_carriers.take();
+        });
     }
 }
 
@@ -123,6 +139,8 @@ pub fn enter_program_plan_scope() -> ProgramPlanScopeGuard {
         data_def_lookups: DATA_DEF_LOOKUP_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
         drop_hooks: DROP_HOOK_SLOT
+            .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+        conformance_slot_carriers: CONFORMANCE_SLOT_CARRIERS_SLOT
             .with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
     }
 }
@@ -338,6 +356,56 @@ pub(crate) fn memoized_owns_drop_hook(
         });
     }
     owns_hook
+}
+
+/// The conformance slot-carrier index — (trait symbol, bound requirement
+/// name) -> (carrier, entry symbol) rows — is pure in the program, and the
+/// license builders rebuild it per judged machine. Inside a scope it is
+/// built once per build; the caller keeps the clone for both license passes.
+pub(crate) fn memoized_conformance_slot_carriers(
+    program: &typed_trees::TypedTrees,
+) -> HashMap<(symbols::SymbolHandle, String), Vec<(TypeReferenceHandle, symbols::SymbolHandle)>> {
+    enum SlotState {
+        NoScope,
+        Hit(
+            HashMap<
+                (symbols::SymbolHandle, String),
+                Vec<(TypeReferenceHandle, symbols::SymbolHandle)>,
+            >,
+        ),
+        Miss,
+        ForeignProgram,
+    }
+    let state = CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    SlotState::Hit(map.clone())
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(index) = state {
+        return index;
+    }
+    let index = crate::proof_contracts::contract_entailment::structural_judgment::conformance_slot_carriers_uncached(
+        program,
+    );
+    if matches!(state, SlotState::Miss) {
+        CONFORMANCE_SLOT_CARRIERS_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                *scope = Some((program, index.clone()));
+            }
+        });
+    }
+    index
 }
 
 pub fn memoized_service_reach_plan(
