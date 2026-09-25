@@ -14563,12 +14563,10 @@
  {
   "fixture": "pass/build/runtime_depend_mapping_exit",
   "tier": "pass",
-  "status": "crashed",
-  "millis": 0,
+  "status": "checked",
+  "millis": 98,
   "expected_satisfied": null,
-  "diagnostics": [
-   "fixture tests/omega/pass/build/runtime_depend_mapping_exit: [\n    OverlappingSourceRoots {\n        first: PackageKeyIdentity(\n            [\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n            ],\n        ),\n        first_root: \"tests/omega/pass/build/runtime_depend_mapping_exit\",\n        second: PackageKeyIdentity(\n            [\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n            ],\n        ),\n        second_root: \"tests/omega/pass/build/runtime_depend_mapping_exit/lib\",\n    },\n]"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/build/runtime_main_source_builder_is_ordinary_exit",
@@ -17228,11 +17226,11 @@
  {
   "fixture": "pass/collections/runtime_vec_u32_growth_exit",
   "tier": "pass",
-  "status": "crashed",
-  "millis": 0,
+  "status": "rejected",
+  "millis": 37,
   "expected_satisfied": null,
   "diagnostics": [
-   "fixture tests/omega/pass/collections/runtime_vec_u32_growth_exit: package identity `runtime-vec-u32-growth-exit` must start with a lowercase letter and use snake_case lowercase words"
+   "data `Main` field `console` references unknown generic type `Service`"
   ]
  },
  {
@@ -23380,12 +23378,10 @@
  {
   "fixture": "pass/modules/package_bare_cases",
   "tier": "pass",
-  "status": "crashed",
-  "millis": 0,
+  "status": "checked",
+  "millis": 97,
   "expected_satisfied": null,
-  "diagnostics": [
-   "fixture tests/omega/pass/modules/package_bare_cases: [\n    OverlappingSourceRoots {\n        first: PackageKeyIdentity(\n            [\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n            ],\n        ),\n        first_root: \"tests/omega/pass/modules/package_bare_cases\",\n        second: PackageKeyIdentity(\n            [\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n            ],\n        ),\n        second_root: \"tests/omega/pass/modules/package_bare_cases/leaf\",\n    },\n]"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/modules/package_declaration",
@@ -23414,12 +23410,10 @@
  {
   "fixture": "pass/modules/qualified_case_membership",
   "tier": "pass",
-  "status": "crashed",
-  "millis": 0,
+  "status": "checked",
+  "millis": 97,
   "expected_satisfied": null,
-  "diagnostics": [
-   "fixture tests/omega/pass/modules/qualified_case_membership: [\n    OverlappingSourceRoots {\n        first: PackageKeyIdentity(\n            [\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n            ],\n        ),\n        first_root: \"tests/omega/pass/modules/qualified_case_membership\",\n        second: PackageKeyIdentity(\n            [\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n            ],\n        ),\n        second_root: \"tests/omega/pass/modules/qualified_case_membership/leaf\",\n    },\n]"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/modules/qualified_constant_indices",
@@ -28577,11 +28571,11 @@
  {
   "fixture": "pass/traits/equatable_qualified_field_reference_exit",
   "tier": "pass",
-  "status": "crashed",
-  "millis": 0,
+  "status": "rejected",
+  "millis": 34,
   "expected_satisfied": null,
   "diagnostics": [
-   "fixture tests/omega/pass/traits/equatable_qualified_field_reference_exit: [\n    OverlappingSourceRoots {\n        first: PackageKeyIdentity(\n            [\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n                1,\n            ],\n        ),\n        first_root: \"tests/omega/pass/traits/equatable_qualified_field_reference_exit\",\n        second: PackageKeyIdentity(\n            [\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n                3,\n            ],\n        ),\n        second_root: \"tests/omega/pass/traits/equatable_qualified_field_reference_exit/leaf\",\n    },\n]"
+   "data `Region` does not satisfy trait `Equatable`: no written or default machine `Region::equals`"
   ]
  },
  {
