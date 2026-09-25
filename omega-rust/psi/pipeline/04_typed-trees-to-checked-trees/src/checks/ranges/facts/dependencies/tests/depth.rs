@@ -22,6 +22,7 @@ fn dependency_recording_stops_at_the_depth_bound() {
     let state = &program.machine_states(machine)[0];
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert_eq!(
         facts.expression_dependencies.len(),

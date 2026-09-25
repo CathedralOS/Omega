@@ -160,6 +160,7 @@ fn missing_call_evidence_is_opaque_not_a_complete_empty_write_frame() {
     for (borrows, flow) in [(&borrows, &empty_flow), (&empty_borrows, &flow)] {
         let context = RangeCallContext::new(machine, state, borrows, flow, frames.as_ref());
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.checked_calls = Some(&context);
         assert_eq!(
             facts.structured_call_writes(&program, machine, state, &site),

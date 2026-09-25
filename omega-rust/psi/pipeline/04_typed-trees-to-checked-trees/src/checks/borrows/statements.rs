@@ -42,8 +42,8 @@ fn mutation_replay_diagnostic(drift: CompatibilityReplayDrift) -> Diagnostic {
     }
 }
 
-pub(super) fn check_statement_borrows(
-    program: &typed_trees::TypedTrees,
+pub(super) fn check_statement_borrows<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     stated_premises: &[StatedOrderingPremise],
@@ -56,6 +56,7 @@ pub(super) fn check_statement_borrows(
     retained_mutation_certificates_consumed: &mut [bool],
     state_mutation_summaries: &StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(state) =
         find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
@@ -86,6 +87,7 @@ pub(super) fn check_statement_borrows(
             statement.statement_index,
             call_frames,
             &mut available_premises,
+            bound_lookup,
         );
         let stated_premises = available_premises.as_slice();
         let Some(statement_node) = program
@@ -107,6 +109,7 @@ pub(super) fn check_statement_borrows(
                 stated_premises,
                 diagnostics,
                 call_frames,
+                bound_lookup,
             );
         }
 
@@ -153,6 +156,7 @@ pub(super) fn check_statement_borrows(
                             &retained.selector_snapshot,
                             stated_premises,
                             &retained.premises,
+                            bound_lookup,
                         ) {
                             Ok(compatibility) => compatibility,
                             Err(drift) => {
@@ -174,6 +178,7 @@ pub(super) fn check_statement_borrows(
                             loan,
                             active_loan,
                             stated_premises,
+                            bound_lookup,
                         );
                         (
                             evidence.compatibility,
@@ -291,6 +296,7 @@ pub(super) fn check_statement_borrows(
                             &retained.selector_snapshot,
                             stated_premises,
                             &retained.premises,
+                            bound_lookup,
                         ) {
                             Ok(compatibility) => compatibility,
                             Err(drift) => {
@@ -311,6 +317,7 @@ pub(super) fn check_statement_borrows(
                         loan,
                         &facts.borrow,
                         stated_premises,
+                        bound_lookup,
                     );
                     (
                         evidence.compatibility,
@@ -378,6 +385,7 @@ pub(super) fn check_statement_borrows(
         diagnostics,
         state_mutation_summaries,
         call_frames,
+        bound_lookup,
     );
 }
 
@@ -400,8 +408,8 @@ pub(super) fn check_statement_borrows(
 /// discharge that conflict when no argument carries a loan into the successor.
 /// Guard/argument calls, carried references and reborrow lineages keep their
 /// existing checks; a syntactic jump alone is not release evidence.
-fn check_call_mutation_borrows(
-    program: &typed_trees::TypedTrees,
+fn check_call_mutation_borrows<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
@@ -409,6 +417,7 @@ fn check_call_mutation_borrows(
     diagnostics: &mut Vec<Diagnostic>,
     summary_cache: &StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     for borrow_call in facts.borrow.calls.span_or_empty(borrow_state.calls) {
         let mutated_places = call_write_accesses(
@@ -430,6 +439,7 @@ fn check_call_mutation_borrows(
             borrow_call.statement_index,
             call_frames,
             &mut available_premises,
+            bound_lookup,
         );
         let stated_premises = available_premises.as_slice();
 
@@ -466,6 +476,7 @@ fn check_call_mutation_borrows(
                     loan,
                     &facts.borrow,
                     stated_premises,
+                    bound_lookup,
                 )
                 .non_interfering
                 {

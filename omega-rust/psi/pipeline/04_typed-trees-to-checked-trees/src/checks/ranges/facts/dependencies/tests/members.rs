@@ -75,6 +75,7 @@ fn a_call_receiver_member_reads_the_call_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -111,6 +112,7 @@ fn a_literal_receiver_member_reads_each_initializer() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -154,6 +156,7 @@ fn a_nested_temporary_member_reads_the_producing_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -192,6 +195,7 @@ fn a_self_call_receiver_member_reads_the_receiver_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -234,6 +238,7 @@ fn a_temporary_member_inside_a_selector_keeps_both_footprints() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -278,6 +283,7 @@ fn a_call_receiver_member_without_call_custody_stays_incomplete() {
     // No checked-call context at all: the receiver's operand footprint cannot
     // be authenticated, so the member's read set stays opaque.
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index_of(&program, state, "cut");
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -286,6 +292,7 @@ fn a_call_receiver_member_without_call_custody_stays_incomplete() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index_of(&program, state, "cut") + 1;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -315,6 +322,7 @@ fn a_temporary_member_with_unresolved_identity_stays_incomplete() {
     member.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -336,6 +344,7 @@ fn an_index_of_a_temporary_member_reads_the_producing_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -379,6 +388,7 @@ fn a_window_of_a_temporary_member_reads_its_bounds_and_producer() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -427,6 +437,7 @@ fn an_index_of_a_call_result_reads_the_call_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -457,6 +468,7 @@ fn a_literal_member_index_reads_each_initializer_and_the_selector() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -508,6 +520,7 @@ fn a_member_below_an_index_of_a_temporary_keeps_the_producing_footprint() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
@@ -550,6 +563,7 @@ fn an_index_of_a_temporary_without_call_custody_stays_incomplete() {
     // No checked-call context at all: the producing call's operand footprint
     // cannot be authenticated, so the collection scan stays opaque.
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index_of(&program, state, "cut");
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -558,6 +572,7 @@ fn an_index_of_a_temporary_without_call_custody_stays_incomplete() {
     let (borrows, flow, frames) = checked_facts(&program);
     let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_calls = Some(&context);
     facts.statement_index = statement_index_of(&program, state, "cut") + 1;
     facts.record_expression_dependencies(&program, machine, state, expression);
@@ -577,6 +592,7 @@ fn a_match_collection_index_stays_incomplete() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -595,6 +611,7 @@ fn a_match_receiver_member_reads_the_match_footprint() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -641,6 +658,7 @@ fn a_match_receiver_member_with_literal_arms_reads_each_initializer() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -686,6 +704,7 @@ fn a_match_receiver_member_with_unresolved_identity_stays_incomplete() {
     member.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -705,6 +724,7 @@ fn a_match_receiver_member_with_disagreeing_arm_leaves_stays_incomplete() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -722,6 +742,7 @@ fn a_match_receiver_member_with_an_untyped_arm_stays_incomplete() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -743,6 +764,7 @@ fn a_match_receiver_member_chain_reads_the_match_footprint() {
     );
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     let label = record_label(&mut facts, &program, machine, state);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -801,6 +823,7 @@ fn a_match_receiver_member_chain_with_an_unresolved_hop_stays_incomplete() {
     inner.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -943,6 +966,7 @@ fn a_case_qualified_member_in_a_destructure_guard_reads_the_projected_place() {
         "self.attack.bonus"
     );
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     let label = program.expression_table.display_name(operand);
@@ -1006,6 +1030,7 @@ fn a_case_qualified_member_on_a_captured_subject_reads_the_generated_local() {
     let (statement_index, guard) = case_guard(&program, state);
     let operand = case_member_operand(&program, guard).expect("case-qualified operand");
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     let reads = facts.expression_dependencies[0]
@@ -1069,6 +1094,7 @@ fn a_member_through_a_case_qualified_receiver_reads_the_projected_place() {
         "self.attack.inner.v"
     );
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     let label = program.expression_table.display_name(operand);
@@ -1141,6 +1167,7 @@ fn a_case_qualified_member_naming_another_variants_field_stays_incomplete() {
     member.member = "rest".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -1178,6 +1205,7 @@ fn an_unqualified_payload_member_stays_incomplete() {
     member.case_variant = None;
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -1219,6 +1247,7 @@ fn a_member_above_an_unresolved_case_hop_stays_incomplete() {
     inner.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -1257,6 +1286,7 @@ fn a_member_above_a_case_receiver_naming_no_field_stays_incomplete() {
     member.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.statement_index = statement_index;
     facts.record_expression_dependencies(&program, machine, state, operand);
     assert!(facts.expression_dependencies[0].reads.is_none());
@@ -1284,6 +1314,7 @@ fn a_match_receiver_member_chain_with_an_unresolved_leaf_stays_incomplete() {
     member.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     record_label(&mut facts, &program, machine, state);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }

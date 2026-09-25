@@ -59,6 +59,7 @@ fn retention_requires_complete_disjoint_writes_for_every_operand() {
     let state = &program.machine_states(machine)[0];
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let label = program.expression_table.display_name(expression);
     for (name, survives) in [("left", false), ("right", false), ("unrelated", true)] {
@@ -115,6 +116,7 @@ fn identical_labels_cannot_choose_between_different_typed_reads() {
         program.expression_table.display_name(second_expression)
     );
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, first, first_state, first_expression);
     let writes = [parameter_place(&program, first_state, "unrelated")];
     assert_eq!(
@@ -149,6 +151,7 @@ fn an_incoming_expression_cannot_borrow_the_current_states_parameter_names() {
     let states = program.machine_states(machine);
     let incoming = initializer(&program, &states[0]);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, &states[1], incoming);
     assert!(
         facts
@@ -179,6 +182,7 @@ fn calls_and_call_selectors_do_not_claim_an_argument_only_read_set() {
             .expect("window");
         let state = &program.machine_states(machine)[0];
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(
             &program,
             machine,
@@ -209,6 +213,7 @@ fn a_literal_operand_reads_nothing_but_keeps_the_expression_completable() {
     let state = &program.machine_states(machine)[0];
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -253,6 +258,7 @@ fn compound_literals_read_each_evaluated_operand() {
         let state = &program.machine_states(machine)[0];
         let expression = initializer(&program, state);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = facts.expression_dependencies[0]
             .reads
@@ -298,6 +304,7 @@ fn a_literal_element_with_selected_arithmetic_reads_its_checked_operands() {
     let expression = initializer(&program, state);
     let operators = selected_operator_facts(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.checked_operators = Some(&operators);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
@@ -346,6 +353,7 @@ fn a_match_reads_its_subject_patterns_and_arm_values() {
     let state = &program.machine_states(machine)[0];
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -390,6 +398,7 @@ fn missing_typed_place_identities_cannot_be_recovered_from_display_names() {
         let state = &program.machine_states(machine)[0];
         let expression = initializer(&program, state);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
             !facts
@@ -412,6 +421,7 @@ fn missing_typed_place_identities_cannot_be_recovered_from_display_names() {
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         assert!(
             facts

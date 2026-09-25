@@ -477,6 +477,7 @@ fn interfering_certificate_replay_requires_carried_authority() {
         &certificate,
         &super::IncomingGuardIndex::build(&program, None),
         None,
+        &mut None,
     )
     .expect_err("an interfering admission with no recorded provenance must not replay");
     assert!(
@@ -498,6 +499,7 @@ fn interfering_certificate_replay_requires_carried_authority() {
         &certificate,
         &super::IncomingGuardIndex::build(&program, None),
         None,
+        &mut None,
     )
     .expect("a recorded carried-authority edge replays");
 }
@@ -850,6 +852,7 @@ fn interfering_mutation_certificate_has_no_admission_basis() {
         &certificate,
         &super::IncomingGuardIndex::build(&program, None),
         None,
+        &mut None,
     )
     .expect_err("an interfering mutation verdict has no admission basis");
     assert!(
