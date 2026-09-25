@@ -16324,8 +16324,8 @@
   "fixture": "pass/capabilities/invariant_parameterized_slice",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 2,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -19679,8 +19679,8 @@
   "fixture": "pass/domains/executable_imported_domain_membership_guard_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 171,
-  "expected_satisfied": false,
+  "millis": 395,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -19807,8 +19807,8 @@
   "fixture": "pass/domains/if_domain_membership_check",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 4,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -22155,7 +22155,7 @@
   "fixture": "pass/generics/authored_const_application_local_destination",
   "tier": "pass",
   "status": "checked",
-  "millis": 4,
+  "millis": 5,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22163,7 +22163,7 @@
   "fixture": "pass/generics/closed_indexed_quantity",
   "tier": "pass",
   "status": "checked",
-  "millis": 5449,
+  "millis": 7619,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22171,7 +22171,7 @@
   "fixture": "pass/generics/closed_sum_case_membership",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 3,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22187,7 +22187,7 @@
   "fixture": "pass/generics/const_machine_value_params",
   "tier": "pass",
   "status": "checked",
-  "millis": 5,
+  "millis": 2,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22195,7 +22195,7 @@
   "fixture": "pass/generics/declared_range_endpoint_boolean_arguments",
   "tier": "pass",
   "status": "checked",
-  "millis": 217,
+  "millis": 458,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22203,7 +22203,7 @@
   "fixture": "pass/generics/declared_range_endpoint_domain_qualified_calls",
   "tier": "pass",
   "status": "checked",
-  "millis": 182,
+  "millis": 393,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22211,7 +22211,7 @@
   "fixture": "pass/generics/declared_range_endpoint_inference",
   "tier": "pass",
   "status": "checked",
-  "millis": 404,
+  "millis": 876,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22219,7 +22219,7 @@
   "fixture": "pass/generics/declared_range_endpoint_static_applications",
   "tier": "pass",
   "status": "checked",
-  "millis": 204,
+  "millis": 422,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22227,7 +22227,7 @@
   "fixture": "pass/generics/declared_range_endpoint_template_bound_calls",
   "tier": "pass",
   "status": "checked",
-  "millis": 183,
+  "millis": 421,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22235,31 +22235,31 @@
   "fixture": "pass/generics/generic_data_instantiation",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 0,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/generics/generic_data_type_param",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 0,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/generics/generic_machine_call_monomorphization",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 2,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/generics/generic_machine_multiple_type_params",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 0,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22267,7 +22267,7 @@
   "fixture": "pass/generics/generic_machine_type_param_signature",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 0,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22275,7 +22275,7 @@
   "fixture": "pass/generics/generic_machine_where_trait_bound",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 0,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22283,7 +22283,7 @@
   "fixture": "pass/generics/generic_seq_consuming_map_filter",
   "tier": "pass",
   "status": "checked",
-  "millis": 8,
+  "millis": 6,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22292,22 +22292,22 @@
   "tier": "pass",
   "status": "checked",
   "millis": 0,
-  "expected_satisfied": false,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/generics/generic_type_param_in_state",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
-  "expected_satisfied": false,
+  "millis": 0,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/generics/machine_bound_satisfied_at_call",
   "tier": "pass",
   "status": "checked",
-  "millis": 4,
+  "millis": 3,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22315,7 +22315,7 @@
   "fixture": "pass/generics/machine_type_equations",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 2,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22323,7 +22323,7 @@
   "fixture": "pass/generics/nominal_machine_parameter_satisfaction_compile",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 3,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22331,7 +22331,7 @@
   "fixture": "pass/generics/omitted_data_binder_range_equation",
   "tier": "pass",
   "status": "checked",
-  "millis": 4,
+  "millis": 5,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22339,7 +22339,7 @@
   "fixture": "pass/generics/open_computed_quantity_result",
   "tier": "pass",
   "status": "checked",
-  "millis": 201,
+  "millis": 473,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22347,7 +22347,7 @@
   "fixture": "pass/generics/open_index_local_fact",
   "tier": "pass",
   "status": "checked",
-  "millis": 217,
+  "millis": 450,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22363,7 +22363,7 @@
   "fixture": "pass/generics/runtime_const_container_methods_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 197,
+  "millis": 377,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22371,7 +22371,7 @@
   "fixture": "pass/generics/runtime_const_data_array_length_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 184,
+  "millis": 181,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22379,7 +22379,7 @@
   "fixture": "pass/generics/runtime_const_data_expression_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 187,
+  "millis": 181,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22387,7 +22387,7 @@
   "fixture": "pass/generics/runtime_const_data_forwarded_length_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 163,
+  "millis": 189,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22395,7 +22395,7 @@
   "fixture": "pass/generics/runtime_const_data_machine_call_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 269,
+  "millis": 273,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22403,7 +22403,7 @@
   "fixture": "pass/generics/runtime_const_data_machine_fact_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 154,
+  "millis": 177,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22411,7 +22411,7 @@
   "fixture": "pass/generics/runtime_const_data_multiple_instances_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 176,
+  "millis": 179,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22419,7 +22419,7 @@
   "fixture": "pass/generics/runtime_const_data_named_value_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 168,
+  "millis": 190,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22427,7 +22427,7 @@
   "fixture": "pass/generics/runtime_const_data_symbolic_expression_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 178,
+  "millis": 175,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22435,7 +22435,7 @@
   "fixture": "pass/generics/runtime_const_data_where_fact_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 182,
+  "millis": 189,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22443,7 +22443,7 @@
   "fixture": "pass/generics/runtime_container_method_instances_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 74,
+  "millis": 88,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Box::stored`, state `stored` (statement 0)"
@@ -22453,7 +22453,7 @@
   "fixture": "pass/generics/runtime_container_setter_matrix_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 83,
+  "millis": 97,
   "expected_satisfied": null,
   "diagnostics": [
    "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Cell::get`, state `get` (statement 0)"
@@ -22463,7 +22463,7 @@
   "fixture": "pass/generics/runtime_distinct_closed_erased_sums_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 188,
+  "millis": 177,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22471,7 +22471,7 @@
   "fixture": "pass/generics/runtime_generic_domain_instantiations_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 191,
+  "millis": 183,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22479,7 +22479,7 @@
   "fixture": "pass/generics/runtime_generic_enum_payload_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 163,
+  "millis": 185,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22487,7 +22487,7 @@
   "fixture": "pass/generics/runtime_generic_exact_call_return_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 170,
+  "millis": 165,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22495,7 +22495,7 @@
   "fixture": "pass/generics/runtime_generic_let_local_instantiations_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 152,
+  "millis": 168,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22503,7 +22503,7 @@
   "fixture": "pass/generics/runtime_generic_multiple_specializations_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 180,
+  "millis": 184,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22511,7 +22511,7 @@
   "fixture": "pass/generics/runtime_generic_param_position_inference_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 187,
+  "millis": 194,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22519,7 +22519,7 @@
   "fixture": "pass/generics/runtime_generic_record_instance_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 175,
+  "millis": 187,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22527,7 +22527,7 @@
   "fixture": "pass/generics/runtime_generic_two_instantiations_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 204,
+  "millis": 179,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22535,7 +22535,7 @@
   "fixture": "pass/generics/runtime_generic_value_call_agreeing_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 171,
+  "millis": 173,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22543,7 +22543,7 @@
   "fixture": "pass/generics/runtime_generic_value_call_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 189,
+  "millis": 178,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22551,7 +22551,7 @@
   "fixture": "pass/generics/runtime_mixed_generic_erased_sum_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 174,
+  "millis": 184,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22559,7 +22559,7 @@
   "fixture": "pass/generics/runtime_nested_generic_instantiations_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 157,
+  "millis": 178,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22567,7 +22567,7 @@
   "fixture": "pass/generics/runtime_nominal_machine_parameter_satisfaction_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 80,
+  "millis": 108,
   "expected_satisfied": null,
   "diagnostics": [
    "provider selection operand does not resolve to one visible product declaration"
@@ -22577,7 +22577,7 @@
   "fixture": "pass/generics/runtime_signed_const_data_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 146,
+  "millis": 175,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22585,7 +22585,7 @@
   "fixture": "pass/generics/runtime_std_units_exit",
   "tier": "pass",
   "status": "rejected",
-  "millis": 2750,
+  "millis": 1924,
   "expected_satisfied": null,
   "diagnostics": [
    "package `runtime_std_units_exit` (0101010101010101010101010101010101010101010101010101010101010101) selects private machine `kilometers_i64::entry`",
@@ -22620,7 +22620,7 @@
   "fixture": "pass/generics/runtime_value_generic_subject_exit",
   "tier": "pass",
   "status": "checked",
-  "millis": 201,
+  "millis": 151,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22628,7 +22628,7 @@
   "fixture": "pass/generics/structured_const_canonical_identity",
   "tier": "pass",
   "status": "checked",
-  "millis": 1,
+  "millis": 2,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22636,7 +22636,7 @@
   "fixture": "pass/generics/structured_const_canonical_rat",
   "tier": "pass",
   "status": "checked",
-  "millis": 1070,
+  "millis": 832,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22644,7 +22644,7 @@
   "fixture": "pass/generics/value_generic_runtime_argument",
   "tier": "pass",
   "status": "checked",
-  "millis": 11,
+  "millis": 12,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -22652,7 +22652,7 @@
   "fixture": "pass/generics/value_generic_runtime_result_bound",
   "tier": "pass",
   "status": "checked",
-  "millis": 2,
+  "millis": 3,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -28631,7 +28631,7 @@
   "tier": "pass",
   "status": "checked",
   "millis": 1,
-  "expected_satisfied": false,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -28958,8 +28958,8 @@
   "fixture": "pass/versioning/migration_generic_trait",
   "tier": "pass",
   "status": "checked",
-  "millis": 128,
-  "expected_satisfied": false,
+  "millis": 106,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -29391,7 +29391,7 @@
   "tier": "pass",
   "status": "checked",
   "millis": 57,
-  "expected_satisfied": false,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
