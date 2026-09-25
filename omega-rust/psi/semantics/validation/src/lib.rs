@@ -175,9 +175,6 @@ pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
 };
-pub use value_custody::expression_types::{
-    fresh_payloadless_case, is_fresh_payloadless_structural_value,
-};
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;
 pub use value_custody::literals::evaluate_anonymous_numeric_comparison;

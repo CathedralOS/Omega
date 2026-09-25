@@ -689,7 +689,7 @@ fn result_needs_custody_join(
 /// A fresh claim-free payloadless constructor has no input ownership to merge.
 /// Resolve its actual declaration and case; an owned local with the same type
 /// is a transfer and must not inherit this construction permission.
-pub fn fresh_payloadless_case(
+pub(super) fn fresh_payloadless_case(
     program: &TypedTrees,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -742,24 +742,6 @@ pub fn fresh_payloadless_case(
         .iter()
         .any(|member| matches!(member, DataMember::Variant(variant) if variant.symbol == selected))
         .then_some((*symbol, selected))
-}
-
-pub fn is_fresh_payloadless_structural_value(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    reference: TypeReferenceHandle,
-) -> bool {
-    if fresh_payloadless_case(program, expression, reference).is_some() {
-        return true;
-    }
-    let ExpressionNode::Match(dispatch) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let arms = program.expression_table.match_arms(dispatch.arms);
-    !arms.is_empty()
-        && arms
-            .iter()
-            .all(|arm| is_fresh_payloadless_structural_value(program, arm.value, reference))
 }
 
 /// Static scalar theories do not add storage to a result join. Their exact
