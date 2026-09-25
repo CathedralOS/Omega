@@ -1,5 +1,12 @@
 //! Executable container byte tests.
 
+mod artifact_wire_custody_fields;
+
+use artifact_wire_custody_fields::{
+    ArtifactSeed, ArtifactWireFieldForTest, ContainerWireRejection, artifact_wire_custody_outcome,
+    artifact_wire_vocabulary, classify_container_wire_rejection, substitute_artifact_wire_for_test,
+};
+
 use crate::artifacts::Artifact;
 use crate::artifacts::ArtifactEntry;
 use crate::artifacts::container::ArtifactRelocationKind;
@@ -38,6 +45,7 @@ use crate::authority_digests::MachineFootprintId;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
 use crate::authority_digests::PlacementPlanId;
 use crate::authority_digests::RelocationSetId;
+use crate::installation::InstallationDiagnostic;
 use layout_plans::ArtifactInstallationScopeId;
 use layout_plans::EntryStubId;
 use layout_plans::LayoutPlanReport;
@@ -45,6 +53,7 @@ use layout_plans::MachineRegimeId;
 use layout_plans::PlacementConstraints;
 use layout_plans::PlacementPhase;
 use layout_plans::RelocationTarget;
+use optimization_core::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
 use target::Architecture;
 
 fn limits() -> ContainerLimits {
@@ -560,81 +569,6 @@ fn semantic_byte_drift_reaches_normalized_content_check() {
     assert!(error.0.contains("content fingerprint"));
 }
 
-/// Mutable copy of every `Artifact` field so each representable axis can be
-/// substituted once while `Artifact::from_canonical_decode` honestly recomputes
-/// the containing content digest and container fingerprint.
-struct ArtifactSeed {
-    identity: ArtifactId,
-    architecture: Architecture,
-    code: Vec<u8>,
-    contracts: MachineContractSetId,
-    declared_footprint: MachineFootprintId,
-    placement_plan: PlacementPlanId,
-    placement_constraints: PlacementConstraints,
-    entry_set: EntrySetId,
-    entries: Vec<ArtifactEntry>,
-    relocation_set: RelocationSetId,
-    relocations: Vec<DecodedArtifactRelocation>,
-    authority_commitments: ArtifactAuthorityCommitments,
-}
-
-impl ArtifactSeed {
-    fn from(artifact: &Artifact) -> Self {
-        Self {
-            identity: artifact.0.identity,
-            architecture: artifact.0.architecture,
-            code: artifact.0.code.clone(),
-            contracts: artifact.0.contracts,
-            declared_footprint: artifact.0.declared_footprint,
-            placement_plan: artifact.0.placement_plan,
-            placement_constraints: artifact.0.placement_constraints,
-            entry_set: artifact.0.entry_set,
-            entries: artifact.0.entries.clone(),
-            relocation_set: artifact.0.relocation_set,
-            relocations: artifact.0.relocations.clone(),
-            authority_commitments: artifact
-                .0
-                .authority_commitments
-                .expect("strong fixture carries commitments"),
-        }
-    }
-
-    /// Honestly recompute the strong commitments for the seed's current report
-    /// coordinates, matching the canonical evidence the fixture provider held.
-    fn recommit(&mut self) {
-        self.authority_commitments = ArtifactAuthorityCommitments::from_canonical_evidence(
-            self.contracts,
-            b"canonical imported contract set",
-            self.declared_footprint,
-            b"canonical declared footprint",
-            self.placement_constraints
-                .machine_regime()
-                .map(|regime| (regime, b"canonical machine regime".as_slice())),
-            self.placement_constraints
-                .installation_scope()
-                .map(|scope| (scope, b"canonical installation scope".as_slice())),
-        );
-    }
-
-    fn into_artifact(self) -> Artifact {
-        Artifact::from_canonical_decode(
-            self.identity,
-            self.architecture,
-            self.code,
-            self.contracts,
-            self.declared_footprint,
-            self.placement_plan,
-            self.placement_constraints,
-            self.entry_set,
-            self.entries,
-            self.relocation_set,
-            self.relocations,
-            self.authority_commitments,
-        )
-        .expect("mutated artifact must remain canonically constructible")
-    }
-}
-
 fn section_record(index: usize) -> usize {
     OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
         + index * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize
@@ -664,21 +598,41 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
     let encoded = encode_executable_container(&artifact, &proof, limits()).expect("encode v2");
     let authentic = decode_executable_container(&encoded, limits()).expect("authentic v2");
 
-    // Every representable artifact field: substitute once, let
-    // `Artifact::from_canonical_decode` honestly recompute the containing
-    // content digest and container fingerprint, canonically encode and decode
-    // the container, then confirm independent admission replay against the
-    // original evidence still rejects the substitution.
-    let mutated = |mutate: &mut dyn FnMut(&mut ArtifactSeed)| -> Artifact {
-        let mut seed = ArtifactSeed::from(&artifact);
-        mutate(&mut seed);
-        let mutated = seed.into_artifact();
+    // Every declared artifact lane substitutes independently through the
+    // shared driver. The family's independent checker is the canonical seam
+    // order the honest artifact already survives: construction honestly
+    // recomputes the content digest and container fingerprint, the canonical
+    // encoder writes the substituted wire bytes, canonical decode must
+    // preserve the substituted artifact, and admission replays the original
+    // evidence. Each seam classifies its refusal into the declared verdicts
+    // for that seam.
+    let authentic_evidence = || {
+        ValidatedContainerAdmissionEvidence::from_validator(
+            AdmissionReceiptId::from_normalized_identity(70).unwrap(),
+            &authentic,
+            true,
+        )
+    };
+    let classify = |diagnostic: &InstallationDiagnostic,
+                    seam: fn(&ContainerWireRejection) -> bool| {
+        classify_container_wire_rejection(diagnostic, artifact_wire_vocabulary().filter(seam))
+    };
+    let check = |seed: &ArtifactSeed| -> Result<ArtifactSeed, ContainerWireRejection> {
+        let mutated = seed.clone().construct().map_err(|error| {
+            classify(&error, |verdict| {
+                matches!(verdict, ContainerWireRejection::Construction(_))
+            })
+        })?;
+        let mutated_bytes =
+            encode_executable_container(&mutated, &proof, limits()).map_err(|error| {
+                classify(&error, |verdict| {
+                    matches!(verdict, ContainerWireRejection::Encoding(_))
+                })
+            })?;
         assert_ne!(
             mutated, artifact,
             "the substitution must change the artifact"
         );
-        let mutated_bytes = encode_executable_container(&mutated, &proof, limits())
-            .expect("mutated artifact canonically encodes");
         assert_ne!(mutated_bytes, encoded, "the wire bytes must change");
         let substituted = decode_executable_container(&mutated_bytes, limits())
             .expect("mutated container canonically decodes");
@@ -687,259 +641,41 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
             &mutated,
             "canonical decode must preserve the mutated artifact",
         );
-        let evidence = ValidatedContainerAdmissionEvidence::from_validator(
-            AdmissionReceiptId::from_normalized_identity(70).unwrap(),
-            &authentic,
-            true,
-        );
-        let error = admit_validated_container(&substituted, evidence)
-            .expect_err("independent replay must reject the substitution");
-        assert!(
-            error.0.contains("different validated container"),
-            "unexpected replay rejection: {}",
-            error.0
-        );
-        mutated
+        match admit_validated_container(&substituted, authentic_evidence()) {
+            Err(error) => Err(classify(&error, |verdict| {
+                matches!(verdict, ContainerWireRejection::Replay(_))
+            })),
+            Ok(_) => Ok(seed.clone()),
+        }
     };
-
-    // The claimed normalized identity rides outside the content digest and is
-    // bound only by the admission evidence.
-    let substituted = mutated(&mut |seed| {
-        seed.identity = ArtifactId::from_normalized_identity(2).expect("artifact identity");
-    });
-    assert_eq!(
-        substituted.content(),
-        artifact.content(),
-        "the claimed artifact identity rides outside the content digest",
-    );
-
-    mutated(&mut |seed| {
-        seed.architecture = Architecture::Aarch64;
-        seed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
-    });
-    mutated(&mut |seed| seed.code[0] ^= 1);
-    mutated(&mut |seed| {
-        seed.code.truncate(32);
-        seed.relocations[0].destination_offset = 8;
-    });
-    mutated(&mut |seed| {
-        seed.contracts = MachineContractSetId::from_normalized_identity(13).expect("contracts");
-        seed.recommit();
-    });
-    mutated(&mut |seed| {
-        seed.declared_footprint =
-            MachineFootprintId::from_normalized_identity(14).expect("footprint");
-        seed.recommit();
-    });
-    mutated(&mut |seed| {
-        seed.placement_plan = PlacementPlanId::from_normalized_identity(15).expect("plan");
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            seed.placement_constraints.permitted_range(),
-            8,
-            seed.placement_constraints.phase(),
-            seed.placement_constraints.machine_regime(),
-            seed.placement_constraints.installation_scope(),
-        )
-        .expect("alignment");
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            seed.placement_constraints.permitted_range(),
-            seed.placement_constraints.alignment(),
-            PlacementPhase::PostHandoff,
-            seed.placement_constraints.machine_regime(),
-            seed.placement_constraints.installation_scope(),
-        )
-        .expect("phase");
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            Some(
-                layout_plans::PlacementAddressRange::new(0x1000, 0x2000).expect("permitted range"),
-            ),
-            seed.placement_constraints.alignment(),
-            seed.placement_constraints.phase(),
-            seed.placement_constraints.machine_regime(),
-            seed.placement_constraints.installation_scope(),
-        )
-        .expect("range");
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            seed.placement_constraints.permitted_range(),
-            seed.placement_constraints.alignment(),
-            seed.placement_constraints.phase(),
-            Some(MachineRegimeId::from_normalized_identity(12).expect("regime")),
-            seed.placement_constraints.installation_scope(),
-        )
-        .expect("regime");
-        seed.recommit();
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            seed.placement_constraints.permitted_range(),
-            seed.placement_constraints.alignment(),
-            seed.placement_constraints.phase(),
-            seed.placement_constraints.machine_regime(),
-            Some(ArtifactInstallationScopeId::from_normalized_identity(13).expect("scope")),
-        )
-        .expect("scope");
-        seed.recommit();
-    });
-    mutated(&mut |seed| {
-        seed.placement_constraints = PlacementConstraints::new(
-            seed.placement_constraints.permitted_range(),
-            seed.placement_constraints.alignment(),
-            seed.placement_constraints.phase(),
-            None,
-            seed.placement_constraints.installation_scope(),
-        )
-        .expect("dropped regime");
-        seed.recommit();
-    });
-    mutated(&mut |seed| {
-        seed.entry_set = EntrySetId::from_normalized_identity(18).expect("entry set");
-    });
-    mutated(&mut |seed| {
-        seed.entries[0] = ArtifactEntry::from_canonical_decode(
-            EntryStubId::from_normalized_identity(10).expect("entry"),
-            seed.entries[0].code_offset(),
-        );
-    });
-    mutated(&mut |seed| {
-        seed.entries[0] = ArtifactEntry::from_canonical_decode(seed.entries[0].identity(), 24);
-    });
-    mutated(&mut |seed| {
-        seed.entries.push(ArtifactEntry::from_canonical_decode(
-            EntryStubId::from_normalized_identity(10).expect("entry"),
-            24,
-        ));
-    });
-    mutated(&mut |seed| {
-        seed.relocation_set = RelocationSetId::from_normalized_identity(16).expect("set");
-    });
-    mutated(&mut |seed| {
-        seed.relocations[0].kind = ArtifactRelocationKind::Absolute64;
-    });
-    mutated(&mut |seed| {
-        seed.relocations[0].destination_offset = 40;
-    });
-    mutated(&mut |seed| {
-        seed.relocations[0].target = RelocationTarget::Data(
-            layout_plans::DataSymbolId::from_normalized_identity(12).expect("data symbol"),
-        );
-    });
-    mutated(&mut |seed| seed.relocations[0].addend = 7);
-    mutated(&mut |seed| seed.relocations.clear());
-    mutated(&mut |seed| {
-        seed.authority_commitments = ArtifactAuthorityCommitments::from_canonical_evidence(
-            seed.contracts,
-            b"forged imported contract set",
-            seed.declared_footprint,
-            b"canonical declared footprint",
-            seed.placement_constraints
-                .machine_regime()
-                .map(|regime| (regime, b"canonical machine regime".as_slice())),
-            seed.placement_constraints
-                .installation_scope()
-                .map(|scope| (scope, b"canonical installation scope".as_slice())),
-        );
-    });
-
-    // Substitutions the canonical artifact construction or encoder cannot
-    // carry at all reject before any container exists.
-    let rejects_construction = |mutate: &mut dyn FnMut(&mut ArtifactSeed), needle: &str| {
-        let mut seed = ArtifactSeed::from(&artifact);
-        mutate(&mut seed);
-        let error = Artifact::from_canonical_decode(
-            seed.identity,
-            seed.architecture,
-            seed.code,
-            seed.contracts,
-            seed.declared_footprint,
-            seed.placement_plan,
-            seed.placement_constraints,
-            seed.entry_set,
-            seed.entries,
-            seed.relocation_set,
-            seed.relocations,
-            seed.authority_commitments,
-        )
-        .expect_err("non-representable substitution must reject construction");
-        assert!(
-            error.0.contains(needle),
-            "unexpected construction rejection: {}",
-            error.0
-        );
+    // The claimed normalized identity rides outside the content digest and
+    // is bound only by the admission evidence.
+    let joined_replay = |seed: &ArtifactSeed, field| {
+        if field == ArtifactWireFieldForTest::ClaimedArtifactIdentity {
+            assert_eq!(
+                seed.clone().into_artifact().content(),
+                artifact.content(),
+                "the claimed artifact identity rides outside the content digest",
+            );
+        }
     };
-    rejects_construction(&mut |seed| seed.code.clear(), "cannot have empty content");
-    rejects_construction(
-        &mut |seed| seed.entries.clear(),
-        "at least one selected entry",
-    );
-    rejects_construction(
-        &mut |seed| seed.entries.push(seed.entries[0]),
-        "must be unique",
-    );
-    rejects_construction(
-        &mut |seed| {
-            seed.entries[0] = ArtifactEntry::from_canonical_decode(seed.entries[0].identity(), 64)
-        },
-        "lies outside",
-    );
-    rejects_construction(
-        &mut |seed| {
-            seed.contracts = MachineContractSetId::from_normalized_identity(13).expect("id");
-        },
-        "compact report coordinates",
-    );
-    rejects_construction(
-        &mut |seed| {
-            seed.declared_footprint = MachineFootprintId::from_normalized_identity(14).expect("id");
-        },
-        "compact report coordinates",
-    );
-    rejects_construction(
-        &mut |seed| {
-            seed.placement_constraints = PlacementConstraints::new(
-                seed.placement_constraints.permitted_range(),
-                seed.placement_constraints.alignment(),
-                seed.placement_constraints.phase(),
-                None,
-                seed.placement_constraints.installation_scope(),
-            )
-            .expect("dropped regime");
-        },
-        "compact report coordinates",
-    );
+    let mut donor = ArtifactSeed::from(&artifact);
+    donor.identity = ArtifactId::from_normalized_identity(2).expect("artifact identity");
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "executable container artifact wire",
+        fields: ArtifactWireFieldForTest::INVENTORY,
+        honest: &|| ArtifactSeed::from(&artifact),
+        donor,
+        custody: &|seed: &ArtifactSeed| seed.clone(),
+        substitute: &substitute_artifact_wire_for_test,
+        check: &check,
+        outcome: &artifact_wire_custody_outcome,
+        joined_replay: Some(&joined_replay),
+    });
 
-    let mut too_many = ArtifactSeed::from(&artifact);
-    too_many.code = vec![0x90; 128];
-    too_many.relocations = (0..17)
-        .map(|index| DecodedArtifactRelocation {
-            kind: ArtifactRelocationKind::X86Relative32,
-            destination_offset: index * 4,
-            target: RelocationTarget::Entry(seed_entry(&artifact)),
-            addend: 0,
-        })
-        .collect();
-    let too_many = too_many.into_artifact();
-    let error = encode_executable_container(&too_many, &proof, limits())
-        .expect_err("the relocation bound must reject at encoding");
-    assert!(error.0.contains("exceeding configured bound"));
-
-    let mut oversized = ArtifactSeed::from(&artifact);
-    oversized.code = vec![0x90; 2048];
-    oversized.entries[0] =
-        ArtifactEntry::from_canonical_decode(oversized.entries[0].identity(), 2000);
-    oversized.relocations[0].destination_offset = 1992;
-    let oversized = oversized.into_artifact();
-    let error = encode_executable_container(&oversized, &proof, limits())
-        .expect_err("the section bound must reject at encoding");
-    assert!(error.0.contains("is empty or exceeds configured bound"));
-
+    // The encoder's own arguments are not artifact lanes: an empty proof and
+    // a version-1 encoding of strong commitments reject before any container
+    // exists.
     let error = encode_executable_container(&artifact, &[], limits())
         .expect_err("an empty proof section must reject at encoding");
     assert!(error.0.contains("proof section cannot be empty"));
@@ -1220,8 +956,4 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
     let total_length = changed.len() as u64;
     write_u64(&mut changed, 24, total_length);
     rejects_decode(&changed, "must contain exactly 128 bytes");
-}
-
-fn seed_entry(artifact: &Artifact) -> EntryStubId {
-    artifact.0.entries[0].identity()
 }
