@@ -60,7 +60,6 @@ pub data PhysicalAuthorityClass [copy] {
     case RootMemoryAccess;
     case ProcessInput;
 }
-// compiler-owned TargetProfile declaration
 // compiler-owned X86DeploymentFeatures declaration
 // compiler-owned optimization declarations
 // Compiler-owned package-build path carrier. The evaluator replaces values
@@ -144,7 +143,6 @@ pub data PrivilegedServices {
     interrupt_table: bool;
 }
 pub data Build {
-    // compiler-owned Build.target field
     // compiler-owned Build.x86_deployment_features field
     subsystem: Subsystem;
     freestanding: bool;
@@ -301,23 +299,10 @@ pub machine BuildProduct::provider(&self, path: &[u8]) -> ProductProviderRef {
 // compiler-owned optimization report machine
 "#;
 
-const BUILD_TARGET_FIELD_SLOT: &str = "    // compiler-owned Build.target field\n";
-const BUILD_TARGET_FIELD: &str = "    target: TargetProfile;\n";
 const BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT: &str =
     "    // compiler-owned Build.x86_deployment_features field\n";
 const BUILD_X86_DEPLOYMENT_FEATURES_FIELD: &str =
     "    x86_deployment_features: X86DeploymentFeatures;\n";
-const BUILD_TARGET_PROFILE_SLOT: &str = "// compiler-owned TargetProfile declaration\n";
-const BUILD_TARGET_PROFILE: &str = r#"pub data TargetProfile {
-    case LinuxArm64;
-    case LinuxX86_64;
-    case MacosArm64;
-    case WindowsX86_64;
-    case UefiX86_64;
-    case CrossPlatformCli;
-    case LocalUnchecked;
-}
-"#;
 const BUILD_X86_DEPLOYMENT_FEATURES_SLOT: &str =
     "// compiler-owned X86DeploymentFeatures declaration\n";
 const BUILD_X86_DEPLOYMENT_FEATURES: &str = r#"pub data X86DeploymentFeatures {
@@ -326,17 +311,11 @@ const BUILD_X86_DEPLOYMENT_FEATURES: &str = r#"pub data X86DeploymentFeatures {
 }
 "#;
 
-pub(super) fn construct_build_prelude(base: &str, has_exact_target: bool) -> String {
-    assert_eq!(
-        base.matches(BUILD_TARGET_FIELD_SLOT).count(),
-        1,
-        "build prelude must contain exactly one compiler-owned target slot"
-    );
-    assert_eq!(
-        base.matches(BUILD_TARGET_PROFILE_SLOT).count(),
-        1,
-        "build prelude must contain exactly one compiler-owned target profile slot"
-    );
+/// The toolchain Build has one shape on every route. It carries no target:
+/// build evaluation cannot observe or branch on a target, and every
+/// target-dependent selection is a row keyed by target
+/// (`wiki/spec/build/configuration.md#multi-target-compilation`).
+pub(super) fn construct_build_prelude(base: &str) -> String {
     assert_eq!(
         base.matches(BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT)
             .count(),
@@ -348,35 +327,23 @@ pub(super) fn construct_build_prelude(base: &str, has_exact_target: bool) -> Str
         1,
         "build prelude must contain exactly one compiler-owned x86 deployment-feature declaration slot"
     );
-    let replacement = if has_exact_target {
-        BUILD_TARGET_FIELD
-    } else {
-        ""
-    };
-    let with_target = base
-        .replacen(BUILD_TARGET_PROFILE_SLOT, BUILD_TARGET_PROFILE, 1)
+    let with_features = base
         .replacen(
             BUILD_X86_DEPLOYMENT_FEATURES_SLOT,
             BUILD_X86_DEPLOYMENT_FEATURES,
             1,
         )
-        .replacen(BUILD_TARGET_FIELD_SLOT, replacement, 1)
         .replacen(
             BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT,
-            if has_exact_target {
-                BUILD_X86_DEPLOYMENT_FEATURES_FIELD
-            } else {
-                ""
-            },
+            BUILD_X86_DEPLOYMENT_FEATURES_FIELD,
             1,
         );
-    build_vocabulary::install(&with_target)
+    build_vocabulary::install(&with_features)
 }
 
 pub(super) fn inject_build_prelude(
     source_storage: &mut SourceStorage,
     build_source_id: Option<source::SourceId>,
-    has_exact_target: bool,
     timings: &mut CompileTimings,
 ) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
     let mut has_build_machine = false;
@@ -407,11 +374,7 @@ pub(super) fn inject_build_prelude(
         return Ok(Vec::new());
     }
 
-    // Targetless checking is not an artifact activation and therefore exposes
-    // no synthetic target. Exact-target requests receive the canonical field;
-    // retaining the former Build shape here keeps targetless semantic checks
-    // honest while product requests migrate to immutable activation.
-    let prelude = construct_build_prelude(BUILD_PRELUDE, has_exact_target);
+    let prelude = construct_build_prelude(BUILD_PRELUDE);
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {

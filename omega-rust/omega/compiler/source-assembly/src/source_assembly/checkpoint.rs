@@ -234,7 +234,6 @@ impl ImmutableSourceParseCheckpoint {
         let mut source_scoped_top_level_bindings = super::build_prelude::inject_build_prelude(
             &mut source_storage,
             self.build_source_id,
-            target_name.is_some(),
             timings,
         )?;
         source_scoped_top_level_bindings.extend(crate::frontend::retain_module_import_bindings(

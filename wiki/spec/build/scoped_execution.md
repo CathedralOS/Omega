@@ -143,8 +143,9 @@ provider plans as target evidence. A helper may receive the intended product
 target as explicit data without being executed as target-native code.
 
 Here host means the admitted build execution profile, not a value
-inferred from the compiler process's OS. `Build.target` continues to describe the
-product child as in the existing configuration contract. Build helper code and
+inferred from the compiler process's OS. The product's targets are the
+compilation's realization set; the Build observes none of them
+([multi-target compilation](configuration.md#multi-target-compilation)). Build helper code and
 its own ordinary dependencies are checked for the execution profile. If a build
 helper needs its own build invocation, that invocation produces the helper for
 this execution profile; it does not receive the consuming application's target
@@ -555,7 +556,9 @@ files without this application-mode declaration.
 
 Artifact-only builds retain an explicit target/evaluation context from their
 invocation; the mode does not imply cross-target equivalence or a new target
-profile. A generator may inspect `Build.target`, so changing it changes the key.
+profile. A generator cannot inspect a target: target-specific generated
+content is emitted as target-tagged declarations for every target, never a
+different file per target.
 This first slice does not automatically merge outputs from different target
 children. Executable builds still require the target's ProgramEntry and other
 mandatory roots even when they also publish artifacts.
@@ -667,7 +670,7 @@ composition usable without requiring a virtual operating system or action DSL.
 | Existing idea | Useful lesson | Omega-specific decision |
 | --- | --- | --- |
 | [Cargo build dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#build-dependencies) | Build and product dependency sets are separate; build dependencies follow the host. | Retain the purpose split, but enforce it through exact checked contexts and admitted execution. |
-| [Cargo build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html) | Host configuration differs from target configuration; scripts generate files before product compilation. `OUT_DIR` may persist and change detection can use declared watched paths. | Keep `Build.target` distinct from execution profile, use fresh private staging and conservative input commitments, and do not treat an output-directory convention as a sandbox. |
+| [Cargo build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html) | Host configuration differs from target configuration; scripts generate files before product compilation. `OUT_DIR` may persist and change detection can use declared watched paths. | Keep the realization targets distinct from execution profile and out of the Build, use fresh private staging and conservative input commitments, and do not treat an output-directory convention as a sandbox. |
 | [Bazel rules/actions](https://bazel.build/extending/rules) and [execution platforms](https://bazel.build/extending/platforms) | Tools and targets can use distinct configurations; explicit inputs/outputs and dependency DAGs make scheduling checkable. | Use typed dependency-purpose edges and explicit output custody without adding a second rule language or arbitrary action/plugin graph to the first slice. |
 | [Nix derivations](https://nix.dev/manual/nix/stable/store/derivation/) and [sandboxing](https://nix.dev/manual/nix/stable/command-ref/conf-file.html#conf-sandbox) | Builders consume explicit input closures and produce named outputs; isolation prevents accidental host dependencies. Sandbox settings and platform behavior matter. | Specify logical snapshot observations and fail closed if the executor cannot provide them. No implicit sandbox fallback or fixed-output network exception is authorized here. |
 

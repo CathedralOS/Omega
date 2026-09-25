@@ -28,16 +28,7 @@ impl PreparedFixture {
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
 builder.application("prepared_checked_source");
-transition builder.target {
-    TargetProfile::WindowsX86_64 -> windows(builder)
-    _ -> other(builder)
-}
-state windows(builder: &mut Build) {
-    builder.subsystem = Subsystem::Gui;
-}
-state other(builder: &mut Build) {
-    builder.subsystem = Subsystem::Console;
-}
+builder.subsystem = Subsystem::Gui;
 }
 "#,
         )
@@ -292,15 +283,14 @@ fn prepared_source_checkpoint_preserves_standalone_child_identity_and_siblings()
         linux.selected_target_profile(),
         Some(target::TargetProfile::LinuxX64),
     );
-    assert_ne!(linux.subsystem(), windows.subsystem());
+    // The Build observes no target, so every child reads the one evaluated
+    // subsystem (`wiki/spec/build/configuration.md#multi-target-compilation`).
+    assert_eq!(linux.subsystem(), windows.subsystem());
     assert_eq!(
         windows.application_intent(),
         Some(build_evaluation::HostedApplicationIntent::Gui)
     );
-    assert_eq!(
-        linux.application_intent(),
-        Some(build_evaluation::HostedApplicationIntent::Console)
-    );
+    assert_eq!(linux.application_intent(), windows.application_intent());
 }
 
 #[test]

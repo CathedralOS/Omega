@@ -99,9 +99,13 @@ only. These items land in order, and each deletes the side doors it replaces.
   compilation and its evaluated configuration carries rows keyed by target:
   provider selections, program entry, subsystem, application intent, opaque
   representation selections, x86 scalar FMA provider, grants, behavior
-  exclusions, wire demands. Today `build_evaluation::admit_build_program`
-  takes the selected target profile, `Build.target` is observable, and the
-  build-scope/product-scope execution profile split exists only for that.
+  exclusions, wire demands. The Build no longer carries a target and has
+  one prelude shape on every route; what remains is that
+  `build_evaluation::admit_build_program` still runs once per checked child
+  because Psi still runs per target, the x86 deployment claim is admitted
+  against that child's profile, and per-target rows (subsystem, program
+  entry, provider selections beyond the target-qualified root bindings)
+  have no authored spelling yet.
   Delete the per-target execution, the preliminary checked pass
   (`phase_transitions::typed_trees_to_preliminary_checked_trees`) and
   `declaration_admission::validate_authored_declaration_selections_before_build`;

@@ -4,7 +4,7 @@
 
 use crate::admission::configuration::BuildConfig;
 use crate::admission::target_vocabulary::{
-    TargetBuildVocabulary, target_build_vocabulary, validate_immutable_build_target,
+    BuildActivationVocabulary, build_activation_vocabulary, validate_build_activation_integrity,
 };
 use crate::admission::vocabulary;
 use crate::admission::vocabulary::{
@@ -402,40 +402,13 @@ impl RestrictedBuildRequest {
     }
 }
 
-/// Exact target vocabulary admitted for one selected build activation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AdmittedBuildTargetInputs {
-    profile: target::TargetProfile,
-    build_symbol: SymbolHandle,
-    target_field_symbol: SymbolHandle,
-    x86_deployment_features_field_symbol: SymbolHandle,
-}
-
-impl AdmittedBuildTargetInputs {
-    pub const fn profile(self) -> target::TargetProfile {
-        self.profile
-    }
-
-    pub const fn build_symbol(self) -> SymbolHandle {
-        self.build_symbol
-    }
-
-    pub const fn target_field_symbol(self) -> SymbolHandle {
-        self.target_field_symbol
-    }
-
-    pub const fn x86_deployment_features_field_symbol(self) -> SymbolHandle {
-        self.x86_deployment_features_field_symbol
-    }
-}
-
 pub(crate) struct SelectedAdmittedBuildMachine {
     pub(crate) entry: PreparedBuildMachineEntry,
     pub(crate) symbol: SymbolHandle,
     pub(crate) name: String,
     pub(crate) normalized_callable_identity: String,
     pub(crate) optimization_admission: optimization::BuildOptimizationAdmission,
-    pub(crate) target_vocabulary: Option<TargetBuildVocabulary>,
+    pub(crate) activation_vocabulary: Option<BuildActivationVocabulary>,
     pub(crate) filesystem_reachable: bool,
     pub(crate) execution_mode: BuildMachineExecutionMode,
     pub(crate) initial_build: BuildTimeValue,
@@ -520,20 +493,6 @@ impl AdmittedBuildProgram {
 
     pub const fn selected_target_profile(&self) -> Option<target::TargetProfile> {
         self.selected_target_profile
-    }
-
-    pub fn selected_target_inputs(&self) -> Option<AdmittedBuildTargetInputs> {
-        let AdmittedBuildMachine::Selected(selected) = &self.machine else {
-            return None;
-        };
-        let vocabulary = selected.target_vocabulary?;
-        let profile = self.selected_target_profile?;
-        Some(AdmittedBuildTargetInputs {
-            profile,
-            build_symbol: vocabulary.build_symbol,
-            target_field_symbol: vocabulary.target_field_symbol,
-            x86_deployment_features_field_symbol: vocabulary.x86_deployment_features_field_symbol,
-        })
     }
 
     pub const fn initial_build_snapshot(&self) -> Option<&BuildTimeValue> {
@@ -632,9 +591,9 @@ pub fn admit_build_program(
             )]
         })?;
     let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
-    let target_vocabulary = target_build_vocabulary(typed, selected_target_profile)?;
-    if let Some(target_vocabulary) = target_vocabulary {
-        validate_immutable_build_target(typed, target_vocabulary)?;
+    let activation_vocabulary = build_activation_vocabulary(typed)?;
+    if let Some(activation_vocabulary) = activation_vocabulary {
+        validate_build_activation_integrity(typed, activation_vocabulary)?;
     }
 
     // Build authority comes only from compiler-owned Build facets. Runtime
@@ -673,14 +632,7 @@ pub fn admit_build_program(
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
 
     let mut build_fields = Vec::new();
-    if let (Some(profile), Some(_)) = (selected_target_profile, target_vocabulary) {
-        build_fields.push((
-            "target".to_owned(),
-            BuildTimeValue::Case {
-                variant: profile.build_case_name().to_owned(),
-                payload: Vec::new(),
-            },
-        ));
+    if activation_vocabulary.is_some() {
         build_fields.push((
             "x86_deployment_features".to_owned(),
             BuildTimeValue::Case {
@@ -816,7 +768,7 @@ pub fn admit_build_program(
             name: machine_name,
             normalized_callable_identity,
             optimization_admission,
-            target_vocabulary,
+            activation_vocabulary,
             filesystem_reachable,
             execution_mode,
             initial_build: zero_build,

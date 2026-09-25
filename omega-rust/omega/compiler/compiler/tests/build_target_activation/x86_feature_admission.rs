@@ -42,27 +42,15 @@ fn package_inputs_for_target(
 }
 
 #[test]
-fn root_build_aliases_cannot_mutate_target_or_replace_the_activation() {
-    for (operation, expected) in [
-        (
-            "alias.target = TargetProfile::MacosArm64;",
-            "Build.target is compiler-owned and cannot be assigned",
-        ),
-        (
-            "let target: &mut TargetProfile = &mut alias.target;",
-            "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",
-        ),
-        (
-            "alias = alias;",
-            "Build activation cannot be replaced as a whole value",
-        ),
-    ] {
-        let project = TempProject::new(&exact_target_build(&format!(
-            "let alias: &mut Build = &mut builder; {operation}"
-        )));
-        let diagnostics = diagnostic_text(&project);
-        assert!(diagnostics.contains(expected), "{operation}: {diagnostics}");
-    }
+fn root_build_aliases_cannot_replace_the_activation() {
+    let project = TempProject::new(&exact_target_build(
+        "let alias: &mut Build = &mut builder; alias = alias;",
+    ));
+    let diagnostics = diagnostic_text(&project);
+    assert!(
+        diagnostics.contains("Build activation cannot be replaced as a whole value"),
+        "{diagnostics}"
+    );
 }
 
 #[test]
@@ -742,7 +730,9 @@ fn non_x86_profile_rejects_x86_deployment_feature_selection() {
 }
 
 #[test]
-fn targetless_build_cannot_mint_x86_deployment_feature_admission() {
+fn targetless_build_records_the_x86_claim_without_admitting_it() {
+    // The Build has one shape on every route. A targetless check reads the
+    // claim's spelling; only an x86 realization admits the provider.
     let project = TempProject::new(
         r#"machine build(builder: &mut Build) {
     builder.application("targetless_fma");
@@ -750,15 +740,7 @@ fn targetless_build_cannot_mint_x86_deployment_feature_admission() {
 }
 "#,
     );
-    let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
-        .expect_err("targetless checking has no deployment feature field")
-        .into_iter()
-        .map(|diagnostic| diagnostic.message)
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    assert!(
-        diagnostics.contains("x86_deployment_features"),
-        "unexpected diagnostics: {diagnostics}"
-    );
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
+        .expect("the claim is an ordinary Build value on every route");
+    assert_eq!(checked.x86_scalar_fma_provider(), None);
 }

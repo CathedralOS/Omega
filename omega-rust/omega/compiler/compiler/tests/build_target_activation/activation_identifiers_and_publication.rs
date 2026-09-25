@@ -9,7 +9,10 @@ use compiler::{
 use std::fs;
 
 #[test]
-fn exact_target_is_source_visible_and_drives_build_evaluation() {
+fn the_build_cannot_observe_a_target() {
+    // Build evaluation runs once for every target and cannot branch on one;
+    // target-dependent selections are rows keyed by target
+    // (wiki/spec/build/configuration.md#multi-target-compilation).
     let project = TempProject::new(&exact_target_build(
         r#"    transition builder.target {
         TargetProfile::WindowsX86_64 -> windows(builder)
@@ -22,31 +25,18 @@ fn exact_target_is_source_visible_and_drives_build_evaluation() {
         builder.subsystem = Subsystem::Console;
     }"#,
     ));
-
-    let checked = compile_to_checked(CheckedCompileRequest::new(
-        &project.main(),
-        Some("windows_x86_64"),
-    ))
-    .expect("the selected target must be an ordinary readable Omega value");
-    assert_eq!(
-        checked.selected_target_profile(),
-        Some(target::TargetProfile::WindowsX64)
-    );
-    assert_eq!(checked.subsystem(), 2, "Windows branch must select Gui");
-    assert_eq!(
-        checked.application_intent(),
-        Some(build_evaluation::HostedApplicationIntent::Gui)
-    );
-    let other = compile_to_checked(CheckedCompileRequest::new(
-        &project.main(),
-        Some("macos_arm64"),
-    ))
-    .expect("the macOS selection must execute its own authored branch");
-    assert_eq!(
-        other.application_intent(),
-        Some(build_evaluation::HostedApplicationIntent::Console)
-    );
-    assert_eq!(other.subsystem(), 3);
+    for selected in [Some("windows_x86_64"), None] {
+        let diagnostics = compile_to_checked(CheckedCompileRequest::new(&project.main(), selected))
+            .expect_err("the Build has no target to read")
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            diagnostics.contains("TargetProfile"),
+            "the Build vocabulary declares no TargetProfile; {selected:?}: {diagnostics}"
+        );
+    }
 }
 
 #[test]
@@ -621,40 +611,19 @@ fn targetless_checking_retains_no_synthetic_target() {
 }
 
 #[test]
-fn direct_target_assignment_is_rejected() {
-    let project = TempProject::new(&exact_target_build(
-        "    builder.target = TargetProfile::MacosArm64;",
-    ));
-    let diagnostics = diagnostic_text(&project);
-    assert!(
-        diagnostics.contains("Build.target is compiler-owned and cannot be assigned"),
-        "unexpected diagnostics: {diagnostics}"
-    );
-}
-
-#[test]
-fn transient_target_overwrite_then_restore_is_rejected() {
-    let project = TempProject::new(&exact_target_build(
-        r#"    builder.target = TargetProfile::MacosArm64;
-    builder.target = TargetProfile::WindowsX86_64;"#,
-    ));
-    let diagnostics = diagnostic_text(&project);
-    assert!(
-        diagnostics.contains("Build.target is compiler-owned and cannot be assigned"),
-        "unexpected diagnostics: {diagnostics}"
-    );
-}
-
-#[test]
-fn exclusive_target_borrow_is_rejected() {
-    let project = TempProject::new(&exact_target_build(
-        "    let target: &mut TargetProfile = &mut builder.target;",
-    ));
-    let diagnostics = diagnostic_text(&project);
-    assert!(
-        diagnostics.contains(
-            "Build.target is compiler-owned and cannot enter a mutable or write-only borrow"
+fn writing_or_borrowing_a_build_target_is_rejected_because_the_build_has_none() {
+    for (operation, expected) in [
+        (
+            "    builder.target = TargetProfile::MacosArm64;",
+            "no field `TargetProfile`",
         ),
-        "unexpected diagnostics: {diagnostics}"
-    );
+        (
+            "    let target: &mut TargetProfile = &mut builder.target;",
+            "no field `target` on `Build`",
+        ),
+    ] {
+        let project = TempProject::new(&exact_target_build(operation));
+        let diagnostics = diagnostic_text(&project);
+        assert!(diagnostics.contains(expected), "{operation}: {diagnostics}");
+    }
 }

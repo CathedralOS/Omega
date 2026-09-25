@@ -65,7 +65,7 @@ fn execute_admitted_build_occurrence(
         name: machine_name,
         normalized_callable_identity: _,
         optimization_admission,
-        target_vocabulary,
+        activation_vocabulary,
         filesystem_reachable,
         execution_mode,
         initial_build,
@@ -130,7 +130,7 @@ fn execute_admitted_build_occurrence(
         &augmented,
         optimization_admission,
         selected_target_profile,
-        target_vocabulary.is_some(),
+        activation_vocabulary.is_some(),
     )
     .map_err(|reason| {
         vec![Diagnostic::error(format!(
