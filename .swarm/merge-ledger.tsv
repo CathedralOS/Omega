@@ -204,3 +204,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T13:49:24Z	723b9b2ed3	leaf/statement-call-selection-index	coordinator	index authored statement-call selections by span+partition
 2026-09-25T13:56:56Z	cbdab5485b	leaf/symbol-key-hashing	coordinator	hash program-scoped index maps with a fast integer hasher
 2026-09-25T14:15:46Z	a70bcfe4ab	leaf/check-plan-scope	coordinator	memoize program-pure effect plans inside a checked-build scope
+2026-09-25T14:27:27Z	fa42ccf48c	leaf/source-binding-index	coordinator	index source-scoped bindings + dead-walk early-out in module lookup
