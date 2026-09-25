@@ -859,6 +859,9 @@ fn persistent_receiver(
 
 /// Keep the admitted operation family explicit: scalar result shape alone
 /// cannot admit calls, structural observations, or future effectful operations.
+/// Scalar operations that move no custody. A `TrappingInteger` operation
+/// owns its trap site, which crash-contract validation covers like the
+/// guarded `Crash` terminator it replaced; its arithmetic re-arms nothing.
 fn pure_scalar(kind: &OperationKind) -> bool {
     matches!(
         kind,
@@ -897,5 +900,6 @@ fn pure_scalar(kind: &OperationKind) -> bool {
             | OperationKind::SaturatingIntegerSubtract { .. }
             | OperationKind::WrappingIntegerMultiply { .. }
             | OperationKind::SaturatingIntegerMultiply { .. }
+            | OperationKind::TrappingInteger { .. }
     )
 }
