@@ -1,0 +1,17 @@
+// Capacity specializations under one owner normalize to the single name
+// `[u8; N]::Utf8`, so they must carry equal normalized semantics. These two
+// declare different predicates.
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+
+domain [u8; 16]::Utf8
+requires
+    self.len == 16;
+
+data Main {
+    items: [u8; 8] in Utf8;
+}
+
+machine Main::main(&mut self) {
+}
