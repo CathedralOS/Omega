@@ -174,6 +174,102 @@ pub(crate) fn state_index_by_symbol(
     })
 }
 
+// Member resolution looks up a data declaration by its symbol once per
+// member hop: a whole-table `.find` rescans every data definition per hop.
+// Cache each query's exact scan verdict per program under the same law as
+// the machine index — the data-definition table's own freshness anchors.
+// The anchors also include the backing-store pointer and the middle element:
+// a recycled `TypedTrees` at the same owner address with the same length and
+// boundary symbols but a different interior otherwise reuses stale verdicts.
+thread_local! {
+    static DATA_DEF_INDEX: RefCell<
+        Option<(
+            *const typed_trees::TypedTrees,
+            *const typed_trees::data::DataDefinition,
+            usize,
+            Option<SymbolHandle>,
+            Option<SymbolHandle>,
+            Option<SymbolHandle>,
+            std::collections::HashMap<SymbolHandle, Option<usize>>,
+        )>,
+    > = const { RefCell::new(None) };
+}
+
+fn data_definition_index_by_symbol(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<usize> {
+    if !symbol.is_valid() {
+        return None;
+    }
+    DATA_DEF_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let definitions = program.data_definitions();
+        let first = definitions.first().map(|definition| definition.symbol);
+        let middle = definitions
+            .get(definitions.len() / 2)
+            .map(|definition| definition.symbol);
+        let last = definitions.last().map(|definition| definition.symbol);
+        let stale = match &*slot {
+            Some((owner, storage, len, first_anchor, middle_anchor, last_anchor, _)) => {
+                !std::ptr::eq(*owner, program as *const _)
+                    || *storage != definitions.as_ptr()
+                    || *len != definitions.len()
+                    || *first_anchor != first
+                    || *middle_anchor != middle
+                    || *last_anchor != last
+            }
+            None => true,
+        };
+        if stale {
+            *slot = Some((
+                program as *const typed_trees::TypedTrees,
+                definitions.as_ptr(),
+                definitions.len(),
+                first,
+                middle,
+                last,
+                std::collections::HashMap::new(),
+            ));
+        }
+        let Some((_, _, _, _, _, _, verdicts)) = &mut *slot else {
+            return None;
+        };
+        match verdicts.get(&symbol) {
+            Some(Some(index)) => {
+                if definitions
+                    .get(*index)
+                    .is_some_and(|definition| definition.symbol == symbol)
+                {
+                    Some(*index)
+                } else {
+                    verdicts.remove(&symbol);
+                    let found = definitions
+                        .iter()
+                        .position(|definition| definition.symbol == symbol);
+                    verdicts.insert(symbol, found);
+                    found
+                }
+            }
+            Some(None) => None,
+            None => {
+                let found = definitions
+                    .iter()
+                    .position(|definition| definition.symbol == symbol);
+                verdicts.insert(symbol, found);
+                found
+            }
+        }
+    })
+}
+
+pub(crate) fn data_definition_by_symbol(
+    program: &typed_trees::TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    data_definition_index_by_symbol(program, symbol).map(|index| &program.data_definitions()[index])
+}
+
 // Whether a data declaration owns an attached `::drop` machine is queried
 // per field visit through the contents classifier: a whole-machine `.any`
 // per query rescans every machine. Cache each data symbol's verdict per
