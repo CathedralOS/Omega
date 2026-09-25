@@ -2,7 +2,10 @@
 //! onto the written place: assigned cases and values, byte predicates and
 //! qualifications, each with its source correspondence retained.
 
-use super::*;
+use super::{
+    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
+    HandleSpan, ProgramPoint, SymbolHandle, retain_qualification_correspondence,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transport(

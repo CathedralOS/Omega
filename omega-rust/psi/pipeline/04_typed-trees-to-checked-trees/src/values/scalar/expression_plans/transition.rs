@@ -2,7 +2,11 @@
 //! `ContinuationReturn`), and each successor argument as a scalar
 //! expression, a subslice endpoint or an erased proof term.
 
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
+    CheckedScalarExpressionRole, PrimitiveType, StatementPlanner, TransitionGuardNode,
+    TransitionTargetNode, lower_boolean_guard, lower_return_expression, retain_subslice_endpoints,
+};
 
 pub(super) fn plan(
     planner: StatementPlanner<'_, '_>,

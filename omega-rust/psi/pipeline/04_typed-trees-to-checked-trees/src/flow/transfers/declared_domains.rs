@@ -3,7 +3,11 @@
 //! needs no provenance, and a write through a reference local keeps each
 //! candidate's membership exactly when it held before the write.
 
-use super::*;
+use super::{
+    CanonicalPlace, ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan,
+    FlowBuildContext, FlowSemanticContextRef, HandleSpan, PlaceHandle, ProgramPoint,
+    QualificationEvidence, StatementNode, SymbolHandle,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn establish(

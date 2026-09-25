@@ -2,7 +2,11 @@
 //! literal (`ReturnCaseField`), a returned value call's scalar arguments,
 //! or the returned scalar itself (`Return`).
 
-use super::*;
+use super::{
+    CheckedLocatedScalarExpression, CheckedScalarExpressionBindings, CheckedScalarExpressionRole,
+    ExpressionHandle, ExpressionNode, StatementPlanner, lower_call_arguments,
+    lower_return_expression, retain_call_arguments,
+};
 
 pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHandle) {
     let StatementPlanner {
