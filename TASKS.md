@@ -6,6 +6,7 @@ this board identifies remaining work, not a passing baseline.
 
 | Start here | Purpose |
 | --- | --- |
+| [Pipeline route](#pipeline-route) | One Psi pass over every target's bodies, Build once, providers behind Terminal Psi, one driver. |
 | [Immediate product closure](#immediate-product-closure) | Application, sample and canary outcomes and their native-execution blockers. |
 | [Reflection](#semantic-reflection) / [embedding](#embedding-and-interpreted-components) / [tests](#requirement-based-tests) | Accepted language and library capabilities awaiting connected implementation. |
 | [P1–P5](#p1---authority-roots-and-entry) | Entry/storage, materialization, portable evidence, ABI and Cathedral customers. |
@@ -35,6 +36,101 @@ and transfers on the common graph, not another source-shape recognizer.
 Compiler verification does not require an accepted package lock, and unfinished
 native realization does not block source-package installation. Package acceptance,
 build authority, and artifact verification remain separate obligations.
+
+## Pipeline route
+
+The compiler is one driver feeding each stage into the next
+([pipeline.md](omega-rust/pipeline.md#one-driver-one-pass-per-target-realization),
+[multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)).
+Owner decision 2026-09-24: targets are data; Psi checks every target's bodies
+once per compilation; the Build evaluates once; `--target` narrows realization
+only. These items land in order, and each deletes the side doors it replaces.
+
+- **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
+  (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
+  Psi stage. Today `build_evaluation::target_machines::filter_target_machines_by_scope`
+  clears the marker on the selected target's bodies before resolution and
+  resolution's `lower_machine_into` skips every still-marked body, so an
+  unselected target's bodies are never checked and callers of an unselected
+  family fail resolution. Resolution admits every body of a family under one
+  path keyed by target; typing and checking check each body; lowering and
+  Terminal Psi retain the tag; a call names the family. Delete the filter,
+  `select_target_machines`, `settle_provider_defaults`, the
+  `SelectedTargetMachineDeclarations` custody and the generated-source
+  `filter_generated_extension` route. Acceptance: `omega --check` of
+  `samples/cli/basics/cli_mvp/main.omg` with no `--target` checks all six
+  `source/library/std/targets/*` trees in one Stage 05 run; a deliberate type
+  error in `std/targets/macos_arm64/filesystem_impl.omg` rejects that check on
+  a Windows host; `omega inspect-terminal` shows each body under its family
+  with its target tag.
+
+- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
+  is target-neutral: one union of physical sources, every target's program-entry
+  contract source (`source_assembly::entry_contract_seed` seeds one target's
+  today), package imports (`resolve_for_exact_target`) and dependency generated
+  sources (`append_dependency_generated_sources_to_storage` selects per
+  target). Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
+  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
+  dependency build that generates target-specific content emits target-tagged
+  declarations, never a different file per target. Depends on
+  PSI-TARGET-FAMILIES for the entry contracts' target-scoped bodies.
+  Acceptance: `PreparedCheckedSource` assembles once for any target set and
+  the `Step: assemble` timing row appears once per compilation.
+
+- **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
+  compilation and its evaluated configuration carries rows keyed by target:
+  provider selections, program entry, subsystem, application intent, opaque
+  representation selections, x86 scalar FMA provider, grants, behavior
+  exclusions, wire demands. Today `build_evaluation::admit_build_program`
+  takes the selected target profile, `Build.target` is observable, and the
+  build-scope/product-scope execution profile split exists only for that.
+  Delete the per-target execution, the preliminary checked pass
+  (`phase_transitions::typed_trees_to_preliminary_checked_trees`) and
+  `declaration_admission::validate_authored_declaration_selections_before_build`;
+  declaration admission runs once on the single checked program. Depends on
+  SOURCE-SET-UNION. Acceptance: one `Step: build` and one `Stage 05` timing
+  row per compilation for a two-target request, and std's `build.omg` rows for
+  six targets come from one evaluation.
+
+- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Calling plans
+  (`provider_planning::calling_policy_plans::compute_boundary_calling_plans`),
+  program-entry selection, provider settlement
+  (`build_evaluation::settle_checked_providers`), dispatch settlement
+  (`selected_dispatch::settle_selected_execution_dispatch_with_source_edits`),
+  callback materialization, task activation and provider-body const folds
+  consume Terminal Psi plus the target's rows inside Omega stage 00
+  (`terminal-psi-to-abstract-operations`, which already admits provider
+  installation), not typed or checked trees. Delete
+  `checked-compilation/src/checking/execution_settlement.rs`,
+  `phase_transitions.rs`, the provider-body folds in `const_evaluation.rs`,
+  the build-crate mutation entry points on `TypedTrees`,
+  `native_realization::NativeInputReuse`, and merge `admit_native_providers`
+  into the same stage. Invert the layering guard
+  `omega_provider_selection_consumes_psi_frontend_directly` so
+  `provider-planning` may not depend on `typed-trees` or `validation`. Depends
+  on BUILD-EVALUATES-ONCE. Acceptance: Psi stages 00-07 run once for a
+  two-target request and produce one Terminal artifact identity, and each
+  target's native artifact is byte-identical to the single-target output for
+  the `samples_compile` corpus.
+
+- **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` calls Psi 00-07 straight
+  through, then maps the realization set over Omega 00-09 and image emission;
+  every stage is one function taking the prior stage's output. The compile
+  route loses its mode parameters (`TargetEntryDiscovery`,
+  `permit_unsettled_fused_service_fields`, `IndependentComponentDiscovery`,
+  `restricted_build_grants`, the sponsors and `build_snapshot` on
+  `CheckedChildExecution`); package review drives stages 00-03 itself for
+  binding discovery. The three orchestration crates dissolve: source loading
+  is stage 00 input preparation; pre-resolution build-time evaluation, dynamic
+  call target resolution, const evaluation and product pruning move inside
+  stages 02-04; terminal-artifact keeps custody validators only. One request
+  record with a target set replaces the seven `for configuration in &mut
+  self.configurations` copy loops, and the target profile resolves once at the
+  CLI boundary instead of 16 `TargetProfile::from_omega_target_name` sites.
+  Each item above performs its share; this item closes the remainder.
+  Acceptance: `compiler.rs` contains the complete stage sequence, the crates
+  `source-assembly`, `checked-compilation` and `terminal-artifact` are gone,
+  and `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
 
 ## Immediate product closure
 
