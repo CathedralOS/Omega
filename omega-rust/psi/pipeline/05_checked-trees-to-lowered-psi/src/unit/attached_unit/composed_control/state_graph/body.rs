@@ -86,6 +86,11 @@ pub(super) fn validate(
             .count(),
     )
     .map_err(|_| LoweringError::Unsupported("Unit graph scalar binding count overflow"))?;
+    crate::emission::primitive_store::validate_element_rosters(
+        checked,
+        state.state,
+        &state.operations,
+    )?;
     let mut cursor = prefix;
     for (index, operation) in state.operations.iter().enumerate() {
         let mut check_structural_binding =

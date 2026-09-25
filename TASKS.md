@@ -3861,9 +3861,14 @@ syntax and other terminal services are not prerequisites.
     and frontier policy (`terminal-semantics/src/structural_effect.rs`). So
     the float read should be one observation typed by its result declaration
     that reconciles those rows, not a third copy.
-  - Add ordinary construction for record members typed `UInt`, `&[u8] in Utf8`,
-    and primitive arrays such as `[u32; 4]`; top-level array locals are not
-    record-field support. Aggregate replacement must keep the custody checks below.
+  - Add ordinary construction for record members typed `UInt` and `&[u8] in
+    Utf8`. A closed array literal stored into a primitive-array field already
+    lands as element stores (`primitive::array_literal_stores`), including
+    under a whole-array policy shell. A shell on the element type
+    (`[[i32 in Wrapping; 3]; 3]`, `samples/cli/collections/matrix_multiply`)
+    still declines at `structural field store: scalar field type`. So do
+    literal elements that read storage. Aggregate replacement must keep the
+    custody checks below.
   Remaining work:
 
   - Close two distinct receiving cases in

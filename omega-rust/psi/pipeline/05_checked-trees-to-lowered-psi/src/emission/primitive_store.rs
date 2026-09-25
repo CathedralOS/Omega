@@ -171,6 +171,73 @@ pub(crate) fn value_role(
     value_role_at(checked, state_symbol, assignment, &target.path, path)
 }
 
+/// Every statement with more than one primitive store is a whole
+/// array-literal replacement: its stores, in operation order, write the
+/// literal's row-major elements, each exactly once and all of them.
+pub(crate) fn validate_element_rosters(
+    checked: &CheckedTrees,
+    state_symbol: symbols::SymbolHandle,
+    operations: &[checked_trees::CheckedUnitEffectOperationPlan],
+) -> Result<(), LoweringError> {
+    let mismatch =
+        || LoweringError::Unsupported("array literal element stores are not its complete roster");
+    let mut rosters: Vec<(u32, Vec<&[CheckedUnitStructuralPathSegment]>)> = Vec::new();
+    for operation in operations {
+        let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+            statement_index,
+            path,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        match rosters
+            .iter_mut()
+            .find(|(statement, _)| statement == statement_index)
+        {
+            Some((_, paths)) => paths.push(path),
+            None => rosters.push((*statement_index, vec![path])),
+        }
+    }
+    for (statement_index, paths) in rosters {
+        if paths.len() == 1 {
+            continue;
+        }
+        let (assignment, target) = authored_store(checked, state_symbol, statement_index)?;
+        let (machine, state) =
+            crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+        let elements = validation::declared_place_type_raw(
+            &checked.typed,
+            machine,
+            Some(state),
+            assignment.target,
+        )
+        .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
+        .and_then(|expected| {
+            validation::scalar_array_elements(
+                &checked.typed,
+                machine.symbol,
+                assignment.value,
+                expected,
+            )
+        })
+        .ok_or_else(mismatch)?;
+        if elements.elements.len() != paths.len() {
+            return Err(mismatch());
+        }
+        for (ordinal, path) in paths.into_iter().enumerate() {
+            let expected = CheckedScalarExpressionRole::ArrayElement {
+                source: checked_trees::CheckedArrayConstructionSource::Statement,
+                element_ordinal: u32::try_from(ordinal).map_err(|_| mismatch())?,
+            };
+            if value_role_at(checked, state_symbol, assignment, &target.path, path)? != expected {
+                return Err(mismatch());
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The authored assignment at a primitive store's statement, with the
 /// storage its target names.
 fn authored_store(
@@ -232,6 +299,7 @@ fn value_role_at(
         Some(state),
         assignment.target,
     )
+    .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
     .ok_or_else(mismatch)?;
     let mut ordinal = 0_u64;
     let mut indices = indices.iter();
@@ -289,6 +357,7 @@ fn validate_array_element_value(
         Some(state),
         assignment.target,
     )
+    .and_then(|declared| validation::closed_array_store_type(&checked.typed, declared))
     .ok_or_else(mismatch)?;
     let element = validation::scalar_array_elements(
         &checked.typed,

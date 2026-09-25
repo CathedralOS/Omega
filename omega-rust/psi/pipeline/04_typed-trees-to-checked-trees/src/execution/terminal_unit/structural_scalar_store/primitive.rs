@@ -199,8 +199,10 @@ pub(super) fn array_literal_stores(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<Vec<CheckedUnitEffectOperationPlan>> {
-    let expected =
-        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let expected = validation::closed_array_store_type(
+        program,
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
+    )?;
     let extents = closed_array_extents(program, expected)?;
     let (_, symbol, segments) = storage_place(
         program,

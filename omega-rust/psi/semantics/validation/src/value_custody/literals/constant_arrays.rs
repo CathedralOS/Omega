@@ -12,6 +12,37 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+/// The closed primitive array type a whole array literal stored into a place
+/// of `reference` lands at. An arithmetic-policy shell around the whole array
+/// (`[i32; 6] in Wrapping`) qualifies arithmetic on its elements, not their
+/// storage, so it is peeled; any other constraint keeps its own owner.
+pub fn closed_array_store_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        if !program
+            .type_reference_table
+            .constraints(*constraints)
+            .iter()
+            .all(|constraint| {
+                matches!(
+                    constraint,
+                    typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
+                )
+            })
+        {
+            return None;
+        }
+        reference = *base_type;
+    }
+    is_closed_primitive_array_type(program, reference).then_some(reference)
+}
+
 /// A concrete primitive array type has no qualifications or ownership authority.
 /// Validate its complete shape even below empty dimensions; operand evaluation
 /// and effects remain separate expression obligations. Admitting IEEE storage
