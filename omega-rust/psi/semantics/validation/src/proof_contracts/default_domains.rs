@@ -464,11 +464,11 @@ struct TrackedPlace<'program> {
 /// places ESTABLISHED AT ENTRY (the cross-state fixpoint). Returns the
 /// EXIT-established spellings (entry-established places stay established:
 /// monotone).
-fn walk_state<'a>(
-    program: &'a TypedTrees,
-    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'a>>,
-    machine: &'a Machine,
-    state: &'a State,
+fn walk_state(
+    program: &TypedTrees,
+    call_frames: Option<&crate::machine_calls::calls::CallFrameResolver<'_>>,
+    machine: &Machine,
+    state: &State,
     entry_established: &[String],
     entry_valuations: &[PlaceValuation],
     entry_windows: &[InvariantWindow],
