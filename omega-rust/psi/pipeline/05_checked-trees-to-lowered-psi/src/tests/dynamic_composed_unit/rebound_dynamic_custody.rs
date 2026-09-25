@@ -1520,3 +1520,276 @@ fn lowers_joined_indexed_element_guard_into_entry_primitive_read() {
         comparison.result.expect_scalar().id
     );
 }
+
+const JOINED_PARAM_PARAM_ORDERING_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, low: u64, high: u64) {
+        transition low < high {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_param_param_ordering_guard_into_entry_less_than() {
+    let caller = lower_joined_guard_caller(JOINED_PARAM_PARAM_ORDERING_GUARD_SOURCE);
+    let [low, high] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps both integer parameters")
+    };
+    assert!(matches!(
+        low.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(_)
+    ));
+    assert!(matches!(
+        high.scalar_type,
+        semantic_vocabulary::ScalarType::Integer(_)
+    ));
+    let [comparison] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "param-param ordering lowers to a single comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    let OperationKind::IntegerLessThan { left, right } = comparison.kind else {
+        panic!("param-param ordering lowers to IntegerLessThan: {comparison:?}")
+    };
+    assert_eq!(left, low.id);
+    assert_eq!(right, high.id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}
+
+const JOINED_NEGATED_ORDERING_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        transition !(pick < 5) {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_negated_ordering_guard_into_entry_operations() {
+    let caller = lower_joined_guard_caller(JOINED_NEGATED_ORDERING_GUARD_SOURCE);
+    let [constant, comparison, negation] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "negated ordering lowers to constant, comparison, negation: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    assert!(matches!(
+        comparison.kind,
+        OperationKind::IntegerLessThan { .. }
+    ));
+    let OperationKind::BooleanNot { operand } = negation.kind else {
+        panic!("negated ordering guard ends in BooleanNot: {negation:?}")
+    };
+    assert_eq!(operand, comparison.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        negation.result.expect_scalar().id
+    );
+}
+
+const JOINED_LOCAL_BOOLEAN_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        let small: bool = pick < 5;
+        transition small {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_local_boolean_guard_into_entry_comparison() {
+    let caller = lower_joined_guard_caller(JOINED_LOCAL_BOOLEAN_GUARD_SOURCE);
+    let [parameter] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps its one integer parameter")
+    };
+    let [constant, comparison] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "local guard substitutes its initializer into a comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    let OperationKind::IntegerLessThan { left, right } = comparison.kind else {
+        panic!("local guard lowers to IntegerLessThan: {comparison:?}")
+    };
+    assert_eq!(left, parameter.id);
+    assert_eq!(right, constant.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        comparison.result.expect_scalar().id
+    );
+}
+
+const JOINED_SWAPPED_BRANCH_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, pick: u64) {
+        transition pick != 5 {
+            true -> take_second()
+            _ -> take_first()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_swapped_branch_guard_into_entry_operations() {
+    let caller = lower_joined_guard_caller(JOINED_SWAPPED_BRANCH_GUARD_SOURCE);
+    let [constant, comparison, negation] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "swapped-branch guard lowers to constant, comparison, negation: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    assert!(matches!(
+        constant.kind,
+        OperationKind::IntegerConstant { .. }
+    ));
+    assert!(matches!(
+        comparison.kind,
+        OperationKind::IntegerEqual { .. }
+    ));
+    let OperationKind::BooleanNot { operand } = negation.kind else {
+        panic!("swapped-branch guard ends in BooleanNot: {negation:?}")
+    };
+    assert_eq!(operand, comparison.result.expect_scalar().id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        negation.result.expect_scalar().id
+    );
+}
