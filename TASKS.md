@@ -467,6 +467,20 @@ the complete product bar; focused successes below do not establish that baseline
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
 
+  Method that works, and one cause closed by it (cab36531c8f). The phase the
+  message carries is the only pointer: grep it verbatim under
+  `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
+  -- then replace the `?` exits marked after it with `let .. else` probes that
+  name the machine, since most hits are unrelated machines legitimately
+  declining. `attached data shape` led to `add_data_shape` rejecting a field,
+  and outward to `UInt`/`Int`: the builtin UNBOUNDED integers have no width and
+  so no layout, and a relevant field naming one killed its whole declaration
+  silently. Nine authored files did that. The declaration now refuses instead.
+  Re-measure after each such fix rather than assuming one cause covers the
+  cohort: the dungeon sample advanced to a different phase, `call operation:
+  structural arguments: parameter path`, and `samples/cli/basics/cli_mvp`
+  now checks clean.
+
   Distinct remaining probes, with the cause each now reports (measured
   2026-09-24 through `tools/corpus_gate.py`, so targetless -- a probe whose
   promise is native execution is not closed by checking here):
