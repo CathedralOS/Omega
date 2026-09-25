@@ -90,10 +90,12 @@ impl MachineScope<'_> {
             return SymbolHandle::invalid();
         }
         let mut selected = SymbolHandle::invalid();
-        for attachment in self
-            .attached_machines
-            .iter()
-            .filter(|entry| entry.owner == owner)
+        for attachment in super::expression_paths::projected_receivers::attached_machines_for_owner(
+            self.attached_machines,
+            owner,
+        )
+        .into_iter()
+        .map(|index| &self.attached_machines[index])
         {
             let state = super::lookup::child_symbol_by_kinds(
                 symbols,
@@ -227,10 +229,11 @@ impl MachineScope<'_> {
             return None;
         }
         for hop in hops {
-            let definition = self
-                .data_definitions
-                .iter()
-                .find(|definition| definition.symbol == current_symbol)?;
+            let definition = &self.data_definitions
+                [super::expression_paths::projected_receivers::data_definition_position(
+                    self.data_definitions,
+                    current_symbol,
+                )? as usize];
             let field = self
                 .data_members
                 .span_or_empty(definition.storage.members)
