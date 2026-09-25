@@ -100,6 +100,10 @@ impl RangeFacts<'_> {
             {
                 continue;
             }
+            // The bound index scans the whole program once; the candidate
+            // walk below asks for an identity per expression node, so build
+            // it once for the walk instead of inside each lookup.
+            let bound_lookup = validation::ImmutableBoundLookup::new(program);
             for (expression, node) in program.expression_table.iter_expressions() {
                 let ExpressionNode::Indexed(candidate) = node else {
                     continue;
@@ -116,12 +120,12 @@ impl RangeFacts<'_> {
                 let same_snapshot = selector.symbol.is_valid()
                     && selector.head_symbol == selector.symbol
                     && selector_symbol == Some(selector.symbol)
-                    && integer_value_identity(program, state, candidate.index).is_some_and(
-                        |value| {
+                    && integer_value_identity(program, &bound_lookup, state, candidate.index)
+                        .is_some_and(|value| {
                             value == symbol
-                                || integer_value_identity(program, state, captured) == Some(value)
-                        },
-                    );
+                                || integer_value_identity(program, &bound_lookup, state, captured)
+                                    == Some(value)
+                        });
                 if (selector_symbol != Some(symbol) && !same_snapshot)
                     || program
                         .expression_table
@@ -189,24 +193,22 @@ impl RangeFacts<'_> {
 /// typed identities for a dependency-preservation grant.
 pub(super) fn integer_value_identity(
     program: &TypedTrees,
+    bound_lookup: &validation::ImmutableBoundLookup<'_>,
     state: &State,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
-    let value =
-        validation::immutable_integer_bound_value_symbol(program, &bound_lookup, expression)
-            .or_else(|| {
-                let normalized = validation::normalize_immutable_integer_bound_expression(
-                    program,
-                    &bound_lookup,
-                    expression,
-                )?;
-                let ExpressionNode::Name(path) = program.expression_table.expression(normalized)
-                else {
-                    return None;
-                };
-                Some(path.symbol)
-            })?;
+    let value = validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
+        .or_else(|| {
+            let normalized = validation::normalize_immutable_integer_bound_expression(
+                program,
+                bound_lookup,
+                expression,
+            )?;
+            let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
+                return None;
+            };
+            Some(path.symbol)
+        })?;
     for _ in 0..EXPRESSION_WALK_DEPTH_BOUND {
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
             return None;

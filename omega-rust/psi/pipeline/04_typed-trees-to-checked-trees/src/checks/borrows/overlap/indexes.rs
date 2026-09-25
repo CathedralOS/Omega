@@ -705,11 +705,15 @@ pub(super) fn index_expression_extent_with_selectors(
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> EvaluatedIndexExtent {
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
+    // The bound index scans the whole program once; a constant point
+    // expression folds without it, so build it on first use.
+    let mut bound_lookup = None;
     match program.expression_table.expression(expression) {
         ExpressionNode::Range(range) => {
+            let bound_lookup =
+                bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
             let (start, end) =
-                range_integer_bounds(program, &bound_lookup, range, location, selectors);
+                range_integer_bounds(program, bound_lookup, range, location, selectors);
             EvaluatedIndexExtent::Window { start, end }
         }
         _ => EvaluatedIndexExtent::Point(selectors.bound(
@@ -723,7 +727,15 @@ pub(super) fn index_expression_extent_with_selectors(
                     .expression_table
                     .constant_integer_value(expression)
                     .map(NormalizedBound::Integer)
-                    .or_else(|| selector_bound(program, &bound_lookup, expression))
+                    .or_else(|| {
+                        selector_bound(
+                            program,
+                            bound_lookup.get_or_insert_with(|| {
+                                validation::ImmutableBoundLookup::new(program)
+                            }),
+                            expression,
+                        )
+                    })
             },
         )),
     }
