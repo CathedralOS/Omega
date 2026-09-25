@@ -1134,6 +1134,84 @@ fn validate_place_read(
     .then_some(root)
 }
 
+/// One per-state index behind `root_is_current`: a place root is current when
+/// it names the machine, a state parameter, or a local declared before the
+/// read's statement index. Both verdicts otherwise rescan the parameter list
+/// and the statement prefix per read. `local_first` keeps each symbol's first
+/// declaration index, preserving the prefix scan's membership semantics.
+struct RootCurrencyIndex {
+    parameters: std::collections::HashSet<SymbolHandle>,
+    local_first: std::collections::HashMap<SymbolHandle, usize>,
+}
+
+fn root_currency_fingerprint(state: &State) -> usize {
+    (state.symbol.arena_index() as usize)
+        ^ (state.statement_nodes.start().arena_index() as usize).rotate_left(3)
+        ^ (state.statement_nodes.count() as usize).rotate_left(7)
+        ^ (state.parameters.start().arena_index() as usize).rotate_left(11)
+        ^ (state.parameters.count() as usize).rotate_left(13)
+}
+
+fn statement_sample(program: &TypedTrees, state: &State, position: usize) -> usize {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    match statements.get(position) {
+        Some(typed_trees::statement::StatementNode::LocalData(local)) => {
+            1usize ^ (local.symbol.arena_index() as usize).rotate_left(position as u32 + 2)
+        }
+        Some(_) => 2usize.rotate_left(position as u32 + 2),
+        None => 0,
+    }
+}
+
+thread_local! {
+    static ROOT_CURRENCY: std::cell::RefCell<
+        Option<(*const State, usize, RootCurrencyIndex)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn with_root_currency<R>(
+    program: &TypedTrees,
+    state: &State,
+    read: impl FnOnce(&RootCurrencyIndex) -> R,
+) -> R {
+    let fingerprint = root_currency_fingerprint(state)
+        ^ statement_sample(program, state, 0)
+        ^ statement_sample(program, state, (state.statement_nodes.count() as usize) / 2)
+        ^ statement_sample(
+            program,
+            state,
+            (state.statement_nodes.count() as usize).saturating_sub(1),
+        );
+    ROOT_CURRENCY.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let stale = match slot.as_ref() {
+            Some((owner, seen, _)) => !std::ptr::eq(*owner, state) || *seen != fingerprint,
+            None => true,
+        };
+        if stale {
+            let mut index = RootCurrencyIndex {
+                parameters: std::collections::HashSet::new(),
+                local_first: std::collections::HashMap::new(),
+            };
+            for parameter in program.state_parameters(state) {
+                index.parameters.insert(parameter.symbol);
+            }
+            for (position, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                    index.local_first.entry(local.symbol).or_insert(position);
+                }
+            }
+            *slot = Some((state, fingerprint, index));
+        }
+        read(&slot.as_ref().unwrap().2)
+    })
+}
+
 pub(super) fn root_is_current(
     program: &TypedTrees,
     machine: &Machine,
@@ -1141,12 +1219,16 @@ pub(super) fn root_is_current(
     statement_index: usize,
     root: facts::PlaceRoot,
 ) -> bool {
-    root == facts::PlaceRoot::Symbol(machine.symbol)
-        || program.state_parameters(state).iter().any(|parameter| {
-            root == facts::PlaceRoot::Symbol(parameter.symbol)
-        })
-        || program.statement_table.statements(state.statement_nodes).iter().take(statement_index).any(|statement| {
-            matches!(statement, typed_trees::statement::StatementNode::LocalData(local) if root == facts::PlaceRoot::Symbol(local.symbol))
+    let facts::PlaceRoot::Symbol(symbol) = root else {
+        return false;
+    };
+    symbol == machine.symbol
+        || with_root_currency(program, state, |index| {
+            index.parameters.contains(&symbol)
+                || index
+                    .local_first
+                    .get(&symbol)
+                    .is_some_and(|position| *position < statement_index)
         })
 }
 
