@@ -106,6 +106,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::ElementViewRead { .. }
         | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
+        | AbstractOperation::StructuralByteSequenceFieldRead { .. }
         | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }

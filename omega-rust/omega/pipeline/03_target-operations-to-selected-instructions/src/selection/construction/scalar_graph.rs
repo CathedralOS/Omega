@@ -334,6 +334,9 @@ fn select_function(
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut builder, operation)?
                     }
+                    LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { .. } => {
+                        structural::byte_field_read(source, &mut builder, operation)?
+                    }
                     LegalizedScalarInstructionKind::ElementViewRead { .. }
                     | LegalizedScalarInstructionKind::ElementViewLength { .. } => {
                         structural::element_observation(source, &mut builder, operation)?

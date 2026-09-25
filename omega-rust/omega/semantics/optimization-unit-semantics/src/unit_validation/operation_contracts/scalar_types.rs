@@ -42,6 +42,7 @@ pub(crate) fn operation_scalar_types_match(
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
         O::EstablishElementView { .. }
         | O::ElementViewLength { .. }

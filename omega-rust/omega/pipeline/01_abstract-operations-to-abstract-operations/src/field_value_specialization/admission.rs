@@ -651,6 +651,7 @@ fn forwarded_resolution(
             if matches!(
                 &use_node.operation,
                 O::ByteSequenceRead { .. }
+                    | O::StructuralByteSequenceFieldRead { .. }
                     | O::ByteSequenceWrite { .. }
                     | O::ByteSequenceSubslice { .. }
                     | O::StructuralByteSequenceFieldStore { .. }

@@ -172,3 +172,94 @@ fn indexed_byte_field_length_freshness_examines_backedges_and_missing_arrivals()
     let missing = BTreeMap::from([(loop_block, BTreeSet::new())]);
     assert!(validate(&function, &types, &missing).is_err());
 }
+
+/// A byte read bounds its index by the same live-length observation a byte
+/// store does: a replacement of the measured field between the observation
+/// and the read makes the read stale, while a sibling field's replacement
+/// leaves it current.
+#[test]
+fn indexed_byte_field_reads_need_the_same_fresh_length() {
+    let unit = indexed_field_unit();
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap();
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    let block = function
+        .blocks
+        .iter()
+        .position(|block| {
+            block.nodes.iter().any(|node| {
+                matches!(
+                    node.operation,
+                    O::StructuralByteSequenceFieldByteStore { .. }
+                )
+            })
+        })
+        .unwrap();
+    let store = function.blocks[block]
+        .nodes
+        .iter()
+        .position(|node| {
+            matches!(
+                node.operation,
+                O::StructuralByteSequenceFieldByteStore { .. }
+            )
+        })
+        .unwrap();
+    let mut replacements = function.blocks[block]
+        .nodes
+        .iter()
+        .filter(|node| matches!(node.operation, O::StructuralByteSequenceFieldStore { .. }));
+    let overlapping = replacements.next().unwrap().clone();
+    let sibling = replacements.next().unwrap().clone();
+    let mut read = function.blocks[block].nodes[store].clone();
+    let O::StructuralByteSequenceFieldByteStore {
+        psi_operation,
+        destination,
+        path,
+        field,
+        index,
+        length,
+        obligation,
+        ..
+    } = read.operation.clone()
+    else {
+        unreachable!();
+    };
+    read.operation = O::StructuralByteSequenceFieldRead {
+        psi_operation,
+        result: abstract_operations::AbstractResult {
+            value: id(994, semantic_vocabulary::ValueId::new),
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            ),
+        },
+        source: destination,
+        path,
+        field,
+        index,
+        length,
+        obligation,
+    };
+    let mut current = function.clone();
+    current.blocks[block].nodes[store] = read.clone();
+    assert!(validate(&current, &types, &BTreeMap::new()).is_ok());
+    for (intervening, accepted) in [(overlapping, false), (sibling, true)] {
+        let mut changed = current.clone();
+        changed.blocks[block].nodes.insert(store, intervening);
+        assert_eq!(
+            validate(&changed, &types, &BTreeMap::new()).is_ok(),
+            accepted
+        );
+    }
+}

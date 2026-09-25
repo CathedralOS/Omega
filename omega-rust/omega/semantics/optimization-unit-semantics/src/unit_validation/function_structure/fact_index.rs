@@ -95,6 +95,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
+            | O::StructuralByteSequenceFieldRead {
+                psi_operation,
+                obligation,
+                ..
+            }
             | O::ElementViewSubslice {
                 psi_operation,
                 obligation,

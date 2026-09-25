@@ -199,6 +199,113 @@ pub(super) fn indexed_store_footprint_retained(
         && effects.next().is_none()
 }
 
+/// Join the exact indexed-read occurrence without replacing its structural
+/// subject with a byte offset. Mandatory replay checks layout, the payload
+/// address and scalar homes; a read needs a shared or mutable borrow.
+pub(super) fn indexed_read_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::StructuralByteSequenceFieldRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+        index,
+        length,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, *source, false) else {
+        return false;
+    };
+    if !matches!(
+        access,
+        terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+    ) {
+        return false;
+    }
+    let expected_source = StructuralArgument {
+        place: *source,
+        access,
+        path: path.clone(),
+    };
+    let mut reads = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|candidate| {
+            matches!(candidate,
+        TargetUnitOperation::StructuralByteSequenceFieldRead { psi_operation: retained, .. }
+            if retained == psi_operation)
+        });
+    let Some(TargetUnitOperation::StructuralByteSequenceFieldRead {
+        result: retained_result,
+        source: retained_source,
+        field: retained_field,
+        index: retained_index,
+        length: retained_length,
+        obligation: retained_obligation,
+        ..
+    }) = reads.next()
+    else {
+        return false;
+    };
+    retained_result == result
+        && *retained_source == expected_source
+        && retained_field == field
+        && retained_length == length
+        && retained_obligation == obligation
+        && retained_index.source_value() == *index
+        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        && reads.next().is_none()
+}
+
+/// The one footprint row an indexed field byte read publishes: its source
+/// root, one byte, and its own selector, length and obligation.
+pub(super) fn indexed_read_footprint_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::StructuralByteSequenceFieldRead {
+        psi_operation,
+        source,
+        index,
+        length,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    let Some(read) = effects.next() else {
+        return false;
+    };
+    read.place == *source
+        && read.byte_count == 1
+        && matches!(read.role, Role::ReadByteSequence {
+            index: retained_index,
+            length: retained_length,
+            obligation: retained_obligation,
+            ..
+        } if retained_index == *index && retained_length == *length
+            && retained_obligation == *obligation)
+        && effects.next().is_none()
+}
+
 /// Account for replacement's exact graph occurrence. Mandatory source/selection
 /// replay owns capacity evidence, original backing, layout and copy correctness.
 pub(super) fn replacement_retained(

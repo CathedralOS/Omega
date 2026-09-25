@@ -1054,6 +1054,34 @@ fn runtime_slice_machine_indexed_string_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bounded_byte_field_read_exit_canary_runs() {
+    // A `[u8; N] in Utf8` field read by runtime and literal index: each byte
+    // loads from the field's inline backing under its live-length check.
+    let canary = pass_canary(fixture_roster::RUNTIME_BOUNDED_BYTE_FIELD_READ_EXIT);
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-bounded-byte-field-read-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("bounded byte-field read canary should compile from its authored root");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("bounded byte-field read canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("bounded byte-field read canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the bounded byte-field reads to sum HELLO to 372 (exit 70), got {:?}; stderr: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_string_field_literal_guard_exit_canary_runs() {
     // The storage-place sibling of the slice-indexed shape: a machine-owned
     // String field guard-compared against a literal (empty field takes the

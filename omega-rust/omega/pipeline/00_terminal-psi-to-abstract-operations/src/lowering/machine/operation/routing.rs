@@ -91,9 +91,38 @@ pub(super) fn lower(
                 field: *field,
             })
         }
-        OperationKind::StructuralByteSequenceFieldRead { .. } => Err(
-            LoweringError::UnsupportedStructuralByteSequenceFieldRead(operation.id),
-        ),
+        OperationKind::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            index,
+            length,
+            obligation,
+        } => {
+            let result = operation.result.scalar().ok_or(
+                LoweringError::UnsupportedStructuralByteSequenceFieldRead(operation.id),
+            )?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer)
+                if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8))
+            {
+                return Err(LoweringError::UnsupportedStructuralByteSequenceFieldRead(
+                    operation.id,
+                ));
+            }
+            Ok(AbstractOperation::StructuralByteSequenceFieldRead {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+                path: path.clone(),
+                field: *field,
+                index: *index,
+                length: *length,
+                obligation: *obligation,
+            })
+        }
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

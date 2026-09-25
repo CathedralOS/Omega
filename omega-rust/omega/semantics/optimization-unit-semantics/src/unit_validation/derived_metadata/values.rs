@@ -37,6 +37,7 @@ pub(crate) fn expected_definitions(
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
+        | O::StructuralByteSequenceFieldRead { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),
@@ -217,7 +218,8 @@ pub(crate) fn expected_uses(
                 terminal_psi::RecordFieldValue::Structural(_) => None,
             })
             .collect(),
-        O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ByteSequenceRead { index, length, .. }
+        | O::StructuralByteSequenceFieldRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {

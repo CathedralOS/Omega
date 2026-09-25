@@ -22,6 +22,7 @@ mod block_views;
 mod entry;
 pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
+mod byte_field_read;
 mod byte_field_store;
 mod byte_views;
 mod leaf_copy;
@@ -43,6 +44,7 @@ mod runtime_address;
 mod scalar_store;
 mod subslice;
 
+pub(super) use byte_field_read::read_byte as byte_field_read;
 pub(super) use byte_views::byte_observation;
 pub(super) use element_views::element_observation;
 

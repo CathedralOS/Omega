@@ -3544,6 +3544,11 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
+        | AbstractOperation::StructuralByteSequenceFieldRead {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::StructuralCaseMembership {
             psi_operation,
             result,

@@ -153,6 +153,11 @@ fn validate_surviving_byte_operations(
                 psi_operation,
                 obligation,
                 ..
+            }
+            | O::StructuralByteSequenceFieldRead {
+                psi_operation,
+                obligation,
+                ..
             } => (*psi_operation, Some(*obligation)),
             O::ByteSequenceLength { psi_operation, .. }
             | O::StructuralByteSequenceFieldLength { psi_operation, .. } => (*psi_operation, None),
@@ -286,6 +291,30 @@ fn validate_surviving_byte_operations(
                     }),
                     terminal_psi::OperationKind::ByteSequenceRead {
                         source: *source,
+                        index: *index,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
+                O::StructuralByteSequenceFieldRead {
+                    result,
+                    source,
+                    path,
+                    field,
+                    index,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::StructuralByteSequenceFieldRead {
+                        source: *source,
+                        path: path.clone(),
+                        field: *field,
                         index: *index,
                         length: *length,
                         obligation: *obligation,

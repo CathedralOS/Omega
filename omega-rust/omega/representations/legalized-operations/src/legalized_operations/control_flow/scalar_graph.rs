@@ -147,6 +147,11 @@ impl LegalizedScalarInstruction {
                 ..
             } => [*index, *value, *length].into_iter().for_each(visit),
             LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+                index,
+                length,
+                ..
+            }
             | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
                 [*index, *length].into_iter().for_each(visit)
             }
@@ -281,6 +286,16 @@ pub enum LegalizedScalarInstructionKind {
     StructuralScalarFieldRead {
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// One inline field byte read under the field's current length
+    /// observation; selection reconstructs the field's offset.
+    StructuralByteSequenceFieldRead {
+        source: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     /// Exact bounded-field metadata subject; selection reconstructs its offset.
     StructuralByteSequenceFieldLength {

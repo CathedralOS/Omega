@@ -135,6 +135,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::StructuralByteSequenceFieldRead {
+            psi_operation,
+            result,
+            ..
         } if result.scalar_type == ScalarType::Integer(u8_type()) => {
             Ok((*psi_operation, result.value))
         }
@@ -396,6 +401,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         // malformed plan, not a missing lowering.
         AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::ByteSequenceRead { .. }
+        | AbstractOperation::StructuralByteSequenceFieldRead { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             Err(NodeRejection::Malformed)
@@ -757,6 +763,16 @@ pub(super) fn validate(
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())
+            }
+            // A bounded field is record storage, not a view: its readable
+            // parameter and field are admitted by `structural_fields::byte_read`.
+            AbstractOperation::StructuralByteSequenceFieldRead { index, length, .. } => {
+                if value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
+                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                {
+                    return Err(LegalizationError::custody());
+                }
+                ScalarType::Integer(u8_type())
             }
             AbstractOperation::ElementViewRead {
                 result,

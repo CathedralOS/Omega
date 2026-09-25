@@ -102,6 +102,8 @@ pub(crate) const RUNTIME_SLICE_MACHINE_INDEXED_STRING_GUARD_EXIT: &str =
     "text/runtime_slice_machine_indexed_string_guard_exit";
 pub(crate) const RUNTIME_STRING_FIELD_LITERAL_GUARD_EXIT: &str =
     "text/runtime_string_field_literal_guard_exit";
+pub(crate) const RUNTIME_BOUNDED_BYTE_FIELD_READ_EXIT: &str =
+    "text/runtime_bounded_byte_field_read_exit";
 pub(crate) const RUNTIME_LOCAL_ARRAY_INDEXED_STRING_GUARD_EXIT: &str =
     "text/runtime_local_array_indexed_string_guard_exit";
 pub(crate) const RUNTIME_LOCAL_ARRAY_INDEXED_STRING_FIELD_CONCAT_EXIT: &str =
@@ -264,6 +266,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_SLICE_INDEXED_STRING_GUARD_EXIT,
     RUNTIME_SLICE_MACHINE_INDEXED_STRING_GUARD_EXIT,
     RUNTIME_STRING_FIELD_LITERAL_GUARD_EXIT,
+    RUNTIME_BOUNDED_BYTE_FIELD_READ_EXIT,
     RUNTIME_LOCAL_ARRAY_INDEXED_STRING_GUARD_EXIT,
     RUNTIME_LOCAL_ARRAY_INDEXED_STRING_FIELD_CONCAT_EXIT,
     RUNTIME_SLICE_FIXED_INDEXED_STRING_GUARD_EXIT,

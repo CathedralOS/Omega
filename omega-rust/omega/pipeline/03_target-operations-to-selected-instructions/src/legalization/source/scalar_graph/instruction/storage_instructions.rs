@@ -348,6 +348,49 @@ pub(super) fn project_structural_byte_sequence_field_byte_store(
     Ok(kind)
 }
 
+pub(super) fn project_structural_byte_sequence_field_read(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::StructuralByteSequenceFieldRead {
+        psi_operation,
+        field,
+        index,
+        length,
+        obligation,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_structural_byte_sequence_field_read")
+    };
+    let source = crate::legalization::scalar_graph_input::structural_fields::byte_read(
+        optimized,
+        &node.operation,
+        &unit.structural_types,
+    )
+    .ok_or(Error::custody())?;
+    let fact = unit
+        .accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == *psi_operation
+                && fact.obligation == *obligation
+        })
+        .ok_or(Error::custody())?;
+    Ok(
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+            source,
+            field: *field,
+            index: *index,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: fact.identity,
+        },
+    )
+}
+
 pub(super) fn project_structural_byte_sequence_field_store(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,

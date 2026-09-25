@@ -42,6 +42,12 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
             index,
             length,
             ..
+        }
+        | O::StructuralByteSequenceFieldRead {
+            result,
+            index,
+            length,
+            ..
         } => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 8))
