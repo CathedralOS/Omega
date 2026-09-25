@@ -5,6 +5,7 @@ use super::type_refinement::{TypeBinding, required_type_matches_exact};
 use super::{
     ExpressionHandle, ExpressionNode, Machine, State, StaticMachineArgument, SymbolHandle,
     TypeParameterKind, TypedTrees, machine_and_state, machine_parameter_signature,
+    machine_state_index,
 };
 use typed_trees::signature::StateSignature;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -44,6 +45,7 @@ pub fn closed_static_call_type_bindings(
     if selected.is_empty() || selected.len() != requirements.len() {
         return None;
     }
+    let index = machine_state_index(program);
     let mut bindings = Vec::<TypeBinding>::new();
     for (requirement, selected) in requirements.into_iter().zip(selected) {
         if selected.application.is_some()
@@ -55,7 +57,7 @@ pub fn closed_static_call_type_bindings(
         {
             return None;
         }
-        let (machine, entry) = machine_and_state(program, selected.symbol)?;
+        let (machine, entry) = machine_and_state(program, &index, selected.symbol)?;
         if !program.machine_type_parameters(machine).is_empty() {
             return None;
         }
