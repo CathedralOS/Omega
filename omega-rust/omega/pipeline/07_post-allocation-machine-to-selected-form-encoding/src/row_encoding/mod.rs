@@ -2,7 +2,7 @@
 //! bytes wait for later layout, checked against what the post-allocation
 //! machine instruction declared.
 //!
-//! `encode_row` is the entry; `selected_form_encoding::compute` calls it for
+//! `encode_row` is the entry; `selected_form_encoding/compute.rs` calls it for
 //! every instruction and block terminator in order, with the address
 //! `frame_address::resolve` produced for it. It takes the route the selected
 //! instruction kind declares (`route::route_of`):
