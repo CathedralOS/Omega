@@ -9,12 +9,40 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::value_custody::struct_literals::construction_field_type;
+use std::collections::HashMap;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::TableStructLiteral;
 use typed_trees::name::Identifier;
+use typed_trees::type_identity::NormalizedTypeIdentity;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Ordinary normalized identities are a pure function of the handle, and
+/// these walks re-query the same handles heavily (the `visiting` back-edge
+/// check compares every prefix entry against the same container). The memo
+/// keeps each normalization a one-time cost per walk.
+pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeIdentity>;
+
+fn type_identities_match(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    expected: TypeReferenceHandle,
+    identities: &mut TypeIdentityMemo,
+) -> bool {
+    if !actual.is_valid() || !expected.is_valid() {
+        return actual.is_valid() == expected.is_valid();
+    }
+    if !identities.contains_key(&actual) {
+        let identity = program.normalized_type_identity(actual);
+        identities.insert(actual, identity);
+    }
+    if !identities.contains_key(&expected) {
+        let identity = program.normalized_type_identity(expected);
+        identities.insert(expected, identity);
+    }
+    identities[&actual] == identities[&expected]
+}
 
 /// Lifetime applications retain borrow-region checking but do not require
 /// type substitution to inspect their declared storage fields.
@@ -42,7 +70,8 @@ pub(super) fn aggregate_storage_types_match(
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
-    aggregate_storage_types_match_in(program, actual, expected, &[])
+    let mut identities = TypeIdentityMemo::new();
+    aggregate_storage_types_match_in(program, actual, expected, &[], &mut identities)
 }
 
 /// Under an active substitution, a `Named` parameter resolves to its bound
@@ -53,10 +82,11 @@ pub(super) fn aggregate_storage_types_match_in(
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
+    identities: &mut TypeIdentityMemo,
 ) -> bool {
     let actual = substituted_head(program, actual, bindings);
     let expected = substituted_head(program, expected, bindings);
-    if crate::value_custody::type_references::type_references_match(program, actual, expected) {
+    if type_identities_match(program, actual, expected, identities) {
         return true;
     }
     if let (
@@ -87,7 +117,9 @@ pub(super) fn aggregate_storage_types_match_in(
                 .iter()
                 .zip(expected_arguments)
                 .all(|(actual, expected)| {
-                    aggregate_storage_types_match_in(program, *actual, *expected, bindings)
+                    aggregate_storage_types_match_in(
+                        program, *actual, *expected, bindings, identities,
+                    )
                 });
     }
     let Some((actual, _)) =
@@ -169,6 +201,7 @@ pub(super) fn type_is_caller_isolated_local(
         false,
         &mut Vec::new(),
         &mut Vec::new(),
+        &mut TypeIdentityMemo::new(),
     )
 }
 
@@ -188,6 +221,7 @@ pub(super) fn type_is_caller_isolated_local_in(
         false,
         &mut Vec::new(),
         &mut bindings.to_vec(),
+        &mut TypeIdentityMemo::new(),
     )
 }
 
@@ -205,6 +239,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
         true,
         &mut Vec::new(),
         &mut Vec::new(),
+        &mut TypeIdentityMemo::new(),
     )
 }
 
@@ -218,6 +253,7 @@ fn type_is_caller_isolated_local_inner(
     proof_values: bool,
     isolated_parameters: &mut Vec<SymbolHandle>,
     bindings: &mut TypeBindings,
+    identities: &mut TypeIdentityMemo,
 ) -> bool {
     let handle = substituted_head(program, handle, bindings);
     if program.primitive_type_reference(handle).is_some() {
@@ -231,6 +267,7 @@ fn type_is_caller_isolated_local_inner(
             proof_values,
             isolated_parameters,
             bindings,
+            identities,
         ),
         // A by-value array or slice reaches exactly what its elements reach;
         // a `[u8]` argument carries no reference that a callee could write
@@ -243,6 +280,7 @@ fn type_is_caller_isolated_local_inner(
             proof_values,
             isolated_parameters,
             bindings,
+            identities,
         ),
         TypeReferenceNode::Named { symbol, name } => {
             if proof_values && symbol.is_valid() && isolated_parameters.contains(symbol) {
@@ -279,6 +317,7 @@ fn type_is_caller_isolated_local_inner(
                     proof_values,
                     isolated_parameters,
                     bindings,
+                    identities,
                 )
         }
         TypeReferenceNode::Generic {
@@ -315,6 +354,7 @@ fn type_is_caller_isolated_local_inner(
                         true,
                         isolated_parameters,
                         bindings,
+                        identities,
                     )
                 })
             {
@@ -333,6 +373,7 @@ fn type_is_caller_isolated_local_inner(
                 true,
                 isolated_parameters,
                 bindings,
+                identities,
             );
             isolated_parameters.truncate(parameter_count);
             isolated
@@ -365,6 +406,7 @@ fn type_is_caller_isolated_local_inner(
                 proof_values,
                 isolated_parameters,
                 bindings,
+                identities,
             );
             bindings.truncate(mark);
             isolated
@@ -413,6 +455,7 @@ pub(super) fn struct_literal_type_is_caller_isolated(
             false,
             &mut Vec::new(),
             &mut Vec::new(),
+            &mut TypeIdentityMemo::new(),
         )
 }
 
@@ -428,6 +471,7 @@ pub(super) fn data_definition_has_only_owned_storage(
         false,
         &mut Vec::new(),
         &mut Vec::new(),
+        &mut TypeIdentityMemo::new(),
     )
 }
 
@@ -443,6 +487,7 @@ fn data_definition_is_caller_isolated(
     proof_values: bool,
     isolated_parameters: &mut Vec<SymbolHandle>,
     bindings: &mut TypeBindings,
+    identities: &mut TypeIdentityMemo,
 ) -> bool {
     if !definition.type_parameters.is_empty() {
         let parameters_bound = program
@@ -467,9 +512,9 @@ fn data_definition_is_caller_isolated(
         return false;
     }
     if container.is_some_and(|container| {
-        visiting
-            .iter()
-            .any(|visited| aggregate_storage_types_match_in(program, *visited, container, bindings))
+        visiting.iter().any(|visited| {
+            aggregate_storage_types_match_in(program, *visited, container, bindings, identities)
+        })
     }) {
         return proof_values;
     }
@@ -487,6 +532,7 @@ fn data_definition_is_caller_isolated(
                 proof_values,
                 isolated_parameters,
                 bindings,
+                identities,
             ),
             DataMember::Variant(variant) => {
                 program.data_payload_fields(variant).iter().all(|field| {
@@ -497,6 +543,7 @@ fn data_definition_is_caller_isolated(
                         proof_values,
                         isolated_parameters,
                         bindings,
+                        identities,
                     )
                 })
             }
