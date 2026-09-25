@@ -226,7 +226,21 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 
 `--filter` matches the same comma-separated `tier/group/name` fragments as the
 canary filters (also `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
-deterministic hash slice for splitting the run across sessions. A subset diff
+deterministic hash slice for splitting the run across sessions.
+
+To measure what your own change moved, record a baseline once per base commit
+and diff against it, rather than running the corpus twice per measurement:
+
+```bash
+git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
+python3 tools/corpus_gate.py --baseline   # after every later edit
+```
+
+`--baseline` keys its file on `git rev-parse HEAD` under ignored
+`build/corpus_baselines/`. Use it when the checked-in golden disagrees with
+your checkout over another lane's in-flight movement, which is the usual case:
+a run against the shared golden cannot separate that drift from yours, and
+re-recording the shared golden would pin their regression as expected. A subset diff
 compares only the fixtures that ran against the same golden; a subset
 `--record` merges into it. The unfiltered corpus is scheduled-workload cost,
 not loop cost — keep it out of routine iteration. This gate does not replace

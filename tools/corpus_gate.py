@@ -24,6 +24,16 @@ Subsets — the inner-loop mode:
     python3 tools/corpus_gate.py --filter termination       # one domain
     python3 tools/corpus_gate.py --filter fail/proofs,wire/ # several fragments
 
+Measuring your own change — one pass, not two:
+
+    git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
+    python3 tools/corpus_gate.py --baseline        # after every later edit
+
+`--baseline` keys its file on `git rev-parse HEAD` under ignored
+`build/corpus_baselines/`, so it answers "what did I move" even while the
+checked-in golden disagrees with this checkout over another lane's in-flight
+work. Re-record after moving to a new base.
+
 `--filter` (or `OMEGA_CORPUS_FIXTURE_FILTER` directly) matches comma-separated
 trimmed substrings against `tier/group/name` and diffs only the fixtures that
 ran, against the same golden. `--shard k/N` (or `OMEGA_CORPUS_SHARD`)
@@ -278,6 +288,23 @@ def jev_advise(diffs: list) -> None:
               file=sys.stderr)
 
 
+def baseline_path() -> Path:
+    """This checkout's baseline file, named for the commit it was recorded at.
+
+    The checked-in golden pins outcomes for `main` as a whole, so it disagrees
+    with any checkout whose base carries another lane's in-flight movement, and
+    a single run against it cannot separate that lane's drift from this one's.
+    Recording a baseline at the current commit and diffing working-tree edits
+    against it answers the question a change actually asks -- what did I move --
+    in one corpus pass rather than two.
+    """
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT, capture_output=True, text=True, check=False,
+    ).stdout.strip() or "unknown"
+    return ROOT / "build" / "corpus_baselines" / f"{revision}.json"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -290,6 +317,12 @@ def main() -> int:
     parser.add_argument("--runner", type=Path,
                         help="use an existing corpus_runner binary instead of building")
     parser.add_argument("--golden", type=Path, default=GOLDEN)
+    parser.add_argument("--baseline", action="store_true",
+                        help="diff against this checkout's own recorded "
+                             "outcomes instead of the checked-in golden — "
+                             "`--baseline --record` on a clean tree saves "
+                             "them, and every later run costs one corpus pass "
+                             "instead of stashing and running twice")
     parser.add_argument("--filter",
                         help="comma-separated fixture fragments — run and diff "
                              "only matching fixtures (sets "
@@ -298,6 +331,18 @@ def main() -> int:
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
     options = parser.parse_args()
+    if options.baseline:
+        if options.golden != GOLDEN:
+            print("corpus_gate: --baseline and --golden name different goldens")
+            return 2
+        options.golden = baseline_path()
+        if not options.golden.is_file() and not options.record:
+            print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
+                  "record one from a clean tree first:\n"
+                  "  git stash && python3 tools/corpus_gate.py --baseline --record "
+                  "&& git stash pop")
+            return 2
+        options.golden.parent.mkdir(parents=True, exist_ok=True)
 
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
