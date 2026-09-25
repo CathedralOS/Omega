@@ -36,6 +36,7 @@ use crate::execution::terminal_unit::types::{
 
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
+mod assignments;
 mod local_data;
 
 /// Completion forwards a whole parameter only when its exact output contract
@@ -966,195 +967,39 @@ pub(in crate::execution::terminal_unit) fn build(
                 ));
                 continue;
             }
-            StatementNode::Assignment(assignment) => {
-                // One authored assignment can decompose into several stores —
-                // a whole-record replacement emits one field store per member —
-                // so drain every store rooted at this statement, in order.
-                let mut consumed = false;
-                while let Some(store) = stores
-                    .next_if(|store| store_statement_index(store) == Some(statement_index))
-                {
-                    operations.push(store);
-                    consumed = true;
-                }
-                if consumed {
-                    continue;
-                }
-                // Guard-group markers beneath the statement phase keep the
-                // statement position that `phase` resets.
-                let assignment_phase = |phase: &'static str| {
-                    trace.phase(phase);
-                    trace.statement(Some(statement_index));
-                };
-                // `place = move local` repairs the window that local's move
-                // opened: an ordinary store of the exact moved value.
-                assignment_phase("statement sequence: assignment: borrowed window restore");
-                if let Some(store) = windows.restore(
+            StatementNode::Assignment(assignment) => match assignments::plan(
+                assignments::Planner {
                     program,
+                    facts,
+                    scalar_callees,
+                    shapes: &mut *shapes,
                     machine,
                     state,
-                    structural_parameters,
-                    statement_index,
-                    assignment,
-                ) {
-                    operations.push(store);
-                    continue;
+                    structural_parameters: &mut *structural_parameters,
+                    scalar_parameters,
+                    entry_claims,
+                    trivial_affine_locals,
+                    trace,
+                    binders: &binders,
+                    stores: &mut stores,
+                    operations: &mut operations,
+                    scalar_count: &mut scalar_count,
+                    structural_count: &mut structural_count,
+                    windows: &mut windows,
+                    structural_results: &mut structural_results,
+                },
+                statement_index,
+                assignment,
+            )? {
+                assignments::AssignmentPlan::Planned => continue,
+                assignments::AssignmentPlan::ScalarCall { result, store } => {
+                    call_result_stores.push(store);
+                    Some(result)
                 }
-                // `place = <constructed value>` over a structural field:
-                // establish the value as an owned binding, exactly as a local
-                // initializer would, then replace the field through the same
-                // window pair a structural call result uses.
-                assignment_phase("statement sequence: assignment: structural value field store");
-                if let Some(root) = facts.values.structural_values.root_for_expression(
-                    state.symbol,
-                    statement_index,
-                    assignment.value,
-                ) {
-                    if root.machine != machine.symbol {
-                        return None;
-                    }
-                    let calls = structural_operands::value_calls(
-                        program,
-                        facts,
-                        scalar_callees,
-                        shapes,
-                        machine,
-                        state,
-                        structural_parameters,
-                        trivial_affine_locals,
-                        entry_claims,
-                        &structural_results,
-                        &mut operations,
-                        &mut structural_count,
-                        root.root,
-                        trace,
-                    )?;
-                    if facts
-                        .flow
-                        .ownership
-                        .owned_selection_at(state.symbol, statement_index)
-                        .is_some()
-                    {
-                        retain_selected_sources(
-                            facts,
-                            state.symbol,
-                            statement_index,
-                            &structural_results,
-                            &mut operations,
-                        )?;
-                    } else {
-                        consume_value_places(facts, root.root, &structural_results, &mut operations)?;
-                    }
-                    for call in &calls {
-                        consume_results(&mut operations, call.operation())?;
-                    }
-                    let mut produced =
-                        checked_structural_result_type(program, shapes, root.type_reference, &binders)?;
-                    produced.statement_index = statement_index;
-                    produced.binding_ordinal = u32::try_from(structural_count).ok()?;
-                    let replacement = windows.replace(
-                        program,
-                        machine,
-                        state,
-                        structural_parameters,
-                        statement_index,
-                        assignment,
-                        &produced,
-                        produced.binding_ordinal.checked_add(1)?,
-                    )?;
-                    structural_count = structural_count.checked_add(2)?;
-                    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
-                        result: produced,
-                        value: root.root,
-                        calls,
-                        operand_source: None,
-                    });
-                    operations.push(replacement.move_out);
-                    // The store consumes the whole constructed value, retiring
-                    // the establishment's own disposal debt.
-                    consume_results(&mut operations, &replacement.store)?;
-                    operations.push(replacement.store);
-                    if let Some(discard) = replacement.displaced_discard {
-                        // The displaced value dies on this statement's
-                        // continuation, as it does after a replacing call.
-                        operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                            coordinate: checked_trees::CheckedUnitCallCoordinate {
-                                statement_index,
-                                call_ordinal: 0,
-                            },
-                            affine_discards: vec![discard],
-                        });
-                    }
-                    continue;
-                }
-                // The store sequence deliberately left this assignment to the
-                // ordinary call route: its right-hand side is the call this
-                // statement performs, not an authored scalar value.
-                assignment_phase("statement sequence: assignment: pending store order");
-                if match stores.peek() {
-                    None => false,
-                    Some(pending) => match store_statement_index(pending) {
-                        None => true,
-                        Some(ordinal) => ordinal <= statement_index,
-                    },
-                } {
-                    return None;
-                }
-                assignment_phase("statement sequence: assignment: call source result type");
-                let result_type = crate::flow::call_target_return_type(
-                    program,
-                    statement_call_target(program, assignment)?,
-                )?;
-                if let Some(primitive_type) = program.primitive_type_reference(result_type) {
-                    let binding_ordinal = u32::try_from(scalar_count).ok()?;
-                    let position = u32::try_from(scalar_parameters.len())
-                        .ok()?
-                        .checked_add(binding_ordinal)?;
-                    assignment_phase("statement sequence: assignment: call result field store");
-                    call_result_stores.push(
-                        super::super::structural_scalar_store::build_structural_call_result_field_store(
-                            program,
-                            facts,
-                            machine,
-                            state,
-                            structural_parameters,
-                            scalar_parameters,
-                            statement_index,
-                            assignment,
-                            (position, primitive_type),
-                            trace,
-                        )?,
-                    );
-                    scalar_count = scalar_count.checked_add(1)?;
-                    Some(CheckedUnitScalarResultBindingPlan {
-                        statement_index,
-                        binding_ordinal,
-                        primitive_type,
-                    })
-                } else if is_unit(program, result_type) {
-                    return None;
-                } else {
-                    // A structural call result replaces the field through the
-                    // ordinary window pair — the structural twin of the scalar
-                    // call-result store above.
-                    assignment_phase(
-                        "statement sequence: assignment: structural call result field store",
-                    );
-                    let mut result =
-                        checked_structural_result_type(program, shapes, result_type, &binders)?;
-                    result.statement_index = statement_index;
-                    result.binding_ordinal = u32::try_from(structural_count).ok()?;
-                    let replacement = windows.replace(
-                        program,
-                        machine,
-                        state,
-                        structural_parameters,
-                        statement_index,
-                        assignment,
-                        &result,
-                        result.binding_ordinal.checked_add(1)?,
-                    )?;
+                assignments::AssignmentPlan::StructuralCall {
+                    result,
+                    replacement,
+                } => {
                     call_result_stores.push(replacement.move_out);
                     call_result_stores.push(replacement.store);
                     structural_store_bindings = 1;
@@ -1166,7 +1011,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     structural_result = Some((result, None));
                     None
                 }
-            }
+            },
             StatementNode::LocalData(local) => match local_data::plan(
                 local_data::Planner {
                     program,
