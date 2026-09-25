@@ -87,7 +87,7 @@ pub(super) fn signature_matches(
                 && (result.multiplicity == Multiplicity::Linear || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,
                     carrier,
-                ))
+                ) || validation::has_owned_or_shared_view_fields(&checked.typed, carrier))
         }
     }
 }
