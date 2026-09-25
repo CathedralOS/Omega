@@ -18,7 +18,7 @@ use super::{
 };
 use crate::machine_calls::calls::write_frames::FrameInference;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
-    StateWriteQuery, walk_state_write_prefix,
+    CollectedStatementPrefix, walk_state_write_prefix_collected,
 };
 use crate::machine_calls::calls::write_frames::transition_topology::{
     named_state_transition_subgraph_is_acyclic, named_transition_target_state,
@@ -219,19 +219,17 @@ fn state_result_origins<'program>(
         // direct helper result enforced: producer writes, rebinding checks,
         // and operand exposure in every statement, including transition
         // arguments and terminal result expressions, are validated by one
-        // complete walk before any arm contributes leaves.
-        let context = walk_state_write_prefix(
+        // complete walk before any arm contributes leaves. That walk also
+        // collects every statement's boundary prefix so each result arm
+        // evaluates against its own prefix without re-walking the body.
+        let (context, prefixes) = walk_state_write_prefix_collected(
             program,
             machine,
             state,
             symbols,
             inference,
             &mut Vec::new(),
-            if include_shared {
-                Some(StateWriteQuery::ReferenceResult)
-            } else {
-                None
-            },
+            include_shared,
         )?;
         for local in &context.stored {
             inference.record_local(local);
@@ -254,6 +252,7 @@ fn state_result_origins<'program>(
                         symbols,
                         inference,
                         include_shared,
+                        prefixes.get(index).and_then(Option::as_ref),
                     )?;
                 }
                 // A crash route never produces an ordinary result.
@@ -277,6 +276,7 @@ fn state_result_origins<'program>(
                                 symbols,
                                 inference,
                                 include_shared,
+                                prefixes.get(index).and_then(Option::as_ref),
                             )?,
                             TransitionTargetNode::Named { arguments, .. } => merge_named_edge(
                                 program,
@@ -292,6 +292,7 @@ fn state_result_origins<'program>(
                                 inference,
                                 include_shared,
                                 complete,
+                                prefixes.get(index).and_then(Option::as_ref),
                             )?,
                             // A bare `-> self` re-enters this exact state with
                             // the same parameter namespace; its result set is
@@ -327,21 +328,10 @@ fn merge_result_arm(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
+    boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
     inference.with_local_scope(|inference| {
-        let context = walk_state_write_prefix(
-            program,
-            machine,
-            state,
-            symbols,
-            inference,
-            &mut Vec::new(),
-            Some(if include_shared {
-                StateWriteQuery::ReferenceBefore(boundary)
-            } else {
-                StateWriteQuery::Before(boundary)
-            }),
-        )?;
+        let context = boundary_prefix?;
         for local in &context.stored {
             inference.record_local(local);
         }
@@ -495,6 +485,7 @@ fn merge_named_edge(
     inference: &mut FrameInference,
     include_shared: bool,
     complete: &mut Vec<(SymbolHandle, AggregateOrigins)>,
+    boundary_prefix: Option<&CollectedStatementPrefix>,
 ) -> Option<()> {
     let target_state = named_transition_target_state(program, machine, source_state, edge)?;
     // A named state may omit its own `-> T` annotation; one that declares it
@@ -520,19 +511,7 @@ fn merge_named_edge(
         complete,
     )?;
     inference.with_local_scope(|inference| {
-        let context = walk_state_write_prefix(
-            program,
-            machine,
-            source_state,
-            symbols,
-            inference,
-            &mut Vec::new(),
-            Some(if include_shared {
-                StateWriteQuery::ReferenceBefore(boundary)
-            } else {
-                StateWriteQuery::Before(boundary)
-            }),
-        )?;
+        let context = boundary_prefix?;
         for local in &context.stored {
             inference.record_local(local);
         }
