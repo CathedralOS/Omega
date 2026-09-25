@@ -498,29 +498,33 @@ pub fn has_builtin_anonymous_operands(
         AuthoredDeclarationSelectionLateBinding as LateBinding,
         AuthoredDeclarationSelectionTarget as Target,
     };
-    crate::operator::resolve_spelling_for_operands(program, spelling, &[None, None])
-        .iter()
-        .all(|candidate| {
+    crate::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &[None, None],
+        program.expression_table.source_span(expression),
+    )
+    .iter()
+    .all(|candidate| {
+        program
+            .operator_parameters(candidate.operator)
+            .iter()
+            .any(|parameter| data_carrier_operand(program, parameter.type_reference))
+    }) && program
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .all(|occurrence| {
             program
-                .operator_parameters(candidate.operator)
-                .iter()
-                .any(|parameter| data_carrier_operand(program, parameter.type_reference))
+                .authored_declaration_selections()
+                .get(occurrence)
+                .is_some_and(|selection| {
+                    matches!(
+                        selection.target(),
+                        Target::Intrinsic(Intrinsic::BuiltinOperator)
+                            | Target::LateBound(LateBinding::CheckedOperator)
+                    )
+                })
         })
-        && program
-            .expression_table
-            .authored_selection_occurrences(expression)
-            .all(|occurrence| {
-                program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .is_some_and(|selection| {
-                        matches!(
-                            selection.target(),
-                            Target::Intrinsic(Intrinsic::BuiltinOperator)
-                                | Target::LateBound(LateBinding::CheckedOperator)
-                        )
-                    })
-            })
 }
 
 /// Whether this declared operand carrier is an ordinary data declaration, and

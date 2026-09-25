@@ -144,7 +144,10 @@ fn expression_type_reference_in_state(
             ];
             if let Some(spelling) = super::binary_operator_spelling(binary.operator) {
                 let candidates = typed_trees::operator::resolve_spelling_for_operands(
-                    program, spelling, &operands,
+                    program,
+                    spelling,
+                    &operands,
+                    program.expression_table.source_span(expression),
                 );
                 if let [candidate] = candidates.as_slice() {
                     if candidate.domain.is_none() {

@@ -38,7 +38,14 @@ pub(super) fn obligation(
         // Pure builtin indexing has no declaration to borrow authority from.
         // Once a declaration can govern the spelling, missing checked custody
         // is not permission to synthesize a selection from it here.
-        return if resolve_spelling(program, spelling, None).is_empty() {
+        return if resolve_spelling(
+            program,
+            spelling,
+            None,
+            program.expression_table.source_span(expression),
+        )
+        .is_empty()
+        {
             Ok(None)
         } else {
             Err(failure(
@@ -53,7 +60,12 @@ pub(super) fn obligation(
         return Err(failure("does not match its checked operator spelling"));
     }
     let operands = crate::operators::indexed_operand_types(program, indexed, selected.origin);
-    let live = resolve_indexed_spelling_for_operands(program, spelling, &operands);
+    let live = resolve_indexed_spelling_for_operands(
+        program,
+        spelling,
+        &operands,
+        program.expression_table.source_span(expression),
+    );
     if matches!(
         selected.status,
         CheckedOperatorResolutionStatus::Missing | CheckedOperatorResolutionStatus::BuiltinFallback

@@ -1840,7 +1840,10 @@ fn has_builtin_index_meaning(
     };
     builtin_storage
         && typed_trees::operator::resolve_indexed_spelling_for_operands(
-            program, spelling, &operands,
+            program,
+            spelling,
+            &operands,
+            program.expression_table.source_span(expression),
         )
         .is_empty()
         && typed_trees::operator::has_builtin_spelled_expression_meaning(

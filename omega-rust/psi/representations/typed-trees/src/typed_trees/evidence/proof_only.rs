@@ -241,11 +241,9 @@ impl ProofOnlyClassification {
         program: &TypedTrees,
         machine: &crate::machine::Machine,
     ) -> bool {
-        if let Some(attached) = machine.attached_data.as_ref() {
+        if machine.attached_data.is_some() {
             let attached_is_proof_only = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached.as_str())
+                .attached_data_definition(machine)
                 .is_some_and(|definition| self.is_proof_only(definition.symbol));
             let has_receiver = program.machine_states(machine).iter().any(|state| {
                 program

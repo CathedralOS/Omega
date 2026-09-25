@@ -178,8 +178,13 @@ fn builtin_index(
     // silently ignore a specialized trait meaning. Decline this query until
     // invocation-aware planning can retain that exact selected application;
     // this is not a claim that every such projection already has a native route.
-    typed_trees::operator::resolve_indexed_spelling_for_operands(program, spelling, &operands)
-        .is_empty()
+    typed_trees::operator::resolve_indexed_spelling_for_operands(
+        program,
+        spelling,
+        &operands,
+        program.expression_table.source_span(expression),
+    )
+    .is_empty()
         && program
             .machine_specializations
             .iter()

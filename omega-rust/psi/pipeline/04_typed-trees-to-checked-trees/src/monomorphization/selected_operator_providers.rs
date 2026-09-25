@@ -621,9 +621,14 @@ fn selected_operator_application_at_expression(
     let Some(spelling) = operator.spelling else {
         return Ok(None);
     };
-    if !typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
-        .iter()
-        .any(|candidate| candidate.operator.symbol == operator.symbol)
+    if !typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(expression),
+    )
+    .iter()
+    .any(|candidate| candidate.operator.symbol == operator.symbol)
     {
         return Ok(None);
     }

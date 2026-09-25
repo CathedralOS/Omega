@@ -47,11 +47,7 @@ pub(crate) fn resolve_place_member_symbol(
     let base_symbol = fact_place_type_symbol(program, facts, place)?;
 
     if let Some(machine) = crate::lookup::machine_by_symbol(program, base_symbol)
-        && let Some(attached_data) = machine.attached_data.as_deref()
-        && let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == attached_data)
+        && let Some(data) = program.attached_data_definition(machine)
     {
         for member in program.data_members(data) {
             match member {

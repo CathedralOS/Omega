@@ -1039,6 +1039,41 @@ impl SymbolTable {
         sources.reference_can_see_declaration(reference, declaration)
     }
 
+    /// Whether a source-backed reference may select this declaration as a
+    /// candidate: the declaration is authored in the reference's own source,
+    /// in the same checked package instance, or in a source the reference's
+    /// file imported. A declaration is never a candidate merely because its
+    /// source was loaded into the program (modules spec, "Import scope and
+    /// exposure"): every target's entry contract joins every compilation, and
+    /// the bundled spellings and names it pulls in must not change the
+    /// resolution of a program that never imported them. Source-free
+    /// references and symbols without authored provenance keep the whole
+    /// program, as `source_reference_can_see_symbol` does.
+    pub fn source_reference_may_select_symbol(
+        &self,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+    ) -> bool {
+        if reference.span.start == reference.span.end {
+            return true;
+        }
+        let Some(sources) = self.sources.as_deref() else {
+            return true;
+        };
+        let Some(declaration) = self.provenance_source_span(symbol) else {
+            return true;
+        };
+        if !sources.reference_can_see_declaration(reference, declaration) {
+            return false;
+        }
+        declaration.source_id == reference.source_id
+            || sources.same_checked_instance(reference, declaration)
+            || self
+                .source_scoped_bindings_for(reference.source_id)
+                .iter()
+                .any(|binding| binding.declaration_source == declaration.source_id)
+    }
+
     pub fn find_descendant_by_path<'name>(
         &self,
         root: SymbolHandle,

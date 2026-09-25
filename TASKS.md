@@ -83,33 +83,17 @@ only. These items land in order, and each deletes the side doors it replaces.
   Psi stages are 15 s; the rest is the per-target dependency package compile.
   Acceptance: `PreparedCheckedSource` assembles once for any target set and
   the `Step: assemble` timing row appears once per compilation. Open
-  regression from `cc96b888c3` (every target's entry contract joins the set),
-  confirmed against its parent: eight unmanaged-root fail canaries
-  `dependent/relational_loop_invariant_*` now stop at "domain `[u8; N]::Utf8`
-  shares a normalized semantic identity with a distinct declaration owner"
-  (their local `[u8; 8]::Utf8` against std `calling.omg`'s
-  `[u8; 256]::Utf8`; unmanaged-root identity is Q4), and
-  `slices/index_operator_contract_unproven` at "build-time evaluation of
-  calling policy `LinuxArm64::plan` failed: array value projection has no
-  exact builtin indexing meaning". Eight more corpus members flip at the
-  same commit (corpus gate at `cc96b888c3` against its parent). Four declare
-  a local `data Nat` beside std `core/nat.omg`'s and now stop at "cannot
-  compare `Nat` values with `==`": `generics/open_computed_quantity_result`,
-  `generics/open_index_local_fact`, and fail canaries
-  `generics/open_index_unestablished_equality` and
-  `generics/open_index_unlicensed_algebra`. The joined std `Float` operator
-  spellings leave literal-only arithmetic without builtin meaning before
-  selection: `comptime/negative_const_array_length` now fails build-time
-  admission ("build-time binary operator requires exact authored
-  selection") on `(0 - 5)`, `generics/const_data_expression_division_by_zero`
-  defers `8 / (3 - 3)` to validation's anonymous-division message, and
-  `proofs/proof_integer_quotient_remainder` leaves a `<=` occurrence
-  unresolved after checking. Treating anonymous operands as builtin
-  everywhere is not the fix: `literal_carrier_identity_decides_heterogeneous_
-  comparator_overlap` and the stage-02 `fact_division_tests`/`remainder_tests`
-  require an authored spelling on the landing carrier to keep literal
-  operands for selection. `generics/runtime_const_data_where_fact_exit`
-  now fails its `FixedBuffer<4>` default-domain proof.
+  regression from `cc96b888c3`: stage 02's const classifier
+  (`const_evaluation::anonymous::has_no_authored_spelling`) still scans every
+  loaded root item for an operator spelling, so the joined std `Float`
+  spellings make `generics/const_data_expression_division_by_zero` defer
+  `8 / (3 - 3)` to validation's anonymous-division message. The typed
+  resolvers already select spellings only from the use site's own source,
+  package and imports (`SymbolTable::source_reference_may_select_symbol`);
+  the syntax-level scan needs the same scope, which means carrying the
+  assembled source map and import bindings into generic-data preparation.
+  `generics/runtime_const_data_where_fact_exit` also rejects, but it already
+  rejected at `0f87cf2c24` on both routes, so it is not this union's.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:

@@ -444,6 +444,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/match_float_subjects",
     "modules/closed_sum_constructors",
     "modules/computed_constant_initializers",
+    "modules/loaded_sources_expose_nothing",
     // No `Main::main` and no `build.omg`: the fixture's three entries
     // (`select_true`, `select_false`, `by_name`) are each their own checked
     // acceptance, and native production refuses a program with no single

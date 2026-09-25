@@ -60,11 +60,7 @@ fn resolve_member_symbol_from_receiver(
         .iter()
         .find(|machine| machine.symbol == type_symbol)
     {
-        if let Some(attached_data) = machine.attached_data.as_deref()
-            && let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached_data)
+        if let Some(data) = program.attached_data_definition(machine)
             && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
         {
             return Some(symbol);
@@ -177,11 +173,7 @@ fn symbol_type_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<Symb
     if program.symbols.get(symbol).kind == symbols::SymbolKind::Machine {
         for machine in program.machines() {
             if machine.symbol == symbol
-                && let Some(attached_data) = machine.attached_data.as_deref()
-                && let Some(data) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == attached_data)
+                && let Some(data) = program.attached_data_definition(machine)
             {
                 return Some(data.symbol);
             }
@@ -389,11 +381,7 @@ pub fn resolve_place_member_symbol(
         .machines()
         .iter()
         .find(|machine| machine.symbol == base_symbol)
-        && let Some(attached_data) = machine.attached_data.as_deref()
-        && let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == attached_data)
+        && let Some(data) = program.attached_data_definition(machine)
         && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
     {
         return Some(symbol);

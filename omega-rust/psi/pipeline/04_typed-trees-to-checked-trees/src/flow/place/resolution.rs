@@ -349,15 +349,8 @@ pub(super) fn symbol_type_position(
             if machine.attached_data_application.is_valid() {
                 return Some(MemberPosition::Reference(machine.attached_data_application));
             }
-            return machine
-                .attached_data
-                .as_deref()
-                .and_then(|attached_data| {
-                    program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.name.as_str() == attached_data)
-                })
+            return program
+                .attached_data_definition(machine)
                 .map(|data| MemberPosition::Declaration(data.symbol));
         }
         symbols::SymbolKind::Parameter
@@ -395,12 +388,7 @@ fn whole_program_member_type_position(
             if machine.attached_data_application.is_valid() {
                 return Some(MemberPosition::Reference(machine.attached_data_application));
             }
-            if let Some(attached_data) = machine.attached_data.as_deref()
-                && let Some(data) = program
-                    .data_definitions()
-                    .iter()
-                    .find(|definition| definition.name.as_str() == attached_data)
-            {
+            if let Some(data) = program.attached_data_definition(machine) {
                 return Some(MemberPosition::Declaration(data.symbol));
             }
         }
@@ -884,12 +872,7 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
     }
 
     if let Some(machine) = machine_by_symbol(program, type_symbol) {
-        if let Some(attached_data) = machine.attached_data.as_deref()
-            && let Some(data) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name.as_str() == attached_data)
-        {
+        if let Some(data) = program.attached_data_definition(machine) {
             for member in program.data_members(data) {
                 match member {
                     typed_trees::data::DataMember::Field(field)

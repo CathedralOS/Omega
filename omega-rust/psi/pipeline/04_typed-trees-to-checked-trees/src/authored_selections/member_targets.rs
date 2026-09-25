@@ -534,6 +534,7 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
                 program,
                 spelling,
                 &operand_types,
+                program.tables.expression_table.source_span(expression),
             )
             .is_empty()
             {

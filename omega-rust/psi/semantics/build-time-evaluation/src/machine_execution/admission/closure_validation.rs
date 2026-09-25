@@ -397,10 +397,11 @@ fn machine_linear_carrier_violation(
     };
 
     if let Some(attached_data) = machine.attached_data.as_ref()
-        && program.data_definitions().iter().any(|definition| {
-            definition.name.as_str() == attached_data.as_str()
-                && definition.properties.multiplicity == language_semantics::Multiplicity::Linear
-        })
+        && program
+            .attached_data_definition(machine)
+            .is_some_and(|definition| {
+                definition.properties.multiplicity == language_semantics::Multiplicity::Linear
+            })
     {
         return Some(format!(
             "machine instance `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",

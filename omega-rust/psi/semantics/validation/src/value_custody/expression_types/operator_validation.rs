@@ -388,8 +388,13 @@ fn report_undeclared_struct_operator(
     else {
         return false;
     };
-    if !typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
-        .is_empty()
+    if !typed_trees::operator::resolve_spelling_for_operands(
+        program,
+        spelling,
+        &operand_types,
+        program.expression_table.source_span(left),
+    )
+    .is_empty()
     {
         return false;
     }

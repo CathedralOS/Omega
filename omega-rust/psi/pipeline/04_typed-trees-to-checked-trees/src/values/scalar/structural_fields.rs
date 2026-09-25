@@ -478,6 +478,7 @@ fn indexed_read_has_builtin_meaning(
         program,
         OperatorSpelling::Index,
         &operands,
+        program.expression_table.source_span(expression),
     )
     .is_empty()
         && typed_trees::operator::has_builtin_spelled_expression_meaning(
