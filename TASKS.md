@@ -354,13 +354,19 @@ the complete product bar; focused successes below do not establish that baseline
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
   boundary call, which is [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md)
   (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
-  otherwise; `proofs/cauchy_predicates_compile` on a cited callee's
-  premises; `control_flow/runtime_branching_helper_string` on a borrow-carrying
-  value stored in a persistent field.
-  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
+  otherwise; `proofs/cauchy_predicates_compile` on the two checker
+  capabilities `source/library/core/cauchy.omg` names above
+  `doubled_nat_max_modulus`, both reported at once and both inside
+  `converges_together_at_triangle_split`: `rat_close_triangle_split`'s
+  positivity requires cannot be discharged from a static-machine call's field
+  projection `(Middle(middle_index)).den` -- inlining the `let` does not help,
+  so it is the projection and not the local that the site cannot match -- and
+  its `ensures` names a machine-parameterized `converges_together_at`
+  application that "no entailment tier judges yet". Advancing this probe means
+  owning both; the second is a tier question, not a matching defect;   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
   `providers/external_leaf_dllimport_compile`,
-  `domains/explicit_domain_erasure`, and `core/extent_root_provider_adapter`
-  check and leave this list.
+  `domains/explicit_domain_erasure`, `core/extent_root_provider_adapter`, and
+  `control_flow/runtime_branching_helper_string` check and leave this list.
   Reproduce a selected customer on the working base, repair its owning
   capability, and rerun the same outer command.
 
