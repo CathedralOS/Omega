@@ -370,18 +370,110 @@ pub(crate) fn declared_result_field_domain_paths(
     Vec::new()
 }
 
-/// Exact qualifications below owned result storage. Predicate-only readers
-/// keep their existing traversal; authority transport must also preserve the
-/// interned application and must not reinterpret borrowed referents as owned
-/// result claims.
-pub(crate) fn declared_owned_field_domain_identities(
-    program: &typed_trees::TypedTrees,
-    reference: TypeReferenceHandle,
-) -> Vec<(
+type OwnedFieldDomainIdentities = Vec<(
     Vec<facts::PlaceSegment>,
     SymbolHandle,
     language_semantics::SemanticDomainId,
-)> {
+)>;
+
+type FieldDomainSlot = Option<
+    Option<(
+        *const typed_trees::TypedTrees,
+        std::collections::HashMap<TypeReferenceHandle, OwnedFieldDomainIdentities>,
+    )>,
+>;
+
+thread_local! {
+    /// Same build-scope rule as `validation`'s program plan scope: outer
+    /// `None` means no checked build is open, so a stale map can never outlive
+    /// the program that produced it; the program is borrowed for the whole
+    /// scope so its address cannot be recycled mid-scope.
+    static OWNED_FIELD_DOMAIN_SLOT: std::cell::RefCell<FieldDomainSlot> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Restores the slot a scope opened on top of, so a nested program build
+/// cannot leak one program's memoized walks into its caller's.
+pub(crate) struct FieldDomainScopeGuard(FieldDomainSlot);
+
+impl Drop for FieldDomainScopeGuard {
+    fn drop(&mut self) {
+        OWNED_FIELD_DOMAIN_SLOT.with(|cell| {
+            *cell.borrow_mut() = self.0.take();
+        });
+    }
+}
+
+/// Open the field-domain memo scope for one program build; the returned
+/// guard must stay alive for the whole build.
+pub(crate) fn enter_field_domain_scope() -> FieldDomainScopeGuard {
+    FieldDomainScopeGuard(
+        OWNED_FIELD_DOMAIN_SLOT.with(|cell| std::mem::replace(&mut *cell.borrow_mut(), Some(None))),
+    )
+}
+
+/// Exact qualifications below owned result storage. Predicate-only readers
+/// keep their existing traversal; authority transport must also preserve the
+/// interned application and must not reinterpret borrowed referents as owned
+/// result claims. Inside a field-domain scope each distinct type reference
+/// walks once; outside it every call walks.
+pub(crate) fn declared_owned_field_domain_identities(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> OwnedFieldDomainIdentities {
+    enum SlotState {
+        NoScope,
+        Hit(OwnedFieldDomainIdentities),
+        Miss,
+        ForeignProgram,
+    }
+    let state = OWNED_FIELD_DOMAIN_SLOT.with(|cell| {
+        let cell = cell.borrow();
+        match cell.as_ref() {
+            None => SlotState::NoScope,
+            Some(None) => SlotState::Miss,
+            Some(Some((owner, map))) => {
+                if std::ptr::eq(*owner, program) {
+                    map.get(&reference)
+                        .cloned()
+                        .map_or(SlotState::Miss, SlotState::Hit)
+                } else {
+                    SlotState::ForeignProgram
+                }
+            }
+        }
+    });
+    if let SlotState::Hit(identities) = state {
+        return identities;
+    }
+    let identities = declared_owned_field_domain_identities_uncached(program, reference);
+    if matches!(state, SlotState::Miss) {
+        OWNED_FIELD_DOMAIN_SLOT.with(|cell| {
+            if let Ok(mut slot) = cell.try_borrow_mut()
+                && let Some(scope) = &mut *slot
+            {
+                match scope {
+                    Some((owner, map)) if std::ptr::eq(*owner, program) => {
+                        map.insert(reference, identities.clone());
+                    }
+                    slot_none @ None => {
+                        *slot_none = Some((
+                            program,
+                            std::collections::HashMap::from([(reference, identities.clone())]),
+                        ));
+                    }
+                    Some(_) => {}
+                }
+            }
+        });
+    }
+    identities
+}
+
+fn declared_owned_field_domain_identities_uncached(
+    program: &typed_trees::TypedTrees,
+    reference: TypeReferenceHandle,
+) -> OwnedFieldDomainIdentities {
     fn visit(
         program: &typed_trees::TypedTrees,
         reference: TypeReferenceHandle,
