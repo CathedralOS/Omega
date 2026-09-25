@@ -79,6 +79,99 @@ fn member_type_position(
     symbol_type_position(program, member_symbol)
 }
 
+/// The member-position lookup `symbol_type_position` performs, restricted to
+/// the one container `parent` names. Symbol storage is keyed to the
+/// declaring parent, so a machine-parented member resolves through that
+/// machine's attached and owned rows, a state-parented member through that
+/// state's parameters and locals, a data-parented member through its
+/// declaration's fields, and a variant-parented member through that
+/// variant's payload fields — each reproducing the row the whole-program
+/// scan's first match yields. Parents with no container role here (roots,
+/// trait signatures, operators, states, machines themselves) yield nothing
+/// and the caller scans.
+fn container_member_type_position(
+    program: &typed_trees::TypedTrees,
+    parent: SymbolHandle,
+    symbol: SymbolHandle,
+) -> Option<MemberPosition> {
+    if !parent.is_valid() {
+        return None;
+    }
+    if let Some(machine) = machine_by_symbol(program, parent) {
+        if let Some(field) =
+            validation::exact_attached_field(program, machine, symbol, program.symbols.name(symbol))
+        {
+            return Some(MemberPosition::Reference(field.type_reference));
+        }
+        return program
+            .machine_owned_data(machine)
+            .iter()
+            .find(|owned| owned.symbol == symbol)
+            .map(|owned| MemberPosition::Reference(owned.type_reference));
+    }
+    if let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == parent)
+    {
+        return program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.symbol == symbol => {
+                    Some(MemberPosition::Reference(field.type_reference))
+                }
+                _ => None,
+            });
+    }
+    // A payload field's parent is its variant and the variant's parent is
+    // the data row, so two hops reach the same field list the scan walks.
+    let grandparent = program.symbols.get(parent).parent;
+    if grandparent.is_valid()
+        && let Some(data) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == grandparent)
+        && let Some(variant) = program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant) if variant.symbol == parent => {
+                    Some(variant)
+                }
+                _ => None,
+            })
+    {
+        return program
+            .data_payload_fields(variant)
+            .iter()
+            .find(|field| field.symbol == symbol)
+            .map(|field| MemberPosition::Reference(field.type_reference));
+    }
+    if let Some(state) = crate::semantic::calls::find_state(program, parent) {
+        if let Some(parameter) = program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+        {
+            return Some(MemberPosition::Reference(parameter.type_reference));
+        }
+        return program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                typed_trees::statement::StatementNode::LocalData(local_data)
+                    if local_data.symbol == symbol =>
+                {
+                    Some(MemberPosition::Reference(local_data.type_reference))
+                }
+                _ => None,
+            });
+    }
+    None
+}
+
 /// The position a resolved symbol's declared type points at. Unlike
 /// `symbol_type_symbol`, this retains the type reference so a generic
 /// application's arguments remain bound for the next member hop.
@@ -88,6 +181,20 @@ pub(super) fn symbol_type_position(
 ) -> Option<MemberPosition> {
     if !symbol.is_valid() {
         return None;
+    }
+
+    // A declared symbol's parent names its owning container, so the scan can
+    // jump straight to it: an attached or owned member resolves inside its
+    // machine, a state member inside its state's parameters and locals, a
+    // data member inside its declaration, a payload member inside its
+    // variant's fields — the same row the whole-program first-match scan
+    // produced, without walking every unrelated machine, signature,
+    // operator, and data row. A parent carrying no container role (roots,
+    // signatures, operators) or a miss inside the jump keeps the full scan.
+    if let Some(position) =
+        container_member_type_position(program, program.symbols.get(symbol).parent, symbol)
+    {
+        return Some(position);
     }
 
     for machine in program.machines() {
