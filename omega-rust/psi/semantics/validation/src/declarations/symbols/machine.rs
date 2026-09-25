@@ -30,7 +30,6 @@ struct MemberSymbol<'program> {
 struct StateSymbol<'program> {
     name: &'program str,
     state: &'program State,
-    symbol: SymbolHandle,
 }
 
 impl<'program> MachineSymbols<'program> {
@@ -40,6 +39,29 @@ impl<'program> MachineSymbols<'program> {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
         let machine_symbol = retained_machine_symbol(program, machine);
+        // One child index per machine build: a fresh `find_child_by_name`
+        // walk per member is O(children) each, so member lookups composed to
+        // O(members * children). First match wins, matching that lookup.
+        let mut children_by_name: std::collections::HashMap<&str, SymbolHandle> =
+            std::collections::HashMap::new();
+        if machine_symbol.is_valid()
+            && let Some(children) = program.symbols.child_handles(machine_symbol)
+        {
+            for child in children {
+                children_by_name
+                    .entry(program.symbols.name(child))
+                    .or_insert(child);
+            }
+        }
+        // Duplicate verdicts read whether a same-named earlier member carries
+        // a valid symbol, so the seen maps store name -> symbol.is_valid()
+        // rather than the names alone.
+        let mut member_verdicts: std::collections::HashMap<&str, bool> =
+            std::collections::HashMap::new();
+        let mut owned_data_verdicts: std::collections::HashMap<&str, bool> =
+            std::collections::HashMap::new();
+        let mut state_verdicts: std::collections::HashMap<&str, bool> =
+            std::collections::HashMap::new();
         let mut symbols = Self {
             callable_fields: Vec::new(),
             member_symbols: Vec::with_capacity(program.machine_owned_data(machine).len()),
@@ -55,7 +77,11 @@ impl<'program> MachineSymbols<'program> {
                     continue;
                 };
 
-                if symbols.has_member(field.name.as_str()) {
+                if member_verdicts
+                    .get(field.name.as_str())
+                    .copied()
+                    .unwrap_or(false)
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` has duplicate member `{}`",
                         machine.name, field.name
@@ -63,7 +89,16 @@ impl<'program> MachineSymbols<'program> {
                     continue;
                 }
 
-                let symbol = child_symbol(program, machine_symbol, field.name.as_str());
+                let symbol = children_by_name
+                    .get(field.name.as_str())
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid);
+                member_verdicts
+                    .entry(field.name.as_str())
+                    .or_insert(symbol.is_valid());
+                owned_data_verdicts
+                    .entry(field.name.as_str())
+                    .or_insert(symbol.is_valid());
                 symbols.member_symbols.push(MemberSymbol {
                     name: field.name.as_str(),
                     symbol,
@@ -84,14 +119,22 @@ impl<'program> MachineSymbols<'program> {
         }
 
         for owned_data in program.machine_owned_data(machine) {
-            if symbols.has_member(owned_data.name.as_str()) {
+            if member_verdicts
+                .get(owned_data.name.as_str())
+                .copied()
+                .unwrap_or(false)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate member `{}`",
                     machine.name, owned_data.name
                 )));
             }
 
-            if symbols.has_owned_data(owned_data.name.as_str()) {
+            if owned_data_verdicts
+                .get(owned_data.name.as_str())
+                .copied()
+                .unwrap_or(false)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate owned data `{}`",
                     machine.name, owned_data.name
@@ -104,6 +147,12 @@ impl<'program> MachineSymbols<'program> {
                 owned_data.symbol,
                 owned_data.name.as_str(),
             );
+            member_verdicts
+                .entry(owned_data.name.as_str())
+                .or_insert(symbol.is_valid());
+            owned_data_verdicts
+                .entry(owned_data.name.as_str())
+                .or_insert(symbol.is_valid());
             symbols.member_symbols.push(MemberSymbol {
                 name: owned_data.name.as_str(),
                 symbol,
@@ -115,22 +164,25 @@ impl<'program> MachineSymbols<'program> {
         }
 
         for state in program.machine_states(machine) {
-            if symbols.has_state(state.name.as_str()) {
+            if state_verdicts
+                .get(state.name.as_str())
+                .copied()
+                .unwrap_or(false)
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate state `{}`",
                     machine.name, state.name
                 )));
             }
 
+            let symbol =
+                retained_child_symbol(program, machine_symbol, state.symbol, state.name.as_str());
+            state_verdicts
+                .entry(state.name.as_str())
+                .or_insert(symbol.is_valid());
             symbols.states.push(StateSymbol {
                 name: state.name.as_str(),
                 state,
-                symbol: retained_child_symbol(
-                    program,
-                    machine_symbol,
-                    state.symbol,
-                    state.name.as_str(),
-                ),
             });
         }
 
@@ -144,23 +196,11 @@ impl<'program> MachineSymbols<'program> {
             .map(|symbol| symbol.state)
     }
 
-    fn state_symbol(&self, name: &str) -> SymbolHandle {
-        self.states
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.symbol)
-            .unwrap_or_else(SymbolHandle::invalid)
-    }
-
     pub fn callable_field_type(&self, name: &str) -> Option<&'program str> {
         self.callable_fields
             .iter()
             .find(|symbol| symbol.name == name)
             .map(|symbol| symbol.type_name)
-    }
-
-    pub fn has_state(&self, name: &str) -> bool {
-        self.state_symbol(name).is_valid()
     }
 
     pub fn has_member(&self, name: &str) -> bool {
@@ -210,15 +250,6 @@ fn retained_machine_symbol(program: &TypedTrees, machine: &Machine) -> SymbolHan
     } else {
         SymbolHandle::invalid()
     }
-}
-
-/// The child of `parent` named `name`, or the invalid handle when the machine
-/// declares no such member.
-fn child_symbol(program: &TypedTrees, parent: SymbolHandle, name: &str) -> SymbolHandle {
-    program
-        .symbols
-        .find_child_by_name(parent, name)
-        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn retained_child_symbol(
