@@ -41,16 +41,21 @@ use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 
 /// Initial construction is deliberately separate from replay: a checked
 /// program with deleted evidence must not be mistaken for an unbuilt ledger.
-pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts: &mut CheckFacts) {
+pub(super) fn initialize_compatibility<'p>(
+    program: &'p typed_trees::TypedTrees,
+    facts: &mut CheckFacts,
+) {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = IncomingGuardIndex::build(program, call_frames.as_ref());
+    let mut bound_lookup = None;
     let certificates = collect_compatibility(
         program,
         facts,
         &incoming_guards,
         call_frames.as_ref(),
         &mut diagnostics,
+        &mut bound_lookup,
     );
     // Initial construction retains successful comparisons, not an admission.
     // The ordinary check pass repeats every obligation and aggregates failures
@@ -65,15 +70,22 @@ pub(super) fn initialize_compatibility(program: &typed_trees::TypedTrees, facts:
         .insert_many(certificates);
 }
 
-pub(super) fn validate_compatibility(
-    program: &typed_trees::TypedTrees,
+pub(super) fn validate_compatibility<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<Diagnostic> {
-    let reconstructed =
-        collect_compatibility(program, facts, incoming_guards, call_frames, diagnostics);
+    let reconstructed = collect_compatibility(
+        program,
+        facts,
+        incoming_guards,
+        call_frames,
+        diagnostics,
+        bound_lookup,
+    );
     let mut retained_diagnostics = Vec::new();
     // Rebuild every invocation's comparisons in semantic order. Exact equality
     // verifies the full roster as well as each frozen selector and premise:
@@ -92,12 +104,13 @@ pub(super) fn validate_compatibility(
     retained_diagnostics
 }
 
-fn collect_compatibility(
-    program: &typed_trees::TypedTrees,
+fn collect_compatibility<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Vec<checked_trees::CheckedBorrowCallCompatibilityCertificate> {
     let mut certificates = Vec::new();
     if !correspondence::matches_source(program, facts) {
@@ -132,6 +145,7 @@ fn collect_compatibility(
                 machine,
                 state,
                 incoming_guards,
+                bound_lookup,
             )
         })
         .unwrap_or_default();
@@ -146,6 +160,7 @@ fn collect_compatibility(
                 call.statement_index,
                 call_frames,
                 &mut available_premises,
+                bound_lookup,
             );
             let Some(call_index) = borrow_state
                 .calls
@@ -173,20 +188,22 @@ fn collect_compatibility(
                 &available_premises,
                 diagnostics,
                 &mut recording,
+                bound_lookup,
             );
         }
     }
     certificates
 }
 
-fn check_call_borrows(
-    program: &typed_trees::TypedTrees,
+fn check_call_borrows<'p>(
+    program: &'p typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let target_name = call_target_label(program, borrow_call.target_symbol);
     let entry_constraints = call_borrow_constraints(borrow_call, state_flow, facts);
@@ -200,6 +217,7 @@ fn check_call_borrows(
         stated_premises,
         diagnostics,
         recording,
+        bound_lookup,
     );
     receiver::check_receiver_conflicts(
         program,
@@ -211,6 +229,7 @@ fn check_call_borrows(
         stated_premises,
         diagnostics,
         recording,
+        bound_lookup,
     );
 
     check_mutable_argument_writability(

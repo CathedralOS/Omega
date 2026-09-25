@@ -43,8 +43,8 @@ pub(super) struct StatementOutputs<'a> {
     pub(super) diagnostics: &'a mut Vec<Diagnostic>,
 }
 
-pub(super) fn validate_state_statement_node(
-    program: &TypedTrees,
+pub(super) fn validate_state_statement_node<'p>(
+    program: &'p TypedTrees,
     machine: &typed_trees::machine::Machine,
     state_name: &str,
     current_state: Option<&typed_trees::state::State>,
@@ -58,6 +58,10 @@ pub(super) fn validate_state_statement_node(
     direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
     boundary_operator_applications: &mut Vec<ValidatedBoundaryOperatorApplication>,
+    bound_lookup: &mut (
+        &'p TypedTrees,
+        Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
+    ),
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(state) = current_state {
@@ -84,9 +88,13 @@ pub(super) fn validate_state_statement_node(
         StatementNode::AssemblyFact(_) => {
             assembly_fact_statements::validate(&scope, &mut outputs, statement)
         }
-        StatementNode::Assignment(_) => {
-            assignment_statements::validate(&scope, &mut outputs, statement, direct_written)
-        }
+        StatementNode::Assignment(_) => assignment_statements::validate(
+            &scope,
+            &mut outputs,
+            statement,
+            direct_written,
+            bound_lookup,
+        ),
         StatementNode::Call(_) => call_statements::validate(
             &scope,
             &mut outputs,

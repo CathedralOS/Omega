@@ -105,6 +105,7 @@ fn assert_matrix(
                     right,
                     right_access,
                     &[],
+                    &mut None,
                 );
                 assert_eq!(direct, expected, "direct: {left_access:?}/{right_access:?}");
 
@@ -115,6 +116,7 @@ fn assert_matrix(
                     right,
                     right_access,
                     &[],
+                    &mut None,
                 );
                 assert_eq!(
                     captured.compatibility, expected,
@@ -129,6 +131,7 @@ fn assert_matrix(
                     &captured.selector_snapshot,
                     &[],
                     &[],
+                    &mut None,
                 );
                 assert_eq!(
                     replayed,
@@ -307,6 +310,7 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
                 right,
                 &BorrowAccessKind::Read,
                 &[],
+                &mut None,
             );
             assert_eq!(captured.selector_snapshot.len(), 1);
             let mut extra = captured.selector_snapshot;
@@ -321,6 +325,7 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
                     &extra,
                     &[],
                     &[],
+                    &mut None,
                 )
                 .is_err(),
                 "an unused row cannot be hidden by shared-read compatibility",
@@ -344,6 +349,7 @@ fn replay_rejects_unconsumed_rows_after_a_known_disjoint_prefix() {
             &source_right,
             &BorrowAccessKind::Read,
             &[],
+            &mut None,
         );
         assert_eq!(captured.selector_snapshot.len(), 1);
         let mut unused = captured.selector_snapshot;
@@ -363,6 +369,7 @@ fn replay_rejects_unconsumed_rows_after_a_known_disjoint_prefix() {
                     &unused,
                     &[],
                     &[],
+                    &mut None,
                 )
                 .is_err(),
                 "a known disjoint prefix must not ignore trailing selector rows",

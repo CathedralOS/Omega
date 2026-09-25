@@ -244,6 +244,9 @@ fn collect_destination_trees(
 ) -> DestinationTrees {
     let mut trees = DestinationTrees::default();
     let mut other_elements = Vec::new();
+    // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
+    // cell serves every qualifying statement in this pass.
+    let mut bound_lookup = None;
     let DestinationTrees {
         owned,
         other_roots,
@@ -341,6 +344,7 @@ fn collect_destination_trees(
                             assignment.value,
                             &mut admitted,
                             other_roots,
+                            &mut bound_lookup,
                         ) {
                             append_tree(program, assignment.value, owned);
                         } else {

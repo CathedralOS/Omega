@@ -17,8 +17,8 @@ mod returned;
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
 /// loans; every other live overlapping loan must remain excluded.
-pub(in crate::checks::borrows) fn check_exclusive_place_use(
-    program: &TypedTrees,
+pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
+    program: &'p TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     statement: &checked_trees::FlowStatementFact,
@@ -27,6 +27,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     let Some(receiver) = returned::resolve(
         program,
@@ -71,6 +72,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
             },
             &loan.kind,
             stated_premises,
+            bound_lookup,
         )
         .non_interfering
         {
@@ -131,6 +133,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
                 &access.place,
                 &BorrowAccessKind::Read,
                 stated_premises,
+                bound_lookup,
             )
             .non_interfering
             {
@@ -142,8 +145,8 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use(
     }
 }
 
-pub(super) fn check_receiver_conflicts(
-    program: &TypedTrees,
+pub(super) fn check_receiver_conflicts<'p>(
+    program: &'p TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call: &BorrowCallFact,
@@ -152,6 +155,7 @@ pub(super) fn check_receiver_conflicts(
     stated_premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
     recording: &mut CallCompatibility<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) {
     if !call.has_receiver {
         return;
@@ -272,6 +276,7 @@ pub(super) fn check_receiver_conflicts(
                 access: access.clone(),
             },
             stated_premises,
+            bound_lookup,
         )
     };
     for (ordinal, argument) in facts

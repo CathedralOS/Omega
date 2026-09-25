@@ -65,6 +65,7 @@ fn a_borrowed_member_receiver_reads_its_projected_place() {
         let (machine, state) = window(&program);
         let expression = initializer(&program, state);
         let mut facts = RangeFacts::new(&[]);
+        facts.bound_program = Some(&program);
         facts.record_expression_dependencies(&program, machine, state, expression);
         let reads = facts.expression_dependencies[0]
             .reads
@@ -114,6 +115,7 @@ fn a_borrowed_index_collection_reads_the_element_place() {
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -169,6 +171,7 @@ fn a_borrowed_member_inside_a_compound_operand_reads_each_side() {
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -201,6 +204,7 @@ fn a_borrow_of_a_call_result_stays_incomplete() {
     let (machine, state) = window(&program);
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -228,6 +232,7 @@ fn an_unresolved_member_on_a_borrowed_receiver_stays_incomplete() {
     member.member = "missing".into();
     let (machine, state) = window(&program);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     assert!(facts.expression_dependencies[0].reads.is_none());
 }
@@ -249,6 +254,7 @@ fn a_borrowed_self_member_reads_the_attached_field_place() {
     let state = &program.machine_states(machine)[0];
     let expression = initializer(&program, state);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, state, expression);
     let reads = facts.expression_dependencies[0]
         .reads
@@ -326,6 +332,7 @@ fn a_borrowed_member_of_foreign_storage_stays_incomplete() {
     let states = program.machine_states(machine);
     let incoming = initializer(&program, &states[0]);
     let mut facts = RangeFacts::new(&[]);
+    facts.bound_program = Some(&program);
     facts.record_expression_dependencies(&program, machine, &states[1], incoming);
     assert!(
         facts

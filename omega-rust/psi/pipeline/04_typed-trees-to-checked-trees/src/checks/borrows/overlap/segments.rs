@@ -19,6 +19,7 @@ struct SegmentContainmentEvaluation<'program, 'session, 'frozen> {
     program: &'program typed_trees::TypedTrees,
     selectors: &'session mut SelectorSnapshotEvaluation<'frozen>,
     extents: Vec<(SelectorLocation, EvaluatedIndexExtent)>,
+    bound_lookup: &'session mut Option<validation::ImmutableBoundLookup<'program>>,
 }
 
 impl SegmentContainmentEvaluation<'_, '_, '_> {
@@ -39,6 +40,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
             expression,
             location,
             self.selectors,
+            self.bound_lookup,
         );
         self.extents.push((location, extent.clone()));
         extent
@@ -370,11 +372,12 @@ fn index_window_contains_window(
     }
 }
 
-fn place_segments_containment_evaluated(
-    program: &typed_trees::TypedTrees,
+fn place_segments_containment_evaluated<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     selectors: &mut SelectorSnapshotEvaluation<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> CapturedPlaceContainment {
     if left
         .iter()
@@ -387,6 +390,7 @@ fn place_segments_containment_evaluated(
         program,
         selectors,
         extents: Vec::new(),
+        bound_lookup,
     };
     if left.len() == right.len()
         && left
@@ -464,7 +468,7 @@ pub(super) fn place_segments_may_overlap(
     right: &[facts::PlaceSegment],
 ) -> bool {
     let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    place_segments_may_overlap_evaluated(program, left, right, &mut selectors)
+    place_segments_may_overlap_evaluated(program, left, right, &mut selectors, &mut None)
 }
 
 #[cfg(test)]
@@ -474,7 +478,7 @@ fn place_segments_containment(
     right: &[facts::PlaceSegment],
 ) -> CapturedPlaceContainment {
     let mut selectors = SelectorSnapshotEvaluation::capture(&[]);
-    place_segments_containment_evaluated(program, left, right, &mut selectors)
+    place_segments_containment_evaluated(program, left, right, &mut selectors, &mut None)
 }
 
 /// Runs the disjointness and containment judgments inside one selector
@@ -482,16 +486,18 @@ fn place_segments_containment(
 /// the same snapshot. Containment only runs when the segments may overlap:
 /// contained places overlap by construction, so a disjoint verdict already
 /// fixes containment to `None` without evaluating more selectors.
-pub(super) fn place_segments_compatibility_with_snapshot(
-    program: &typed_trees::TypedTrees,
+pub(super) fn place_segments_compatibility_with_snapshot<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     premises: &[StatedOrderingPremise],
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> (bool, CapturedPlaceContainment, SelectorSessionClosure) {
     let mut selectors = SelectorSnapshotEvaluation::capture(premises);
-    let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
+    let may_overlap =
+        place_segments_may_overlap_evaluated(program, left, right, &mut selectors, bound_lookup);
     let containment = if may_overlap {
-        place_segments_containment_evaluated(program, left, right, &mut selectors)
+        place_segments_containment_evaluated(program, left, right, &mut selectors, bound_lookup)
     } else {
         CapturedPlaceContainment::None
     };
@@ -507,29 +513,32 @@ pub(super) fn place_segments_compatibility_with_snapshot(
 /// Replays both judgments against the frozen snapshot. Every selector value
 /// the capture consumed is re-derived and positionally verified; a missing,
 /// reordered, or drifted row rejects the replay.
-pub(super) fn place_segments_compatibility_from_snapshot(
-    program: &typed_trees::TypedTrees,
+pub(super) fn place_segments_compatibility_from_snapshot<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     snapshot: &[BorrowCompatibilitySelectorSnapshot],
     premises: &[StatedOrderingPremise],
     recorded_premises: &[BorrowCompatibilityPremise],
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Result<(bool, CapturedPlaceContainment), CompatibilityReplayDrift> {
     let mut selectors = SelectorSnapshotEvaluation::replay(snapshot, premises, recorded_premises);
-    let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
+    let may_overlap =
+        place_segments_may_overlap_evaluated(program, left, right, &mut selectors, bound_lookup);
     let containment = if may_overlap {
-        place_segments_containment_evaluated(program, left, right, &mut selectors)
+        place_segments_containment_evaluated(program, left, right, &mut selectors, bound_lookup)
     } else {
         CapturedPlaceContainment::None
     };
     selectors.finish().map(|_| (may_overlap, containment))
 }
 
-fn place_segments_may_overlap_evaluated(
-    program: &typed_trees::TypedTrees,
+fn place_segments_may_overlap_evaluated<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],
     right: &[facts::PlaceSegment],
     selectors: &mut SelectorSnapshotEvaluation<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     for (segment_index, (&left_segment, &right_segment)) in left.iter().zip(right).enumerate() {
         // A known prefix may already have proved disjointness. Once nominal
@@ -545,6 +554,7 @@ fn place_segments_may_overlap_evaluated(
             right_segment,
             segment_index,
             selectors,
+            bound_lookup,
         ) {
             return false;
         }
@@ -552,12 +562,13 @@ fn place_segments_may_overlap_evaluated(
     true
 }
 
-fn place_segment_pair_may_overlap(
-    program: &typed_trees::TypedTrees,
+fn place_segment_pair_may_overlap<'p>(
+    program: &'p typed_trees::TypedTrees,
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
     segment_index: usize,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     let left_location = SelectorLocation {
         side: BorrowCompatibilityPlaceSide::Forming,
@@ -616,14 +627,26 @@ fn place_segment_pair_may_overlap(
             facts::PlaceSegment::Index { expression },
         ) => index_extents_may_overlap(
             fixed_range_extent(start, end),
-            index_expression_extent_with_selectors(program, expression, right_location, selectors),
+            index_expression_extent_with_selectors(
+                program,
+                expression,
+                right_location,
+                selectors,
+                bound_lookup,
+            ),
             selectors,
         ),
         (
             facts::PlaceSegment::Index { expression },
             facts::PlaceSegment::FixedRange { start, end },
         ) => index_extents_may_overlap(
-            index_expression_extent_with_selectors(program, expression, left_location, selectors),
+            index_expression_extent_with_selectors(
+                program,
+                expression,
+                left_location,
+                selectors,
+                bound_lookup,
+            ),
             fixed_range_extent(start, end),
             selectors,
         ),
@@ -635,6 +658,7 @@ fn place_segment_pair_may_overlap(
                     expression,
                     right_location,
                     selectors,
+                    bound_lookup,
                 ),
                 selectors,
             )
@@ -646,6 +670,7 @@ fn place_segment_pair_may_overlap(
                     expression,
                     left_location,
                     selectors,
+                    bound_lookup,
                 ),
                 fixed_index_extent(index),
                 selectors,
@@ -665,6 +690,7 @@ fn place_segment_pair_may_overlap(
             right_expression,
             right_location,
             selectors,
+            bound_lookup,
         ),
         _ => false,
     }

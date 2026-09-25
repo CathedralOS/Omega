@@ -52,12 +52,13 @@ pub(super) struct CallCompatibility<'call> {
 }
 
 impl CallCompatibility<'_> {
-    pub(super) fn non_interfering(
+    pub(super) fn non_interfering<'p>(
         &mut self,
-        program: &typed_trees::TypedTrees,
+        program: &'p typed_trees::TypedTrees,
         left: BorrowCallCompatibilityOperand,
         right: BorrowCallCompatibilityOperand,
         premises: &[StatedOrderingPremise],
+        bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
     ) -> bool {
         let evidence = captured_place_compatibility_with_selector_snapshot(
             program,
@@ -66,6 +67,7 @@ impl CallCompatibility<'_> {
             &right.place,
             &right.access,
             premises,
+            bound_lookup,
         );
         if !evidence.compatibility.non_interfering {
             return false;
