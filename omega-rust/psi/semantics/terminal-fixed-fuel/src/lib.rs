@@ -9,9 +9,11 @@
 //! partition the cyclic topology, every cycle crosses a strict rank descent,
 //! and the condensed graph is acyclic. A component's visit bound is the rank
 //! carrier's type maximum unless the machine contract caps every rank
-//! arriving at the component's first entry — by a literal ceiling clause or
-//! a relational chain the clauses themselves state. The consulted `requires`
-//! clauses then become the certificate's `relevant_preconditions`.
+//! arriving at the component's first entry — by a literal ceiling clause, a
+//! relational chain the clauses themselves state, or a conditional row whose
+//! disjunctive arms all bound the rank or whose implication premise the
+//! ambient rows discharge. The consulted `requires` clauses then become the
+//! certificate's `relevant_preconditions`.
 //!
 //! The design rule is recompute-and-compare, never trust. Every certificate
 //! arrives as a `derive_*`/`validate_*` pair: `validate_*` recomputes the

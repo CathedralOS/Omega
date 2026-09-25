@@ -2,8 +2,8 @@
 
 use crate::{FixedFuelError, UnboundedCycleCause};
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
-    Proposition, ScalarTerm, ScalarType, ValueId,
+    BlockId, BoundaryMachineId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelSchedule;
@@ -663,14 +663,15 @@ pub(super) struct EntryRankBound {
 /// and each edge arriving from outside the component, whose arriving rank
 /// is the argument at the target's rank-parameter position. An arrival
 /// reduces to a boundable value only when it is a machine parameter the
-/// contract caps — directly by a literal clause, or through a relational
-/// chain the clauses themselves state, as `parameter_requires_bound`
-/// derives; an argument threaded through another block's parameters, a
-/// computed value, an observed view, or a structural-case payload has no
-/// contract ceiling, so one unbounded arrival leaves the carrier maximum
-/// in place rather than guessing. The result is `Some` only when the
-/// derived ceiling genuinely tightens the type maximum — a clause that
-/// merely restates it binds nothing new.
+/// contract caps — directly by a literal clause, through a relational
+/// chain the clauses themselves state, or through a conditional row whose
+/// arms all bound it or whose premise the ambient rows discharge, as
+/// `contract_scope` derives; an argument threaded through another block's
+/// parameters, a computed value, an observed view, or a structural-case
+/// payload has no contract ceiling, so one unbounded arrival leaves the
+/// carrier maximum in place rather than guessing. The result is `Some`
+/// only when the derived ceiling genuinely tightens the type maximum — a
+/// clause that merely restates it binds nothing new.
 pub(super) fn component_entry_rank_bound(
     machine: &TerminalMachine,
     component: &TerminalNaturalCycle,
@@ -715,6 +716,8 @@ pub(super) fn component_entry_rank_bound(
     if arrivals.is_empty() {
         return None;
     }
+    let scope = contract_scope(machine, component.rank_type);
+    let ceilings = relaxed_ceilings(&scope);
     let mut bound = 0_u128;
     let mut clauses = BTreeSet::new();
     for arrival in arrivals {
@@ -724,7 +727,7 @@ pub(super) fn component_entry_rank_bound(
         }) {
             return None;
         }
-        let (candidate, support) = parameter_requires_bound(machine, arrival, component.rank_type)?;
+        let (candidate, support) = scope_bound(&scope, &ceilings, arrival)?;
         bound = bound.max(candidate);
         clauses.extend(support);
     }
@@ -759,104 +762,232 @@ fn successor_arguments(terminator: &Terminator) -> Vec<(BlockId, Option<&[ValueI
     }
 }
 
-/// The tightest ceiling the machine contract's `requires` clauses place on
-/// `parameter`, paired with the row positions whose conjunction derives it.
-/// Clauses flatten through `Conjunction` only: a disjunctive or implied
-/// bound is not an unconditional ceiling on the parameter's value. A direct
-/// literal cap — `p <= k`, `p < k`, or `p == k` over an unsigned literal of
-/// the rank carrier's type — is the base case; the bound also follows a
-/// relational premise: `p <= q` transfers `q`'s own derived ceiling to `p`,
-/// `p < q` transfers it less one, and `p == q` transfers it both ways, so a
-/// chain of contract rows caps a parameter no literal mentions. Every row
-/// the achieving chain traverses is a premise the certificate binds.
-fn parameter_requires_bound(
-    machine: &TerminalMachine,
-    parameter: ValueId,
-    rank_type: IntegerType,
-) -> Option<(u128, BTreeSet<usize>)> {
-    let scalar_type = ScalarType::Integer(rank_type);
-    let value = |term: &ScalarTerm| match term {
+/// The `requires` row positions one derived fact rests on — the
+/// certificate's premise set is their union. A leaf's support is its own
+/// row; a conditional row's contribution also carries the rows that
+/// discharged or bounded its arms.
+type ClauseSupport = BTreeSet<usize>;
+
+/// The unconditional ceiling facts one clause context provides: literal
+/// `terminals` capping a value outright, relational `edges` transferring a
+/// target's ceiling less a strictness cost, and `leaves` retaining every
+/// unconditional leaf proposition verbatim so an implication premise that
+/// restates an assumed fact can discharge against it.
+#[derive(Clone, Default)]
+struct ClauseScope<'a> {
+    terminals: Vec<(ValueId, u128, ClauseSupport)>,
+    edges: Vec<(ValueId, ValueId, u128, ClauseSupport)>,
+    leaves: Vec<(ClauseSupport, &'a Proposition)>,
+}
+
+/// The value a term names when it is a plain scalar value of the rank
+/// carrier's type — any other shape (a field observation, an arithmetic
+/// composite, a different integer type) names no boundable parameter here.
+fn rank_value(term: &ScalarTerm, rank_type: IntegerType) -> Option<ValueId> {
+    match term {
         ScalarTerm::Value {
             id,
             scalar_type: actual,
-        } if *actual == scalar_type => Some(*id),
+        } if *actual == ScalarType::Integer(rank_type) => Some(*id),
         _ => None,
-    };
-    let literal = |term: &ScalarTerm| match term {
+    }
+}
+
+/// An unsigned literal of the rank carrier's type — a signed or wrong-typed
+/// literal caps no unsigned rank.
+fn rank_literal(term: &ScalarTerm, rank_type: IntegerType) -> Option<u128> {
+    match term {
         ScalarTerm::Integer {
             scalar_type: actual,
             value: IntegerValue::Unsigned(value),
         } if *actual == rank_type => Some(*value),
         _ => None,
-    };
-    // Each leaf proposition is a ceiling terminal or a relational edge
-    // tagged with the contract row it arrived under. A literal on the left
-    // of `<=` bounds its parameter from below, a wrong-typed or signed
-    // literal caps nothing, and a term that is neither a value nor a
-    // literal — a field observation or an arithmetic composite — places no
-    // ceiling the derivation can trust.
-    let mut terminals = Vec::new();
-    let mut edges = Vec::new();
-    for (row, clause) in machine.contract.requires.iter().enumerate() {
-        let mut pending = vec![clause];
-        while let Some(proposition) = pending.pop() {
-            match proposition {
-                Proposition::Conjunction(children) => pending.extend(children),
-                Proposition::LessOrEqual(left, right) => {
-                    match (value(left), value(right), literal(right)) {
-                        (Some(x), _, Some(k)) => terminals.push((x, k, row)),
-                        (Some(x), Some(y), None) => edges.push((x, y, 0, row)),
-                        _ => {}
-                    }
-                }
-                Proposition::LessThan(left, right) => {
-                    match (value(left), value(right), literal(right)) {
-                        (Some(x), _, Some(k)) => {
-                            if let Some(k) = k.checked_sub(1) {
-                                terminals.push((x, k, row));
+    }
+}
+
+/// The machine contract's resolved clause scope at `rank_type`: every
+/// `requires` row's unconditional content plus the conditional rows that
+/// resolve under it. Rows enter tagged with their own position so derived
+/// facts carry their premises.
+fn contract_scope<'a>(machine: &'a TerminalMachine, rank_type: IntegerType) -> ClauseScope<'a> {
+    let clauses: Vec<(ClauseSupport, &Proposition)> = machine
+        .contract
+        .requires
+        .iter()
+        .enumerate()
+        .map(|(row, clause)| (ClauseSupport::from([row]), clause))
+        .collect();
+    resolve_scope(&ClauseScope::default(), &clauses, rank_type)
+}
+
+/// Enrich `base` with the unconditional content `clauses` add to it.
+/// Conditional rows resolve in one ordered pass: implications discharge to
+/// a fixpoint against the conjunctive context — a discharged premise makes
+/// its conclusion unconditional, and that content can discharge a further
+/// row — then each disjunction resolves against the settled scope in row
+/// order, so an earlier disjunction's ceilings are visible inside a later
+/// one's arms. A ceiling a disjunction itself derives never discharges a
+/// sibling implication's premise; the bound stays conservative rather than
+/// iterating conditional forms to a fixpoint.
+fn resolve_scope<'a>(
+    base: &ClauseScope<'a>,
+    clauses: &[(ClauseSupport, &'a Proposition)],
+    rank_type: IntegerType,
+) -> ClauseScope<'a> {
+    let mut scope = base.clone();
+    let mut deferred: Vec<(ClauseSupport, &Proposition)> = Vec::new();
+    for (support, clause) in clauses {
+        collect_clause_fragments(
+            clause,
+            support.clone(),
+            rank_type,
+            &mut scope,
+            &mut deferred,
+        );
+    }
+    loop {
+        let ceilings = relaxed_ceilings(&scope);
+        let mut progressed = false;
+        let mut index = 0;
+        while index < deferred.len() {
+            let Proposition::Implication { premise, .. } = deferred[index].1 else {
+                index += 1;
+                continue;
+            };
+            let Some(rows) = premise_support(premise, &scope, &ceilings, rank_type) else {
+                index += 1;
+                continue;
+            };
+            let (mut support, proposition) = deferred.remove(index);
+            support.extend(rows);
+            let Proposition::Implication { conclusion, .. } = proposition else {
+                continue;
+            };
+            collect_clause_fragments(conclusion, support, rank_type, &mut scope, &mut deferred);
+            progressed = true;
+        }
+        if !progressed {
+            break;
+        }
+    }
+    for (support, proposition) in deferred {
+        let Proposition::Disjunction(arms) = proposition else {
+            continue;
+        };
+        resolve_disjunction(&support, arms, &mut scope, rank_type);
+    }
+    scope
+}
+
+/// Flatten the content `proposition` contributes when it holds under
+/// `support`. A `Conjunction` dissolves into its children; each leaf seeds
+/// a ceiling terminal or a relational edge and joins `leaves` for verbatim
+/// premise discharge; a `Disjunction` or `Implication` is a conditional
+/// form and defers until this level's conjunctive ceilings settle. A
+/// literal on the left of `<=` bounds its parameter from below, a
+/// wrong-typed or signed literal caps nothing, and a term that is neither
+/// a value nor a literal — a field observation or an arithmetic composite —
+/// places no ceiling the derivation can trust.
+fn collect_clause_fragments<'a>(
+    proposition: &'a Proposition,
+    support: ClauseSupport,
+    rank_type: IntegerType,
+    scope: &mut ClauseScope<'a>,
+    deferred: &mut Vec<(ClauseSupport, &'a Proposition)>,
+) {
+    let mut pending = vec![proposition];
+    while let Some(proposition) = pending.pop() {
+        match proposition {
+            Proposition::Conjunction(children) => pending.extend(children),
+            Proposition::Disjunction(_) | Proposition::Implication { .. } => {
+                deferred.push((support.clone(), proposition));
+            }
+            leaf => {
+                scope.leaves.push((support.clone(), leaf));
+                match leaf {
+                    Proposition::LessOrEqual(left, right) => {
+                        match (
+                            rank_value(left, rank_type),
+                            rank_value(right, rank_type),
+                            rank_literal(right, rank_type),
+                        ) {
+                            (Some(x), _, Some(k)) => {
+                                scope.terminals.push((x, k, support.clone()));
                             }
+                            (Some(x), Some(y), None) => {
+                                scope.edges.push((x, y, 0, support.clone()));
+                            }
+                            _ => {}
                         }
-                        (Some(x), Some(y), None) => edges.push((x, y, 1, row)),
-                        _ => {}
                     }
-                }
-                Proposition::Equal(left, right) => {
-                    match (value(left), value(right), literal(left), literal(right)) {
-                        (Some(x), _, _, Some(k)) => terminals.push((x, k, row)),
-                        (_, Some(y), Some(k), _) => terminals.push((y, k, row)),
-                        (Some(x), Some(y), None, None) => {
-                            edges.push((x, y, 0, row));
-                            edges.push((y, x, 0, row));
+                    Proposition::LessThan(left, right) => {
+                        match (
+                            rank_value(left, rank_type),
+                            rank_value(right, rank_type),
+                            rank_literal(right, rank_type),
+                        ) {
+                            (Some(x), _, Some(k)) => {
+                                if let Some(k) = k.checked_sub(1) {
+                                    scope.terminals.push((x, k, support.clone()));
+                                }
+                            }
+                            (Some(x), Some(y), None) => {
+                                scope.edges.push((x, y, 1, support.clone()));
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
+                    Proposition::Equal(left, right) => {
+                        match (
+                            rank_value(left, rank_type),
+                            rank_value(right, rank_type),
+                            rank_literal(left, rank_type),
+                            rank_literal(right, rank_type),
+                        ) {
+                            (Some(x), _, _, Some(k)) => {
+                                scope.terminals.push((x, k, support.clone()));
+                            }
+                            (_, Some(y), Some(k), _) => {
+                                scope.terminals.push((y, k, support.clone()));
+                            }
+                            (Some(x), Some(y), None, None) => {
+                                scope.edges.push((x, y, 0, support.clone()));
+                                scope.edges.push((y, x, 0, support.clone()));
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
     }
-    // Tightest derived ceiling per value: terminals seed it, then
-    // relational edges propagate — `x < y` hands `x` the bound `y`'s
-    // ceiling less one since `x <= y - 1`, and a step that would fall below
-    // zero rides an unsatisfiable path rather than a usable bound. Every
-    // edge cost is nonnegative, so a tightest chain never needs to revisit
-    // a value: after as many rounds as the relation graph has nodes, the
-    // best simple derivation has settled.
+}
+
+/// The tightest ceiling per value the scope's terminals and transfer edges
+/// derive. Terminals seed the map, then relational edges propagate — `x <
+/// y` hands `x` the bound `y`'s ceiling less one since `x <= y - 1`, and a
+/// step that would fall below zero rides an unsatisfiable path rather than
+/// a usable bound. Every edge cost is nonnegative, so a tightest chain
+/// never needs to revisit a value: after as many rounds as the relation
+/// graph has nodes, the best simple derivation has settled.
+fn relaxed_ceilings(scope: &ClauseScope) -> BTreeMap<ValueId, u128> {
     let mut ceilings: BTreeMap<ValueId, u128> = BTreeMap::new();
-    for &(node, bound, _) in &terminals {
+    for (node, bound, _) in &scope.terminals {
         ceilings
-            .entry(node)
-            .and_modify(|best| *best = (*best).min(bound))
-            .or_insert(bound);
+            .entry(*node)
+            .and_modify(|best| *best = (*best).min(*bound))
+            .or_insert(*bound);
     }
-    let nodes: BTreeSet<ValueId> = edges
+    let nodes: BTreeSet<ValueId> = scope
+        .edges
         .iter()
         .flat_map(|&(x, y, _, _)| [x, y])
         .chain(ceilings.keys().copied())
         .collect();
     for _ in 0..nodes.len() {
         let mut improved = false;
-        for &(x, y, cost, _) in &edges {
+        for &(x, y, cost, _) in &scope.edges {
             let Some(&bound) = ceilings.get(&y) else {
                 continue;
             };
@@ -872,83 +1003,409 @@ fn parameter_requires_bound(
             break;
         }
     }
-    let bound = *ceilings.get(&parameter)?;
-    // The certificate binds exactly the rows the derived ceiling rests on:
-    // recover one achieving simple path — a chain that revisits a value
-    // only detours through a cycle deriving nothing. Failure to justify a
-    // bound the relaxation computed cannot occur when every ceiling traces
-    // to a terminal, but the derivation stays fail-closed rather than
-    // publishing a premise set that does not entail the bound.
-    let mut support = BTreeSet::new();
-    let mut visited = BTreeSet::from([parameter]);
-    if !justify_requires_ceiling(
-        parameter,
-        bound,
-        &ceilings,
-        &terminals,
-        &edges,
-        &mut visited,
-        &mut support,
-    ) {
-        return None;
+    ceilings
+}
+
+/// Resolve one conditional disjunction row into the unconditional content
+/// every arm agrees on. Under an arm the ambient facts still hold, so each
+/// arm's own scope resolves against the scope so far; a value every live
+/// arm caps takes the maximum arm ceiling — whichever arm holds, the bound
+/// does — and a relational edge every live arm states transfers
+/// unconditionally at the weakest strictness. An arm that cannot hold
+/// under any valuation — `Falsehood`, an unsigned-below-zero leaf, or a
+/// conjunction containing either — drops out of the maximum instead of
+/// sinking the row; when no arm can hold at all the clause is vacuous and
+/// contributes nothing. The derived bound rests on the row itself plus
+/// whatever ambient rows each arm's achieving chain consulted, so the
+/// premise set is recovered per arm and unioned.
+fn resolve_disjunction<'a>(
+    support: &ClauseSupport,
+    arms: &'a [Proposition],
+    scope: &mut ClauseScope<'a>,
+    rank_type: IntegerType,
+) {
+    let base_edges = scope.edges.len();
+    let mut arm_scopes = Vec::with_capacity(arms.len());
+    for arm in arms {
+        if proposition_unsatisfiable(arm) {
+            arm_scopes.push(None);
+            continue;
+        }
+        arm_scopes.push(Some(resolve_scope(
+            scope,
+            &[(support.clone(), arm)],
+            rank_type,
+        )));
     }
-    Some((bound, support))
+    let live: Vec<&ClauseScope> = arm_scopes.iter().flatten().collect();
+    if live.is_empty() {
+        return;
+    }
+    let arm_ceilings: Vec<BTreeMap<ValueId, u128>> =
+        live.iter().map(|arm| relaxed_ceilings(arm)).collect();
+    let mut shared_domain: BTreeSet<ValueId> = arm_ceilings[0].keys().copied().collect();
+    for ceilings in &arm_ceilings[1..] {
+        shared_domain.retain(|value| ceilings.contains_key(value));
+    }
+    for value in shared_domain {
+        let bound = arm_ceilings
+            .iter()
+            .map(|ceilings| ceilings[&value])
+            .max()
+            .unwrap_or(0);
+        // Recover the achieving rows per arm: the bound holds under
+        // whichever arm is selected, so it rests on every arm's own
+        // derivation. An arm whose support cannot be recovered leaves the
+        // terminal unwritten rather than publishing a premise set that
+        // does not entail the bound.
+        let mut rows = support.clone();
+        let mut justified = true;
+        for (index, ceilings) in arm_ceilings.iter().enumerate() {
+            let mut visited = BTreeSet::from([value]);
+            match justify_requires_ceiling(
+                value,
+                ceilings[&value],
+                ceilings,
+                live[index],
+                &mut visited,
+            ) {
+                Some(arm_support) => rows.extend(arm_support),
+                None => {
+                    justified = false;
+                    break;
+                }
+            }
+        }
+        if justified {
+            scope.terminals.push((value, bound, rows));
+        }
+    }
+    // A transfer edge every live arm states holds under the row alone:
+    // `(x <= y) or (x < y)` still entails `x <= y`, so the contributed
+    // edge takes the weakest strictness across arms. With a single live
+    // arm the fold still applies — the remaining arms are unsatisfiable,
+    // so its content is the row's.
+    let mut shared_edges: Option<BTreeMap<(ValueId, ValueId), (u128, ClauseSupport)>> = None;
+    for arm in &live {
+        let mut arm_edges: BTreeMap<(ValueId, ValueId), (u128, ClauseSupport)> = BTreeMap::new();
+        for (x, y, cost, edge_support) in &arm.edges[base_edges..] {
+            arm_edges
+                .entry((*x, *y))
+                .and_modify(|(best_cost, rows)| {
+                    *best_cost = (*best_cost).min(*cost);
+                    rows.extend(edge_support.iter().copied());
+                })
+                .or_insert((*cost, edge_support.clone()));
+        }
+        match &mut shared_edges {
+            None => shared_edges = Some(arm_edges),
+            Some(shared) => shared.retain(|edge, (best_cost, rows)| {
+                let Some(&(cost, ref edge_support)) = arm_edges.get(edge) else {
+                    return false;
+                };
+                *best_cost = (*best_cost).min(cost);
+                rows.extend(edge_support.iter().copied());
+                true
+            }),
+        }
+    }
+    for ((x, y), (cost, rows)) in shared_edges.unwrap_or_default() {
+        scope.edges.push((x, y, cost, rows));
+    }
+}
+
+/// The rows discharging `premise` under the scope's unconditional content,
+/// when the context proves it. An assumed verbatim leaf carries its own
+/// rows, `Truth` needs none, a conjunction needs every child discharged, a
+/// disjunction needs one achieving child, and a nested implication is
+/// shown by its conclusion alone. A relational leaf is proved either by
+/// the settled ceilings — `v <= k` holds when `v`'s derived ceiling fits —
+/// or by a chain of transfer edges reaching the other side, and binds the
+/// rows the achieving derivation traversed. Everything else — a literal on
+/// the left needing a floor the scope never derives, equality with a
+/// literal, or non-scalar forms — stays undischarged rather than guessed.
+fn premise_support(
+    premise: &Proposition,
+    scope: &ClauseScope,
+    ceilings: &BTreeMap<ValueId, u128>,
+    rank_type: IntegerType,
+) -> Option<ClauseSupport> {
+    if let Some((support, _)) = scope.leaves.iter().find(|(_, leaf)| *leaf == premise) {
+        return Some(support.clone());
+    }
+    match premise {
+        Proposition::Truth => Some(ClauseSupport::new()),
+        Proposition::Conjunction(children) => {
+            let mut support = ClauseSupport::new();
+            for child in children {
+                support.extend(premise_support(child, scope, ceilings, rank_type)?);
+            }
+            Some(support)
+        }
+        Proposition::Disjunction(children) => children
+            .iter()
+            .find_map(|child| premise_support(child, scope, ceilings, rank_type)),
+        // A conclusion that holds unconditionally entails the implication.
+        Proposition::Implication { conclusion, .. } => {
+            premise_support(conclusion, scope, ceilings, rank_type)
+        }
+        Proposition::LessOrEqual(left, right) => {
+            comparison_support(scope, ceilings, left, right, 0, rank_type)
+        }
+        Proposition::LessThan(left, right) => {
+            comparison_support(scope, ceilings, left, right, 1, rank_type)
+        }
+        Proposition::Equal(left, right) => {
+            match (rank_value(left, rank_type), rank_value(right, rank_type)) {
+                (Some(x), Some(y)) => {
+                    let mut support = relation_path_support(x, y, false, scope)?;
+                    support.extend(relation_path_support(y, x, false, scope)?);
+                    Some(support)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Discharge one relational leaf `left <= right` (`cost` 0) or `left <
+/// right` (`cost` 1): a literal right side holds when the value's settled
+/// ceiling already fits the bound, and a value right side holds when a
+/// transfer chain reaches it — strictness needs the chain to cross at
+/// least one strict edge.
+fn comparison_support(
+    scope: &ClauseScope,
+    ceilings: &BTreeMap<ValueId, u128>,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+    cost: u128,
+    rank_type: IntegerType,
+) -> Option<ClauseSupport> {
+    match (
+        rank_value(left, rank_type),
+        rank_value(right, rank_type),
+        rank_literal(right, rank_type),
+    ) {
+        (Some(x), _, Some(k)) => {
+            let bound = *ceilings.get(&x)?;
+            if (cost == 0 && bound > k) || (cost == 1 && bound >= k) {
+                return None;
+            }
+            let mut visited = BTreeSet::from([x]);
+            justify_requires_ceiling(x, bound, ceilings, scope, &mut visited)
+        }
+        (Some(x), Some(y), None) => relation_path_support(x, y, cost == 1, scope),
+        _ => None,
+    }
+}
+
+/// The rows on one achieving transfer chain `from -> to`. A `strict`
+/// chain must cross at least one strict (`<`) edge: every edge subtracts
+/// its cost from the target's bound, so a strict crossing is what
+/// separates `from < to` from `from <= to`.
+fn relation_path_support(
+    from: ValueId,
+    to: ValueId,
+    strict: bool,
+    scope: &ClauseScope,
+) -> Option<ClauseSupport> {
+    if !strict {
+        let path = relation_path(from, to, &scope.edges)?;
+        let mut rows = ClauseSupport::new();
+        for index in path {
+            rows.extend(scope.edges[index].3.iter().copied());
+        }
+        return Some(rows);
+    }
+    for (index, &(a, b, cost, _)) in scope.edges.iter().enumerate() {
+        if cost == 0 {
+            continue;
+        }
+        let Some(first) = relation_path(from, a, &scope.edges) else {
+            continue;
+        };
+        let Some(second) = relation_path(b, to, &scope.edges) else {
+            continue;
+        };
+        let mut rows = ClauseSupport::new();
+        for hop in first
+            .iter()
+            .chain(std::iter::once(&index))
+            .chain(second.iter())
+        {
+            rows.extend(scope.edges[*hop].3.iter().copied());
+        }
+        return Some(rows);
+    }
+    None
+}
+
+/// One edge chain `from -> to` as edge positions, or `None` when no chain
+/// reaches `to`. Breadth-first keeps the recovered chain short — the
+/// premise rows a discharged comparison binds stay readable.
+fn relation_path(
+    from: ValueId,
+    to: ValueId,
+    edges: &[(ValueId, ValueId, u128, ClauseSupport)],
+) -> Option<Vec<usize>> {
+    if from == to {
+        return Some(Vec::new());
+    }
+    let mut predecessors: BTreeMap<ValueId, (ValueId, usize)> = BTreeMap::new();
+    let mut seen = BTreeSet::from([from]);
+    let mut frontier = vec![from];
+    while !frontier.is_empty() {
+        let mut next_frontier = Vec::new();
+        for node in frontier {
+            for (index, &(x, y, _, _)) in edges.iter().enumerate() {
+                if x != node || !seen.insert(y) {
+                    continue;
+                }
+                predecessors.insert(y, (node, index));
+                if y == to {
+                    let mut path = vec![index];
+                    let mut current = node;
+                    while current != from {
+                        let (previous, edge) = predecessors[&current];
+                        path.push(edge);
+                        current = previous;
+                    }
+                    path.reverse();
+                    return Some(path);
+                }
+                next_frontier.push(y);
+            }
+        }
+        frontier = next_frontier;
+    }
+    None
+}
+
+/// Whether `proposition` admits no valuation under any context — a
+/// `Falsehood`, an unsigned term constrained strictly below zero, a
+/// literal-literal comparison that is false outright, a conjunction
+/// containing any of those, or a disjunction whose arms all fail. Only
+/// locally visible contradictions count; a clash the arithmetic does not
+/// see keeps the clause live and merely unhelpful.
+fn proposition_unsatisfiable(proposition: &Proposition) -> bool {
+    let unsigned_zero = |term: &ScalarTerm| match term {
+        ScalarTerm::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(0),
+        } => scalar_type.sign() == IntegerSign::Unsigned,
+        _ => false,
+    };
+    // A comparison of two closed literals of the same sign is decidable by
+    // evaluation — the operand-type rule already pins one sign to both
+    // sides, so a cross-sign pair is malformed rather than decidable and
+    // stays live. An unsigned literal beyond `i128` declines to evaluate
+    // and stays live too.
+    let closed = |left: &ScalarTerm, right: &ScalarTerm| match (left, right) {
+        (
+            ScalarTerm::Integer {
+                value: IntegerValue::Unsigned(a),
+                ..
+            },
+            ScalarTerm::Integer {
+                value: IntegerValue::Unsigned(b),
+                ..
+            },
+        ) => Some((i128::try_from(*a).ok()?, i128::try_from(*b).ok()?)),
+        (
+            ScalarTerm::Integer {
+                value: IntegerValue::Signed(a),
+                ..
+            },
+            ScalarTerm::Integer {
+                value: IntegerValue::Signed(b),
+                ..
+            },
+        ) => Some((*a, *b)),
+        _ => None,
+    };
+    match proposition {
+        Proposition::Falsehood => true,
+        Proposition::Conjunction(children) => children.iter().any(proposition_unsatisfiable),
+        Proposition::Disjunction(children) => children.iter().all(proposition_unsatisfiable),
+        Proposition::LessThan(left, right) => {
+            unsigned_zero(right) || closed(left, right).is_some_and(|(a, b)| a >= b)
+        }
+        Proposition::LessOrEqual(left, right) => closed(left, right).is_some_and(|(a, b)| a > b),
+        Proposition::Equal(left, right) => closed(left, right).is_some_and(|(a, b)| a != b),
+        _ => false,
+    }
+}
+
+/// The scope's ceiling on `parameter` and the contract rows achieving it.
+/// The certificate binds exactly the rows the derived ceiling rests on:
+/// recover one achieving simple path — a chain that revisits a value only
+/// detours through a cycle deriving nothing. Failure to justify a bound
+/// the relaxation computed cannot occur when every ceiling traces to a
+/// terminal, but the derivation stays fail-closed rather than publishing a
+/// premise set that does not entail the bound.
+fn scope_bound(
+    scope: &ClauseScope,
+    ceilings: &BTreeMap<ValueId, u128>,
+    parameter: ValueId,
+) -> Option<(u128, ClauseSupport)> {
+    let bound = *ceilings.get(&parameter)?;
+    let mut visited = BTreeSet::from([parameter]);
+    justify_requires_ceiling(parameter, bound, ceilings, scope, &mut visited)
+        .map(|support| (bound, support))
 }
 
 /// Recover the contract rows one achieved ceiling rests on: at each value
-/// the earliest literal row stating its bound, else the earliest relational
-/// row whose target's own bound transfers it. `visited` keeps the chain
-/// simple — a revisit means this branch detoured through a cycle that
-/// derives nothing the shorter chain did not.
+/// the earliest literal ceiling stating its bound, else the earliest
+/// relational edge whose target's own bound transfers it. The returned set
+/// is the traversing chain's rows alone — a failed branch returns `None`
+/// with nothing added, so rows shared with a live sibling edge are never
+/// retracted by a detour's cleanup. `visited` keeps the chain simple — a
+/// revisit means this branch detoured through a cycle that derives nothing
+/// the shorter chain did not.
 fn justify_requires_ceiling(
     node: ValueId,
     residual: u128,
     ceilings: &BTreeMap<ValueId, u128>,
-    terminals: &[(ValueId, u128, usize)],
-    edges: &[(ValueId, ValueId, u128, usize)],
+    scope: &ClauseScope,
     visited: &mut BTreeSet<ValueId>,
-    support: &mut BTreeSet<usize>,
-) -> bool {
-    if let Some(&(_, _, row)) = terminals
+) -> Option<ClauseSupport> {
+    if let Some((_, _, rows)) = scope
+        .terminals
         .iter()
-        .filter(|(value, bound, _)| *value == node && *bound == residual)
-        .min_by_key(|(_, _, row)| *row)
+        .find(|(value, bound, _)| *value == node && *bound == residual)
     {
-        support.insert(row);
-        return true;
+        return Some(rows.clone());
     }
-    let mut candidates: Vec<(usize, ValueId)> = edges
+    let mut candidates: Vec<(usize, usize, ValueId)> = scope
+        .edges
         .iter()
-        .filter(|(x, y, cost, _)| {
+        .enumerate()
+        .filter(|(_, (x, y, cost, _))| {
             *x == node
                 && ceilings
                     .get(y)
                     .and_then(|bound| bound.checked_sub(*cost))
                     .is_some_and(|candidate| candidate == residual)
         })
-        .map(|(_, y, _, row)| (*row, *y))
+        .map(|(index, (_, y, _, rows))| {
+            (rows.iter().next().copied().unwrap_or(usize::MAX), index, *y)
+        })
         .collect();
     candidates.sort_unstable();
-    for (row, y) in candidates {
+    for (_, index, y) in candidates {
         if !visited.insert(y) {
             continue;
         }
-        support.insert(row);
-        if justify_requires_ceiling(
-            y,
-            ceilings[&y],
-            ceilings,
-            terminals,
-            edges,
-            visited,
-            support,
-        ) {
-            return true;
+        if let Some(mut support) =
+            justify_requires_ceiling(y, ceilings[&y], ceilings, scope, visited)
+        {
+            support.extend(scope.edges[index].3.iter().copied());
+            return Some(support);
         }
-        support.remove(&row);
         visited.remove(&y);
     }
-    false
+    None
 }
 
 /// The machine-contract premises a whole-entry certificate's bound
