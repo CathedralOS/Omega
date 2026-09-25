@@ -11,9 +11,7 @@ pub fn satisfied_requirement_identity(
     trait_name: &str,
     requirement_name: &str,
 ) -> String {
-    let Some(machine) = typed
-        .realized_machine_named(machine_name)
-    else {
+    let Some(machine) = typed.realized_machine_named(machine_name) else {
         return String::new();
     };
     if let Some(identity) = typed
