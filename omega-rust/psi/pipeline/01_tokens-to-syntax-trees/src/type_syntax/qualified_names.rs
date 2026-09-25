@@ -20,8 +20,7 @@ fn boolean_domain_indices_retain_literal_identity_and_span_in_qualifications_and
                 .tokenize()
                 .expect("tokenize boolean domain index");
             let mut syntax = SyntaxTrees::new(SourceId::default());
-            crate::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-                .expect("parse boolean domain index");
+            crate::parse(&mut syntax, source_id, &tokens).expect("parse boolean domain index");
             let arguments = if cast {
                 syntax
                     .expressions
@@ -60,8 +59,7 @@ fn domain_index_names_retain_authored_source_and_complete_span() {
         let tokens = Lexer::new(&text).tokenize().expect("tokenize domain index");
         let source_id = SourceId(17);
         let mut syntax = SyntaxTrees::new(SourceId::default());
-        crate::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-            .expect("parse domain index");
+        crate::parse(&mut syntax, source_id, &tokens).expect("parse domain index");
         let domains = syntax.type_references.domain_constraints();
         let [domain] = domains.as_slice() else {
             panic!("one domain application");

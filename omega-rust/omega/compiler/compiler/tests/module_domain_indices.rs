@@ -482,12 +482,8 @@ fn represented_nested_machine_domain_arguments_never_capture_global_constant_hea
                 let tokens = source_files_to_tokens::Lexer::new(text)
                     .tokenize()
                     .expect("domain placeholder source tokens");
-                tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-                    &mut syntax,
-                    source_id,
-                    &tokens,
-                )
-                .expect("domain placeholder source parses");
+                tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
+                    .expect("domain placeholder source parses");
             }
             // The parser's domain index surface does not yet accept nested
             // generic type arguments. Pin the traversal contract directly on

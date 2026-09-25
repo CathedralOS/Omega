@@ -20,9 +20,7 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{
-    parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
-};
+use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
 
 /// Unwrap one stage's result, or panic with the stage name and the source it
@@ -127,7 +125,7 @@ fn parsed_forest<'a>(texts: &[(SourceId, &'a str)]) -> (syntax_trees::SyntaxTree
         stage(
             "parse",
             text,
-            parse_syntax_trees_into_with_id(&mut syntax, *source_id, &tokens),
+            tokens_to_syntax_trees::parse(&mut syntax, *source_id, &tokens),
         );
         program = text;
     }

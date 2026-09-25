@@ -24,9 +24,7 @@ use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{
-    parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
-};
+use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 use typed_trees::TypedTrees;
 use typed_trees_to_checked_trees::{CheckingRequest, lower_typed_trees};
 
@@ -145,7 +143,7 @@ fn parsed_forest<'a>(texts: &[(SourceId, &'a str)]) -> (SyntaxTrees, &'a str) {
         stage(
             "parse",
             text,
-            parse_syntax_trees_into_with_id(&mut syntax, *source_id, &tokens),
+            tokens_to_syntax_trees::parse(&mut syntax, *source_id, &tokens),
         );
         program = text;
     }

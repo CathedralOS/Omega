@@ -18,7 +18,7 @@ fn resolve_indices(module: bool, body: &str) -> (SymbolResolvedTrees, Vec<Source
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize raw index owner");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
             .expect("parse raw index owner");
     }
     let references = source

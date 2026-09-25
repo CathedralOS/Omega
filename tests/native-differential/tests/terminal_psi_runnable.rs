@@ -22,7 +22,7 @@ use terminal_fuel::TerminalFuelSchedule;
 use terminal_psi::TerminalModule;
 use terminal_psi_to_abstract_operations::{build_verified_psi_optimization_unit, lower_artifact};
 use terminal_verifier::ProofBundle;
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -134,7 +134,7 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let mut syntax =
         parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse binding.omg");
     let user_tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
+    tokens_to_syntax_trees::parse(&mut syntax, user_source_id, &user_tokens)
         .expect("parse O1 source");
     let resolved = resolve(ResolutionRequest {
         syntax: &syntax,

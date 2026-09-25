@@ -12,7 +12,6 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     GenericDataRequest, normalize_generic_data,
 };
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> {
     let mut map = SourceMap::default();
@@ -20,7 +19,7 @@ fn lower_multi(sources: &[(&str, &str)]) -> Result<SymbolResolvedTrees, String> 
     for (name, text) in sources {
         let id = map.add(PathBuf::from(name), (*text).to_owned()).source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
-        parse_syntax_trees_into_with_id(&mut syntax, id, &tokens).expect("parse");
+        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse");
     }
     let syntax = normalize_generic_data(GenericDataRequest {
         syntax,

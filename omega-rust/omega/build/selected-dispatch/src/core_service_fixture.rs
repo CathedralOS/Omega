@@ -44,12 +44,8 @@ pub(crate) fn typed_with_core_service(name: &str, source: &str) -> TypedTrees {
     let fixture_tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize dispatch fixture");
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-        &mut syntax,
-        fixture_source_id,
-        &fixture_tokens,
-    )
-    .expect("parse dispatch fixture");
+    tokens_to_syntax_trees::parse(&mut syntax, fixture_source_id, &fixture_tokens)
+        .expect("parse dispatch fixture");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax: &syntax,

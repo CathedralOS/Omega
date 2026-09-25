@@ -14,12 +14,11 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{DataMember, Item, TypeParameterKind};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn parse(source: &str) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
-    parse_syntax_trees_into_with_id(&mut syntax, SourceId::default(), &tokens)
+    tokens_to_syntax_trees::parse(&mut syntax, SourceId::default(), &tokens)
         .expect("parse fixture");
     syntax
 }

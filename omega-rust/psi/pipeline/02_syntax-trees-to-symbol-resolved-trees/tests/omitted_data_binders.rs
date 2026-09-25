@@ -369,8 +369,7 @@ fn fixed_array_equation_never_reads_a_root_constant_for_a_module_length() {
             .add(std::path::PathBuf::from(path), text.to_owned())
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, id, &tokens)
-            .expect("parse");
+        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse");
     }
     let errors = normalize_generic_data(GenericDataRequest {
         syntax,
