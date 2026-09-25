@@ -2728,11 +2728,31 @@ syntax and other terminal services are not prerequisites.
   of checking with no call row for every non-uefi selection, targetless
   included.
 
+  The rule is settled by the filter's own comment and needs no owner: a
+  surviving caller is by definition not filtered, so its call must reject; a
+  caller that is itself target-scoped and unselected vanishes with the callee.
+
+  This row is NOT Psi's, though its symptom appears there. Naming the selected
+  target is half the acceptance, and `CheckingRequest` carries no target
+  because the firewall keeps 04 target-neutral. The other half needs typing:
+  the witness `self.legs.acquire()` is a receiver call whose callee name is not
+  syntactically resolvable to the filtered full name, so
+  `filter_target_machines_by_scope`, which runs on syntax trees, cannot see it
+  either. Only build-evaluation after typing holds both facts -- it already
+  takes `TypedTrees` in `admit_provider_default_calls` and
+  `settle_provider_defaults`, and `SelectedTargetMachineDeclarations` is
+  already threaded there. Carry the filtered names into that pass, match calls
+  whose `target_symbol` is invalid against them, and reject naming both.
+
+  Psi's own half is separable and smaller: `undeclared_checked_call_callee`
+  names only receiverless unqualified expression calls, so a filtered receiver
+  or statement call still reports "authored Call declaration selection
+  occurrence N remained unresolved". Naming the callee there does not need the
+  target and does not close this row.
+
   Acceptance: a statement call whose callee no declaration in the selected
   program supplies rejects, naming the callee and the selected target, and the
   authored source that legitimately filters with its callee keeps compiling.
-  Decide first whether the caller filters with the callee or the call rejects;
-  the two answers differ for a portable body that calls a target-scoped name.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
