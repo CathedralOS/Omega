@@ -474,9 +474,7 @@ mod tests {
     ) -> symbols::SymbolHandle {
         let machine = checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
         checked
             .typed
@@ -495,9 +493,7 @@ mod tests {
     ) -> symbols::SymbolHandle {
         let machine = checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
+            .realized_machine_named(machine_name)
             .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
         checked
             .typed
@@ -891,16 +887,12 @@ mod tests {
         let realization = entry_symbol(&checked, "BytesProvider::head_impl");
         let requirement_machine = checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Bytes::head")
+            .realized_machine_named("Bytes::head")
             .expect("the requirement machine");
         assert_eq!(requirement_machine.lifetime_parameters.len(), 1);
         let adapter_machine = checked
             .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "BytesProvider::head_impl")
+            .realized_machine_named("BytesProvider::head_impl")
             .expect("the provider machine");
         assert_eq!(adapter_machine.lifetime_parameters.len(), 1);
         let owner = checked

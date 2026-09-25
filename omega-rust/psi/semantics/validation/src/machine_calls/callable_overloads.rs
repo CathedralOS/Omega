@@ -18,7 +18,13 @@ pub(crate) fn validate_named_callable_overload_declarations(
 
 fn validate_machine_overloads(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let mut seen: Vec<(NormalizedNamedCallableIdentity, symbols::SymbolHandle)> = Vec::new();
-    for machine in program.machines() {
+    // A target sibling shares its family's name and signature by design; each
+    // target's one body per path is validated before resolution.
+    for machine in program
+        .machines()
+        .iter()
+        .filter(|machine| machine.target.is_none())
+    {
         let Some(identity) = program.normalized_machine_overload_identity(machine) else {
             continue;
         };

@@ -20,9 +20,7 @@ pub fn compute_plan_laid_layouts(
     for record in records {
         if let Some(selection_authority) = selection_authority.clone() {
             let machine = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == record.policy_machine)
+                .realized_machine_named(&record.policy_machine)
                 .ok_or_else(|| {
                     vec![Diagnostic::error(format!(
                         "plan-laid value type `{}`: no machine named `{}` exists",
@@ -82,9 +80,7 @@ pub fn compute_plan_laid_layouts(
                 ))]
             })?;
         let policy_plan_machine_symbol = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == record.policy_machine)
+            .realized_machine_named(&record.policy_machine)
             .map(|machine| machine.symbol)
             .ok_or_else(|| {
                 vec![Diagnostic::error(format!(

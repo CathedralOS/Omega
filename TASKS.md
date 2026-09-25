@@ -48,22 +48,25 @@ only. These items land in order, and each deletes the side doors it replaces.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
-  Psi stage. Today `build_evaluation::target_machines::filter_target_machines_by_scope`
-  clears the marker on the selected target's bodies before resolution and
-  resolution's `lower_machine_into` skips every still-marked body, so an
-  unselected target's bodies are never checked and callers of an unselected
-  family fail resolution. Resolution admits every body of a family under one
-  path keyed by target; typing and checking check each body; lowering and
-  Terminal Psi retain the tag; a call names the family. Delete the filter,
-  `select_target_machines`, `settle_provider_defaults`, the
-  `SelectedTargetMachineDeclarations` custody and the generated-source
-  `filter_generated_extension` route. Acceptance: `omega --check` of
-  `samples/cli/basics/cli_mvp/main.omg` with no `--target` checks all six
-  `source/library/std/targets/*` trees in one Stage 05 run; a deliberate type
-  error in `std/targets/macos_arm64/filesystem_impl.omg` rejects that check on
-  a Windows host; `omega inspect-terminal` shows each body under its family
-  with its target tag.
-
+  Psi stage. Landed so far: every body of a non-selected target lowers as a
+  sibling declaration (authored name, symbol `<path>::<target>`, `target`
+  on the record, no conformances, bodyless siblings with
+  `MachineSupplyMode::TargetSibling`), calls inside a sibling bind to the same
+  target's siblings (`symbols/target_siblings.rs`), and `prune_target_siblings`
+  drops them after plan-fact binding, so a compile on any host checks all six
+  `source/library/std/targets/*` trees (`omega --check` of `cli_mvp` runs Stage
+  05 over every tree; `tests/omega/fail/targets/sibling_body_type_error_rejected`
+  pins a `demo_target` type error on every host). Remaining: the transitional
+  pre-resolution selection in
+  `build_evaluation::target_machines::filter_target_machines_by_scope` still
+  clears the selected target's marker and validates the one-body-per-target
+  rule, and siblings never reach Terminal Psi. Replace both with a family
+  record (one path, bodies keyed by target) that lowering and Terminal Psi
+  retain, so `omega inspect-terminal` shows each body under its family with
+  its target tag and Omega selects the body at realization
+  (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Known cost:
+  each std check pass now checks six target trees (`cli_mvp` check 36 s ->
+  81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
   contract source (`source_assembly::entry_contract_seed` seeds one target's

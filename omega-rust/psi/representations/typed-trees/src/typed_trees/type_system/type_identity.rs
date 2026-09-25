@@ -270,9 +270,13 @@ impl TypedTrees {
         &self,
         identity: &str,
     ) -> Option<&crate::machine::Machine> {
+        // A target sibling shares its family's identity and is never the
+        // realized declaration.
         let mut matches = self.machines().iter().filter(|machine| {
-            self.normalized_machine_overload_identity(machine)
-                .is_some_and(|candidate| candidate.identity() == identity)
+            machine.target.is_none()
+                && self
+                    .normalized_machine_overload_identity(machine)
+                    .is_some_and(|candidate| candidate.identity() == identity)
         });
         let machine = matches.next()?;
         matches.next().is_none().then_some(machine)

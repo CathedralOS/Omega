@@ -77,14 +77,12 @@ fn lower_item_with_exposure(
             lowerer.symbol_resolved_trees.operators.push(operator);
         }
         syntax::item::Item::Machine(machine) => {
-            // A machine still carrying a target marker here was NOT selected:
-            // the pre-resolution filter (pipeline/target_machines.rs) clears
-            // the selected target's marker and validates the loud edges, so a
-            // marked machine is inert. (Without the filter, EVERY target machine stays inert and
-            // its call sites fail resolution loudly -- never a silent success.)
-            if machine.target.is_none() {
-                lower_machine_into(lowerer, syntax_trees, machine)?;
-            }
+            // A machine still carrying a target marker is a sibling of the
+            // selected target's declaration: the coordinator's transitional
+            // pre-resolution selection cleared the selected marker, and every
+            // other body lowers as a checked sibling (symbol `<path>::<target>`)
+            // so a compile on one host reports every target's errors.
+            lower_machine_into(lowerer, syntax_trees, machine)?;
         }
         syntax::item::Item::Trait(trait_definition) => {
             let trait_definition = lower_trait_definition(lowerer, syntax_trees, trait_definition)?;

@@ -1,0 +1,21 @@
+// A body of a non-selected target is checked on every host: a type error in
+// a `demo_target` body rejects the compile even though `demo_target` resolves
+// to no real target and nothing portable calls the body.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Helper { seed: i32; }
+
+demo_target machine Helper::paradigm_internal(&self) -> i32 {
+    let wrong: i32 = true;
+    transition { _ -> wrong }
+}
+
+data Main { console: Binding<Console>; helper: Helper; }
+
+machine Main::main(&mut self) reaches Console {
+    let a: i32 = self.helper.seed;
+    transition a == 0 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}

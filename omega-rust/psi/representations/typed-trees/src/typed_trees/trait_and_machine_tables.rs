@@ -216,6 +216,16 @@ impl TypedTrees {
             .append_to_span(&mut self.roots.machines, machine);
     }
 
+    /// The realized declaration named `name`: never a target sibling, which
+    /// shares its family's authored name but belongs to another target and
+    /// is pruned once checking has committed. Evaluators and settlement
+    /// select through this; checking iterates `machines()` for every body.
+    pub fn realized_machine_named(&self, name: &str) -> Option<&machine::Machine> {
+        self.machines()
+            .iter()
+            .find(|machine| machine.target.is_none() && machine.name.as_str() == name)
+    }
+
     pub fn machines(&self) -> &[machine::Machine] {
         self.tables.machines.span_or_empty(self.roots.machines)
     }

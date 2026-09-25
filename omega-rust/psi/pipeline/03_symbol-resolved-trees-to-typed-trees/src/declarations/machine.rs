@@ -187,6 +187,10 @@ fn lower_machine_contents(
         is_public: machine.is_public,
         // Copied, never re-derived.
         supply_mode: machine.supply_mode,
+        target: machine
+            .target
+            .as_ref()
+            .map(crate::lowerer::name::lower_name),
         body_is_present: machine.body_is_present,
         structural_type_equations_pending: machine.structural_type_equations_pending,
         // The authored bit and private witness copy here; the final typed

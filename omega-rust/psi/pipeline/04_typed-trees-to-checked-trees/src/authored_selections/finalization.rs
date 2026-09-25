@@ -482,11 +482,15 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
             })?;
         }
     }
+    // A target sibling's body is checked here but realized by its own
+    // target: a selection its realization resolves may stay late-bound.
+    let sibling_occurrences = crate::product_pruning::target_sibling_selection_occurrences(program);
     if let Some(selection) = selections.iter().find(|selection| {
         if !matches!(
             selection.target(),
             AuthoredDeclarationSelectionTarget::LateBound(_)
-        ) {
+        ) || sibling_occurrences.contains(&selection.occurrence_id())
+        {
             return false;
         }
         !allow_unresolved_toolchain
@@ -507,10 +511,16 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
             ))
             .with_source_span(selection.source_span()));
         }
+        let location = program
+            .symbols
+            .source_file(selection.source_span())
+            .map(|source| source.path.display().to_string())
+            .unwrap_or_else(|| "<no source file>".to_owned());
         return Err(Diagnostic::error(format!(
-            "authored {:?} declaration selection occurrence {} remained unresolved after successful checking ({binding:?})",
+            "authored {:?} declaration selection occurrence {} (`{}` in {location}) remained unresolved after successful checking ({binding:?})",
             selection.kind(),
             selection.occurrence_id().ordinal(),
+            program.symbols.source_text(selection.source_span()),
         ))
         .with_source_span(selection.source_span()));
     }

@@ -1,0 +1,1 @@
+local `wrong` stores a boolean into a `i32` local

@@ -689,9 +689,7 @@ mod tests {
 
         // The value is well-formed and the instance admits it.
         let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "holder_value")
+            .realized_machine_named("holder_value")
             .expect("machine");
         require_const_evaluable_result(
             &typed,
@@ -765,9 +763,7 @@ mod tests {
         let mut typed = crate::front_end::typed_program(SOURCE);
         let return_type = {
             let machine = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "packet_value")
+                .realized_machine_named("packet_value")
                 .expect("machine");
             typed.machine_states(machine)[0].return_type
         };
@@ -785,9 +781,7 @@ mod tests {
             },
         );
         let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "packet_value")
+            .realized_machine_named("packet_value")
             .expect("machine");
         require_const_evaluable_result(&typed, machine, &value())
             .expect("an owner-qualified spelling of the selected carrier admits");
@@ -872,11 +866,7 @@ mod tests {
         machine_name: &str,
         value: BuildTimeValue,
     ) -> String {
-        let machine = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == machine_name)
-            .expect("machine");
+        let machine = typed.realized_machine_named(machine_name).expect("machine");
         require_const_evaluable_result(typed, machine, &value)
             .expect_err("the malformed or ineligible value must reject")
     }

@@ -5,10 +5,14 @@
 //! sees the SAME selected program natives are built from):
 //!
 //! - the SELECTED target's machine has its marker cleared -- from resolution
-//!   onward it is an ordinary machine, and no downstream stage grows a
-//!   per-target concept;
-//! - non-selected machines keep their marker and stay INERT (resolution skips
-//!   them), so four targets' same-name implementations never collide.
+//!   onward it is an ordinary machine;
+//! - every other target's machine keeps its marker and resolution lowers it
+//!   as a sibling (symbol `<path>::<target>`): resolved, typed, and checked so a
+//!   compile on one host reports every target's errors, never selected by
+//!   name, conformance, or attachment lookups, and pruned once checking has
+//!   committed. This pre-resolution selection is transitional; realization-
+//!   time selection belongs to Omega (board item
+//!   PROVIDER-SELECTION-AFTER-TERMINAL).
 //!
 //! Loud edges (the settle's zero-or-two rule):
 //! - two selected-target machines with one name = implemented twice;
@@ -33,7 +37,6 @@
 //! host that executes it.
 
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::BuildOperation;
 use std::collections::{BTreeMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -226,17 +229,18 @@ impl SelectedTargetMachineDeclarations {
     /// Admit declaration-call custody before preliminary package checking.
     /// Only this retained selected-target roster may grant the declaration
     /// intrinsic; it grants no authority to execute a Build mutation.
-    pub fn admit_provider_default_calls(
-        &self,
-        typed: &mut TypedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let mut occurrences = Vec::new();
+    /// Admit the selected target's `provider_defaults` bodies: typing has
+    /// already finalized their `select_provider` calls as the build
+    /// provider-selection intrinsic, so this harvest only validates what the
+    /// realized target's declaration selects.
+    pub fn admit_provider_default_calls(&self, typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         for (machine_name, source) in &self.provider_default_machine_names {
             let matching = typed
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    machine.name.as_str() == machine_name
+                    machine.target.is_none()
+                        && machine.name.as_str() == machine_name
                         && typed
                             .symbols
                             .symbol_provenance_source_span(machine.symbol)
@@ -250,13 +254,10 @@ impl SelectedTargetMachineDeclarations {
                 ))]);
             };
             crate::harvest_provider_selections(typed, machine)?;
-            occurrences.extend(provider_default_call_occurrences(typed, machine));
         }
-        finalize_provider_default_calls(typed, &occurrences)
+        Ok(())
     }
 
-    /// Resolve the retained target-owned provider-default producers and
-    /// preserve each producer's exact authored row order and identity.
     pub fn settle_provider_defaults(
         self,
         typed: &mut TypedTrees,
@@ -266,7 +267,8 @@ impl SelectedTargetMachineDeclarations {
         let mut diagnostics = Vec::new();
         for (machine_name, source) in &self.provider_default_machine_names {
             let Some(machine) = typed.machines().iter().find(|machine| {
-                machine.name.as_str() == machine_name
+                machine.target.is_none()
+                    && machine.name.as_str() == machine_name
                     && typed
                         .symbols
                         .symbol_provenance_source_span(machine.symbol)
@@ -289,7 +291,8 @@ impl SelectedTargetMachineDeclarations {
                 .machines()
                 .iter()
                 .filter(|machine| {
-                    machine.name.as_str() == machine_name
+                    machine.target.is_none()
+                        && machine.name.as_str() == machine_name
                         && typed
                             .symbols
                             .symbol_provenance_source_span(machine.symbol)
@@ -323,67 +326,6 @@ impl SelectedTargetMachineDeclarations {
 /// Only the retained selected-target producer roster admits these declarations.
 /// The intrinsic records an admitted provider declaration, not an executed
 /// root Build mutation; evaluation must still prove the activation's receiver.
-fn provider_default_call_occurrences(
-    typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Vec<typed_trees::AuthoredDeclarationSelectionOccurrenceId> {
-    let mut occurrences = Vec::new();
-    for state in typed.machine_states(machine) {
-        for statement in typed.statement_table.statements(state.statement_nodes) {
-            match statement {
-                typed_trees::statement::StatementNode::Call(call)
-                    if BuildOperation::from_call_target(call.target.as_str())
-                        == Some(BuildOperation::ProviderSelection)
-                        && !call.target_symbol.is_valid() =>
-                {
-                    occurrences.extend(call.authored_call_selection);
-                }
-                typed_trees::statement::StatementNode::Expression(expression) => {
-                    if let typed_trees::expression::ExpressionNode::Call(call) =
-                        typed.expression_table.expression(*expression)
-                        && BuildOperation::from_call_target(call.target.as_str())
-                            == Some(BuildOperation::ProviderSelection)
-                        && !call.target_symbol.is_valid()
-                    {
-                        occurrences.extend(typed.expression_table.authored_selection_occurrences(*expression).filter(|occurrence| {
-                            typed.authored_declaration_selections().get(*occurrence).is_some_and(|selection| {
-                                selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::Call
-                            })
-                        }));
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    occurrences
-}
-
-fn finalize_provider_default_calls(
-    typed: &mut TypedTrees,
-    occurrences: &[typed_trees::AuthoredDeclarationSelectionOccurrenceId],
-) -> Result<(), Vec<Diagnostic>> {
-    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
-    use typed_trees::{
-        AuthoredDeclarationSelectionLateBinding as Binding,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
-    let mut selections = typed.authored_declaration_selections().clone();
-    for occurrence in occurrences {
-        if selections.get(*occurrence).is_some_and(|selection| {
-            selection.target() == Target::Intrinsic(Intrinsic::BuildProviderSelection)
-        }) {
-            continue;
-        }
-        selections.finalize_intrinsic(*occurrence, Binding::CheckedCall, Intrinsic::BuildProviderSelection)
-            .map_err(|error| vec![Diagnostic::error(format!("selected target provider-default call lost its authored selection custody: {error:?}"))])?;
-    }
-    typed.retain_authored_declaration_selections(selections);
-    Ok(())
-}
-
-/// Select every target-scoped declaration against one target: the product
-/// route with no build-scope sources.
 pub fn filter_target_machines(
     syntax: &mut SyntaxTrees,
     target_name: Option<&str>,
@@ -445,6 +387,33 @@ fn target_machine_origins(
 }
 
 fn validate_target_machine_origins(origins: &[TargetMachineOrigin]) -> Result<(), Vec<Diagnostic>> {
+    validate_selected_target_machine_origins(origins)?;
+    // A sibling target supplies exactly one body as well: two would lower to
+    // one `<path>::<target>` name and collide.
+    let mut per_target: BTreeMap<(source::DependencyScope, &str, &str), usize> = BTreeMap::new();
+    for origin in origins.iter().filter(|origin| !origin.selected) {
+        *per_target
+            .entry((
+                origin.scope,
+                origin.full_name.as_str(),
+                origin.target.as_str(),
+            ))
+            .or_default() += 1;
+    }
+    for ((_, full_name, target), count) in per_target {
+        if count > 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "machine `{full_name}` is implemented twice for `{target}` -- \
+                 a target supplies exactly one implementation of a contract machine",
+            ))]);
+        }
+    }
+    Ok(())
+}
+
+fn validate_selected_target_machine_origins(
+    origins: &[TargetMachineOrigin],
+) -> Result<(), Vec<Diagnostic>> {
     // (dependency scope, full machine name) -> (selected count, non-selected
     // target names). The zero-or-two rule applies within one checked
     // instance: two instances of a dual-purpose file legitimately select the

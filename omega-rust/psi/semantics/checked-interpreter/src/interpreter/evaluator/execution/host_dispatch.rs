@@ -554,9 +554,7 @@ mod tests {
     /// `is_boundary_call` and the arm's contract check actually inspect.
     fn read_line_call(checked: &CheckedTrees, boundary_trait: &str) -> TableCall {
         let take = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Main::main")
+            .realized_machine_named("Main::main")
             .and_then(|machine| checked.machine_states(machine).first())
             .and_then(|state| {
                 checked
@@ -594,9 +592,7 @@ mod tests {
     /// bounded prefix).
     fn main_self(evaluator: &mut Evaluator<'_>, checked: &CheckedTrees, len: usize) -> Cell {
         let machine = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Main::main")
+            .realized_machine_named("Main::main")
             .expect("Main::main machine");
         let line = evaluator
             .allocate_cell(
@@ -651,9 +647,7 @@ mod tests {
         let checked = crate::front_end::checked_program(BOUNDED_CONSOLE_SOURCE);
         let call = read_line_call(&checked, "Console");
         let machine_symbol = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Main::main")
+            .realized_machine_named("Main::main")
             .expect("Main machine")
             .symbol;
         // (stdin, expected variant, count, destination bytes, consumed)
@@ -731,9 +725,7 @@ mod tests {
             let checked = crate::front_end::checked_program(&source);
             let call = read_line_call(&checked, "Console");
             let machine_symbol = checked
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "Main::main")
+                .realized_machine_named("Main::main")
                 .expect("Main machine")
                 .symbol;
             let mut evaluator = Evaluator::new_checked(&checked, input);
@@ -791,9 +783,7 @@ mod tests {
         );
         let call = read_line_call(&checked, "Console");
         let machine_symbol = checked
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Main::main")
+            .realized_machine_named("Main::main")
             .expect("Main machine")
             .symbol;
         let mut evaluator = Evaluator::new_checked(&checked, b"hi\n");
@@ -1033,9 +1023,7 @@ mod tests {
             ));
             let mut evaluator = Evaluator::new_checked(&checked, &[]);
             let realization = checked
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == target)
+                .realized_machine_named(target)
                 .expect("concrete test realization");
             let state = checked
                 .machine_states(realization)

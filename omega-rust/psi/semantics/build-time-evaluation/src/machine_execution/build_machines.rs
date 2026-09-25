@@ -200,9 +200,7 @@ pub fn evaluate_build_machine_measured(
             PreparedBuildMachine::Entry(entry) => entry.symbol(),
             PreparedBuildMachine::Name(name) => program
                 .typed()
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == name)
+                .realized_machine_named(name)
                 .map(|machine| machine.symbol)
                 .ok_or_else(|| {
                     BuildMachineEvaluationError::Entry(format!(

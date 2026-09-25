@@ -240,6 +240,14 @@ pub(crate) fn typed_trees_to_checked_trees(
             )?;
         let (program, selected_provider_plan_facts, selected_provider_grants) =
             selected_provider_binding.into_parts();
+        // Target siblings were checked for their own targets and admitted
+        // above like every other declaration; they supply nothing to this
+        // realization, so they leave before any execution consumer sees the
+        // program. Pruning after plan-fact binding keeps the operator uses
+        // inside their bodies unselected.
+        let program = Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
+            Arc::try_unwrap(program).unwrap_or_else(|shared| (*shared).clone()),
+        )?);
         Ok(CheckedProgramSurface {
             program,
             selected_provider_plan_facts,
@@ -420,6 +428,7 @@ pub(crate) fn typed_trees_to_preliminary_checked_trees(
             typed,
             &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
         )?;
+        let program = typed_trees_to_checked_trees::prune_target_siblings(program)?;
         provider_planning::approval::check_boundary_provider_approval(&program)?;
         Ok(Arc::new(program))
     })

@@ -12,9 +12,7 @@ pub fn satisfied_requirement_identity(
     requirement_name: &str,
 ) -> String {
     let Some(machine) = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == machine_name)
+        .realized_machine_named(machine_name)
     else {
         return String::new();
     };
