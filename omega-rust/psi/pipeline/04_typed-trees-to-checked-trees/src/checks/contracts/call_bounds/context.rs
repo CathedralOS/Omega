@@ -107,11 +107,24 @@ fn prove(
         caller.machine_symbol,
         caller.state_symbol,
     )?;
-    // The callee is a machine head: the target names the machine itself or
-    // resolves to the machine's entry state.
-    let (callee, entry) = crate::semantic::calls::find_machine_head(program, call.target_symbol)?;
+    // The callee is a machine head (the machine itself or its entry state),
+    // or a named state of the caller's own machine that a transition arrives
+    // at. Either way the goal is the target's arrival clause over its formals.
+    let head = crate::semantic::calls::find_machine_head(program, call.target_symbol);
+    let (callee, entry) = match head {
+        Some(head) => head,
+        None => crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
+            .filter(|(machine, _)| {
+                machine.symbol == caller.machine_symbol
+                    && matches!(
+                        site,
+                        crate::semantic::calls::CallSite::TransitionNamed { .. }
+                    )
+            })?,
+    };
     let parameters = program.state_parameters(entry);
-    if caller.machine_symbol == callee.symbol
+    if head.is_some()
+        && caller.machine_symbol == callee.symbol
         && matches!(
             site,
             crate::semantic::calls::CallSite::TransitionNamed { .. }
@@ -155,15 +168,17 @@ fn prove(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if validation::prove_arithmetic_call_requirement(
-        program,
-        caller_machine,
-        caller_state,
-        callee,
-        &arithmetic_hypotheses,
-        goal,
-        arguments,
-    ) {
+    if head.is_some()
+        && validation::prove_arithmetic_call_requirement(
+            program,
+            caller_machine,
+            caller_state,
+            callee,
+            &arithmetic_hypotheses,
+            goal,
+            arguments,
+        )
+    {
         return Some(true);
     }
     let caller_parameters = program.state_parameters(caller_state);

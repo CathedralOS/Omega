@@ -45,6 +45,41 @@ fn countdown_evidence_preserves_both_boolean_arm_orders_and_base_case_polarities
 }
 
 #[test]
+fn a_named_state_cycle_descends_under_a_guard_above_one_or_a_requires_floor() {
+    let cycle = |guard: &str, floor: &str| {
+        format!(
+            "machine eval(fuel: u64) -> u64
+             terminates by fuel;
+             {{
+                 transition {{ _ -> fill(fuel) }}
+                 state fill(fuel: u64) -> u64 {{
+                     transition {guard} {{ true -> place(fuel - 1) _ -> fuel }}
+                 }}
+                 state place(fuel: u64) -> u64
+                 requires {floor}
+                 {{ transition {{ _ -> fill(fuel - 1) }} }}
+             }}"
+        )
+    };
+    let source = cycle("fuel > 1", "1 <= fuel");
+    checked_program_result(&source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    for source in [
+        cycle("fuel >= 0", "1 <= fuel"),
+        cycle("fuel > 1", "0 <= fuel"),
+    ] {
+        let diagnostics =
+            crate::checks::termination::check_machine_termination(&typed_program(&source))
+                .expect_err(&source);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove the `terminates by` ranking")),
+            "{source}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn distance_ranking_preserves_both_boolean_arm_orders() {
     for (predicate, recursive_truth) in [("index < limit", true), ("index >= limit", false)] {
         for first_truth in [false, true] {
