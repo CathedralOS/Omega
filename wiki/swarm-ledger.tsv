@@ -4,3 +4,5 @@
 2026-09-24 04:42z	z4	leaf/borrowed-view-member-calls	ede41e584a	merged	terminal: admit .len on borrowed-view record fields
 2026-09-24 06:08z	z4	leaf/borrowed-view-element-read	4c2a68051a	merged	terminal: admit element reads on byte-sequence record fields
 2026-09-24 06:15z	z3	leaf/param-indexed-subslice	ed0018111e	merged	whole-view subslice results resolve to the carrier parameter
+2026-09-25T03:22Z	leaf/storage-alias-closure	af4cb25f18
+STORAGE-ALIAS-CLOSURE-PAIR-LOOP: per-(machine,state) collecting prefix walk memoized on CallFrameResolver; close() 321->271us/call witnessed; gate: ws lib 17010/17010, scoped 6289/6289; canary+samples red preexisting on main 3781c9e05c (sampled 4/4 identical)		
