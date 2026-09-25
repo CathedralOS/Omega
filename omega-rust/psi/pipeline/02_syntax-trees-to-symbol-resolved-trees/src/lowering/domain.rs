@@ -61,28 +61,39 @@ pub(crate) fn lower_domain_definition(
             })
         })
         .transpose()?;
-    if let Some(owner) = owner
-        && let Some(package) = owner.package_identity
-    {
-        let scope = match owner.dependency_scope {
-            source::DependencyScope::Product => "product",
-            source::DependencyScope::Build => "build",
-        };
-        let hexadecimal = b"0123456789abcdef";
-        let digest = package
-            .digest()
-            .into_iter()
-            .flat_map(|byte| {
-                [
-                    char::from(hexadecimal[usize::from(byte >> 4)]),
-                    char::from(hexadecimal[usize::from(byte & 15)]),
-                ]
-            })
-            .collect::<String>();
-        semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
+    if let Some(owner) = owner {
+        if let Some(package) = owner.package_identity {
+            let scope = match owner.dependency_scope {
+                source::DependencyScope::Product => "product",
+                source::DependencyScope::Build => "build",
+            };
+            let hexadecimal = b"0123456789abcdef";
+            let digest = package
+                .digest()
+                .into_iter()
+                .flat_map(|byte| {
+                    [
+                        char::from(hexadecimal[usize::from(byte >> 4)]),
+                        char::from(hexadecimal[usize::from(byte & 15)]),
+                    ]
+                })
+                .collect::<String>();
+            semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
+        } else if owner.origin == source::SourceOrigin::Toolchain {
+            // A bundled toolchain source carries no package commitment but its
+            // owner is closed and reproducible. `normalized_hermetic_symbol_identity`
+            // already qualifies these declarations with this exact marker;
+            // domain identity must agree with it. Without the marker a bundled
+            // declaration and an unmanaged user declaration that normalize to
+            // the same leaf — `std::calling`'s `[u8; 256]::Utf8` and an
+            // authored `[u8; 8]::Utf8`, both `[u8; N]::Utf8` — mint one
+            // identity under two owners, and the cross-owner collision
+            // rejection below fires on a program the domain rules permit.
+            semantic_identity = format!("toolchain::{semantic_identity}");
+        }
     }
-    // Source-free probes model one package. Unmanaged sources have no portable
-    // package commitment yet; keep their legacy key and the independent
+    // Source-free probes model one package. An unmanaged user source still has
+    // no portable package commitment; keep its legacy key and the independent
     // cross-owner collision rejection rather than inventing path-based identity.
     let semantic_id = lowerer
         .symbol_resolved_trees
