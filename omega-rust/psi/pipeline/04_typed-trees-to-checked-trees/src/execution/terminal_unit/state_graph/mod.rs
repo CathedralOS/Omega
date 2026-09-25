@@ -1,4 +1,14 @@
 //! State-local calls and explicit successor bindings, independent of graph shape.
+//!
+//! `build_traced` plans a multi-state machine as a composed Unit control
+//! graph. It fixes the machine's result signature and natural ranks, then
+//! the signature and entry claims of every state. Each state then plans its
+//! prefix initializers and statement sequence (`control::statement_sequence`),
+//! admits the sequence's operations (`operation_custody`), plans its
+//! terminator (`terminator`, with `closed_sum` and `returns`), and accounts
+//! for every structural result it produces (`result_custody`, with
+//! `local_results`). Finally the parameter custody of live states and the
+//! provider attachment requirements are checked.
 use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan, CheckedScalarBinding,
