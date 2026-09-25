@@ -1,4 +1,4 @@
-use super::{machine_and_state, machine_parameter_contract_definition};
+use super::{MachineStateIndex, machine_and_state, machine_parameter_contract_definition};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -15,6 +15,7 @@ pub(super) struct AdmittedNominalSelection {
 
 pub(super) fn validate_nominal_machine_selection(
     program: &TypedTrees,
+    index: &MachineStateIndex,
     generic_owner: &str,
     parameter: &TypeParameter,
     required_contract: &MachineParameterContract,
@@ -52,7 +53,8 @@ pub(super) fn validate_nominal_machine_selection(
         return Err(());
     }
 
-    let Some((selected_machine, selected_state)) = machine_and_state(program, selected_symbol)
+    let Some((selected_machine, selected_state)) =
+        machine_and_state(program, index, selected_symbol)
     else {
         diagnostics.push(Diagnostic::error(format!(
             "static machine argument `{selected_name}` for nominal parameter `{}` does not resolve to a concrete machine entry",

@@ -179,6 +179,10 @@ fn validate_static_machine_arguments_with_facts(
     };
     let invocations = crate::infer_synchronous_invocations(program);
     let mathematical_expressions = mathematical_occurrences::expression_nodes(program);
+    // Every call site resolves its machine/state target through this index;
+    // the program is frozen for the duration of the pass so one build covers
+    // all lookups.
+    let index = machine_state_index(program);
     for (handle, expression) in program.expression_table.iter_expressions() {
         if let ExpressionNode::Call(call) = expression {
             // These occurrences belong to mathematical declaration elaboration,
@@ -196,6 +200,7 @@ fn validate_static_machine_arguments_with_facts(
             }
             validate_call_selection(
                 program,
+                &index,
                 &suspensions,
                 &blockings,
                 &service_reaches,
@@ -225,6 +230,7 @@ fn validate_static_machine_arguments_with_facts(
                     }
                     validate_call_selection(
                         program,
+                        &index,
                         &suspensions,
                         &blockings,
                         &service_reaches,
@@ -264,6 +270,7 @@ pub fn validate_static_machine_selections_with_facts(
 
 fn validate_call_selection(
     program: &TypedTrees,
+    index: &MachineStateIndex,
     suspensions: &[MachineSuspensionRow],
     blockings: &[MachineBlockingRow],
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -291,7 +298,7 @@ fn validate_call_selection(
         return;
     }
     let (requirements, generic_types): (Vec<_>, Vec<_>) = if let Some((callee, _)) =
-        machine_and_state(program, target_symbol)
+        machine_and_state(program, index, target_symbol)
     {
         (
             program
@@ -420,6 +427,7 @@ fn validate_call_selection(
         }
         let Ok(nominal_selection) = validate_nominal_machine_selection(
             program,
+            index,
             target_name,
             parameter,
             requirement,
@@ -432,6 +440,7 @@ fn validate_call_selection(
         let requirement = machine_parameter_signature(program, requirement);
         validate_selected_callable_shape(
             program,
+            index,
             suspensions,
             blockings,
             service_reaches,
@@ -449,9 +458,10 @@ fn validate_call_selection(
         // satisfaction row exists: a structural contract's bindings are
         // otherwise discarded here and `build_call_operation` can never
         // recover what `Target` (or `T`, `Arguments`) instantiated to.
-        let (selected_machine, selection_symbol) = machine_and_state(program, selected.symbol)
-            .map(|(machine, state)| (machine.symbol, state.symbol))
-            .unwrap_or((SymbolHandle::invalid(), selected.symbol));
+        let (selected_machine, selection_symbol) =
+            machine_and_state(program, index, selected.symbol)
+                .map(|(machine, state)| (machine.symbol, state.symbol))
+                .unwrap_or((SymbolHandle::invalid(), selected.symbol));
         machine_selections.push(ValidatedRequirementCallMachineSelection {
             static_machine_ordinal: u32::try_from(static_machine_ordinal)
                 .expect("static machine argument ordinal overflow"),
@@ -509,8 +519,10 @@ pub(crate) fn validate_data_machine_selection(
     generic_types: &[&TypeParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let index = machine_state_index(program);
     if validate_nominal_machine_selection(
         program,
+        &index,
         family_name,
         parameter,
         requirement,
@@ -532,6 +544,7 @@ pub(crate) fn validate_data_machine_selection(
     let invocations = crate::infer_synchronous_invocations(program);
     validate_selected_callable_shape(
         program,
+        &index,
         &suspensions,
         &blockings,
         &service_reaches,
@@ -614,23 +627,51 @@ fn machine_parameter_signature<'program>(
         .signature()
 }
 
-fn machine_and_state(
-    program: &TypedTrees,
+/// State symbol to its `(machine position, state position)`; a machine symbol
+/// points at its own first state, matching `machine_and_state` precedence:
+/// state names win over the machine name within one machine, and the first
+/// machine in declaration order wins on the (impossible in practice) collision.
+type MachineStateIndex = symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>;
+
+fn machine_state_index(program: &TypedTrees) -> MachineStateIndex {
+    let mut index = MachineStateIndex::default();
+    for (machine_position, machine) in program.machines().iter().enumerate() {
+        let states = program.machine_states(machine);
+        for (state_position, state) in states.iter().enumerate() {
+            index.insert(
+                state.symbol,
+                (
+                    u32::try_from(machine_position).expect("machine position overflow"),
+                    u32::try_from(state_position).expect("state position overflow"),
+                ),
+            );
+        }
+        if !states.is_empty() {
+            index.entry(machine.symbol).or_insert((
+                u32::try_from(machine_position).expect("machine position overflow"),
+                0,
+            ));
+        }
+    }
+    index
+}
+
+fn machine_and_state<'a>(
+    program: &'a TypedTrees,
+    index: &MachineStateIndex,
     selected_symbol: SymbolHandle,
-) -> Option<(&Machine, &State)> {
+) -> Option<(&'a Machine, &'a State)> {
     if !selected_symbol.is_valid() {
         return None;
     }
-    program.machines().iter().find_map(|machine| {
-        let states = program.machine_states(machine);
-        states
-            .iter()
-            .find(|state| state.symbol == selected_symbol)
-            .or_else(|| {
-                (machine.symbol == selected_symbol)
-                    .then(|| states.first())
-                    .flatten()
-            })
-            .map(|state| (machine, state))
-    })
+    let (machine_position, state_position) = index.get(&selected_symbol)?;
+    let machine = program
+        .machines()
+        .get(*machine_position as usize)
+        .expect("machine-state index position out of range");
+    let state = program
+        .machine_states(machine)
+        .get(*state_position as usize)
+        .expect("machine-state index state out of range");
+    Some((machine, state))
 }
