@@ -13,9 +13,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 /// analysis pass (call targets carry the STATE's symbol -- the effects
 /// builder's proven resolution rule). First machine wins on the impossible
 /// collision, matching the removed per-call scan's early return.
-pub(super) type StateToMachine = SymbolKeyMap<SymbolHandle, SymbolHandle>;
+pub(crate) type StateToMachine = SymbolKeyMap<SymbolHandle, SymbolHandle>;
 
-pub(super) fn state_to_machine_index(program: &TypedTrees) -> StateToMachine {
+pub(crate) fn state_to_machine_index(program: &TypedTrees) -> StateToMachine {
     let mut index = StateToMachine::default();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
