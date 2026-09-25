@@ -138,10 +138,16 @@ fn derive_from_header(
     else {
         return Err(());
     };
-    if argument != binding.argument
-        || subtract_type != rank_type
-        || source_parameter != rank_parameter
-    {
+    // The decrement reads the counter either as the header's own parameter
+    // or as its own block parameter, which the positive guard edge binds
+    // from that header parameter.
+    let reads_counter = source_parameter == rank_parameter
+        || when_true.bindings.iter().any(|guard_binding| {
+            guard_binding.parameter == source_parameter
+                && guard_binding.argument == rank_parameter
+                && guard_binding.scalar_type == ScalarType::Integer(rank_type)
+        });
+    if argument != binding.argument || subtract_type != rank_type || !reads_counter {
         return Err(());
     }
     let one = invariant_constants::resolve(
