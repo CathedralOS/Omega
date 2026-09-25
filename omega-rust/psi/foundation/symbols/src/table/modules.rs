@@ -69,6 +69,7 @@ impl SymbolTable {
         if self.source_module(source).is_valid() {
             return Err("a source file may declare only one module");
         }
+        self.root_names.clear();
         let mut parent = self.root;
         for (name, span) in members {
             let existing = self
