@@ -135,6 +135,7 @@ pub(super) fn capture_bounds(
         .and_then(|value| selected.convert(value));
     }
     let builtin = builtin_bound_meaning_source(program, context, machine_symbol, state, source);
+    let located = context.state_location(program, state);
     if let Some((expression, symbols)) =
         selected_statement(program, context, state, statement_index, statement)
         && builtin
@@ -146,14 +147,16 @@ pub(super) fn capture_bounds(
             .iter()
             .map(|reference| reference.context)
             .collect::<Vec<_>>();
+        let (machine_index, state_index) = located?;
         return crate::values::bounds::evaluate(
             expression,
             &mut crate::values::bounds::PlaceIntegerBounds {
                 program,
                 semantic,
                 contexts: &contexts,
-                parameters: program
-                    .state_parameters(crate::semantic::calls::find_state(program, state)?),
+                parameters: program.state_parameters(
+                    &program.machine_states(&program.machines()[machine_index])[state_index],
+                ),
                 symbols,
                 state,
             },
