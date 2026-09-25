@@ -2,12 +2,18 @@
 //! Establishing a local place does not necessarily establish a new value origin:
 //! whole affine moves preserve the original provenance. Replay traces the authored
 //! initializer chain separately from checking each place's establishment and transfer.
+//!
+//! `validate` walks the retained value nodes as a worklist. Records, case
+//! payloads and structural selections replay in `record`, `structural_case`
+//! and `dispatch`, which queue their structural children back onto the same
+//! worklist through `Replay`.
 
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use checked_trees::CheckedStructuralValueHandle;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode, MatchPattern};
 use checked_trees::statement::StatementNode;
-use checked_trees::types::PrimitiveType;
+use checked_trees::types::{PrimitiveType, TypeReferenceHandle};
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarDispatchPattern, CheckedScalarExpressionRole,
     CheckedStructuralValueKind, CheckedTrees, CheckedUnitEffectOperationPlan,
@@ -15,6 +21,9 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 mod borrowed_slice_view;
+mod dispatch;
+mod record;
+mod structural_case;
 pub(crate) use borrowed_slice_view::authored_collection_path;
 mod owned_places;
 mod view_element_copy;
@@ -23,6 +32,31 @@ mod owned_selection;
 mod shared_borrow;
 #[cfg(test)]
 mod tests;
+
+/// The arm of an enclosing structural selection a value sits under;
+/// invalid outside every selection.
+type SourceArm = arena::Handle<checked_trees::expression::TableMatchArm>;
+
+/// One retained value node awaiting replay: the node, its authored
+/// occurrence and destination type, the selection arm it sits under, and the
+/// projected leaf a producing call feeds.
+type PendingValue = (
+    CheckedStructuralValueHandle,
+    ExpressionHandle,
+    TypeReferenceHandle,
+    SourceArm,
+    Option<ExpressionHandle>,
+);
+
+/// The construction a kind-specific replay extends: the state it belongs to
+/// and the worklist and scalar operand roles the replay adds to.
+struct Replay<'r> {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: u32,
+    pending: &'r mut Vec<PendingValue>,
+    operand_roles: &'r mut Vec<CheckedScalarExpressionRole>,
+}
 
 pub(crate) fn validate(
     checked: &CheckedTrees,
@@ -484,181 +518,21 @@ pub(crate) fn validate(
                 data_symbol,
                 fields,
             } => {
-                let ExpressionNode::StructLiteral(literal) =
-                    checked.expression_table.expression(expression)
-                else {
-                    return unsupported("record establishment lost its authored constructor");
-                };
-                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-                    .ok_or(LoweringError::Unsupported("record carrier missing"))?;
-                // A lifetime-parameterized record names its carrier through a
-                // `Generic` node whose type arguments are empty — the authored
-                // record name is still the nominal carrier.
-                let nominal_carrier = match checked.type_reference_table.type_reference(expected) {
-                    checked_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-                    checked_trees::types::TypeReferenceNode::Generic {
-                        base_symbol,
-                        arguments,
-                        ..
-                    } if checked
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                        .is_empty() =>
-                    {
-                        *base_symbol
-                    }
-                    _ => {
-                        return unsupported("record establishment substituted its nominal carrier");
-                    }
-                };
-                if literal.case_name.is_some()
-                    || literal.type_symbol != data_symbol
-                    || nominal_carrier != data_symbol
-                {
-                    return unsupported("record establishment substituted its nominal carrier");
-                }
-                let data = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == data_symbol)
-                    .ok_or(LoweringError::Unsupported("record declaration missing"))?;
-                let members = checked.data_members(data);
-                if members
-                    .iter()
-                    .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-                {
-                    return unsupported("record establishment selected a sum");
-                }
-                // Erased members stay in the checked record's field list: they
-                // carry semantic content but no runtime storage, so this
-                // validation replays their authored initializer and declaration
-                // without producing runtime custody or operand work.
-                let declared = members
-                    .iter()
-                    .filter_map(|member| match member {
-                        checked_trees::data::DataMember::Field(field) => Some(field),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                let authored = checked.expression_table.struct_fields(literal.fields);
-                let retained = plans
-                    .record_fields
-                    .span(fields)
-                    .ok_or(LoweringError::Unsupported("record field span is stale"))?;
-                // The retained roster covers every declared member exactly
-                // once; authored initializers name a subset, and each
-                // omitted member arrives as a synthesized structural field.
-                if retained.len() != declared.len()
-                    || authored.len() > declared.len()
-                    || authored.iter().any(|initializer| {
-                        declared
-                            .iter()
-                            .all(|member| member.symbol != initializer.field_symbol)
-                    })
-                {
-                    return unsupported("record establishment changed its complete field roster");
-                }
-                let mut selected = Vec::new();
-                for (ordinal, field) in retained.iter().enumerate() {
-                    let declaration = declared
-                        .iter()
-                        .find(|item| item.symbol == field.field)
-                        .ok_or(LoweringError::Unsupported("record field has another owner"))?;
-                    if selected.contains(&field.field) {
-                        return unsupported(
-                            "record establishment reordered or substituted a field",
-                        );
-                    }
-                    selected.push(field.field);
-                    let Some(initializer) = authored
-                        .iter()
-                        .find(|initializer| initializer.field_symbol == field.field)
-                    else {
-                        // Omitted members are the planner's zero synthesis:
-                        // only a structural zeroed-leaf value qualifies, and
-                        // its own arm replays the declared carrier and the
-                        // literal-zero element.
-                        let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
-                            field.value
-                        else {
-                            return unsupported("record establishment omitted a scalar member");
-                        };
-                        if !plans.nodes.is_valid(value)
-                            || !matches!(
-                                plans.nodes.get(value).kind,
-                                CheckedStructuralValueKind::ZeroedScalarArray { .. }
-                            )
-                        {
-                            return unsupported(
-                                "record establishment omitted a non-zeroable member",
-                            );
-                        }
-                        operand_roles.push(CheckedScalarExpressionRole::RecordField {
-                            expression,
-                            field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                                LoweringError::Unsupported("record field ordinal overflow")
-                            })?,
-                        });
-                        pending.push((
-                            value,
-                            field.expression,
-                            declaration.type_reference,
-                            source_arm,
-                            None,
-                        ));
-                        continue;
-                    };
-                    if field.expression != initializer.value
-                        || field.type_reference != declaration.type_reference
-                    {
-                        return unsupported(
-                            "record establishment reordered or substituted a field",
-                        );
-                    }
-                    match field.value {
-                        checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
-                            let role = CheckedScalarExpressionRole::RecordField {
-                                expression,
-                                field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                                    LoweringError::Unsupported("record field ordinal overflow")
-                                })?,
-                            };
-                            let primitive = validate_operand(
-                                checked,
-                                machine,
-                                state,
-                                result.statement_index,
-                                role,
-                                value,
-                                initializer.value,
-                            )?;
-                            let expected = validation::unwrapped_type_reference(
-                                &checked.typed,
-                                declaration.type_reference,
-                            )
-                            .and_then(|reference| checked.primitive_type_reference(reference));
-                            if validation::reference_result_custody::parts(
-                                &checked.typed,
-                                declaration.type_reference,
-                            )
-                            .is_some()
-                                || expected != Some(primitive)
-                            {
-                                return unsupported("record scalar field changed its carrier");
-                            }
-                            operand_roles.push(role);
-                        }
-                        checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                            pending.push((
-                                value,
-                                initializer.value,
-                                declaration.type_reference,
-                                source_arm,
-                                None,
-                            ));
-                        }
-                    }
-                }
+                record::validate(
+                    checked,
+                    &mut Replay {
+                        machine,
+                        state,
+                        statement_index: result.statement_index,
+                        pending: &mut pending,
+                        operand_roles: &mut operand_roles,
+                    },
+                    expression,
+                    reference,
+                    source_arm,
+                    data_symbol,
+                    fields,
+                )?;
             }
             CheckedStructuralValueKind::FixedArray { elements } => {
                 let ExpressionNode::ArrayLiteral(literal) =
@@ -719,256 +593,38 @@ pub(crate) fn validate(
                 case,
                 fields,
             } => {
-                let ExpressionNode::StructLiteral(literal) =
-                    checked.expression_table.expression(expression)
-                else {
-                    return unsupported("case establishment lost its authored constructor");
-                };
-                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
-                    .ok_or(LoweringError::Unsupported("case carrier missing"))?;
-                if literal.case_symbol != Some(case)
-                    || literal.type_symbol != data_symbol
-                    || !matches!(checked.type_reference_table.type_reference(expected), checked_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == data_symbol)
-                {
-                    return unsupported("case establishment substituted its nominal owner");
-                }
-                let data = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == data_symbol)
-                    .ok_or(LoweringError::Unsupported("case owner declaration missing"))?;
-                let variant = checked
-                    .data_members(data)
-                    .iter()
-                    .find_map(|member| match member {
-                        checked_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == case =>
-                        {
-                            Some(variant)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "case establishment selected a foreign case",
-                    ))?;
-                let declared = checked.data_payload_fields(variant);
-                let authored = checked.expression_table.struct_fields(literal.fields);
-                let retained = plans
-                    .record_fields
-                    .span(fields)
-                    .ok_or(LoweringError::Unsupported("case field span is stale"))?;
-                if authored.len() != declared.len() || retained.len() != authored.len() {
-                    return unsupported("case establishment changed its complete payload roster");
-                }
-                let mut selected = Vec::new();
-                for (ordinal, (field, initializer)) in retained.iter().zip(authored).enumerate() {
-                    let declaration = declared
-                        .iter()
-                        .find(|item| item.symbol == field.field)
-                        .ok_or(LoweringError::Unsupported("case field has another owner"))?;
-                    if selected.contains(&field.field)
-                        || field.field != initializer.field_symbol
-                        || field.expression != initializer.value
-                        || field.type_reference != declaration.type_reference
-                    {
-                        return unsupported("case establishment reordered or substituted a field");
-                    }
-                    selected.push(field.field);
-                    match field.value {
-                        checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
-                            let role = CheckedScalarExpressionRole::StructuralValueField {
-                                expression,
-                                field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                                    LoweringError::Unsupported("case field ordinal overflow")
-                                })?,
-                            };
-                            let primitive = validate_operand(
-                                checked,
-                                machine,
-                                state,
-                                result.statement_index,
-                                role,
-                                value,
-                                initializer.value,
-                            )?;
-                            let expected = validation::unwrapped_type_reference(
-                                &checked.typed,
-                                declaration.type_reference,
-                            )
-                            .and_then(|reference| checked.primitive_type_reference(reference));
-                            if validation::reference_result_custody::parts(
-                                &checked.typed,
-                                declaration.type_reference,
-                            )
-                            .is_some()
-                                || expected != Some(primitive)
-                            {
-                                return unsupported("case scalar field changed its carrier");
-                            }
-                            operand_roles.push(role);
-                        }
-                        checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
-                            pending.push((
-                                value,
-                                initializer.value,
-                                declaration.type_reference,
-                                source_arm,
-                                None,
-                            ));
-                        }
-                    }
-                }
+                structural_case::validate(
+                    checked,
+                    &mut Replay {
+                        machine,
+                        state,
+                        statement_index: result.statement_index,
+                        pending: &mut pending,
+                        operand_roles: &mut operand_roles,
+                    },
+                    expression,
+                    reference,
+                    source_arm,
+                    data_symbol,
+                    case,
+                    fields,
+                )?;
             }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
-                let ExpressionNode::Match(dispatch) =
-                    checked.expression_table.expression(expression)
-                else {
-                    return unsupported("structural selection has no authored match");
-                };
-                let primitive = validate_operand(
+                dispatch::validate(
                     checked,
-                    machine,
-                    state,
-                    result.statement_index,
-                    CheckedScalarExpressionRole::StructuralValueSubject { expression },
+                    &mut Replay {
+                        machine,
+                        state,
+                        statement_index: result.statement_index,
+                        pending: &mut pending,
+                        operand_roles: &mut operand_roles,
+                    },
+                    expression,
+                    reference,
                     subject,
-                    dispatch.subject,
+                    arms,
                 )?;
-                operand_roles
-                    .push(CheckedScalarExpressionRole::StructuralValueSubject { expression });
-                if validation::match_subject_primitive_type(&checked.typed, dispatch)
-                    .is_some_and(|expected| expected != primitive)
-                {
-                    return unsupported("structural selection changed its subject carrier");
-                }
-                let authored = checked.expression_table.match_arms(dispatch.arms);
-                if authored.len() != dispatch.arms.len() {
-                    return unsupported("structural selection has stale source alternatives");
-                }
-                let retained = plans
-                    .dispatch_arms
-                    .span(arms)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural selection has stale alternatives",
-                    ))?;
-                let mut covered = false;
-                let mut booleans = [false; 2];
-                let mut retained_ordinal = 0;
-                for (ordinal, authored_arm) in authored.iter().enumerate() {
-                    if covered {
-                        break;
-                    }
-                    if primitive == PrimitiveType::Bool
-                        && let MatchPattern::Value(pattern) = authored_arm.pattern
-                        && let ExpressionNode::Boolean(value) =
-                            checked.expression_table.expression(pattern)
-                        && booleans[usize::from(*value)]
-                    {
-                        continue;
-                    }
-                    let arm = retained
-                        .get(retained_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "structural selection omitted an executable alternative",
-                        ))?;
-                    retained_ordinal += 1;
-                    let source_arm = dispatch
-                        .arms
-                        .start()
-                        .arena_index()
-                        .checked_add(u32::try_from(ordinal).map_err(|_| {
-                            LoweringError::Unsupported("structural arm ordinal overflow")
-                        })?)
-                        .map(|index| {
-                            arena::Handle::from_parts(index, dispatch.arms.start().generation())
-                        })
-                        .ok_or(LoweringError::Unsupported(
-                            "structural arm identity overflow",
-                        ))?;
-                    if covered || arm.source_arm != source_arm {
-                        return unsupported(
-                            "structural selection reordered its covered alternatives",
-                        );
-                    }
-                    match (&arm.pattern, &authored_arm.pattern) {
-                        (CheckedScalarDispatchPattern::Wildcard, MatchPattern::Wildcard) => {
-                            if arm.equality_use.is_valid() {
-                                return unsupported("structural wildcard acquired a comparison");
-                            }
-                            covered = true;
-                        }
-                        (
-                            CheckedScalarDispatchPattern::Value(pattern),
-                            MatchPattern::Value(authored_pattern),
-                        ) => {
-                            operand_roles.push(
-                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                            );
-                            if validate_operand(
-                                checked,
-                                machine,
-                                state,
-                                result.statement_index,
-                                CheckedScalarExpressionRole::StructuralValuePattern { source_arm },
-                                *pattern,
-                                *authored_pattern,
-                            )? != primitive
-                            {
-                                return unsupported(
-                                    "structural pattern changed its subject carrier",
-                                );
-                            }
-                            if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
-                                let occurrence =
-                                    crate::expression_preparation::source_custody::comparisons::occurrence(
-                                        checked,
-                                        arm.equality_use,
-                                        machine,
-                                        state,
-                                        result.statement_index,
-                                    )?;
-                                let selected = checked.facts.operators.uses.get(arm.equality_use);
-                                if selected.expression != expression || selected.occurrence != (checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm }) || !matches!(occurrence.meaning, crate::emission::selected_comparison::SelectedComparisonMeaning::IeeeFloat { comparison: semantic_vocabulary::IeeeFloatComparisonOperation::Equal, .. }) {
-                                    return unsupported("structural pattern substituted selected equality");
-                                }
-                            } else if arm.equality_use.is_valid() {
-                                return unsupported(
-                                    "structural builtin pattern acquired selected equality",
-                                );
-                            }
-                            if primitive == PrimitiveType::Bool
-                                && let ExpressionNode::Boolean(value) =
-                                    checked.expression_table.expression(*authored_pattern)
-                            {
-                                if !matches!(&checked.facts.values.scalar_computations.nodes.get(*pattern).kind,
-                                    checked_trees::CheckedScalarComputationKind::Value(checked_trees::CheckedScalarExpression::Boolean(retained))
-                                        if matches!(retained.as_ref(), checked_trees::CheckedBooleanExpression::Constant(retained) if retained == value))
-                                {
-                                    return unsupported(
-                                        "structural selection changed a coverage literal",
-                                    );
-                                }
-                                booleans[usize::from(*value)] = true;
-                                covered = booleans.iter().all(|value| *value);
-                            }
-                        }
-                        _ => {
-                            return unsupported(
-                                "structural selection substituted its authored pattern",
-                            );
-                        }
-                    }
-                    pending.push((
-                        arm.value,
-                        authored_arm.value,
-                        reference,
-                        arm.source_arm,
-                        None,
-                    ));
-                }
-                if !covered || retained_ordinal != retained.len() {
-                    return unsupported("structural selection omitted required coverage");
-                }
             }
             CheckedStructuralValueKind::Projection {
                 source: source_handle,
