@@ -1,3 +1,24 @@
+//! Value facts: the checker's record of each value at its use site, and the
+//! scalar, structural and proof-term plans built over those values.
+//!
+//! `CheckedValueFacts` holds the `CheckedValueFact` rows (each value's
+//! origin, declared type, selected primitive carrier and discharged integer
+//! range) and four plan tables: scalar expression plans with the source
+//! bindings that locate each plan in its authored statement
+//! (`CheckedScalarExpressionPlans`), scalar computations (`computations`),
+//! structural values (`structural_values`), and proof-only erased actuals
+//! (`proof_terms`). `typed-trees-to-checked-trees` builds it in
+//! `build_check_facts` (`src/facts.rs`), starting from `build_value_facts`,
+//! and stores it as `CheckFacts::values`; `checked-trees-to-lowered-psi`
+//! reads it through `checked.facts.values`.
+//!
+//! This file defines the value rows, the scalar expression plans and their
+//! `CheckedScalarExpressionRole`s, and the `CheckedScalarExpression` and
+//! `CheckedBooleanExpression` trees. `array_construction_source` names the
+//! owner of an array constructor. `guard_complement` decides whether a
+//! second authored guard holds exactly where the first fails; both
+//! `typed-trees-to-checked-trees` and `checked-trees-to-lowered-psi` call it.
+
 use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;

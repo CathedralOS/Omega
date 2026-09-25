@@ -1,3 +1,5 @@
+//! Append one constraint ref per entry of a contiguous borrow-fact span: each
+//! writable root of a state, or each argument access of a call.
 use crate::flow::append_constraint_ref;
 use arena::Handle;
 use checked_trees::{

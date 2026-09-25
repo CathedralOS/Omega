@@ -1,3 +1,16 @@
+//! Value facts and scalar plans for the check pass.
+//!
+//! `build_value_facts` records a `CheckedValueFact` (type reference, primitive
+//! type, and an integer range where one is known) for each expression it visits:
+//! each machine's decrease-witness subjects, then its owned-data initializers,
+//! then every statement of every state. `statement` and `transition` choose each
+//! statement's expressions and roles; `expression` visits nested expressions.
+//!
+//! `scalar` builds the checked scalar expression plans, which the check pass
+//! builds before flow, and the value computation plans, which it builds after
+//! flow. `evaluation` evaluates selected scalar operations, `bounds` computes
+//! integer bounds of selected scalar expressions, and `snapshots` reads the
+//! current assigned value, literal, or integer bounds at a place.
 use checked_trees::{
     CheckedIntegerRange, CheckedValueFact, CheckedValueFacts, CheckedValueOrigin,
     CheckedValueStatementRole,

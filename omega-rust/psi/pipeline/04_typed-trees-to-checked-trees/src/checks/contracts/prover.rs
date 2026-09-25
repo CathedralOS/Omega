@@ -1,3 +1,28 @@
+//! Whether fact contexts prove a contract proposition. The contract checks
+//! ask through three entries: `assembly` and `exits` use the first, `calls`
+//! the second, and `arrivals`, `calls` and `exits` the third.
+//!
+//! - `semantic_contexts_prove_boolean_expression`: a Boolean expression
+//!   holds in some context, by `booleans` (conjunction and disjunction over
+//!   the `direct` and `domains` provers).
+//! - `call_entry_contexts_prove_boolean_contract_expression`: a callee's
+//!   Boolean contract expression at one call site. It tries, in order, a
+//!   surviving call guarantee (`call_guarantees`), the caller's case at the
+//!   place a case test's subject names, Boolean field facts on the actual's
+//!   referent (`field_actuals`), the instantiated expression in each entry
+//!   context (`booleans`, skipped when `field_actuals` recognized the
+//!   requirement), and last the expression evaluated with the call's
+//!   arguments substituted (`evaluator`).
+//! - `semantic_contexts_prove_contract_fact`: one contract fact, by payload
+//!   kind: domain membership (a matching or covering fact, or
+//!   `assigned_values`), carry permission, Boolean expression, proposition
+//!   application or carry origin. Evidence and deferred payloads are never
+//!   proved here.
+//!
+//! `assigned_values` (domain predicates over live assigned values) and
+//! `scalars` (scalar Boolean evaluation) are re-exported for the other
+//! contract checks, and `call_guarantees` is also used by `checks::borrows`.
+
 use checked_trees::{FlowCallFact, FlowStateFact};
 use facts::{FactPayload, FactPlace};
 

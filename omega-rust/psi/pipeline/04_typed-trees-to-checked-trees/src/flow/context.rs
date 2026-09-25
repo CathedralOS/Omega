@@ -1,3 +1,7 @@
+//! `FlowBuildContext`, the mutable state of one flow build: the output fact arenas
+//! that `finish` publishes as `FlowFacts` and `discard_output` clears between
+//! sweeps, the incoming state values and dirty set that decide re-sweeps, and memo
+//! tables for lookups that depend only on the program, which survive between sweeps.
 use crate::flow::StateMutationSummaryCache;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,

@@ -1,3 +1,21 @@
+//! Borrow facts: the writable roots, loans, borrowing calls and argument
+//! accesses of every state, recorded as `checked_trees::BorrowFacts` for the
+//! later fact builders and the borrow checks in `checks::borrows`.
+//!
+//! `build_borrow_facts` is the entry; `facts::build_check_facts` calls it
+//! first. It sizes the arenas (`roots`), then for every state of every
+//! machine `state::append_state_borrow_facts` records, in order: the state's
+//! writable roots (`roots`); for each statement, the loans it forms
+//! (`loans`), each tracked as a `tracker::StateLoanTracker`, and its
+//! borrowing calls (`calls`, which records their argument accesses through
+//! `accesses`); then each loan's last use (`last_uses`); and finally the
+//! state's `StateBorrowFact` row.
+//!
+//! `view_link` resolves which input a returned view borrows; `loans` uses it
+//! to link a call result's loan to its argument, and `checks::borrows` uses
+//! it for the returned-view checks. `last_uses` and `loans` also export
+//! queries used elsewhere in the crate.
+
 use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
 pub(crate) mod calls;

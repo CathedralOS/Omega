@@ -1,3 +1,7 @@
+//! `CanonicalPlace`: a place root and its path segments. The children build places
+//! from expressions, symbols, and semantic places (`canonicalization`,
+//! `contextual`), compare them (`comparison`), test case selection (`case_access`),
+//! project constructor literals, and resolve member and type identities.
 mod canonicalization;
 mod case_access;
 mod comparison;

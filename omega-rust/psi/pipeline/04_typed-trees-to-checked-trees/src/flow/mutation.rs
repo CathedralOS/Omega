@@ -1,3 +1,7 @@
+//! Storage places a statement or call writes, as `CanonicalPlace`s:
+//! `statement_storage_writes`, `call_mutated_places` (which falls back to the
+//! declared signature ceiling in `ceiling`), and `frame_storage_writes`. When a
+//! statement's or call's write set is `None`, flow drops every active context.
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;

@@ -1,3 +1,7 @@
+//! Ownership move events and place types. `discover_state_move_events` walks one
+//! state's statements and borrow calls and returns the moves they make, for the
+//! multiplicity checks and terminal cleanup. `place_types` answers the declared
+//! type at a place or expression.
 use crate::flow::borrow_state_fact;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;

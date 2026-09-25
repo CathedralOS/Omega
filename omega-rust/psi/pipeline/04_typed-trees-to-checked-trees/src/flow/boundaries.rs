@@ -1,3 +1,6 @@
+//! Boundary edges for one call: a `FlowBoundaryEdgeFact` for each signature named
+//! like the called state in each boundary trait that the callee's machine conforms
+//! to, directly or through trait requirements.
 use crate::flow::FlowBuildContext;
 use arena::HandleSpan;
 use checked_trees::{BorrowCallFact, FlowBoundaryEdgeFact};

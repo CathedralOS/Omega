@@ -1,3 +1,18 @@
+//! `RangeFacts`, the fact store the range check carries through one state's
+//! statements: collection lengths of fields and locals, integer values,
+//! Boolean guard locals, and the proven index, upper bound, non-negative,
+//! ordering, range bound, minimum length, exact length and subslice window
+//! relations, keyed by expression labels.
+//!
+//! `ranges::check_indexed_accesses` and `state_arguments` create one per
+//! state. Its methods are split by concern: `values` defines, assigns and
+//! reads locals and field integers; `proofs` records and queries the proven
+//! relations; `dependencies` records the typed reads behind each expression
+//! label, so a write can tell which labels it preserves or affects;
+//! `invalidation` retires facts after an assignment or a call's writes; and
+//! `call_writes` provides `RangeCallContext`, the per-state view of checked
+//! call and borrow facts through which a call's writes are found.
+
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;

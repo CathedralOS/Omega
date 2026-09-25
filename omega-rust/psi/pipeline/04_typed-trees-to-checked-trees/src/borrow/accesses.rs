@@ -1,3 +1,17 @@
+//! The places a call's arguments access. `collect_call_argument_accesses`
+//! appends one `BorrowArgumentAccessFact` per accessed place and returns the
+//! call's span of them: a `&`, `&mut` or `&write` argument records a read,
+//! mutable or write-only access to its borrowed place, and any other argument
+//! records a read access for each place it reads (`read`). `borrow::calls`
+//! calls it while building borrow facts, and `checks::borrows::calls::receiver`
+//! calls it into scratch arenas for the operand that follows an exclusive
+//! operation's receiver.
+//!
+//! `borrow_access_place` (`place`) resolves an expression to the place it
+//! accesses, with `contextual` resolving names and members in the state and
+//! machine; the borrow checks use it too. `collection` holds the arenas one
+//! call appends to, and `records` writes one access row.
+
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowAccessKind, BorrowArgumentAccessFact};
 use symbols::SymbolHandle;

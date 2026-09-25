@@ -1,3 +1,7 @@
+//! The phases `calls::build_call_flow_fact` runs, in its order: entry contexts with
+//! the call's borrow constraints, `requires` contexts, invalidation over the call's
+//! written places (`invalidation`), `ensures` exit contexts, and field facts
+//! re-seeded on readable `&mut` referents (`referents`).
 use crate::flow::FlowBuildContext;
 use crate::flow::append_constraint_ref;
 use crate::flow::append_contiguous_borrow_access_constraints;

@@ -1,23 +1,73 @@
-mod borrow_lifetimes;
-mod boundaries;
+//! Flow facts: for every state, statement, call, and exit of every machine, the
+//! semantic contexts and constraints active there, with the invalidation,
+//! borrow-lifetime, boundary-edge, and control rows that record how they change.
+//!
+//! One entrance: `builder::build_flow_facts_with_service_reaches`, which
+//! `crate::facts::build_check_facts` calls after `domain::build_domain_facts` has
+//! recorded each domain's dependency paths. It builds every state through
+//! `state::build_state_flow_fact`. While joins in `state_values` change a state's
+//! incoming values, it rebuilds the changed states, then rebuilds every state once
+//! more to publish complete output. If the incoming values do not settle, it
+//! rebuilds every state once with all incoming values unknown. `reach` then
+//! attaches service-reach, suspension, and blocking summaries.
+//!
+//! `state::build_state_flow_fact` runs one state in this order: declaration and
+//! state-entry contexts (with incoming values from `state_values`) rebased by
+//! `entry_origins`, each statement through `statements`, loans expired at state
+//! exit (`borrow_lifetimes`), and the exit facts of a body that ends without a
+//! transition (`exits`). For each statement, `statements` runs a transition's arms
+//! (`exits`) or the statement's calls in execution order (`expression`, which
+//! builds each call through `calls::build_call_flow_fact`), retires and activates
+//! borrow loans, drops facts over the written places (`mutation`, `domain`), adds
+//! operator `ensures` (`operator_calls`), and propagates the written value's facts
+//! (`transfers`).
+//!
+//! The module list below groups the children by role. `carried_semantic_dependencies`
+//! is not a flow-build step: the check pass runs it after execution finalization.
+
+// The entrance and its sweep: the build state it carries, the incoming state
+// values whose changes decide another sweep, and the reach summaries it attaches.
 mod builder;
-mod call_phases;
-pub(crate) mod calls;
-mod carried_semantic_dependencies;
-mod constraints;
 mod context;
-mod domain;
+mod reach;
+mod state_values;
+
+// One state's facts and the producers it runs for its entry, statements, and exits.
+mod entry_origins;
 mod exits;
 mod expression;
-mod fact_rows;
-mod mutation;
 mod operator_calls;
+mod state;
+mod statements;
+mod transfers;
+
+// One call's facts: the call builder, its phases, and boundary-trait edges.
+mod boundaries;
+mod call_phases;
+pub(crate) mod calls;
+
+// What a write drops: the places a statement or call writes, the facts over them
+// and their domain dependencies, and borrow loans that expire or are overwritten.
+mod borrow_lifetimes;
+mod domain;
+mod mutation;
+
+// Places, ownership, and reference and value origins: queries also used outside
+// `flow`.
 mod ownership;
 mod place;
-mod reach;
 mod reference_places;
-mod reference_spans;
 mod value_origins;
+
+// Shared helpers: reference-span append and filter rules, contiguous borrow
+// constraint refs, and borrow and proof fact-row lookups.
+mod constraints;
+mod fact_rows;
+mod reference_spans;
+
+// Not a flow-build step: derived from the complete check facts.
+mod carried_semantic_dependencies;
+
 pub(crate) use reference_places::{
     call_result_sources, local_reference_candidate_storages_at_call,
     local_reference_storage_at_call, local_reference_storage_before_statement,
@@ -27,12 +77,6 @@ pub(crate) use value_origins::{
     trace_value_origin_before_statement, value_origin_at_call, value_origin_at_call_resolving,
     value_origin_before_statement,
 };
-mod state;
-mod state_values;
-mod statements;
-
-mod entry_origins;
-mod transfers;
 
 pub(crate) use borrow_lifetimes::{filter_expired_borrow_loans, filter_reassigned_borrow_loans};
 use boundaries::append_call_boundary_edges;

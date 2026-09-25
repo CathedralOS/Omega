@@ -1,3 +1,6 @@
+//! Attach service-reach, suspension, and blocking summaries from the service-reach
+//! inference and operational plans to each finished state and call fact, and each
+//! call's operational acknowledgement.
 use checked_trees::{FlowControlFacts, FlowFacts};
 use language_semantics::{BlockingSummary, ServiceReachSummary, SuspensionSummary};
 

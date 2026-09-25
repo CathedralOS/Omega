@@ -1,9 +1,57 @@
+//! The checks over checked facts. Each check reads the typed program and the
+//! fact tables that `facts` built, and reports a diagnostic where a call,
+//! borrow, ownership transfer, crash route, operator use, indexed access or
+//! ranked cycle fails its obligation.
+//!
+//! `checking::lower_typed_trees` enters here three times: it calls
+//! `initialize_checked_direct_borrow_resources` and
+//! `initialize_checked_borrow_call_certificates` to fill the borrow evidence
+//! ledgers, then `check_checked_facts_recording_with_mutation_summaries` to
+//! run the checks. `replay_checked_borrow_certificates`, re-exported from the
+//! crate root, runs only the borrow check, on a copy of published facts.
+//!
+//! `check_checked_facts_recording_with_crash_admission` runs every check and
+//! collects all diagnostics instead of stopping at the first failure. It
+//! first builds the call frame resolver and the incoming guard index
+//! (`ranges::incoming_guards`) that several checks share, then runs:
+//!
+//! 1. `contracts::bind_call_evidence_arguments` binds the evidence arguments
+//!    of contract expressions and calls;
+//! 2. `borrows` checks call and statement borrows and replays the retained
+//!    borrow certificates;
+//! 3. `contracts::check_flow_call_contracts` checks call requirements, exit
+//!    guarantees, arrival requirements and domain field writes;
+//! 4. `multiplicity` checks linear obligations;
+//! 5. `crashes` checks crash exit edge isolation and operator invocation
+//!    custody, infers path-conditioned guard coverage, and, when crash
+//!    admission is enforced, checks published ceiling coverage;
+//! 6. `content` infers identity-preserving reshuffles and composes partition
+//!    wrappers, then checks retained content custody;
+//! 7. `carry` rejects a call that may suspend while a suspension-forbidden
+//!    value is live;
+//! 8. `operators` checks operator resolution;
+//! 9. `ranges` checks indexed accesses;
+//! 10. `termination` checks each terminating machine's ranking.
+//!
+//! `contracts` and `termination` are also used outside this module (by proof,
+//! fact construction, package review and execution planning, among others),
+//! and `multiplicity` and `operators` export queries used elsewhere in the
+//! crate.
+
+// Call obligations: contract requirements and guarantees, and borrows.
 mod borrows;
+pub(crate) mod contracts;
+
+// Ownership and custody: linear obligations, retained content, and values
+// live across a suspending call.
 mod carry;
 mod content;
-pub(crate) mod contracts;
-mod crashes;
 mod multiplicity;
+
+// Crash routes.
+mod crashes;
+
+// Operator resolution, indexed access bounds, and machine termination.
 mod operators;
 mod ranges;
 pub(crate) mod termination;
