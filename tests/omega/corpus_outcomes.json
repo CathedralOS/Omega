@@ -3162,7 +3162,7 @@
   "fixture": "fail/core/extent_no_wrap_lookalike",
   "tier": "fail",
   "status": "rejected",
-  "millis": 46,
+  "millis": 53,
   "expected_satisfied": true,
   "diagnostics": [
    "duplicate named machine overload `no_wrap` with parameter signature `parameter(self(no),mutable(no),const(no),named(name(addr))),parameter(self(no),mutable(no),const(no),named(name(u64)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads"
@@ -3172,11 +3172,10 @@
   "fixture": "fail/core/extent_reconstruction_does_not_grant",
   "tier": "fail",
   "status": "rejected",
-  "millis": 92,
+  "millis": 93,
   "expected_satisfied": true,
   "diagnostics": [
    "cannot prove requires contract for call consume_granted from reconstructed_extent_is_unqualified: reconstructed in Extent::Granted",
-   "linear state-call result returned in reconstructed_extent_is_unqualified::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping",
    "linear value `returned` reaches scope exit without being consumed or transferred"
   ]
  },
@@ -3184,18 +3183,17 @@
   "fixture": "fail/core/extent_root_adapter_direct_call_does_not_grant",
   "tier": "fail",
   "status": "rejected",
-  "millis": 89,
+  "millis": 97,
   "expected_satisfied": true,
   "diagnostics": [
-   "cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted",
-   "linear state-call result __hoist_0 in direct_adapter_call_does_not_grant::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping"
+   "cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted"
   ]
  },
  {
   "fixture": "fail/core/extent_scope_loss",
   "tier": "fail",
   "status": "rejected",
-  "millis": 84,
+  "millis": 89,
   "expected_satisfied": true,
   "diagnostics": [
    "linear value `extent` reaches scope exit without being consumed or transferred"
@@ -3205,7 +3203,7 @@
   "fixture": "fail/core/extent_unqualified_construction_scope_loss",
   "tier": "fail",
   "status": "rejected",
-  "millis": 81,
+  "millis": 102,
   "expected_satisfied": true,
   "diagnostics": [
    "linear value `forged` reaches scope exit without being consumed or transferred"
@@ -18213,19 +18211,17 @@
   "fixture": "pass/core/extent_core_surface",
   "tier": "pass",
   "status": "checked",
-  "millis": 99,
+  "millis": 100,
   "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/core/extent_root_provider_adapter",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 134,
+  "status": "checked",
+  "millis": 185,
   "expected_satisfied": null,
-  "diagnostics": [
-   "linear state-call result __hoist_0 in Harness::forward::forward at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/core/fixed_vec_core_surface",
