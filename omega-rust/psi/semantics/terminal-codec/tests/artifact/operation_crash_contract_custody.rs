@@ -20,6 +20,8 @@
 //! predicate tag, term tag, formal identity, scalar-type field, and literal
 //! payload is substituted independently.
 //!
+//! Every wire leg is declared once in `operation_crash_contract_custody_fields.rs`
+//! and driven through the shared `run_one_field_substitution_matrix` driver.
 //! A substitution either fails canonical decoding or module-bound
 //! representation validation (a zero or unknown join identity, an
 //! out-of-order or duplicated coordinate, a noncanonical route roster, a
@@ -58,6 +60,15 @@ use terminal_psi::{
 use terminal_verifier::{
     CrashObligationOwner, ModuleError, ProofBundle, VerificationError, verify_module,
 };
+
+use mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
+
+#[path = "operation_crash_contract_custody_fields.rs"]
+mod operation_crash_contract_custody_fields;
+
+use operation_crash_contract_custody_fields::OperationCrashContractCustodyFieldForTest;
 
 /// Byte offsets of every wire field inside the crash contract roster. The
 /// fixture's predicates are all `LessThan(Value, Integer)` in a fixed signed
@@ -538,6 +549,629 @@ fn crash_bundle() -> ProofBundle {
     ProofBundle::default()
 }
 
+/// The family's combined independent checker verdict: canonical decoding
+/// first, then the retained artifact-manifest replay for a substitution that
+/// still decodes.
+#[derive(Debug, Clone, PartialEq)]
+enum CrashContractCheck {
+    Decode(CodecError),
+    ManifestReplay(ArtifactManifestError),
+}
+
+const ROW_ORDER: &str = "operation crash contracts by machine and operation";
+const PUBLISHED_ORDER: &str = "operation crash contract published route buckets";
+const CONTINUATION_ORDER: &str = "operation crash contract continuation buckets";
+
+/// A substitution that still forms a canonical module is rejected by the
+/// retained manifest replay.
+const REPLAYED: CrashContractCheck =
+    CrashContractCheck::ManifestReplay(ArtifactManifestError::ManifestMismatch);
+
+fn decoded(error: CodecError) -> CrashContractCheck {
+    CrashContractCheck::Decode(error)
+}
+
+fn invalid(error: ModuleError) -> CrashContractCheck {
+    decoded(CodecError::InvalidModule(error))
+}
+
+fn continuations_mismatch(operation: u64) -> CrashContractCheck {
+    invalid(ModuleError::OperationCrashContinuationsMismatch {
+        machine: machine_id(1),
+        operation: operation_id(operation),
+    })
+}
+
+fn noncanonical_routes() -> CrashContractCheck {
+    invalid(ModuleError::NonCanonicalOperationCrashContractRoutes {
+        machine: machine_id(1),
+        operation: operation_id(1),
+    })
+}
+
+fn put_u8(encoded: &[u8], range: Range<usize>, value: u8) -> Vec<u8> {
+    let mut mutated = encoded.to_vec();
+    mutated[range.start] = value;
+    mutated
+}
+
+fn put_bytes(encoded: &[u8], range: Range<usize>, value: &[u8]) -> Vec<u8> {
+    let mut mutated = encoded.to_vec();
+    mutated[range].copy_from_slice(value);
+    mutated
+}
+
+fn roster_count(encoded: &[u8], count_span: Range<usize>) -> u32 {
+    u32::from_le_bytes(encoded[count_span].try_into().expect("roster count"))
+}
+
+/// Set a counted roster to `remaining` rows and remove the row bytes in
+/// `rows`, keeping the count honest.
+fn excise(encoded: &[u8], count_span: Range<usize>, rows: Range<usize>, remaining: u32) -> Vec<u8> {
+    let mut mutated = encoded[..count_span.start].to_vec();
+    mutated.extend_from_slice(&remaining.to_le_bytes());
+    mutated.extend_from_slice(&encoded[count_span.end..rows.start]);
+    mutated.extend_from_slice(&encoded[rows.end..]);
+    mutated
+}
+
+/// Remove one roster row and decrement its roster count honestly.
+fn drop_row(encoded: &[u8], count_span: Range<usize>, row: Range<usize>) -> Vec<u8> {
+    let remaining = roster_count(encoded, count_span.clone()) - 1;
+    excise(encoded, count_span, row, remaining)
+}
+
+/// Insert `bytes` at `at`, bumping the counted roster honestly.
+fn insert_bytes(encoded: &[u8], count_span: Range<usize>, at: usize, bytes: &[u8]) -> Vec<u8> {
+    let grown = roster_count(encoded, count_span.clone()) + 1;
+    let mut mutated = encoded[..count_span.start].to_vec();
+    mutated.extend_from_slice(&grown.to_le_bytes());
+    mutated.extend_from_slice(&encoded[count_span.end..at]);
+    mutated.extend_from_slice(bytes);
+    mutated.extend_from_slice(&encoded[at..]);
+    mutated
+}
+
+/// Duplicate one roster row directly behind itself with an honest count.
+fn duplicate_row(encoded: &[u8], count_span: Range<usize>, row: Range<usize>) -> Vec<u8> {
+    insert_bytes(encoded, count_span, row.end, &encoded[row])
+}
+
+/// Swap two adjacent rows of the same roster, keeping the count honest.
+fn swap_rows(encoded: &[u8], first: Range<usize>, second: Range<usize>) -> Vec<u8> {
+    assert_eq!(first.end, second.start, "fixture rows are adjacent");
+    let mut mutated = encoded[..first.start].to_vec();
+    mutated.extend_from_slice(&encoded[second.clone()]);
+    mutated.extend_from_slice(&encoded[first]);
+    mutated.extend_from_slice(&encoded[second.end..]);
+    mutated
+}
+
+/// One declared leg over the canonical fixture encoding: the substituted wire
+/// form and the exact verdict the family's independent checker must reach.
+/// Keeping both in one arm keeps each substitution beside its rejection.
+fn crash_contract_leg(
+    encoded: &[u8],
+    field: OperationCrashContractCustodyFieldForTest,
+) -> (Vec<u8>, CrashContractCheck) {
+    use OperationCrashContractCustodyFieldForTest as Leg;
+    let spans = module_spans(encoded);
+    let first = &spans.contracts[0];
+    let second = &spans.contracts[1];
+    let first_published_bucket = &first.published.buckets[0];
+    let first_published_guard = &first_published_bucket.alternatives[0];
+    let first_published_predicate = first_published_guard
+        .predicate
+        .as_ref()
+        .expect("the first row publishes a predicate guard");
+    let first_continuations_bucket = &first.continuations.buckets[0];
+    let first_continuations_guard = &first_continuations_bucket.alternatives[0];
+    let first_continuations_predicate = first_continuations_guard
+        .predicate
+        .as_ref()
+        .expect("the first row continues with a predicate guard");
+    let second_published_bucket = &second.published.buckets[0];
+    let second_published_guard = &second_published_bucket.alternatives[0];
+    let second_published_predicate = second_published_guard
+        .predicate
+        .as_ref()
+        .expect("the second row publishes a predicate guard");
+    let second_continuations_bucket = &second.continuations.buckets[0];
+    let second_continuations_predicate = second_continuations_bucket.alternatives[0]
+        .predicate
+        .as_ref()
+        .expect("the second row continues with a predicate guard");
+    let u32_at =
+        |range: &Range<usize>, value: u32| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    let u64_at =
+        |range: &Range<usize>, value: u64| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    let u16_at =
+        |range: &Range<usize>, value: u16| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    // Overwrite the 16-byte integer literal payload.
+    let i128_at =
+        |range: &Range<usize>, value: i128| put_bytes(encoded, range.clone(), &value.to_le_bytes());
+    let u8_at = |range: &Range<usize>, value: u8| put_u8(encoded, range.clone(), value);
+    match field {
+        // --- roster axes ---------------------------------------------------
+        //
+        // Clearing the roster or dropping either row stays representable: the
+        // recomputed identity diverges and the retained custody replays
+        // reject.
+        Leg::RosterCleared => (
+            excise(
+                encoded,
+                spans.contract_count.clone(),
+                first.row.start..second.row.end,
+                0,
+            ),
+            REPLAYED,
+        ),
+        Leg::FirstRowDropped => (
+            drop_row(encoded, spans.contract_count.clone(), first.row.clone()),
+            REPLAYED,
+        ),
+        Leg::SecondRowDropped => (
+            drop_row(encoded, spans.contract_count.clone(), second.row.clone()),
+            REPLAYED,
+        ),
+        // A count lying under its rows strands the second row's bytes at the
+        // machines section; a count lying over reads the machines section as
+        // a third row; a maximal count exhausts the decoder.
+        Leg::RosterCountUnder => (
+            u32_at(&spans.contract_count, 1),
+            decoded(CodecError::InvalidTag("ScalarType", 32)),
+        ),
+        Leg::RosterCountOver => (
+            u32_at(&spans.contract_count, 3),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+        Leg::RosterCountMax => (
+            u32_at(&spans.contract_count, u32::MAX),
+            decoded(CodecError::UnexpectedEnd),
+        ),
+        // A duplicated row collides on the (machine, operation) coordinate; a
+        // swapped roster violates the strict row order.
+        Leg::RowDuplicated => (
+            duplicate_row(encoded, spans.contract_count.clone(), first.row.clone()),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+        Leg::RosterReordered => (
+            swap_rows(encoded, first.row.clone(), second.row.clone()),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+
+        // --- machine and operation joins -----------------------------------
+        //
+        // The row coordinate is join-constrained twice over: the machine must
+        // exist, and it must own exactly the named operation. Raising the
+        // first row's machine or operation identity past the second row's
+        // coordinate desynchronizes the strict order before the join is ever
+        // consulted.
+        Leg::FirstMachineZero => (
+            u64_at(&first.machine, 0),
+            decoded(CodecError::ZeroIdentity("MachineId")),
+        ),
+        Leg::FirstMachineLiftedPastPeer => (
+            u64_at(&first.machine, 9),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+        Leg::SecondMachineOutsideModule => (
+            u64_at(&second.machine, 9),
+            invalid(ModuleError::InvalidOperationCrashContract {
+                machine: machine_id(9),
+                operation: operation_id(2),
+            }),
+        ),
+        Leg::FirstOperationZero => (
+            u64_at(&first.operation, 0),
+            decoded(CodecError::ZeroIdentity("OperationId")),
+        ),
+        Leg::FirstOperationCollidingWithPeer => (
+            u64_at(&first.operation, 2),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+        Leg::FirstOperationLiftedPastPeer => (
+            u64_at(&first.operation, 3),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+        // The second row keeps the roster ordered under every retarget: an
+        // unknown operation strands the join, the operand-free constant takes
+        // no row at all, and the unrowed aliased spare shares the telescope,
+        // the substitution, and the caller coverage exactly — so it still
+        // verifies.
+        Leg::SecondOperationOutsideMachine => (
+            u64_at(&second.operation, 9),
+            invalid(ModuleError::InvalidOperationCrashContract {
+                machine: machine_id(1),
+                operation: operation_id(9),
+            }),
+        ),
+        Leg::SecondOperationOnOperandFreeConstant => (
+            u64_at(&second.operation, 4),
+            invalid(ModuleError::UnsupportedOperationCrashContractOperation {
+                machine: machine_id(1),
+                operation: operation_id(4),
+            }),
+        ),
+        Leg::SecondOperationCollidingWithPeer => (
+            u64_at(&second.operation, 1),
+            decoded(CodecError::NonCanonicalOrder(ROW_ORDER)),
+        ),
+        Leg::SecondOperationReboundToUnrowedAlias => (u64_at(&second.operation, 3), REPLAYED),
+
+        // --- published routes: bucket and guard structure ------------------
+        //
+        // A published bucket count lying over reads the continuations count
+        // and bucket cause as a second bucket's alternative count —
+        // 0x01000000 alternatives starve the decoder. An honestly emptied
+        // published roster is uncanonical: the operator must publish at least
+        // one route.
+        Leg::PublishedBucketCountOver => (
+            u32_at(&first.published.count, 2),
+            decoded(CodecError::InvalidTag("Proposition", 0)),
+        ),
+        Leg::PublishedRoutesEmptied => (
+            excise(
+                encoded,
+                first.published.count.clone(),
+                first_published_bucket.row.clone(),
+                0,
+            ),
+            decoded(CodecError::NonCanonicalOrder(PUBLISHED_ORDER)),
+        ),
+        // A duplicated bucket repeats the cause; the second row's Abort
+        // bucket spliced ahead of the Trap bucket inverts the cause order.
+        Leg::PublishedBucketDuplicated => (
+            insert_bytes(
+                encoded,
+                first.published.count.clone(),
+                first_published_bucket.row.end,
+                &encoded[first_published_bucket.row.clone()],
+            ),
+            decoded(CodecError::NonCanonicalOrder(PUBLISHED_ORDER)),
+        ),
+        Leg::PublishedBucketSplicedOutOfCauseOrder => (
+            insert_bytes(
+                encoded,
+                first.published.count.clone(),
+                first_published_bucket.row.start,
+                &encoded[second_published_bucket.row.clone()],
+            ),
+            decoded(CodecError::NonCanonicalOrder(PUBLISHED_ORDER)),
+        ),
+        // An unknown cause tag dies in the decoder; recasting Trap as Abort
+        // leaves a published Abort route whose substitution no longer matches
+        // the stored Trap continuation.
+        Leg::PublishedCauseTagZero => (
+            u8_at(&first_published_bucket.cause, 0),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+        Leg::PublishedCauseTagThree => (
+            u8_at(&first_published_bucket.cause, 3),
+            decoded(CodecError::InvalidTag("CrashCause", 3)),
+        ),
+        Leg::PublishedCauseTagMax => (
+            u8_at(&first_published_bucket.cause, u8::MAX),
+            decoded(CodecError::InvalidTag("CrashCause", u8::MAX)),
+        ),
+        Leg::PublishedTrapRecastAsAbort => (
+            u8_at(&first_published_bucket.cause, 2),
+            continuations_mismatch(1),
+        ),
+        // An alternative count lying over reads the continuations count's
+        // first byte as a second guard tag; an honestly emptied alternative
+        // roster is uncanonical; a Truth marker spliced ahead of the predicate
+        // violates the Truth-alone rule.
+        Leg::PublishedAlternativeCountOver => (
+            u32_at(&first_published_bucket.alternative_count, 2),
+            decoded(CodecError::InvalidTag("Proposition", 0)),
+        ),
+        Leg::PublishedAlternativesEmptied => (
+            excise(
+                encoded,
+                first_published_bucket.alternative_count.clone(),
+                first_published_guard.row.clone(),
+                0,
+            ),
+            decoded(CodecError::NonCanonicalOrder(PUBLISHED_ORDER)),
+        ),
+        Leg::PublishedAlternativesTruthSpliced => (
+            insert_bytes(
+                encoded,
+                first_published_bucket.alternative_count.clone(),
+                first_published_guard.row.start,
+                &[0],
+            ),
+            decoded(CodecError::NonCanonicalOrder(PUBLISHED_ORDER)),
+        ),
+        // An unknown guard tag dies in the decoder.
+        Leg::PublishedGuardTagTwo => (
+            u8_at(&first_published_guard.tag, 2),
+            decoded(CodecError::InvalidTag("CrashRouteGuard", 2)),
+        ),
+        Leg::PublishedGuardTagMax => (
+            u8_at(&first_published_guard.tag, u8::MAX),
+            decoded(CodecError::InvalidTag("CrashRouteGuard", u8::MAX)),
+        ),
+        // Recasting the predicate as Truth truncates a variable-length row:
+        // the stranded proposition bytes are read as the continuations roster.
+        Leg::PublishedGuardRecastAsTruth => (
+            u8_at(&first_published_guard.tag, 0),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+
+        // --- published predicate -------------------------------------------
+        //
+        // Recasting LessThan as Equal or LessOrEqual keeps the operand pair
+        // but changes the published claim; the Truth and Falsehood tags are
+        // banned from route predicates outright.
+        Leg::PublishedPredicateRecastAsEquality => (
+            u8_at(&first_published_predicate.tag, 4),
+            continuations_mismatch(1),
+        ),
+        Leg::PublishedPredicateRecastAsNonStrictBound => (
+            u8_at(&first_published_predicate.tag, 6),
+            continuations_mismatch(1),
+        ),
+        Leg::PublishedPredicateRecastAsTruth => (
+            u8_at(&first_published_predicate.tag, 1),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+        Leg::PublishedPropositionTagZero => (
+            u8_at(&first_published_predicate.tag, 0),
+            decoded(CodecError::InvalidTag("Proposition", 0)),
+        ),
+        Leg::PublishedPropositionTagNinetyNine => (
+            u8_at(&first_published_predicate.tag, 99),
+            decoded(CodecError::InvalidTag("Proposition", 99)),
+        ),
+        Leg::PublishedPropositionTagMax => (
+            u8_at(&first_published_predicate.tag, u8::MAX),
+            decoded(CodecError::InvalidTag("Proposition", u8::MAX)),
+        ),
+        // The operand term must stay a scalar Value of the operand's type:
+        // recasting it as a literal or a Boolean dies in the decoder or the
+        // formal telescope's type check, and rebinding it to a formal outside
+        // the two-operand roster names nothing.
+        Leg::PublishedOperandRecastAsBooleanTerm => (
+            u8_at(&first_published_predicate.left.tag, 2),
+            decoded(CodecError::InvalidBoolean(2)),
+        ),
+        Leg::PublishedOperandRecastAsIntegerLiteral => (
+            u8_at(&first_published_predicate.left.tag, 3),
+            decoded(CodecError::MalformedProposition(
+                PropositionError::InvalidIntegerWidth(0),
+            )),
+        ),
+        Leg::PublishedOperandTermTagZero => (
+            u8_at(&first_published_predicate.left.tag, 0),
+            decoded(CodecError::InvalidTag("ScalarTerm", 0)),
+        ),
+        Leg::PublishedOperandTermTagNinetyNine => (
+            u8_at(&first_published_predicate.left.tag, 99),
+            decoded(CodecError::InvalidTag("ScalarTerm", 99)),
+        ),
+        Leg::PublishedOperandTermTagMax => (
+            u8_at(&first_published_predicate.left.tag, u8::MAX),
+            decoded(CodecError::InvalidTag("ScalarTerm", u8::MAX)),
+        ),
+        Leg::PublishedFormalZero => (
+            u64_at(&first_published_predicate.left.id, 0),
+            decoded(CodecError::ZeroIdentity("ValueId")),
+        ),
+        Leg::PublishedFormalOutsideTelescope => (
+            u64_at(&first_published_predicate.left.id, 3),
+            invalid(ModuleError::MalformedProposition(
+                PropositionError::UnknownValue(value_id(3)),
+            )),
+        ),
+        // Rebinding the predicate to formal 1 substitutes `left < 0`, which
+        // the stored `right < 0` continuation no longer matches. On the
+        // aliased row the same rebind substitutes identically and still
+        // verifies.
+        Leg::PublishedFormalReboundAcrossDistinctOperands => (
+            u64_at(&first_published_predicate.left.id, 1),
+            continuations_mismatch(1),
+        ),
+        Leg::PublishedFormalReboundAcrossAliasedOperands => {
+            (u64_at(&second_published_predicate.left.id, 1), REPLAYED)
+        }
+        // The operand's scalar type must equal the operand's own: a Boolean
+        // tag, an unsigned carrier, or a different width each mistypes the
+        // predicate.
+        Leg::PublishedOperandScalarRecastAsBoolean => (
+            u8_at(&first_published_predicate.left.scalar_tag, 1),
+            decoded(CodecError::InvalidTag("ScalarType", 0)),
+        ),
+        Leg::PublishedOperandRecastAsUnsigned => (
+            u8_at(&first_published_predicate.left.integer_sign, 2),
+            noncanonical_routes(),
+        ),
+        Leg::PublishedOperandNarrowed => (
+            u16_at(&first_published_predicate.left.integer_bits, 8),
+            noncanonical_routes(),
+        ),
+        Leg::PublishedOperandZeroWidth => (
+            u16_at(&first_published_predicate.left.integer_bits, 0),
+            decoded(CodecError::MalformedProposition(
+                PropositionError::InvalidIntegerWidth(0),
+            )),
+        ),
+        // The bound term must stay a signed integer literal of the operand's
+        // type: recasting it as a Value wanders into the continuations bytes,
+        // an unsigned carrier or value tag mistypes the literal, and a moved
+        // bound substitutes a different continuation.
+        Leg::PublishedBoundRecastAsValueTerm => (
+            u8_at(&first_published_predicate.right.tag, 1),
+            decoded(CodecError::InvalidTag("ScalarType", 0)),
+        ),
+        Leg::PublishedBoundRecastAsUnsigned => (
+            u8_at(&first_published_predicate.right.integer_sign, 2),
+            decoded(CodecError::MalformedProposition(
+                PropositionError::IntegerLiteralOutsideType {
+                    scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                    value: IntegerValue::Signed(0),
+                },
+            )),
+        ),
+        Leg::PublishedBoundWidened => (
+            u16_at(&first_published_predicate.right.integer_bits, 64),
+            noncanonical_routes(),
+        ),
+        Leg::PublishedBoundUnsignedValueTag => (
+            u8_at(&first_published_predicate.right.value_tag, 2),
+            decoded(CodecError::MalformedProposition(
+                PropositionError::IntegerLiteralOutsideType {
+                    scalar_type: i32_type(),
+                    value: IntegerValue::Unsigned(0),
+                },
+            )),
+        ),
+        Leg::PublishedBoundBelowZero => (
+            i128_at(&first_published_predicate.right.value, -1),
+            continuations_mismatch(1),
+        ),
+        Leg::PublishedBoundAboveZero => (
+            i128_at(&first_published_predicate.right.value, 1),
+            continuations_mismatch(1),
+        ),
+
+        // --- continuations -------------------------------------------------
+        //
+        // Every representable change to the stored continuations divorces
+        // them from the exact operand substitution the verifier recomputes —
+        // the continuations are validated against nothing but that
+        // substitution.
+        Leg::ContinuationBucketCountOver => (
+            u32_at(&first.continuations.count, 2),
+            decoded(CodecError::InvalidTag("CrashRouteGuard", 2)),
+        ),
+        Leg::ContinuationsEmptied => (
+            excise(
+                encoded,
+                first.continuations.count.clone(),
+                first_continuations_bucket.row.clone(),
+                0,
+            ),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationBucketDuplicated => (
+            insert_bytes(
+                encoded,
+                first.continuations.count.clone(),
+                first_continuations_bucket.row.end,
+                &encoded[first_continuations_bucket.row.clone()],
+            ),
+            decoded(CodecError::NonCanonicalOrder(CONTINUATION_ORDER)),
+        ),
+        Leg::ContinuationCauseTagZero => (
+            u8_at(&first_continuations_bucket.cause, 0),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+        Leg::ContinuationCauseTagThree => (
+            u8_at(&first_continuations_bucket.cause, 3),
+            decoded(CodecError::InvalidTag("CrashCause", 3)),
+        ),
+        Leg::ContinuationCauseTagMax => (
+            u8_at(&first_continuations_bucket.cause, u8::MAX),
+            decoded(CodecError::InvalidTag("CrashCause", u8::MAX)),
+        ),
+        Leg::ContinuationTrapRecastAsAbort => (
+            u8_at(&first_continuations_bucket.cause, 2),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationAlternativesEmptied => (
+            excise(
+                encoded,
+                first_continuations_bucket.alternative_count.clone(),
+                first_continuations_guard.row.clone(),
+                0,
+            ),
+            decoded(CodecError::NonCanonicalOrder(CONTINUATION_ORDER)),
+        ),
+        Leg::ContinuationAlternativesTruthSpliced => (
+            insert_bytes(
+                encoded,
+                first_continuations_bucket.alternative_count.clone(),
+                first_continuations_guard.row.start,
+                &[0],
+            ),
+            decoded(CodecError::NonCanonicalOrder(CONTINUATION_ORDER)),
+        ),
+        Leg::ContinuationGuardTagTwo => (
+            u8_at(&first_continuations_guard.tag, 2),
+            decoded(CodecError::InvalidTag("CrashRouteGuard", 2)),
+        ),
+        Leg::ContinuationGuardTagMax => (
+            u8_at(&first_continuations_guard.tag, u8::MAX),
+            decoded(CodecError::InvalidTag("CrashRouteGuard", u8::MAX)),
+        ),
+        Leg::ContinuationGuardRecastAsTruth => (
+            u8_at(&first_continuations_guard.tag, 0),
+            decoded(CodecError::InvalidTag("CrashCause", 0)),
+        ),
+        Leg::ContinuationPredicateRecastAsEquality => (
+            u8_at(&first_continuations_predicate.tag, 4),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationOperandZero => (
+            u64_at(&first_continuations_predicate.left.id, 0),
+            decoded(CodecError::ZeroIdentity("ValueId")),
+        ),
+        // The actual namespace is not the formal telescope: rebinding the
+        // continuation operand to the machine's other parameter or to a value
+        // that exists only as an operation result each drifts from the
+        // substituted publication.
+        Leg::ContinuationOperandReboundToOtherParameter => (
+            u64_at(&first_continuations_predicate.left.id, LEFT),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationOperandReboundToOperationResult => (
+            u64_at(&first_continuations_predicate.left.id, COMPARISON),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationOperandReboundToFormal => (
+            u64_at(&first_continuations_predicate.left.id, 2),
+            continuations_mismatch(1),
+        ),
+        Leg::ContinuationBoundAboveZero => (
+            i128_at(&first_continuations_predicate.right.value, 7),
+            continuations_mismatch(1),
+        ),
+
+        // --- second row axes -----------------------------------------------
+        //
+        // The Abort row repeats the same field inventory under the aliased
+        // telescope: bucket count lies wander into the machines section, cause
+        // and guard recasts divorce the substitution, and the bound literal is
+        // the same honest field.
+        Leg::SecondPublishedBucketCountOver => (
+            u32_at(&second.published.count, 2),
+            decoded(CodecError::InvalidTag("Proposition", 0)),
+        ),
+        Leg::SecondPublishedCauseRecastAsTrap => (
+            u8_at(&second_published_bucket.cause, 1),
+            continuations_mismatch(2),
+        ),
+        Leg::SecondContinuationCauseRecastAsTrap => (
+            u8_at(&second_continuations_bucket.cause, 1),
+            continuations_mismatch(2),
+        ),
+        Leg::SecondContinuationOperandReboundToOtherActual => (
+            u64_at(&second_continuations_predicate.left.id, RIGHT),
+            continuations_mismatch(2),
+        ),
+        Leg::SecondContinuationOperandReboundToFormal => (
+            u64_at(&second_continuations_predicate.left.id, 2),
+            continuations_mismatch(2),
+        ),
+        Leg::SecondContinuationBoundBelowZero => (
+            i128_at(&second_continuations_predicate.right.value, -1),
+            continuations_mismatch(2),
+        ),
+    }
+}
+
 #[test]
 fn terminal_operation_crash_contracts_reject_every_one_field_substitution() {
     let module = crash_module();
@@ -566,28 +1200,55 @@ fn terminal_operation_crash_contracts_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly
-    // recomputes a divergent semantic and artifact identity: the
-    // substituted module still verifies under the retained bundle (the
-    // roster carries no proof obligations), while the retained custody
-    // replays — the manifest join and the sealed proof subject join —
-    // reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
+    // Every declared wire leg substitutes independently. A substitution that
+    // still forms a canonical module honestly recomputes a divergent semantic
+    // and artifact identity and is rejected by the retained manifest replay;
+    // every other leg rejects inside the canonical decoder with an exact
+    // error. The donor is the producer's own canonical encoding of the
+    // fixture with only its first row retained.
+    let mut donor_module = module.clone();
+    donor_module.operation_crash_contracts.truncate(1);
+    let donor = encode_module(&donor_module).expect("the single-row donor encodes canonically");
+    let check = |bytes: &Vec<u8>| -> Result<Vec<u8>, CrashContractCheck> {
+        let substituted = decode_module(bytes).map_err(CrashContractCheck::Decode)?;
+        let recomputed_optimization =
+            build_identity_optimization_execution_record(&substituted, &bundle)
+                .expect("identity optimization over the substituted module");
+        validate_artifact_manifest(
+            &substituted,
+            &bundle,
+            &recomputed_optimization,
+            None,
+            None,
+            retained,
+        )
+        .map_err(CrashContractCheck::ManifestReplay)?;
+        Ok(bytes.clone())
+    };
+    // A leg that still decodes must also re-encode canonically, keep the
+    // substituted module verifiable under the retained bundle (the roster
+    // carries no proof obligations), diverge the honestly recomputed
+    // semantic and artifact identities, and reject at the sealed proof
+    // subject join.
+    let joined_replay = |bytes: &Vec<u8>, field: OperationCrashContractCustodyFieldForTest| {
+        if crash_contract_leg(&encoded, field).1 != REPLAYED {
+            return;
+        }
+        let substituted = decode_module(bytes)
+            .unwrap_or_else(|error| panic!("{field:?} must still decode: {error:?}"));
+        assert_ne!(substituted, module, "{field:?} must change the module");
         assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
+            &encode_module(&substituted).expect("re-encode the substitution"),
+            bytes,
+            "{field:?} must re-encode canonically"
         );
         assert_ne!(
             terminal_psi_identity(&substituted).expect("substituted semantic identity"),
             semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
+            "{field:?} must diverge the honestly recomputed semantic identity"
         );
         verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
+            |error| panic!("{field:?} must keep the substituted module verifiable: {error:?}"),
         );
         let recomputed_optimization =
             build_identity_optimization_execution_record(&substituted, &bundle)
@@ -598,38 +1259,36 @@ fn terminal_operation_crash_contracts_reject_every_one_field_substitution() {
         assert_ne!(
             recomputed.identity(),
             retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
-            validate_artifact_manifest(
-                &substituted,
-                &bundle,
-                &recomputed_optimization,
-                None,
-                None,
-                retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
+            "{field:?} must diverge the recomputed artifact identity"
         );
         assert!(
             matches!(
                 decode_proof_section_for(&substituted, artifact.proof_bytes()),
                 Err(ProofCodecError::ProofSubjectMismatch { .. })
             ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
-    // A substitution that cannot form a canonical module rejects inside the
-    // canonical decoder with an exact error.
-    let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
-        assert_eq!(
-            decode_module(mutated),
-            Err(expected),
-            "{name} must reject at canonical decoding"
+            "{field:?} must reject at the sealed proof subject join"
         );
     };
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "operation crash contract roster",
+        fields: OperationCrashContractCustodyFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor,
+        custody: &|bytes: &Vec<u8>| bytes.clone(),
+        substitute: &|bytes, field, _donor| *bytes = crash_contract_leg(bytes, field).0,
+        check: &check,
+        outcome: &|field| MutationOutcome::ExactError(crash_contract_leg(&encoded, field).1),
+        joined_replay: Some(&joined_replay),
+    });
+    let replayed_legs = OperationCrashContractCustodyFieldForTest::INVENTORY
+        .iter()
+        .filter(|&&field| crash_contract_leg(&encoded, field).1 == REPLAYED)
+        .count();
+    assert_eq!(
+        replayed_legs, 5,
+        "the cleared roster, both dropped rows, the alias retarget, and the aliased formal rebind decode"
+    );
+
     // A module-level mutation the producer can express rejects inside the
     // canonical encoder's semantic validation.
     let encode_rejected = |name: &'static str, changed: &TerminalModule, expected: CodecError| {
@@ -639,673 +1298,6 @@ fn terminal_operation_crash_contracts_reject_every_one_field_substitution() {
             "{name} must reject at canonical encoding"
         );
     };
-    let put_u8 = |range: Range<usize>, value: u8| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range.start] = value;
-        mutated
-    };
-    let put_u16 = |range: Range<usize>, value: u16| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    let put_u32 = |range: Range<usize>, value: u32| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    let put_u64 = |range: Range<usize>, value: u64| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    // Overwrite the 16-byte integer literal payload.
-    let put_i128 = |range: Range<usize>, value: i128| -> Vec<u8> {
-        let mut mutated = encoded.clone();
-        mutated[range].copy_from_slice(&value.to_le_bytes());
-        mutated
-    };
-    // Set a counted roster to `remaining` rows and remove the row bytes in
-    // `rows`, keeping the count honest.
-    let excise = |count_span: Range<usize>, rows: Range<usize>, remaining: u32| -> Vec<u8> {
-        let mut mutated = encoded[..count_span.start].to_vec();
-        mutated.extend_from_slice(&remaining.to_le_bytes());
-        mutated.extend_from_slice(&encoded[count_span.end..rows.start]);
-        mutated.extend_from_slice(&encoded[rows.end..]);
-        mutated
-    };
-    // Remove one roster row and decrement its roster count honestly.
-    let drop_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let remaining = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) - 1;
-        excise(count_span, row, remaining)
-    };
-    // Duplicate one roster row directly behind itself with an honest count.
-    let duplicate_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let grown = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) + 1;
-        let mut mutated = encoded[..count_span.start].to_vec();
-        mutated.extend_from_slice(&grown.to_le_bytes());
-        mutated.extend_from_slice(&encoded[count_span.end..row.end]);
-        mutated.extend_from_slice(&encoded[row.clone()]);
-        mutated.extend_from_slice(&encoded[row.end..]);
-        mutated
-    };
-    // Insert `bytes` at `at`, bumping the counted roster honestly.
-    let insert_bytes = |count_span: Range<usize>, at: usize, bytes: &[u8]| -> Vec<u8> {
-        let grown = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) + 1;
-        let mut mutated = encoded[..count_span.start].to_vec();
-        mutated.extend_from_slice(&grown.to_le_bytes());
-        mutated.extend_from_slice(&encoded[count_span.end..at]);
-        mutated.extend_from_slice(bytes);
-        mutated.extend_from_slice(&encoded[at..]);
-        mutated
-    };
-    // Swap two adjacent rows of the same roster, keeping the count honest.
-    let swap_rows = |first: Range<usize>, second: Range<usize>| -> Vec<u8> {
-        assert_eq!(first.end, second.start, "fixture rows are adjacent");
-        let mut mutated = encoded[..first.start].to_vec();
-        mutated.extend_from_slice(&encoded[second.clone()]);
-        mutated.extend_from_slice(&encoded[first.clone()]);
-        mutated.extend_from_slice(&encoded[second.end..]);
-        mutated
-    };
-
-    let first = &spans.contracts[0];
-    let second = &spans.contracts[1];
-    let first_published_bucket = &first.published.buckets[0];
-    let first_published_guard = &first_published_bucket.alternatives[0];
-    let first_published_predicate = first_published_guard
-        .predicate
-        .as_ref()
-        .expect("the first row publishes a predicate guard");
-    let first_continuations_bucket = &first.continuations.buckets[0];
-    let first_continuations_guard = &first_continuations_bucket.alternatives[0];
-    let first_continuations_predicate = first_continuations_guard
-        .predicate
-        .as_ref()
-        .expect("the first row continues with a predicate guard");
-    let second_published_bucket = &second.published.buckets[0];
-    let second_published_guard = &second_published_bucket.alternatives[0];
-    let second_published_predicate = second_published_guard
-        .predicate
-        .as_ref()
-        .expect("the second row publishes a predicate guard");
-    let second_continuations_bucket = &second.continuations.buckets[0];
-    let second_continuations_predicate = second_continuations_bucket.alternatives[0]
-        .predicate
-        .as_ref()
-        .expect("the second row continues with a predicate guard");
-
-    // --- roster axes -------------------------------------------------------
-
-    // Clearing the roster or dropping either row stays representable: the
-    // recomputed identity diverges and the retained custody replays reject.
-    divergent(
-        "a cleared operation crash contract roster",
-        &excise(
-            spans.contract_count.clone(),
-            first.row.start..second.row.end,
-            0,
-        ),
-    );
-    divergent(
-        "a dropped first crash contract row",
-        &drop_row(spans.contract_count.clone(), first.row.clone()),
-    );
-    divergent(
-        "a dropped second crash contract row",
-        &drop_row(spans.contract_count.clone(), second.row.clone()),
-    );
-    // A count lying under its rows strands the second row's bytes at the
-    // machines section; a count lying over reads the machines section as a
-    // third row; a maximal count exhausts the decoder.
-    rejected(
-        "a crash contract roster count one under",
-        &put_u32(spans.contract_count.clone(), 1),
-        CodecError::InvalidTag("ScalarType", 32),
-    );
-    rejected(
-        "a crash contract roster count one over",
-        &put_u32(spans.contract_count.clone(), 3),
-        CodecError::InvalidTag("CrashCause", 0),
-    );
-    rejected(
-        "a maximal crash contract roster count",
-        &put_u32(spans.contract_count.clone(), u32::MAX),
-        CodecError::UnexpectedEnd,
-    );
-    // A duplicated row collides on the (machine, operation) coordinate; a
-    // swapped roster violates the strict row order.
-    rejected(
-        "a duplicated crash contract row",
-        &duplicate_row(spans.contract_count.clone(), first.row.clone()),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-    rejected(
-        "a reordered crash contract roster",
-        &swap_rows(first.row.clone(), second.row.clone()),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-
-    // --- machine and operation joins ----------------------------------------
-
-    // The row coordinate is join-constrained twice over: the machine must
-    // exist, and it must own exactly the named operation. Raising the first
-    // row's machine or operation identity past the second row's coordinate
-    // desynchronizes the strict order before the join is ever consulted.
-    rejected(
-        "a zero crash contract machine",
-        &put_u64(first.machine.clone(), 0),
-        CodecError::ZeroIdentity("MachineId"),
-    );
-    rejected(
-        "a first-row machine lifted past its peer",
-        &put_u64(first.machine.clone(), 9),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-    rejected(
-        "a second-row machine outside the module",
-        &put_u64(second.machine.clone(), 9),
-        CodecError::InvalidModule(ModuleError::InvalidOperationCrashContract {
-            machine: machine_id(9),
-            operation: operation_id(2),
-        }),
-    );
-    rejected(
-        "a zero crash contract operation",
-        &put_u64(first.operation.clone(), 0),
-        CodecError::ZeroIdentity("OperationId"),
-    );
-    rejected(
-        "a first-row operation colliding with its peer",
-        &put_u64(first.operation.clone(), 2),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-    rejected(
-        "a first-row operation lifted past its peer",
-        &put_u64(first.operation.clone(), 3),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-    // The second row keeps the roster ordered under every retarget: an
-    // unknown operation strands the join, the operand-free constant takes no
-    // row at all, and the unrowed aliased spare shares the telescope, the
-    // substitution, and the caller coverage exactly — so it still verifies.
-    rejected(
-        "a second-row operation outside the machine",
-        &put_u64(second.operation.clone(), 9),
-        CodecError::InvalidModule(ModuleError::InvalidOperationCrashContract {
-            machine: machine_id(1),
-            operation: operation_id(9),
-        }),
-    );
-    rejected(
-        "a second-row operation named on the operand-free constant",
-        &put_u64(second.operation.clone(), 4),
-        CodecError::InvalidModule(ModuleError::UnsupportedOperationCrashContractOperation {
-            machine: machine_id(1),
-            operation: operation_id(4),
-        }),
-    );
-    rejected(
-        "a second-row operation colliding with its peer",
-        &put_u64(second.operation.clone(), 1),
-        CodecError::NonCanonicalOrder("operation crash contracts by machine and operation"),
-    );
-    divergent(
-        "a crash contract row rebound to the unrowed alias",
-        &put_u64(second.operation.clone(), 3),
-    );
-
-    // --- published routes: bucket and guard structure ------------------------
-
-    // A published bucket count lying over reads the continuations count and
-    // bucket cause as a second bucket's alternative count — 0x01000000
-    // alternatives starve the decoder. An honestly emptied published roster
-    // is uncanonical: the operator must publish at least one route.
-    rejected(
-        "a published bucket count one over",
-        &put_u32(first.published.count.clone(), 2),
-        CodecError::InvalidTag("Proposition", 0),
-    );
-    rejected(
-        "an emptied published route roster",
-        &excise(
-            first.published.count.clone(),
-            first_published_bucket.row.clone(),
-            0,
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract published route buckets"),
-    );
-    // A duplicated bucket repeats the cause; the second row's Abort bucket
-    // spliced ahead of the Trap bucket inverts the cause order.
-    rejected(
-        "a duplicated published route bucket",
-        &insert_bytes(
-            first.published.count.clone(),
-            first_published_bucket.row.end,
-            &encoded[first_published_bucket.row.clone()],
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract published route buckets"),
-    );
-    rejected(
-        "a published route bucket spliced out of cause order",
-        &insert_bytes(
-            first.published.count.clone(),
-            first_published_bucket.row.start,
-            &encoded[second_published_bucket.row.clone()],
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract published route buckets"),
-    );
-    // An unknown cause tag dies in the decoder; recasting Trap as Abort
-    // leaves a published Abort route whose substitution no longer matches
-    // the stored Trap continuation.
-    for tag in [0, 3, u8::MAX] {
-        rejected(
-            "an unknown published cause tag",
-            &put_u8(first_published_bucket.cause.clone(), tag),
-            CodecError::InvalidTag("CrashCause", tag),
-        );
-    }
-    rejected(
-        "a published Trap route recast as Abort",
-        &put_u8(first_published_bucket.cause.clone(), 2),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    // An alternative count lying over reads the continuations count's first
-    // byte as a second guard tag; an honestly emptied alternative roster is
-    // uncanonical; a Truth marker spliced ahead of the predicate violates the
-    // Truth-alone rule.
-    rejected(
-        "a published alternative count one over",
-        &put_u32(first_published_bucket.alternative_count.clone(), 2),
-        CodecError::InvalidTag("Proposition", 0),
-    );
-    rejected(
-        "an emptied published alternative roster",
-        &excise(
-            first_published_bucket.alternative_count.clone(),
-            first_published_guard.row.clone(),
-            0,
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract published route buckets"),
-    );
-    rejected(
-        "a Truth marker spliced into the published alternatives",
-        &insert_bytes(
-            first_published_bucket.alternative_count.clone(),
-            first_published_guard.row.start,
-            &[0],
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract published route buckets"),
-    );
-    // An unknown guard tag dies in the decoder; recasting the predicate as
-    // Truth publishes an unconditional route whose substitution no longer
-    // matches the stored guarded continuation.
-    for tag in [2, u8::MAX] {
-        rejected(
-            "an unknown published guard tag",
-            &put_u8(first_published_guard.tag.clone(), tag),
-            CodecError::InvalidTag("CrashRouteGuard", tag),
-        );
-    }
-    // Recasting the predicate as Truth truncates a variable-length row: the
-    // stranded proposition bytes are read as the continuations roster.
-    rejected(
-        "a published predicate recast as unconditional Truth",
-        &put_u8(first_published_guard.tag.clone(), 0),
-        CodecError::InvalidTag("CrashCause", 0),
-    );
-
-    // --- published predicate -------------------------------------------------
-
-    // Recasting LessThan as Equal or LessOrEqual keeps the operand pair but
-    // changes the published claim; the Truth and Falsehood tags are banned
-    // from route predicates outright.
-    rejected(
-        "a published predicate recast as an equality",
-        &put_u8(first_published_predicate.tag.clone(), 4),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published predicate recast as a non-strict bound",
-        &put_u8(first_published_predicate.tag.clone(), 6),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published predicate recast as Truth",
-        &put_u8(first_published_predicate.tag.clone(), 1),
-        CodecError::InvalidTag("CrashCause", 0),
-    );
-    for tag in [0, 99, u8::MAX] {
-        rejected(
-            "an unknown published proposition tag",
-            &put_u8(first_published_predicate.tag.clone(), tag),
-            CodecError::InvalidTag("Proposition", tag),
-        );
-    }
-    // The operand term must stay a scalar Value of the operand's type:
-    // recasting it as a literal or a Boolean dies in the decoder or the
-    // formal telescope's type check, and rebinding it to a formal outside the
-    // two-operand roster names nothing.
-    rejected(
-        "a published operand recast as a Boolean term",
-        &put_u8(first_published_predicate.left.tag.clone(), 2),
-        CodecError::InvalidBoolean(2),
-    );
-    rejected(
-        "a published operand recast as an integer literal",
-        &put_u8(first_published_predicate.left.tag.clone(), 3),
-        CodecError::MalformedProposition(PropositionError::InvalidIntegerWidth(0)),
-    );
-    for tag in [0, 99, u8::MAX] {
-        rejected(
-            "an unknown published operand term tag",
-            &put_u8(first_published_predicate.left.tag.clone(), tag),
-            CodecError::InvalidTag("ScalarTerm", tag),
-        );
-    }
-    rejected(
-        "a zero published formal identity",
-        &put_u64(first_published_predicate.left.id.clone(), 0),
-        CodecError::ZeroIdentity("ValueId"),
-    );
-    rejected(
-        "a published formal outside the operand telescope",
-        &put_u64(first_published_predicate.left.id.clone(), 3),
-        CodecError::InvalidModule(ModuleError::MalformedProposition(
-            PropositionError::UnknownValue(value_id(3)),
-        )),
-    );
-    // Rebinding the predicate to formal 1 substitutes `left < 0`, which the
-    // stored `right < 0` continuation no longer matches. On the aliased row
-    // the same rebind substitutes identically and still verifies.
-    rejected(
-        "a published formal rebound across distinct operands",
-        &put_u64(first_published_predicate.left.id.clone(), 1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    divergent(
-        "a published formal rebound across aliased operands",
-        &put_u64(second_published_predicate.left.id.clone(), 1),
-    );
-    // The operand's scalar type must equal the operand's own: a Boolean tag,
-    // an unsigned carrier, or a different width each mistypes the predicate.
-    rejected(
-        "a published operand recast as Boolean",
-        &put_u8(first_published_predicate.left.scalar_tag.clone(), 1),
-        CodecError::InvalidTag("ScalarType", 0),
-    );
-    rejected(
-        "a published operand recast as an unsigned integer",
-        &put_u8(first_published_predicate.left.integer_sign.clone(), 2),
-        CodecError::InvalidModule(ModuleError::NonCanonicalOperationCrashContractRoutes {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published operand retyped to a narrower integer",
-        &put_u16(first_published_predicate.left.integer_bits.clone(), 8),
-        CodecError::InvalidModule(ModuleError::NonCanonicalOperationCrashContractRoutes {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published operand retyped to a zero-width integer",
-        &put_u16(first_published_predicate.left.integer_bits.clone(), 0),
-        CodecError::MalformedProposition(PropositionError::InvalidIntegerWidth(0)),
-    );
-    // The bound term must stay a signed integer literal of the operand's
-    // type: recasting it as a Value wanders into the continuations bytes, an
-    // unsigned carrier or value tag mistypes the literal, and a moved bound
-    // substitutes a different continuation.
-    rejected(
-        "a published bound recast as a value term",
-        &put_u8(first_published_predicate.right.tag.clone(), 1),
-        CodecError::InvalidTag("ScalarType", 0),
-    );
-    rejected(
-        "a published bound recast as unsigned",
-        &put_u8(first_published_predicate.right.integer_sign.clone(), 2),
-        CodecError::MalformedProposition(PropositionError::IntegerLiteralOutsideType {
-            scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-            value: IntegerValue::Signed(0),
-        }),
-    );
-    rejected(
-        "a published bound retyped to a wider integer",
-        &put_u16(first_published_predicate.right.integer_bits.clone(), 64),
-        CodecError::InvalidModule(ModuleError::NonCanonicalOperationCrashContractRoutes {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published bound carrying an unsigned value tag",
-        &put_u8(first_published_predicate.right.value_tag.clone(), 2),
-        CodecError::MalformedProposition(PropositionError::IntegerLiteralOutsideType {
-            scalar_type: i32_type(),
-            value: IntegerValue::Unsigned(0),
-        }),
-    );
-    rejected(
-        "a published bound shifted below zero",
-        &put_i128(first_published_predicate.right.value.clone(), -1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a published bound shifted above zero",
-        &put_i128(first_published_predicate.right.value.clone(), 1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-
-    // --- continuations ---------------------------------------------------------
-
-    // Every representable change to the stored continuations divorces them
-    // from the exact operand substitution the verifier recomputes — the
-    // continuations are validated against nothing but that substitution.
-    rejected(
-        "a continuation bucket count one over",
-        &put_u32(first.continuations.count.clone(), 2),
-        CodecError::InvalidTag("CrashRouteGuard", 2),
-    );
-    rejected(
-        "an emptied continuation roster",
-        &excise(
-            first.continuations.count.clone(),
-            first_continuations_bucket.row.clone(),
-            0,
-        ),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a duplicated continuation bucket",
-        &insert_bytes(
-            first.continuations.count.clone(),
-            first_continuations_bucket.row.end,
-            &encoded[first_continuations_bucket.row.clone()],
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract continuation buckets"),
-    );
-    for tag in [0, 3, u8::MAX] {
-        rejected(
-            "an unknown continuation cause tag",
-            &put_u8(first_continuations_bucket.cause.clone(), tag),
-            CodecError::InvalidTag("CrashCause", tag),
-        );
-    }
-    rejected(
-        "a continuation Trap route recast as Abort",
-        &put_u8(first_continuations_bucket.cause.clone(), 2),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "an emptied continuation alternative roster",
-        &excise(
-            first_continuations_bucket.alternative_count.clone(),
-            first_continuations_guard.row.clone(),
-            0,
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract continuation buckets"),
-    );
-    rejected(
-        "a Truth marker spliced into the continuations",
-        &insert_bytes(
-            first_continuations_bucket.alternative_count.clone(),
-            first_continuations_guard.row.start,
-            &[0],
-        ),
-        CodecError::NonCanonicalOrder("operation crash contract continuation buckets"),
-    );
-    for tag in [2, u8::MAX] {
-        rejected(
-            "an unknown continuation guard tag",
-            &put_u8(first_continuations_guard.tag.clone(), tag),
-            CodecError::InvalidTag("CrashRouteGuard", tag),
-        );
-    }
-    rejected(
-        "a continuation predicate recast as unconditional Truth",
-        &put_u8(first_continuations_guard.tag.clone(), 0),
-        CodecError::InvalidTag("CrashCause", 0),
-    );
-    rejected(
-        "a continuation predicate recast as an equality",
-        &put_u8(first_continuations_predicate.tag.clone(), 4),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a zero continuation operand identity",
-        &put_u64(first_continuations_predicate.left.id.clone(), 0),
-        CodecError::ZeroIdentity("ValueId"),
-    );
-    // The actual namespace is not the formal telescope: rebinding the
-    // continuation operand to the machine's other parameter or to a value
-    // that exists only as an operation result each drifts from the
-    // substituted publication.
-    rejected(
-        "a continuation operand rebound to the other parameter",
-        &put_u64(first_continuations_predicate.left.id.clone(), LEFT),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a continuation operand rebound to an operation result",
-        &put_u64(first_continuations_predicate.left.id.clone(), COMPARISON),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a continuation operand rebound to a formal identity",
-        &put_u64(first_continuations_predicate.left.id.clone(), 2),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-    rejected(
-        "a continuation bound shifted above zero",
-        &put_i128(first_continuations_predicate.right.value.clone(), 7),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(1),
-        }),
-    );
-
-    // --- second row axes ---------------------------------------------------------
-
-    // The Abort row repeats the same field inventory under the aliased
-    // telescope: bucket count lies wander into the machines section, cause
-    // and guard recasts divorce the substitution, and the bound literal is
-    // the same honest field.
-    rejected(
-        "a second-row published bucket count one over",
-        &put_u32(second.published.count.clone(), 2),
-        CodecError::InvalidTag("Proposition", 0),
-    );
-    rejected(
-        "a second-row published cause recast as Trap",
-        &put_u8(second_published_bucket.cause.clone(), 1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(2),
-        }),
-    );
-    rejected(
-        "a second-row continuation cause recast as Trap",
-        &put_u8(second_continuations_bucket.cause.clone(), 1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(2),
-        }),
-    );
-    rejected(
-        "a second-row continuation operand rebound to the other operand's actual",
-        &put_u64(second_continuations_predicate.left.id.clone(), RIGHT),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(2),
-        }),
-    );
-    rejected(
-        "a second-row continuation operand rebound to a formal identity",
-        &put_u64(second_continuations_predicate.left.id.clone(), 2),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(2),
-        }),
-    );
-    rejected(
-        "a second-row continuation bound shifted below zero",
-        &put_i128(second_continuations_predicate.right.value.clone(), -1),
-        CodecError::InvalidModule(ModuleError::OperationCrashContinuationsMismatch {
-            machine: machine_id(1),
-            operation: operation_id(2),
-        }),
-    );
 
     // --- producer-side canonical rejections --------------------------------------
 
