@@ -1,3 +1,27 @@
+//! The lexer: one source text in, one `TokenStream` out.
+//!
+//! `Lexer::new(source).tokenize()` is the only entry. The compiler's
+//! source-assembly frontend (`lex_sources`) calls it once per loaded source
+//! file; parser, package and test code also call it on small texts.
+//!
+//! `tokenize` repeats two steps until the text is used up. `lex_next_token`
+//! reads one token's kind and span, choosing the rule by its first character:
+//! whitespace, a `//` line comment, a nested `/* */` block comment, an
+//! identifier or keyword (`KeywordKind::from_lexeme`), a number, a string
+//! literal, or punctuation (the first match in
+//! `PunctuationKind::ordered_lexemes`). `build_token` then attaches the text:
+//! a string literal carries its decoded bytes, and every other token borrows
+//! its spelling from the source. Whitespace and comments stay in the stream.
+//!
+//! Raw string prefixes such as `r"` and `r#"`, non-ASCII characters outside
+//! comments and string literals, and ASCII characters that match no
+//! punctuation are rejected with `LexError::outside_lexical_profile`. The
+//! first error stops lexing.
+//!
+//! Children: `numbers` scans numeric literals and `strings` scans and decodes
+//! string literals; both are rules of `lex_next_token`. `lex_error` defines
+//! `LexError`, the error every step returns.
+
 use std::iter::Peekable;
 use std::str::CharIndices;
 

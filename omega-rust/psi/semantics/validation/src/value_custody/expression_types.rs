@@ -1,3 +1,39 @@
+//! Expression types: whether an expression's value may be delivered to a
+//! declared type, and which type an expression produces.
+//!
+//! There is no single entrance. This file owns one check and four queries.
+//! `validate_expression_type_handle` is the check: the expression-statement
+//! validator in `program_validation::statements` runs it on a state's
+//! terminal expression. It reports a string literal that exceeds a bounded
+//! text carrier's capacity, and otherwise a value whose type does not match.
+//! `argument_matches_type_reference_handle` compares one argument with a
+//! declared type for the call, machine-data, machine-parameter and proof
+//! validators; the crate exports it as `checked_argument_matches_type_reference`
+//! for package review. `named_value_type_reference` finds the declared type
+//! of a named binder, `bounded_byte_buffer_capacity` reads the capacity of a
+//! domain-constrained `[u8; N]` text carrier, and `expression_type_name_handle`
+//! names an expression's kind in diagnostics.
+//!
+//! The module list below groups the children by role:
+//!
+//! - The expression walk in `machine_calls::calls::expression_scanning` runs
+//!   the per-expression checks: `match_dispatch` (`validate_match_dispatch`,
+//!   which build-time evaluation also calls), `operator_validation`
+//!   (`validate_binary_operand_types` and the unary logical-not and
+//!   bitwise-not reports) and `cast_validation` (`validate_cast_types`).
+//! - The statement validators in `program_validation::statements`, call
+//!   validation and struct-literal field obligations run the store checks on a
+//!   value they store or pass: `shape_validation` (array, scalar, data and
+//!   view element shape mismatches) and `value_classification` (cross-class
+//!   stores and data type conflicts). `value_classification` also supplies
+//!   the value classes the other checks compare.
+//! - `result_type` (an expression's result type, independent of its
+//!   destination), `reference_values` (reference type matching and mutable
+//!   reference forwarding), `walk` (`collect_expression_nodes`) and the
+//!   `match_dispatch` queries `match_children` and `match_case_dispatch` are
+//!   read by other validators, and the result and dispatch queries also by
+//!   checking and lowering.
+
 use diagnostics::Diagnostic;
 use std::fmt;
 use typed_trees::TypedTrees;
@@ -7,14 +43,28 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-mod walk;
-pub(crate) use walk::collect_expression_nodes;
-
+// Per-expression checks the expression walk in
+// `machine_calls::calls::expression_scanning` runs, and the float-to-integer
+// range proof `cast_validation` asks for.
 mod cast_validation;
 mod float_cast_proofs;
-mod float_destinations;
 mod match_dispatch;
 mod operator_validation;
+
+// Store checks on a value delivered to a declared place, parameter, field or
+// element, and the float format check `value_classification` runs for them.
+mod float_destinations;
+mod shape_validation;
+mod value_classification;
+
+// Shared vocabulary: result types, reference type matching and expression
+// traversal.
+mod reference_values;
+mod result_type;
+mod walk;
+
+pub(crate) use walk::collect_expression_nodes;
+
 pub(crate) use match_dispatch::match_children;
 pub use match_dispatch::match_subject_primitive_type;
 pub use match_dispatch::validate_match_dispatch;
@@ -26,12 +76,9 @@ pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
 };
-mod reference_values;
+
 pub(crate) use reference_values::place_forwards_mutable_reference;
 pub(crate) use result_type::domain_expression_result_type_reference;
-mod result_type;
-mod shape_validation;
-mod value_classification;
 
 pub(crate) use cast_validation::validate_cast_types;
 

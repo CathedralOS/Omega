@@ -1,3 +1,34 @@
+//! Literals: numeric literals and the destinations they land in. The checks
+//! here reject anonymous `%` and anonymous division by zero, literals too wide
+//! for their position, and width suffixes that disagree with the destination
+//! or do not fit their own type. The landing queries give an anonymous numeric
+//! literal, or a tree of literal arithmetic, the concrete type of its
+//! destination.
+//!
+//! `program_validation::validate` runs this module's program-wide checks at
+//! three points. First, before any other validator,
+//! `validate_anonymous_remainders` (`integer_remainder`) and
+//! `validate_anonymous_divisions` (`float_landing`); validation stops if
+//! either reports a diagnostic. Later, in this order, `validate_literal_widths`
+//! (`literal_widths`), `validate_suffix_landings` and
+//! `validate_suffix_magnitudes`. `validate_suffix_landings` checks each
+//! struct-literal field, state result, assignment, local initializer and
+//! transition value against its declared type through
+//! `validate_suffix_landing`, which call validation and
+//! `expression_types::match_dispatch` also call directly. Last, after every
+//! other check passes, it reports `anonymous_integer_landing_warnings`
+//! (`integer_landing`).
+//!
+//! The landing queries are used outside validation too.
+//! `land_float_literal_destinations` (`float_landing`) gives unsuffixed float
+//! literals their destination format on the typed tree before validation
+//! runs, and the `integer_landing` functions evaluate and land anonymous
+//! integer expressions for checking, lowering, proof and interpretation.
+//! `constant_arrays` and `record_projection` answer the declared type and the
+//! closed values of constant arrays and record constructor projections.
+//! `expression_children` lists an expression's immediate value children for
+//! the width check, integer landing and other validators.
+
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};

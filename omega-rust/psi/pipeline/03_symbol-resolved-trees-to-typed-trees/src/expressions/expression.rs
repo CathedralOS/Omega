@@ -1,3 +1,30 @@
+//! Entry points for typing one expression from a resolved expression table.
+//!
+//! Each entry builds an `ExpressionTableLowerer` (in `table`) and lowers one
+//! expression handle and its operands into the typed trees. They differ in
+//! their inputs:
+//!
+//! - `lower_expression_handle` reads the package's body expression table
+//!   through the `Lowerer` and carries its current equality scope, so `==`
+//!   can find an operand's data type. Declaration and statement lowering use
+//!   it.
+//! - `lower_expression_handle_from_table` and
+//!   `lower_expression_handle_from_table_with_self_substitution` take any
+//!   expression table, with or without the resolved program; the second can
+//!   replace a bare `self` with a given typed expression. Type references and
+//!   constraints use them.
+//! - `lower_expression_handle_from_table_in_fact_position` lowers a proof
+//!   fact: equality over recursive, proof-only data stays a raw binary
+//!   comparison instead of requiring runtime equality.
+//!
+//! `lower_static_machine_argument` lowers a static machine argument with its
+//! type reference and nested application arguments; machine, trait and call
+//! lowering use it, and so does `table`.
+//!
+//! Children: `table` holds the expression-table lowerer; `domain_membership`,
+//! `name_paths` and `operators` lower membership tests, name paths and binary
+//! operators for it.
+
 use crate::lowerer::Lowerer;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
