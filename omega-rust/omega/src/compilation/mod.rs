@@ -21,6 +21,7 @@ pub enum ProjectProduct {
 }
 
 /// Project policy and product selection, independent of argument spelling.
+#[derive(Clone)]
 pub struct CompileProjectRequest {
     pub options: CompileOptions,
     pub product: ProjectProduct,
@@ -100,6 +101,43 @@ impl std::fmt::Display for CompileProjectError {
 }
 
 impl std::error::Error for CompileProjectError {}
+
+/// One target's result from [`compile_project_for_targets`].
+pub struct TargetProjectOutcome {
+    pub target: target::TargetProfile,
+    pub result: Result<CompileProjectOutcome, CompileProjectError>,
+}
+
+/// Compile the project once per selected target, in canonical profile order.
+/// Each target is an independent realization: one failing never stops or
+/// hides another, and every target reports its own outcome
+/// (wiki/spec/build/configuration.md#multi-target-compilation). Each target
+/// publishes into `<build dir>/<target>/`, since several targets can share an
+/// output file name. Invalid target names reject before any compile runs.
+///
+/// This repeats the whole compile per target. Once Psi runs once for every
+/// target, this loop moves inside the compiler behind one checked program.
+pub fn compile_project_for_targets(
+    request: CompileProjectRequest,
+    target_names: &[String],
+) -> Result<Vec<TargetProjectOutcome>, CompileProjectError> {
+    let targets = compiler::ExplicitTargetSet::from_caller_names(target_names)
+        .map_err(CompileProjectError::Diagnostics)?;
+    let base_build_dir = request.options.build_dir();
+    Ok(targets
+        .profiles()
+        .iter()
+        .map(|profile| {
+            let mut target_request = request.clone();
+            target_request.options.target_name = Some(profile.target_name().to_owned());
+            target_request.options.build_dir = Some(base_build_dir.join(profile.target_name()));
+            TargetProjectOutcome {
+                target: *profile,
+                result: compile_project(target_request),
+            }
+        })
+        .collect())
+}
 
 pub fn compile_project(
     request: CompileProjectRequest,

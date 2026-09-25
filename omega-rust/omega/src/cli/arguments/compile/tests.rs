@@ -45,7 +45,7 @@ fn offline_combines_with_existing_compilation_options() {
     assert!(parsed.accept_admissions);
     assert!(parsed.timings);
     assert_eq!(parsed.build_dir, Some(PathBuf::from("build directory")));
-    assert_eq!(parsed.target_name.as_deref(), Some("linux_x86_64"));
+    assert_eq!(parsed.target_names, ["linux_x86_64"]);
     assert!(!parsed.optimization_rollback.is_empty());
     assert_eq!(parsed.root_path, PathBuf::from("main.omg"));
 }
@@ -250,4 +250,26 @@ fn compilation_rejects_obsolete_package_root_policy_as_an_unknown_option() {
         );
     }
     assert!(!usage().contains("--package-root-policy"));
+}
+
+#[test]
+fn repeated_targets_form_a_set_in_the_order_named() {
+    let parsed = parse_arguments(
+        [
+            "--target",
+            "windows_x86_64",
+            "--target",
+            "linux_arm64",
+            "--target",
+            "windows_x86_64",
+            "main.omg",
+        ]
+        .into_iter()
+        .map(OsString::from),
+    )
+    .unwrap();
+    assert_eq!(parsed.target_names, ["windows_x86_64", "linux_arm64"]);
+
+    let parsed = parse_arguments(["main.omg"].into_iter().map(OsString::from)).unwrap();
+    assert!(parsed.target_names.is_empty());
 }

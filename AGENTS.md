@@ -148,7 +148,7 @@ are parsed in `omega-rust/omega/src/cli/arguments/`. Full surface:
 omega [--check] [--offline] [--accept-admissions] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
-      [--build-dir <dir>] [--target <name>] [--disable-optimization <ExactName>]... <root.omg>
+      [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
 omega run [--both] [--keep] [--target <name>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
@@ -163,8 +163,11 @@ omega refresh-samples [samples-dir]
 Git pins. It does not refresh selectors or sandbox later program execution.
 `run` and `inspect-terminal` do not support this flag.
 
-`--target` names the realization target. The settled model realizes every
-provided target when it is absent and checks every target's bodies either way
+`--target` names a realization target and may repeat; repeats are removed
+and each named target is compiled and published on its own, into
+`<build dir>/<target>/` when more than one is named, with one outcome per
+target. The settled model realizes every provided target when none is named
+and checks every target's bodies either way
 ([multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation));
 today an absent `--target` checks target-neutrally and realizes the host, and
 the board's pipeline route items close that gap.
