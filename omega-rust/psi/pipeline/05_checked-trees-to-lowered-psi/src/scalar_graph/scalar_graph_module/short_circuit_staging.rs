@@ -528,7 +528,8 @@ impl GraphEmission<'_> {
             }
             // Dispatch continuations carry their own parameter-only blocks;
             // a staged short-circuit prefix never selects one.
-            LoweredScalarBranchTerminator::CaseDispatch { .. } => {
+            LoweredScalarBranchTerminator::CaseDispatch { .. }
+            | LoweredScalarBranchTerminator::CaseDispatchSplit { .. } => {
                 return unsupported("case dispatch does not stage through carried bindings");
             }
         };

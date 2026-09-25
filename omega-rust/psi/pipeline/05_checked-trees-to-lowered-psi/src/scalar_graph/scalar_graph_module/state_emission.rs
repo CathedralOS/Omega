@@ -731,6 +731,13 @@ impl GraphEmission<'_> {
                     frontier_lower_bound: crash.frontier_lower_bound.clone(),
                 }
             }
+            // The total split is produced only by the attached-unit call
+            // completion, which emits it through its own staged path.
+            LoweredScalarBranchTerminator::CaseDispatchSplit { .. } => {
+                return unsupported(
+                    "case split dispatch requires the attached unit completion route",
+                );
+            }
         };
         let erased_scalar_formals = if index == 0 && loop_plan.is_none() {
             Vec::new()
