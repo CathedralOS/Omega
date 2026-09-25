@@ -96,11 +96,8 @@ machine Main::main(&mut self) reaches Console {
 
 // --- The grammar policy (std layout vocabulary, inlined) -----------------
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-domain u64::FieldSize requires self <= 4096;
-domain u64::FieldAlign requires 1 <= self && self <= 16;
-domain u64::FieldCount requires self <= 32;
-data SchemaField { size: u64 in FieldSize; align: u64 in FieldAlign; number: i64; kind: FieldKind; }
-data Schema { fields: [SchemaField; 32]; field_count: u64 in FieldCount; }
+data SchemaField where size <= 4096, 1 <= align, align <= 16 { size: u64; align: u64; number: i64; kind: FieldKind; }
+data Schema where field_count <= 32 { fields: [SchemaField; 32]; field_count: u64; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
@@ -118,18 +115,24 @@ machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
     self.evaluate(schema, 128)
 }
 
-machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+machine CompactBinary::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+requires 1 <= fuel
+requires fuel <= 128
 terminates by fuel;
 {
     transition { _ -> fill(schema, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state fill(&mut self, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    requires 1 <= fuel
+    requires fuel <= 128 {
         transition fuel > 1 && index < 32 && index < schema.field_count {
             true -> place(schema, fuel - 1, index)
             _ -> done(schema)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state place(&mut self, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    requires 1 <= fuel
+    requires fuel <= 128 {
         self.tag = (schema.fields[index].number as u64 in Wrapping) as u64;
         self.plans[index] = field_plan(schema.fields[index].kind, self.tag);
         transition fuel > 1 { true -> fill(schema, fuel - 1, index + 1) _ -> done(schema) }
