@@ -200,3 +200,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T12:56:33Z	01285e7ce9	leaf/bound-field-resolution-index	coordinator	projected bound-field type resolution position roster
 2026-09-25T13:07:47Z	1336003352	leaf/result-arm-prefix-sharing	coordinator	collected result-arm write prefixes + per-state root_is_current index
 2026-09-25T13:25:56Z	aa91745f6b	leaf/statement-prefix-collections	coordinator	boundary prefix queries served from per-state collections
+2026-09-25T13:41:16Z	54ac3f7d96	leaf/operational-verdict-memo	coordinator	memoize direct operational verdicts within a plan build
