@@ -8,13 +8,18 @@ use crate::{
     value_custody::atomic_operations, value_custody::expression_types, value_custody::placed_views,
     value_custody::places, value_custody::struct_literals,
 };
+use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-pub(super) fn validate(
-    scope: &StatementScope<'_>,
+pub(super) fn validate<'a, 'p>(
+    scope: &StatementScope<'a>,
     outputs: &mut StatementOutputs<'_>,
     statement: &StatementNode,
     direct_written: Option<Vec<String>>,
+    bound_lookup: &mut (
+        &'p TypedTrees,
+        Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
+    ),
 ) {
     let StatementNode::Assignment(assignment) = statement else {
         unreachable!("dispatched assignment_statements")
@@ -83,6 +88,7 @@ pub(super) fn validate(
             state,
             assignment.target,
             assignment.value,
+            bound_lookup,
             diagnostics,
         );
     }

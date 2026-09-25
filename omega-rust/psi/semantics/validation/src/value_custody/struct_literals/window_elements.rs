@@ -9,12 +9,16 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 /// The range's value is an array, not one scalar element or the whole backing
 /// array. Enforce its element type for ordinary mutable writes as well as
 /// write-only writes; permission and selector bounds remain separate checks.
-pub(crate) fn validate_array_window_elements(
+pub(crate) fn validate_array_window_elements<'p>(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     target: ExpressionHandle,
     value: ExpressionHandle,
+    bound_lookup: &mut (
+        &'p TypedTrees,
+        Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>>,
+    ),
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
@@ -23,8 +27,9 @@ pub(crate) fn validate_array_window_elements(
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return;
     };
-    let bound_lookup =
-        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
+    let bound_lookup = bound_lookup.1.get_or_insert_with(|| {
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(bound_lookup.0)
+    });
     let Some(collection_type) = crate::value_custody::places::declared_place_type(
         program,
         machine,
@@ -57,12 +62,12 @@ pub(crate) fn validate_array_window_elements(
             _ => return,
         };
     let start = if range.start.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
+        crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.start)
     } else {
         Some(0)
     };
     let end = if range.end.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end)
+        crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.end)
             .and_then(|end| {
                 if range.end_inclusive {
                     end.checked_add(1)
