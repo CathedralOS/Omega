@@ -769,17 +769,15 @@ pub(crate) fn construct_integer_cast(
             cast.domain,
         ));
     }
-    // A saturating conversion composes only for unsigned narrowing pairs:
-    // the clamp `min(value, target_max)` is `value - (value sat_sub
-    // target_max)`, an ordinary arithmetic spelling at the source width.
-    // Any signed carrier has no such composition, so those spellings keep
-    // having no checked cast kind.
+    // A saturating conversion composes for every fixed-integer pair: the
+    // clamp is spelled with total arithmetic on the source carrier and the
+    // lowered stage routes the clamped value through the wrapping
+    // conversion's mask-and-halves crossing, whose exact casts carry their
+    // own bound evidence.
     if cast.domain == ArithmeticDomain::Saturating
         && is_integer(source_type)
         && source_type != PrimitiveType::Addr
         && target_type != PrimitiveType::Addr
-        && !source_type.is_signed_integer()
-        && !target_type.is_signed_integer()
     {
         return Some((
             CheckedScalarExpression::IntegerSaturatingCast {
