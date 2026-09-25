@@ -7,6 +7,7 @@
 //! Declared singleton ranges on parameters/fields do not become static values.
 //! An immutable parameter also carries the literal comparisons its owning
 //! `requires` clause states: every arrival proves them and nothing rewrites it.
+//! A field read carries its data's `where` facts, which every write preserves.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, ProofFact, SignatureContractKind, State, TypeReferenceHandle, TypeReferenceNode,
@@ -334,10 +335,23 @@ fn bounds(
                 ..declared
             })
         }
-        ExpressionNode::Member(_) => type_bounds(
-            program,
-            fields::type_reference(program, state?, expression, declared_mutable_leaves)?,
-        ),
+        ExpressionNode::Member(_) => {
+            let declared = type_bounds(
+                program,
+                fields::type_reference(program, state?, expression, declared_mutable_leaves)?,
+            )?;
+            // The owning data's `where` facts bound every legal read of the
+            // field: each write must preserve them.
+            let standing = crate::proof_contracts::default_domains::where_fact_interval(
+                program, machine, state, expression,
+            );
+            Some(Bounds {
+                interval: standing.map_or(declared.interval, |facts| {
+                    declared.interval.intersect(facts)
+                }),
+                ..declared
+            })
+        }
         ExpressionNode::Binary(binary)
             if matches!(
                 binary.operator,
