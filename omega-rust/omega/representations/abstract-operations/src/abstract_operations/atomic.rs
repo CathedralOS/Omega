@@ -39,8 +39,8 @@ use language_core::atomic::{
     AtomicCompareExchangeOnceResultCustody, AtomicExpressionResultCustody, AtomicOrderingPlan,
     MemoryOrdering,
 };
-use semantic_vocabulary::{BlockId, OperationId, PlaceId, ValueId};
-use terminal_psi::StructuralOperationResult;
+use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralFieldId, ValueId};
+use terminal_psi::{StructuralOperationResult, StructuralPathSegment};
 
 use crate::{AbstractOperation, AbstractResult};
 
@@ -186,11 +186,24 @@ pub enum AtomicCoherenceViolation {
     ModificationAfter(AtomicModificationAfterViolation),
 }
 
+/// The exact atomic location one event accesses: a scalar field of the
+/// record a static carrier path selects beneath a root place. Atomic cells
+/// are record fields, so this is the same (root, path, field) triple a scalar
+/// field store names. Two events share a modification order exactly when
+/// their locations are equal; distinct fields or elements beneath one root
+/// are distinct locations.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AbstractAtomicLocation {
+    pub root: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub field: StructuralFieldId,
+}
+
 /// One normalized atomic memory event.
 ///
-/// `place` names the exact atomic location whose per-location modification
-/// order the event joins; a fence accesses no place because it orders events
-/// rather than observing or modifying one. This is a semantic event, not a
+/// `location` names the exact atomic location whose per-location
+/// modification order the event joins; a fence accesses no location because
+/// it orders events rather than observing or modifying one. This is a semantic event, not a
 /// target instruction: realization may implement an admitted ordering with a
 /// stronger instruction, but may not weaken it or substitute a separately
 /// loaded prior for the instruction-observed one.
@@ -198,14 +211,14 @@ pub enum AtomicCoherenceViolation {
 pub enum AbstractAtomicEvent {
     /// Observe the resident under `ordering`.
     Load {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         ordering: MemoryOrdering,
         result: AbstractResult,
     },
     /// Replace the resident with `value` under `ordering`; produces no
     /// result value.
     Store {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         ordering: MemoryOrdering,
         value: ValueId,
     },
@@ -213,7 +226,7 @@ pub enum AbstractAtomicEvent {
     /// the instruction observed and the resident becomes
     /// `operation(prior, operand)`.
     ReadModifyWrite {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         operation: AbstractAtomicReadModifyWrite,
         ordering: MemoryOrdering,
         operand: ValueId,
@@ -222,7 +235,7 @@ pub enum AbstractAtomicEvent {
     /// Exchange the resident for `value` under `ordering`; `prior` binds the
     /// displaced resident the instruction observed.
     Swap {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         ordering: MemoryOrdering,
         value: ValueId,
         prior: AbstractResult,
@@ -233,7 +246,7 @@ pub enum AbstractAtomicEvent {
     /// applies `success`; the read-only failure applies `failure`, which
     /// cannot publish and cannot exceed `success`.
     CompareExchange {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         success: MemoryOrdering,
         failure: MemoryOrdering,
         expected: ValueId,
@@ -248,7 +261,7 @@ pub enum AbstractAtomicEvent {
     /// and a decisive operation, two-arm shape, or sibling outcome identity
     /// cannot substitute under an unchanged ordering plan.
     CompareExchangeOnce {
-        place: PlaceId,
+        location: AbstractAtomicLocation,
         success: MemoryOrdering,
         failure: MemoryOrdering,
         expected: ValueId,
@@ -265,18 +278,24 @@ pub enum AbstractAtomicEvent {
 }
 
 impl AbstractAtomicEvent {
-    /// The place whose modification order this event joins. A fence joins no
-    /// modification order because it accesses no place.
-    pub const fn place(&self) -> Option<PlaceId> {
+    /// The location whose modification order this event joins. A fence joins
+    /// no modification order because it accesses no location.
+    pub const fn location(&self) -> Option<&AbstractAtomicLocation> {
         match self {
-            Self::Load { place, .. }
-            | Self::Store { place, .. }
-            | Self::ReadModifyWrite { place, .. }
-            | Self::Swap { place, .. }
-            | Self::CompareExchange { place, .. }
-            | Self::CompareExchangeOnce { place, .. } => Some(*place),
+            Self::Load { location, .. }
+            | Self::Store { location, .. }
+            | Self::ReadModifyWrite { location, .. }
+            | Self::Swap { location, .. }
+            | Self::CompareExchange { location, .. }
+            | Self::CompareExchangeOnce { location, .. } => Some(location),
             Self::Fence { .. } => None,
         }
+    }
+
+    /// The root place the event's location lies beneath: the structural
+    /// custody the event keeps live.
+    pub fn place(&self) -> Option<PlaceId> {
+        self.location().map(|location| location.root)
     }
 
     /// The retained proof-static ordering plan. A fence has no plan
@@ -446,18 +465,23 @@ pub fn happens_before_atomic_coherence_violation(
     // modification-order tail is the union of its predecessors' exits; a
     // write inside the block replaces the tail with itself, since every
     // path through the block runs the whole sequence.
-    let mut entry_latest: BTreeMap<BlockId, BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>> =
-        BTreeMap::new();
-    let mut exit_latest: BTreeMap<BlockId, BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>> =
-        BTreeMap::new();
+    let mut entry_latest: BTreeMap<
+        BlockId,
+        BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
+    > = BTreeMap::new();
+    let mut exit_latest: BTreeMap<
+        BlockId,
+        BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
+    > = BTreeMap::new();
     loop {
         let mut changed = false;
         for (block, operations) in blocks {
-            let mut latest: BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>> = BTreeMap::new();
+            let mut latest: BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>> =
+                BTreeMap::new();
             for predecessor in predecessors.get(block).into_iter().flatten() {
-                for (place, writes) in exit_latest.get(predecessor).into_iter().flatten() {
+                for (location, writes) in exit_latest.get(predecessor).into_iter().flatten() {
                     latest
-                        .entry(*place)
+                        .entry(location.clone())
                         .or_default()
                         .extend(writes.iter().copied());
                 }
@@ -472,9 +496,9 @@ pub fn happens_before_atomic_coherence_violation(
                     continue;
                 };
                 if event.joins_modification_order()
-                    && let Some(place) = event.place()
+                    && let Some(location) = event.location()
                 {
-                    exit.insert(place, BTreeSet::from([(*block, index)]));
+                    exit.insert(location.clone(), BTreeSet::from([(*block, index)]));
                 }
             }
             if exit_latest.get(block) != Some(&exit) {
@@ -528,9 +552,9 @@ pub fn happens_before_atomic_coherence_violation(
                 return Some((*block, index, violation));
             }
             if event.joins_modification_order()
-                && let Some(place) = event.place()
+                && let Some(location) = event.location()
             {
-                latest.insert(place, BTreeSet::from([(*block, index)]));
+                latest.insert(location.clone(), BTreeSet::from([(*block, index)]));
             }
         }
     }
@@ -544,15 +568,15 @@ fn reads_from_violation(
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
-    latest: &BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>,
+    latest: &BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Option<AtomicReadsFromViolation> {
-    let Some(place) = event.place() else {
+    let Some(location) = event.location() else {
         return Some(AtomicReadsFromViolation::MissingWitness);
     };
     match witness {
         AtomicReadsFrom::InitialResidency => latest
-            .get(&place)
+            .get(location)
             .is_some_and(|writes| !writes.is_empty())
             .then_some(AtomicReadsFromViolation::InitialResidencyAfterWrite),
         AtomicReadsFrom::Write { operation: claimed } => {
@@ -560,7 +584,7 @@ fn reads_from_violation(
             else {
                 return Some(AtomicReadsFromViolation::UnresolvedObservedWrite { claimed });
             };
-            if resolved.place() != Some(place) || !resolved.joins_modification_order() {
+            if resolved.location() != Some(location) || !resolved.joins_modification_order() {
                 return Some(AtomicReadsFromViolation::WriteOutsideModificationOrder { claimed });
             }
             // The claimed write must happen before this observation: a
@@ -577,7 +601,7 @@ fn reads_from_violation(
             if !happens_before {
                 return Some(AtomicReadsFromViolation::ObservedWriteNotHappensBefore { claimed });
             }
-            (latest.get(&place) != Some(&BTreeSet::from([(*writer, *position)])))
+            (latest.get(location) != Some(&BTreeSet::from([(*writer, *position)])))
                 .then_some(AtomicReadsFromViolation::ObservedWriteOverwritten { claimed })
         }
     }
@@ -590,15 +614,15 @@ fn modification_after_violation(
     block: BlockId,
     index: usize,
     events: &BTreeMap<OperationId, Vec<(BlockId, usize, &AbstractAtomicEvent)>>,
-    latest: &BTreeMap<PlaceId, BTreeSet<(BlockId, usize)>>,
+    latest: &BTreeMap<AbstractAtomicLocation, BTreeSet<(BlockId, usize)>>,
     dominators: &BTreeMap<BlockId, BTreeSet<BlockId>>,
 ) -> Option<AtomicModificationAfterViolation> {
-    let Some(place) = event.place() else {
+    let Some(location) = event.location() else {
         return Some(AtomicModificationAfterViolation::MissingPredecessor);
     };
     match predecessor {
         AtomicModificationAfter::InitialResidency => latest
-            .get(&place)
+            .get(location)
             .is_some_and(|writes| !writes.is_empty())
             .then_some(AtomicModificationAfterViolation::InitialResidencyAfterWrite),
         AtomicModificationAfter::Write { operation: claimed } => {
@@ -606,7 +630,7 @@ fn modification_after_violation(
             else {
                 return Some(AtomicModificationAfterViolation::UnresolvedPredecessor { claimed });
             };
-            if resolved.place() != Some(place) || !resolved.joins_modification_order() {
+            if resolved.location() != Some(location) || !resolved.joins_modification_order() {
                 return Some(
                     AtomicModificationAfterViolation::PredecessorOutsideModificationOrder {
                         claimed,
@@ -629,7 +653,7 @@ fn modification_after_violation(
                     AtomicModificationAfterViolation::PredecessorNotHappensBefore { claimed },
                 );
             }
-            (latest.get(&place) != Some(&BTreeSet::from([(*writer, *position)])))
+            (latest.get(location) != Some(&BTreeSet::from([(*writer, *position)])))
                 .then_some(AtomicModificationAfterViolation::PredecessorNotLatest { claimed })
         }
     }
@@ -640,9 +664,10 @@ mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
     use super::{
-        AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,
-        AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
-        AtomicReadsFrom, AtomicReadsFromViolation, happens_before_atomic_coherence_violation,
+        AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicLocation,
+        AbstractAtomicReadModifyWrite, AtomicCoherenceViolation, AtomicModificationAfter,
+        AtomicModificationAfterViolation, AtomicReadsFrom, AtomicReadsFromViolation,
+        happens_before_atomic_coherence_violation,
     };
     use crate::{AbstractOperation, AbstractResult};
     use language_core::atomic::{
@@ -650,7 +675,7 @@ mod tests {
     };
     use semantic_vocabulary::{
         BlockId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId, ScalarType,
-        StructuralTypeId, ValueId,
+        StructuralFieldId, StructuralTypeId, ValueId,
     };
     use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
 
@@ -687,6 +712,15 @@ mod tests {
         PlaceId::new(raw).expect("test place identities are nonzero")
     }
 
+    /// The one scalar field every test location names beneath its root.
+    fn at(root: PlaceId) -> AbstractAtomicLocation {
+        AbstractAtomicLocation {
+            root,
+            path: Vec::new(),
+            field: StructuralFieldId::new(1).expect("test field identities are nonzero"),
+        }
+    }
+
     fn value(raw: u64) -> ValueId {
         ValueId::new(raw).expect("test value identities are nonzero")
     }
@@ -717,7 +751,7 @@ mod tests {
 
     fn load(place: PlaceId, result: u64) -> E {
         E::Load {
-            place,
+            location: at(place),
             ordering: O::NoOrdering,
             result: scalar_result(result),
         }
@@ -725,7 +759,7 @@ mod tests {
 
     fn store(place: PlaceId, stored: u64) -> E {
         E::Store {
-            place,
+            location: at(place),
             ordering: O::NoOrdering,
             value: value(stored),
         }
@@ -864,7 +898,7 @@ mod tests {
         let fetched = atomic(
             12,
             E::ReadModifyWrite {
-                place: location,
+                location: at(location),
                 operation: AbstractAtomicReadModifyWrite::FetchAdd,
                 ordering: O::ReceivePublish,
                 operand: value(13),
@@ -894,13 +928,13 @@ mod tests {
         let stored = writes(10, store(location, 11), M::InitialResidency);
         for observer in [
             E::Swap {
-                place: location,
+                location: at(location),
                 ordering: O::ReceivePublish,
                 value: value(13),
                 prior: scalar_result(14),
             },
             E::CompareExchange {
-                place: location,
+                location: at(location),
                 success: O::ReceivePublish,
                 failure: O::Receive,
                 expected: value(13),
@@ -908,7 +942,7 @@ mod tests {
                 observed: scalar_result(16),
             },
             E::CompareExchangeOnce {
-                place: location,
+                location: at(location),
                 success: O::ReceivePublish,
                 failure: O::Receive,
                 expected: value(13),
@@ -1150,7 +1184,7 @@ mod tests {
             O::GlobalOrder,
         ] {
             let load = AbstractAtomicEvent::Load {
-                place: place(1),
+                location: at(place(1)),
                 ordering,
                 result: scalar_result(2),
             };
@@ -1160,7 +1194,7 @@ mod tests {
                 "load ordering {ordering:?} must replay the source legality matrix"
             );
             let store = AbstractAtomicEvent::Store {
-                place: place(1),
+                location: at(place(1)),
                 ordering,
                 value: value(3),
             };
@@ -1189,7 +1223,7 @@ mod tests {
                 AbstractAtomicReadModifyWrite::FetchAnd,
             ] {
                 let event = AbstractAtomicEvent::ReadModifyWrite {
-                    place: place(1),
+                    location: at(place(1)),
                     operation,
                     ordering,
                     operand: value(2),
@@ -1201,7 +1235,7 @@ mod tests {
                 );
             }
             let swap = AbstractAtomicEvent::Swap {
-                place: place(1),
+                location: at(place(1)),
                 ordering,
                 value: value(4),
                 prior: scalar_result(5),
@@ -1230,7 +1264,7 @@ mod tests {
                 O::GlobalOrder,
             ] {
                 let event = AbstractAtomicEvent::CompareExchange {
-                    place: place(1),
+                    location: at(place(1)),
                     success,
                     failure,
                     expected: value(2),
@@ -1264,7 +1298,7 @@ mod tests {
     #[test]
     fn ordering_plan_reconstructs_the_retained_plan() {
         let load = AbstractAtomicEvent::Load {
-            place: place(1),
+            location: at(place(1)),
             ordering: O::GlobalOrder,
             result: scalar_result(2),
         };
@@ -1273,7 +1307,7 @@ mod tests {
             Some(AtomicOrderingPlan::Load(O::GlobalOrder))
         );
         let once = AbstractAtomicEvent::CompareExchangeOnce {
-            place: place(1),
+            location: at(place(1)),
             success: O::GlobalOrder,
             failure: O::Receive,
             expected: value(2),
@@ -1841,7 +1875,7 @@ mod tests {
     #[test]
     fn single_attempt_requires_canonical_three_case_custody() {
         let legal = AbstractAtomicEvent::CompareExchangeOnce {
-            place: place(1),
+            location: at(place(1)),
             success: O::ReceivePublish,
             failure: O::Receive,
             expected: value(2),
@@ -1851,7 +1885,7 @@ mod tests {
         };
         assert!(legal.custody_is_consistent());
         let substituted = AbstractAtomicEvent::CompareExchangeOnce {
-            place: place(1),
+            location: at(place(1)),
             success: O::ReceivePublish,
             failure: O::Receive,
             expected: value(2),

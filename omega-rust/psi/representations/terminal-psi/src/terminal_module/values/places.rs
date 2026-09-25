@@ -98,9 +98,10 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
 }
 
 /// Whether a carrier path is within the bounded projection grammar the
-/// byte-sequence field stores, structural call arguments and the Omega
-/// backend's field stores currently execute: record fields, optionally
-/// followed by one literal fixed-array index. A bare fixed-array root has no
+/// byte-sequence field stores and structural call arguments currently
+/// execute: record fields, optionally followed by one literal fixed-array
+/// index. (The Omega backend executes scalar field stores over the general
+/// `is_structural_scalar_store_path` carrier.) A bare fixed-array root has no
 /// record-field owner, so its carrier path is the literal element index
 /// alone. Anything after the first index -- a second index or a further
 /// field -- is excluded by the grammar itself, not by path resolution, and

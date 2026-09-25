@@ -36,7 +36,6 @@ pub(crate) fn expected_definitions(
         | O::ByteSequenceLength { result, .. }
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
-        | O::IndexedPrimitiveRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -220,7 +219,6 @@ pub(crate) fn expected_uses(
             .collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
-        O::IndexedPrimitiveRead { index, .. } => vec![index.value],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
@@ -323,8 +321,16 @@ pub(crate) fn expected_uses(
         }
         _ => Vec::new(),
     };
+    // Runtime-selected path elements read their selectors after the direct
+    // operands, as the unit's own use index records them.
     values
         .into_iter()
+        .chain(
+            operation
+                .runtime_indices()
+                .into_iter()
+                .map(|(index, _)| index),
+        )
         .map(|value| ValueUse { value, block, node })
         .collect()
 }

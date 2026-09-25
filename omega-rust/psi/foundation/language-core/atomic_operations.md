@@ -45,6 +45,17 @@ cells, so the source's shared-receiver form (`shared_receiver_atomic_store`)
 still stops at checked planning. Fences and single-attempt compare-exchange
 have no producer yet.
 
+Omega's terminal-to-abstract lowering (`machine/operation/atomic_events.rs`)
+keeps each Terminal event as one `AbstractOperation::AtomicEvent` at the same
+`AbstractAtomicLocation` (root place, carrier path, field). It adds the
+`reads_from` and `modification_after` edges that the optimization unit's
+happens-before replay rechecks. A forward reaching-writes pass over the
+activation names the one write each event observes or follows. Lowering
+refuses rather than guessing when that write is ambiguous. That happens at a
+join of distinct writes, at a non-atomic write or write-authority loan of the
+root between them, when an edge hands the root to a block parameter, or when
+the root is not a machine parameter.
+
 Instruction mappings and serial differential tests are not proofs of concurrent
 observations. Complete memory-model/fence axioms, target-refinement proofs,
 contention coverage with real concurrent activation, and proof-scoped weaker

@@ -12,12 +12,16 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::proc(&self, total: i32 [0..=1000], freq: i32 [0..=1000]) -> i32 {
+machine Main::proc(&self, total: i32, freq: i32) -> i32
+requires 0 <= total && total <= 1000 && 0 <= freq && freq <= 1000
+{
     transition freq > 0 {
         true -> work(total, freq)
         false -> 0
     }
-    state work(&self, total: i32 [0..=1000], freq: i32 [1..=1000]) -> i32 {
+    state work(&self, total: i32, freq: i32) -> i32
+    requires 0 <= total && total <= 1000 && 1 <= freq && freq <= 1000
+    {
         let q: i32 [0..=1000] = total / freq;
         let scaled: i32 [0..=1000000] = q * freq;
         // `rem`'s true bound needs the Euclidean identity (total - q*freq =

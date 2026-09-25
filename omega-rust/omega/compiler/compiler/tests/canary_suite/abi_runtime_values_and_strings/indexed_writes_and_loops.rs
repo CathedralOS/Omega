@@ -988,3 +988,104 @@ fn native_dungeon_direct_movement_dispatch_runs() {
 
     let _ = fs::remove_dir_all(&package_dir);
 }
+
+/// A primitive store through two runtime elements (`grid[i][j] = 70`) and a
+/// scalar field store whose carrier crosses a runtime element
+/// (`rooms[index].exit_count = 7`) run natively on the host and compile for
+/// both Linux ISAs. Each selector scales into the address as an
+/// `(index, stride)` run carrying its verified obligation; the neighbors of
+/// both written elements stay zero.
+#[test]
+fn runtime_element_paths_store_natively_and_cross_compile() {
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-runtime-element-path-stores-{}",
+        std::process::id()
+    ));
+    for target in [crate::native_hosted_target(), "linux_x86_64", "linux_arm64"] {
+        let _ = fs::remove_dir_all(&scratch);
+        let source = scratch.join("src");
+        let output = scratch.join("out");
+        fs::create_dir_all(&source).expect("create runtime element-path source directory");
+        fs::write(
+            source.join("main.omg"),
+            r#"use omega::language::std::console;
+use omega::language::core::binding;
+
+data Room {
+    tag: u8;
+    exit_count: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    grid: [[i32; 4]; 3];
+    rooms: [Room; 2];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let i: u64 [0..=2] = 1;
+    let j: u64 [0..=3] = 2;
+    self.grid[i][j] = 70;
+    let index: u64 [0..=1] = 1;
+    self.rooms[index].exit_count = 7;
+    transition self.grid[1][2] == 70 {
+        true -> grid_neighbor()
+        false -> bad()
+    }
+    state grid_neighbor(&mut self) {
+        transition self.grid[1][3] == 0 {
+            true -> room()
+            false -> bad()
+        }
+    }
+    state room(&mut self) {
+        transition self.rooms[1].exit_count == 7 {
+            true -> room_neighbor()
+            false -> bad()
+        }
+    }
+    state room_neighbor(&mut self) {
+        transition self.rooms[0].exit_count == 0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        )
+        .expect("write runtime element-path canary");
+        fs::write(
+            source.join("build.omg"),
+            crate::hosted_main_program_entry_build(target),
+        )
+        .expect("write runtime element-path target");
+        let compilation = compile(CanaryCompileSpec {
+            root_path: source.join("main.omg"),
+            build_dir: Some(output.clone()),
+            target_name: Some(target.into()),
+            product: CanaryCompileProduct::NativeArtifactAndPublish,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!("runtime element-path stores should compile for {target}: {diagnostics:?}")
+        });
+        if target != crate::native_hosted_target() {
+            continue;
+        }
+        let executable = compilation
+            .checked_native_executable_path()
+            .expect("runtime element-path canary should retain its executable receipt");
+        let run = Command::new(executable)
+            .output()
+            .expect("runtime element-path canary should run");
+        assert_eq!(
+            run.status.code(),
+            Some(70),
+            "expected both runtime-element stores to land on their exact elements and exit 70, got {:?}\nstderr:\n{}",
+            run.status.code(),
+            String::from_utf8_lossy(&run.stderr)
+        );
+    }
+    let _ = fs::remove_dir_all(&scratch);
+}

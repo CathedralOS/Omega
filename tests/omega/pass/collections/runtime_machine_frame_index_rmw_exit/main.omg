@@ -14,12 +14,16 @@ machine Main::main(&mut self) {
     self.arr[2] = 4;
     transition { _ -> self.bump(2) }
 }
-machine Main::bump(&mut self, k: u64 [0..=3]) reaches Console {
+machine Main::bump(&mut self, k: u64) reaches Console
+requires k <= 3
+{
     transition self.arr[k] < 10 {
         true -> go(k)
         false -> full()
     }
-    state go(&mut self, k: u64 [0..=3]) {
+    state go(&mut self, k: u64)
+    requires k <= 3
+    {
         self.arr[k] = self.arr[k] + 1;
         transition self.arr[2] == 5 {
             true -> yes()

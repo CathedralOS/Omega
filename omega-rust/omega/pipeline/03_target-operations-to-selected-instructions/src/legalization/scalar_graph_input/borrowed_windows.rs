@@ -72,7 +72,7 @@ pub(in crate::legalization) fn extent(
     let mut full = path.to_vec();
     full.push(StructuralPathSegment::Field(declaration.identity.clone()));
     let (endpoint, byte_offset, indices) =
-        structural_reference_input::leaf_copy_projection(root.structural_type, &full, types)
+        structural_reference_input::runtime_projection(root.structural_type, &full, types)
             .ok_or_else(invalid)?;
     if endpoint != field_type
         || !indices.is_empty()

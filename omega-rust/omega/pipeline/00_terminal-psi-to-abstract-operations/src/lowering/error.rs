@@ -46,22 +46,18 @@ pub enum LoweringError {
     /// leaf (`view[i].value`), but Omega's abstract element read addresses a
     /// scalar element by index and stride only; it has no field leaf yet.
     UnsupportedElementViewFieldRead(semantic_vocabulary::OperationId),
-    /// A verified atomic access whose normalized abstract event is not
-    /// produced here yet; it refuses rather than splitting into a read and a
-    /// store.
+    /// A verified atomic access whose root is not a machine structural
+    /// parameter: a block parameter may alias the same storage under another
+    /// place identity, splitting one modification order in two.
     UnsupportedAtomicAccess(semantic_vocabulary::OperationId),
-    /// A runtime-indexed fixed-array element read did not rejoin its readable
-    /// source, element type, or `u64` selector.
-    InvalidIndexedPrimitiveRead(semantic_vocabulary::OperationId),
-    /// A primitive-leaf projection with a field or a further index after a
-    /// runtime-selected element: the verifier admitted it, but the abstract
-    /// operations take at most one trailing runtime element.
-    UnsupportedRuntimeIndexProjection(semantic_vocabulary::OperationId),
-    /// A scalar field store whose verified carrier leaves the bounded grammar
-    /// the backend's field stores execute (record fields, then at most one
-    /// literal element): a field after an element, a second element, or a
-    /// runtime element. Terminal admits the general carrier.
-    UnsupportedScalarFieldCarrier(semantic_vocabulary::OperationId),
+    /// A verified atomic access whose location, result, or ordering did not
+    /// rejoin its declared scalar field and normalized event.
+    VerifiedAtomicAccessMalformed(semantic_vocabulary::OperationId),
+    /// An atomic event with no single happens-before latest write to its
+    /// location in this activation (a join of distinct writes, or a
+    /// non-atomic write or write-authority loan between), so no retained
+    /// reads-from or modification-after edge could be checked.
+    UnsupportedAtomicCoherence(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

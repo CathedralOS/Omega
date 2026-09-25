@@ -284,7 +284,7 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
         else {
             panic!("store");
         };
-        *path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(element)];
+        *path = vec![terminal_psi::StructuralPathSegment::FixedIndex(element)];
         let identity = changed_identity(projected);
         assert_ne!(baseline.identity, identity);
         assert_ne!(previous, identity);

@@ -124,6 +124,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                 source.blocks[0].instructions[1].kind = if primitive {
                     LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
                         path: Vec::new(),
+                        indices: Vec::new(),
                         byte_offset: 0,
                         destination,
                         value: abstract_operations::AbstractResult {
@@ -136,6 +137,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     LegalizedScalarInstructionKind::StructuralScalarFieldStore {
                         destination,
                         path: Vec::new(),
+                        indices: Vec::new(),
                         field,
                         value: abstract_operations::AbstractResult {
                             value: ValueId::new(1).unwrap(),

@@ -18,7 +18,7 @@ use terminal_psi::{
 
 #[test]
 fn projected_primitive_publication_retains_path_and_requires_native_replay() {
-    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    use terminal_psi::StructuralPathSegment as Segment;
     use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
     let (mut function, mut target) = field_fixture(scalar);
@@ -40,6 +40,7 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         result,
         source: parameter.place,
         path,
+        indices: Vec::new(),
     };
     let element = StructuralTypeId::new(2).unwrap();
     target.graph.structural_types = vec![
@@ -84,6 +85,98 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         !retained(&invalid, &invalid.operations[0], &target),
         "matching invalid indices do not establish a valid primitive subject"
     );
+
+    // A runtime-selected element publishes the same subject, and the target
+    // traversal must name the path's own selector.
+    let selector = ValueId::new(7).unwrap();
+    let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
+    let runtime = vec![Segment::RuntimeIndex {
+        index: selector,
+        obligation,
+    }];
+    let mut runtime_function = function.clone();
+    let AbstractOperation::PrimitiveScalarRead { path, .. } = &mut runtime_function.operations[0]
+    else {
+        panic!("read");
+    };
+    *path = runtime.clone();
+    let traversal = |value| target_operations::TargetStructuralRuntimeIndex {
+        operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: value,
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        },
+        stride: 1,
+    };
+    let TargetUnitOperation::PrimitiveScalarRead { path, indices, .. } =
+        &mut target.graph.blocks[0].operations[0]
+    else {
+        panic!("read");
+    };
+    *path = runtime;
+    *indices = vec![traversal(selector)];
+    assert!(retained(
+        &runtime_function,
+        &runtime_function.operations[0],
+        &target
+    ));
+    let mut substituted = target.clone();
+    let TargetUnitOperation::PrimitiveScalarRead { indices, .. } =
+        &mut substituted.graph.blocks[0].operations[0]
+    else {
+        panic!("read");
+    };
+    *indices = vec![traversal(ValueId::new(8).unwrap())];
+    assert!(
+        !retained(
+            &runtime_function,
+            &runtime_function.operations[0],
+            &substituted
+        ),
+        "a traversal of another selector is not this read's element"
+    );
+    let row = |role| selected_instructions::SelectedMemoryAccess {
+        instruction: selected_instructions::SelectedInstructionId(0),
+        origin: selected_instructions::SelectedMemoryAccessOrigin::Operation(identity),
+        place: parameter.place,
+        byte_offset: 0,
+        byte_count: 1,
+        role,
+    };
+    let element =
+        |index, obligation| selected_instructions::SelectedMemoryAccessRole::ReadIndexedPrimitive {
+            index,
+            stride: 1,
+            extent: 2,
+            obligation,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                b"element",
+            ),
+        };
+    assert!(super::runtime_footprint_retained(
+        &runtime_function.operations[0],
+        &[row(element(selector, obligation))]
+    ));
+    for rows in [
+        vec![],
+        vec![row(
+            selected_instructions::SelectedMemoryAccessRole::ReadPlace,
+        )],
+        vec![row(element(ValueId::new(8).unwrap(), obligation))],
+        vec![row(element(
+            selector,
+            semantic_vocabulary::ObligationId::new(4).unwrap(),
+        ))],
+        vec![
+            row(element(selector, obligation)),
+            row(element(selector, obligation)),
+        ],
+    ] {
+        assert!(
+            !super::runtime_footprint_retained(&runtime_function.operations[0], &rows),
+            "the footprint names each runtime element exactly once: {rows:?}"
+        );
+    }
 }
 
 fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) {

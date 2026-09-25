@@ -7,6 +7,21 @@ pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<Optimi
             support,
         });
     }
+    // Every runtime-selected path element carries a bound the operation
+    // owns; the surviving-frontier check rejoins each to its verified owner.
+    if let Some(support) = operation.psi_operation() {
+        facts.extend(
+            operation
+                .runtime_indices()
+                .into_iter()
+                .map(
+                    |(_, obligation)| OptimizationFact::OperationObligationReference {
+                        obligation,
+                        support,
+                    },
+                ),
+        );
+    }
     match operation {
         AbstractOperation::EstablishRecord {
             psi_operation,
@@ -98,22 +113,12 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
-        | O::WriteOnlyIndexedPrimitiveStore {
-            psi_operation,
-            obligation,
-            ..
-        }
         | O::ElementViewSubslice {
             psi_operation,
             obligation,
             ..
         }
         | O::ElementViewRead {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::IndexedPrimitiveRead {
             psi_operation,
             obligation,
             ..

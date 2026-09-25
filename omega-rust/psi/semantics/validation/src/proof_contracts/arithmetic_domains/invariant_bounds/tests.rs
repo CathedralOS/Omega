@@ -550,6 +550,45 @@ fn an_immutable_parameter_carries_its_own_requires_comparisons() {
 }
 
 #[test]
+fn unsigned_masks_and_in_width_shifts_bound_their_results() {
+    let interval = |source: &str| {
+        let program = crate::front_end::typed_program(source);
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::Expression(expression) =
+            program.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("expression statement");
+        };
+        bounds(&program, machine, Some(state), expression, false).map(|value| value.interval)
+    };
+    let closed = |low, high| Interval {
+        low: Some(low),
+        high: Some(high),
+    };
+    assert_eq!(
+        interval(
+            "machine value(input: u64, depth: u64) -> u64 requires depth <= 3 { (input >> (39 - 9 * depth)) & 511 }"
+        ),
+        Some(closed(0, 511))
+    );
+    assert_eq!(
+        interval("machine value(input: u16) -> u16 { input >> 4 }"),
+        Some(closed(0, 4095))
+    );
+    // A count that may reach the carrier width, or a signed mask, has no
+    // interval here.
+    assert_eq!(
+        interval("machine value(input: u16, count: u16) -> u16 { input >> count }"),
+        None
+    );
+    assert_eq!(
+        interval("machine value(input: i64) -> i64 { input & 511 }"),
+        None
+    );
+}
+
+#[test]
 fn immutable_arithmetic_uses_existing_interval_transfers() {
     for (expression, expected) in [
         ("input % 256u16", (0, 255)),

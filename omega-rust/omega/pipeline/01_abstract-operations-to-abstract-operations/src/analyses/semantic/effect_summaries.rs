@@ -379,7 +379,6 @@ fn operation_effect(
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
-        | O::WriteOnlyIndexedPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
@@ -408,7 +407,6 @@ fn operation_effect(
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
-        | O::IndexedPrimitiveRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }

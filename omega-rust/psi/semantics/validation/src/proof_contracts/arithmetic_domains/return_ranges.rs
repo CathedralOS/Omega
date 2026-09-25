@@ -51,6 +51,81 @@ pub(crate) fn call_return_type(
     crate::machine_calls::calls::resolved_call_result_type(program, call)
 }
 
+/// The literal comparisons a machine-head callee's `ensures` states about
+/// its reserved `result`. Exit checking proves them on every return, so they
+/// bound each value the call produces exactly as a declared return range does.
+pub(crate) fn ensured_call_result_interval(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+) -> Option<Interval> {
+    use typed_trees::domain::ProofFact;
+    use typed_trees::expression::BinaryOperator;
+    use typed_trees::signature::SignatureContractKind;
+    let (machine, state) =
+        crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
+    if program.machine_states(machine).first()?.symbol != state.symbol {
+        return None;
+    }
+    let mut interval = Interval::UNBOUNDED;
+    let mut bounded = false;
+    let ensures = program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts));
+    for fact in ensures {
+        let ProofFact::Expression(expression) = fact else {
+            continue;
+        };
+        let mut conjuncts = vec![*expression];
+        while let Some(conjunct) = conjuncts.pop() {
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct)
+            else {
+                continue;
+            };
+            if binary.operator == BinaryOperator::And {
+                conjuncts.extend([binary.left, binary.right]);
+                continue;
+            }
+            let builtin = match binary.operator {
+                BinaryOperator::Equal => super::guard_narrowing::has_builtin_equality(
+                    program,
+                    machine,
+                    Some(state),
+                    conjunct,
+                ),
+                _ => super::guard_narrowing::has_builtin_ordering(
+                    program,
+                    machine,
+                    Some(state),
+                    conjunct,
+                ),
+            };
+            if !builtin {
+                continue;
+            }
+            for (subject, operand, subject_on_left) in [
+                (binary.left, binary.right, true),
+                (binary.right, binary.left, false),
+            ] {
+                let names_result = crate::proof_contracts::contract_results::reserved_result_owner(
+                    program, subject,
+                )
+                .is_some_and(|(owner, _)| owner == machine.symbol);
+                if names_result && let Some(value) = super::literal_i64(program, operand) {
+                    interval = interval.intersect(super::guard_narrowing::comparison_interval(
+                        binary.operator,
+                        Interval::constant(value),
+                        subject_on_left,
+                    ));
+                    bounded = true;
+                }
+            }
+        }
+    }
+    bounded.then_some(interval)
+}
+
 thread_local! {
     /// One-level recursion guard for return-range INFERENCE (ch15 stage 2). While
     /// inferring a callee's return interval we analyze its body; if that body

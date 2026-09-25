@@ -1,6 +1,6 @@
 use super::lower_typed_trees;
 use crate::CheckingRequest;
-use crate::tests::front_end::typed_program;
+use crate::tests::front_end::{checked_program_result, typed_program};
 
 fn prove_termination(source: &str) {
     crate::checks::termination::check_machine_termination(&typed_program(source))
@@ -47,7 +47,7 @@ fn requires_establishes_entry_and_exact_backedge_reproves_fixed_endpoints() {
 fn nonzero_floor_uses_requires_without_a_declared_parameter_range() {
     let source = "machine walk(n: u64) requires 5 <= n && n <= 10; terminates by n -> Nat::Descending in 5..=10; -> u64 { transition n > 5 { true -> walk(n - 1) false -> n } }";
     prove(source);
-    super::reject_descent(&source.replace("n > 5", "n >= 5"));
+    super::reject_back_edge(&source.replace("n > 5", "n >= 5"));
     reject(&source.replace("in 5..=10", "in 6..=10"));
     reject(&source.replace("in 5..=10", "in 5..10"));
 }
@@ -180,15 +180,30 @@ fn selected_arithmetic_and_every_evaluated_prefix_keep_builtin_custody() {
         "operator - u64::subtract(left: u64, right: u64) -> u64;",
         "operator > u64::greater(left: u64, right: u64) -> bool;",
     ] {
-        super::reject_descent(&format!(
+        super::reject_back_edge(&format!(
             "{operator} {declaration} {{ transition n > 5 {{ true -> walk(n - 1) false -> n }} }}"
         ));
     }
-    super::reject_descent(&format!(
-        "operator == u64::equal(left: u64, right: u64) -> bool; {declaration} {{ transition {{ n == 7 && true -> n n > 5 -> walk(n - 1) _ -> n }} }}"
-    ));
-    super::reject_descent(&format!(
-        "operator + u64::add(left: u64, right: u64) -> u64; {declaration} {{ let unrelated: u64 = n + 0; transition n > 5 {{ true -> walk(n - 1) false -> n }} }}"
+    // A selected prefix supplies no fact, yet a builtin arm guard and step
+    // still prove the back-edge on their own.
+    for source in [
+        format!(
+            "operator == u64::equal(left: u64, right: u64) -> bool; {declaration} {{ transition {{ n == 7 && true -> n n > 5 -> walk(n - 1) _ -> n }} }}"
+        ),
+        format!(
+            "operator + u64::add(left: u64, right: u64) -> u64; {declaration} {{ let unrelated: u64 = n + 0; transition n > 5 {{ true -> walk(n - 1) false -> n }} }}"
+        ),
+    ] {
+        checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}\n{diagnostics:#?}"));
+    }
+    // The fallback's step needs the failed first arm, which a selected `==`
+    // cannot supply.
+    let fallback = format!("{declaration} {{ transition {{ n == 5 -> n _ -> walk(n - 1) }} }}");
+    checked_program_result(&fallback)
+        .unwrap_or_else(|diagnostics| panic!("{fallback}\n{diagnostics:#?}"));
+    super::reject_back_edge(&format!(
+        "operator == u64::equal(left: u64, right: u64) -> bool; {fallback}"
     ));
 }
 

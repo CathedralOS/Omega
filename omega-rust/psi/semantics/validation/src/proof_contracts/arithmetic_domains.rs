@@ -72,7 +72,7 @@ pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::immutable_integer_expression_interval;
 pub use invariant_bounds::{
     declared_integer_expression_lands, enforced_integer_type_bounds,
-    immutable_integer_expression_bounds,
+    immutable_integer_expression_bounds, state_parameter_integer_interval,
 };
 pub use monotonic_update::builtin_monotonic_integer_update_bounds;
 pub(crate) use operand_reports::{

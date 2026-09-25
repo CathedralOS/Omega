@@ -1,6 +1,7 @@
 //! Optimizer module role: executable entrance. Exhaustive Terminal-operation routing into exact abstract-operation families.
 
 mod arithmetic;
+mod atomic_events;
 mod boolean;
 mod borrowed_windows;
 mod calls;

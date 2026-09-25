@@ -103,10 +103,7 @@ fn primitive_storage_identity_binds_producer_place_type_and_value() {
                         )
                     }
                     3 => result.value = id(310, ValueId::new),
-                    _ => {
-                        *path =
-                            vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)]
-                    }
+                    _ => *path = vec![terminal_psi::StructuralPathSegment::FixedIndex(1)],
                 },
                 _ => panic!("primitive operation"),
             }

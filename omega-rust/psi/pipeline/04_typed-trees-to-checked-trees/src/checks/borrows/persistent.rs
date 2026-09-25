@@ -392,11 +392,11 @@ fn analyze_persistent_state(
         let initializers =
             crate::borrow::borrow_initializer_expressions(program, target_type, assignment.value);
         let has_only_static_sources = if initializers.is_empty() {
-            is_state_independent_borrow_source(program, assignment.value)
+            is_state_independent_borrow_source(program, state, assignment.value, &mut Vec::new())
         } else {
-            initializers
-                .into_iter()
-                .all(|initializer| is_state_independent_borrow_source(program, initializer))
+            initializers.into_iter().all(|initializer| {
+                is_state_independent_borrow_source(program, state, initializer, &mut Vec::new())
+            })
         };
         let has_only_static_sources = has_only_static_sources
             || source_is_known_static_persistent_place(
@@ -968,25 +968,63 @@ fn immutable_local_index_symbol(
     matches.next().is_none().then_some(symbol)
 }
 
+/// Whether a value's loans all outlive every state, so storing it in a
+/// persistent field borrows nothing the machine could invalidate. `state` is
+/// the state the expression is written in, which an immutable local's name
+/// needs to reach its initializer; `resolving` stops a chain of locals from
+/// revisiting one.
 fn is_state_independent_borrow_source(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
+    resolving: &mut Vec<SymbolHandle>,
 ) -> bool {
     match program.expression_table.expression(expression) {
         typed_trees::expression::ExpressionNode::String(_) => true,
         typed_trees::expression::ExpressionNode::Cast(cast) => {
-            is_state_independent_borrow_source(program, cast.value)
+            is_state_independent_borrow_source(program, state, cast.value, resolving)
         }
         typed_trees::expression::ExpressionNode::Binary(binary) => {
-            is_state_independent_borrow_source(program, binary.left)
-                && is_state_independent_borrow_source(program, binary.right)
+            is_state_independent_borrow_source(program, state, binary.left, resolving)
+                && is_state_independent_borrow_source(program, state, binary.right, resolving)
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            let Some(state) = crate::semantic::calls::find_state(program, call.target_symbol)
+            let Some(callee) = crate::semantic::calls::find_state(program, call.target_symbol)
             else {
                 return false;
             };
-            state_returns_only_static_borrows(program, state, &mut Vec::new())
+            state_returns_only_static_borrows(program, callee, &mut Vec::new())
+        }
+        // An immutable local names the value its `let` bound, so its loans are
+        // that initializer's loans. `let picked: &[u8] in Utf8 = self.pick(f);
+        // self.out = picked;` stores exactly what `self.out = self.pick(f);`
+        // stores, and the persistent-field fence must reach the same verdict
+        // for both. A `let mut` is excluded: a later assignment could point it
+        // at a state-local loan after this read.
+        typed_trees::expression::ExpressionNode::Name(path) => {
+            if !path.symbol.is_valid() || resolving.contains(&path.symbol) {
+                return false;
+            }
+            let Some(initial_value) = program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| match statement {
+                    StatementNode::LocalData(local_data)
+                        if local_data.symbol == path.symbol && !local_data.is_mutable =>
+                    {
+                        Some(local_data.initial_value)
+                    }
+                    _ => None,
+                })
+            else {
+                return false;
+            };
+            resolving.push(path.symbol);
+            let is_static =
+                is_state_independent_borrow_source(program, state, initial_value, resolving);
+            resolving.pop();
+            is_static
         }
         typed_trees::expression::ExpressionNode::ArrayLiteral(_)
         | typed_trees::expression::ExpressionNode::Match(_)
@@ -997,7 +1035,6 @@ fn is_state_independent_borrow_source(
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::Member(_)
         | typed_trees::expression::ExpressionNode::Borrow(_)
-        | typed_trees::expression::ExpressionNode::Name(_)
         | typed_trees::expression::ExpressionNode::Range(_)
         | typed_trees::expression::ExpressionNode::StructLiteral(_)
         | typed_trees::expression::ExpressionNode::Unary(_)
@@ -1032,7 +1069,7 @@ fn state_returns_only_static_borrows(
             |target| match program.statement_table.transition_target(target) {
                 typed_trees::statement::TransitionTargetNode::Value(expression) => {
                     found_value_exit = true;
-                    is_state_independent_borrow_source(program, *expression)
+                    is_state_independent_borrow_source(program, state, *expression, &mut Vec::new())
                 }
                 typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
                     let Some(target_state) =

@@ -57,7 +57,6 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
-    | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
     | AbstractOperation::MoveStructuralField { psi_operation, .. }
     | AbstractOperation::StoreStructuralField { psi_operation, .. }
@@ -91,11 +90,6 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             ..
         }
         | AbstractOperation::IntegerStructuralField {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::IndexedPrimitiveRead {
             psi_operation,
             result,
             ..
@@ -463,6 +457,20 @@ pub(super) fn validate(
             }
             continue;
         }
+        // Every runtime-selected path element names an integer selector the
+        // 64-bit address model can extend; its bound is the operation's own
+        // verified obligation.
+        if !node
+            .operation
+            .runtime_indices()
+            .into_iter()
+            .all(|(index, _)| {
+                matches!(value_type(optimized, index), Some(ScalarType::Integer(integer))
+                if integer.bits() <= 64)
+            })
+        {
+            return Err(LegalizationError::custody());
+        }
         let (operation, result) = admit(node).map_err(|rejection| match rejection {
             NodeRejection::Malformed => LegalizationError::custody(),
             NodeRejection::UnsupportedFamily => LegalizationError::UnsupportedScalarOperation {
@@ -618,30 +626,6 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-            destination,
-            index,
-            value,
-            ..
-        } = &node.operation
-        {
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || !optimized.structural_parameters.contains(destination)
-                || !matches!(
-                    destination.access,
-                    terminal_psi::StructuralAccess::MutableBorrow
-                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                )
-                || value_type(optimized, index.value) != Some(index.scalar_type)
-                || index.scalar_type != ScalarType::Integer(u64_type())
-                || value_type(optimized, value.value) != Some(value.scalar_type)
-                || scalar_shape(value.scalar_type).is_none()
-            {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
         if let AbstractOperation::EstablishByteSequenceLiteral {
             psi_operation,
             place,
@@ -784,15 +768,6 @@ pub(super) fn validate(
                 if !super::byte_views::contains_view(optimized, *source)
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
-                {
-                    return Err(LegalizationError::custody());
-                }
-                result.scalar_type
-            }
-            AbstractOperation::IndexedPrimitiveRead { result, index, .. } => {
-                if index.scalar_type != ScalarType::Integer(u64_type())
-                    || value_type(optimized, index.value) != Some(index.scalar_type)
-                    || scalar_shape(result.scalar_type).is_none()
                 {
                     return Err(LegalizationError::custody());
                 }

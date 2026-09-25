@@ -34,7 +34,6 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::PrimitiveScalarRead { psi_operation, .. }
         | O::StructuralCaseMembership { psi_operation, .. }
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
-        | O::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }
         | O::StoreDynamicDescriptor { psi_operation, .. }
@@ -76,7 +75,6 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::EstablishElementView { psi_operation, .. }
         | O::ElementViewLength { psi_operation, .. }
         | O::ElementViewRead { psi_operation, .. }
-        | O::IndexedPrimitiveRead { psi_operation, .. }
         | O::ElementViewSubslice { psi_operation, .. }
         | O::StructuralByteSequenceFieldLength { psi_operation, .. }
         | O::IntegerStructuralField { psi_operation, .. }

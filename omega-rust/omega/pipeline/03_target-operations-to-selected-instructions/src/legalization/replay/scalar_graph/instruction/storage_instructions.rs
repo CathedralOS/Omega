@@ -39,10 +39,62 @@ pub(super) fn validate_structural_scalar_field_read(
     Ok(())
 }
 
+/// A primitive read's runtime elements rejoin their selectors and the
+/// verifier's certificates; a static read carries none.
+pub(super) fn validate_primitive_scalar_read(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::PrimitiveScalarRead {
+            source,
+            path,
+            indices,
+        },
+        AbstractOperation::PrimitiveScalarRead {
+            source: expected,
+            path: expected_path,
+            result,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_primitive_scalar_read")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    let expected_indices = if terminal_psi::is_static_structural_path(expected_path) {
+        Vec::new()
+    } else {
+        let root = optimized
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *expected)
+            .ok_or(invalid.clone())?;
+        let (_, _, elements) =
+            crate::structural_inputs::structural_reference_input::primitive_geometry(
+                root.structural_type,
+                expected_path,
+                result.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(invalid.clone())?;
+        crate::legalization::runtime_indices::operands(optimized, unit, operation, &elements)?
+    };
+    if source != expected || path != expected_path || *indices != expected_indices {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_write_only_primitive_store(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    operation: OperationId,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
@@ -51,6 +103,7 @@ pub(super) fn validate_write_only_primitive_store(
             value,
             byte_offset,
             byte_size,
+            indices,
         },
         AbstractOperation::WriteOnlyPrimitiveStore {
             destination: expected,
@@ -63,139 +116,34 @@ pub(super) fn validate_write_only_primitive_store(
         unreachable!("dispatched validate_write_only_primitive_store")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    if destination != expected
-        || path != expected_path
-        || value != expected_value
-        || crate::structural_inputs::structural_reference_input::primitive_store(
+    let (expected_offset, expected_size, elements) =
+        crate::structural_inputs::structural_reference_input::primitive_store(
             expected,
             expected_path,
             expected_value.scalar_type,
             &unit.structural_types,
-        ) != Some((*byte_offset, *byte_size))
-    {
-        return Err(invalid);
-    }
-    Ok(())
-}
-
-pub(super) fn validate_write_only_indexed_primitive_store(
-    actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-    operation: OperationId,
-) -> Result<(), LegalizationError> {
-    let (
-        LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-            destination,
-            path,
-            index,
-            value,
-            byte_offset,
-            byte_size,
-            extent,
-            obligation,
-            accepted_fact,
-        },
-        AbstractOperation::WriteOnlyIndexedPrimitiveStore {
-            destination: expected,
-            path: expected_path,
-            index: expected_index,
-            value: expected_value,
-            obligation: expected_obligation,
-            ..
-        },
-    ) = (&actual.kind, &node.operation)
-    else {
-        unreachable!("dispatched validate_write_only_indexed_primitive_store")
-    };
-    let invalid = Error::NonCanonicalLegalizedPlan;
+        )
+        .ok_or(invalid.clone())?;
     if destination != expected
         || path != expected_path
-        || index != expected_index
         || value != expected_value
-        || obligation != expected_obligation
-        || crate::structural_inputs::structural_reference_input::indexed_primitive_store(
-            expected,
-            expected_path,
-            expected_value.scalar_type,
-            &unit.structural_types,
-        ) != Some((*byte_offset, *byte_size, *extent))
-        || !accepted(optimized, unit, operation, *obligation, *accepted_fact)
+        || (*byte_offset, *byte_size) != (expected_offset, expected_size)
+        || *indices
+            != crate::legalization::runtime_indices::operands(
+                optimized, unit, operation, &elements,
+            )?
     {
         return Err(invalid);
     }
     Ok(())
-}
-
-pub(super) fn validate_indexed_primitive_read(
-    actual: &LegalizedScalarInstruction,
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-    operation: OperationId,
-) -> Result<(), LegalizationError> {
-    let (
-        LegalizedScalarInstructionKind::IndexedPrimitiveRead {
-            source,
-            path,
-            index,
-            byte_offset,
-            byte_size,
-            extent,
-            obligation,
-            accepted_fact,
-        },
-        AbstractOperation::IndexedPrimitiveRead {
-            path: expected_path,
-            index: expected_index,
-            obligation: expected_obligation,
-            ..
-        },
-    ) = (&actual.kind, &node.operation)
-    else {
-        unreachable!("dispatched validate_indexed_primitive_read")
-    };
-    let invalid = Error::NonCanonicalLegalizedPlan;
-    let (expected_source, layout) = scalar_graph_input::structural_fields::indexed_read(
-        optimized,
-        &node.operation,
-        &unit.structural_types,
-    )
-    .ok_or(invalid.clone())?;
-    if source != &expected_source
-        || path != expected_path
-        || index != expected_index
-        || obligation != expected_obligation
-        || layout != (*byte_offset, *byte_size, *extent)
-        || !accepted(optimized, unit, operation, *obligation, *accepted_fact)
-    {
-        return Err(invalid);
-    }
-    Ok(())
-}
-
-/// The recorded certificate is the verifier's accepted fact for exactly this
-/// obligation at this operation of this machine.
-fn accepted(
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-    operation: OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-    identity: optimization_core::AcceptedObligationFactIdentity,
-) -> bool {
-    unit.accepted_obligation_facts.iter().any(|fact| {
-        fact.machine == optimized.machine
-            && fact.operation == operation
-            && fact.obligation == obligation
-            && fact.identity == identity
-    })
 }
 
 pub(super) fn validate_structural_scalar_field_store(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
+    operation: OperationId,
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::StructuralScalarFieldStore {
@@ -205,6 +153,7 @@ pub(super) fn validate_structural_scalar_field_store(
             value,
             byte_offset,
             byte_size,
+            indices,
         },
         AbstractOperation::StructuralScalarFieldStore {
             destination: expected,
@@ -218,17 +167,24 @@ pub(super) fn validate_structural_scalar_field_store(
         unreachable!("dispatched validate_structural_scalar_field_store")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    if destination != expected
-        || path != expected_path
-        || field != expected_field
-        || value != expected_value
-        || crate::structural_inputs::structural_reference_input::store(
+    let (expected_offset, expected_size, elements) =
+        crate::structural_inputs::structural_reference_input::store(
             expected.structural_type,
             expected_path,
             *expected_field,
             expected_value.scalar_type,
             &unit.structural_types,
-        ) != Some((*byte_offset, *byte_size))
+        )
+        .ok_or(invalid.clone())?;
+    if destination != expected
+        || path != expected_path
+        || field != expected_field
+        || value != expected_value
+        || (*byte_offset, *byte_size) != (expected_offset, expected_size)
+        || *indices
+            != crate::legalization::runtime_indices::operands(
+                optimized, unit, operation, &elements,
+            )?
     {
         return Err(invalid);
     }

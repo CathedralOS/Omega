@@ -203,7 +203,7 @@ fn countdown_edge(
     };
 
     (guard_is_positive_parameter(program, source, guard, parameter)
-        || declared_floor_at_least_one(program, parameter))
+        || floor_at_least_one(program, source, parameter))
         && argument_is_parameter_minus_one(program, source, argument, parameter)
 }
 
@@ -240,47 +240,23 @@ fn countdown_edge_parts<'program>(
     Some((parameter, argument_index, argument))
 }
 
-/// The parameter's DECLARED `[a..=b]` floor is >= 1 under an Exact (or
-/// absent) arithmetic domain -- the positivity source for a decrement on an
-/// edge with no usable guard (the MR2 Always loop-back from a sub-state
-/// whose param is declared `[1..=N]`). Non-Exact ranges are deliberately
-/// permissive (probed live at stores) and must never discharge a bound.
-fn declared_floor_at_least_one(
+/// The parameter's floor is >= 1 at every evaluation: its declared range or
+/// its state's `requires`, under an Exact (or absent) arithmetic domain --
+/// the positivity source for a decrement on an edge with no usable guard
+/// (an Always loop-back from a sub-state whose parameter starts at one).
+/// Non-Exact carriers are permissive (probed live at stores) and never
+/// discharge a bound.
+fn floor_at_least_one(
     program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
-    let mut handle = parameter.type_reference;
-    loop {
-        match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let constraints = program.type_reference_table.constraints(*constraints);
-                if constraints.iter().any(|constraint| {
-                    matches!(
-                        constraint,
-                        TypeConstraintNode::ArithmeticDomain(domain)
-                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-                    )
-                }) {
-                    return false;
-                }
-                if let Some(minimum) = constraints.iter().find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range { minimum, .. } => {
-                        validation::closed_integer_range_bound(program, *minimum)
-                            .and_then(|value| value.to_i64())
-                    }
-                    _ => None,
-                }) {
-                    return minimum >= 1;
-                }
-                handle = *base_type;
-            }
-            _ => return false,
-        }
-    }
+    crate::semantic::calls::find_state_with_machine(program, state.symbol)
+        .and_then(|(machine, state)| {
+            validation::state_parameter_integer_interval(program, machine, state, parameter.symbol)
+        })
+        .and_then(|(low, _)| low)
+        .is_some_and(|low| low >= 1)
 }
 
 fn member_countdown_edge(

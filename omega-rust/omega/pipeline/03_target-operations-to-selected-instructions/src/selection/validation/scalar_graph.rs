@@ -193,9 +193,6 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut replay, operation)?
                     }
-                    LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. } => {
-                        structural::indexed_read(source, &mut replay, operation)?
-                    }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut replay, operation)?
@@ -1340,7 +1337,6 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { .. }
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
-                    | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                         ..

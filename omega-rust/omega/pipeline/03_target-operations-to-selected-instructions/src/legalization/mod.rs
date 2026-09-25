@@ -5,6 +5,7 @@
 
 mod model;
 mod replay;
+mod runtime_indices;
 mod scalar_graph_input;
 mod source;
 mod source_input;

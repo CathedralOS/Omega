@@ -28,7 +28,9 @@ machine Loader::fill(&mut self) {
         false -> absent()
     }
 
-    state present(&mut self, index: u64 [0..=16383]) {
+    state present(&mut self, index: u64)
+    requires index <= 16383
+    {
         self.tag = self.tags[index];
         self.first = self.firsts[index];
         self.start = self.starts[index];

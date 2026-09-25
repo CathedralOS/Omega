@@ -25,7 +25,9 @@ terminates by c.n -> Cnt::Order;
 {
     transition c.n > 0 { true -> countdown(Cnt { n: c.n - 1 }) false -> 5 }
 }
-machine Main::plus1(&mut self, v: u64 [0..=100]) -> u64 { v + 1 }
+machine Main::plus1(&mut self, v: u64) -> u64
+requires v <= 100
+{ v + 1 }
 machine Main::main(&mut self) reaches Console {
     // TransitionArgument role: recursive result forwarded as an arg.
     transition self.countdown(Cnt { n: 3 }) == 5 { true -> fwd(self.countdown(Cnt { n: 2 })) _ -> bad_guard() }

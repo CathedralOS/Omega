@@ -207,12 +207,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);
-                    bytes.extend_from_slice(&(indices.len() as u32).to_le_bytes());
-                    for index in indices {
-                        bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
-                        encode_scalar_type(bytes, index.operand.scalar_type);
-                        bytes.extend_from_slice(&index.stride.to_le_bytes());
-                    }
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::StoreStructuralField {
                     destination,
@@ -238,36 +233,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_place(bytes, *place);
                     super::structural_types::encode_structural_type(bytes, structural_type);
                 }
-                LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path } => {
+                LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                    source,
+                    path,
+                    indices,
+                } => {
                     bytes.push(18);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
-                    super::structural_types::encode_canonical_path(bytes, path);
+                    super::structural_types::encode_structural_path(bytes, path);
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } => {
                     bytes.push(25);
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
-                }
-                LegalizedScalarInstructionKind::IndexedPrimitiveRead {
-                    source,
-                    path,
-                    index,
-                    byte_offset,
-                    byte_size,
-                    extent,
-                    obligation,
-                    accepted_fact,
-                } => {
-                    bytes.push(87);
-                    super::structural_types::encode_structural_argument(bytes, source);
-                    super::structural_types::encode_canonical_path(bytes, path);
-                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
-                    bytes.extend_from_slice(&index.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, index.scalar_type);
-                    bytes.push(*byte_size);
-                    bytes.extend_from_slice(&extent.to_le_bytes());
-                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                     source,
@@ -329,38 +308,16 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     value,
                     byte_offset,
                     byte_size,
+                    indices,
                 } => {
                     bytes.push(13);
                     super::structural_types::encode_structural_parameter(bytes, destination);
-                    super::structural_types::encode_canonical_path(bytes, path);
+                    super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
                     encode_scalar_type(bytes, value.scalar_type);
                     bytes.push(*byte_size);
-                }
-                LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-                    destination,
-                    path,
-                    index,
-                    value,
-                    byte_offset,
-                    byte_size,
-                    extent,
-                    obligation,
-                    accepted_fact,
-                } => {
-                    bytes.push(85);
-                    super::structural_types::encode_structural_parameter(bytes, destination);
-                    super::structural_types::encode_canonical_path(bytes, path);
-                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
-                    bytes.extend_from_slice(&index.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, index.scalar_type);
-                    bytes.extend_from_slice(&value.value.get().to_le_bytes());
-                    encode_scalar_type(bytes, value.scalar_type);
-                    bytes.push(*byte_size);
-                    bytes.extend_from_slice(&extent.to_le_bytes());
-                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&accepted_fact.bytes());
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } => {
                     bytes.push(14);
@@ -379,6 +336,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     value,
                     byte_offset,
                     byte_size,
+                    indices,
                 } => {
                     bytes.push(12);
                     super::structural_types::encode_structural_parameter(bytes, destination);
@@ -388,6 +346,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     encode_scalar_type(bytes, value.scalar_type);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     bytes.push(*byte_size);
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
                     destination,
@@ -942,5 +901,23 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
         (SaturatingOperation::Divide, carrier) => 59 + carrier.ordinal(),
         (SaturatingOperation::Remainder, carrier) => 73 + carrier.ordinal(),
         (SaturatingOperation::Multiply, carrier) => 87 + carrier.ordinal(),
+    }
+}
+
+/// Each runtime traversal's operand, stride, and bounds evidence, in path
+/// order, so identity separates two accesses that differ only in the element
+/// a selector or its certificate names.
+fn encode_runtime_indices(
+    bytes: &mut Vec<u8>,
+    indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
+) {
+    bytes.extend_from_slice(&(indices.len() as u32).to_le_bytes());
+    for index in indices {
+        bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
+        encode_scalar_type(bytes, index.operand.scalar_type);
+        bytes.extend_from_slice(&index.stride.to_le_bytes());
+        bytes.extend_from_slice(&index.extent.to_le_bytes());
+        bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
+        bytes.extend_from_slice(&index.accepted_fact.bytes());
     }
 }

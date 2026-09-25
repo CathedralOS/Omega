@@ -155,7 +155,6 @@ fn changes_length(
         | O::EstablishRecord { .. }
         | O::StructuralCaseMembership { .. }
         | O::IntegerStructuralField { .. }
-        | O::IndexedPrimitiveRead { .. }
         | O::BooleanStructuralField { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
