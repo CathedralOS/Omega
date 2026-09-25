@@ -415,6 +415,30 @@ fn a_named_state_arrival_reads_the_calling_states_requires_and_guard() {
     assert_call_requirement_rejected(&source.replace("fuel > 1", "fuel > 0"));
 }
 
+#[test]
+fn a_guard_conjunct_outside_the_arithmetic_vocabulary_keeps_its_sibling() {
+    let source = r#"
+        machine eval(fuel: u64, ready: bool) -> u64
+        requires 1 <= fuel && fuel <= 128
+        {
+            transition { _ -> fill(fuel, ready) }
+            state fill(fuel: u64, ready: bool) -> u64
+            requires 1 <= fuel && fuel <= 128
+            {
+                transition fuel > 1 && ready {
+                    true -> place(fuel - 1)
+                    _ -> fuel
+                }
+            }
+            state place(fuel: u64) -> u64
+            requires 1 <= fuel && fuel <= 128
+            { fuel }
+        }
+    "#;
+    checked(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    assert_call_requirement_rejected(&source.replace("fuel > 1 && ready", "fuel > 0 && ready"));
+}
+
 fn assert_call_requirement_rejected(source: &str) {
     let diagnostics = match checked(source) {
         Ok(_) => panic!("caller context unexpectedly discharged this requirement:\n{source}"),
