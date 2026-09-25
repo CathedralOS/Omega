@@ -14,18 +14,22 @@ machine Main::main(&mut self) -> u32 {
     transition { _ -> self.scan_a(5) }
 }
 
-machine Main::scan_a(&mut self, remaining: u32 [0..=5])
+machine Main::scan_a(&mut self, remaining: u32)
 terminates by remaining -> Countdown::Remaining in 0..=5;
--> u32 {
+-> u32
+requires remaining <= 5
+{
     transition remaining > 0 {
         true -> self.scan_b(remaining)
         false -> remaining
     }
 }
 
-machine Main::scan_b(&mut self, pending: u32 [0..=5])
+machine Main::scan_b(&mut self, pending: u32)
 terminates by pending -> Countdown::Remaining in 0..=5;
--> u32 {
+-> u32
+requires pending <= 5
+{
     transition pending > 0 {
         true -> self.scan_a(pending - 1)
         false -> pending

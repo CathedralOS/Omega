@@ -13,8 +13,10 @@ machine Main::audit(&mut self, value: u32) {
     self.audits = 0;
 }
 
-machine Main::walk(&mut self, remaining: u32, ceiling: u32 [5..=10])
-requires remaining <= ceiling;
+machine Main::walk(&mut self, remaining: u32, ceiling: u32)
+requires
+    5 <= ceiling && ceiling <= 10;
+    remaining <= ceiling;
 terminates by remaining in 0..=ceiling;
 -> u32 {
     self.audit(remaining);
