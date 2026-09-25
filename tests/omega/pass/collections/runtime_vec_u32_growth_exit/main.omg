@@ -30,7 +30,7 @@ machine Checker::flag(&mut self, ok: bool) -> i32 in Wrapping {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     check: Checker;
     eb: Backing4;
     out4: Backing4;
