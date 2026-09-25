@@ -193,7 +193,7 @@ pub(crate) fn extract_build_config(
     build: &BuildTimeValue,
     optimization_admission: optimization::BuildOptimizationAdmission,
     selected_target_profile: Option<target::TargetProfile>,
-    has_target_vocabulary: bool,
+    has_activation_vocabulary: bool,
 ) -> Result<(BuildConfig, optimization_core::OptimizationReportRequest), String> {
     let BuildTimeValue::Struct { fields, .. } = build else {
         return Err(format!("expected a Build struct, got {build:?}"));
@@ -206,39 +206,10 @@ pub(crate) fn extract_build_config(
             .ok_or_else(|| format!("the Build carries no `{name}` field"))
     };
 
-    if has_target_vocabulary {
-        let expected = selected_target_profile.ok_or_else(|| {
-            "toolchain Build.target exists without an exact invocation target".to_owned()
-        })?;
-        let BuildTimeValue::Case { variant, payload } = field("target")? else {
-            return Err("Build.target is not a TargetProfile case".to_owned());
-        };
-        if !payload.is_empty() {
-            return Err(format!(
-                "Build.target case `{variant}` unexpectedly carries a payload"
-            ));
-        }
-        let case = variant.rsplit("::").next().unwrap_or(variant);
-        let actual = target::TargetProfile::from_build_case_name(case)
-            .ok_or_else(|| format!("Build.target has unknown TargetProfile case `{case}`"))?;
-        if actual != expected {
-            return Err(format!(
-                "Build.target is compiler-owned and immutable: invocation supplied `{}`, but build evaluation returned `{}`",
-                expected.build_case_name(),
-                actual.build_case_name(),
-            ));
-        }
-    } else if selected_target_profile.is_some() {
-        return Err(
-            "exact invocation target has no admitted toolchain Build.target vocabulary".to_owned(),
-        );
-    }
-
-    let x86_scalar_fma_provider = if has_target_vocabulary {
-        let profile = selected_target_profile.ok_or_else(|| {
-            "toolchain Build.x86_deployment_features exists without an exact invocation target"
-                .to_owned()
-        })?;
+    // The x86 deployment claim is one Build value; it becomes an admitted
+    // provider only for the x86 profile a realization selects. A targetless
+    // check validates the claim's spelling and admits nothing.
+    let x86_scalar_fma_provider = if has_activation_vocabulary {
         let BuildTimeValue::Case { variant, payload } = field("x86_deployment_features")? else {
             return Err(
                 "Build.x86_deployment_features is not an X86DeploymentFeatures case".to_owned(),
@@ -251,18 +222,21 @@ pub(crate) fn extract_build_config(
         }
         match variant.rsplit("::").next().unwrap_or(variant) {
             "Baseline" => None,
-            "AvxFma3" => Some(
-                target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
-                    profile,
-                    &target::X86_SCALAR_FMA_REQUIRED_FEATURES,
-                )
-                .map_err(|error| {
-                    format!(
-                        "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
-                        profile.target_name()
+            "AvxFma3" => match selected_target_profile {
+                Some(profile) => Some(
+                    target::AdmittedX86ScalarFmaProvider::from_deployment_claim(
+                        profile,
+                        &target::X86_SCALAR_FMA_REQUIRED_FEATURES,
                     )
-                })?,
-            ),
+                    .map_err(|error| {
+                        format!(
+                            "Build.x86_deployment_features cannot admit AVX+FMA3 for exact profile `{}`: {error:?}",
+                            profile.target_name()
+                        )
+                    })?,
+                ),
+                None => None,
+            },
             other => {
                 return Err(format!(
                     "Build.x86_deployment_features has unknown X86DeploymentFeatures case `{other}`"

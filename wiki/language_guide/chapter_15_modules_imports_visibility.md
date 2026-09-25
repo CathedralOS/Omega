@@ -83,8 +83,9 @@ Two scopes may use the same alias differently without lookup fallback. A legacy
 not permission inferred from an old lock or dead-code elimination.
 
 The build evaluator's execution profile and the product target are distinct.
-A macOS helper generating Windows code is checked for the build execution profile;
-`Build.target` still describes Windows. Build-only source acquisition is reusable,
+A macOS helper generating Windows code is checked for the build execution profile,
+and it emits target-tagged declarations rather than reading a target: the Build
+observes no target. Build-only source acquisition is reusable,
 but host-generated configuration is not target evidence. The
 [scoped execution contract](../spec/build/scoped_execution.md) fixes these rules;
 [implementation tasks](../../TASKS.md#scoped-build-execution) track availability.

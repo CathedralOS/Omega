@@ -94,9 +94,9 @@ pub use admission::vocabulary::is_build_machine;
 pub use admission::wire_protocol::validate_wire_protocol;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    AdmittedBuildTargetInputs, BuildSnapshotCapture, BuildSnapshotRequest, ComputedBuildConfig,
-    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildOperation, RestrictedBuildRequest, admit_build_program,
+    BuildSnapshotCapture, BuildSnapshotRequest, ComputedBuildConfig, RestrictedBuildBounds,
+    RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+    RestrictedBuildRequest, admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use evidence::filesystem_scope::preparation::prepare_filesystem_scope;

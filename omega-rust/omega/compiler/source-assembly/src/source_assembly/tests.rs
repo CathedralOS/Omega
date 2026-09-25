@@ -747,123 +747,68 @@ fn build_prelude_owns_canonical_dependency_vocabulary() {
 }
 
 #[test]
-fn targeted_build_preludes_expose_one_closed_target_while_targetless_omit_it() {
-    let expected_cases = [
-        "LinuxArm64",
-        "LinuxX86_64",
-        "MacosArm64",
-        "WindowsX86_64",
-        "UefiX86_64",
-        "CrossPlatformCli",
-        "LocalUnchecked",
-    ];
-    for (has_exact_target, expected_target_fields) in [(false, 0), (true, 1)] {
-        let prelude = construct_build_prelude(BUILD_PRELUDE, has_exact_target);
-        let tokens = source_files_to_tokens::Lexer::new(&prelude)
-            .tokenize()
-            .expect("constructed build prelude must lex");
-        let syntax_trees = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
-            .expect("constructed build prelude must parse as ordinary Omega");
-        let target_profile = syntax_trees
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Data(data) if data.name.as_str() == "TargetProfile" => {
-                    Some(data)
-                }
-                _ => None,
-            })
-            .expect("build prelude must define TargetProfile");
-        assert_eq!(
-            syntax_trees
-                .items
-                .data_members(target_profile.members)
-                .iter()
-                .filter_map(|member| match member {
-                    syntax_trees::item::DataMember::Variant(variant) => {
-                        Some(variant.name.as_str())
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>(),
-            expected_cases
-        );
-        let x86_deployment_features = syntax_trees
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Data(data)
-                    if data.name.as_str() == "X86DeploymentFeatures" =>
-                {
-                    Some(data)
-                }
-                _ => None,
-            })
-            .expect("build prelude must define X86DeploymentFeatures");
-        assert_eq!(
-            syntax_trees
-                .items
-                .data_members(x86_deployment_features.members)
-                .iter()
-                .filter_map(|member| match member {
-                    syntax_trees::item::DataMember::Variant(variant) => {
-                        Some(variant.name.as_str())
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>(),
-            ["Baseline", "AvxFma3"]
-        );
-        let build = syntax_trees
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => Some(data),
-                _ => None,
-            })
-            .expect("build prelude must define Build");
-        let target_fields = syntax_trees
+fn build_prelude_has_one_shape_without_a_target() {
+    let prelude = construct_build_prelude(BUILD_PRELUDE);
+    let tokens = source_files_to_tokens::Lexer::new(&prelude)
+        .tokenize()
+        .expect("constructed build prelude must lex");
+    let syntax_trees = tokens_to_syntax_trees::parse_syntax_trees(&tokens)
+        .expect("constructed build prelude must parse as ordinary Omega");
+    assert!(
+        !syntax_trees.root_items().any(|item| matches!(
+            item,
+            syntax_trees::item::Item::Data(data) if data.name.as_str() == "TargetProfile"
+        )),
+        "the Build cannot observe a target, so the prelude declares no TargetProfile"
+    );
+    let x86_deployment_features = syntax_trees
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Data(data)
+                if data.name.as_str() == "X86DeploymentFeatures" =>
+            {
+                Some(data)
+            }
+            _ => None,
+        })
+        .expect("build prelude must define X86DeploymentFeatures");
+    assert_eq!(
+        syntax_trees
             .items
-            .data_members(build.members)
+            .data_members(x86_deployment_features.members)
             .iter()
             .filter_map(|member| match member {
-                syntax_trees::item::DataMember::Field(field) if field.name.as_str() == "target" => {
-                    Some(field)
-                }
+                syntax_trees::item::DataMember::Variant(variant) => Some(variant.name.as_str()),
                 _ => None,
             })
-            .collect::<Vec<_>>();
-        assert_eq!(target_fields.len(), expected_target_fields);
-        if let [field] = target_fields.as_slice() {
-            assert!(matches!(
-                syntax_trees
-                    .type_references
-                    .type_reference(field.type_reference),
-                syntax_trees::types::TypeReferenceNode::Named(name)
-                    if name.as_str() == "TargetProfile"
-            ));
-        }
-        let x86_feature_fields = syntax_trees
-            .items
-            .data_members(build.members)
+            .collect::<Vec<_>>(),
+        ["Baseline", "AvxFma3"]
+    );
+    let build = syntax_trees
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => Some(data),
+            _ => None,
+        })
+        .expect("build prelude must define Build");
+    let field_names = syntax_trees
+        .items
+        .data_members(build.members)
+        .iter()
+        .filter_map(|member| match member {
+            syntax_trees::item::DataMember::Field(field) => Some(field.name.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!field_names.contains(&"target"), "{field_names:?}");
+    assert_eq!(
+        field_names
             .iter()
-            .filter_map(|member| match member {
-                syntax_trees::item::DataMember::Field(field)
-                    if field.name.as_str() == "x86_deployment_features" =>
-                {
-                    Some(field)
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(x86_feature_fields.len(), expected_target_fields);
-        if let [field] = x86_feature_fields.as_slice() {
-            assert!(matches!(
-                syntax_trees
-                    .type_references
-                    .type_reference(field.type_reference),
-                syntax_trees::types::TypeReferenceNode::Named(name)
-                    if name.as_str() == "X86DeploymentFeatures"
-            ));
-        }
-    }
+            .filter(|name| **name == "x86_deployment_features")
+            .count(),
+        1,
+        "{field_names:?}"
+    );
 }
 
 #[test]
@@ -879,7 +824,7 @@ fn build_prelude_owns_the_exact_optimization_vocabulary() {
                 .map(|optimization| optimization.build_counter_field()),
         )
         .collect::<Vec<_>>();
-    let prelude = construct_build_prelude(BUILD_PRELUDE, false);
+    let prelude = construct_build_prelude(BUILD_PRELUDE);
     let tokens = source_files_to_tokens::Lexer::new(&prelude)
         .tokenize()
         .expect("toolchain build prelude must lex");

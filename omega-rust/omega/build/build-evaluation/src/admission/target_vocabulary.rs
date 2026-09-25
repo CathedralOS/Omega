@@ -1,5 +1,7 @@
-//! Immutable exact-target admission: `Build.target` vocabulary and the
-//! proof that source cannot mutate the compiler-issued target occurrence.
+//! The toolchain Build activation: its exact vocabulary and the proof that
+//! source cannot replace, copy, store, or construct it. The Build carries
+//! no target -- build evaluation cannot observe or branch on one
+//! (`wiki/spec/build/configuration.md#multi-target-compilation`).
 
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -8,9 +10,8 @@ use typed_trees::TypedTrees;
 use crate::admission::vocabulary::is_exact_toolchain_build_prelude_data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TargetBuildVocabulary {
+pub(crate) struct BuildActivationVocabulary {
     pub(crate) build_symbol: SymbolHandle,
-    pub(crate) target_field_symbol: SymbolHandle,
     pub(crate) x86_deployment_features_field_symbol: SymbolHandle,
 }
 
@@ -35,13 +36,11 @@ fn type_reference_names_exact_data(
 /// field and closed enum type comes from the exact toolchain virtual source.
 /// `BuildTimeValue` is structurally named, so this nominal check must precede
 /// argument construction.
-pub(crate) fn target_build_vocabulary(
+/// The exact toolchain Build, when the program's build uses it. An authored
+/// legacy `Build` receives no compiler-owned fields and yields `None`.
+pub(crate) fn build_activation_vocabulary(
     typed: &TypedTrees,
-    selected_target: Option<target::TargetProfile>,
-) -> Result<Option<TargetBuildVocabulary>, Vec<Diagnostic>> {
-    let Some(_selected_target) = selected_target else {
-        return Ok(None);
-    };
+) -> Result<Option<BuildActivationVocabulary>, Vec<Diagnostic>> {
     let exact_builds = typed
         .data_definitions()
         .iter()
@@ -49,40 +48,15 @@ pub(crate) fn target_build_vocabulary(
             is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
         })
         .collect::<Vec<_>>();
-    let [build] = exact_builds.as_slice() else {
-        return Err(vec![Diagnostic::error(
-            "exact-target build activation requires the toolchain-provided Build.target vocabulary; an authored legacy Build cannot receive a hidden target field",
-        )]);
+    let build = match exact_builds.as_slice() {
+        [] => return Ok(None),
+        [build] => *build,
+        _ => {
+            return Err(vec![Diagnostic::error(
+                "the program declares more than one toolchain Build activation",
+            )]);
+        }
     };
-    let target_fields = typed
-        .data_members(build)
-        .iter()
-        .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) if field.name.as_str() == "target" => {
-                Some(field)
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [target_field] = target_fields.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "toolchain Build declares {} `target` fields; exact-target activation requires exactly one",
-            target_fields.len()
-        ))]);
-    };
-    let typed_trees::types::TypeReferenceNode::Named { symbol, .. } = typed
-        .type_reference_table
-        .type_reference(target_field.type_reference)
-    else {
-        return Err(vec![Diagnostic::error(
-            "toolchain Build.target must have the exact toolchain TargetProfile type",
-        )]);
-    };
-    if !is_exact_toolchain_build_prelude_data(typed, *symbol, "TargetProfile") {
-        return Err(vec![Diagnostic::error(
-            "toolchain Build.target must have the exact toolchain TargetProfile type",
-        )]);
-    }
     let x86_feature_fields = typed
         .data_members(build)
         .iter()
@@ -97,7 +71,7 @@ pub(crate) fn target_build_vocabulary(
         .collect::<Vec<_>>();
     let [x86_feature_field] = x86_feature_fields.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
-            "toolchain Build declares {} `x86_deployment_features` fields; exact-target activation requires exactly one",
+            "toolchain Build declares {} `x86_deployment_features` fields; the activation requires exactly one",
             x86_feature_fields.len()
         ))]);
     };
@@ -114,40 +88,10 @@ pub(crate) fn target_build_vocabulary(
             "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
         )]);
     }
-    Ok(Some(TargetBuildVocabulary {
+    Ok(Some(BuildActivationVocabulary {
         build_symbol: build.symbol,
-        target_field_symbol: target_field.symbol,
         x86_deployment_features_field_symbol: x86_feature_field.symbol,
     }))
-}
-
-fn expression_mentions_exact_field(
-    typed: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    field: SymbolHandle,
-    build_value_symbols: &[SymbolHandle],
-) -> bool {
-    use typed_trees::expression::ExpressionNode;
-    match typed.expression_table.expression(expression) {
-        ExpressionNode::Borrow(borrow) => {
-            expression_mentions_exact_field(typed, borrow.target, field, build_value_symbols)
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_mentions_exact_field(typed, indexed.collection, field, build_value_symbols)
-        }
-        ExpressionNode::Member(member) => {
-            member.member_symbol == field
-                || (member.member.as_str() == "target"
-                    && expression_denotes_exact_build(typed, member.receiver, build_value_symbols))
-                || expression_mentions_exact_field(
-                    typed,
-                    member.receiver,
-                    field,
-                    build_value_symbols,
-                )
-        }
-        _ => false,
-    }
 }
 
 fn expression_denotes_exact_build(
@@ -170,9 +114,9 @@ fn expression_denotes_exact_build(
 /// Prove source cannot transiently overwrite, replace, or lend exclusive
 /// access to the compiler-issued target occurrence. Final-value equality is
 /// retained as corruption defense, but is not used as the immutability proof.
-pub(crate) fn validate_immutable_build_target(
+pub(crate) fn validate_build_activation_integrity(
     typed: &TypedTrees,
-    vocabulary: TargetBuildVocabulary,
+    vocabulary: BuildActivationVocabulary,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::{data::DataMember, expression::ExpressionNode, statement::StatementNode};
 
@@ -186,7 +130,7 @@ pub(crate) fn validate_immutable_build_target(
             if type_reference_names_exact_data(typed, field.type_reference, vocabulary.build_symbol)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "compiler-owned Build.target forbids storing the exact toolchain Build in field `{}`",
+                    "the compiler-owned Build activation cannot be stored in field `{}`",
                     field.name.as_str()
                 )));
                 build_value_symbols.push(field.symbol);
@@ -214,7 +158,7 @@ pub(crate) fn validate_immutable_build_target(
             if type_reference_names_exact_data(typed, owned.type_reference, vocabulary.build_symbol)
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "compiler-owned Build.target forbids storing the exact toolchain Build in machine field `{}`",
+                    "the compiler-owned Build activation cannot be stored in machine field `{}`",
                     owned.name.as_str()
                 )));
                 build_value_symbols.push(owned.symbol);
@@ -233,16 +177,7 @@ pub(crate) fn validate_immutable_build_target(
             for statement in typed.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Assignment(assignment) => {
-                        if expression_mentions_exact_field(
-                            typed,
-                            assignment.target,
-                            vocabulary.target_field_symbol,
-                            &build_value_symbols,
-                        ) {
-                            diagnostics.push(Diagnostic::error(
-                                "Build.target is compiler-owned and cannot be assigned",
-                            ));
-                        } else if expression_denotes_exact_build(
+                        if expression_denotes_exact_build(
                             typed,
                             assignment.target,
                             &build_value_symbols,
@@ -266,7 +201,7 @@ pub(crate) fn validate_immutable_build_target(
                             typed_trees::types::TypeReferenceNode::Reference { .. }
                         ) {
                             diagnostics.push(Diagnostic::error(format!(
-                                "compiler-owned Build.target forbids copying the Build activation into local `{}`",
+                                "the compiler-owned Build activation cannot be copied into local `{}`",
                                 local.name.as_str()
                             )));
                         }
@@ -279,19 +214,6 @@ pub(crate) fn validate_immutable_build_target(
     }
     for (_, expression) in typed.expression_table.iter_expressions() {
         match expression {
-            ExpressionNode::Borrow(borrow)
-                if borrow.access.is_exclusive()
-                    && expression_mentions_exact_field(
-                        typed,
-                        borrow.target,
-                        vocabulary.target_field_symbol,
-                        &build_value_symbols,
-                    ) =>
-            {
-                diagnostics.push(Diagnostic::error(
-                    "Build.target is compiler-owned and cannot enter a mutable or write-only borrow",
-                ));
-            }
             ExpressionNode::StructLiteral(literal)
                 if literal.type_symbol == vocabulary.build_symbol =>
             {
