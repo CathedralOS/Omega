@@ -71,7 +71,7 @@ operations only for borrowed **byte** views (its title and :5 scope it so).
 (language guide chapter 5 :244-248, chapter 19 :46-50), so the missing piece
 is the Terminal Psi form of an already-decided semantics plus the spec
 section that states it — owned by TERMINAL-SLICE-VIEW-VOCABULARY. Do not add
-a recognizer for this statement arrangement (AGENTS.md: compositional
+a recognizer for this statement arrangement (omega-rust/pipeline.md: compositional
 lowering).
 
 One question must settle before the read operation can be written — does

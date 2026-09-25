@@ -56,7 +56,7 @@ class SelectionTests(unittest.TestCase):
                 self.assertTrue(reasons)
 
     def test_audited_docs_select_no_libraries_but_unknown_markdown_is_full(self):
-        for path in ["README.md", "TASKS.md", "AGENTS.md", "CLAUDE.md",
+        for path in ["README.md", "TASKS.md", "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md",
                      "OWNER_QUESTIONS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
                      "wiki/proposals/example.md", "wiki/new.md",
                      "tools/testing.md", "tools/benchmark/README.md",

@@ -9,7 +9,7 @@ this note stays as the standing record of the package-review route cost
 attribution (macOS/Windows/Linux sections below), which the replacement does
 not cover and which live optimization items still cite. It is not validation
 policy or a current checkout baseline; see
-[AGENTS.md](../../../AGENTS.md#validation-scope) and
+[tools/testing.md](../../../tools/testing.md#validation-scope) and
 [selector usage](../../../tools/testing.md). Delete this note once the
 optimization items citing the package-review route attribution close, or when
 a later measurement replaces those sections.

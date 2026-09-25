@@ -7,7 +7,7 @@
 //! into a leaf cannot see where it comes from without opening the hub. A
 //! `helpers.rs` is the same failure for functions: the name says nothing
 //! about the responsibility, so the file collects whatever had no owner.
-//! AGENTS.md names these catch-alls as the shapes discoverability
+//! omega-rust/pipeline.md names these catch-alls as the shapes discoverability
 //! architecture refuses; this ratchet records, per crate, how many
 //! production source files still carry one of the names and fails when the
 //! number grows.

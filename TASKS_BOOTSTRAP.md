@@ -36,7 +36,7 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
 
 ## Selection and stopping rules
 
-- Apply [scope checkpoints](AGENTS.md#scope-checkpoints) before each milestone.
+- Apply [scope checkpoints](CONTRIBUTING.md#scope-checkpoints) before each milestone.
   Challenge the task's premise against the final audit goal, not just its tests.
   A concrete compiler customer or named proof obligation is necessary but does
   not alone establish that the proposed mechanism is the simplest solution.
@@ -54,7 +54,7 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
   evergreen feature task. Remove completed tasks rather than logging milestones.
 - Question questionable checker/encoding designs as well as compiler designs.
   Report evidence and alternatives before extending a faulty premise. Changes
-  to ratified language/trust contracts follow [owner escalation](AGENTS.md#workflow);
+  to ratified language/trust contracts follow [owner escalation](CONTRIBUTING.md#workflow);
   engineering review does not authorize silently weakening the proof claim.
 - Keep language-facility and implementation comparisons on this board under
   [whole-chain minimization](bootstrap/MINIMIZATION.md). Experiments remain

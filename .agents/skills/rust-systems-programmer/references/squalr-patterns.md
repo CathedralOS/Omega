@@ -10,7 +10,7 @@ Read [the deep scan-pipeline study](squalr-scan-pipeline.md) for the connected p
 
 ## Transfer example: Omega
 
-Omega's README and AGENTS require arena-backed durable lowered children through `Handle<T>` and `HandleSpan<T>`; worker-local vectors may be temporary construction buffers. At Omega revision `8fb34c783fa91fd74d3ddddb37bc09e1eff40009`, inspect these repository-relative paths when applying the Squalr pattern:
+Omega's README and CONTRIBUTING.md require arena-backed durable lowered children through `Handle<T>` and `HandleSpan<T>`; worker-local vectors may be temporary construction buffers. At Omega revision `8fb34c783fa91fd74d3ddddb37bc09e1eff40009`, inspect these repository-relative paths when applying the Squalr pattern:
 
 - `omega-rust/psi/foundation/arena/src/handle/handle_span.rs`: `push_contiguous` requires contiguous positions and one generation.
 - `omega-rust/psi/foundation/arena/src/paged_arena/mod.rs`: insertion requires exclusive `&mut self`; nested page storage is not concurrent semantic child-list publication.

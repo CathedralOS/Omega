@@ -1,6 +1,6 @@
 //! Entrypoint and module-layout contract for workspace crates.
 //!
-//! Codifies the discoverability rules of `AGENTS.md` and `omega-rust/README.md`
+//! Codifies the discoverability rules of `omega-rust/pipeline.md` and `omega-rust/README.md`
 //! as a gate: every crate keeps a readable entrypoint (`src/lib.rs` or
 //! `src/main.rs`); each program representation keeps exactly one named root
 //! file beside `lib.rs` that defines the current program; `model/` grab-bag
@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use super::workspace_root;
 
 /// Representation crates whose `src/` does not keep exactly one named root
-/// file beside `lib.rs` (AGENTS.md: "Each program representation has one
+/// file beside `lib.rs` (omega-rust/pipeline.md: "Each program representation has one
 /// named root file beside `lib.rs`"): the two `lib.rs`-owned leaves that
 /// `crate_root_responsibility.rs` lists in `LIB_RS_OWNED`.
 const REPRESENTATION_ROOT_EXCEPTIONS: &[&str] = &[
@@ -27,7 +27,7 @@ const REPRESENTATION_ROOT_EXCEPTIONS: &[&str] = &[
 ];
 
 /// `model/` grab-bag directories retained inside crate source trees
-/// (AGENTS.md: "do not ... collect unrelated types in `model/`").
+/// (omega-rust/pipeline.md: "do not ... collect unrelated types in `model/`").
 const MODEL_DIRECTORY_EXCEPTIONS: &[&str] = &[];
 
 /// Entrypoint files carrying an inline `#[cfg(test)] mod <name> { .. }`

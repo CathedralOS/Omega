@@ -12,7 +12,7 @@ the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
 Psi representation and encoding design is delegated; human review is deferred
-under [the current policy](AGENTS.md#psi-implementation-and-deferred-human-audit).
+under [the current policy](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
 Missing IR operations or a schema change needed for accepted behavior are
 implementation work, not owner questions.
 

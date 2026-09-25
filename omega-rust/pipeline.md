@@ -7,6 +7,12 @@ at its owning boundary; there is no source-shaped or assigned-program backend
 fallback. Checked-tree interpretation remains a Psi reference/build-time service,
 not another route to native publication.
 
+Cathedral (the downstream OS) owns OS data structures, policies, protocols, and
+lifecycle. Do not model page tables, schedulers, or drivers as compiler-owned
+Rust types; if Cathedral cannot express something, name the missing general
+Omega primitive or mark the slice blocked. `StateGraph` and `ControlFlowPlan`
+predate the Terminal Psi cut and are **not** the public portable format.
+
 ## Connected program route
 
 Each link below enters an actual transform owner. Private analyses and target
@@ -167,3 +173,157 @@ convergence and behavior work belongs to execution boards; this map is not a
 second migration ledger. [Optimization](optimization.md) owns its implementation
 contracts, while [compiler coordination](omega/compiler/README.md) owns
 operational reports and product stopping boundaries.
+
+## Psi implementation and deferred human audit
+
+Until the owner requests otherwise, human review and audit of Psi are deferred.
+Implementers own the IR, operation vocabulary, encoding,
+and reconstruction choices needed to express all accepted Omega behavior. Do not
+block those choices on owner approval or add owner questions for them. Choose
+cohesive representations, update their specifications and versioned schemas, and
+carry the change through producers, consumers, and customer acceptance.
+
+This defers human design review, not compiler checking or required evidence.
+Keep independent verification, rejection controls, and applicable tests; do not
+declare deferred audits complete. Preserve source-language meaning, observable
+behavior, trust guarantees, and the Psi/Omega firewall. Escalate genuinely missing
+language or trust decisions, not how existing behavior is represented in Psi.
+
+
+## Crate placement rule
+
+Workspace crate names encode the pipeline. Within both halves:
+
+Internal package and folder names omit the enclosing `omega-` or `psi-`
+namespace. Keep the shipped `omega` package name. Cargo names are unique across
+the workspace; use descriptive ownership names rather than duplicate generic
+names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
+
+- `foundation/` — shared vocabulary, arenas, symbols, diagnostics.
+- `representations/` — durable IR structs.
+- `pipeline/` — transforms only; crate names read literally as `X-to-Y`
+  (`source-files-to-tokens` → `tokens-to-syntax-trees` →
+  `syntax-trees-to-symbol-resolved-trees` →
+  `symbol-resolved-trees-to-typed-trees` →
+  `typed-trees-to-checked-trees` → `checked-trees-to-lowered-psi` →
+  `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
+  `terminal-psi-to-abstract-operations` →
+  `abstract-operations-to-target-operations` →
+  `target-operations-to-selected-instructions` →
+  `selected-instructions-to-selected-instructions` →
+  `selected-instructions-to-register-homes` → image emission).
+  Optimization stages use literal `X-to-X` names: for example,
+  `abstract-operations-to-abstract-operations`. They consume and produce
+  the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
+  The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
+  not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
+- `semantics/` — language meaning, validation, proof, interpreters.
+- `backend/` — target, ABI, layout, object, linker, image.
+
+Concepts stay visible across stages without being forced into one mega-IR: each
+stage uses the form matching its resolution level while keeping stable links
+back to the shared semantic spine. Coordinators stay boring — sequence typed
+phases and stop. Do not add a crate until a module boundary has stopped moving.
+
+Each program representation has one named root file beside `lib.rs`; the root
+defines the current program and leads into subordinate concept-owned areas.
+Organize those areas around the representation's actual control flow, values,
+storage, calls, ownership, and evidence. Do not force an identical directory
+template onto different representations or collect unrelated types in `model/`.
+Pipeline crates own transformations and private working state, not public
+program structs containing previous stage objects. Optimization history is
+explicit evidence; it must not select a different downstream representation.
+
+`tests/architecture` (`omega-architecture-test`) enforces cross-crate
+dependency direction and semantic shape. A wrong-direction dependency fails
+there, not at `cargo check`.
+
+
+## Discoverability architecture
+
+Every crate must have an obvious starting point that explains its responsibility
+through code. For an operation-owning crate, its domain entry file owns the
+high-level flow: input preparation, phase ordering or dispatch, subordinate work,
+and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
+not substitute for that orchestration.
+
+Use [main.rs](omega/src/main.rs) and
+[compiler.rs](omega/compiler/compiler/src/compiler.rs) as the gold
+standard: the former shows startup and typed invocation dispatch; the latter
+shows shared preparation, product selection, per-target realization, and outcomes.
+Copy their visible orchestration principle, not their filenames or line counts.
+Representation and utility crates may start with their principal data structure
+and cohesive operations; do not invent an execution pipeline where none exists.
+
+Make the crate's distinct domains visible beside its coordinator. A directory
+that merely repeats the coordinator's name and contains essentially the entire
+crate hides those domains rather than organizing them. The file tree represents
+responsibility, not the call stack: shared grammar or policy belongs to a shared
+owner, not beneath the first consumer that needed it. Moving directories upward
+alone is insufficient; update the actual ownership and dependency direction.
+This is not a blanket ban on same-named files and folders or a prescribed layout.
+
+Apply the same structure recursively within each meaningful subordinate flow.
+A child owning a multi-step operation must expose its own sequencing and decisions,
+then delegate narrower mechanisms beneath that owner. One good crate root with
+all remaining work scattered among sibling folders does not satisfy this rule.
+Siblings must name distinct responsibilities at the same level of abstraction,
+not become catch-all collections of leftover code. Stop at cohesive leaves;
+recursive discoverability does not require a new folder or forwarding function
+for every operation.
+
+Before an organization change, name the reader's concrete question and the
+current navigation failure. Afterward, follow the changed route from crate entry
+through subordinate orchestration to the actual decision and result handling.
+Explain what became easier to find. Consolidation, moving orchestration upward,
+or leaving a cohesive file intact may be better than splitting it. Smaller files,
+more topic folders, and unchanged contiguous source chunks with new labels are
+not evidence of improved architecture.
+
+Keep tests grouped by the behavior or contract they verify, with discoverable
+fixtures. Test partitioning alone does not complete a production-discoverability
+assignment. When moves change module-qualified test names or reader paths, update
+their documented commands, filters, and source-reading checks and verify that the
+intended tests are still selected. Do not expand into unrelated cleanup merely to
+produce another organization commit.
+
+
+## Compositional lowering
+
+Source-shape admission is a code-rot warning: supported assignment, call, branch,
+and transfer operations must compose under their actual type, effect, ownership,
+and control-flow rules. Do not add another required producer family for an
+incidental arrangement such as "locals before calls", "call immediately followed
+by case dispatch", or "the same body with an extra statement". Replace the
+restrictive recognizer or duplicated planner with ordinary operation sequencing
+and explicit value/storage/control relationships. Clean X-to-Y crate names do
+not make a pattern-specific implementation compositional.
+
+Semantic distinctions, ABI constraints, missing proof obligations, and explicit
+implementation limits remain real. Never remove their rejection checks merely
+to admit more shapes. Specialized pattern matching is appropriate for optional
+optimizations with a correct general path, not as the only way to compile an
+ordinary combination. Independent verification must reconstruct and check the
+operation/evidence relationships, not trust a producer assertion or rediscover
+the original source idiom at each stage.
+
+When a customer exposes this pattern, identify the general operation or join that
+is missing and remove the superseded special path as that repair lands. Before
+propagating a new representation or lowering mechanism across stages, choose a
+small valid variation that challenges its assumptions and a relevant invalid
+control. Check that the design supports the valid case and rejects the invalid
+one through independent checking. Implement and exercise them early, not only
+after the original fixture passes.
+For a borrowed call, surrounding computations and conflicting-access rejection
+can expose a bad design without a Cartesian matrix of source permutations.
+
+Parallel implementation of additional variants should follow one working,
+independently checked route through the new mechanism. Do not replicate an
+unproven representation across several implementations first. Independent review,
+tests, and work using established contracts can still proceed in parallel.
+
+Keep the actual customer's command as the outer acceptance check; a passing
+isolated helper does not close an unchanged application failure. Do not expand
+the task board with one item per permutation, or treat this rule as permission
+for an unrelated whole-IR rewrite.
+

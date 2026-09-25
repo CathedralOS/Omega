@@ -287,7 +287,7 @@ bootstrap completion. The [compiler board](TASKS.md),
 [optimizer board](TASKS_OPTIMIZER.md), and
 [completion criteria](wiki/drafts/reference/rust_compiler_completion.md) describe the work.
 
-Read [repository conventions](AGENTS.md#repository-conventions) before changing
+Read [repository conventions](CONTRIBUTING.md#repository-conventions) before changing
 code. [Local testing](tools/testing.md) covers focused checks and supported
 development hosts.
 

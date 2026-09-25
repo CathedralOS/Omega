@@ -573,11 +573,11 @@ The instructions at the time permitted a different outcome:
 - `.agents/skills/advance/SKILL.md`, opening contract: “One invocation delivers a
   bounded compiler improvement through publication, or an evidence-backed scope
   pause.” This makes a pause an alternative deliverable.
-- `AGENTS.md`, **Scope checkpoints**: after two supporting-machinery-only
+- `CONTRIBUTING.md`, **Scope checkpoints**: after two supporting-machinery-only
   milestones, “pause implementation” and propose continuing, simplifying, or
   deferring “for the user's direction.” It does not explicitly limit the pause
   to that task or require selection of other actionable work.
-- `AGENTS.md`, **Scope checkpoints**: “Scope/prioritization questions belong in
+- `CONTRIBUTING.md`, **Scope checkpoints**: “Scope/prioritization questions belong in
   the conversation; only actual owner language/architecture decisions belong in
   `OWNER_QUESTIONS.md`.” This creates a separate conversational escalation route.
 - `.agents/skills/advance/SKILL.md`, **When the slice cannot close**: a scope pause
@@ -611,5 +611,5 @@ continued selection elsewhere. `advance` is a request for progress, not an
 invitation to select a known blocker and return it to the user. Stopping an
 unrestricted invocation requires evidence that no actionable work remains, not
 merely that one selected task cannot proceed. The questions above are about
-aligning the instructions with that expectation; `AGENTS.md` and the `advance` skill now implement task-local pauses and continued
+aligning the instructions with that expectation; `CONTRIBUTING.md` and the `advance` skill now implement task-local pauses and continued
 selection. These questions retain the context for discussion with Zac.

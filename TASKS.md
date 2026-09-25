@@ -27,7 +27,7 @@ item's acceptance names one of those tests, the acceptance is the named
 fixture's corpus-gate outcome, plus its `--native` outcome where the item needs
 a native build or run. Rewrite such an item's acceptance when you next touch it.
 
-[AGENTS.md](AGENTS.md#workflow) governs task provenance, scoped checks, claims,
+[CONTRIBUTING.md](CONTRIBUTING.md#workflow) governs task provenance, scoped checks, claims,
 strategy pauses and publication. Live assignments belong in the
 [claims registry](tools/claims.md), not the board. A paused strategy is not a
 blocked language feature. Genuine owner decisions belong in
@@ -545,7 +545,7 @@ the complete product bar; focused successes below do not establish that baseline
 
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
   `compiler/tests/canary_suite/` to their promised checked/native stages.
-  Use the [focused selectors](AGENTS.md#running-one-test); full closure is
+  Use the [focused selectors](tools/testing.md#running-one-test); full closure is
   `mbx nextest run -p compiler --test canary_suite --no-fail-fast` on one
   revision with filters unset. Keep detailed logs outside the board; do not
   migrate fixtures during a measured run.
@@ -5028,7 +5028,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   version of this note, which blamed a gate: the documented full baseline is
   GREEN. `mbx nextest run --workspace --lib --no-fail-fast` is **17265 passed,
   0 failed, 3 skipped** at `a934945572b` on macOS arm64. Nothing is wrong with
-  the gate, and `--lib` is deliberate -- AGENTS.md puts integration tests
+  the gate, and `--lib` is deliberate -- tools/testing.md puts integration tests
   outside the portable subset and requires that "platform integration tests
   are separate and must report an explicit skip when the host cannot run
   them".
