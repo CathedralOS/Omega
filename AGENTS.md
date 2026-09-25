@@ -234,10 +234,27 @@ a run against the shared golden cannot separate that drift from yours, and
 re-recording the shared golden would pin their regression as expected. A subset diff
 compares only the fixtures that ran against the same golden; a subset
 `--record` merges into it. The unfiltered corpus is scheduled-workload cost,
-not loop cost — keep it out of routine iteration. It checks fixtures through
-the check route only: nothing here builds the corpus natively or executes the
-run tier. Native coverage comes from `tests/native-differential` and
-`omega refresh-samples`.
+not loop cost — keep it out of routine iteration.
+
+The default run checks fixtures only. `--native` builds every pass and run
+fixture for the host target, executes the run tier and `*_exit` fixtures in a
+temporary directory (stdin from `input.txt`, stdout compared with
+`expected_stdout.txt`), and diffs against that host's golden
+`tests/omega/corpus_native_<target>.txt`; records gain `exit:<code>` and
+`stdout:match|differs`. Use it with `--filter` for backend-visible changes.
+
+```bash
+python3 tools/corpus_gate.py --native --filter providers/
+```
+
+Large structural moves (deleting a mechanism, rewriting a seam) may land while
+some fixtures stop compiling, under one rule. A regressed pass or run fixture
+must reject with a diagnostic whose message starts `unimplemented:` and names
+the missing piece; the same commit re-records the affected goldens and states
+how many fixtures moved. `grep -c "unimplemented:"` over the goldens is the
+debt to burn down. Never allowed: a fail fixture that stops rejecting
+(unsound acceptance), a crash, or a native program that builds and exits
+differently from its golden. Those block landing.
 
 ### Bootstrap gates
 

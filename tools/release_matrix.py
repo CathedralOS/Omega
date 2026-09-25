@@ -112,6 +112,7 @@ GATES = {
         "commands": [
             [MBX, "nextest", "run", "-p", "omega-native-differential-test",
              "--all-targets", "--no-fail-fast"],
+            [PYTHON, "tools/corpus_gate.py", "--native"],
         ],
     },
     "RC-DIAGNOSTICS": {

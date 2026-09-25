@@ -25,6 +25,12 @@ Subsets — the inner-loop mode:
     python3 tools/corpus_gate.py --filter termination       # one domain
     python3 tools/corpus_gate.py --filter fail/proofs,wire/ # several fragments
 
+Native leg — build every pass and run fixture for this host and execute the
+run tier and `*_exit` fixtures, diffing against this host's golden
+`tests/omega/corpus_native_<target>.txt`:
+
+    python3 tools/corpus_gate.py --native --filter providers/
+
 Measuring your own change — one pass, not two:
 
     git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
@@ -66,6 +72,7 @@ import collections
 import json
 import os
 from pathlib import Path
+import platform
 import subprocess
 import sys
 import urllib.request
@@ -75,6 +82,19 @@ import corpus_records
 
 ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "tests" / "omega" / "corpus_outcomes.txt"
+
+# Omega target names for hosts with a catalogued deployment profile.
+HOST_TARGETS = {
+    ("windows", "amd64"): "windows_x86_64",
+    ("windows", "x86_64"): "windows_x86_64",
+    ("linux", "x86_64"): "linux_x86_64",
+    ("linux", "aarch64"): "linux_arm64",
+    ("darwin", "arm64"): "macos_arm64",
+}
+
+
+def host_target() -> str | None:
+    return HOST_TARGETS.get((platform.system().lower(), platform.machine().lower()))
 
 
 def build_runner() -> Path:
@@ -295,10 +315,12 @@ def shown(value) -> str:
     """One field of a record, as a diff line shows it."""
     if isinstance(value, list):
         return " | ".join(value) if value else "(no diagnostics)"
+    if isinstance(value, dict):
+        return " ".join(f"{key}:{item}" for key, item in value.items()) or "(no facts)"
     return str(value)
 
 
-def baseline_path() -> Path:
+def baseline_path(native: bool = False) -> Path:
     """This checkout's baseline file, named for the commit it was recorded at.
 
     The checked-in golden pins outcomes for `main` as a whole, so it disagrees
@@ -312,7 +334,8 @@ def baseline_path() -> Path:
         ["git", "rev-parse", "HEAD"],
         cwd=ROOT, capture_output=True, text=True, check=False,
     ).stdout.strip() or "unknown"
-    return ROOT / "build" / "corpus_baselines" / f"{revision}.txt"
+    suffix = "-native" if native else ""
+    return ROOT / "build" / "corpus_baselines" / f"{revision}{suffix}.txt"
 
 
 def main() -> int:
@@ -327,6 +350,10 @@ def main() -> int:
     parser.add_argument("--runner", type=Path,
                         help="use an existing corpus_runner binary instead of building")
     parser.add_argument("--golden", type=Path, default=GOLDEN)
+    parser.add_argument("--native", action="store_true",
+                        help="build pass and run fixtures for this host, execute "
+                             "the run tier and *_exit fixtures, and diff against "
+                             "tests/omega/corpus_native_<target>.txt")
     parser.add_argument("--baseline", action="store_true",
                         help="diff against this checkout's own recorded "
                              "outcomes instead of the checked-in golden — "
@@ -341,11 +368,19 @@ def main() -> int:
                         help="k/N — deterministic hash-slice of the corpus "
                              "(sets OMEGA_CORPUS_SHARD for the runner)")
     options = parser.parse_args()
+    if options.native:
+        target = host_target()
+        if target is None:
+            print("corpus_gate: this host has no catalogued Omega target for --native")
+            return 2
+        os.environ["OMEGA_CORPUS_NATIVE"] = "1"
+        if options.golden == GOLDEN:
+            options.golden = ROOT / "tests" / "omega" / f"corpus_native_{target}.txt"
     if options.baseline:
-        if options.golden != GOLDEN:
+        if options.golden != GOLDEN and not options.native:
             print("corpus_gate: --baseline and --golden name different goldens")
             return 2
-        options.golden = baseline_path()
+        options.golden = baseline_path(options.native)
         if not options.golden.is_file() and not options.record:
             print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
                   "record one from a clean tree first:\n"
@@ -412,7 +447,7 @@ def main() -> int:
                            "expected_satisfied": record["expected_satisfied"],
                            "diagnostics": record["diagnostics"]}})
             continue
-        for field in ("status", "expected_satisfied", "diagnostics"):
+        for field in ("status", "expected_satisfied", "facts", "diagnostics"):
             if record[field] != before[field]:
                 structural_moves.append(
                     f"~ {fixture}: {field} moved\n"
@@ -460,6 +495,12 @@ def main() -> int:
     summary = (f"{len(records)} fixtures ({counts}), "
                f"{wrong_reason} rejected without their expected fragment, "
                f"{not_rejected} fail fixtures did not reject")
+    executed = [r for r in records if "exit" in r.get("facts", {})]
+    if executed:
+        exits = collections.Counter(r["facts"]["exit"] for r in executed)
+        differs = sum(1 for r in executed if r["facts"].get("stdout") == "differs")
+        summary += (f"; executed {len(executed)} (exit codes {dict(exits)}), "
+                    f"{differs} with stdout differing from expected")
 
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")

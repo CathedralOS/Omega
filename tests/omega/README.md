@@ -40,5 +40,6 @@ Conventions:
 Every fixture here is a test. `tools/corpus_gate.py` compiles each one through
 the `corpus_runner` target and diffs its outcome record (checked or rejected,
 diagnostics, expected-fragment match) against `corpus_outcomes.txt`; nothing
-needs registering in a roster. That run checks fixtures only: it does not build
-them natively or execute the run tier.
+needs registering in a roster. That run checks fixtures only; `--native` builds
+every pass and run fixture for the host, executes the run tier and `*_exit`
+fixtures, and diffs against `corpus_native_<target>.txt`.
