@@ -129,17 +129,14 @@ pub(crate) fn type_requires_establishment(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_requires_establishment_inner(
-        program,
-        type_reference,
-        &mut EstablishmentIndex::new(program),
-    )
+    type_requires_establishment_inner(program, type_reference, &mut EstablishmentIndex::new())
 }
 
-/// One walk's working set: the declaration table the inner walkers used to
-/// rescan per Named node, the active-path `seen` set, and the absolute answers
-/// already proven for completed definitions — a definition's result does not
-/// depend on the path that reached it, so it is memoized.
+/// One walk's working set: the active-path `seen` set and the absolute
+/// answers already proven for completed definitions — a definition's result
+/// does not depend on the path that reached it, so it is memoized. Named
+/// symbol lookups read the build-scope data-definition index rather than a
+/// per-walk declaration table.
 ///
 /// Every key is the declaration's own symbol, not its spelling. Two modules
 /// may declare the same leaf name, and a spelling key answers for whichever
@@ -147,25 +144,14 @@ pub(crate) fn type_requires_establishment(
 /// `Named` node whose symbol never resolved keeps the spelling route, which
 /// scans rather than indexing, because an unresolved reference has no
 /// declaration identity to key on.
-struct EstablishmentIndex<'program> {
-    definitions: std::collections::HashMap<
-        symbols::SymbolHandle,
-        &'program typed_trees::data::DataDefinition,
-    >,
+struct EstablishmentIndex {
     seen: std::collections::HashSet<symbols::SymbolHandle>,
     computed: std::collections::HashMap<symbols::SymbolHandle, bool>,
 }
 
-impl<'program> EstablishmentIndex<'program> {
-    fn new(program: &'program TypedTrees) -> Self {
-        let mut definitions = std::collections::HashMap::new();
-        for definition in program.data_definitions() {
-            if definition.symbol.is_valid() {
-                definitions.entry(definition.symbol).or_insert(definition);
-            }
-        }
+impl EstablishmentIndex {
+    fn new() -> Self {
         Self {
-            definitions,
             seen: std::collections::HashSet::new(),
             computed: std::collections::HashMap::new(),
         }
@@ -237,10 +223,10 @@ fn validate_data_default_domain(
     }
 }
 
-fn type_requires_establishment_inner<'program>(
-    program: &'program TypedTrees,
+fn type_requires_establishment_inner(
+    program: &TypedTrees,
     type_reference: TypeReferenceHandle,
-    index: &mut EstablishmentIndex<'program>,
+    index: &mut EstablishmentIndex,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
@@ -262,7 +248,9 @@ fn type_requires_establishment_inner<'program>(
         }
         TypeReferenceNode::Named { symbol, name } => {
             let definition = if symbol.is_valid() {
-                index.definitions.get(symbol).copied()
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )
             } else {
                 program
                     .data_definitions()
@@ -281,13 +269,13 @@ pub fn data_requires_establishment(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new(program))
+    data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new())
 }
 
-fn data_requires_establishment_inner<'program>(
-    program: &'program TypedTrees,
-    definition: &'program typed_trees::data::DataDefinition,
-    index: &mut EstablishmentIndex<'program>,
+fn data_requires_establishment_inner(
+    program: &TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+    index: &mut EstablishmentIndex,
 ) -> bool {
     if definition.zero_gated {
         return true;
