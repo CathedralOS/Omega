@@ -169,3 +169,17 @@ leaf/sum-mixed-reference-case-payloads	46c5d9b25c	z5	merged	2026-09-24T19:47:28Z
 2026-09-24T21:31:29Z	leaf/jev-attribute	1a635e98cd	tools/jev_attribute.py + merge-check attribution step; measured on marker-blob case (culprit 0.96 top, co-culprit 0.84, 6 absent)	tools-only, no rust gate
 leaf/storage-alias-closure	f3202cd42a	me	merged	2026-09-25T03:22:24Z	close() per-call 321->271us; lib 17010/17010 + 6289/6289; canary/samplered preexisting
 2026-09-25T03:33:22Z	334326dd7a	case-payload-observation (z5): case arms observe record-payload member fields via staged leaf copies; c2l+codec+interpreter+verifier 1286/1286
+2026-09-25T05:41:02Z	27b30f83e3	place-symbol-position-index ext3 (me): statement-prefix scan skipped on definite container miss — param/local parent==state invariant	omega	merged	me
+2026-09-25T05:41:09Z	27b30f83e3	place-symbol-position-index ext3 (me): symbol_type_reference_in_state skips param+prefix scan on definite container miss (parent!=state)	omega	merged	me
+2026-09-25T05:41:59Z	27b30f83e3	place-symbol-position-index ext4 (me): symbol_type_reference_in_state skips param+prefix scan on definite container miss	omega	merged	me
+2026-09-25T08:17:24Z	leaf/scan-check-site-sweep	ff731deff07a02c18795a6b1d2e51d1600b41c93	merged; t2c --lib 5409/5409; dense-sample bracket: base 8/10 in SourceModule arena scans, fixed cleared + 3 phases deeper
+2026-09-25T08:31:37Z	leaf/scan-check-site-sweep-2	619b2ac8d664bbd983dacfa246574069bf9ac47d	merged; validation+t2c --lib 6288/6288; fixes landed-leaf cleanup regression (row-less forged handles)
+2026-09-25T08:38:18Z	leaf/scan-scalar-byte-array-kernels	f463ade	merged; conflicts resolved (FixtureKit move wins; byte_array_scan field applied to 4 surviving sites; lock deletion kept); z2 gate evidence carried
+2026-09-25T08:40:08Z	leaf/skill-autonomous-chaining	8151d936e7bd346de6c96f6e5644f35a46628279	merged; prose-only contract patch
+2026-09-25T08:52:09Z	leaf/container-kind-dispatch	0a241a39720aead5274dd645b973c3a08bd52d7e	merged; t2c --lib 5409/5409; kind-dispatch replaces 7 sequential container scans
+2026-09-25T09:12:44Z	leaf/owner-environment-index	aa69b35c8df9ccced4e1275ec27c5fa3a166efdc	merged; t2c --lib 5409/5409; lazily-built owner env index replaces per-query full rescans at 3 drivers
+2026-09-25T09:20:19Z	leaf/selection-membership-sets	b4c43946dde79f3fa8622d82767d3f6f55c0638d	merged; t2c --lib 5409/5409; HashSet membership lists in collect_call_selections
+2026-09-25T09:28:09Z	leaf/lazy-bound-lookup-inner	e10b1c8402cba3366b745af4e9b0c1c571c624b4	merged; validation 879/879 + t2c 5409/5409; BoundMaps build on first query
+2026-09-25T09:39:44Z	leaf/multiplicity-span-hoist	08d58fd6052e629c6588eb64e701088e107d0493	merged; typed-trees check green
+2026-09-25T09:56:16Z	leaf/claim-frontier-shared-path	1d4e1c47719d8529b802483277565c92c05d59e0	merged; validation 879/879; push/pop path in claim frontier
+fe92763306	leaf/machine-symbol-verdicts	machine_by_symbol per-program scan-verdict cache	5409/5409
