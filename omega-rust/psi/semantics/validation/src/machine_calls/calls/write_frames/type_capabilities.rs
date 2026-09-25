@@ -7,7 +7,10 @@
 #[cfg(test)]
 mod tests;
 
-use super::isolation::type_is_caller_isolated_local_in;
+use super::isolation::{
+    definitions_for_name, definitions_for_symbol, type_is_caller_isolated_local_in,
+    with_isolation_cache,
+};
 use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
@@ -47,8 +50,18 @@ fn type_is_reference_free_value(
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    type_is_caller_isolated_local_in(program, handle, bindings)
-        && !type_reaches_opaque_data(program, handle, &mut Vec::new(), &mut bindings.to_vec())
+    let key = (handle, bindings.to_vec());
+    if let Some(verdict) =
+        with_isolation_cache(program, |cache| cache.reference_free.get(&key).copied())
+    {
+        return verdict;
+    }
+    let verdict = type_is_caller_isolated_local_in(program, handle, bindings)
+        && !type_reaches_opaque_data(program, handle, &mut Vec::new(), &mut bindings.to_vec());
+    with_isolation_cache(program, |cache| {
+        cache.reference_free.insert(key, verdict);
+    });
+    verdict
 }
 
 /// `visiting` holds the data definitions on the current path; a recursive
@@ -87,13 +100,11 @@ fn type_reaches_opaque_data(
             ) {
                 return false;
             }
-            let mut definitions = program.data_definitions().iter().filter(|definition| {
-                if symbol.is_valid() {
-                    definition.symbol == *symbol
-                } else {
-                    definition.name == *name
-                }
-            });
+            let mut definitions = if symbol.is_valid() {
+                definitions_for_symbol(program, *symbol).into_iter()
+            } else {
+                definitions_for_name(program, name).into_iter()
+            };
             // A type parameter or an unknown nominal is not a data definition
             // this walk can vouch for.
             let Some(definition) = definitions.next() else {
@@ -168,6 +179,24 @@ pub(super) fn type_may_carry_write_in(
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    let key = (handle, bindings.to_vec());
+    if let Some(verdict) =
+        with_isolation_cache(program, |cache| cache.carry_write.get(&key).copied())
+    {
+        return verdict;
+    }
+    let verdict = type_may_carry_write_walk(program, handle, bindings);
+    with_isolation_cache(program, |cache| {
+        cache.carry_write.insert(key, verdict);
+    });
+    verdict
+}
+
+fn type_may_carry_write_walk(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
     let handle = substituted_head(program, handle, bindings);
     if program.primitive_type_reference(handle).is_some() {
         return false;
@@ -176,7 +205,7 @@ pub(super) fn type_may_carry_write_in(
     match program.type_reference_table.type_reference(handle) {
         TypeReferenceNode::Reference { access, .. } if !access.is_exclusive() => false,
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_may_carry_write_in(program, *base_type, bindings)
+            type_may_carry_write_walk(program, *base_type, bindings)
         }
         TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
         // A by-value record, sum or fixed array without references owns its
