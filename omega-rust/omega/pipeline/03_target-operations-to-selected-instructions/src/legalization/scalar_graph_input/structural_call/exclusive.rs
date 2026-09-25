@@ -216,13 +216,7 @@ fn block_parameter_argument(
                     }
         })
         || !plan.structural_types.iter().any(|entry| {
-            entry.id == declaration.structural_type
-                && entry.shape
-                    == terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                        },
-                    )
+            entry.id == declaration.structural_type && entry.shape.is_borrowed_byte_view()
         })
         || call
             .parameters

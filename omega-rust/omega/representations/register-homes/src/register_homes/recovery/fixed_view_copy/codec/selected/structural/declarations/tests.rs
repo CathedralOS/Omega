@@ -105,3 +105,29 @@ fn block_parameter_place_rejects_zero_block_and_truncated_coordinates() {
         Err(FixedViewCopyDecodeError::InvalidSemanticId(0))
     ));
 }
+
+/// A borrowed view's access survives the round trip: a standalone view type
+/// carries none, a record field's view carries its own. Decoding every view as
+/// shared turned an access-free type into a different declaration.
+#[test]
+fn byte_view_type_round_trip_retains_its_access() {
+    for access in [
+        None,
+        Some(StructuralAccess::SharedBorrow),
+        Some(StructuralAccess::MutableBorrow),
+        Some(StructuralAccess::WriteOnlyBorrow),
+    ] {
+        let declaration = StructuralTypeDeclaration {
+            id: StructuralTypeId::new(7).unwrap(),
+            identity: "bytes".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access },
+            ),
+        };
+        let mut bytes = Vec::new();
+        encode_type(&mut bytes, &declaration);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+        assert_eq!(cursor.remaining(), 0);
+    }
+}

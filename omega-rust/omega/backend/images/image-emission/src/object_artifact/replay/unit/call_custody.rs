@@ -344,12 +344,7 @@ pub(crate) fn exact_borrowed_projection(
         };
         let destination_is_byte_view = structural_types.iter().any(|declaration| {
             declaration.id == destination.structural_type
-                && declaration.shape
-                    == terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                        },
-                    )
+                && declaration.shape.is_borrowed_byte_view()
         });
         if !destination_is_byte_view {
             return false;
