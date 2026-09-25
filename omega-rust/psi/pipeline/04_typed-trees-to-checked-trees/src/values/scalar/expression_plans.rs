@@ -83,6 +83,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         Some(state),
                         assignment.target,
                     )
+                    .and_then(|declared| validation::closed_array_store_type(program, declared))
                     .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid())),
                     _ => None,
                 };

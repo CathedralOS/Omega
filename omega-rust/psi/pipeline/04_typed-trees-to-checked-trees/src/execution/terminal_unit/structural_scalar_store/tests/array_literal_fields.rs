@@ -121,3 +121,27 @@ fn an_array_literal_reading_storage_is_not_split_into_element_stores() {
         "a storage-reading element never becomes an element store"
     );
 }
+
+/// An arithmetic-policy shell around the whole array qualifies arithmetic on
+/// its elements, not their storage: the literal still lands element by
+/// element.
+#[test]
+fn an_array_literal_lands_under_a_whole_array_policy_shell() {
+    let stores = stores(
+        r#"
+        data Tally { counts: [i32; 3] in Wrapping; }
+        machine Tally::reset(&mut self) { self.counts = [0, 0, 0]; }
+    "#,
+        "Tally::reset",
+    )
+    .expect("the literal decomposes under the policy shell");
+    let field = || Segment::Field("counts".into());
+    assert_eq!(
+        element_paths(&stores),
+        [
+            vec![field(), Segment::FixedIndex(0)],
+            vec![field(), Segment::FixedIndex(1)],
+            vec![field(), Segment::FixedIndex(2)],
+        ]
+    );
+}

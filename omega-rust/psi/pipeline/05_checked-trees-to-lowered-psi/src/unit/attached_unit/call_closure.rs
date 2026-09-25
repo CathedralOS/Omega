@@ -628,26 +628,31 @@ pub(super) fn validate_unit_operation_sequence(
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
         ) && coordinate.call_ordinal == 0;
         // A whole-record replacement decomposes into one ordered field store
-        // per member. Each store keeps the statement's own coordinate, so
-        // consecutive same-coordinate field stores stay canonical only by
-        // operation order; the exact field roster is rejoined against the
+        // per member, and a whole array-literal replacement into one
+        // primitive store per element. Each store keeps the statement's own
+        // coordinate, so consecutive same-coordinate stores stay canonical
+        // only by operation order; the exact roster is rejoined against the
         // authored literal in `structural_scalar_store_source`.
-        let repeated_record_field_store = matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-        ) && previous == Some(key)
+        let previous_operation = operation_index
+            .checked_sub(1)
+            .and_then(|previous| machine.operations.get(previous));
+        let repeated_literal_store = previous == Some(key)
             && matches!(
-                operation_index
-                    .checked_sub(1)
-                    .and_then(|previous| machine.operations.get(previous)),
-                Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
-                    _
-                ))
+                (operation, previous_operation),
+                (
+                    CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_),
+                    Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
+                        _
+                    ))
+                ) | (
+                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. },
+                    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. })
+                )
             );
         // Coordinates retain preorder identity. Same-statement producers are
         // published in postorder; exact syntax and argument ordering rejoin in
         // structural result consumer validation after this shape check.
-        if !repeated_record_field_store {
+        if !repeated_literal_store {
             if (previous.is_some_and(|previous| previous >= key)
                 && !(same_statement && previous_nested && nested_consumer))
                 || (previous_nested && (!same_statement || !nested_consumer))
