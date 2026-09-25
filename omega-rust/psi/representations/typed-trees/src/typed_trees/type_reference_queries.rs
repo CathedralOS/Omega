@@ -148,11 +148,12 @@ impl TypedTrees {
                 // declared leaf `Choice`, and a leaf name can collide across
                 // modules. Match by symbol first; retain the name lookup only
                 // for references whose symbol never resolved.
-                self.data_definitions()
+                let data_definitions = self.data_definitions();
+                data_definitions
                     .iter()
                     .find(|definition| symbol.is_valid() && definition.symbol == *symbol)
                     .or_else(|| {
-                        self.data_definitions()
+                        data_definitions
                             .iter()
                             .find(|definition| definition.name.as_str() == name.as_str())
                     })
@@ -163,17 +164,19 @@ impl TypedTrees {
                 base_symbol,
                 base_name,
                 ..
-            } => self
-                .data_definitions()
-                .iter()
-                .find(|definition| base_symbol.is_valid() && definition.symbol == *base_symbol)
-                .or_else(|| {
-                    self.data_definitions()
-                        .iter()
-                        .find(|definition| definition.name.as_str() == base_name.as_str())
-                })
-                .map(|definition| definition.properties.multiplicity)
-                .unwrap_or(Multiplicity::Affine),
+            } => {
+                let data_definitions = self.data_definitions();
+                data_definitions
+                    .iter()
+                    .find(|definition| base_symbol.is_valid() && definition.symbol == *base_symbol)
+                    .or_else(|| {
+                        data_definitions
+                            .iter()
+                            .find(|definition| definition.name.as_str() == base_name.as_str())
+                    })
+                    .map(|definition| definition.properties.multiplicity)
+                    .unwrap_or(Multiplicity::Affine)
+            }
             TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
                 Multiplicity::Affine
             }
