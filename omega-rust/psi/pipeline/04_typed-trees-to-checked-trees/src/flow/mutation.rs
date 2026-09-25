@@ -699,7 +699,6 @@ fn normalize_write_only_range_place(
     state_symbol: SymbolHandle,
     place: &mut CanonicalPlace,
 ) {
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     // Keep ordinary borrow selectors expression-backed for certificate replay.
     // Only an admitted write-only mutation may collapse immutable copy bounds
     // into the exact caller-visible range footprint.
@@ -739,6 +738,9 @@ fn normalize_write_only_range_place(
         return;
     }
 
+    // The bound index scans the whole program once; only Range selectors
+    // need it, so build it on the first one rather than for every place.
+    let mut bound_lookup = None;
     for segment in &mut place.segments {
         let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
@@ -746,10 +748,12 @@ fn normalize_write_only_range_place(
         let ExpressionNode::Range(range) = program.expression_table.expression(expression) else {
             continue;
         };
+        let bound_lookup =
+            bound_lookup.get_or_insert_with(|| validation::ImmutableBoundLookup::new(program));
         let start = if range.start.is_valid() {
             validation::normalize_immutable_integer_bound_to_usize(
                 program,
-                &bound_lookup,
+                bound_lookup,
                 range.start,
             )
         } else {
@@ -760,7 +764,7 @@ fn normalize_write_only_range_place(
         } else {
             validation::normalize_immutable_integer_bound_to_usize(
                 program,
-                &bound_lookup,
+                bound_lookup,
                 range.end,
             )
             .and_then(|end| {
