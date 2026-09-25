@@ -407,12 +407,7 @@ fn assignment_selector_depth(
 }
 
 fn field_segment(field: &checked_trees::data::DataField) -> CheckedUnitStructuralPathSegment {
-    CheckedUnitStructuralPathSegment::Field(
-        field
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| field.name.as_str().to_owned()),
-    )
+    CheckedUnitStructuralPathSegment::Field(field.path_identity())
 }
 
 /// Statement calls retain the root and endpoint symbols, with the intervening

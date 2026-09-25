@@ -507,10 +507,7 @@ pub(super) fn validate_projection(
                     symbol: field.symbol,
                 });
                 checked_path.push(CheckedUnitStructuralPathSegment::Field(
-                    field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field.path_identity(),
                 ));
                 cursor = member.receiver;
             }

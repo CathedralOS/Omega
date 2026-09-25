@@ -234,10 +234,7 @@ pub(super) fn build(
                     .iter()
                     .copied()
                     .filter(|variant| {
-                        let identity = variant
-                            .identity
-                            .map(|identity| format!("#{identity}"))
-                            .unwrap_or_else(|| variant.name.as_str().to_owned());
+                        let identity = variant.path_identity();
                         !cases
                             .iter()
                             .any(|case: &CheckedClosedSumCaseSuccessorPlan| {
@@ -252,10 +249,7 @@ pub(super) fn build(
             return None;
         }
         for variant in selected_variants {
-            let identity = variant
-                .identity
-                .map(|identity| format!("#{identity}"))
-                .unwrap_or_else(|| variant.name.as_str().to_owned());
+            let identity = variant.path_identity();
             if cases
                 .iter()
                 .any(|case: &CheckedClosedSumCaseSuccessorPlan| case.case_identity == identity)
@@ -316,10 +310,7 @@ pub(super) fn build(
                     return None;
                 }
                 payloads.push(CheckedClosedSumPayloadTransferPlan {
-                    field_identity: field
-                        .identity
-                        .map(|identity| format!("#{identity}"))
-                        .unwrap_or_else(|| field.name.as_str().to_owned()),
+                    field_identity: field.path_identity(),
                     primitive_type: parameter.primitive_type,
                     target_scalar_parameter_index: u32::try_from(parameter_index).ok()?,
                 });

@@ -192,7 +192,7 @@ fn append_where_requirements(
             }
             visited.push(nested.symbol);
             prefix.push(CheckedStructuralPredicatePathSegment::Field(
-                field_identity(field),
+                field.path_identity(),
             ));
             for index in 0..*length {
                 let Ok(index) = u64::try_from(index) else {
@@ -222,7 +222,7 @@ fn append_where_requirements(
         }
         visited.push(nested.symbol);
         prefix.push(CheckedStructuralPredicatePathSegment::Field(
-            field_identity(field),
+            field.path_identity(),
         ));
         append_where_requirements(
             program,
@@ -255,16 +255,6 @@ fn owned_field_data_definition(
             .find(|definition| definition.symbol == *symbol),
         _ => None,
     }
-}
-
-/// The canonical structural identity a field's path segment carries: its
-/// ordinal `#n` when one was assigned, else the authored spelling. This is
-/// the same spelling `resolve_structural_parameter_path` matches.
-fn field_identity(field: &DataField) -> String {
-    field
-        .identity
-        .map(|identity| format!("#{identity}"))
-        .unwrap_or_else(|| field.name.as_str().to_owned())
 }
 
 /// One data definition's field, selected by its retained symbol or falling
@@ -323,7 +313,7 @@ fn where_field_path(
                     .unwrap_or_else(SymbolHandle::invalid);
                 let field = find_data_field(program, owner, symbol, member.as_str())?;
                 path.push(CheckedStructuralPredicatePathSegment::Field(
-                    field_identity(field),
+                    field.path_identity(),
                 ));
                 if index + 1 == members.len() {
                     leaf = Some(field.type_reference);
@@ -343,7 +333,7 @@ fn where_field_path(
             let field =
                 find_data_field(program, owner, member.member_symbol, member.member.as_str())?;
             path.push(CheckedStructuralPredicatePathSegment::Field(
-                field_identity(field),
+                field.path_identity(),
             ));
             Some((path, field.type_reference))
         }

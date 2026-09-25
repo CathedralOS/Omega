@@ -457,10 +457,7 @@ fn parameter_place(
                 if field.relevance.is_erased() {
                     return unsupported("case membership has an erased carrier field");
                 }
-                let identity = field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                let identity = field.path_identity();
                 if segment != &CheckedUnitStructuralPathSegment::Field(identity) {
                     return unsupported("case membership changed its field path");
                 }

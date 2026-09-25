@@ -255,10 +255,7 @@ fn validate_path(
                 let field = fields.next().ok_or(LoweringError::Unsupported(
                     "anonymous partial permission field substituted its owner",
                 ))?;
-                let actual = field
-                    .identity
-                    .map(|identity| format!("#{identity}"))
-                    .unwrap_or_else(|| field.name.as_str().to_owned());
+                let actual = field.path_identity();
                 if fields.next().is_some() || actual != *identity {
                     return unsupported("anonymous partial permission field identity drifted");
                 }
