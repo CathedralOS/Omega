@@ -69,14 +69,18 @@ only. These items land in order, and each deletes the side doors it replaces.
   81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
 - **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
   is target-neutral: one union of physical sources, every target's program-entry
-  contract source (`source_assembly::entry_contract_seed` seeds one target's
-  today), package imports (`resolve_for_exact_target`) and dependency generated
-  sources (`append_dependency_generated_sources_to_storage` selects per
-  target). Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
+  contract source, package imports (`resolve_for_exact_target`) and dependency
+  generated sources (`append_dependency_generated_sources_to_storage` selects
+  per target). `source_assembly::entry_contract_seed` now seeds every
+  catalogued profile's contract on both routes; what remains is the rest of
+  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
   `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
   dependency build that generates target-specific content emits target-tagged
-  declarations, never a different file per target. Depends on
-  PSI-TARGET-FAMILIES for the entry contracts' target-scoped bodies.
+  declarations, never a different file per target; dependency builds still
+  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
+  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
+  loads 22 sources and takes 102 s on the Windows host, of which the itemized
+  Psi stages are 15 s; the rest is the per-target dependency package compile.
   Acceptance: `PreparedCheckedSource` assembles once for any target set and
   the `Step: assemble` timing row appears once per compilation.
 

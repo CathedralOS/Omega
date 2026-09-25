@@ -16,7 +16,7 @@ use calling;
 // not hosted application arguments. This calling contract supplies no
 // bridge, loader admission, receiver, or numeric stack guarantee.
 // ProviderSelected requires independent backing.
-boundary trait LinuxPhysicalEntry {
+boundary trait LinuxArm64PhysicalEntry {
     machine enter(argc: u64) -> i32;
 }
 
@@ -317,4 +317,4 @@ machine LinuxArm64::extent_value(first: u64, second: u64) -> ValuePlacement {
     value
 }
 
-boundary trait LinuxArm64Application: ProgramStorageEntry + LinuxPhysicalEntry + Calling<LinuxArm64> {}
+boundary trait LinuxArm64Application: ProgramStorageEntry + LinuxArm64PhysicalEntry + Calling<LinuxArm64> {}

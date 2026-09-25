@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 /// the bundled target implementation. The macOS ARM64 program-entry slot owns a
 /// closed physical-contract package, so every `macos_arm64` compilation already
 /// seeds `targets/macos_arm64/entry.omg`; a copy of it duplicates `MacosArm64`,
-/// `MacosPhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
+/// `MacosArm64PhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
 /// machine.
 fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
     let standard_library_root = bundled_standard_library_root();
@@ -131,7 +131,7 @@ fn macos_entry_policy_replays_physical_and_internal_storage_calling_plans() {
     let physical = schema
         .methods
         .iter()
-        .find(|method| method.requirement_owner == "MacosPhysicalEntry")
+        .find(|method| method.requirement_owner == "MacosArm64PhysicalEntry")
         .expect("exact dyld arrival");
     assert_eq!(semantic.parameter_type_identities.len(), 2);
     assert!(!semantic.has_result);
@@ -210,7 +210,7 @@ fn macos_entry_policy_rejects_wrong_physical_or_storage_signatures() {
 /// it, and the macOS ARM64 slot's closed physical-contract package seeds the
 /// authored contract into every `macos_arm64` compilation, so a fixture that
 /// carried its own copy of that contract would declare `MacosArm64`,
-/// `MacosPhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
+/// `MacosArm64PhysicalEntry`, `MacosApplication` and every `MacosArm64::*` policy
 /// machine twice. One copied standard library keeps exactly one of each and
 /// still reaches the authored rejection.
 fn standard_library_copy_with_entry_declarations(name: &str, declarations: &str) -> PathBuf {
