@@ -58,7 +58,7 @@ pub(crate) fn derive_checked_nominal_call_target(
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
         return None;
     };
-    contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call)
+    contexts::checked_machine_call_target_from_exact_owner(program, facts, expression, call, None)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,12 +79,19 @@ pub(crate) fn bind_checked_intrinsic_call_facts(
     facts: &mut CheckFacts,
 ) -> Result<(), Diagnostic> {
     let mut intrinsic_calls = Vec::new();
+    // One exact-owner index answers every call expression's query in a
+    // single pass instead of a whole-program rescan per call site.
+    let owner_index = contexts::OwnerEnvironmentIndex::default();
     for (expression, node) in program.expression_table.iter_expressions() {
         let ExpressionNode::Call(call) = node else {
             continue;
         };
         let Some(intrinsic) = contexts::checked_collection_view_intrinsic_from_exact_owner(
-            program, facts, expression, call,
+            program,
+            facts,
+            expression,
+            call,
+            Some(&owner_index),
         ) else {
             continue;
         };
@@ -134,6 +141,7 @@ pub(crate) fn exact_owner_member_declaration(
         &CheckFacts::default(),
         expression,
         member,
+        None,
     )? {
         contexts::OwnerMemberTarget::Declaration(symbol) => Some(symbol),
         contexts::OwnerMemberTarget::CollectionMeasure(_) => None,
@@ -145,6 +153,9 @@ pub(crate) fn bind_pre_specialization_authored_selections(
 ) -> Result<(), Diagnostic> {
     let facts = CheckFacts::default();
     let mut resolutions = Vec::new();
+    // One exact-owner index answers every late-bound member and call's
+    // query in a single pass instead of a whole-program rescan each.
+    let owner_index = contexts::OwnerEnvironmentIndex::default();
     for (expression, node) in program.expression_table.iter_expressions() {
         for occurrence in program
             .expression_table
@@ -164,7 +175,11 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,
                     ExpressionNode::Member(member),
                 ) => contexts::checked_member_target_from_exact_owner(
-                    program, &facts, expression, member,
+                    program,
+                    &facts,
+                    expression,
+                    member,
+                    Some(&owner_index),
                 )
                 .map(|target| match target {
                     contexts::OwnerMemberTarget::Declaration(symbol) => {
@@ -186,7 +201,11 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                             .and_then(|operator| declaration_target(operator.symbol))
                             .or_else(|| {
                                 contexts::checked_machine_call_target_from_exact_owner(
-                                    program, &facts, expression, call,
+                                    program,
+                                    &facts,
+                                    expression,
+                                    call,
+                                    Some(&owner_index),
                                 )
                                 .and_then(declaration_target)
                             })
