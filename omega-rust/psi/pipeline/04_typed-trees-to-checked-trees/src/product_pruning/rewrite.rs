@@ -282,11 +282,13 @@ fn apply_fact_pruning(
         .terminal_unit_effects
         .composed_machines
         .retain(|row| retained.contains(&row.machine));
+    // A static boundary requirement's plan is keyed by its trait signature,
+    // not a machine: only plans of a pruned machine leave.
     facts
         .flow
         .terminal_unit_effects
         .boundary_machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| !pruned.contains(&row.machine));
     facts
         .flow
         .terminal_partial_affine_unit_cleanups
@@ -336,7 +338,7 @@ fn apply_fact_pruning(
         .flow
         .terminal_boundary_scalar_returns
         .boundary_machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| !pruned.contains(&row.machine));
     facts
         .flow
         .terminal_structural_returns

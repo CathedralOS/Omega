@@ -732,6 +732,55 @@ mod tests {
         );
     }
 
+    /// A static boundary requirement's plan is keyed by its trait signature,
+    /// which is not a machine. Pruning keeps it: only plans of a pruned
+    /// machine leave. (Keeping only retained machines dropped the plan behind
+    /// every `Console::write_line` call once target-sibling pruning ran on
+    /// each compile.)
+    #[test]
+    fn static_boundary_requirement_plans_survive_pruning() {
+        let program = checked(
+            r#"
+            boundary trait Console {
+                machine exit_process(return_code: i32)
+                reaches Console;
+            }
+            data Root {}
+            machine Root::enter()
+            reaches Console
+            {
+                Console::exit_process(37);
+            }
+            machine unused() -> u64 { 2u64 }
+            "#,
+        );
+        let requirement_plans = |program: &CheckedTrees| {
+            program
+                .facts
+                .flow
+                .terminal_unit_effects
+                .boundary_machines
+                .iter()
+                .filter(|plan| {
+                    program
+                        .typed
+                        .machines()
+                        .iter()
+                        .all(|machine| machine.symbol != plan.machine)
+                })
+                .map(|plan| plan.machine)
+                .collect::<Vec<_>>()
+        };
+        let before = requirement_plans(&program);
+        assert_eq!(before.len(), 1, "one static requirement plan");
+        let root = machine_named(&program.typed, "Root::enter").symbol;
+        let plan =
+            CheckedTreeProductPruning::new(CheckedTreeProductRoots::new([root]).expect("roots"));
+        let outcome = prune_checked_tree_product(program, &plan).expect("prune");
+        assert!(!outcome.selection.pruned_machines().is_empty());
+        assert_eq!(requirement_plans(&outcome.checked), before);
+    }
+
     #[test]
     fn the_pruned_product_is_a_fixed_point_for_the_same_plan() {
         let program = checked(
