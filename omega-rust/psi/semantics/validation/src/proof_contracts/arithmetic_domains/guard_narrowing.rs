@@ -44,7 +44,7 @@ pub(super) fn has_builtin_ordering(
         && meaning::folded_constant_is_builtin(program, machine, state, comparison.right)
 }
 
-fn has_builtin_equality(
+pub(super) fn has_builtin_equality(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,

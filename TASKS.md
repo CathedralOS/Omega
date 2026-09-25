@@ -354,13 +354,13 @@ the complete product bar; focused successes below do not establish that baseline
   `capabilities/uses_caller_folder` reject on borrowed storage absent at a
   boundary call, which is [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md)
   (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
-  otherwise; `domains/explicit_domain_erasure` on a declared instance with no
-  establishment; `proofs/cauchy_predicates_compile` on a cited callee's
+  otherwise; `proofs/cauchy_predicates_compile` on a cited callee's
   premises; `control_flow/runtime_branching_helper_string` on a borrow-carrying
   value stored in a persistent field; `core/extent_root_provider_adapter` on
   the provider-selection subject route below.
-  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing) and
-  `providers/external_leaf_dllimport_compile` check and leave this list.
+  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
+  `providers/external_leaf_dllimport_compile`, and
+  `domains/explicit_domain_erasure` check and leave this list.
   Reproduce a selected customer on the working base, repair its owning
   capability, and rerun the same outer command.
 

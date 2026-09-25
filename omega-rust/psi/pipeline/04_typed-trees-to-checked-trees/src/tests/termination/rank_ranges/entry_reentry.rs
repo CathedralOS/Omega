@@ -56,7 +56,7 @@ fn entry_assumptions_cannot_restart_on_replacement_parameters() {
         .replace("transition remaining > 0 {\n        true -> step(remaining - 1)\n        false -> remaining\n    }",
             "transition { _ -> step(remaining - 1) }");
     reject(&source);
-    reject(
+    super::reject_descent(
         "machine walk(n: u32) requires 1 <= n && n <= 5; terminates by n in 0..=5; -> u32 { transition { _ -> walk(n - 1) } }",
     );
 }

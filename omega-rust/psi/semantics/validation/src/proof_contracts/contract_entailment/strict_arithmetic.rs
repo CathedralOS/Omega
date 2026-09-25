@@ -66,7 +66,9 @@ pub fn strict_arithmetic_expression_implication(
 /// before judging the goal. Unknown arguments and conflicting formal bindings
 /// reject even when the hypotheses are inconsistent or the goal is constant.
 /// Argument order cannot give a later argument access to an earlier callee
-/// formal. This supplies mathematical substitution, not executable value custody.
+/// formal. Hypotheses keep the caller's meaning; only the goal reads formals,
+/// which shadow a caller symbol they share (a self-call's parameters).
+/// This supplies mathematical substitution, not executable value custody.
 pub fn strict_arithmetic_expression_implication_with_arguments(
     program: &TypedTrees,
     context_machine: &Machine,
@@ -76,9 +78,12 @@ pub fn strict_arithmetic_expression_implication_with_arguments(
     arguments: &[StrictArithmeticExpressionBinding],
 ) -> StrictArithmeticImplicationJudgment {
     let mut engine = Engine::strict_with_symbol_bindings(program, context_machine, bindings);
-    if !engine.strict_symbol_bindings_are_valid() || !engine.bind_exact_arguments(arguments) {
+    if !engine.strict_symbol_bindings_are_valid() {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
+    let Some(formals) = engine.exact_argument_values(arguments) else {
+        return StrictArithmeticImplicationJudgment::Unknown;
+    };
     let mut comparisons = Vec::new();
     if !engine.collect_comparisons(hypotheses, &mut comparisons)
         || !engine.install_hypotheses(comparisons)
@@ -88,6 +93,7 @@ pub fn strict_arithmetic_expression_implication_with_arguments(
     if engine.requires_unsatisfiable {
         return StrictArithmeticImplicationJudgment::Proven;
     }
+    engine.bind_goal_formals(formals);
     match engine.judge(goal) {
         Judgment::Proven => StrictArithmeticImplicationJudgment::Proven,
         Judgment::ConstantFalse | Judgment::Refuted => StrictArithmeticImplicationJudgment::Refuted,

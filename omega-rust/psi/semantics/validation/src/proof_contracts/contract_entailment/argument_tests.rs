@@ -246,12 +246,16 @@ fn exact_argument_widening_does_not_change_other_strict_reader_languages() {
     let arguments = [argument(SymbolHandle::from_arena_index(10001), cast)];
     assert!(engine.normalize(cast).is_none());
     assert!(!engine.bind_strict_arguments(&arguments));
-    assert!(engine.bind_exact_arguments(&arguments));
+    assert!(engine.exact_argument_values(&arguments).is_some());
     assert!(
         engine.normalize(cast).is_none(),
         "successful capture restores the ordinary language"
     );
-    assert!(!engine.bind_exact_arguments(&[argument(SymbolHandle::invalid(), cast)]));
+    assert!(
+        engine
+            .exact_argument_values(&[argument(SymbolHandle::invalid(), cast)])
+            .is_none()
+    );
     assert!(
         engine.normalize(cast).is_none(),
         "failed capture also restores the ordinary language"
@@ -355,12 +359,13 @@ fn reused_formals_accept_equal_polynomials_and_reject_conflicting_values() {
 }
 
 #[test]
-fn original_caller_symbols_cannot_be_rebound_to_different_arguments() {
+fn a_self_call_formal_shadows_its_caller_symbol_only_in_the_goal() {
     let mut fixture = Fixture::new();
     let zero = fixture.integer(0);
     let one = fixture.integer(1);
+    let three = fixture.integer(3);
+    let five = fixture.integer(5);
     let unchanged = fixture.binary(fixture.caller_expression, BinaryOperator::Add, zero);
-    let changed = fixture.binary(fixture.caller_expression, BinaryOperator::Add, one);
     let goal = fixture.binary(
         fixture.second_expression,
         BinaryOperator::Equal,
@@ -379,10 +384,37 @@ fn original_caller_symbols_cannot_be_rebound_to_different_arguments() {
             StrictArithmeticImplicationJudgment::Proven
         );
     }
-    let constant_goal = fixture.binary(one, BinaryOperator::Equal, one);
+    // `walk(caller - 1)` inside `walk(caller) requires 0 < caller <= 5`:
+    // the caller's facts bound the actual, and the goal reads the formal.
+    let decremented = fixture.binary(fixture.caller_expression, BinaryOperator::Subtract, one);
+    let positive = fixture.binary(fixture.caller_expression, BinaryOperator::Greater, zero);
+    let at_most_five = fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, five);
+    let still_at_most_five =
+        fixture.binary(fixture.caller_expression, BinaryOperator::LessOrEqual, five);
+    let at_most_three = fixture.binary(
+        fixture.caller_expression,
+        BinaryOperator::LessOrEqual,
+        three,
+    );
+    let at_least_one = fixture.binary(
+        fixture.caller_expression,
+        BinaryOperator::GreaterOrEqual,
+        one,
+    );
+    let recursion = [argument(fixture.caller, decremented)];
     assert_eq!(
-        fixture.judge(&[], constant_goal, &[argument(fixture.caller, changed)]),
-        StrictArithmeticImplicationJudgment::Unknown
+        fixture.judge(&[positive, at_most_five], still_at_most_five, &recursion),
+        StrictArithmeticImplicationJudgment::Proven
+    );
+    assert_ne!(
+        fixture.judge(&[positive, at_most_five], at_most_three, &recursion),
+        StrictArithmeticImplicationJudgment::Proven,
+        "the actual reaches four"
+    );
+    assert_ne!(
+        fixture.judge(&[at_least_one], at_least_one, &recursion),
+        StrictArithmeticImplicationJudgment::Proven,
+        "the caller's fact is not reread as a fact about the actual"
     );
 }
 
