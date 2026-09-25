@@ -51,7 +51,88 @@ The compiler is one driver feeding each stage into the next
 [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)).
 Owner decision 2026-09-24: targets are data; Psi checks every target's bodies
 once per compilation; the Build evaluates once; `--target` narrows realization
-only. These items land in order, and each deletes the side doors it replaces.
+only. Owner direction 2026-09-25: reach the right architecture first; a
+structural move may regress fixtures under the AGENTS.md `unimplemented:` rule
+(corpus goldens re-recorded in the same commit, never an unsound fail-fixture
+acceptance, crash or changed native exit). The items below land in the listed
+order, one commit or a few per item, each through `tools/landing.py`; each
+deletes the side doors it replaces. Validate with `tools/corpus_gate.py
+--filter` over the affected groups plus `--native --filter` for anything
+backend-visible; full corpus runs only at the end of an item.
+
+- **ONE-CRATE-COMPILER.** (split-of:ONE-DRIVER-PER-STAGE) Merge
+  `compiler/compiler`, `source-assembly`, `checked-compilation`,
+  `terminal-artifact`, `native-realization` and `compilation-report` into one
+  crate `compiler` at `omega-rust/omega/compiler/` (`src/lib.rs` plus one route
+  file `src/compiler.rs` plus folders). `compiler.rs` spells the stage chain as
+  flat calls a reader can follow without leaving the file: prepare sources,
+  Psi 00-03, build evaluation, then per requested target provider selection,
+  Psi 04-07, Omega 00-09, image emission, publication, report. Inline the
+  forwarding layers (`PreparedCheckedSource::check`, `compile_child`,
+  `compile_assembled_checked_child`, `check_selected_execution`,
+  `prepare_native_product`, `NativeInputReuse::realize`) into that sequence;
+  the per-target loop around Psi 04-07 stays until PROVIDER-SELECTION-AFTER-TERMINAL.
+  Package crates, `tests/native-differential` and the architecture guards
+  (layering, `optimizer_source_organization` ladders, `stage_crate_ownership`)
+  follow the new paths. No behavior change: acceptance is `compiler/compiler/`
+  gone, the five other crates gone from the workspace, and the full check and
+  Windows native corpus goldens unchanged.
+
+- **DEAD-SELECTED-OPERATOR-PLANS.** (new-scope) 089bd3290c stopped producing
+  the selected-operator Unit plans; delete their vocabulary and consumers:
+  `CheckedUnitEffectOperationPlan::{SelectedOperatorScalarCall,
+  SelectedOperatorStructuralScalarCall, SelectedOperatorStructuralCall,
+  SelectedIeeeFloatFusedMultiplyAdd}`,
+  `CheckedStructuralScalarReturnPlans::selected_operator_machines` and
+  `CheckedSelectedOperatorStructuralScalarReturnMachinePlan`, their arms in
+  stage 05 (`unit/attached_unit/selected_operator.rs`,
+  `returns/structural_scalar_return/selected_operator.rs`, source custody),
+  stage 07 `boundary_operator_custody`, `validate_selected_operator_terminal_custody`,
+  terminal-artifact `float_fma` and the native FMA occurrence joins.
+  Acceptance: none of those names remain and the corpus goldens are unchanged.
+
+- **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
+  A boundary-operator application lowers as a requirement-level `BoundaryCall`
+  on the operator's requirement, exactly like a direct top-level requirement
+  call, and Omega stage 00 installs the selected provider. A `boundary machine
+  - Owner::name(...);` operator is a token-bearing machine whose operator view
+  shares the machine symbol, and `operators/token_bound_machine_calls.rs`
+  already rewrites checked-body token machine uses into plain calls; extend it
+  to bodyless boundary token machines, then delete
+  `selected_dispatch/uninstalled.rs`, the `UninstalledOperator` omission and
+  the operator-adapter and float-intrinsic resolution it uses. Compiler-known
+  float realizations (`F32::negate`, directed arithmetic, conversions,
+  `square_root`, FMA) install as Omega builtins beside the hosted process
+  builtins in native provider settlement. Acceptance: the eight native builds
+  089bd3290c regressed build again with their golden exits
+  (`providers/checked_fixed_operator_dispatch_exit` exits 70,
+  `checked_boundary_operator_physical_custody`,
+  `checked_fixed_operator_physical_custody`,
+  `specialized_{boundary,fixed}_operator_physical_custody`, three
+  `specialized_*_operator_hosted_native`), the `pass/float` named-provider
+  fixtures reach the same native state they had before, and the corpus has no
+  `applies boundary operator` diagnostic. A `self` requirement's member call
+  has no native route (its borrowed field operand fails Unit planning at
+  "call operation: structural arguments: parameter source", and the verifier's
+  provider signature compares `is_self` flags that differ between requirement
+  receiver and adapter); add a native fixture for it or record the limit here.
+
+- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
+  is target-neutral: one union of physical sources, every target's program-entry
+  contract source, package imports (`resolve_for_exact_target`) and dependency
+  generated sources (`append_dependency_generated_sources_to_storage` selects
+  per target). `source_assembly::entry_contract_seed` now seeds every
+  catalogued profile's contract on both routes; what remains is the rest of
+  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
+  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
+  dependency build that generates target-specific content emits target-tagged
+  declarations, never a different file per target; dependency builds still
+  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
+  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
+  loads 22 sources and takes 102 s on the Windows host, of which the itemized
+  Psi stages are 15 s; the rest is the per-target dependency package compile.
+  Acceptance: `PreparedCheckedSource` assembles once for any target set and
+  the `Step: assemble` timing row appears once per compilation.
 
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   (`linux_x86_64 machine StatLayout::plan(...)`) survive as data through every
@@ -74,22 +155,6 @@ only. These items land in order, and each deletes the side doors it replaces.
   (PROVIDER-SELECTION-AFTER-TERMINAL owns the selection move). Known cost:
   each std check pass now checks six target trees (`cli_mvp` check 36 s ->
   81 s on the Windows host); BUILD-EVALUATES-ONCE removes the duplicate passes.
-- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
-  is target-neutral: one union of physical sources, every target's program-entry
-  contract source, package imports (`resolve_for_exact_target`) and dependency
-  generated sources (`append_dependency_generated_sources_to_storage` selects
-  per target). `source_assembly::entry_contract_seed` now seeds every
-  catalogued profile's contract on both routes; what remains is the rest of
-  the union. Delete `ImmutableSourceParseCheckpoint::for_exact_target`,
-  `assemble_targetless` and `ExactTargetSourceAssembly`; one `assemble`. A
-  dependency build that generates target-specific content emits target-tagged
-  declarations, never a different file per target; dependency builds still
-  run per target, so their generated sources move with BUILD-EVALUATES-ONCE.
-  Cost frontier: `omega --check --timings samples/cli/basics/cli_mvp/main.omg`
-  loads 22 sources and takes 102 s on the Windows host, of which the itemized
-  Psi stages are 15 s; the rest is the per-target dependency package compile.
-  Acceptance: `PreparedCheckedSource` assembles once for any target set and
-  the `Step: assemble` timing row appears once per compilation.
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:
@@ -110,73 +175,45 @@ only. These items land in order, and each deletes the side doors it replaces.
   row per compilation for a two-target request, and std's `build.omg` rows for
   six targets come from one evaluation.
 
-- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Calling plans
-  (`provider_planning::calling_policy_plans::compute_boundary_calling_plans`),
-  program-entry selection, provider settlement
-  (`build_evaluation::settle_checked_providers`), dispatch settlement
-  (`selected_dispatch::settle_selected_execution_dispatch_with_source_edits`),
-  callback materialization, task activation and provider-body const folds
-  consume Terminal Psi plus the target's rows inside Omega stage 00
-  (`terminal-psi-to-abstract-operations`, which already admits provider
-  installation), not typed or checked trees. Delete
-  `checked-compilation/src/checking/execution_settlement.rs`,
-  `phase_transitions.rs`, the provider-body folds in `const_evaluation.rs`,
-  the build-crate mutation entry points on `TypedTrees`,
-  `native_realization::NativeInputReuse`, and merge `admit_native_providers`
-  into the same stage. Invert the layering guard
-  `omega_provider_selection_consumes_psi_frontend_directly` so
-  `provider-planning` may not depend on `typed-trees` or `validation`. Depends
-  on BUILD-EVALUATES-ONCE. Acceptance: Psi stages 00-07 run once for a
-  two-target request and produce one Terminal artifact identity, and each
-  target's native artifact is byte-identical to the single-target output for
-  the `samples_compile` corpus. Dispatch settlement rewrites no checked body.
-  A receiver-free top-level requirement call stays a requirement-level
-  `BoundaryCall` owing the declaration's `scalar_requires`, stage 05 catalogs
-  the checked adapters, and Omega stage 00 installs the selected one
-  (`checked_boundary_requirement_*`, `lifetime_boundary_requirement_dispatch_exit`
-  run natively). A boundary-operator application whose selected row is a
-  checked adapter or a compiler-known float realization also stays on the
-  operator, but Terminal Psi has no requirement-level operator application
-  for Omega to install, so the applying machine gets no Unit plan and native
-  and Terminal production reject with `unimplemented: ... applies boundary
-  operator ...` (`selected_dispatch/uninstalled.rs` names the omission). The
-  eight native builds this regressed are `providers/checked_fixed_operator_dispatch_exit`
-  (was exit 70), `checked_boundary_operator_physical_custody`,
-  `checked_fixed_operator_physical_custody`,
-  `specialized_{boundary,fixed}_operator_physical_custody` and the three
-  `specialized_*_operator_hosted_native` fixtures; the named-float fixtures
-  in `pass/float` and `pass/arithmetic` already failed natively. Lowering an
-  operator application as a `BoundaryCall` on the operator's requirement
-  (its catalog rows already name the adapters) restores them, and the float
-  realizations then need Omega-side builtin installation. A `self`
-  requirement's member call is no longer rewritten either and has no native
-  customer: a member call on a field plans as a scalar computation and its
-  borrowed field operand fails Unit planning ("call operation: structural
-  arguments: parameter source"), and the verifier's provider signature
-  compares `is_self` flags that differ between the requirement receiver and
-  the adapter's leading parameter. Selection still reaches checked facts
-  through `bind_selected_provider_plan_facts` (operator-use plan stamps) and
-  the selected float-comparison executions. Scalar `ensures` of a
-  requirement are not yet retained on its Terminal declaration.
+- **PROVIDER-SELECTION-AFTER-TERMINAL.** (new-scope) Nothing Psi produces
+  depends on a target's provider selection. Still selection-dependent inside
+  the Psi half of `compiler.rs`, each of which moves into Omega stage 00
+  (`terminal-psi-to-abstract-operations`, which already installs providers)
+  consuming Terminal Psi plus the target's Build rows: calling plans
+  (`provider_planning::calling_policy_plans::compute_boundary_calling_plans`,
+  which mutates `TypedTrees`), program-entry selection, provider settlement
+  (`build_evaluation::settle_checked_providers`, which mutates `TypedTrees`),
+  const folds through selected operators and provider bodies
+  (`const_evaluation.rs`), stage 04's selected inputs
+  (`selected_generic_operator_provider_specializations`,
+  `selected_boundary_family_specializations`), operator-use plan stamps
+  (`bind_selected_provider_plan_facts`), selected float-comparison executions,
+  boundary-dispatch settlement (`selected_dispatch::settle_selected_execution_dispatch`),
+  callback materialization, task activations, component progress, the x86 FMA
+  plan association and fused program-entry establishments. Invert the layering
+  guard `omega_provider_selection_consumes_psi_frontend_directly` so
+  `provider-planning` may not depend on `typed-trees` or `validation`. Scalar
+  `ensures` of a requirement are not yet retained on its Terminal
+  declaration. Depends on BUILD-EVALUATES-ONCE and OPERATOR-BOUNDARY-CALLS.
+  Acceptance: Psi stages 00-07 run once for a two-target request and produce
+  one Terminal artifact identity, and each target's native artifact is
+  byte-identical to its single-target output across the native corpus.
 
-- **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` calls Psi 00-07 straight
-  through, then maps the realization set over Omega 00-09 and image emission;
-  every stage is one function taking the prior stage's output. The compile
-  route loses its mode parameters (`TargetEntryDiscovery`,
-  `permit_unsettled_fused_service_fields`, `IndependentComponentDiscovery`,
-  `restricted_build_grants`, the sponsors and `build_snapshot` on
-  `CheckedChildExecution`); package review drives stages 00-03 itself for
-  binding discovery. The three orchestration crates dissolve: source loading
-  is stage 00 input preparation; pre-resolution build-time evaluation, dynamic
-  call target resolution, const evaluation and product pruning move inside
-  stages 02-04; terminal-artifact keeps custody validators only. One request
-  record with a target set replaces the seven `for configuration in &mut
-  self.configurations` copy loops, and the target profile resolves once at the
-  CLI boundary instead of 16 `TargetProfile::from_omega_target_name` sites.
-  Each item above performs its share; this item closes the remainder.
-  Acceptance: `compiler.rs` contains the complete stage sequence, the crates
-  `source-assembly`, `checked-compilation` and `terminal-artifact` are gone,
-  and `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
+- **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
+  above: `compiler.rs` calls Psi 00-07 once, then maps the realization set
+  over Omega 00-09 and image emission; every stage is one function taking the
+  prior stage's output. The compile route loses its mode parameters
+  (`TargetEntryDiscovery`, `permit_unsettled_fused_service_fields`,
+  `IndependentComponentDiscovery`, `restricted_build_grants`, the sponsors and
+  `build_snapshot`); package review drives stages 00-03 itself for binding
+  discovery. Source loading becomes stage 00 input preparation; pre-resolution
+  build-time evaluation, dynamic call target resolution, const evaluation and
+  product pruning move inside stages 02-04. One request record with a target
+  set replaces the `for configuration in &mut self.configurations` copy loops,
+  and the target profile resolves once at the CLI boundary instead of the
+  `TargetProfile::from_omega_target_name` call sites. Acceptance: the compiler
+  crate holds only orchestration, reports and publication, and
+  `omega-rust/pipeline.md`'s "current implementation" paragraph is deleted.
 
 ## Immediate product closure
 
