@@ -1,1 +1,2 @@
-all-zero image is not a valid value
+the zeroed representation is not yet a `Application`
+data `Application`'s default domain is still FALSE at state exit

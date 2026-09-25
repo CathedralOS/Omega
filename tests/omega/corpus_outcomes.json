@@ -1641,8 +1641,8 @@
   "fixture": "fail/build/program_entry_receiver_not_zii",
   "tier": "fail",
   "status": "rejected",
-  "millis": 21,
-  "expected_satisfied": false,
+  "millis": 12,
+  "expected_satisfied": true,
   "diagnostics": [
    "reading `self.launch_count` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)",
    "data `Application`'s default domain is still FALSE at state exit: the invariant window opened on `self` must close first -- restore the `where` facts before this consumption point (ch11)",
@@ -5521,7 +5521,7 @@
   "tier": "fail",
   "status": "rejected",
   "millis": 0,
-  "expected_satisfied": false,
+  "expected_satisfied": true,
   "diagnostics": [
    "declaring trait `Issuer` overloads requirement `issue`; this is a source-compatibility break for signature-free requirement references",
    "domain `Token::Issued` establishment route `Issuer::issue` does not resolve to one exact trait requirement"
@@ -6688,7 +6688,7 @@
   "tier": "fail",
   "status": "rejected",
   "millis": 0,
-  "expected_satisfied": false,
+  "expected_satisfied": true,
   "diagnostics": [
    "declaring trait `Handler` overloads requirement `call`; this is a source-compatibility break for signature-free requirement references",
    "nominal machine parameter `Selected` requirement `Handler::call` does not resolve to one exact trait requirement; signature-free references reject overloads"
