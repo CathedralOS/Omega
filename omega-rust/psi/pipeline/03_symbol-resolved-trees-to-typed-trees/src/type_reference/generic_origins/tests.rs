@@ -207,7 +207,37 @@ fn range_replay_visits_each_origin_once_and_agrees_with_use_lookup() {
         );
         ORIGIN_ROSTER_VISITS.set(0);
         replay_with_roster_lookup(&source, &typed).expect("original replay traversal");
-        assert_eq!(ORIGIN_ROSTER_VISITS.get(), origin_count * origin_count);
+        // The lookup is indexed by instance symbol: each call visits only its
+        // own symbol's bucket, not the whole roster.
+        let expected_visits = source
+            .tables
+            .types
+            .generic_application_origins
+            .iter()
+            .map(|(_, origin)| {
+                let symbol = match source.child_type_reference(origin.instance) {
+                    TypeReference::Named { symbol, .. } => *symbol,
+                    TypeReference::Generic(value) => value.base_symbol,
+                    _ => panic!("generated carrier"),
+                };
+                source
+                    .tables
+                    .types
+                    .generic_application_origins
+                    .iter()
+                    .filter(|(_, candidate)| {
+                        let candidate_symbol = match source.child_type_reference(candidate.instance)
+                        {
+                            TypeReference::Named { symbol, .. } => *symbol,
+                            TypeReference::Generic(value) => value.base_symbol,
+                            _ => panic!("generated carrier"),
+                        };
+                        candidate_symbol == symbol
+                    })
+                    .count()
+            })
+            .sum::<usize>();
+        assert_eq!(ORIGIN_ROSTER_VISITS.get(), expected_visits);
         // The standalone lookup continues to independently select the same uses.
         let mut replay = typed.clone();
         for (_, origin) in source.tables.types.generic_application_origins.iter() {
