@@ -237,23 +237,32 @@ fn reserved_cleanup_selected_by(
 ) -> Option<&Machine> {
     // At most one machine can ever match: the selected symbol is either the
     // machine itself or one of its states — and a state's retained parent
-    // names its owning machine directly, so the whole-program machine scan
-    // collapses to a single candidate.
+    // names its owning machine directly, so real selections collapse to a
+    // single candidate. Handles without a symbol-table row (test fixtures
+    // forge them) keep the machine/state handle scan.
     let machine_symbol = match program.symbols.get(selected_symbol).kind {
-        symbols::SymbolKind::Machine => selected_symbol,
-        symbols::SymbolKind::State => program.symbols.get(selected_symbol).parent,
-        _ => return None,
+        symbols::SymbolKind::Machine => Some(selected_symbol),
+        symbols::SymbolKind::State => Some(program.symbols.get(selected_symbol).parent),
+        _ => None,
     };
     program.machines().iter().find(|machine| {
         let owner = machine.attached_data_symbol;
-        machine.symbol == machine_symbol
-            && machine.attached_data.is_some()
+        machine.attached_data.is_some()
             && owner.is_valid()
             && machine.name.as_str().rsplit("::").next() == Some("drop")
             && program
                 .data_definitions()
                 .iter()
                 .any(|data| data.symbol == owner)
+            && if let Some(machine_symbol) = machine_symbol {
+                machine.symbol == machine_symbol
+            } else {
+                machine.symbol == selected_symbol
+                    || program
+                        .machine_states(machine)
+                        .iter()
+                        .any(|state| state.symbol == selected_symbol)
+            }
     })
 }
 
