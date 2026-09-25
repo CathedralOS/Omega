@@ -160,6 +160,95 @@ fn field_fact_interval(
     refined.then_some(interval)
 }
 
+/// The per-field intervals a data declaration's `where` facts state when
+/// every conjunct compares one of its own fields with an integer literal
+/// (`left <= 5`, `1 <= count && count < 9`). Such facts restrict each field
+/// exactly as a bracketed range did, so a representation may carry them as
+/// the field's bounds. `None` when any conjunct relates two fields or has
+/// another shape; an empty list when the data states no facts.
+pub fn data_where_field_intervals(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+) -> Option<Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>> {
+    let fields = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) => Some(field),
+            typed_trees::data::DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mut intervals: Vec<(symbols::SymbolHandle, Interval)> = Vec::new();
+    let mut conjuncts = Vec::new();
+    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
+        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            return None;
+        };
+        conjuncts.push(*expression);
+    }
+    while let Some(conjunct) = conjuncts.pop() {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(conjunct) else {
+            return None;
+        };
+        if binary.operator == BinaryOperator::And {
+            conjuncts.extend([binary.left, binary.right]);
+            continue;
+        }
+        let literal = |expression| match program.expression_table.expression(expression) {
+            ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+            _ => None,
+        };
+        let field_named = |expression| {
+            fields
+                .iter()
+                .find(|field| side_names_field(program, expression, field.name.as_str()))
+        };
+        let (field, bound, field_on_left) = match (
+            field_named(binary.left),
+            literal(binary.right),
+            field_named(binary.right),
+            literal(binary.left),
+        ) {
+            (Some(field), Some(bound), _, _) => (field, bound, true),
+            (_, _, Some(field), Some(bound)) => (field, bound, false),
+            _ => return None,
+        };
+        let operator = if field_on_left {
+            binary.operator
+        } else {
+            match binary.operator {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            }
+        };
+        let (low, high) = match operator {
+            BinaryOperator::LessOrEqual => (None, Some(bound)),
+            BinaryOperator::Less => (None, Some(bound.checked_sub(1)?)),
+            BinaryOperator::GreaterOrEqual => (Some(bound), None),
+            BinaryOperator::Greater => (Some(bound.checked_add(1)?), None),
+            BinaryOperator::Equal => (Some(bound), Some(bound)),
+            _ => return None,
+        };
+        let stated = Interval { low, high };
+        match intervals
+            .iter_mut()
+            .find(|(symbol, _)| *symbol == field.symbol)
+        {
+            Some((_, interval)) => *interval = interval.intersect(stated),
+            None => intervals.push((field.symbol, stated)),
+        }
+    }
+    Some(
+        intervals
+            .into_iter()
+            .map(|(symbol, interval)| (symbol, interval.low, interval.high))
+            .collect(),
+    )
+}
+
 fn side_names_field(program: &TypedTrees, expression: ExpressionHandle, field: &str) -> bool {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => program

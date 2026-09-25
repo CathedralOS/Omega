@@ -1654,7 +1654,8 @@ impl<'program> ShapeCollector<'program> {
                     && data.lifetime_parameters.is_empty()
                     && self.program.data_type_parameters(data).is_empty()
                     && data.quotient.is_none()
-                    && data.where_facts.is_empty()
+                    && (data.where_facts.is_empty()
+                        || validation::data_where_field_intervals(self.program, data).is_some())
                     && !data.zero_gated
                     && data.properties.multiplicity == Multiplicity::Unrestricted
                     && matches!(
@@ -2100,15 +2101,28 @@ impl<'program> ShapeCollector<'program> {
             return None;
         }
         let shape_kind = typed_trees::data::DataDefinition::shape_kind_from_members(&members);
+        // Interval-only `where` facts become the named fields' bounds.
+        let stated_intervals =
+            validation::data_where_field_intervals(self.program, &data).unwrap_or_default();
+        let stated = |field: &typed_trees::data::DataField| {
+            stated_intervals
+                .iter()
+                .find(|(symbol, _, _)| *symbol == field.symbol)
+                .map(|(_, low, high)| (*low, *high))
+        };
         if matches!(shape_kind, DataShapeKind::Enum | DataShapeKind::Mixed) {
             let mut fields = Vec::new();
             let mut cases = Vec::with_capacity(members.len());
             for member in &members {
                 match member {
                     DataMember::Field(field) => {
-                        let Some(field) =
-                            self.structural_field_plan(field, binders, &substitutions, &identity)
-                        else {
+                        let Some(field) = self.structural_field_plan(
+                            field,
+                            binders,
+                            &substitutions,
+                            &identity,
+                            stated(field),
+                        ) else {
                             self.in_progress.remove(&identity);
                             return None;
                         };
@@ -2122,6 +2136,7 @@ impl<'program> ShapeCollector<'program> {
                                 binders,
                                 &substitutions,
                                 &identity,
+                                None,
                             ) else {
                                 self.in_progress.remove(&identity);
                                 return None;
@@ -2159,7 +2174,9 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let Some(field) = self.structural_field_plan(field, binders, &substitutions, &identity)
+            let bounds = stated(field);
+            let Some(field) =
+                self.structural_field_plan(field, binders, &substitutions, &identity, bounds)
             else {
                 self.in_progress.remove(&identity);
                 return None;
@@ -2183,6 +2200,7 @@ impl<'program> ShapeCollector<'program> {
         binders: &[(SymbolHandle, String)],
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         owner_identity: &str,
+        stated_bounds: Option<(Option<i64>, Option<i64>)>,
     ) -> Option<CheckedUnitStructuralFieldPlan> {
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
@@ -2238,6 +2256,7 @@ impl<'program> ShapeCollector<'program> {
                     field.type_reference,
                     substitutions,
                     primitive,
+                    stated_bounds,
                 )?,
                 None => {
                     let nested = self.add_type(field.type_reference, binders, substitutions)?;
