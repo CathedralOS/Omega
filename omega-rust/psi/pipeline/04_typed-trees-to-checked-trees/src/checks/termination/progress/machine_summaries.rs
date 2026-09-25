@@ -134,18 +134,30 @@ pub(crate) fn derive_machine_summary(
                     }
                     continue;
                 }
-                let mut entry_instance = local_instance;
-                entry_instance.subject = origins::at_call(
+                // A call whose routes disagree yields one subject per route.
+                // The demand holds only if it holds for every one, so each
+                // resolves on its own and all of their premises are kept.
+                let subjects = origins::at_call(
                     program,
                     flow,
                     machine,
                     state_flow,
                     call,
-                    entry_instance.subject,
+                    local_instance.subject.clone(),
                     call_frames,
                 )?;
-                let instances =
-                    lineage::resolve(program, flow, machine, entry_instance, call_frames)?;
+                let mut instances = Vec::new();
+                for subject in subjects {
+                    let mut entry_instance = local_instance.clone();
+                    entry_instance.subject = subject;
+                    instances.extend(lineage::resolve(
+                        program,
+                        flow,
+                        machine,
+                        entry_instance,
+                        call_frames,
+                    )?);
+                }
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
                         // Arbitrary local values still cannot become caller
