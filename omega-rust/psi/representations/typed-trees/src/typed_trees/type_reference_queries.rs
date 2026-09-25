@@ -183,7 +183,7 @@ impl TypedTrees {
         }
     }
 
-    fn attached_receiver_parameter_multiplicity(
+    pub fn attached_receiver_parameter_multiplicity(
         &self,
         parameter_symbol: symbols::SymbolHandle,
     ) -> Option<language_semantics::Multiplicity> {
