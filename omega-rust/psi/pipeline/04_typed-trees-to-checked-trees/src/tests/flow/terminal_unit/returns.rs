@@ -701,12 +701,12 @@ fn addr_member_parameter_projection_still_declines() {
         .flow
         .terminal_unit_effects
         .omission_for_machine(machine_named(&checked, "clone"))
-        .map(|row| row.stage.clone());
+        .map(|row| row.stage);
     assert!(
         matches!(
             stage,
-            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { ref phase, .. })
-                if *phase == "statement sequence: unsupported statement kind"
+            Some(checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. })
+                if phase == "statement sequence: unsupported statement kind"
         ),
         "an addr member read still declines the statement sequence, got {stage:?}"
     );
