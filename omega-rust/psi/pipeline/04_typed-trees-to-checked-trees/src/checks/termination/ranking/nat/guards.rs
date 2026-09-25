@@ -81,10 +81,15 @@ fn positive_guard(
     let ExpressionNode::Integer(literal) = program.expression_table.expression(bound) else {
         return false;
     };
+    // Any literal bound that places the parameter at one or above: `x > k`
+    // for k >= 0, `x >= k` for k >= 1, and `x != 0` over an unsigned carrier.
+    let Some(bound) = literal.value_i64() else {
+        return false;
+    };
     match operator {
-        BinaryOperator::Greater => literal.value_i64() == Some(0),
-        BinaryOperator::NotEqual => nonnegative && literal.value_i64() == Some(0),
-        BinaryOperator::GreaterOrEqual => literal.value_i64() == Some(1),
+        BinaryOperator::Greater => bound >= 0,
+        BinaryOperator::NotEqual => nonnegative && bound == 0,
+        BinaryOperator::GreaterOrEqual => bound >= 1,
         _ => false,
     }
 }

@@ -88,6 +88,29 @@ pub fn immutable_integer_expression_bounds(
     Some((value.interval.low?, value.interval.high?))
 }
 
+/// The bounds every evaluation of one state parameter satisfies: its exact
+/// carrier and declared range, narrowed for an immutable parameter by its
+/// state's `requires` comparisons. Either endpoint may be open.
+pub fn state_parameter_integer_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    parameter: SymbolHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|candidate| candidate.symbol == parameter)?;
+    if parameter.is_self || parameter.is_const {
+        return None;
+    }
+    let mut interval = type_bounds(program, parameter.type_reference)?.interval;
+    if !parameter.is_mutable {
+        interval = interval.intersect(requires_interval(program, machine, state, parameter.symbol));
+    }
+    Some((interval.low, interval.high))
+}
+
 /// The same bounds with either endpoint allowed to be open: an unrestricted
 /// u64 keeps its zero floor although its ceiling does not fit an i64.
 pub(crate) fn immutable_integer_expression_interval(
