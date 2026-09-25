@@ -416,12 +416,6 @@ impl WireRepeatedEncoding {
         let body = self.max_count * self.element.max_varint_length();
         wire_varint_bytes(body as u64).len() + body
     }
-
-    /// The worst-case byte count of the packed elements alone (the staging
-    /// buffer the encoder needs while it two-passes the byte length).
-    pub fn worst_case_body_bytes(self) -> usize {
-        self.max_count * self.element.max_varint_length()
-    }
 }
 
 /// The Omega-native LAYOUT-POLICY domain family on byte carriers

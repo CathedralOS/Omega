@@ -74,24 +74,6 @@ pub(crate) fn canonical_place_overlaps_segments(
         })
 }
 
-#[allow(dead_code)]
-pub(crate) fn canonical_place_overlaps_joined_segments(
-    prefix: &[facts::PlaceSegment],
-    suffix: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
-) -> bool {
-    let shared_len = prefix.len().saturating_add(suffix.len()).min(right.len());
-
-    (0..shared_len).all(|index| {
-        let left_segment = if index < prefix.len() {
-            prefix[index]
-        } else {
-            suffix[index - prefix.len()]
-        };
-        canonical_place_segments_equal(left_segment, right[index])
-    })
-}
-
 pub(crate) fn canonical_place_segments_may_overlap(
     program: &typed_trees::TypedTrees,
     left: &[facts::PlaceSegment],

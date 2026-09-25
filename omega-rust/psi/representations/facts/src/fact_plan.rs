@@ -11,13 +11,12 @@ use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceHandle;
 
 use crate::{
     BooleanFact, DataDefinitionFactRecord, DomainDefinitionFactRecord, DomainMembershipFact, Fact,
     FactContext, FactContextView, FactPayload, FactPlace, FactRef, InstantiatedExpression, Place,
     PlaceRoot, PlaceSegment, ProgramPoint, QualificationCorrespondence, SymbolFactSet,
-    TypeConstraintFact, effective_member_symbol, resolve_place_member_symbol,
+    effective_member_symbol, resolve_place_member_symbol,
 };
 
 pub type FactHandle = Handle<Fact>;
@@ -271,16 +270,6 @@ impl FactPlan {
         }
     }
 
-    pub fn append_type_reference_place(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-    ) -> PlaceHandle {
-        self.append_place(Place {
-            root: PlaceRoot::TypeReference(type_reference),
-            segments: HandleSpan::empty(),
-        })
-    }
-
     pub fn push_place_segment(&mut self, place: PlaceHandle, segment: PlaceSegment) {
         let segment = self.place_segments.append(segment);
         self.places.get_mut(place).segments.push_contiguous(segment);
@@ -339,13 +328,6 @@ impl FactPlan {
             })
     }
 
-    pub fn context_facts(&self, context: &FactContext) -> impl Iterator<Item = &Fact> {
-        self.refs
-            .span_or_empty(context.facts)
-            .iter()
-            .map(move |reference| self.facts.get(reference.fact))
-    }
-
     pub fn context_view(&self, context: &FactContext) -> FactContextView<'_> {
         FactContextView {
             plan: self,
@@ -397,17 +379,6 @@ impl FactPlan {
     ) -> bool {
         self.contexts_at_point(point)
             .any(|context| context.proves_domain_membership(program, value, domain_symbol))
-    }
-
-    pub fn proves_place_domain_membership_at_point(
-        &self,
-        program: &TypedTrees,
-        point: ProgramPoint,
-        place: PlaceHandle,
-        domain_symbol: SymbolHandle,
-    ) -> bool {
-        self.contexts_at_point(point)
-            .any(|context| context.proves_place_domain_membership(program, place, domain_symbol))
     }
 
     pub fn symbol_references_domain(
@@ -489,19 +460,6 @@ impl FactPlan {
                     domain_symbol,
                     semantic_domain,
                 }),
-                _ => None,
-            })
-    }
-
-    pub fn type_constraints_for_symbol(
-        &self,
-        symbol: SymbolHandle,
-    ) -> impl Iterator<Item = TypeConstraintFact> + '_ {
-        self.facts_for_symbol(symbol)
-            .filter_map(|fact| match fact.payload {
-                FactPayload::TypeConstraint { constraint } => {
-                    Some(TypeConstraintFact { constraint })
-                }
                 _ => None,
             })
     }

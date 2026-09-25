@@ -157,23 +157,6 @@ impl TypedTrees {
             .count() as u64
     }
 
-    /// The era discriminator a declared version block's payloads carry: its
-    /// zero-based position in the declaration-ordered version chain.
-    pub fn wire_schema_version_era(
-        &self,
-        schema: &wire::WireSchema,
-        version_name: &str,
-    ) -> Option<u64> {
-        self.wire_members(schema.members)
-            .iter()
-            .filter_map(|member| match member {
-                wire::WireMember::Version(version) => Some(version),
-                _ => None,
-            })
-            .position(|version| version.name.as_str() == version_name)
-            .map(|position| position as u64)
-    }
-
     /// The sibling wire schema a wire field's type references (a NESTED
     /// MESSAGE field, chapter 20), unwrapped through reference and constraint
     /// shells. `None` for primitives and ordinary program types.

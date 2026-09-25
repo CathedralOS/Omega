@@ -26,17 +26,6 @@ pub struct StructuralCaseConstructor {
     pub fields: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle)>,
 }
 
-/// Classify before collecting scalar operand roots: a scalar/array match must
-/// not leave structural dispatch operands behind when its leaves are rejected.
-/// This checks destination identity, not field evaluation or match coverage.
-pub fn is_fresh_scalar_case_value(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    reference: TypeReferenceHandle,
-) -> bool {
-    is_case_value(program, expression, reference, false)
-}
-
 /// Classify value sequencing before permission checking. A named source is not
 /// evidence of an available owner; selected transfers require checked receipts.
 pub fn is_scalar_case_value(

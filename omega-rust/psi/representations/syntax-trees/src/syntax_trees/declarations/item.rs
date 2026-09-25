@@ -1299,10 +1299,6 @@ impl ItemTable {
         self.declaration_storage.operators.append(operator)
     }
 
-    pub fn append_measure(&mut self, measure: MeasureDefinition) -> Handle<MeasureDefinition> {
-        self.declaration_storage.measures.append(measure)
-    }
-
     pub fn append_proof_fact(&mut self, fact: ProofFact) -> Handle<ProofFact> {
         let handle = self.declaration_storage.proof_facts.append(fact);
         let index = proof_fact_source_span_index(handle);

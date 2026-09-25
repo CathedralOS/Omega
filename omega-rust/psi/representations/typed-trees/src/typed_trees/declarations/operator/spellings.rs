@@ -402,18 +402,3 @@ fn operator_matches_receiver(
         &mut Vec::new(),
     )
 }
-
-/// All candidate indices carrying `spelling`, regardless of operand type. Useful
-/// when a site only knows its receiver shape (e.g. "this is a slice") rather
-/// than a fully normalized operand key.
-pub fn candidates_for_spelling(
-    operators: &[OperatorDefinition],
-    spelling: OperatorSpelling,
-) -> Vec<usize> {
-    operators
-        .iter()
-        .enumerate()
-        .filter(|(_, operator)| operator.spelling == Some(spelling))
-        .map(|(index, _)| index)
-        .collect()
-}

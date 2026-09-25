@@ -12,7 +12,7 @@ pub mod syntax_trees;
 pub use syntax_trees::control_flow::statement;
 pub use syntax_trees::declarations::item;
 pub use syntax_trees::inspection::snapshot;
-pub use syntax_trees::names::{identifier, identity};
+pub use syntax_trees::names::identifier;
 pub use syntax_trees::type_system::types;
 pub use syntax_trees::values::expression;
 

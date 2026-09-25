@@ -295,28 +295,6 @@ impl ExpressionTable {
         span
     }
 
-    pub fn copy_name_path_members_with_suffix(
-        &mut self,
-        members: HandleSpan<DiagnosticName>,
-        suffix: DiagnosticName,
-    ) -> HandleSpan<DiagnosticName> {
-        let span = self.reserve_name_path_members(
-            members
-                .count()
-                .checked_add(1)
-                .expect("name path member span count overflow"),
-        );
-
-        for offset in 0..members.count() {
-            let member = self.name_path_member_at_offset(members, offset).clone();
-            self.set_name_path_member_at_offset(span, offset, member);
-        }
-
-        self.set_name_path_member_at_offset(span, members.count(), suffix);
-
-        span
-    }
-
     pub fn copy_name_path_members_with_member_suffix(
         &mut self,
         members: HandleSpan<DiagnosticName>,

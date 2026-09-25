@@ -1,9 +1,7 @@
-use arena::HandleSpan;
-
 use crate::{
-    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, BorrowArgumentAccessFact, CallAcceptance,
-    ContractProofFactRef, FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef,
-    FlowInvalidationFact, FlowSemanticContextRef,
+    AcceptanceSummary, AcceptanceVerdict, AcceptanceView, CallAcceptance, ContractProofFactRef,
+    FlowBoundaryEdgeFact, FlowCallFact, FlowConstraintRef, FlowInvalidationFact,
+    FlowSemanticContextRef,
     admissibility::evidence_counts::{
         blocking_evidence_count, borrow_constraint_count, constraints, semantic_contexts,
         service_reach_evidence_count, suspension_evidence_count,
@@ -44,20 +42,12 @@ impl<'facts> CallAcceptance<'facts> {
         self.call
     }
 
-    pub fn borrow_accesses(&self) -> HandleSpan<BorrowArgumentAccessFact> {
-        self.call.accesses
-    }
-
     pub fn entry_semantic_contexts(&self) -> &'facts [FlowSemanticContextRef] {
         semantic_contexts(&self.facts.flow, self.call.entry_semantic_contexts)
     }
 
     pub fn entry_constraints(&self) -> &'facts [FlowConstraintRef] {
         constraints(&self.facts.flow, self.call.entry_constraints)
-    }
-
-    pub fn requires_semantic_contexts(&self) -> &'facts [FlowSemanticContextRef] {
-        semantic_contexts(&self.facts.flow, self.call.requires_contexts)
     }
 
     pub fn requires_constraints(&self) -> &'facts [FlowConstraintRef] {

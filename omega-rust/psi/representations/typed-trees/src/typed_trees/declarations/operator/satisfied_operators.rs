@@ -8,19 +8,6 @@ use crate::typed_trees::declarations::operator::applications::{
 use crate::typed_trees::declarations::operator::{OperatorDefinition, declaration_by_symbol};
 use symbols::SymbolHandle;
 
-/// Resolve one machine's explicit `satisfies Namespace::requirement` edge to
-/// an exact overloaded boundary operator. Trait conformances keep their own
-/// resolver; this path is for target/provider machines realizing an operator
-/// requirement such as the f32 or f64 overload of `Float::add`.
-pub fn resolve_satisfied_boundary_operator<'program>(
-    program: &'program TypedTrees,
-    machine: &'program crate::machine::Machine,
-    namespace: &str,
-    requirement: &str,
-) -> Option<&'program OperatorDefinition> {
-    resolve_satisfied_operator(program, machine, namespace, requirement, true)
-}
-
 /// Resolve an ordinary checked machine's exact operator requirement. This is
 /// the PDI3 counterpart to the boundary-provider route: signature and path are
 /// identical, while `boundary_only` is deliberately false.

@@ -450,11 +450,6 @@ impl ValidatedConstRecordWithSumMaterialization {
     }
 
     /// Compatibility accessor for the singular API.
-    pub fn nested_sum_field_identity(&self) -> Option<u64> {
-        self.nested_sums[0].field_identity()
-    }
-
-    /// Compatibility accessor for the singular API.
     pub fn nested_sum(&self) -> &ValidatedConstSumMaterialization {
         self.nested_sums[0].nested_sum()
     }

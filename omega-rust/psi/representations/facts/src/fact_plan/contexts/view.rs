@@ -74,14 +74,6 @@ impl<'facts> FactContextView<'facts> {
         })
     }
 
-    pub fn proves_boolean_expression_in_program(
-        self,
-        program: &TypedTrees,
-        expression: ExpressionHandle,
-    ) -> bool {
-        self.proves_boolean_expression_for_place_in_program(program, expression, None)
-    }
-
     pub fn proves_proposition_label(self, program: &TypedTrees, required_label: &str) -> bool {
         self.facts().any(|fact| {
             self.plan
@@ -158,11 +150,6 @@ impl<'facts> FactContextView<'facts> {
                 && self.plan.domain_implies(fact_domain, domain_symbol)
                 && self.plan.places_match(program, fact_place, place)
         })
-    }
-
-    pub fn references_domain(self, domain_symbol: SymbolHandle) -> bool {
-        self.domain_memberships()
-            .any(|fact| self.plan.domain_implies(fact.domain_symbol, domain_symbol))
     }
 
     pub fn type_constraints(self) -> impl Iterator<Item = TypeConstraintFact> + 'facts {

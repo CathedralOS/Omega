@@ -512,22 +512,6 @@ impl<'program> AssignmentRangeContext<'program> {
     }
 }
 
-/// The integer range Psi proves for one assignment value after applying its
-/// declared constraints, stable incoming guard, and retained boundary witness
-/// facts. The proof plan carries every assignment site, not only sites whose
-/// semantic destination is itself constrained. Returning `None` means Psi has
-/// no bounded fact to publish; later lowering must remain fail-closed.
-pub fn proved_assignment_integer_range(
-    proof_plan: &ProofPlan<'_>,
-    machine_symbol: symbols::SymbolHandle,
-    state_symbol: symbols::SymbolHandle,
-    statement_index: usize,
-) -> Option<crate::obligations::IntegerRange> {
-    let obligation =
-        assignment_range_obligation(proof_plan, machine_symbol, state_symbol, statement_index)?;
-    guarded_integer_range_for_assignment(proof_plan, obligation)
-}
-
 pub fn proved_assignment_integer_range_with_context(
     proof_plan: &ProofPlan<'_>,
     machine_symbol: symbols::SymbolHandle,

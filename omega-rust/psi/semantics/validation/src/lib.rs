@@ -26,7 +26,6 @@ pub use machine_calls::structural_call_custody::{
     reconstruct_structural_parameter_return_claims, structural_claim_path,
     structural_result_projected_qualifications, structural_result_qualifications,
     structural_state_contract_scalar_predicates,
-    structural_state_contracts_are_parameter_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
@@ -46,9 +45,8 @@ pub use value_custody::owned_value_source::{
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::scalar_case_constructor::{
-    ScalarCaseConstructor, StructuralCaseConstructor, is_fresh_scalar_case_value,
-    is_scalar_case_value, scalar_case_constructor, scalar_case_value_source,
-    structural_case_constructor,
+    ScalarCaseConstructor, StructuralCaseConstructor, is_scalar_case_value,
+    scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{
@@ -226,8 +224,8 @@ pub use proof_contracts::contract_entailment::structural_call_requirement_entail
 pub use proof_contracts::contract_entailment::transparent_proposition_application_entailed;
 pub use proof_contracts::contract_entailment::{
     ComputationBodyShape, DeclaredIdentityView, DeclaredScalarView, MeasureBodyShape,
-    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_identity_view,
-    declared_scalar_view, find_declared_measure, identity_subject_matches, measure_body_shape,
+    ProjectionStep, ScalarViewComputation, computation_body_shape, declared_scalar_view,
+    find_declared_measure, identity_subject_matches, measure_body_shape,
     measure_constraints_cover_subject, unwrap_constraint_shells,
 };
 pub use proof_contracts::contract_entailment::{

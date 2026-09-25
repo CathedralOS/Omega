@@ -80,25 +80,6 @@ impl<'program> ScopedSelectionReceiver<'program> {
         }
     }
 
-    /// Resolve a canonical member identity to its exact key. An identity
-    /// shared by more than one in-scope member (possible across distinct
-    /// case scopes) is ambiguous; disambiguate through [`Self::members`].
-    pub fn member_by_identity(&self, member_identity: &str) -> Result<MemberSelectionKey, String> {
-        let mut matches = self
-            .members
-            .iter()
-            .filter(|member| member.member_identity == member_identity);
-        match (matches.next(), matches.next()) {
-            (Some(member), None) => Ok(member.key()),
-            (Some(_), Some(_)) => Err(format!(
-                "selection member identity `{member_identity}` is ambiguous inside the projection"
-            )),
-            _ => Err(format!(
-                "selection member `{member_identity}` is outside the receiver's scoped projection"
-            )),
-        }
-    }
-
     /// Every in-scope member key, in projection order.
     pub fn members(&self) -> impl Iterator<Item = MemberSelectionKey> + '_ {
         self.members.iter().map(ScopedMember::key)

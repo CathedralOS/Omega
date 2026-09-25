@@ -93,25 +93,7 @@ pub struct ExpressionTableCapacity {
     pub match_arms: usize,
 }
 
-impl ExpressionTableCapacity {
-    pub fn saturating_add_assign(&mut self, other: Self) {
-        self.expressions = self.expressions.saturating_add(other.expressions);
-        self.authored_selection_occurrences = self
-            .authored_selection_occurrences
-            .saturating_add(other.authored_selection_occurrences);
-        self.expression_handles = self
-            .expression_handles
-            .saturating_add(other.expression_handles);
-        self.name_path_members = self
-            .name_path_members
-            .saturating_add(other.name_path_members);
-        self.name_path_member_symbols = self
-            .name_path_member_symbols
-            .saturating_add(other.name_path_member_symbols);
-        self.struct_fields = self.struct_fields.saturating_add(other.struct_fields);
-        self.match_arms = self.match_arms.saturating_add(other.match_arms);
-    }
-}
+impl ExpressionTableCapacity {}
 
 impl ExpressionTable {
     pub(crate) fn retains_exact_prefix(&self, base: &Self) -> bool {
@@ -1159,16 +1141,6 @@ impl ExpressionTable {
         self.expressions.iter()
     }
 
-    pub fn expression_is_literal(&self, handle: ExpressionHandle) -> bool {
-        matches!(
-            self.expression(handle),
-            ExpressionNode::Boolean(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::String(_)
-        )
-    }
-
     pub fn expression_is_direct_place_path(&self, handle: ExpressionHandle) -> bool {
         match self.expression(handle) {
             ExpressionNode::Name(_) => true,
@@ -1176,13 +1148,6 @@ impl ExpressionTable {
             ExpressionNode::Borrow(inner) => self.expression_is_direct_place_path(inner.target),
             _ => false,
         }
-    }
-
-    pub fn expression_is_stored_place(&self, handle: ExpressionHandle) -> bool {
-        matches!(
-            self.expression(handle),
-            ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
-        )
     }
 
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
@@ -1290,28 +1255,6 @@ impl ExpressionTable {
             && a.iter()
                 .zip(b.iter())
                 .all(|(x, y)| self.expressions_structurally_equal(*x, *y))
-    }
-
-    pub fn copy_name_path_members_with_suffix(
-        &mut self,
-        members: HandleSpan<Identifier>,
-        suffix: Identifier,
-    ) -> HandleSpan<Identifier> {
-        let copied = self.reserve_name_path_members(
-            members
-                .count()
-                .checked_add(1)
-                .expect("name path member span count overflow"),
-        );
-
-        for offset in 0..members.count() {
-            let member = self.name_path_member_at_offset(members, offset).clone();
-            self.set_name_path_member_at_offset(copied, offset, member);
-        }
-
-        self.set_name_path_member_at_offset(copied, members.count(), suffix);
-
-        copied
     }
 
     pub fn copy_name_path_members_with_member_suffix(
@@ -2186,13 +2129,6 @@ impl ExpressionTable {
             _ => None,
         }
     }
-
-    pub fn string_literal_value(&self, handle: ExpressionHandle) -> Option<Arc<[u8]>> {
-        match self.expression(handle) {
-            ExpressionNode::String(value) => Some(value.clone()),
-            _ => None,
-        }
-    }
 }
 
 fn source_span_index(handle: ExpressionHandle) -> usize {
@@ -2660,18 +2596,6 @@ impl NamePath {
 
     pub fn symbol(&self) -> SymbolHandle {
         self.symbol
-    }
-
-    pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
-        self.head_symbol = head_symbol;
-        self.symbol = symbol;
-        if let Some(first_symbol) = Arc::make_mut(&mut self.member_symbols).first_mut() {
-            *first_symbol = head_symbol;
-        }
-        if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
-            *last_symbol = symbol;
-        }
-        self
     }
 }
 
