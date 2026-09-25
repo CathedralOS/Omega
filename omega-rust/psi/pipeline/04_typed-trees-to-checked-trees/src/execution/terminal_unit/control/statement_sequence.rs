@@ -743,6 +743,7 @@ pub(super) fn first_unsupported_statement(
                     })
                     || erased_locals.contains(&local.symbol)
                     || is_record_pattern_marker(local)
+                    || is_arm_destructure_marker(local)
                     // A view local narrowing an established view has the
                     // view-subslice route by kind; the sequence decides
                     // whether its range and source are admissible.
@@ -795,6 +796,14 @@ fn erased_alias_locals(
 /// the same place, so the marker declares no storage and plans no operation.
 fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
     local.name.as_str().starts_with("__destructure#")
+}
+
+/// A union-match arm's marker (`let __arm_destructure#V=... = self;`) carries
+/// only the match's provenance: the case-pattern bindings are resolved by the
+/// dispatch machinery, so the marker declares no storage and plans no
+/// operation — the sequence already skips it by name when iterating.
+fn is_arm_destructure_marker(local: &typed_trees::statement::TableLocalData) -> bool {
+    local.name.as_str().starts_with("__arm_destructure#")
 }
 
 /// The statement position a prebuilt assignment store belongs to.

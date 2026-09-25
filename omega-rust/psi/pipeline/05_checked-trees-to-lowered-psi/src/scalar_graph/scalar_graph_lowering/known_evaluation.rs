@@ -76,6 +76,15 @@ pub(crate) fn evaluate_known_scalar_graph(
                 when_false_target,
                 ..
             } => vec![*when_true_target, *when_false_target],
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                ..
+            } => {
+                let mut successors = vec![*fallback_target];
+                successors.extend(armed.iter().map(|arm| arm.target));
+                successors
+            }
             LoweredScalarBranchTerminator::Return { .. }
             | LoweredScalarBranchTerminator::Crash(_) => Vec::new(),
         })
@@ -161,6 +170,25 @@ pub(crate) fn evaluate_known_scalar_graph(
                 merge_known_parameters(
                     &mut known_parameters[*when_false_target],
                     evaluate_arguments(when_false_arguments),
+                );
+            }
+            // Each armed case's payloads evaluate as unknown here; every
+            // outcome still propagates known arguments.
+            LoweredScalarBranchTerminator::CaseDispatchSplit {
+                armed,
+                fallback_target,
+                fallback_arguments,
+                ..
+            } => {
+                for arm in armed {
+                    merge_known_parameters(
+                        &mut known_parameters[arm.target],
+                        evaluate_arguments(&arm.arguments),
+                    );
+                }
+                merge_known_parameters(
+                    &mut known_parameters[*fallback_target],
+                    evaluate_arguments(fallback_arguments),
                 );
             }
             LoweredScalarBranchTerminator::Return { expression } => {

@@ -33,6 +33,16 @@ pub(super) fn validate(
         return unsupported("ordered scalar completion omitted its final cleanup frontier");
     }
     for (statement, node) in statements.iter().enumerate().take(prefix) {
+        // Union-match arm markers occupy authored prefix slots but carry only
+        // the match's provenance: the dispatch machinery resolves the case
+        // bindings, so no unit operation is expected for them.
+        if matches!(
+            node,
+            StatementNode::LocalData(local)
+                if local.name.as_str().starts_with("__arm_destructure#")
+        ) {
+            continue;
+        }
         if !matches!(
             node,
             StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Assignment(_)

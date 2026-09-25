@@ -79,10 +79,40 @@ pub(crate) enum LoweredScalarBranchTerminator {
         when_false_erased_arguments: Vec<LoweredDirectExpression>,
         when_false_erased_proof_arguments: Vec<LoweredProofTerm>,
     },
+    /// A total case split on a structural operand: every armed case's scalar
+    /// payload fields bind on its own edge into that case's continuation, and
+    /// every remaining case takes the fallback continuation. Reaching an armed
+    /// edge makes that arm's case-membership guard provably true, so armed
+    /// continuations skip evaluating their own membership test.
+    CaseDispatchSplit {
+        source: PlaceId,
+        /// Every declared case of the source's shape, in declaration order.
+        cases: Vec<StructuralCaseId>,
+        /// Armed cases in declaration order: the payloads each edge binds and
+        /// the continuation those payloads feed.
+        armed: Vec<CaseDispatchArm>,
+        fallback_target: usize,
+        fallback_arguments: Vec<LoweredDirectExpression>,
+        fallback_erased_arguments: Vec<LoweredDirectExpression>,
+        fallback_erased_proof_arguments: Vec<LoweredProofTerm>,
+    },
     Return {
         expression: LoweredDirectExpression,
     },
     Crash(LoweredCrashExit),
+}
+
+/// One armed case of a `CaseDispatchSplit`: `payloads` binds positionally as
+/// the case edge's block parameters, which the block then forwards as
+/// `arguments` to the arm's continuation `target`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CaseDispatchArm {
+    pub(crate) case: StructuralCaseId,
+    pub(crate) payloads: Vec<(StructuralFieldId, QualifiedScalarType)>,
+    pub(crate) target: usize,
+    pub(crate) arguments: Vec<LoweredDirectExpression>,
+    pub(crate) erased_arguments: Vec<LoweredDirectExpression>,
+    pub(crate) erased_proof_arguments: Vec<LoweredProofTerm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
