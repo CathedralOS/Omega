@@ -3536,12 +3536,24 @@ syntax and other terminal services are not prerequisites.
   routes, generic/dispatched callees and dynamic/unresolved projections.
   In `progress/origins/tests.rs`, close the finite-alternative gaps in
   `control_flow_route_helper_result_stays_unproven` and
-  `dynamic_index_carrier_argument_stays_unproven`. Resolve demanded values
-  through guarded prefix routes in `call_result_place`, not just terminal arms.
-  Carry the complete subject set through `origins.rs::at_call`,
-  `machine_summaries.rs`, and `lineage/transfers.rs` into the existing
-  `ParameterLineage::Exact` representation. Every route must be exact; one
-  unknown route leaves the whole result unproven.
+  `dynamic_index_carrier_argument_stays_unproven`.
+
+  The guarded prefix routes are read (237329e986): `call_result_place` reads a
+  callee body as a shared prefix plus one route per arm, and one unnameable
+  route still leaves the whole result unproven. Arms that AGREE now prove --
+  `control_flow_route_helper_result_proves_when_every_arm_agrees`. Arms that
+  DISAGREE are what remains.
+
+  Carrying that set is NOT reachable from the three files this row lists.
+  `ParameterLineage::Exact` already holds a `Vec<ProgressSubject>` and
+  `lineage::resolve` already conjoins one premise per subject, so the
+  representation and its meaning are in place. The obstacle is the path
+  between: `at_call` obtains its place from
+  `flow::value_origin_at_call_resolving` and the shared backward trace, which
+  take a `resolve` closure returning ONE origin and name one by construction.
+  A set has to travel through that trace before `origins.rs::at_call`,
+  `machine_summaries.rs` and `lineage/transfers.rs` can carry it, and
+  `flow/value_origins.rs` is where that begins.
 
   Preserve `embedded_call_written_on_the_demanded_path_has_no_exact_origin`
   as a negative: `poke_then_read` writes the demanded carrier before reading
