@@ -83,7 +83,7 @@ pub(crate) fn validate_value_position_calls(
                 boundary_operator_applications,
                 diagnostics,
             );
-            scan_expression_calls(
+            scan_assignment_target_calls(
                 program,
                 machine,
                 state,
@@ -443,6 +443,87 @@ fn scan_expression_calls(
         boundary_operator_applications,
         diagnostics,
     );
+}
+
+/// An assignment target is scanned for the calls inside it -- `self.rows[self
+/// .index()] = v` performs one -- but the target itself is not a read.
+/// `value_custody::places` already reports an unknown direct or nested field
+/// on a target, with the verb that belongs to a write, so reporting it here
+/// too produced two diagnostics for one typo and called the write a read.
+/// Operands below the target are ordinary reads and keep the read reports.
+#[allow(clippy::too_many_arguments)]
+fn scan_assignment_target_calls(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    writable_roots: &WritableRoots<'_, '_>,
+    value_environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    executes: bool,
+    boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut target_diagnostics = Vec::new();
+    scan_expression_calls(
+        program,
+        machine,
+        state,
+        machine_symbols,
+        symbols,
+        writable_roots,
+        value_environment,
+        expression,
+        executes,
+        boundary_operator_applications,
+        &mut target_diagnostics,
+    );
+    let read_reports = unknown_field_read_reports(program, machine, state, expression);
+    diagnostics.extend(
+        target_diagnostics
+            .into_iter()
+            .filter(|diagnostic| !read_reports.contains(&diagnostic.message)),
+    );
+}
+
+/// The unknown-field READ messages this walker would raise for `expression`
+/// itself, so an assignment target can drop exactly those and keep every other
+/// finding the walk produced.
+fn unknown_field_read_reports(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Vec<String> {
+    let mut reports = Vec::new();
+    if let Some(field_name) =
+        crate::value_custody::places::direct_self_field_member(program, expression)
+        && let Some(data) = crate::value_custody::places::machine_attached_data(program, machine)
+        && !data_declares_field(program, data, field_name)
+    {
+        reports.push(format!(
+            "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
+             `{field_name}` (check the spelling of the field name)",
+            machine.name.as_str(),
+            state.name.as_str(),
+            data.name.as_str()
+        ));
+    }
+    if let Some((container, member)) = crate::value_custody::places::first_unknown_nested_field(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        reports.push(format!(
+            "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
+             has no field `{member}` (check the spelling of the field name)",
+            machine.name.as_str(),
+            state.name.as_str(),
+        ));
+    }
+    reports
 }
 
 /// Only the direct expression statement may discard Unit. Recursive operands

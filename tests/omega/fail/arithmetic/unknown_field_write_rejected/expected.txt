@@ -1,0 +1,1 @@
+machine `Main::main` state `main` assignment: data `Main` has no field `cont`
