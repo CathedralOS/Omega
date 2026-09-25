@@ -223,6 +223,34 @@ pub(crate) fn check_range_containment(
     }
 }
 
+/// A store into a field whose data states only interval `where` facts owes
+/// that field's interval as a bracketed field owes its range. An unstated end
+/// constrains nothing; a stated end needs the matching proven end.
+pub(crate) fn check_where_interval_containment(
+    stated: Interval,
+    interval: Interval,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let contained_low = stated
+        .low
+        .is_none_or(|bound| interval.low.is_some_and(|low| low >= bound));
+    let contained_high = stated
+        .high
+        .is_none_or(|bound| interval.high.is_some_and(|high| high <= bound));
+    let empty = stated
+        .low
+        .zip(stated.high)
+        .is_some_and(|(low, high)| low > high);
+    if empty || !contained_low || !contained_high {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} stores a value not provably within its data's `where` facts: every read \
+             trusts them (indexes, exact arithmetic), so the stored value must be proven to \
+             honor them. Narrow the value with a dominating guard or a requires coupling",
+        )));
+    }
+}
+
 /// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
 /// Constrained shells (non-Exact ranges are deliberately permissive).
 pub(crate) fn enforced_declared_range_interval(
