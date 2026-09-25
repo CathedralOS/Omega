@@ -32,13 +32,17 @@
 //!   splits at the `i64` sign bit before its halves cross.
 //!   `signed_wrapping_conversion_values.rs` executes those answers rather
 //!   than asserting the composition.
-//! - Saturating conversion: unsigned-to-unsigned narrowings now carry
-//!   `IntegerSaturatingCast` and lower through the same modular-bound shape as
-//!   the wrapping neighbour (`value - (value sat_sub target_max)`, then a
-//!   remainder that supplies the exact-cast bound). A saturating cast with a
-//!   signed carrier still has no checked cast kind — a two-sided clamp needs a
-//!   comparison that unsigned saturating subtraction cannot spell — so those
-//!   spellings keep the no-value-fact boundary.
+//! - Saturating conversion: every fixed-integer pair now carries
+//!   `IntegerSaturatingCast` and lowers by clamping on the source carrier,
+//!   then letting the wrapping conversion carry the clamped value across —
+//!   an operand already inside the destination range is its own modular
+//!   image. Unsigned carriers keep `value -% (value sat_sub target_max)`;
+//!   signed carriers read `max(0, x)` off the arithmetic sign mask
+//!   `x & !(x >>% (C - 1))`, so the two-sided clamp needs no comparison —
+//!   and a signed saturating subtraction is deliberately NOT the unsigned
+//!   clamp identity: it floors at the carrier minimum, so the nonnegative
+//!   part is taken off the distance instead. Executed answers live below in
+//!   the saturating conversion tests.
 //!
 //! Each rejection is paired with the admitted neighbour that differs in one
 //! coordinate, so a repair has to move the actual boundary rather than widen a
@@ -53,15 +57,6 @@
 //! `signed_wrapping_conversion_values.rs`.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-
-fn lowering_error(source: &str) -> checked_trees_to_lowered_psi::LoweringError {
-    let checked = crate::front_end::checked_program(source);
-    checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Main::main"),
-    )
-    .expect_err("this policy conversion has no native realization yet")
-}
 
 fn lowers(source: &str) {
     let checked = crate::front_end::checked_program(source);
@@ -144,23 +139,6 @@ fn scalar_expressions_contain(
                 }
                 _ => false,
             })
-}
-
-/// The omission chain naming the machine whose own body stopped, with the
-/// ordinary builder's last phase and the statement it was planning.
-fn unit_plan_omission(source: &str) -> (String, String) {
-    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-        machine,
-        omission,
-        ..
-    } = lowering_error(source)
-    else {
-        panic!("a missing checked value fact leaves the Unit closure without a plan");
-    };
-    (
-        machine,
-        omission.expect("the omission roster names the machine"),
-    )
 }
 
 /// The Trapping primitives of the lowered program, in module order, and
@@ -559,9 +537,7 @@ fn a_trapping_arithmetic_operation_lowers_to_its_own_trap_operation() {
 /// remainder-bound shape around `min(value, target_max)` — spelled
 /// `value - (value sat_sub target_max)` since unsigned saturating
 /// subtraction floors at zero. Saturating `+` on the same carriers already
-/// lowers through `SaturatingIntegerAdd`. A signed carrier still has no
-/// checked cast kind: a two-sided clamp needs a comparison the unsigned
-/// saturating-subtraction spelling cannot express, so that boundary stays.
+/// lowers through `SaturatingIntegerAdd`.
 #[test]
 fn a_saturating_conversion_composes_on_unsigned_narrowing() {
     lowers(
@@ -580,22 +556,6 @@ fn a_saturating_conversion_composes_on_unsigned_narrowing() {
         machine Main::main(value: u16) { let narrowed: u8 = narrow(value); }
     "#,
     );
-    let (machine, omission) = unit_plan_omission(
-        r#"
-        data Main {}
-        machine narrow(value: i16) {
-            let narrowed: i8 in Saturating = (value as i8 in Saturating) as i8;
-        }
-        machine Main::main(value: i16) { narrow(value); }
-    "#,
-    );
-    assert_eq!(machine, "Main::main");
-    assert_eq!(
-        omission,
-        "`Main::main` calls `narrow`, which has no plan; `narrow` has no admitted body \
-         (local construction stopped at statement sequence: local data: scalar local: \
-         pure initializer, statement 0)"
-    );
     lowers(
         r#"
         data Main {}
@@ -605,4 +565,339 @@ fn a_saturating_conversion_composes_on_unsigned_narrowing() {
         machine Main::main(left: u8, right: u8) { sat_add(left, right); }
     "#,
     );
+}
+
+/// The one-coordinate neighbour of the unsigned narrowing above: a signed
+/// pair keeps the checked cast occurrence and lowers — the clamp is spelled
+/// `value -% max(0, value sat_sub high)` then `value +% max(0, low -%
+/// value)` on the source carrier, and the wrapping crossing lands it.
+#[test]
+fn a_saturating_conversion_composes_on_signed_narrowing() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Main {}
+        machine narrow(value: i16) {
+            let narrowed: i8 in Saturating = (value as i8 in Saturating) as i8;
+        }
+        machine Main::main(value: i16) { narrow(value); }
+    "#,
+    );
+    assert!(
+        scalar_expressions_contain(&checked, |expression| matches!(
+            expression,
+            checked_trees::CheckedScalarExpression::IntegerSaturatingCast { .. }
+        )),
+        "the signed narrowing keeps its checked IntegerSaturatingCast occurrence"
+    );
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("the signed saturating conversion composes from admitted operations");
+}
+
+/// Every remaining sign combination composes the same way — the clamp on the
+/// source carrier, then the wrapping crossing: `i16 -> u8` floors at zero,
+/// `u16 -> i8` ceilings at `i8`'s maximum, and same-width sign changes clamp
+/// inside the shared width.
+#[test]
+fn a_saturating_conversion_composes_on_mixed_sign_pairs() {
+    for (source, target) in [
+        ("i16", "u8"),
+        ("u16", "i8"),
+        ("i8", "u8"),
+        ("u8", "i8"),
+        ("i8", "u16"),
+        ("i16", "u64"),
+        ("u64", "i64"),
+        ("i64", "i8"),
+    ] {
+        lowers(&format!(
+            r#"
+            data Main {{}}
+            machine narrow(value: {source}) -> {target} {{
+                (value as {target} in Saturating) as {target}
+            }}
+            machine Main::main(value: {source}) {{ let narrowed: {target} = narrow(value); }}
+        "#
+        ));
+    }
+}
+
+// --- Executed answers -------------------------------------------------------
+//
+// Lowering composing is not evidence of clamp values: these rows execute the
+// serialized module through the terminal interpreter, so decode and proof
+// verification stand between the composed spelling and the answer. The
+// harness mirrors `signed_wrapping_conversion_values.rs`.
+
+fn integer(
+    sign: semantic_vocabulary::IntegerSign,
+    bits: u16,
+    value: semantic_vocabulary::IntegerValue,
+) -> terminal_interpreter::TerminalScalarValue {
+    terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(sign, bits)
+            .expect("a fixed integer carrier"),
+        value,
+    }
+}
+
+fn execute(
+    source: &str,
+    arguments: &[terminal_interpreter::TerminalScalarValue],
+) -> terminal_interpreter::TerminalExecutionResult {
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let semantics =
+        terminal_codec::encode_module(&lowered.semantic_module).expect("canonical semantic bytes");
+    let proof =
+        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("canonical proof bytes");
+    terminal_interpreter::interpret_terminal_artifact(
+        &semantics,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+        arguments,
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"))
+}
+
+fn saturating_narrow(source_type: &str, target: &str) -> String {
+    format!(
+        "machine value(input: {source_type}) -> {target} \
+         {{ (input as {target} in Saturating) as {target} }}"
+    )
+}
+
+fn signed_argument(bits: u16, input: i128) -> terminal_interpreter::TerminalScalarValue {
+    integer(
+        semantic_vocabulary::IntegerSign::Signed,
+        bits,
+        semantic_vocabulary::IntegerValue::Signed(input),
+    )
+}
+
+fn signed_result(bits: u16, expected: i128) -> terminal_interpreter::TerminalScalarValue {
+    integer(
+        semantic_vocabulary::IntegerSign::Signed,
+        bits,
+        semantic_vocabulary::IntegerValue::Signed(expected),
+    )
+}
+
+fn unsigned_argument(bits: u16, input: u128) -> terminal_interpreter::TerminalScalarValue {
+    integer(
+        semantic_vocabulary::IntegerSign::Unsigned,
+        bits,
+        semantic_vocabulary::IntegerValue::Unsigned(input),
+    )
+}
+
+fn unsigned_result(bits: u16, expected: u128) -> terminal_interpreter::TerminalScalarValue {
+    integer(
+        semantic_vocabulary::IntegerSign::Unsigned,
+        bits,
+        semantic_vocabulary::IntegerValue::Unsigned(expected),
+    )
+}
+
+/// A signed narrowing saturates on BOTH ends: positive overflow lands on the
+/// destination maximum, negative underflow on the minimum, and an in-range
+/// operand — including the boundary values — crosses unchanged.
+#[test]
+fn a_signed_narrowing_saturating_conversion_executes_the_clamp() {
+    for (input, expected) in [
+        (-32768_i128, -128_i128),
+        (-300, -128),
+        (-129, -128),
+        (-128, -128),
+        (-1, -1),
+        (0, 0),
+        (127, 127),
+        (128, 127),
+        (300, 127),
+        (32767, 127),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("i16", "i8"),
+                &[signed_argument(16, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(8, expected)),
+            "i16 -> i8 in Saturating of {input}"
+        );
+    }
+}
+
+/// The same clamp is bit-width general: `i32 -> i16` saturates at the
+/// sixteen-bit bounds, not the source's.
+#[test]
+fn a_wider_signed_narrowing_saturating_conversion_executes_the_clamp() {
+    for (input, expected) in [
+        (i128::from(i32::MIN), -32768_i128),
+        (-40000, -32768),
+        (-32769, -32768),
+        (-32768, -32768),
+        (-1, -1),
+        (32767, 32767),
+        (32768, 32767),
+        (40000, 32767),
+        (i128::from(i32::MAX), 32767),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("i32", "i16"),
+                &[signed_argument(32, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(16, expected)),
+            "i32 -> i16 in Saturating of {input}"
+        );
+    }
+}
+
+/// A signed source reaching an unsigned destination floors at zero — the
+/// coordinate where a truncation toward zero or a modular image would both
+/// be wrong — and ceilings at `u_B`'s maximum.
+#[test]
+fn a_signed_to_unsigned_saturating_conversion_executes_the_clamp() {
+    for (input, expected) in [
+        (-32768_i128, 0_u128),
+        (-300, 0),
+        (-1, 0),
+        (0, 0),
+        (200, 200),
+        (255, 255),
+        (256, 255),
+        (32767, 255),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("i16", "u8"),
+                &[signed_argument(16, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned_result(8, expected)),
+            "i16 -> u8 in Saturating of {input}"
+        );
+    }
+}
+
+/// An unsigned source reaching a signed destination only binds at the
+/// ceiling: `u16 -> i8` clamps above `i8`'s maximum and keeps every value
+/// below it.
+#[test]
+fn an_unsigned_to_signed_saturating_conversion_executes_the_clamp() {
+    for (input, expected) in [
+        (0_u128, 0_i128),
+        (127, 127),
+        (128, 127),
+        (255, 127),
+        (300, 127),
+        (65535, 127),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("u16", "i8"),
+                &[unsigned_argument(16, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(8, expected)),
+            "u16 -> i8 in Saturating of {input}"
+        );
+    }
+}
+
+/// Same-width sign changes clamp inside the shared width — `i8 -> u8` floors
+/// at zero and `u8 -> i8` ceilings at 127 — with no wider carrier anywhere
+/// in the composition.
+#[test]
+fn a_same_width_saturating_sign_change_executes_the_clamp() {
+    for (input, expected) in [(-128_i128, 0_u128), (-1, 0), (0, 0), (127, 127)] {
+        assert_eq!(
+            execute(&saturating_narrow("i8", "u8"), &[signed_argument(8, input)]),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned_result(8, expected)),
+            "i8 -> u8 in Saturating of {input}"
+        );
+    }
+    for (input, expected) in [(0_u128, 0_i128), (127, 127), (128, 127), (255, 127)] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("u8", "i8"),
+                &[unsigned_argument(8, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(8, expected)),
+            "u8 -> i8 in Saturating of {input}"
+        );
+    }
+}
+
+/// A signed source reaching a wider unsigned destination floors at zero but
+/// keeps every nonnegative value — only the lower bound of the clamp binds.
+#[test]
+fn a_signed_to_wider_unsigned_saturating_conversion_executes_the_floor() {
+    for (input, expected) in [(-32768_i128, 0_u128), (-1, 0), (0, 0), (32767, 32767)] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("i16", "u64"),
+                &[signed_argument(16, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned_result(64, expected)),
+            "i16 -> u64 in Saturating of {input}"
+        );
+    }
+}
+
+/// The widest sign crossings: `i64 -> u8` exercises the two-sided signed
+/// clamp, and `u64 -> i64` ceilings at the signed maximum.
+#[test]
+fn the_widest_saturating_crossings_execute_the_clamp() {
+    for (input, expected) in [
+        (i128::from(i64::MIN), 0_u128),
+        (-1, 0),
+        (300, 255),
+        (i128::from(i64::MAX), 255),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("i64", "u8"),
+                &[signed_argument(64, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned_result(8, expected)),
+            "i64 -> u8 in Saturating of {input}"
+        );
+    }
+    for (input, expected) in [
+        (0_u128, 0_i128),
+        (u128::from(i64::MAX as u64), i128::from(i64::MAX)),
+        (u128::from(i64::MAX as u64) + 1, i128::from(i64::MAX)),
+        (u128::from(u64::MAX), i128::from(i64::MAX)),
+    ] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("u64", "i64"),
+                &[unsigned_argument(64, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(signed_result(64, expected)),
+            "u64 -> i64 in Saturating of {input}"
+        );
+    }
+}
+
+/// The unsigned neighbour is unchanged: `u16 -> u8` still clamps through the
+/// same saturating-subtraction spelling it already had.
+#[test]
+fn the_unsigned_saturating_neighbour_still_executes_the_clamp() {
+    for (input, expected) in [(0_u128, 0_u128), (255, 255), (256, 255), (65535, 255)] {
+        assert_eq!(
+            execute(
+                &saturating_narrow("u16", "u8"),
+                &[unsigned_argument(16, input)]
+            ),
+            terminal_interpreter::TerminalExecutionResult::Scalar(unsigned_result(8, expected)),
+            "u16 -> u8 in Saturating of {input}"
+        );
+    }
 }

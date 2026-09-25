@@ -10,12 +10,13 @@ use crate::emission::scalar_types::{
 };
 use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::bindings::view_locals::{self, ViewCarrier, ViewLocalBinding};
+use crate::expression_preparation::saturating_cast;
 use crate::expression_preparation::source_custody;
 use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, IntegerSign, IntegerValue,
-    LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, LoweringError, PlaceId,
+    PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
 use semantic_vocabulary::CanonicalStructuralPathSegment;
@@ -636,69 +637,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 view_locals,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
-            let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
-                (operand.scalar_type(), target)
-            else {
+            let ScalarType::Integer(source_type) = operand.scalar_type() else {
                 return unsupported("saturating conversion requires fixed integer carriers");
             };
-            if source_type == target_type {
-                return Ok(operand);
-            }
-            // A widening carrier already clamps at the source range; the
-            // widened operand is the saturating image.
-            if source_type.can_widen_to(target_type) {
-                return Ok(LoweredDirectExpression::IntegerWiden {
-                    scalar_type: target,
-                    operand: Box::new(operand),
-                });
-            }
-            if source_type.sign() != IntegerSign::Unsigned
-                || target_type.sign() != IntegerSign::Unsigned
-            {
-                return unsupported(
-                    "saturating conversion with a signed carrier requires runtime policy realization",
-                );
-            }
-            if target_type.bits() >= source_type.bits() {
-                return unsupported("saturating conversion requires an unsigned narrowing carrier");
-            }
-            let maximum = (1_u128.checked_shl(u32::from(target_type.bits())))
-                .and_then(|modulus| modulus.checked_sub(1))
-                .ok_or(LoweringError::Unsupported(
-                    "saturating conversion bound exceeds u128",
-                ))?;
-            let modulus = 1_u128.checked_shl(u32::from(target_type.bits())).ok_or(
-                LoweringError::Unsupported("saturating conversion modulus exceeds u128"),
-            )?;
-            // `min(value, target_max)` is `value - (value sat_sub target_max)`
-            // on unsigned carriers: saturating subtraction floors at zero, so
-            // the clamp needs no branch. The modular remainder then carries
-            // the bound that the exact cast obligation consumes, exactly as
-            // the wrapping conversion does.
-            let saturated = |value: u128| LoweredDirectExpression::IntegerLiteral {
-                value: IntegerValue::Unsigned(value),
-                scalar_type: ScalarType::Integer(source_type),
-            };
-            let clamped = LoweredDirectExpression::IntegerBinary {
-                kind: LoweredIntegerBinaryKind::WrappingSubtract,
-                scalar_type: ScalarType::Integer(source_type),
-                left: Box::new(operand.clone()),
-                right: Box::new(LoweredDirectExpression::IntegerBinary {
-                    kind: LoweredIntegerBinaryKind::SaturatingSubtract,
-                    scalar_type: ScalarType::Integer(source_type),
-                    left: Box::new(operand),
-                    right: Box::new(saturated(maximum)),
-                }),
-            };
-            Ok(LoweredDirectExpression::IntegerExactCast {
-                scalar_type: target,
-                operand: Box::new(LoweredDirectExpression::IntegerBinary {
-                    kind: LoweredIntegerBinaryKind::ExactRemainder,
-                    scalar_type: ScalarType::Integer(source_type),
-                    left: Box::new(clamped),
-                    right: Box::new(saturated(modulus)),
-                }),
-            })
+            saturating_cast::saturating_cast(operand, source_type, target)
         }
         CheckedScalarExpression::IntegerTrappingCast {
             primitive_type,
