@@ -36,13 +36,25 @@ type StorageMatchVerdicts = HashMap<(TypeReferenceHandle, TypeReferenceHandle), 
 // fixtures can forge duplicate symbols, and two definitions sharing one must
 // keep independent verdicts. Within a freshness window the slice is stable.
 type DefinitionVerdicts = HashMap<*const typed_trees::data::DataDefinition, bool>;
+// Substitution-sensitive verdicts key on the queried handle plus the exact
+// binding frame, since the same handle can walk different member graphs
+// under different applications.
+type BindingsVerdicts = HashMap<
+    (
+        TypeReferenceHandle,
+        Vec<(SymbolHandle, TypeReferenceHandle)>,
+    ),
+    bool,
+>;
 
-struct IsolationCache {
-    isolation: IsolationVerdicts,
-    storage_match: StorageMatchVerdicts,
-    definitions: DefinitionVerdicts,
-    by_symbol: HashMap<SymbolHandle, Vec<u32>>,
-    by_name: HashMap<String, Vec<u32>>,
+pub(super) struct IsolationCache {
+    pub(super) isolation: IsolationVerdicts,
+    pub(super) storage_match: StorageMatchVerdicts,
+    pub(super) definitions: DefinitionVerdicts,
+    pub(super) reference_free: BindingsVerdicts,
+    pub(super) carry_write: BindingsVerdicts,
+    pub(super) by_symbol: HashMap<SymbolHandle, Vec<u32>>,
+    pub(super) by_name: HashMap<String, Vec<u32>>,
 }
 
 thread_local! {
@@ -52,17 +64,30 @@ thread_local! {
 }
 
 /// Cheap per-call identity over the tables these verdicts read. Forged
-/// handles make symbol endpoints collide across fixture programs, but a
-/// generated `Identifier`'s text pointer is a unique heap address, so the
-/// sampled names discriminate programs the arena anchors cannot.
+/// handles make symbol endpoints collide across fixture programs, so the
+/// fingerprint also mixes child-arena base pointers — generated `Identifier`
+/// text and member/state slices are unique heap addresses that discriminate
+/// programs the table anchors cannot.
 fn program_fingerprint(program: &TypedTrees) -> usize {
     let definitions = program.data_definitions();
     let machines = program.machines();
-    let sample = |index: usize| -> usize {
+    let definition_sample = |index: usize| -> usize {
         definitions
             .get(index)
             .map(|definition| {
-                definition.symbol.arena_index() as usize ^ definition.name.as_ptr() as usize
+                definition.symbol.arena_index() as usize
+                    ^ definition.name.as_ptr() as usize
+                    ^ program.data_members(definition).as_ptr() as usize
+                    ^ program.data_type_parameters(definition).as_ptr() as usize
+            })
+            .unwrap_or(0)
+    };
+    let machine_sample = |index: usize| -> usize {
+        machines
+            .get(index)
+            .map(|machine| {
+                machine.symbol.arena_index() as usize
+                    ^ program.machine_states(machine).as_ptr() as usize
             })
             .unwrap_or(0)
     };
@@ -70,13 +95,25 @@ fn program_fingerprint(program: &TypedTrees) -> usize {
         ^ definitions.as_ptr() as usize
         ^ definitions.len().rotate_left(17)
         ^ machines.as_ptr() as usize
-        ^ machines.len().rotate_left(31);
-    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
-    fingerprint = fingerprint.rotate_left(11) ^ sample(definitions.len() / 2);
-    fingerprint.rotate_left(11) ^ sample(definitions.len().saturating_sub(1))
+        ^ machines.len().rotate_left(31)
+        ^ program.plan_laid_layouts.as_ptr() as usize
+        ^ program.plan_laid_layouts.len().rotate_left(9)
+        ^ program.placed_view_plans.as_ptr() as usize
+        ^ program.placed_view_plans.len().rotate_left(23)
+        ^ program.authored_service_reach_rows.as_ptr() as usize
+        ^ program.authored_service_reach_rows.len().rotate_left(41);
+    fingerprint = fingerprint.rotate_left(11) ^ definition_sample(0);
+    fingerprint = fingerprint.rotate_left(11) ^ definition_sample(definitions.len() / 2);
+    fingerprint =
+        fingerprint.rotate_left(11) ^ definition_sample(definitions.len().saturating_sub(1));
+    fingerprint = fingerprint.rotate_left(11) ^ machine_sample(0);
+    fingerprint.rotate_left(11) ^ machine_sample(machines.len().saturating_sub(1))
 }
 
-fn with_isolation_cache<R>(program: &TypedTrees, run: impl FnOnce(&mut IsolationCache) -> R) -> R {
+pub(super) fn with_isolation_cache<R>(
+    program: &TypedTrees,
+    run: impl FnOnce(&mut IsolationCache) -> R,
+) -> R {
     ISOLATION_CACHE.with(|cell| {
         let mut slot = cell.borrow_mut();
         let fingerprint = program_fingerprint(program);
@@ -104,6 +141,8 @@ fn with_isolation_cache<R>(program: &TypedTrees, run: impl FnOnce(&mut Isolation
                     isolation: HashMap::new(),
                     storage_match: HashMap::new(),
                     definitions: HashMap::new(),
+                    reference_free: HashMap::new(),
+                    carry_write: HashMap::new(),
                     by_symbol,
                     by_name,
                 },
@@ -113,7 +152,7 @@ fn with_isolation_cache<R>(program: &TypedTrees, run: impl FnOnce(&mut Isolation
     })
 }
 
-fn definitions_for_symbol<'p>(
+pub(super) fn definitions_for_symbol<'p>(
     program: &'p TypedTrees,
     symbol: SymbolHandle,
 ) -> Vec<&'p typed_trees::data::DataDefinition> {
@@ -128,7 +167,7 @@ fn definitions_for_symbol<'p>(
         .unwrap_or_default()
 }
 
-fn definitions_for_name<'p>(
+pub(super) fn definitions_for_name<'p>(
     program: &'p TypedTrees,
     name: &str,
 ) -> Vec<&'p typed_trees::data::DataDefinition> {
