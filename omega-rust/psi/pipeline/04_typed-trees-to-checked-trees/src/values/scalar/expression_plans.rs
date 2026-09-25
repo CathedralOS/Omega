@@ -1,5 +1,11 @@
 //! Building the checked scalar expression plans of one program: the scalar
 //! locals, the plan walk and the closed literal guards it lowers.
+//!
+//! The walk visits every statement of every state once. A
+//! `StatementPlanner` carries the state's scalar signature and the rosters
+//! the statement extends; `array_elements` plans a closed array literal's
+//! elements first, and the statement's kind selects its own planner beside
+//! this file.
 
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::call_lowering::{
@@ -22,6 +28,13 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+mod array_elements;
+mod assignment;
+mod call_statement;
+mod expression_statement;
+mod local_data;
+mod transition;
+
 #[derive(Debug, Clone)]
 pub(crate) struct ScalarLocal {
     pub(crate) is_mutable: bool,
@@ -29,6 +42,57 @@ pub(crate) struct ScalarLocal {
     pub(crate) name: String,
     pub(crate) primitive_type: PrimitiveType,
     pub(crate) arithmetic_domain: ArithmeticDomain,
+}
+
+/// One statement's place in the plan walk: the program facts every
+/// statement kind reads, the state's scalar signature and the rosters each
+/// statement's plans extend.
+struct StatementPlanner<'p, 's> {
+    program: &'p TypedTrees,
+    operators: &'p CheckedOperatorFacts,
+    exact_integer_casts: &'p [validation::ExactIntegerCastFact],
+    proof_only: &'s typed_trees::proof_only::ProofOnlyClassification,
+    machine: &'p typed_trees::machine::Machine,
+    state: &'p typed_trees::state::State,
+    states: &'p [typed_trees::state::State],
+    parameters: &'p [typed_trees::signature::StateParameter],
+    scalar_parameters: &'s [typed_trees::signature::StateParameter],
+    parameter_types: &'s [PrimitiveType],
+    result_type: Option<PrimitiveType>,
+    statement_index: usize,
+    statement_ordinal: u32,
+    locals: &'s mut Vec<ScalarLocal>,
+    expressions: &'s mut Vec<CheckedLocatedScalarExpression>,
+    proof_terms: &'s mut Vec<checked_trees::CheckedLocatedProofTerm>,
+    source_bindings: &'s mut arena::Arena<CheckedScalarExpressionBindings>,
+    binding_symbols: &'s mut arena::Arena<symbols::SymbolHandle>,
+}
+
+impl<'p> StatementPlanner<'p, '_> {
+    /// Lend this statement's rosters to a pass that runs before the
+    /// statement's own plan.
+    fn reborrow(&mut self) -> StatementPlanner<'p, '_> {
+        StatementPlanner {
+            program: self.program,
+            operators: self.operators,
+            exact_integer_casts: self.exact_integer_casts,
+            proof_only: self.proof_only,
+            machine: self.machine,
+            state: self.state,
+            states: self.states,
+            parameters: self.parameters,
+            scalar_parameters: self.scalar_parameters,
+            parameter_types: self.parameter_types,
+            result_type: self.result_type,
+            statement_index: self.statement_index,
+            statement_ordinal: self.statement_ordinal,
+            locals: self.locals,
+            expressions: self.expressions,
+            proof_terms: self.proof_terms,
+            source_bindings: self.source_bindings,
+            binding_symbols: self.binding_symbols,
+        }
+    }
 }
 
 pub(crate) fn build_checked_scalar_expression_plans(
@@ -68,905 +132,37 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 let Ok(statement_ordinal) = u32::try_from(statement_index) else {
                     continue;
                 };
-                let array_destination = match statement {
-                    StatementNode::LocalData(local) if !local.is_mutable => {
-                        Some((local.initial_value, local.type_reference, local.symbol))
-                    }
-                    StatementNode::Expression(expression) => Some((
-                        *expression,
-                        state.return_type,
-                        symbols::SymbolHandle::invalid(),
-                    )),
-                    StatementNode::Assignment(assignment) => validation::declared_place_type_raw(
-                        program,
-                        machine,
-                        Some(state),
-                        assignment.target,
-                    )
-                    .and_then(|declared| validation::closed_array_store_type(program, declared))
-                    .map(|expected| (assignment.value, expected, symbols::SymbolHandle::invalid())),
-                    _ => None,
+                let mut planner = StatementPlanner {
+                    program,
+                    operators,
+                    exact_integer_casts,
+                    proof_only: &proof_only,
+                    machine,
+                    state,
+                    states,
+                    parameters,
+                    scalar_parameters: &scalar_parameters,
+                    parameter_types: &parameter_types,
+                    result_type,
+                    statement_index,
+                    statement_ordinal,
+                    locals: &mut locals,
+                    expressions: &mut expressions,
+                    proof_terms,
+                    source_bindings: &mut source_bindings,
+                    binding_symbols: &mut binding_symbols,
                 };
-                if let Some((expression, expected, destination)) = array_destination
-                    && let Some(elements) = validation::scalar_array_elements(
-                        program,
-                        machine.symbol,
-                        expression,
-                        expected,
-                    )
-                {
-                    for (element_index, (element, primitive_type)) in
-                        elements.elements.into_iter().enumerate()
-                    {
-                        let Ok(element_ordinal) = u32::try_from(element_index) else {
-                            break;
-                        };
-                        let Some(value) = lower_return_expression(
-                            program,
-                            operators,
-                            element,
-                            &scalar_parameters,
-                            parameters,
-                            &parameter_types,
-                            &locals,
-                            primitive_type,
-                            exact_integer_casts,
-                        ) else {
-                            continue;
-                        };
-                        let role = CheckedScalarExpressionRole::ArrayElement {
-                            source: checked_trees::CheckedArrayConstructionSource::Statement,
-                            element_ordinal,
-                        };
-                        source_bindings.append(CheckedScalarExpressionBindings {
-                            destination,
-                            state: state.symbol,
-                            statement_ordinal,
-                            role,
-                            expression: element,
-                            symbols: binding_symbols.insert_many(
-                                scalar_parameters
-                                    .iter()
-                                    .map(|parameter| parameter.symbol)
-                                    .chain(
-                                        locals
-                                            .iter()
-                                            .filter(|local| !local.is_mutable)
-                                            .map(|local| local.symbol),
-                                    ),
-                            ),
-                        });
-                        expressions.push(CheckedLocatedScalarExpression {
-                            state: state.symbol,
-                            statement_ordinal,
-                            role,
-                            expression: value,
-                        });
-                    }
-                }
+                array_elements::plan(planner.reborrow(), statement);
                 match statement {
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        // A selected boundary operator's scalar operands carry
-                        // the same source custody as call arguments, whether
-                        // its result is scalar or structural.
-                        retain_call_arguments(
-                            LoweredCallArguments {
-                                scalar_arguments: lower_selected_operator_operands(
-                                    program,
-                                    operators,
-                                    machine,
-                                    state,
-                                    statement_ordinal,
-                                    local,
-                                    &scalar_parameters,
-                                    parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    exact_integer_casts,
-                                ),
-                                proof_terms: Vec::new(),
-                            },
-                            &scalar_parameters,
-                            &locals,
-                            &mut expressions,
-                            proof_terms,
-                            &mut source_bindings,
-                            &mut binding_symbols,
-                        );
-                        // Structural call results establish their own operation
-                        // place even when the local later lends mutable access.
-                        // Their scalar operands still need exact source rows,
-                        // found through the same cast chain an assignment's
-                        // call is.
-                        if (!local.is_mutable
-                            || program
-                                .primitive_type_reference(local.type_reference)
-                                .is_none())
-                            && let Some(expression) =
-                                scalar_qualified_call_expression(program, local.initial_value)
-                                    .or_else(|| {
-                                        matches!(
-                                            program
-                                                .expression_table
-                                                .expression(local.initial_value),
-                                            ExpressionNode::Call(_)
-                                        )
-                                        .then_some(local.initial_value)
-                                    })
-                            && let ExpressionNode::Call(call) =
-                                program.expression_table.expression(expression)
-                            && let Some(arguments) = lower_call_arguments(
-                                program,
-                                operators,
-                                state,
-                                statement_ordinal,
-                                0,
-                                &crate::semantic::calls::CallSite::Expression { expression, call },
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            )
-                        {
-                            retain_call_arguments(
-                                arguments,
-                                &scalar_parameters,
-                                &locals,
-                                &mut expressions,
-                                proof_terms,
-                                &mut source_bindings,
-                                &mut binding_symbols,
-                            );
-                        }
-                        let Some(primitive_type) =
-                            program.primitive_type_reference(local.type_reference)
-                        else {
-                            // An immutable view local narrowed from another
-                            // view keeps its range endpoints under the same
-                            // subslice roles a call or transition argument
-                            // uses, at this statement's own binding site.
-                            if !local.is_mutable {
-                                let endpoints = super::subslice_endpoints::subslice_endpoints(
-                                    program,
-                                    operators,
-                                    local.initial_value,
-                                    checked_trees::CheckedSubsliceSite::LocalBinding,
-                                    |endpoint| {
-                                        lower_return_expression(
-                                            program,
-                                            operators,
-                                            endpoint,
-                                            &scalar_parameters,
-                                            parameters,
-                                            &parameter_types,
-                                            &locals,
-                                            PrimitiveType::U64,
-                                            exact_integer_casts,
-                                        )
-                                    },
-                                );
-                                retain_subslice_endpoints(
-                                    endpoints,
-                                    state.symbol,
-                                    statement_ordinal,
-                                    &scalar_parameters,
-                                    &locals,
-                                    &mut expressions,
-                                    &mut source_bindings,
-                                    &mut binding_symbols,
-                                );
-                            }
-                            continue;
-                        };
-                        let binding_ordinal = u32::try_from(
-                            locals
-                                .iter()
-                                .filter(|local: &&ScalarLocal| !local.is_mutable)
-                                .count(),
-                        )
-                        .ok();
-                        if let Some(binding_ordinal) = binding_ordinal {
-                            let role = if local.is_mutable {
-                                CheckedScalarExpressionRole::StorageInitializer
-                            } else {
-                                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal }
-                            };
-                            if !local.is_mutable
-                                && let Some(arguments) = lower_direct_call_binding_arguments(
-                                    program,
-                                    operators,
-                                    state.symbol,
-                                    statement_ordinal,
-                                    binding_ordinal,
-                                    local.initial_value,
-                                    &scalar_parameters,
-                                    parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    exact_integer_casts,
-                                )
-                            {
-                                retain_call_arguments(
-                                    arguments,
-                                    &scalar_parameters,
-                                    &locals,
-                                    &mut expressions,
-                                    proof_terms,
-                                    &mut source_bindings,
-                                    &mut binding_symbols,
-                                );
-                            } else if let Some(initializer) = lower_return_expression(
-                                program,
-                                operators,
-                                local.initial_value,
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                primitive_type,
-                                exact_integer_casts,
-                            )
-                            .or_else(|| {
-                                (primitive_type == PrimitiveType::Bool
-                                    && locals.is_empty()
-                                    && program
-                                        .machine_states(machine)
-                                        .first()
-                                        .is_some_and(|entry| entry.symbol == state.symbol))
-                                .then(|| {
-                                    lower_machine_parameter_boolean_expression(
-                                        program,
-                                        operators,
-                                        machine,
-                                        local.initial_value,
-                                        exact_integer_casts,
-                                    )
-                                    .map(Box::new)
-                                    .map(CheckedScalarExpression::Boolean)
-                                })
-                                .flatten()
-                            }) {
-                                source_bindings.append(CheckedScalarExpressionBindings {
-                                    destination: local.symbol,
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: local.initial_value,
-                                    symbols: binding_symbols.insert_many(
-                                        scalar_parameters
-                                            .iter()
-                                            .map(|parameter| parameter.symbol)
-                                            .chain(
-                                                locals
-                                                    .iter()
-                                                    .filter(|local| !local.is_mutable)
-                                                    .map(|local| local.symbol),
-                                            ),
-                                    ),
-                                });
-                                expressions.push(CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: initializer,
-                                });
-                            }
-                        }
-                        locals.push(ScalarLocal {
-                            is_mutable: local.is_mutable,
-                            symbol: local.symbol,
-                            name: local.name.as_str().to_owned(),
-                            primitive_type,
-                            arithmetic_domain: program
-                                .arithmetic_domain_for_type_reference(local.type_reference),
-                        });
+                        local_data::plan(planner, local)
                     }
                     StatementNode::Expression(expression) => {
-                        if let ExpressionNode::StructLiteral(literal) =
-                            program.expression_table.expression(*expression)
-                            && let Some(case_symbol) = literal.case_symbol
-                            && let Some(data) = program
-                                .data_definitions()
-                                .iter()
-                                .find(|data| data.symbol == literal.type_symbol)
-                            && let Some(typed_trees::data::DataMember::Variant(variant)) =
-                                program.data_members(data).iter().find(|member| {
-                                    matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == case_symbol)
-                                })
-                        {
-                            for (field_index, field) in program
-                                .expression_table
-                                .struct_fields(literal.fields)
-                                .iter()
-                                .enumerate()
-                            {
-                                let Some(primitive_type) = program
-                                    .data_payload_fields(variant)
-                                    .iter()
-                                    .find(|declaration| declaration.symbol == field.field_symbol)
-                                    .and_then(|declaration| program.primitive_type_reference(declaration.type_reference))
-                                else {
-                                    continue;
-                                };
-                                let Ok(field_ordinal) = u32::try_from(field_index) else {
-                                    continue;
-                                };
-                                let Some(value) = lower_return_expression(
-                                    program,
-                                    operators,
-                                    field.value,
-                                    &scalar_parameters,
-                                    parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    primitive_type,
-                                    exact_integer_casts,
-                                ) else {
-                                    continue;
-                                };
-                                let role = CheckedScalarExpressionRole::ReturnCaseField { field_ordinal };
-                                source_bindings.append(CheckedScalarExpressionBindings {
-                                    destination: symbols::SymbolHandle::invalid(),
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: field.value,
-                                    symbols: binding_symbols.insert_many(
-                                        scalar_parameters.iter().map(|parameter| parameter.symbol)
-                                            .chain(locals.iter().filter(|local| !local.is_mutable).map(|local| local.symbol)),
-                                    ),
-                                });
-                                expressions.push(CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: value,
-                                });
-                            }
-                        }
-                        let unit_statement = validation::unit_statement_call_is_supported(
-                            program,
-                            machine,
-                            state,
-                            *expression,
-                        );
-                        if let ExpressionNode::Call(call) =
-                            program.expression_table.expression(*expression)
-                            && let Some(arguments) = lower_call_arguments(
-                                program,
-                                operators,
-                                state,
-                                statement_ordinal,
-                                0,
-                                &crate::semantic::calls::CallSite::Expression {
-                                    expression: *expression,
-                                    call,
-                                },
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            )
-                        {
-                            retain_call_arguments(
-                                arguments,
-                                &scalar_parameters,
-                                &locals,
-                                &mut expressions,
-                                proof_terms,
-                                &mut source_bindings,
-                                &mut binding_symbols,
-                            );
-                        }
-                        if !unit_statement
-                            && let Some(result_type) = result_type
-                            && let Some(return_expression) = lower_return_expression(
-                                program,
-                                operators,
-                                *expression,
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                result_type,
-                                exact_integer_casts,
-                            )
-                        {
-                            source_bindings.append(CheckedScalarExpressionBindings {
-                                destination: symbols::SymbolHandle::invalid(),
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Return,
-                                expression: *expression,
-                                symbols: binding_symbols.insert_many(
-                                    scalar_parameters
-                                        .iter()
-                                        .map(|parameter| parameter.symbol)
-                                        .chain(
-                                            locals
-                                                .iter()
-                                                .filter(|local| !local.is_mutable)
-                                                .map(|local| local.symbol),
-                                        ),
-                                ),
-                            });
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Return,
-                                expression: return_expression,
-                            });
-                        }
+                        expression_statement::plan(planner, *expression)
                     }
-                    StatementNode::Assignment(assignment) => {
-                        // An atomic carrier retains its authored operands,
-                        // never its arithmetic model (`atomic_operands.rs`).
-                        if let Some(operands) = super::atomic_operands::lower(
-                            program,
-                            operators,
-                            machine,
-                            state,
-                            assignment,
-                            &scalar_parameters,
-                            parameters,
-                            &parameter_types,
-                            &locals,
-                            exact_integer_casts,
-                        ) {
-                            retain_subslice_endpoints(
-                                operands,
-                                state.symbol,
-                                statement_ordinal,
-                                &scalar_parameters,
-                                &locals,
-                                &mut expressions,
-                                &mut source_bindings,
-                                &mut binding_symbols,
-                            );
-                            continue;
-                        }
-                        // Every indexed step of the target keeps its own
-                        // selector row, keyed by its depth from the target.
-                        for (depth, index) in
-                            validation::assignment_target_selectors(program, assignment.target)
-                                .into_iter()
-                                .enumerate()
-                        {
-                            let Ok(depth) = u32::try_from(depth) else {
-                                break;
-                            };
-                            let Some(expression) = lower_index_expression(
-                                program,
-                                operators,
-                                index,
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            ) else {
-                                continue;
-                            };
-                            source_bindings.append(CheckedScalarExpressionBindings {
-                                destination: symbols::SymbolHandle::invalid(),
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::AssignmentIndex { depth },
-                                expression: index,
-                                symbols: binding_symbols.insert_many(
-                                    scalar_parameters
-                                        .iter()
-                                        .map(|parameter| parameter.symbol)
-                                        .chain(
-                                            locals
-                                                .iter()
-                                                .filter(|local| !local.is_mutable)
-                                                .map(|local| local.symbol),
-                                        ),
-                                ),
-                            });
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::AssignmentIndex { depth },
-                                expression,
-                            });
-                        }
-                        // A call delivering its result to an assignment target
-                        // needs the same scalar-argument custody rows as one
-                        // delivering it to a local: the arguments are evaluated
-                        // and transferred identically, and where the result
-                        // lands does not change their source bindings. The
-                        // qualified-call spelling below stays for the cast
-                        // chains only ordinary integer-returning machines have.
-                        if let Some(expression) =
-                            scalar_qualified_call_expression(program, assignment.value).or_else(
-                                || {
-                                    matches!(
-                                        program.expression_table.expression(assignment.value),
-                                        ExpressionNode::Call(_)
-                                    )
-                                    .then_some(assignment.value)
-                                },
-                            )
-                            && let ExpressionNode::Call(call) =
-                                program.expression_table.expression(expression)
-                            && let Some(arguments) = lower_call_arguments(
-                                program,
-                                operators,
-                                state,
-                                statement_ordinal,
-                                0,
-                                &crate::semantic::calls::CallSite::Expression { expression, call },
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            )
-                        {
-                            retain_call_arguments(
-                                arguments,
-                                &scalar_parameters,
-                                &locals,
-                                &mut expressions,
-                                proof_terms,
-                                &mut source_bindings,
-                                &mut binding_symbols,
-                            );
-                        }
-                        // Retain selected RHS meaning at the statement. A later
-                        // executable consumer still owns its admitted store shape.
-                        let Some(target_type_reference) =
-                            crate::flow::expression_type_reference_in_state(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                assignment.target,
-                            )
-                        else {
-                            continue;
-                        };
-                        let Some(target_type) =
-                            assignment_target_primitive_type(program, target_type_reference)
-                        else {
-                            continue;
-                        };
-                        let Some(expression) = lower_return_expression(
-                            program,
-                            operators,
-                            assignment.value,
-                            &scalar_parameters,
-                            parameters,
-                            &parameter_types,
-                            &locals,
-                            target_type,
-                            exact_integer_casts,
-                        ) else {
-                            continue;
-                        };
-                        source_bindings.append(CheckedScalarExpressionBindings {
-                            destination: match program
-                                .expression_table
-                                .expression(assignment.target)
-                            {
-                                ExpressionNode::Name(path) => path.symbol,
-                                _ => symbols::SymbolHandle::invalid(),
-                            },
-                            state: state.symbol,
-                            statement_ordinal,
-                            role: CheckedScalarExpressionRole::AssignmentValue,
-                            expression: assignment.value,
-                            symbols: binding_symbols.insert_many(
-                                scalar_parameters
-                                    .iter()
-                                    .map(|parameter| parameter.symbol)
-                                    .chain(
-                                        locals
-                                            .iter()
-                                            .filter(|local| !local.is_mutable)
-                                            .map(|local| local.symbol),
-                                    ),
-                            ),
-                        });
-                        expressions.push(CheckedLocatedScalarExpression {
-                            state: state.symbol,
-                            statement_ordinal,
-                            role: CheckedScalarExpressionRole::AssignmentValue,
-                            expression,
-                        });
-                    }
-                    StatementNode::Call(call) => {
-                        if let Some(arguments) = lower_call_arguments(
-                            program,
-                            operators,
-                            state,
-                            statement_ordinal,
-                            0,
-                            &crate::semantic::calls::CallSite::Statement(call),
-                            &scalar_parameters,
-                            parameters,
-                            &parameter_types,
-                            &locals,
-                            exact_integer_casts,
-                        ) {
-                            retain_call_arguments(
-                                arguments,
-                                &scalar_parameters,
-                                &locals,
-                                &mut expressions,
-                                proof_terms,
-                                &mut source_bindings,
-                                &mut binding_symbols,
-                            );
-                        }
-                    }
-                    StatementNode::Transition(transition) => {
-                        if let TransitionGuardNode::When(authored_guard) = transition.guard
-                            && let Some(guard) = lower_boolean_guard(
-                                program,
-                                operators,
-                                authored_guard,
-                                &scalar_parameters,
-                                parameters,
-                                &parameter_types,
-                                &locals,
-                                exact_integer_casts,
-                            )
-                        {
-                            source_bindings.append(CheckedScalarExpressionBindings {
-                                destination: symbols::SymbolHandle::invalid(),
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Guard,
-                                expression: authored_guard,
-                                symbols: binding_symbols.insert_many(
-                                    scalar_parameters
-                                        .iter()
-                                        .map(|parameter| parameter.symbol)
-                                        .chain(
-                                            locals
-                                                .iter()
-                                                .filter(|local| !local.is_mutable)
-                                                .map(|local| local.symbol),
-                                        ),
-                                ),
-                            });
-                            expressions.push(CheckedLocatedScalarExpression {
-                                state: state.symbol,
-                                statement_ordinal,
-                                role: CheckedScalarExpressionRole::Guard,
-                                expression: CheckedScalarExpression::Boolean(Box::new(guard)),
-                            });
-                        }
-                        for (target, continuation) in
-                            [(transition.target, false), (transition.continuation, true)]
-                        {
-                            if !target.is_valid() {
-                                continue;
-                            }
-                            if transition.exit == typed_trees::statement::TransitionExit::Ordinary
-                                && let TransitionTargetNode::Value(expression) =
-                                    program.statement_table.transition_target(target)
-                                && let Some(result_type) = result_type
-                                && let Some(return_expression) = lower_return_expression(
-                                    program,
-                                    operators,
-                                    *expression,
-                                    &scalar_parameters,
-                                    parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    result_type,
-                                    exact_integer_casts,
-                                )
-                            {
-                                let role = if continuation {
-                                    CheckedScalarExpressionRole::ContinuationReturn
-                                } else {
-                                    CheckedScalarExpressionRole::Return
-                                };
-                                source_bindings.append(CheckedScalarExpressionBindings {
-                                    destination: symbols::SymbolHandle::invalid(),
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: *expression,
-                                    symbols: binding_symbols.insert_many(
-                                        scalar_parameters
-                                            .iter()
-                                            .map(|parameter| parameter.symbol)
-                                            .chain(
-                                                locals
-                                                    .iter()
-                                                    .filter(|local| !local.is_mutable)
-                                                    .map(|local| local.symbol),
-                                            ),
-                                    ),
-                                });
-                                expressions.push(CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: return_expression,
-                                });
-                            }
-                            let TransitionTargetNode::Named {
-                                path, arguments, ..
-                            } = program.statement_table.transition_target(target)
-                            else {
-                                continue;
-                            };
-                            let Some(target_state) =
-                                crate::checks::termination::named_transition_target_state_index(
-                                    program,
-                                    machine,
-                                    path.symbol,
-                                )
-                                .and_then(|target_index| states.get(target_index))
-                                .or_else(|| {
-                                    // A target spelling another machine's entry
-                                    // names that machine's first state; its
-                                    // formals pair with the same authored
-                                    // ordinals the in-machine walk uses.
-                                    crate::semantic::calls::find_machine_by_entry_state(
-                                        program,
-                                        path.symbol,
-                                    )
-                                    .map(|(_, entry)| entry)
-                                })
-                            else {
-                                continue;
-                            };
-                            let target_parameters = program
-                                .state_parameters(target_state)
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, parameter)| !parameter.is_self);
-                            for (argument, (target_position, target_parameter)) in program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .zip(target_parameters)
-                            {
-                                let Ok(argument_ordinal) = u32::try_from(target_position) else {
-                                    continue;
-                                };
-                                let Some(target_type) = program
-                                    .primitive_type_reference(target_parameter.type_reference)
-                                else {
-                                    // An erased contract-term formal records a
-                                    // proof term under the same authored
-                                    // argument ordinal the scalar lane uses.
-                                    if target_parameter.relevance.is_erased()
-                                        && proof_only.contract_term_carrier(
-                                            program,
-                                            target_parameter.type_reference,
-                                        )
-                                    {
-                                        if let Some(term) =
-                                            crate::values::scalar::call_lowering::lower_proof_term(
-                                                program,
-                                                operators,
-                                                *argument,
-                                                &scalar_parameters,
-                                                parameters,
-                                                &parameter_types,
-                                                &locals,
-                                                exact_integer_casts,
-                                                &proof_only,
-                                            )
-                                        {
-                                            proof_terms.push(
-                                                checked_trees::CheckedLocatedProofTerm {
-                                                    state: state.symbol,
-                                                    statement_ordinal,
-                                                    role: if continuation {
-                                                        checked_trees::CheckedProofTermRole::TransitionContinuationArgument {
-                                                            argument_ordinal,
-                                                        }
-                                                    } else {
-                                                        checked_trees::CheckedProofTermRole::TransitionArgument {
-                                                            argument_ordinal,
-                                                        }
-                                                    },
-                                                    expression: *argument,
-                                                    term,
-                                                },
-                                            );
-                                        }
-                                        // The erased argument owns no scalar
-                                        // expression: the term above is its
-                                        // whole contribution to the plan.
-                                        continue;
-                                    }
-                                    if continuation {
-                                        continue;
-                                    }
-                                    let endpoints = super::subslice_endpoints::subslice_endpoints(
-                                        program,
-                                        operators,
-                                        *argument,
-                                        checked_trees::CheckedSubsliceSite::TransitionArgument {
-                                            argument_ordinal,
-                                        },
-                                        |endpoint| {
-                                            lower_return_expression(
-                                                program,
-                                                operators,
-                                                endpoint,
-                                                &scalar_parameters,
-                                                parameters,
-                                                &parameter_types,
-                                                &locals,
-                                                PrimitiveType::U64,
-                                                exact_integer_casts,
-                                            )
-                                        },
-                                    );
-                                    retain_subslice_endpoints(
-                                        endpoints,
-                                        state.symbol,
-                                        statement_ordinal,
-                                        &scalar_parameters,
-                                        &locals,
-                                        &mut expressions,
-                                        &mut source_bindings,
-                                        &mut binding_symbols,
-                                    );
-                                    continue;
-                                };
-                                let Some(expression) = lower_return_expression(
-                                    program,
-                                    operators,
-                                    *argument,
-                                    &scalar_parameters,
-                                    parameters,
-                                    &parameter_types,
-                                    &locals,
-                                    target_type,
-                                    exact_integer_casts,
-                                ) else {
-                                    continue;
-                                };
-                                let role = if continuation {
-                                    CheckedScalarExpressionRole::TransitionContinuationArgument {
-                                        argument_ordinal,
-                                    }
-                                } else {
-                                    CheckedScalarExpressionRole::TransitionArgument {
-                                        argument_ordinal,
-                                    }
-                                };
-                                source_bindings.append(CheckedScalarExpressionBindings {
-                                    destination: target_parameter.symbol,
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression: *argument,
-                                    symbols: binding_symbols.insert_many(
-                                        scalar_parameters
-                                            .iter()
-                                            .map(|parameter| parameter.symbol)
-                                            .chain(
-                                                locals
-                                                    .iter()
-                                                    .filter(|local| !local.is_mutable)
-                                                    .map(|local| local.symbol),
-                                            ),
-                                    ),
-                                });
-                                expressions.push(CheckedLocatedScalarExpression {
-                                    state: state.symbol,
-                                    statement_ordinal,
-                                    role,
-                                    expression,
-                                });
-                            }
-                        }
-                    }
+                    StatementNode::Assignment(assignment) => assignment::plan(planner, assignment),
+                    StatementNode::Call(call) => call_statement::plan(planner, call),
+                    StatementNode::Transition(transition) => transition::plan(planner, transition),
                     _ => {}
                 }
             }
