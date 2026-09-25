@@ -136,6 +136,53 @@ pub fn selected_trait_operator_meanings<'program>(
         .collect()
 }
 
+/// [`selected_trait_operator_meanings`] existence without collecting: stops at
+/// the first selected meaning instead of materializing the whole row set.
+pub fn selected_trait_operator_meaning_exists(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    spelling: OperatorSpelling,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let Some(specialization) = program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == machine_symbol)
+    else {
+        return false;
+    };
+
+    specialization
+        .conformance_applications
+        .iter()
+        .any(|application| {
+            application.rows.iter().any(|row| {
+                let Some(trait_definition) = program
+                    .traits()
+                    .iter()
+                    .find(|candidate| candidate.symbol == row.declaring_trait)
+                else {
+                    return false;
+                };
+                let Some(requirement) = program
+                    .trait_machine_signatures(trait_definition)
+                    .iter()
+                    .find(|candidate| candidate.symbol == row.requirement)
+                else {
+                    return false;
+                };
+                requirement.spelling == Some(spelling)
+                    && trait_operator_matches_application(
+                        program,
+                        trait_definition,
+                        requirement,
+                        application,
+                        operand_types,
+                    )
+            })
+        })
+}
+
 /// Canonical operand-type signature for a trait-owned operator requirement.
 /// Trait and requirement binders share one alpha-normalized telescope. An
 /// attached receiver is always position zero; otherwise the first explicit
