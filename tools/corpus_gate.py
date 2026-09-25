@@ -418,7 +418,11 @@ def main() -> int:
             print(f"corpus_gate: warning — no golden at {options.golden}; "
                   f"recording only the {len(records)} selected fixtures",
                   file=sys.stderr)
-        options.golden.write_text(rendered, encoding="utf-8", newline="\n")
+        # `Path.write_text` grew `newline` in 3.10; this host runs 3.9, and the
+        # golden's identity is byte-sensitive, so open the stream directly
+        # rather than letting the platform translate the line endings.
+        with options.golden.open("w", encoding="utf-8", newline="\n") as stream:
+            stream.write(rendered)
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
               f"to {options.golden}")
         return 0
