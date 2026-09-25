@@ -29,6 +29,10 @@ pub struct SymbolTable {
     /// module-qualified name walk.
     source_module_index: Vec<SymbolHandle>,
     root_names: RootNameIndexCache,
+    /// The binding table is frozen after `finish`, so this index needs no
+    /// invalidation: it exists because three lookup paths scanned the whole
+    /// binding list per query.
+    binding_source_index: BindingSourceIndexCache,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -131,6 +135,31 @@ impl std::fmt::Debug for RootNameIndexCache {
     }
 }
 
+#[derive(Clone, Default)]
+struct BindingSourceIndex {
+    by_source: std::collections::HashMap<SourceId, Vec<SourceScopedTopLevelBinding>>,
+}
+
+/// `source_scoped_top_level_bindings` bucketed by `reference_source`, built on
+/// the first scoped lookup. The binding list is immutable once the table
+/// finishes, so the index never needs clearing; equality ignores it.
+#[derive(Clone, Default)]
+struct BindingSourceIndexCache(std::sync::OnceLock<BindingSourceIndex>);
+
+impl PartialEq for BindingSourceIndexCache {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for BindingSourceIndexCache {}
+
+impl std::fmt::Debug for BindingSourceIndexCache {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("BindingSourceIndexCache")
+    }
+}
+
 impl SymbolLookup {
     pub fn unique(self) -> Option<SymbolHandle> {
         match self {
@@ -227,6 +256,7 @@ impl SymbolTableBuilder {
             module_symbols: Arena::new(),
             source_module_index: Vec::new(),
             root_names: RootNameIndexCache::default(),
+            binding_source_index: BindingSourceIndexCache::default(),
         }
     }
 
@@ -746,6 +776,30 @@ impl SymbolTable {
         merged.into_iter().map(|(_, symbol)| symbol).collect()
     }
 
+    /// The bindings visible to `reference_source`, in binding order, via the
+    /// frozen-table index instead of a whole-list scan per lookup.
+    pub(super) fn source_scoped_bindings_for(
+        &self,
+        reference_source: SourceId,
+    ) -> &[SourceScopedTopLevelBinding] {
+        const EMPTY: &[SourceScopedTopLevelBinding] = &[];
+        let index = self.binding_source_index.0.get_or_init(|| {
+            let mut index = BindingSourceIndex::default();
+            for binding in &self.source_scoped_top_level_bindings {
+                index
+                    .by_source
+                    .entry(binding.reference_source)
+                    .or_default()
+                    .push(binding.clone());
+            }
+            index
+        });
+        index
+            .by_source
+            .get(&reference_source)
+            .map_or(EMPTY, Vec::as_slice)
+    }
+
     fn root_name_index(&self) -> RootNameIndex {
         let mut index = RootNameIndex::default();
         if let Some(children) = self.child_handles(self.root) {
@@ -813,13 +867,9 @@ impl SymbolTable {
         }
 
         if let Some(binding) = self
-            .source_scoped_top_level_bindings
+            .source_scoped_bindings_for(reference.source_id)
             .iter()
-            .find(|binding| {
-                binding.module_import.is_none()
-                    && binding.reference_source == reference.source_id
-                    && binding.name.as_ref() == name
-            })
+            .find(|binding| binding.module_import.is_none() && binding.name.as_ref() == name)
         {
             let targets = candidates.iter().copied().filter(|symbol| {
                 self.name(*symbol) == name
@@ -896,13 +946,9 @@ impl SymbolTable {
             return None;
         }
         let binding = self
-            .source_scoped_top_level_bindings
+            .source_scoped_bindings_for(reference.source_id)
             .iter()
-            .find(|binding| {
-                binding.module_import.is_none()
-                    && binding.reference_source == reference.source_id
-                    && binding.name.as_ref() == name
-            })?;
+            .find(|binding| binding.module_import.is_none() && binding.name.as_ref() == name)?;
         let mut family = self.child_handles(self.root)?.filter(|symbol| {
             self.get(*symbol).kind == SymbolKind::Operator
                 && kinds.contains(&SymbolKind::Operator)
