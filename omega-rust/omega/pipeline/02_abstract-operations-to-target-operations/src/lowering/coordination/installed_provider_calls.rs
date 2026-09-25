@@ -107,6 +107,10 @@ pub(super) fn validate_installed_provider_calls(
                 terminal_psi::OperationResult::Unit,
             ) => true,
             (
+                abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                terminal_psi::OperationResult::Scalar(expected),
+            ) => actual.value == expected.id && actual.scalar_type == expected.scalar_type,
+            (
                 abstract_operations::AbstractBoundaryResult::Structural(actual),
                 terminal_psi::OperationResult::Structural(expected),
             ) => actual == expected,
@@ -121,6 +125,10 @@ pub(super) fn validate_installed_provider_calls(
                     abstract_operations::AbstractBoundaryResult::Unit,
                     terminal_psi::BoundaryMachineResult::Unit,
                 ) => true,
+                (
+                    abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                    terminal_psi::BoundaryMachineResult::Scalar(expected),
+                ) => actual.scalar_type == *expected,
                 (
                     abstract_operations::AbstractBoundaryResult::Structural(actual),
                     terminal_psi::BoundaryMachineResult::Structural(expected),

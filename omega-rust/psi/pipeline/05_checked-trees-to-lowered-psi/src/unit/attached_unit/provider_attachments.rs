@@ -16,33 +16,62 @@ pub(super) fn validate_provider_attachment_requirements(
     requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
     called_boundaries: &[symbols::SymbolHandle],
 ) -> Result<(), LoweringError> {
-    let provider_fields = match &attachment.shape {
-        CheckedUnitStructuralTypeShape::Record { fields } => fields
-            .iter()
-            .filter(|field| {
-                matches!(
-                    field.field_type,
-                    CheckedUnitStructuralFieldType::ProviderBacked { .. }
-                        | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
-                )
-            })
-            .count(),
-        _ => 0,
+    let fields = match &attachment.shape {
+        CheckedUnitStructuralTypeShape::Record { fields } => fields.as_slice(),
+        _ => &[],
     };
-    if (provider_fields == 0 && !requirements.is_empty()) || provider_fields > 1 {
+    let provider_fields = fields
+        .iter()
+        .filter(|field| {
+            matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                    | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+            )
+        })
+        .count();
+    // Each requirement names the provider field it is called through, so one
+    // attachment may hold several provider fields (a console and a checked
+    // adapter side by side); the requirement set must still cover exactly the
+    // signature-directed boundary calls the body makes.
+    if provider_fields == 0 && !requirements.is_empty() {
         return unsupported(
             "provider-backed attachment field lacks one complete specialization requirement set",
         );
     }
-    if provider_fields == 1 {
+    if provider_fields > 0 {
+        // Canonical order is field declaration order, then boundary: rows
+        // must be strictly increasing, which also rejects a repeated row.
+        let keys = requirements
+            .iter()
+            .map(|requirement| {
+                let position = fields
+                    .iter()
+                    .position(|field| field.identity == requirement.field_identity)
+                    .ok_or(LoweringError::Unsupported(
+                        "provider-backed attachment requirement names an unknown field",
+                    ))?;
+                Ok((
+                    position,
+                    requirement.boundary.arena_index(),
+                    requirement.boundary.generation(),
+                ))
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        if keys.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return unsupported(
+                "provider-backed attachment requirements are not in canonical field and boundary order",
+            );
+        }
         let mut called = called_boundaries.to_vec();
         called.sort_by_key(|boundary| (boundary.arena_index(), boundary.generation()));
         called.dedup();
-        let specialized = requirements
+        let mut specialized = requirements
             .iter()
             .map(|requirement| requirement.boundary)
             .collect::<Vec<_>>();
-        if called != specialized {
+        specialized.sort_by_key(|boundary| (boundary.arena_index(), boundary.generation()));
+        if specialized.windows(2).any(|pair| pair[0] == pair[1]) || called != specialized {
             return unsupported(
                 "provider-backed attachment requirements do not exactly cover boundary calls",
             );

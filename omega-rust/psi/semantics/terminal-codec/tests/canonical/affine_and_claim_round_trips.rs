@@ -838,7 +838,7 @@ fn unused_provider_attachment_encoding_rejects_runtime_field_projection() {
 }
 
 #[test]
-fn unused_provider_attachment_encoding_rejects_nonattachment_and_multiple_fields() {
+fn unused_provider_attachment_encoding_rejects_nonattachment_and_accepts_multiple_fields() {
     let mut unattached = unused_provider_attachment_fixture();
     unattached.machines[0].attachment = None;
     let incomplete = Err(CodecError::MalformedStructuralFoundation(
@@ -862,7 +862,8 @@ fn unused_provider_attachment_encoding_rejects_nonattachment_and_multiple_fields
     second.id = structural_field_id(2);
     second.identity = "second".into();
     fields.push(second);
-    assert_eq!(encode_module(&multiple), incomplete);
+    // One attachment may hold several provider fields; none is called here.
+    encode_module(&multiple).expect("an attachment may hold several unused provider fields");
 }
 
 #[test]

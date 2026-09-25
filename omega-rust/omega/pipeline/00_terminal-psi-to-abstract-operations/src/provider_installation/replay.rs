@@ -72,6 +72,10 @@ pub(super) fn replay_installed_provider_calls(
                     terminal_psi::OperationResult::Unit,
                 ) => true,
                 (
+                    abstract_operations::AbstractBoundaryResult::Scalar(actual),
+                    terminal_psi::OperationResult::Scalar(expected),
+                ) => actual.value == expected.id && actual.scalar_type == expected.scalar_type,
+                (
                     abstract_operations::AbstractBoundaryResult::Structural(actual),
                     terminal_psi::OperationResult::Structural(expected),
                 ) => actual == expected,
@@ -202,6 +206,20 @@ fn replays_result(
             AbstractFunctionResult::Unit,
             terminal_psi::TerminalMachineResult::Unit,
         ) => true,
+        // A scalar provider returns exactly the boundary's primitive; the
+        // call occurrence binds that primitive, and the candidate's abstract
+        // and Terminal results agree on it.
+        (
+            terminal_psi::OperationResult::Scalar(occurrence),
+            terminal_psi::BoundaryMachineResult::Scalar(boundary),
+            AbstractFunctionResult::Scalar(candidate),
+            terminal_psi::TerminalMachineResult::Scalar(terminal_candidate),
+        ) => {
+            occurrence.scalar_type == *boundary
+                && candidate.scalar_type == *boundary
+                && terminal_candidate.scalar_type == *boundary
+                && candidate.value == terminal_candidate.id
+        }
         (
             terminal_psi::OperationResult::Structural(occurrence),
             terminal_psi::BoundaryMachineResult::Structural(boundary),

@@ -122,9 +122,10 @@ fn validate_provider_attachment_foundation(
     if provider_roots.is_empty() && provider_fields.is_empty() {
         return Ok(());
     }
-    let [provider_field] = provider_fields.as_slice() else {
+    // One attachment may hold several provider fields; every root names one.
+    if provider_fields.is_empty() {
         return malformed("provider-backed attachment specialization is incomplete");
-    };
+    }
     let Some(attachment) = machine.attachment else {
         return malformed("provider-backed attachment specialization is incomplete");
     };
@@ -144,7 +145,9 @@ fn validate_provider_attachment_foundation(
             .iter()
             .any(|(root_attachment, field, boundary)| {
                 *root_attachment != attachment
-                    || *field != provider_field.id
+                    || !provider_fields
+                        .iter()
+                        .any(|provider_field| provider_field.id == *field)
                     || !boundaries.insert(*boundary)
                     || module
                         .boundary_machines

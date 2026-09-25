@@ -252,7 +252,7 @@ fn unused_provider_attachment_verifier_rejects_runtime_scalar_field_projection()
 }
 
 #[test]
-fn unused_provider_attachment_verifier_rejects_nonattachment_and_multiple_fields() {
+fn unused_provider_attachment_verifier_rejects_nonattachment_and_accepts_multiple_fields() {
     let mut unattached = unused_provider_attachment_module();
     unattached.machines[0].attachment = None;
     let invalid_field = Err(ModuleError::InvalidErasedStructuralField {
@@ -277,11 +277,23 @@ fn unused_provider_attachment_verifier_rejects_nonattachment_and_multiple_fields
     second.id = semantic_vocabulary::StructuralFieldId::new(2).unwrap();
     second.identity = "second".into();
     fields.push(second);
+    // One attachment may hold several provider fields; none is called here,
+    // so no root is required for either.
+    validate_module(&multiple).expect("an attachment may hold several unused provider fields");
+
+    // A root still has to name a provider field of the attachment.
+    let mut non_provider_root = multiple.clone();
+    let mut forged = provider_attachment_root();
+    if let StructuralPlaceKind::ProviderAttachment { field, .. } = &mut forged.kind {
+        *field = semantic_vocabulary::StructuralFieldId::new(9).unwrap();
+    }
+    non_provider_root.machines[0].structural_places.push(forged);
     assert_eq!(
-        validate_module(&multiple).map(|_| ()),
+        validate_module(&non_provider_root).map(|_| ()),
         Err(ModuleError::InvalidProviderAttachmentSpecialization(
             machine_id(2)
         )),
+        "a root naming a field that is not a provider field rejects"
     );
 }
 
