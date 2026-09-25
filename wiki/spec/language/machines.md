@@ -84,6 +84,17 @@ leaves use external supply. The toolchain derives their selected conformance
 closure, coverage, dependencies, reach, and admission inputs. Programs cannot
 assemble provider-plan rows or reauthor inherited ceilings in a binding.
 
+### Target-scoped families
+
+A machine declaration prefixed with a target name is one body of a family keyed
+by target under one path. Families are data: every body is resolved, typed,
+checked, and published in Terminal Psi with its target tag in every
+compilation, and realizing a target selects that target's body
+([multi-target compilation](../build/configuration.md#multi-target-compilation)).
+A family is never filtered before checking, and no realization set narrows
+checking. A realized target without a body for a called family rejects that
+realization; it is not a checking error for the program.
+
 ## Substitution
 
 The public contract includes input/state/result relations, failure/crash and
