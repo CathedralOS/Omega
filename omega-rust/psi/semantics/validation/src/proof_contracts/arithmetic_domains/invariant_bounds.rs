@@ -105,26 +105,41 @@ pub(crate) fn standing_integer_interval(
         expression,
     );
     let interval = immutable_integer_expression_interval(program, machine, state, expression)
-        .or_else(|| {
-            let declared =
-                place_type.and_then(|handle| super::range_constraint_interval(program, handle));
-            let facts = crate::proof_contracts::default_domains::where_fact_interval(
-                program,
-                machine,
-                Some(state),
-                expression,
-            );
-            match (declared, facts) {
-                (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
-                (declared, facts) => declared.or(facts),
-            }
-        })?;
+        .or_else(|| stored_place_interval(program, machine, state, expression))?;
     // A place's bare carrier range states nothing beyond its type; callers
     // that report a missing bound must still see none.
     let carrier = place_type
         .and_then(|handle| program.primitive_type_reference(handle))
         .and_then(super::integer_ranges::primitive_range);
     (carrier != Some(interval)).then_some(interval)
+}
+
+/// What every store to a place enforces: its declared range and its data's
+/// `where` facts. Reads no arrival fact, so it is safe inside `requires`
+/// resolution.
+fn stored_place_interval(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<Interval> {
+    let declared = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        expression,
+    )
+    .and_then(|handle| super::range_constraint_interval(program, handle));
+    let facts = crate::proof_contracts::default_domains::where_fact_interval(
+        program,
+        machine,
+        Some(state),
+        expression,
+    );
+    match (declared, facts) {
+        (Some(declared), Some(facts)) => Some(declared.intersect(facts)),
+        (declared, facts) => declared.or(facts),
+    }
 }
 
 /// [`standing_integer_interval`] as open-ended endpoints, for checkers
@@ -137,6 +152,30 @@ pub fn standing_integer_bounds(
 ) -> Option<(Option<i64>, Option<i64>)> {
     standing_integer_interval(program, machine, state, expression)
         .map(|interval| (interval.low, interval.high))
+}
+
+/// What every store to a place enforces -- its declared range and its data's
+/// `where` facts -- completed by its integer carrier. Every read of the place
+/// lies within them, and no arrival fact is read, so a caller may use them to
+/// decide its callee's requirement. For checkers outside validation. `None`
+/// for a non-integer place.
+pub fn stored_integer_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    let carrier = crate::value_custody::places::declared_place_type_raw(
+        program,
+        machine,
+        Some(state),
+        expression,
+    )
+    .and_then(|handle| program.primitive_type_reference(handle))
+    .and_then(super::integer_ranges::primitive_range)?;
+    let interval = stored_place_interval(program, machine, state, expression)
+        .map_or(carrier, |stored| stored.intersect(carrier));
+    Some((interval.low, interval.high))
 }
 
 /// The bounds every evaluation of one state parameter satisfies: its exact
@@ -636,9 +675,11 @@ fn unsigned_bitwise_bounds(
     })
 }
 
-/// The literal comparisons on `parameter` in the clause every arrival proves:
-/// the machine's `requires` for its entry state, the state's own otherwise.
-/// Only exact builtin orderings and equalities over a literal contribute.
+/// The comparisons on `parameter` in the clause every arrival proves: the
+/// machine's `requires` for its entry state, the state's own otherwise. Only
+/// exact builtin orderings and equalities contribute, against a literal or a
+/// place whose stores enforce a bound (`y <= self.max_y` with
+/// `where max_y <= 2` bounds `y` by 2).
 fn requires_interval(
     program: &TypedTrees,
     machine: &Machine,
@@ -700,10 +741,16 @@ fn requires_interval(
                     ExpressionNode::Name(path)
                         if path.symbol == parameter && path.head_symbol == path.symbol
                 );
-                if names_parameter && let Some(value) = literal_i64(program, operand) {
+                if !names_parameter {
+                    continue;
+                }
+                let bound = literal_i64(program, operand)
+                    .map(Interval::constant)
+                    .or_else(|| stored_place_interval(program, machine, state, operand));
+                if let Some(bound) = bound {
                     interval = interval.intersect(super::guard_narrowing::comparison_interval(
                         binary.operator,
-                        Interval::constant(value),
+                        bound,
                         subject_on_left,
                     ));
                 }
