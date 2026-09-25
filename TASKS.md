@@ -82,7 +82,16 @@ only. These items land in order, and each deletes the side doors it replaces.
   loads 22 sources and takes 102 s on the Windows host, of which the itemized
   Psi stages are 15 s; the rest is the per-target dependency package compile.
   Acceptance: `PreparedCheckedSource` assembles once for any target set and
-  the `Step: assemble` timing row appears once per compilation.
+  the `Step: assemble` timing row appears once per compilation. Open
+  regression from `cc96b888c3` (every target's entry contract joins the set),
+  confirmed against its parent: eight unmanaged-root fail canaries
+  `dependent/relational_loop_invariant_*` now stop at "domain `[u8; N]::Utf8`
+  shares a normalized semantic identity with a distinct declaration owner"
+  (their local `[u8; 8]::Utf8` against std `calling.omg`'s
+  `[u8; 256]::Utf8`; unmanaged-root identity is Q4), and
+  `slices/index_operator_contract_unproven` at "build-time evaluation of
+  calling policy `LinuxArm64::plan` failed: array value projection has no
+  exact builtin indexing meaning".
 
 - **BUILD-EVALUATES-ONCE.** (new-scope) `build.omg` evaluates once per
   compilation and its evaluated configuration carries rows keyed by target:
