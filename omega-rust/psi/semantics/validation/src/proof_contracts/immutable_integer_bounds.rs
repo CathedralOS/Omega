@@ -14,15 +14,20 @@ use typed_trees::types::PrimitiveType;
 /// preserve the scans' ambiguity verdicts: a name or symbol owned by more
 /// than one declaration has no bound identity.
 pub struct ImmutableBoundLookup<'program> {
+    program: &'program TypedTrees,
+    maps: std::cell::RefCell<Option<BoundMaps<'program>>>,
+}
+
+struct BoundMaps<'program> {
     locals_by_symbol: HashMap<SymbolHandle, Option<&'program TableLocalData>>,
     locals_by_name: HashMap<&'program str, Option<&'program TableLocalData>>,
     parameters_by_symbol: HashMap<SymbolHandle, Option<&'program StateParameter>>,
     machine_self_parameters: HashMap<SymbolHandle, &'program StateParameter>,
 }
 
-impl<'program> ImmutableBoundLookup<'program> {
-    pub fn new(program: &'program TypedTrees) -> Self {
-        let mut lookup = ImmutableBoundLookup {
+impl<'program> BoundMaps<'program> {
+    fn build(program: &'program TypedTrees) -> Self {
+        let mut maps = BoundMaps {
             locals_by_symbol: HashMap::new(),
             locals_by_name: HashMap::new(),
             parameters_by_symbol: HashMap::new(),
@@ -31,14 +36,12 @@ impl<'program> ImmutableBoundLookup<'program> {
         for machine in program.machines() {
             for state in program.machine_states(machine) {
                 for parameter in program.state_parameters(state) {
-                    lookup
-                        .parameters_by_symbol
+                    maps.parameters_by_symbol
                         .entry(parameter.symbol)
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(parameter));
                     if parameter.is_self {
-                        lookup
-                            .machine_self_parameters
+                        maps.machine_self_parameters
                             .entry(machine.symbol)
                             .or_insert(parameter);
                     }
@@ -47,20 +50,52 @@ impl<'program> ImmutableBoundLookup<'program> {
                     let StatementNode::LocalData(local) = statement else {
                         continue;
                     };
-                    lookup
-                        .locals_by_symbol
+                    maps.locals_by_symbol
                         .entry(local.symbol)
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(local));
-                    lookup
-                        .locals_by_name
+                    maps.locals_by_name
                         .entry(local.name.as_str())
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(local));
                 }
             }
         }
-        lookup
+        maps
+    }
+}
+
+impl<'program> ImmutableBoundLookup<'program> {
+    /// Cheap: the whole-program index builds on first query, so a caller that
+    /// exits before needing bound evidence never pays for it.
+    pub fn new(program: &'program TypedTrees) -> Self {
+        ImmutableBoundLookup {
+            program,
+            maps: std::cell::RefCell::new(None),
+        }
+    }
+
+    fn maps(&self) -> std::cell::Ref<'_, BoundMaps<'program>> {
+        if self.maps.borrow().is_none() {
+            *self.maps.borrow_mut() = Some(BoundMaps::build(self.program));
+        }
+        std::cell::Ref::map(self.maps.borrow(), |slot| slot.as_ref().unwrap())
+    }
+
+    fn local_entry(&self, symbol: SymbolHandle) -> Option<Option<&'program TableLocalData>> {
+        self.maps().locals_by_symbol.get(&symbol).copied()
+    }
+
+    fn local_named(&self, name: &str) -> Option<Option<&'program TableLocalData>> {
+        self.maps().locals_by_name.get(name).copied()
+    }
+
+    fn parameter_entry(&self, symbol: SymbolHandle) -> Option<Option<&'program StateParameter>> {
+        self.maps().parameters_by_symbol.get(&symbol).copied()
+    }
+
+    fn machine_self_parameter(&self, symbol: SymbolHandle) -> Option<&'program StateParameter> {
+        self.maps().machine_self_parameters.get(&symbol).copied()
     }
 }
 
@@ -752,7 +787,7 @@ fn bound_name_receiver(
             if let Some(parameter) = parameter_by_symbol(lookup, path.symbol) {
                 Some((path.symbol, parameter.is_mutable, parameter.type_reference))
             } else {
-                let parameter = lookup.machine_self_parameters.get(&path.symbol)?;
+                let parameter = lookup.machine_self_parameter(path.symbol)?;
                 Some((path.symbol, parameter.is_mutable, parameter.type_reference))
             }
         }
@@ -764,7 +799,7 @@ fn local_by_symbol<'program>(
     lookup: &ImmutableBoundLookup<'program>,
     symbol: SymbolHandle,
 ) -> LocalLookup<'program> {
-    match lookup.locals_by_symbol.get(&symbol) {
+    match lookup.local_entry(symbol) {
         Some(Some(local)) => LocalLookup::Found(local),
         Some(None) => LocalLookup::Invalid,
         None => LocalLookup::Missing,
@@ -775,7 +810,7 @@ fn local_by_name<'program>(
     lookup: &ImmutableBoundLookup<'program>,
     name: &str,
 ) -> LocalLookup<'program> {
-    match lookup.locals_by_name.get(name) {
+    match lookup.local_named(name) {
         Some(Some(local)) => LocalLookup::Found(local),
         Some(None) => LocalLookup::Invalid,
         None => LocalLookup::Missing,
@@ -783,7 +818,7 @@ fn local_by_name<'program>(
 }
 
 fn parameter_mutability(lookup: &ImmutableBoundLookup<'_>, symbol: SymbolHandle) -> Option<bool> {
-    match lookup.parameters_by_symbol.get(&symbol) {
+    match lookup.parameter_entry(symbol) {
         Some(Some(parameter)) => Some(parameter.is_mutable),
         // An ambiguous parameter symbol has no bound identity; a symbol that
         // never declared a parameter cannot be mutable.
@@ -796,5 +831,5 @@ fn parameter_by_symbol<'program>(
     lookup: &ImmutableBoundLookup<'program>,
     symbol: SymbolHandle,
 ) -> Option<&'program StateParameter> {
-    lookup.parameters_by_symbol.get(&symbol).copied().flatten()
+    lookup.parameter_entry(symbol).flatten()
 }
