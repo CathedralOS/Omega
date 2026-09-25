@@ -63,7 +63,7 @@ pub use effects::{
     validate_machine_effect_catalog,
 };
 pub use identity::{
-    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    AddressFoldIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
     PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedBlockId,
     SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };

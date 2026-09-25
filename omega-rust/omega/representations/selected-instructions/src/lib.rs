@@ -7,14 +7,14 @@
 
 pub mod selected_instructions;
 pub use selected_instructions::{
-    ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
-    BlockLiveness, BlockMachineEffects, BlockPointDomain, CopyAffinity, CopyRemovalIdentity,
-    DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, EdgeRegisterTransfer,
-    EntryDefinition, FixedViewCopyIdentity, FrameStorageSlotId, FunctionLiveRanges,
-    FunctionLiveness, FunctionMachineEffects, InstructionLiveness, InstructionMachineEffects,
-    LiteralFoldIdentity, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangeIdentity,
-    LiveRangePlan, LiveRangePoint, LivenessIdentity, LivenessPlan, LivenessPosition,
-    LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
+    AddressFoldIdentity, ArchitecturalUnitAction, ArchitecturalUnitActionKind,
+    ArchitecturalUnitLiveRange, BlockLiveness, BlockMachineEffects, BlockPointDomain, CopyAffinity,
+    CopyRemovalIdentity, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
+    EdgeRegisterTransfer, EntryDefinition, FixedViewCopyIdentity, FrameStorageSlotId,
+    FunctionLiveRanges, FunctionLiveness, FunctionMachineEffects, InstructionLiveness,
+    InstructionMachineEffects, LiteralFoldIdentity, LiveRangeEdgeConnector, LiveRangeFragment,
+    LiveRangeIdentity, LiveRangePlan, LiveRangePoint, LivenessIdentity, LivenessPlan,
+    LivenessPosition, LocalStorageSlotId, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
     MachineCleanupEffect, MachineEffectCatalog, MachineEffectCatalogIdentity,
     MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,

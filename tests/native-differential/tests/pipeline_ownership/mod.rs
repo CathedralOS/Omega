@@ -1,9 +1,9 @@
 //! Optimizer module role: stage group.
 use super::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AllocatedCalleeSavedRequirementError,
-    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
-    AllocatedCalleeSavedRequirementPolicy, AllocationEvidence, AllocationReplayError,
-    AllocationSource, CalleeSavedModificationWitness, CopyRemovalError,
+    AddressFoldError, AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+    AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementIdentity,
+    AllocatedCalleeSavedRequirementPlan, AllocatedCalleeSavedRequirementPolicy, AllocationEvidence,
+    AllocationReplayError, AllocationSource, CalleeSavedModificationWitness, CopyRemovalError,
     EmptyOptimizationSelections, ExplicitOptimizationRequest,
     FixedFramePublicationCustodyFieldForTest, FrameAbiPreservationConvention,
     FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,

@@ -1,15 +1,15 @@
-// The disabled-policy axis is not applicable to this rule: the fold is not
-// an `Optimization` selection-vocabulary member — admission is an explicit
-// per-instruction validated call, matching the memory-rewrite families. The
+// These tests exercise the per-instruction validated rewrite and its
+// independent replay. The disabled-policy axis lives one level up, in the
+// pre-allocation executor's `PreAllocationPolicy` coverage: the fold is
+// admitted there only under `SelectedAddressOffsetFoldV1`. The
 // legal-second-input fixed-point leg lives in
 // `fold_is_deterministic_and_terminal`.
+use super::{
+    AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, fold_selected_address,
+    validate_address_fold,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
-use crate::rewrites::unexecuted::AddressFoldError;
-use crate::rewrites::unexecuted::AddressFoldReceipt;
-use crate::rewrites::unexecuted::ValidatedAddressFold;
-use crate::rewrites::unexecuted::fold_selected_address;
-use crate::rewrites::unexecuted::validate_address_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -173,6 +173,8 @@ fn fixture(
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            access: CONSUMER,
         },
         transformed: std::sync::Arc::new(plan),
     }

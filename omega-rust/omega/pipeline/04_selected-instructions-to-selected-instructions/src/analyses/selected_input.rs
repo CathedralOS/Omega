@@ -8,15 +8,15 @@ use crate::rewrites::unexecuted::peepholes::{
     ValidatedTerminatorPair,
 };
 use crate::rewrites::unexecuted::{
-    ValidatedAddressFold, ValidatedArmRelocation, ValidatedBoundaryBoolean,
-    ValidatedBoundaryBranch, ValidatedCommutingRelocation, ValidatedConfluenceRelocation,
-    ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedDeadCompare,
-    ValidatedDeadStoreElimination, ValidatedEquivalentCompare, ValidatedInflowRelocation,
-    ValidatedInterchange, ValidatedMemberRunRelocation, ValidatedRedundantCompare,
-    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
+    ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
+    ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedConstantBoolean,
+    ValidatedConstantBranch, ValidatedDeadCompare, ValidatedDeadStoreElimination,
+    ValidatedEquivalentCompare, ValidatedInflowRelocation, ValidatedInterchange,
+    ValidatedMemberRunRelocation, ValidatedRedundantCompare, ValidatedScheduledRelocation,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 use crate::{
-    ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
+    ValidatedAddressFold, ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
     ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
     ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };

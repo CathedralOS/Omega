@@ -8,9 +8,10 @@
 //! executes the allocation-recovery slice through `fixed_view` (fixed-view
 //! copies and fixed precolored segment homes) and the pressure
 //! rematerialization it owns; `pre_allocation` executes the pre-allocation
-//! slice through `copy_removal` (same-block copy removal) and
+//! slice through `copy_removal` (same-block copy removal),
 //! `redundant_extension` (carrier extensions whose producer already
-//! normalizes);
+//! normalizes), and `address_fold` (displacement consumers reading an
+//! `AddressOffset` result);
 //! `runtime_spill` and `runtime_rematerialization`
 //! are the recovery rewrites register assignment replays. `block_edges` and
 //! `window_hazards` are the block-boundary and hazard vocabulary those and
@@ -21,6 +22,7 @@
 //! isolation, and reached by no production route. See its module doc for the
 //! disposition roster.
 
+mod address_fold;
 mod allocation_recovery;
 mod block_edges;
 mod catalog;
@@ -39,6 +41,10 @@ pub mod test_support;
 pub mod unexecuted;
 mod window_hazards;
 
+pub use address_fold::{AddressFoldError, ValidatedAddressFold};
+pub(crate) use address_fold::{
+    fold_selected_address, measured_steps as address_fold_measured_steps,
+};
 pub(crate) use allocation_recovery::materialize_fixed_view_copies;
 pub(crate) use allocation_recovery::pressure_rematerialization_identity;
 pub use allocation_recovery::{

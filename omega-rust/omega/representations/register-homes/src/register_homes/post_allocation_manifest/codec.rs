@@ -6,9 +6,9 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
-    LivenessIdentity, PressureRematerializationIdentity, RedundantExtensionIdentity,
-    SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -21,7 +21,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 10;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 11;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -102,6 +102,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 7 => PostAllocationSelectedTransformation::RedundantExtension(
                     RedundantExtensionIdentity::from_bytes(cursor.array()?),
+                ),
+                8 => PostAllocationSelectedTransformation::AddressFold(
+                    AddressFoldIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -221,6 +224,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::RedundantExtension(identity) => {
                 canonical.push(7);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::AddressFold(identity) => {
+                canonical.push(8);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }
