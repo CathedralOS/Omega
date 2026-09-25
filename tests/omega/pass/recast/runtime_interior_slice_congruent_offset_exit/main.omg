@@ -6,10 +6,10 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main where k <= 3 {
     console: Binding<Console>;
     bytes: [u8; 8];
-    k: u32 [0..=3];
+    k: u32;
 }
 
 machine Main::main(&mut self) reaches Console {

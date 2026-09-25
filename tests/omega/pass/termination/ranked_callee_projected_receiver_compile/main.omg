@@ -8,7 +8,7 @@
 // zeroes `self.remaining` on the projected referent, `run` reads it back
 // through `self.cursor`, and `main` exits 70 only when that composed
 // write is observed.
-data Cursor { remaining: u64 [0..=8]; }
+data Cursor where remaining <= 8 { remaining: u64; }
 
 machine Cursor::step(&mut self, remaining: u64 [0..=8]) -> u64 [0..=8]
 terminates by remaining -> Nat::Descending;

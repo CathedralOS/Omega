@@ -10,8 +10,8 @@
 // the caller's entry premise -- it is the membership fact the member
 // already proved.
 
-data Limits {
-    cap: u64 [0..=9];
+data Limits where cap <= 9 {
+    cap: u64;
 }
 
 data Main {}

@@ -2,9 +2,9 @@
 // machine param (`pick(cells: [Cell; 3], i)` computing `cells[i].x + 5`).
 use omega_language_std::console;
 use omega::language::core::binding;
-data Cell {
-    x: i32 [0..=100];
-    y: i32 [0..=100];
+data Cell where 0 <= x, x <= 100, 0 <= y, y <= 100 {
+    x: i32;
+    y: i32;
 }
 data Main {
     console: Binding<Console>;

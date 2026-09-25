@@ -6,8 +6,8 @@
 // 9+30=39 -> report(9) -> 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Cell {
-    v: i32 [0..=50];
+data Cell where 0 <= v, v <= 50 {
+    v: i32;
 }
 data Main {
     console: Binding<Console>;

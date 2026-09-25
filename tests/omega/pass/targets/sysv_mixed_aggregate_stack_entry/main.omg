@@ -2,8 +2,8 @@ use omega::language::core::float_operations;
 
 // Six scalars exhaust the SysV GPR bank. Although xmm0 remains free, the
 // INTEGER/SSE record rolls wholly to the stack; the trailing float keeps xmm0.
-pub data MixedPair {
-    integer: u64 [0..=100];
+pub data MixedPair where integer <= 100 {
+    integer: u64;
     floating: f64;
 }
 
