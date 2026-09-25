@@ -720,12 +720,21 @@ pub(super) fn narrow_environment_by_condition(
             (low == high).then_some(low)
         })
     };
-    // Identify the (place, constant bound) sides.
-    let (place_expr, literal, name_on_left) = if let Some(literal) = integer_bound(comparison.right)
-    {
-        (comparison.left, literal, true)
+    // Identify the (place, bound) sides: a constant bound, or else another
+    // place whose standing interval holds at every read (`y <= self.max_y`
+    // with `where max_y <= 2` bounds `y` by 2).
+    let standing_bound = |bound: ExpressionHandle, place: ExpressionHandle| {
+        place_path(program, place)?;
+        super::standing_integer_interval(program, machine, state?, bound)
+    };
+    let (place_expr, bound, name_on_left) = if let Some(literal) = integer_bound(comparison.right) {
+        (comparison.left, Interval::constant(literal), true)
     } else if let Some(literal) = integer_bound(comparison.left) {
-        (comparison.right, literal, false)
+        (comparison.right, Interval::constant(literal), false)
+    } else if let Some(bound) = standing_bound(comparison.right, comparison.left) {
+        (comparison.left, bound, true)
+    } else if let Some(bound) = standing_bound(comparison.left, comparison.right) {
+        (comparison.right, bound, false)
     } else {
         return;
     };
@@ -746,6 +755,10 @@ pub(super) fn narrow_environment_by_condition(
         return;
     };
     if negated_equality {
+        // A point exclusion needs a single excluded value.
+        let Some(literal) = bound.low.filter(|low| bound.high == Some(*low)) else {
+            return;
+        };
         // Start from the full line; the intersection below brings in the
         // type + declared ranges, then the point exclusion bumps an end.
         let mut interval = Interval {
@@ -772,8 +785,7 @@ pub(super) fn narrow_environment_by_condition(
         environment.narrow(name, interval);
         return;
     }
-    let (_, low, high) = bound_from(name.clone(), operator, literal, name_on_left);
-    let mut interval = Interval { low, high };
+    let mut interval = comparison_interval(operator, bound, name_on_left);
     // Intersect with the place's type range AND its declared `[a..=b]` range
     // constraint to retain the bounds the guard leaves open. Skipping the
     // DECLARED range here was a live regression: a one-sided `i < 7` on
