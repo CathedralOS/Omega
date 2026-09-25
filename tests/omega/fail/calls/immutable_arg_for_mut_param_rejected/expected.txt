@@ -1,0 +1,1 @@
+argument `c` for state `handle` is declared `&mut` (`&mut Counter`), but the caller lends only immutable access
