@@ -468,7 +468,7 @@ fn provider_result_conformance_admits_scalar_results() {
 fn provider_result_conformance_rejects_scalar_result_drift() {
     let baseline = scalar_provider_module();
     validate_module(&baseline).unwrap();
-    for mutation in 0..6 {
+    for mutation in 0..5 {
         let mut module = baseline.clone();
         match mutation {
             // Result-kind drift in either direction.
@@ -487,14 +487,10 @@ fn provider_result_conformance_rejects_scalar_result_drift() {
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
                 );
             }
-            // Contract surfaces the provider relation does not carry.
+            // A candidate precondition the declaration does not publish.
             4 => {
                 module.machines[1].contract.requires =
                     call_module().machines[1].contract.requires.clone()
-            }
-            5 => {
-                module.machines[1].contract.ensures =
-                    call_module().machines[1].contract.ensures.clone()
             }
             _ => unreachable!(),
         }
@@ -507,6 +503,32 @@ fn provider_result_conformance_rejects_scalar_result_drift() {
             "mutation {mutation}"
         );
     }
+}
+
+#[test]
+fn scalar_provider_requires_only_rows_the_declaration_publishes() {
+    let mut module = scalar_provider_module();
+    // Provider conformance is the subject; the caller does not call.
+    module.machines[0].blocks[0].operations.clear();
+    // The candidate's row names its own parameter, value 2; the declaration's
+    // row names its first formal, value 1. Positional translation joins them.
+    module.machines[1].contract.requires = vec![Proposition::Equal(
+        boolean_value(2),
+        ScalarTerm::boolean(true),
+    )];
+    assert_eq!(
+        validate_module(&module).unwrap_err(),
+        ModuleError::InvalidProviderCandidate {
+            boundary: boundary_id(1),
+            candidate: machine_id(2)
+        },
+        "callers never prove an undeclared precondition"
+    );
+    module.boundary_machines[0].scalar_requires = vec![Proposition::Equal(
+        boolean_value(1),
+        ScalarTerm::boolean(true),
+    )];
+    validate_module(&module).expect("a declared precondition holds at every call");
 }
 
 #[test]

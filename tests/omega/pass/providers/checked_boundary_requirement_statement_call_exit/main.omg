@@ -1,7 +1,7 @@
-// A public top-level boundary requirement called in statement position must
-// settle to the selected checked adapter exactly like the value-position
-// route: strict result use allows `_ = call();` explicit discard, and the
-// authored requirement identity remains the source view.
+// A public top-level boundary requirement called in statement position takes
+// the value-position route: the call stays on the requirement and Omega
+// installs the selected checked adapter; strict result use allows the
+// `_ = call();` explicit discard.
 
 use omega_language_std::console;
 use omega::language::core::binding;

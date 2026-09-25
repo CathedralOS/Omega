@@ -3,15 +3,14 @@
 // telescope supplies no static call arguments, conformance validates the
 // provider's own telescope as the requirement's positional identity, and
 // settlement keys the same owner-keyed dispatch row a nongeneric
-// requirement produces. Both executable engines run the selected adapter
-// under that one plan -- the interpreter exits 41 and the native artifact
-// exits 41.
-use crate::{compile_reviewed_repository_fixture, interpret, pass_canary};
-// Only the non-Windows leg produces and runs the native artifact.
-#[cfg(test)]
-use crate::compile_terminal_canary_without_output_for_target;
-#[cfg(not(windows))]
-use crate::{Command, compile_rooted_canary_for_native_host, fs};
+// requirement produces. The call stays a requirement-level boundary call
+// through Terminal Psi and Omega installs the adapter, which takes the
+// borrowed slice as a structural operand. Both executable engines run it --
+// the interpreter exits 41 and the native artifact exits 41.
+use crate::{
+    Command, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host,
+    compile_terminal_canary_without_output_for_target, fs, interpret, pass_canary,
+};
 use compiler::CheckedCompileRequest;
 
 fn lifetime_call_canary() -> std::path::PathBuf {
@@ -39,7 +38,6 @@ fn lifetime_call_requirement_reaches_terminal_production() {
         .expect("lifetime-call requirement fixture should produce a Terminal artifact");
 }
 
-#[cfg(not(windows))]
 #[test]
 fn lifetime_call_requirement_executes_in_the_native_artifact() {
     let scratch = std::env::temp_dir().join(format!(

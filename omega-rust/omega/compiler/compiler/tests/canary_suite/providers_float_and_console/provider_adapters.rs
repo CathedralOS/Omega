@@ -1203,127 +1203,55 @@ fn requirement_dispatch_row(
     (requirement, realization, owner)
 }
 
-/// The requirement-side association a settled direct call retains: one
-/// dispatch row joining the requirement's entry state to the selected
-/// adapter's entry state, the settled call redirected to that adapter, and the
-/// selected-dispatch journal restoring the authored call to the requirement.
-fn assert_selected_requirement_association(
-    checked: &compiler::CheckedCompilation,
-    label: &str,
-) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
+/// A direct call to a selected top-level requirement is not rewritten:
+/// settlement keeps the dispatch row the checked interpreter uses, and every
+/// checked call, in value or statement position, still names the
+/// requirement rather than the adapter.
+fn assert_requirement_call_retained(checked: &compiler::CheckedCompilation, label: &str) {
     let (requirement, realization, _owner) = requirement_dispatch_row(checked, label);
-    let settled_calls = checked
+    let mut targets = checked
         .typed
         .expression_table
         .expression_entries()
-        .filter_map(|(handle, expression)| match expression {
-            typed_trees::expression::ExpressionNode::Call(call)
-                if call.target_symbol == realization && !call.receiver.is_valid() =>
-            {
-                Some(handle)
-            }
+        .filter_map(|(_, expression)| match expression {
+            typed_trees::expression::ExpressionNode::Call(call) => Some(call.target_symbol),
             _ => None,
         })
         .collect::<Vec<_>>();
-    let [settled_call] = settled_calls.as_slice() else {
-        panic!("{label} should redirect exactly one direct call to the adapter entry");
-    };
-    let authored = checked
-        .pre_selected_dispatch_source_trees(&checked.typed)
-        .unwrap_or_else(|diagnostics| panic!("{label} journal should restore: {diagnostics:#?}"));
-    let typed_trees::expression::ExpressionNode::Call(authored_call) =
-        authored.expression_table.expression(*settled_call)
-    else {
-        panic!("{label} restored occurrence should be a call");
-    };
-    assert_eq!(
-        authored_call.target_symbol, requirement,
-        "{label} the journaled occurrence names the requirement",
+    targets.extend(
+        checked
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| checked.typed.machine_states(machine))
+            .flat_map(|state| {
+                checked
+                    .typed
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+            })
+            .filter_map(|(_, statement)| match statement {
+                typed_trees::statement::StatementNode::Call(call) => Some(call.target_symbol),
+                _ => None,
+            }),
     );
-    assert_eq!(authored_call.target.as_str(), "offset_zero");
-    // The direct call is the requirement's own D29 demand, keyed on the
-    // requirement machine symbol with the canonical empty application, the
-    // same row a named boundary operator use retains; the adapter route
-    // publishes no Terminal occurrence for it, so coverage stays empty.
-    let requirement_machine = checked
-        .typed
-        .machines()
-        .iter()
-        .find(|machine| {
-            checked
-                .typed
-                .machine_states(machine)
-                .first()
-                .is_some_and(|entry| entry.symbol == requirement)
-        })
-        .unwrap_or_else(|| panic!("{label} requirement machine"));
-    let demands = checked
-        .facts
-        .operators
-        .boundary_applications
-        .iter()
-        .map(|demand| (demand.requirement_symbol, demand.arguments.len()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        demands,
-        vec![(requirement_machine.symbol, 0)],
-        "{label} the direct requirement call is one requirement-keyed D29 demand",
+    assert!(
+        targets.contains(&requirement),
+        "{label} keeps the authored call on the requirement"
     );
-    (requirement, realization)
+    assert!(
+        !targets.contains(&realization),
+        "{label} redirects no call to the adapter entry"
+    );
 }
 
-#[test]
-fn checked_boundary_requirement_dispatch_exit_canary_runs() {
-    // The tokenless sibling of `checked_boundary_operator_dispatch_exit`: the
-    // `boundary requirement` form with the same contracts and adapter selects
-    // through the top-level requirement route, interprets identically, and
-    // carries the same contracts through the Terminal leg.
-    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_DISPATCH_EXIT);
+/// The Terminal and native legs of a selected top-level requirement: the
+/// entry makes a requirement-level `BoundaryCall` owing one obligation per
+/// retained `requires` row, the provider catalog lists the checked adapter as
+/// the requirement's candidate, and Omega installs it so the native program
+/// exits 70.
+fn assert_requirement_installed_natively(canary: &std::path::Path, label: &str) {
     let main_path = canary.join("main.omg");
-    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
-        .expect("checked boundary-requirement canary should compile to checked trees");
-    assert_selected_requirement_association(&checked, "checked boundary-requirement canary");
-    let outcome = interpret(&checked, &[]);
-    assert_eq!(
-        outcome.exit_code, 70,
-        "interpreter dispatches the selected checked requirement body; error: {:?}",
-        outcome.error,
-    );
-    assert_selected_requirement_terminal_call(&canary, "checked boundary-requirement canary");
-}
-
-/// The Terminal leg of a selected top-level requirement: the canonical
-/// Terminal artifact replays, its entry calls the adapter's ordinary checked
-/// body as an in-module scalar machine, no boundary-operator occurrence or
-/// boundary declaration names the requirement, and the checked compilation
-/// behind it keeps the requirement-side association and journal.
-fn assert_selected_requirement_terminal_call(canary: &std::path::Path, label: &str) {
-    assert_selected_requirement_terminal_call_with(
-        canary,
-        label,
-        assert_selected_requirement_association,
-    );
-}
-
-/// The Terminal leg parameterized by the call position's association check:
-/// value-position and statement-position call sites share one artifact
-/// shape, differing only in where the settled call lives.
-fn assert_selected_requirement_terminal_call_with(
-    canary: &std::path::Path,
-    label: &str,
-    association: fn(
-        &compiler::CheckedCompilation,
-        &str,
-    ) -> (symbols::SymbolHandle, symbols::SymbolHandle),
-) {
-    let main_path = canary.join("main.omg");
-    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
-        &main_path,
-        Some("linux_x86_64"),
-    ))
-    .unwrap_or_else(|diagnostics| panic!("{label} should check: {diagnostics:#?}"));
-    association(&checked, label);
-
     let package_inputs =
         crate::reviewed_repository_fixture_package_inputs(&main_path, Some("linux_x86_64"))
             .unwrap_or_else(|diagnostics| {
@@ -1351,70 +1279,112 @@ fn assert_selected_requirement_terminal_call_with(
         .unwrap_or_else(|error| panic!("{label} Terminal artifact should replay: {error}"));
     let module = terminal_codec::decode_module(retained.artifact().semantic_bytes())
         .unwrap_or_else(|error| panic!("{label} Terminal semantics should decode: {error:?}"));
-    let proposal = retained
-        .native_realization_proposal()
-        .unwrap_or_else(|| panic!("{label} should retain its native proposal"));
-    assert!(
-        proposal
-            .checked_boundary_operator_scope()
-            .occurrences()
-            .is_empty()
-            && proposal.boundary_application_demands().rows().is_empty(),
-        "{label} publishes no boundary-operator occurrence for a top-level requirement",
-    );
+    let matching = module
+        .boundary_machines
+        .iter()
+        .filter(|declaration| {
+            declaration
+                .identity
+                .contains("path(CheckedMath::offset_zero)")
+        })
+        .collect::<Vec<_>>();
+    let [boundary] = matching.as_slice() else {
+        panic!("{label} declares the requirement once as a Terminal boundary: {matching:?}");
+    };
     let entry = module
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)
         .unwrap_or_else(|| panic!("{label} Terminal module has its entry machine"));
-    let callees = entry
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match &operation.kind {
-            terminal_psi::OperationKind::Call { callee, .. }
-            | terminal_psi::OperationKind::CallUnit { callee, .. } => Some(*callee),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
     assert!(
-        callees
+        entry
+            .blocks
             .iter()
-            .filter_map(|callee| module.machines.iter().find(|machine| machine.id == *callee))
-            .any(|machine| {
-                machine.parameters.len() == 1
-                    && matches!(
-                        machine.result,
-                        terminal_psi::TerminalMachineResult::Scalar(_)
-                    )
-            }),
-        "{label} entry should call the adapter as an in-module scalar machine",
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                &operation.kind,
+                terminal_psi::OperationKind::BoundaryCall {
+                    boundary: called,
+                    requirement_obligations,
+                    ..
+                } if *called == boundary.id
+                    && requirement_obligations.len() == boundary.scalar_requires.len()
+            )),
+        "{label} entry keeps a requirement-level BoundaryCall owing its requires",
     );
+    let candidates = module
+        .provider_candidates
+        .iter()
+        .filter(|candidate| candidate.boundary == boundary.id)
+        .collect::<Vec<_>>();
+    let [candidate] = candidates.as_slice() else {
+        panic!("{label} lists the checked adapter as the one candidate: {candidates:?}");
+    };
     assert!(
-        module
-            .boundary_machines
-            .iter()
-            .all(|declaration| !declaration.identity.contains("offset_zero")),
-        "{label} neither the requirement nor its realization is a Terminal boundary declaration",
+        candidate.candidate_identity.contains("offset_zero_impl"),
+        "{label} candidate is the adapter: {}",
+        candidate.candidate_identity,
+    );
+
+    assert_eq!(
+        native_exit_code(canary, label),
+        Some(70),
+        "{label} native program runs the installed adapter"
     );
 }
 
-#[test]
-fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurrence() {
-    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT);
+/// Build the canary for the native host, run it, and return its exit code.
+fn native_exit_code(canary: &std::path::Path, label: &str) -> Option<i32> {
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-requirement-install-{}-{}",
+        label.replace(' ', "-"),
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(canary, scratch.join("out"))
+        .unwrap_or_else(|diagnostics| panic!("{label} should compile natively: {diagnostics:#?}"));
+    let executable = compilation
+        .checked_native_executable_path()
+        .unwrap_or_else(|| panic!("{label} should retain its executable receipt"));
+    let output = Command::new(executable)
+        .output()
+        .unwrap_or_else(|error| panic!("{label} should run: {error}"));
+    let _ = fs::remove_dir_all(&scratch);
+    output.status.code()
+}
+
+fn assert_requirement_canary(fixture: &str, label: &str) {
+    let canary = pass_canary(fixture);
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
         None,
     ))
-    .expect("checked boundary-requirement Terminal canary should compile to checked trees");
+    .unwrap_or_else(|diagnostics| panic!("{label} should check: {diagnostics:#?}"));
+    assert_requirement_call_retained(&checked, label);
     let outcome = interpret(&checked, &[]);
     assert_eq!(
         outcome.exit_code, 70,
-        "interpreter leg; error: {:?}",
-        outcome.error
+        "{label} interpreter dispatches the selected adapter; error: {:?}",
+        outcome.error,
     );
-    assert_selected_requirement_terminal_call(
-        &canary,
+    assert_requirement_installed_natively(&canary, label);
+}
+
+#[test]
+fn checked_boundary_requirement_dispatch_exit_canary_runs() {
+    // The tokenless sibling of `checked_boundary_operator_dispatch_exit`: the
+    // `boundary requirement` form with contracts on both the requirement and
+    // its adapter stays a requirement-level call through Terminal Psi.
+    assert_requirement_canary(
+        CHECKED_BOUNDARY_REQUIREMENT_DISPATCH_EXIT,
+        "checked boundary-requirement canary",
+    );
+}
+
+#[test]
+fn checked_boundary_requirement_terminal_exit_canary_runs() {
+    assert_requirement_canary(
+        CHECKED_BOUNDARY_REQUIREMENT_TERMINAL_EXIT,
         "checked boundary-requirement Terminal canary",
     );
 }
@@ -1422,105 +1392,16 @@ fn checked_boundary_requirement_terminal_exit_canary_retains_requirement_occurre
 const CHECKED_BOUNDARY_REQUIREMENT_STATEMENT_CALL_EXIT: &str =
     "providers/checked_boundary_requirement_statement_call_exit";
 
-/// The statement-position sibling of `assert_selected_requirement_association`:
-/// the same settled dispatch row, but the redirected call lives in the
-/// caller's statement table as an explicit `_ =` discard, and the journal
-/// restores the authored requirement statement call. Requirement-use facts
-/// are expression-keyed today, so a statement call retains its requirement
-/// identity through the settled row, the flow occurrence's authored span and
-/// the journal rather than a named-use demand row.
-fn assert_selected_requirement_statement_call(
-    checked: &compiler::CheckedCompilation,
-    label: &str,
-) -> (symbols::SymbolHandle, symbols::SymbolHandle) {
-    let (requirement, realization, owner) = requirement_dispatch_row(checked, label);
-    let settled_calls = checked
-        .typed
-        .machines()
-        .iter()
-        .flat_map(|machine| checked.typed.machine_states(machine))
-        .flat_map(|state| {
-            checked
-                .typed
-                .statement_table
-                .iter_statements(state.statement_nodes)
-        })
-        .filter_map(|(handle, statement)| match statement {
-            typed_trees::statement::StatementNode::Call(call)
-                if call.target_symbol == realization
-                    && call.receiver.is_empty()
-                    && !call.receiver_symbol.is_valid() =>
-            {
-                Some((handle, call))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [(settled_handle, settled_call)] = settled_calls.as_slice() else {
-        panic!("{label} should redirect exactly one statement call to the adapter entry");
-    };
-    assert!(
-        settled_call.discards_result,
-        "{label} `_ =` stays an explicit result discard after settlement"
-    );
-    assert_eq!(
-        settled_call.target.as_str(),
-        "CheckedMathProvider::offset_zero_impl",
-        "{label} settled statement call names the adapter machine",
-    );
-
-    let authored = checked
-        .pre_selected_dispatch_source_trees(&checked.typed)
-        .unwrap_or_else(|diagnostics| panic!("{label} journal should restore: {diagnostics:#?}"));
-    let typed_trees::statement::StatementNode::Call(authored_call) =
-        authored.statement_table.statement(*settled_handle)
-    else {
-        panic!("{label} restored statement should be a call");
-    };
-    assert_eq!(
-        authored_call.target_symbol, requirement,
-        "{label} the journaled statement call names the requirement",
-    );
-    assert_eq!(authored_call.target.as_str(), "offset_zero");
-    assert_eq!(
-        authored_call.receiver_symbol, owner,
-        "{label} the journaled receiver is the requirement owner",
-    );
-    assert!(
-        authored_call.discards_result,
-        "{label} the journaled statement keeps the explicit discard",
-    );
-    (requirement, realization)
-}
-
 #[test]
 fn checked_boundary_requirement_statement_call_exit_canary_runs() {
-    // The `_ = Owner::name(...);` explicit discard is the same settled route
-    // as the value-position canary: the statement call redirects to the
-    // selected checked adapter, strict result use is preserved, and the
-    // journal restores the authored requirement call.
-    let canary = pass_canary(CHECKED_BOUNDARY_REQUIREMENT_STATEMENT_CALL_EXIT);
-    let main_path = canary.join("main.omg");
-    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
-        .expect("statement-position boundary-requirement canary should compile to checked trees");
-    assert_selected_requirement_statement_call(
-        &checked,
+    // The `_ = Owner::name(...);` explicit discard takes the same route.
+    assert_requirement_canary(
+        CHECKED_BOUNDARY_REQUIREMENT_STATEMENT_CALL_EXIT,
         "statement-position boundary-requirement canary",
-    );
-    let outcome = interpret(&checked, &[]);
-    assert_eq!(
-        outcome.exit_code, 70,
-        "interpreter dispatches the selected checked requirement body; error: {:?}",
-        outcome.error,
-    );
-    assert_selected_requirement_terminal_call_with(
-        &canary,
-        "statement-position boundary-requirement canary",
-        assert_selected_requirement_statement_call,
     );
 }
 
-/// The external-satisfier sibling of `assert_selected_requirement_association`:
+/// The external-satisfier sibling of `assert_requirement_call_retained`:
 /// the covering plan is a `via` leaf with an evaluated import binding, so
 /// settlement produces no adapter dispatch row and never retargets the direct
 /// call — the requirement is itself a boundary declaration, the settled call

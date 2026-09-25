@@ -49,6 +49,11 @@ fn top_level_rows(
         .facts
         .boundary_adapter_dispatch
         .iter()
+        // A receiver-free call stays a requirement-level boundary call and
+        // Omega installs the selected adapter. Only a `self` requirement's
+        // member call is still retargeted here, until installation carries
+        // its receiver as the adapter's leading operand.
+        .filter(|row| row.forward_receiver)
         .filter_map(|row| {
             let requirement = typed.machines().iter().find(|machine| {
                 machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -849,135 +854,6 @@ mod tests {
         assert_eq!(authored.target_symbol, requirement);
         assert_eq!(authored.target.as_str(), "consume");
         assert_eq!(authored.receiver_symbol, inner_token_field);
-        assert!(authored.discards_result);
-    }
-
-    const LIFETIME_REQUIREMENT_SOURCE: &str = r#"
-        pub data Bytes {}
-        pub boundary requirement Bytes::head<'a>(source: &'a i32) -> i32;
-
-        data BytesProvider {}
-        machine BytesProvider::head_impl<'a>(source: &'a i32) -> i32
-        satisfies Bytes::head
-        {
-            transition { _ -> (41) }
-        }
-
-        data Client {}
-        machine Client::value<'b>(&mut self, cell: &'b i32) -> i32 {
-            let picked: i32 = Bytes::head(cell);
-            transition { _ -> (picked) }
-        }
-        machine Client::statement<'b>(&mut self, cell: &'b i32) -> i32 {
-            _ = Bytes::head(cell);
-            transition { _ -> (7) }
-        }
-    "#;
-
-    /// A requirement carrying an erased lifetime telescope settles exactly
-    /// like a nongeneric one: the direct call supplies no static arguments,
-    /// conformance validates the provider's own telescope as the requirement's
-    /// positional identity, and the settled row retargets both call positions
-    /// while the journal restores the authored requirement.
-    #[test]
-    fn a_lifetime_parameterized_requirement_settles_to_its_selected_adapter() {
-        let (checked, plans) = requirement_fixture(LIFETIME_REQUIREMENT_SOURCE);
-        let selected = selected_all(&plans);
-        let requirement = entry_symbol(&checked, "Bytes::head");
-        let realization = entry_symbol(&checked, "BytesProvider::head_impl");
-        let requirement_machine = checked
-            .typed
-            .realized_machine_named("Bytes::head")
-            .expect("the requirement machine");
-        assert_eq!(requirement_machine.lifetime_parameters.len(), 1);
-        let adapter_machine = checked
-            .typed
-            .realized_machine_named("BytesProvider::head_impl")
-            .expect("the provider machine");
-        assert_eq!(adapter_machine.lifetime_parameters.len(), 1);
-        let owner = checked
-            .typed
-            .data_definitions()
-            .iter()
-            .find(|data| data.name.as_str() == "Bytes")
-            .expect("the requirement owner")
-            .symbol;
-
-        let settled = Arc::new(checked);
-        let (settled, edits) =
-            crate::settle_selected_execution_dispatch_with_source_edits(settled, &selected)
-                .expect("a lifetime-parameterized requirement settles");
-        let rows = &settled.facts.boundary_adapter_dispatch;
-        assert_eq!(rows.len(), 1, "{rows:?}");
-        assert_eq!(rows[0].receiver, owner);
-        assert_eq!(rows[0].requirement, requirement);
-        assert!(!rows[0].forward_receiver);
-
-        // The value-position call `Bytes::head(cell)` redirects to the
-        // adapter's entry state with its one runtime argument unchanged; the
-        // erased telescope supplied no static argument to splice.
-        let value_call = settled
-            .typed
-            .expression_table
-            .expression_entries()
-            .find_map(|(_, expression)| match expression {
-                ExpressionNode::Call(call)
-                    if call.target.as_str() == "BytesProvider::head_impl" =>
-                {
-                    Some(call)
-                }
-                _ => None,
-            })
-            .expect("the rewritten value call");
-        assert_eq!(value_call.target_symbol, realization);
-        assert!(!value_call.receiver.is_valid());
-        assert_eq!(
-            settled
-                .typed
-                .expression_table
-                .expression_handles(value_call.arguments)
-                .len(),
-            1
-        );
-        assert!(value_call.machine_arguments.is_empty());
-
-        // The statement call `_ = Bytes::head(cell);` redirects the same way.
-        let statement = settled
-            .typed
-            .machines()
-            .iter()
-            .flat_map(|machine| settled.typed.machine_states(machine))
-            .flat_map(|state| {
-                settled
-                    .typed
-                    .statement_table
-                    .iter_statements(state.statement_nodes)
-            })
-            .find_map(|(handle, statement)| match statement {
-                typed_trees::statement::StatementNode::Call(call)
-                    if call.target.as_str() == "BytesProvider::head_impl" =>
-                {
-                    Some((handle, call))
-                }
-                _ => None,
-            })
-            .expect("the rewritten statement call");
-        assert_eq!(statement.1.target_symbol, realization);
-        assert!(!statement.1.receiver_symbol.is_valid());
-        assert!(statement.1.discards_result);
-
-        // The journal restores the authored requirement statement.
-        let source = edits
-            .source_trees(&settled.typed)
-            .expect("restore the journaled source");
-        let typed_trees::statement::StatementNode::Call(authored) =
-            source.statement_table.statement(statement.0)
-        else {
-            panic!("the restored statement is a call");
-        };
-        assert_eq!(authored.target_symbol, requirement);
-        assert_eq!(authored.target.as_str(), "head");
-        assert_eq!(authored.receiver_symbol, owner);
         assert!(authored.discards_result);
     }
 

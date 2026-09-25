@@ -122,7 +122,20 @@ only. These items land in order, and each deletes the side doors it replaces.
   on BUILD-EVALUATES-ONCE. Acceptance: Psi stages 00-07 run once for a
   two-target request and produce one Terminal artifact identity, and each
   target's native artifact is byte-identical to the single-target output for
-  the `samples_compile` corpus.
+  the `samples_compile` corpus. Dispatch settlement no longer rewrites a
+  receiver-free top-level requirement call: it stays a requirement-level
+  `BoundaryCall` owing the declaration's `scalar_requires`, stage 05 catalogs
+  the checked adapters, and Omega stage 00 installs the selected one
+  (`checked_boundary_requirement_*`, `lifetime_boundary_requirement_dispatch_exit`
+  run natively). Still rewritten in Psi: a `self` requirement's member call
+  (`requirement_adapter`, receiver rows only), operator adapters and float
+  intrinsics. The `self` route has no native customer on either route today:
+  a member call on a field plans as a scalar computation and its borrowed
+  field operand fails Unit planning ("call operation: structural arguments:
+  parameter source"), and the verifier's provider signature compares
+  `is_self` flags that differ between the requirement receiver and the
+  adapter's leading parameter. Scalar `ensures` of a requirement are not yet
+  retained on its Terminal declaration.
 
 - **ONE-DRIVER-PER-STAGE.** (new-scope) `compiler.rs` calls Psi 00-07 straight
   through, then maps the realization set over Omega 00-09 and image emission;
@@ -1269,6 +1282,14 @@ Remaining work:
   `write_byte` and `read_byte` stay compiler intrinsics with no hosted
   realization (kernel32 `WriteFile`/`ReadFile` through the same route), and
   the foreign-entry stack reserve is a constant, not a per-callee declaration.
+- A status computed from a runtime value rejects at native publication
+  ("fragment import lacks selected call custody"): normalized foreign-call
+  argument custody (`image-emission` `foreign_scalar_argument_custody`) admits
+  immediates, parameters and call-result homes only, so
+  `exit_process(selected + 0i32)` over an installed provider's result fails
+  closed. Psi no longer folds a selected top-level requirement's adapter into
+  its caller, so this surfaces for requirement results; the
+  `checked_boundary_requirement_*` fixtures pass the result itself.
 
 Acceptance: source-produced unconditional and conditional/helper exits replay
 independently after serialization. Tampered identities, arguments, completion or

@@ -9,9 +9,16 @@
 //! surrounding requirement, claim, content, or crash-contract vocabulary: the
 //! arm keeps the closure the structural arm already requires.
 //!
-//! Boundary `requires` rows are deliberately absent from both arms: they are
-//! caller-admission checks on the structural arguments, not provider
-//! authority. The conformance row already mirrors them verbatim onto
+//! A scalar candidate may state `requires` rows only where the boundary
+//! declaration's scalar `requires` already obliges every caller: translated
+//! into the candidate's parameters, each candidate row must be a declaration
+//! row, so the installed candidate's precondition holds at every call. Its
+//! own `ensures` are verified in its body and never reach callers, whose
+//! `BoundaryCall` imports no provider guarantee.
+//!
+//! Boundary structural `requires` rows are deliberately absent from both
+//! arms: they are caller-admission checks on the structural arguments, not
+//! provider authority. The conformance row already mirrors them verbatim onto
 //! `refinement.required_domains`, and call admission re-enforces them on the
 //! actual arguments whether or not a provider is installed. Boundary
 //! `program_local_root_introductions` and `content_guarantees` do stay gated:
@@ -19,10 +26,15 @@
 //! boundary-declared root introduction or to mint the boundary's content
 //! guarantees, so a provider row cannot yet serve those contracts.
 
+use std::collections::BTreeMap;
+
+use semantic_vocabulary::ScalarTerm;
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, StructuralMultiplicity, TerminalMachine,
     TerminalMachineResult,
 };
+
+use crate::verification::substitute_proposition_values;
 
 /// A candidate's entry claims may bind only the roots of its own structural
 /// parameters — the caller's claims transfer in by position at invocation.
@@ -36,6 +48,44 @@ fn entry_claims_bind_parameters(candidate: &TerminalMachine) -> bool {
     })
 }
 
+/// Every candidate `requires` row is one of the declaration's scalar
+/// `requires` rows translated into the candidate's parameters, so callers
+/// have already proven it. Erased candidate formals have no boundary actual.
+fn candidate_requires_are_declared(
+    boundary: &BoundaryMachineDeclaration,
+    candidate: &TerminalMachine,
+) -> bool {
+    if candidate.contract.requires.is_empty() {
+        return true;
+    }
+    if !candidate.contract.erased_scalar_formals.is_empty()
+        || !candidate.contract.erased_proof_formals.is_empty()
+    {
+        return false;
+    }
+    let Some(formals) = boundary.scalar_contract_parameters() else {
+        return false;
+    };
+    if formals.len() != candidate.parameters.len() {
+        return false;
+    }
+    let substitutions = formals
+        .iter()
+        .zip(&candidate.parameters)
+        .map(|(formal, actual)| (formal.id, ScalarTerm::value(actual.id, formal.scalar_type)))
+        .collect::<BTreeMap<_, _>>();
+    let declared = boundary
+        .scalar_requires
+        .iter()
+        .map(|row| substitute_proposition_values(row, &substitutions))
+        .collect::<Vec<_>>();
+    candidate
+        .contract
+        .requires
+        .iter()
+        .all(|row| declared.contains(row))
+}
+
 pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &TerminalMachine) -> bool {
     match (&boundary.result, &candidate.result) {
         (BoundaryMachineResult::Unit, TerminalMachineResult::Unit) => true,
@@ -46,9 +96,7 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
                 && boundary.program_local_root_introductions.is_empty()
                 && entry_claims_bind_parameters(candidate)
                 && candidate.content_entry_claims.is_empty()
-                && candidate.contract.requires.is_empty()
-                && candidate.contract.ensures.is_empty()
-                && candidate.contract.outcome_specific_ensures.is_empty()
+                && candidate_requires_are_declared(boundary, candidate)
                 && super::super::crash::provider_crash_routes_refine_boundary(boundary, candidate)
         }
         (

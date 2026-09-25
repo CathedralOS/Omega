@@ -20,6 +20,9 @@ use super::{
 pub(super) enum ProviderBody {
     Callable,
     AffineIdentity,
+    /// A scalar provider emitted exactly as an ordinary scalar call's
+    /// callee: its scalar graph, with its contract, rather than a Unit body.
+    ScalarCallee,
 }
 
 pub(super) fn affine_candidate(
@@ -76,6 +79,17 @@ fn callable_candidate(
     Ok(body)
 }
 
+/// The requirement a boundary call names: a boundary-trait signature, or a
+/// top-level `boundary requirement` declaration.
+#[derive(Clone, Copy)]
+enum CatalogRequirement<'a> {
+    Trait {
+        definition: &'a checked_trees::trait_definition::TraitDefinition,
+        signature: &'a checked_trees::signature::StateSignature,
+    },
+    TopLevel(&'a checked_trees::machine::Machine),
+}
+
 pub(super) fn checked_unit_provider_candidates(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -116,19 +130,43 @@ pub(super) fn checked_unit_provider_candidates(
                     .map(move |signature| (definition, signature))
             })
             .collect::<Vec<_>>();
-        let (definition, signature) = match exact_requirements.as_slice() {
-            [] => continue,
-            [(definition, signature)] => (*definition, *signature),
+        // A boundary-trait requirement names its trait and signature; a
+        // top-level `boundary requirement` is its own declaration, which its
+        // adapters satisfy directly. Either way the catalog lists every
+        // checked adapter, and Omega installs the Build's selected one.
+        let requirement = match exact_requirements.as_slice() {
+            [(definition, signature)] => CatalogRequirement::Trait {
+                definition,
+                signature,
+            },
+            [] => match checked.typed.machines().iter().find(|machine| {
+                machine.symbol == boundary_symbol
+                    && machine.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+            }) {
+                Some(requirement) => CatalogRequirement::TopLevel(requirement),
+                None => continue,
+            },
             _ => {
                 return unsupported(
                     "Unit boundary provider catalog requires one exact trait/signature symbol coordinate",
                 );
             }
         };
-        let requirement_identity = checked
-            .typed
-            .normalized_trait_requirement_overload_identity(definition, signature)
-            .identity();
+        let requirement_identity = match requirement {
+            CatalogRequirement::Trait {
+                definition,
+                signature,
+            } => checked
+                .typed
+                .normalized_trait_requirement_overload_identity(definition, signature)
+                .identity(),
+            CatalogRequirement::TopLevel(requirement) => checked
+                .typed
+                .normalized_machine_overload_identity(requirement)
+                .map(|identity| identity.identity())
+                .unwrap_or_default(),
+        };
         if requirement_identity.is_empty() {
             return unsupported("Unit boundary requirement has an empty overload identity");
         }
@@ -140,18 +178,29 @@ pub(super) fn checked_unit_provider_candidates(
                     .machine_trait_conformances(machine)
                     .iter()
                     .any(|conformance| {
-                        // Same-named requirements may differ only by their
-                        // result domain; the conformance's exact overload
-                        // decides which one a provider serves.
                         conformance.external_binding.is_none()
-                            && conformance.symbol == definition.symbol
-                            && if conformance.requirement_symbol.is_valid() {
-                                conformance.requirement_symbol == signature.symbol
-                            } else {
-                                conformance
-                                    .requirement
-                                    .as_ref()
-                                    .is_some_and(|name| name == &signature.name)
+                            && match requirement {
+                                // Same-named requirements may differ only by
+                                // their result domain; the conformance's exact
+                                // overload decides which one a provider serves.
+                                CatalogRequirement::Trait {
+                                    definition,
+                                    signature,
+                                } => {
+                                    conformance.symbol == definition.symbol
+                                        && if conformance.requirement_symbol.is_valid() {
+                                            conformance.requirement_symbol == signature.symbol
+                                        } else {
+                                            conformance
+                                                .requirement
+                                                .as_ref()
+                                                .is_some_and(|name| name == &signature.name)
+                                        }
+                                }
+                                CatalogRequirement::TopLevel(requirement) => {
+                                    conformance.symbol == requirement.symbol
+                                        && conformance.requirement_symbol == requirement.symbol
+                                }
                             }
                     })
         });
@@ -225,14 +274,22 @@ pub(super) fn checked_unit_provider_candidates(
                 // A scalar requirement is served by an ordinary callable body
                 // returning the same primitive; installation replays the
                 // call's scalar result like its Unit and structural cousins.
+                // It takes the route an ordinary scalar call to it would:
+                // its scalar owner when it has one (keeping its contract
+                // lowering), otherwise its Unit body's scalar completion.
                 checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
-                    let candidate = callable_candidate(checked, machine.symbol)?;
-                    if candidate.scalar_result_type() != Some(*expected) {
-                        return unsupported(
-                            "provider result disagrees with its scalar boundary requirement",
-                        );
+                    match super::CheckedScalarCallee::find_for_unit_call(checked, machine.symbol)? {
+                        super::CheckedScalarCallee::Operations(_) => {
+                            let candidate = callable_candidate(checked, machine.symbol)?;
+                            if candidate.scalar_result_type() != Some(*expected) {
+                                return unsupported(
+                                    "provider result disagrees with its scalar boundary requirement",
+                                );
+                            }
+                            ProviderBody::Callable
+                        }
+                        _ => ProviderBody::ScalarCallee,
                     }
-                    ProviderBody::Callable
                 }
             };
             output.push(CheckedUnitProviderCandidate {

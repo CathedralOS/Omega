@@ -13,6 +13,15 @@ pub(super) fn result(
     };
     let invalid = || Error::Mismatch("structural scalar call result differs from current source");
     let (abstracted, _) = source::function(source, selected.machine)?;
+    // An installed provider call is still its requirement-level boundary
+    // call in the abstract source: installation binds the selected
+    // candidate only when lowering to target operations.
+    let installed_boundary = match &contract.call.source {
+        legalized_operations::NativeCallOrigin::InstalledProvider { boundary, .. } => {
+            Some(*boundary)
+        }
+        legalized_operations::NativeCallOrigin::Authored => None,
+    };
     let mut operations = abstracted
         .operations
         .iter()
@@ -22,7 +31,18 @@ pub(super) fn result(
                 result,
                 callee,
                 ..
-            } if *psi_operation == contract.operation && *callee == contract.call.callee => {
+            } if installed_boundary.is_none()
+                && *psi_operation == contract.operation
+                && *callee == contract.call.callee =>
+            {
+                Some(*result)
+            }
+            abstract_operations::AbstractOperation::BoundaryCall {
+                psi_operation,
+                result: abstract_operations::AbstractBoundaryResult::Scalar(result),
+                boundary,
+                ..
+            } if installed_boundary == Some(*boundary) && *psi_operation == contract.operation => {
                 Some(*result)
             }
             _ => None,

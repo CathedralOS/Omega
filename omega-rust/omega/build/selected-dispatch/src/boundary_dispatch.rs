@@ -889,18 +889,20 @@ fn reject_unselected_direct_requirement_calls(
     }
 }
 
-/// Whether settlement retained a direct-call dispatch row for a top-level
-/// boundary requirement: its `requirement` is the entry state of a
-/// `TopLevelRequirement` machine rather than a trait signature.
+/// Whether settlement retained a receiver-forwarding dispatch row for a
+/// top-level boundary requirement: its `requirement` is the entry state of a
+/// `TopLevelRequirement` machine rather than a trait signature. Receiver-free
+/// rows need no settlement rewrite; Omega installs their adapters.
 pub(crate) fn has_top_level_requirement_dispatch(checked: &CheckedTrees) -> bool {
     checked.facts.boundary_adapter_dispatch.iter().any(|row| {
-        checked.typed.machines().iter().any(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && checked
-                    .typed
-                    .machine_states(machine)
-                    .first()
-                    .is_some_and(|entry| entry.symbol == row.requirement)
-        })
+        row.forward_receiver
+            && checked.typed.machines().iter().any(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+                    && checked
+                        .typed
+                        .machine_states(machine)
+                        .first()
+                        .is_some_and(|entry| entry.symbol == row.requirement)
+            })
     })
 }
