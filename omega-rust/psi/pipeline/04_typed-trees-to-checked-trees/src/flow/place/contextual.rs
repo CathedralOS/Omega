@@ -1,5 +1,5 @@
 use super::resolution;
-use super::resolution::{effective_member_symbol, resolve_member_symbol_from_type_symbol};
+use super::resolution::resolve_member_symbol_from_type_symbol;
 use crate::flow::CanonicalPlace;
 use crate::flow::index_place_segment;
 use crate::flow::push_field_place_segments;
@@ -73,7 +73,12 @@ pub(crate) fn contextual_canonical_place_from_expression(
                 member.receiver,
             )?;
             let symbol = {
-                let symbol = effective_member_symbol(program, member.receiver, member);
+                let symbol = resolution::effective_member_symbol_from_position(
+                    program,
+                    member.receiver,
+                    resolution::expression_type_position(program, member.receiver),
+                    member,
+                );
                 if symbol.is_valid() {
                     symbol
                 } else {

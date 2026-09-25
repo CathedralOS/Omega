@@ -57,13 +57,15 @@ pub(super) fn position_leaf_symbol(
 /// `Box<Context>::item` resumes at `Context`. Falls back to the member's own
 /// declared position when the receiver does not replay (a declaration
 /// position, an opaque leaf, or a member outside the replayed declaration) —
-/// the exact contract the bare-symbol walk had.
+/// the exact contract the bare-symbol walk had. The caller supplies the
+/// receiver's already-resolved position: a member chain recomputing it here
+/// would re-walk the whole receiver expression once per hop.
 fn member_type_position(
     program: &typed_trees::TypedTrees,
-    receiver: ExpressionHandle,
+    receiver_position: Option<MemberPosition>,
     member_symbol: SymbolHandle,
 ) -> Option<MemberPosition> {
-    if let Some(MemberPosition::Reference(reference)) = expression_type_position(program, receiver)
+    if let Some(MemberPosition::Reference(reference)) = receiver_position
         && let Some(projected) = super::super::project_type_reference_from_segments(
             program,
             reference,
@@ -253,8 +255,14 @@ pub(super) fn expression_type_position(
             }
         }
         ExpressionNode::Member(member) => {
-            let symbol = effective_member_symbol(program, member.receiver, member);
-            member_type_position(program, member.receiver, symbol)
+            let receiver_position = expression_type_position(program, member.receiver);
+            let symbol = effective_member_symbol_from_position(
+                program,
+                member.receiver,
+                receiver_position,
+                member,
+            );
+            member_type_position(program, receiver_position, symbol)
         }
         ExpressionNode::StructLiteral(literal) => literal
             .type_symbol
@@ -446,32 +454,52 @@ pub(crate) fn effective_member_symbol(
     receiver: ExpressionHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    effective_member_symbol_from_position(
+        program,
+        receiver,
+        expression_type_position(program, receiver),
+        member,
+    )
+}
+
+/// `effective_member_symbol` with the receiver's type position already
+/// resolved — member-chain walks share one receiver walk between the symbol
+/// answer and the position hop instead of resolving it once per use.
+pub(crate) fn effective_member_symbol_from_position(
+    program: &typed_trees::TypedTrees,
+    receiver: ExpressionHandle,
+    receiver_position: Option<MemberPosition>,
+    member: &typed_trees::expression::TableMemberExpression,
+) -> SymbolHandle {
     // A case-qualified projection must not select the first same-named field
     // in another case. Preserve the selected variant when reconstructing its
     // canonical place; an inconsistent retained symbol is not repairable here.
     if let Some(case_name) = &member.case_variant {
-        let selected = expression_type_symbol(program, receiver).and_then(|type_symbol| {
-            let declaration = program
-                .data_definitions()
-                .iter()
-                .find(|row| row.symbol == type_symbol)?;
-            let variant = program
-                .data_members(declaration)
-                .iter()
-                .find_map(|row| match row {
-                    typed_trees::data::DataMember::Variant(variant)
-                        if variant.name == *case_name =>
-                    {
-                        Some(variant)
-                    }
-                    _ => None,
-                })?;
-            program
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.name == member.member)
-                .map(|field| field.symbol)
-        });
+        let selected = receiver_position
+            .map(|position| position_leaf_symbol(program, position))
+            .and_then(|type_symbol| {
+                let declaration = program
+                    .data_definitions()
+                    .iter()
+                    .find(|row| row.symbol == type_symbol)?;
+                let variant =
+                    program
+                        .data_members(declaration)
+                        .iter()
+                        .find_map(|row| match row {
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.name == *case_name =>
+                            {
+                                Some(variant)
+                            }
+                            _ => None,
+                        })?;
+                program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.name == member.member)
+                    .map(|field| field.symbol)
+            });
         return selected
             .filter(|symbol| !member.member_symbol.is_valid() || member.member_symbol == *symbol)
             .unwrap_or_else(SymbolHandle::invalid);
@@ -488,7 +516,7 @@ pub(crate) fn effective_member_symbol(
     }
 
     if let Some(symbol) =
-        resolve_member_symbol_from_receiver(program, receiver, member.member.as_str())
+        resolve_member_symbol_from_position(program, receiver_position, member.member.as_str())
     {
         return symbol;
     }
@@ -613,12 +641,12 @@ pub(crate) fn resolve_member_symbol_from_type_symbol(
     None
 }
 
-fn resolve_member_symbol_from_receiver(
+fn resolve_member_symbol_from_position(
     program: &typed_trees::TypedTrees,
-    receiver: ExpressionHandle,
+    receiver_position: Option<MemberPosition>,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    let type_symbol = expression_type_symbol(program, receiver)?;
+    let type_symbol = receiver_position.map(|position| position_leaf_symbol(program, position))?;
     resolve_member_symbol_from_type_symbol(program, type_symbol, member_name)
 }
 
