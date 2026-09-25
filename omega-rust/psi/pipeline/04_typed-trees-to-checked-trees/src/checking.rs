@@ -254,6 +254,7 @@ pub fn lower_typed_trees(
     // open here — the first of the consumers below computes the program-pure
     // operational and service-reach plans and the rest serve from them.
     let _plan_scope = ::validation::enter_program_plan_scope();
+    let _field_domain_scope = crate::facts::field_domain::enter_field_domain_scope();
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let validated = validate_typed_program(
         &program,
