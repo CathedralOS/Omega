@@ -9,6 +9,7 @@ use super::type_instantiation::{
     TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::value_custody::struct_literals::construction_field_type;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -23,6 +24,124 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// check compares every prefix entry against the same container). The memo
 /// keeps each normalization a one-time cost per walk.
 pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeIdentity>;
+
+/// Write-frame inference asks these same questions once per frame expression:
+/// verdicts at empty outer bindings are pure functions of the queried handle,
+/// and the definition scans below re-filter the whole table per named type.
+/// Cache exact verdicts and ordered definition indexes per program, anchored
+/// on the definition-table identity (validation may append definitions).
+type IsolationVerdicts = HashMap<(TypeReferenceHandle, bool), bool>;
+type StorageMatchVerdicts = HashMap<(TypeReferenceHandle, TypeReferenceHandle), bool>;
+// Definition verdicts key on the definition pointer, not its symbol: test
+// fixtures can forge duplicate symbols, and two definitions sharing one must
+// keep independent verdicts. Within a freshness window the slice is stable.
+type DefinitionVerdicts = HashMap<*const typed_trees::data::DataDefinition, bool>;
+
+struct IsolationCache {
+    isolation: IsolationVerdicts,
+    storage_match: StorageMatchVerdicts,
+    definitions: DefinitionVerdicts,
+    by_symbol: HashMap<SymbolHandle, Vec<u32>>,
+    by_name: HashMap<String, Vec<u32>>,
+}
+
+thread_local! {
+    static ISOLATION_CACHE: RefCell<
+        Option<(*const TypedTrees, usize, IsolationCache)>,
+    > = RefCell::new(None);
+}
+
+/// Cheap per-call identity over the tables these verdicts read. Forged
+/// handles make symbol endpoints collide across fixture programs, but a
+/// generated `Identifier`'s text pointer is a unique heap address, so the
+/// sampled names discriminate programs the arena anchors cannot.
+fn program_fingerprint(program: &TypedTrees) -> usize {
+    let definitions = program.data_definitions();
+    let machines = program.machines();
+    let sample = |index: usize| -> usize {
+        definitions
+            .get(index)
+            .map(|definition| {
+                definition.symbol.arena_index() as usize ^ definition.name.as_ptr() as usize
+            })
+            .unwrap_or(0)
+    };
+    let mut fingerprint = (program as *const TypedTrees) as usize
+        ^ definitions.as_ptr() as usize
+        ^ definitions.len().rotate_left(17)
+        ^ machines.as_ptr() as usize
+        ^ machines.len().rotate_left(31);
+    fingerprint = fingerprint.rotate_left(11) ^ sample(0);
+    fingerprint = fingerprint.rotate_left(11) ^ sample(definitions.len() / 2);
+    fingerprint.rotate_left(11) ^ sample(definitions.len().saturating_sub(1))
+}
+
+fn with_isolation_cache<R>(program: &TypedTrees, run: impl FnOnce(&mut IsolationCache) -> R) -> R {
+    ISOLATION_CACHE.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let fingerprint = program_fingerprint(program);
+        let fresh = matches!(&*slot, Some((owner, seen, _))
+            if std::ptr::eq(*owner, program as *const _) && *seen == fingerprint);
+        if !fresh {
+            let mut by_symbol: HashMap<SymbolHandle, Vec<u32>> = HashMap::new();
+            let mut by_name: HashMap<String, Vec<u32>> = HashMap::new();
+            for (index, definition) in program.data_definitions().iter().enumerate() {
+                if definition.symbol.is_valid() {
+                    by_symbol
+                        .entry(definition.symbol)
+                        .or_default()
+                        .push(index as u32);
+                }
+                by_name
+                    .entry(definition.name.as_str().to_string())
+                    .or_default()
+                    .push(index as u32);
+            }
+            *slot = Some((
+                program as *const TypedTrees,
+                fingerprint,
+                IsolationCache {
+                    isolation: HashMap::new(),
+                    storage_match: HashMap::new(),
+                    definitions: HashMap::new(),
+                    by_symbol,
+                    by_name,
+                },
+            ));
+        }
+        run(&mut slot.as_mut().unwrap().2)
+    })
+}
+
+fn definitions_for_symbol<'p>(
+    program: &'p TypedTrees,
+    symbol: SymbolHandle,
+) -> Vec<&'p typed_trees::data::DataDefinition> {
+    let indexes = with_isolation_cache(program, |cache| cache.by_symbol.get(&symbol).cloned());
+    indexes
+        .map(|indexes| {
+            indexes
+                .iter()
+                .map(|index| &program.data_definitions()[*index as usize])
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn definitions_for_name<'p>(
+    program: &'p TypedTrees,
+    name: &str,
+) -> Vec<&'p typed_trees::data::DataDefinition> {
+    let indexes = with_isolation_cache(program, |cache| cache.by_name.get(name).cloned());
+    indexes
+        .map(|indexes| {
+            indexes
+                .iter()
+                .map(|index| &program.data_definitions()[*index as usize])
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
 fn type_identities_match(
     program: &TypedTrees,
@@ -70,8 +189,18 @@ pub(super) fn aggregate_storage_types_match(
     actual: TypeReferenceHandle,
     expected: TypeReferenceHandle,
 ) -> bool {
+    if let Some(verdict) = with_isolation_cache(program, |cache| {
+        cache.storage_match.get(&(actual, expected)).copied()
+    }) {
+        return verdict;
+    }
     let mut identities = TypeIdentityMemo::new();
-    aggregate_storage_types_match_in(program, actual, expected, &[], &mut identities)
+    let verdict = aggregate_storage_types_match_in(program, actual, expected, &[], &mut identities);
+    with_isolation_cache(program, |cache| {
+        cache.storage_match.insert((actual, expected), verdict);
+        cache.storage_match.insert((expected, actual), verdict);
+    });
+    verdict
 }
 
 /// Under an active substitution, a `Named` parameter resolves to its bound
@@ -134,10 +263,9 @@ pub(super) fn aggregate_storage_types_match_in(
     };
     actual.is_valid()
         && actual == expected
-        && program
-            .data_definitions()
+        && definitions_for_symbol(program, actual)
             .iter()
-            .any(|definition| definition.symbol == actual && definition.type_parameters.is_empty())
+            .any(|definition| definition.type_parameters.is_empty())
 }
 
 pub(super) fn struct_literal_field_type(
@@ -145,10 +273,7 @@ pub(super) fn struct_literal_field_type(
     literal: &TableStructLiteral,
     field_name: &str,
 ) -> Option<TypeReferenceHandle> {
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name == literal.type_name);
+    let mut definitions = definitions_for_name(program, literal.type_name.as_str()).into_iter();
     let definition = definitions.next()?;
     definitions.next().is_none().then_some(())?;
     construction_field_type(
@@ -174,10 +299,7 @@ pub(super) fn struct_literal_matches_expected_type(
     else {
         return false;
     };
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name == literal.type_name);
+    let mut definitions = definitions_for_name(program, literal.type_name.as_str()).into_iter();
     let Some(definition) = definitions.next() else {
         return false;
     };
@@ -194,7 +316,12 @@ pub(super) fn type_is_caller_isolated_local(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(
+    if let Some(verdict) = with_isolation_cache(program, |cache| {
+        cache.isolation.get(&(handle, false)).copied()
+    }) {
+        return verdict;
+    }
+    let verdict = type_is_caller_isolated_local_inner(
         program,
         handle,
         &mut Vec::<TypeReferenceHandle>::new(),
@@ -202,7 +329,11 @@ pub(super) fn type_is_caller_isolated_local(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut TypeIdentityMemo::new(),
-    )
+    );
+    with_isolation_cache(program, |cache| {
+        cache.isolation.insert((handle, false), verdict);
+    });
+    verdict
 }
 
 /// Under an active substitution, the declared members of a generic
@@ -232,7 +363,12 @@ pub(super) fn type_is_caller_isolated_proof_value(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated_local_inner(
+    if let Some(verdict) = with_isolation_cache(program, |cache| {
+        cache.isolation.get(&(handle, true)).copied()
+    }) {
+        return verdict;
+    }
+    let verdict = type_is_caller_isolated_local_inner(
         program,
         handle,
         &mut Vec::<TypeReferenceHandle>::new(),
@@ -240,7 +376,11 @@ pub(super) fn type_is_caller_isolated_proof_value(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut TypeIdentityMemo::new(),
-    )
+    );
+    with_isolation_cache(program, |cache| {
+        cache.isolation.insert((handle, true), verdict);
+    });
+    verdict
 }
 
 /// `visiting` records instantiated containers, not bare definition symbols:
@@ -295,13 +435,11 @@ fn type_is_caller_isolated_local_inner(
             ) {
                 return true;
             }
-            let mut definitions = program.data_definitions().iter().filter(|definition| {
-                if symbol.is_valid() {
-                    definition.symbol == *symbol
-                } else {
-                    definition.name == *name
-                }
-            });
+            let mut definitions = if symbol.is_valid() {
+                definitions_for_symbol(program, *symbol).into_iter()
+            } else {
+                definitions_for_name(program, name).into_iter()
+            };
             let Some(definition) = definitions.next() else {
                 return false;
             };
@@ -325,10 +463,12 @@ fn type_is_caller_isolated_local_inner(
             arguments,
             ..
         } if proof_values => {
-            let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| base_symbol.is_valid() && definition.symbol == *base_symbol)
+            if !base_symbol.is_valid() {
+                return false;
+            }
+            let Some(definition) = definitions_for_symbol(program, *base_symbol)
+                .first()
+                .copied()
             else {
                 return false;
             };
@@ -422,10 +562,7 @@ pub(super) fn struct_literal_type_is_caller_isolated(
     program: &TypedTrees,
     literal: &TableStructLiteral,
 ) -> bool {
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name == literal.type_name);
+    let mut definitions = definitions_for_name(program, literal.type_name.as_str()).into_iter();
     let Some(definition) = definitions.next() else {
         return false;
     };
@@ -463,7 +600,13 @@ pub(super) fn data_definition_has_only_owned_storage(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_definition_is_caller_isolated(
+    let key = definition as *const typed_trees::data::DataDefinition;
+    if let Some(verdict) =
+        with_isolation_cache(program, |cache| cache.definitions.get(&key).copied())
+    {
+        return verdict;
+    }
+    let verdict = data_definition_is_caller_isolated(
         program,
         definition,
         None,
@@ -472,7 +615,11 @@ pub(super) fn data_definition_has_only_owned_storage(
         &mut Vec::new(),
         &mut Vec::new(),
         &mut TypeIdentityMemo::new(),
-    )
+    );
+    with_isolation_cache(program, |cache| {
+        cache.definitions.insert(key, verdict);
+    });
+    verdict
 }
 
 /// `container` is the instantiated type whose member walk is about to run;
@@ -513,7 +660,12 @@ fn data_definition_is_caller_isolated(
     }
     if container.is_some_and(|container| {
         visiting.iter().any(|visited| {
-            aggregate_storage_types_match_in(program, *visited, container, bindings, identities)
+            // An equal handle is trivially a storage match; skip the
+            // normalized-identity comparison for direct re-encounters.
+            *visited == container
+                || aggregate_storage_types_match_in(
+                    program, *visited, container, bindings, identities,
+                )
         })
     }) {
         return proof_values;
