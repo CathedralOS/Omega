@@ -155,6 +155,45 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
+- **BOUNDED-BYTE-DOMAIN-IDENTITY.** (new-scope) A program that declares a
+  bounded-byte domain is rejected, against the ratified rule that permits it.
+  `domain [u8; 8]::Utf8 requires valid_utf8(self);` alone in a file reports
+  "domain `[u8; N]::Utf8` shares a normalized semantic identity with a distinct
+  declaration owner", because fixed-array byte domains normalize to
+  `[u8; N]::Utf8` and `source/library/std/calling.omg` already declares
+  `pub domain [u8; 256]::Utf8` with the identical `valid_utf8(self)` predicate.
+  A domain must be declared per carrier to be usable on that carrier, so this
+  is what using `Utf8` on any bounded array requires.
+
+  [domains](wiki/spec/language/domains.md) settles it: "Fixed capacities do not
+  define different meanings for one normalized byte-domain name. Declarations
+  over different bounded carriers may share that name when their normalized
+  facts agree; differing facts reject rather than selecting a declaration by
+  order." The facts here agree, so this rejects a program the spec admits.
+  Introduced by `049f9df76b psi: pin unmanaged-root domain identity collision
+  controls` (2026-09-21) in
+  `validation/src/proof_contracts/domains.rs::validate_repeated_normalized_domain_identities`.
+
+  It costs 19 corpus fixtures, which reject on this instead of what they pin --
+  the whole `fail/dependent/relational_loop_invariant_*` cluster,
+  `fail/slices/*_contract_unproven`, `fail/generics/open_index_*` and others
+  all declare their own byte domains. They still reject, so the corpus gate
+  reports no status move; they show up as "rejected without their expected
+  fragment".
+
+  Two repairs were measured and neither is right. Widening
+  `same_normalized_domain_owner` so byte-carrier specializations share an owner
+  routes the pair to the agreement branch, which then rejects on
+  `semantic_id`: those ids encode the carrier, so legitimate specializations
+  never match. Exempting `semantic_id` for byte specializations accepts every
+  reproducer and still rejects differing facts, but it drops
+  `same_owner_identity_corruption_does_not_split_the_validation_group`, whose
+  whole subject is a TAMPERED id inside one owner. The real fix is upstream:
+  a byte-domain name needs one semantic identity across its bounded carriers,
+  or an identity whose carrier component can be compared apart from the rest,
+  so a carrier-driven difference is distinguishable from a forged one. Do not
+  buy this fixture cohort by weakening that control.
+
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** (new-scope) Complete the
   owner-selected removal of bracketed scalar range annotations under one
   canonical proposition surface (`scalar-range-contract-spelling`). The original
