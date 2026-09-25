@@ -371,401 +371,16 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
         // Synthesize each not-yet-built instance: the base's members cloned with
         // the type parameters substituted for the arguments.
         for instance in &instantiations {
-            if synthesized.iter().any(|prior| {
-                prior.template == instance.template
-                    && prior.argument_identity == instance.argument_identity
-            }) {
-                continue;
-            }
-            let base_info = &generic_data[&instance.template];
-            let substitution: HashMap<String, TypeReferenceHandle> = base_info
-                .parameter_names
-                .iter()
-                .cloned()
-                .zip(instance.argument_handles.iter().copied())
-                .collect();
-            let const_parameter_values: HashMap<String, i128> = base_info
-                .parameter_names
-                .iter()
-                .zip(&base_info.const_parameter_types)
-                .filter_map(|(name, parameter_type)| {
-                    parameter_type.as_ref()?;
-                    let argument = substitution.get(name)?;
-                    let TypeReferenceNode::Named(value) =
-                        syntax.tables.type_references.type_reference(*argument)
-                    else {
-                        return None;
-                    };
-                    Some((name.clone(), value.as_str().parse().ok()?))
-                })
-                .collect();
-            let const_parameter_type_names: HashMap<String, String> = base_info
-                .parameter_names
-                .iter()
-                .zip(&base_info.const_parameter_types)
-                .filter_map(|(name, parameter_type)| {
-                    let parameter_type = parameter_type.as_ref()?;
-                    let TypeReferenceNode::Named(type_name) = syntax
-                        .tables
-                        .type_references
-                        .type_reference(*parameter_type)
-                    else {
-                        return None;
-                    };
-                    Some((name.clone(), type_name.as_str().to_string()))
-                })
-                .collect();
-            let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
-                .iter()
-                .map(|(name, value)| {
-                    let literal = IntegerLiteral::from_parts(
-                        *value < 0,
-                        IntegerRadix::Decimal,
-                        value.unsigned_abs().to_string().as_str(),
-                    )
-                    .expect("a concrete const argument is a valid decimal integer literal");
-                    (name.clone(), ExpressionNode::Integer(literal))
-                })
-                .collect();
-            // Structural matching selects Boolean indices without turning them
-            // into integer endpoints. Synthesis must retain that same value in
-            // constructor facts and attached bodies; leaving the binder symbolic
-            // would silently defer a false closed instantiation obligation.
-            let mut const_parameter_scalars = const_parameter_values
-                .iter()
-                .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
-                .collect::<HashMap<_, _>>();
-            for (name, parameter_type) in base_info
-                .parameter_names
-                .iter()
-                .zip(&base_info.const_parameter_types)
-            {
-                if parameter_type.is_none() {
-                    continue;
-                }
-                let Some(argument) = substitution.get(name) else {
-                    continue;
-                };
-                let TypeReferenceNode::Named(value) =
-                    syntax.type_references.type_reference(*argument)
-                else {
-                    continue;
-                };
-                if let Some(value) =
-                    crate::preparation::type_equations::normalized_boolean_argument(value.as_str())
-                {
-                    const_parameter_scalars.insert(name.clone(), ConstScalarValue::Boolean(value));
-                    const_expressions.insert(name.clone(), ExpressionNode::Boolean(value));
-                }
-            }
-
-            // A fact whose operands are all const-bound is an instantiation
-            // obligation, not a standing runtime invariant. Prove it now and
-            // omit it from the concrete record. Mixed facts retain their field
-            // operands and receive the same const substitution as members.
-            let snapshot = syntax.clone();
-            let fact_expression_watermark = (syntax.expressions.expression_count() as u32)
-                .checked_add(1)
-                .expect("expression arena index overflow");
-            let mut first_fact = Handle::invalid();
-            let mut fact_count = 0u32;
-            for (offset, fact) in snapshot
-                .tables
-                .items
-                .proof_facts(base_info.where_facts)
-                .iter()
-                .enumerate()
-            {
-                // A type equation was decided against this instance's complete
-                // argument tuple when the spelling was admitted; a verified
-                // equation is a discharged instantiation obligation.
-                if base_info
-                    .type_equations
-                    .iter()
-                    .any(|equation| equation.fact_offset == offset)
-                {
-                    continue;
-                }
-                let fact_warning_start = warnings.len();
-                let const_result = match fact {
-                    ProofFact::Expression(expression) => evaluate_const_fact_expression(
-                        &snapshot,
-                        *expression,
-                        &const_values,
-                        &const_parameter_scalars,
-                        None,
-                        warnings,
-                    )
-                    .map(|value| match value {
-                        Some(ConstFactValue::Boolean(value)) => Some(value),
-                        _ => None,
-                    }),
-                    ProofFact::Membership(membership) => evaluate_const_membership_fact(
-                        &snapshot,
-                        membership,
-                        &const_values,
-                        &const_parameter_values,
-                        &const_parameter_type_names,
-                        selection,
-                        warnings,
-                    ),
-                }
-                .map_err(|reason| {
-                    vec![Diagnostic::error(format!(
-                        "const fact for generic instance `{}` is invalid: {reason}",
-                        instance.synthetic_name
-                    ))]
-                })?;
-                if let Some(value) = const_result {
-                    if value {
-                        continue;
-                    }
-                    return Err(vec![Diagnostic::error(format!(
-                        "const fact for generic instance `{}` is false",
-                        instance.synthetic_name
-                    ))]);
-                }
-                warnings.truncate(fact_warning_start);
-                let source = Handle::from_parts(
-                    base_info
-                        .where_facts
-                        .start()
-                        .arena_index()
-                        .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
-                        .expect("proof fact source handle overflow"),
-                    base_info.where_facts.start().generation(),
-                );
-                let handle = syntax.copy_proof_fact_from(&snapshot, source);
-                if fact_count == 0 {
-                    first_fact = handle;
-                }
-                fact_count += 1;
-            }
-            let where_facts = HandleSpan::from_parts(first_fact, fact_count);
-
-            // Retain the authored generic application as structural evidence.
-            // The synthesized display name is diagnostic-only; downstream
-            // identity and substitution resolve this base and argument tuple.
-            let origin_arguments = syntax
-                .tables
-                .type_references
-                .insert_type_reference_handles(instance.argument_handles.iter().copied());
-            let generic_instance = syntax.tables.type_references.insert(
-                syntax_trees::types::TypeReferenceNode::Generic {
-                    base_name: base_info.origin_name.clone(),
-                    lifetime_arguments: Vec::new(),
-                    arguments: origin_arguments,
-                },
-            );
-
-            let members: Vec<DataMember> =
-                syntax.tables.items.data_members(base_info.members).to_vec();
-            let properties = base_info.properties;
-            // CASE-CONSTRAINTS type-equality facts (`case ... where T == i32`)
-            // decide against the closed argument identities this instance was
-            // deduplicated on. Only `type` binders enter the map: `const`
-            // binders rewrite to literal arguments, and the remaining binder
-            // kinds are still refused upstream.
-            let type_identities: HashMap<String, ClosedArgumentIdentity> = {
-                let Item::Data(template) = snapshot.root_item(instance.template) else {
-                    unreachable!("a discovered template is a data item");
-                };
-                snapshot
-                    .tables
-                    .items
-                    .type_parameters(template.type_parameters)
-                    .iter()
-                    .zip(instance.argument_identity.iter())
-                    .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
-                    .map(|(parameter, identity)| {
-                        (parameter.name.as_str().to_owned(), identity.clone())
-                    })
-                    .collect()
-            };
-            let mut first: Handle<DataMember> = Handle::invalid();
-            let mut count = 0u32;
-            for member in members {
-                let substituted = substitute_member(
-                    syntax,
-                    &snapshot,
-                    member,
-                    &substitution,
-                    &type_identities,
-                    selection,
-                    &instance.synthetic_name,
-                    &const_values,
-                    &const_parameter_scalars,
-                    warnings,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
-                let handle = syntax.tables.items.append_data_member(substituted);
-                if count == 0 {
-                    first = handle;
-                }
-                count += 1;
-            }
-            // Run the const-binder literal rewrite only after member
-            // substitution: a carried case `where` fact is copied inside the
-            // loop above, so its `const` mentions land in the same rewritten
-            // window as the data-level fact copies.
-            replace_const_expression_names_from(
+            synthesize_instance(
                 syntax,
-                fact_expression_watermark,
-                &const_expressions,
-            );
-            let declaration = syntax.push_root_item(Item::Data(DataDefinition {
-                // The closed instance is compiler-generated, but its mandatory
-                // derivation origin is the exact authored generic declaration.
-                // Retain that span under the synthetic semantic spelling so
-                // package ownership never falls back to an unresolved name.
-                name: Identifier::new(
-                    instance.synthetic_name.as_str(),
-                    base_info.origin_name.source_span(),
-                ),
-                is_public: base_info.is_public,
-                supply_mode: base_info.supply_mode,
-                lifetime_parameters: base_info.lifetime_parameters.clone(),
-                type_parameters: HandleSpan::default(),
-                generic_instance: Some(generic_instance),
-                properties,
-                where_facts,
-                members: HandleSpan::from_parts(first, count),
-                quotient: None,
-            }));
-
-            let mut materialized = instance.clone();
-            materialized.declaration = declaration;
-            synthesized.push(materialized);
-
-            // CONTAINER instance: clone each attached machine with the type
-            // parameters substituted (Phase 2 slice 1). The clone copies from
-            // a SNAPSHOT of the tree (same-tree deep copies need a & source
-            // while appending into &mut tables), then a WATERMARK pass
-            // rewrites `Named(T)` nodes created by the copy -- only the
-            // clone's own subtree is younger than the watermark.
-            let Some(machine_items) = attached_machines.get(&instance.template) else {
-                continue;
-            };
-            let snapshot = syntax.clone();
-            for &item_index in machine_items {
-                let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index) else {
-                    continue;
-                };
-                let type_watermark = syntax.tables.type_references.node_count();
-                let expression_watermark = (syntax.expressions.expression_count() as u32)
-                    .checked_add(1)
-                    .expect("expression arena index overflow");
-                let Item::Machine(mut clone) =
-                    syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
-                else {
-                    continue;
-                };
-                // The clone is CONCRETE: attached to the synthetic record,
-                // its type parameters cleared, its `Named(T)` type nodes
-                // substituted with the instance arguments. The machine NAME
-                // is the FULL parsed path ("Box::stored"), so the attached
-                // segment is rewritten there too ("Box<i32>::stored") --
-                // machine identity keys on the composed name.
-                let method_tail = machine
-                    .name
-                    .as_str()
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(machine.name.as_str())
-                    .to_string();
-                clone.name = Identifier::new(
-                    format!("{}::{}", instance.synthetic_name, method_tail),
-                    machine.name.source_span(),
-                );
-                // An attachment may be authored outside the carrier's module.
-                // Reuse selected carrier lookup metadata in that source context;
-                // retaining only the span would lose an imported qualification.
-                clone.attached_data =
-                    Some(
-                        closed_constructor_carrier(
-                            &snapshot,
-                            selection,
-                            instance,
-                            machine.attached_data.as_ref().expect("selected attachment"),
-                            false,
-                        )
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                        "generic method lost its selected closed carrier lookup context",
-                    ).with_source_span(machine.name.source_span())]
-                        })?,
-                    );
-                clone.generic_data_template = machine.name.clone();
-                clone.type_parameters = HandleSpan::default();
-                let runtime_captures = capture_machine_runtime_template_names(
-                    syntax,
-                    &clone,
-                    type_watermark,
-                    expression_watermark,
-                );
-                for (handle, name) in syntax
-                    .tables
-                    .type_references
-                    .named_nodes_from(type_watermark)
-                {
-                    // A value-bound name in a const argument must reach normal
-                    // admission, not silently acquire the template's value.
-                    // Ordinary type-binder substitution is unchanged.
-                    if const_expressions.contains_key(&name)
-                        && runtime_captures.captures_type_reference(handle)
-                    {
-                        continue;
-                    }
-                    if let Some(argument) = substitution.get(&name) {
-                        let replacement = syntax
-                            .tables
-                            .type_references
-                            .type_reference(*argument)
-                            .clone();
-                        syntax
-                            .tables
-                            .type_references
-                            .replace_type_reference(handle, replacement);
-                        // Substitution of an already closed argument carries
-                        // its application, just as ordinary syntax copying does.
-                        let application =
-                            syntax.type_references.generic_application_origin(*argument);
-                        if application.is_valid() {
-                            syntax
-                                .type_references
-                                .retain_generic_application_origin(handle, application);
-                        }
-                    }
-                }
-                for (handle, element_type, name) in syntax
-                    .tables
-                    .type_references
-                    .const_parameter_array_nodes_from(type_watermark)
-                {
-                    let Some(length) = substitution.get(&name).and_then(|argument| {
-                        match syntax.tables.type_references.type_reference(*argument) {
-                            TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
-                            _ => None,
-                        }
-                    }) else {
-                        continue;
-                    };
-                    syntax.tables.type_references.replace_type_reference(
-                        handle,
-                        TypeReferenceNode::FixedArray {
-                            element_type,
-                            length: FixedArrayLength::Literal(length),
-                        },
-                    );
-                }
-                replace_machine_const_expression_names_from(
-                    syntax,
-                    expression_watermark,
-                    &const_expressions,
-                    &runtime_captures,
-                );
-                syntax.push_root_item(Item::Machine(clone));
-            }
+                warnings,
+                &mut synthesized,
+                &generic_data,
+                &attached_machines,
+                &const_values,
+                selection,
+                instance,
+            )?;
         }
 
         // Rewrite this round's spellings to the synthesized instances' plain names.
@@ -810,5 +425,411 @@ pub(in crate::preparation) fn desugar_generic_data_instances_with_selection(
 
     normalize_generic_template_const_expressions(syntax, &const_values, warnings)
         .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
+}
+
+/// Build one closed instance of a generic data declaration, unless an
+/// earlier round already built the same template and argument tuple: the
+/// template's members, facts and attached machines with its type and
+/// `const` parameters substituted, as a new concrete record.
+fn synthesize_instance(
+    syntax: &mut SyntaxTrees,
+    warnings: &mut Vec<Diagnostic>,
+    synthesized: &mut Vec<Instantiation>,
+    generic_data: &HashMap<syntax_trees::item::ItemHandle, GenericData>,
+    attached_machines: &HashMap<syntax_trees::item::ItemHandle, Vec<usize>>,
+    const_values: &HashMap<String, i128>,
+    selection: Option<&super::constant_selection::ConstantSelection>,
+    instance: &Instantiation,
+) -> Result<(), Vec<Diagnostic>> {
+    if synthesized.iter().any(|prior| {
+        prior.template == instance.template && prior.argument_identity == instance.argument_identity
+    }) {
+        return Ok(());
+    }
+    let base_info = &generic_data[&instance.template];
+    let substitution: HashMap<String, TypeReferenceHandle> = base_info
+        .parameter_names
+        .iter()
+        .cloned()
+        .zip(instance.argument_handles.iter().copied())
+        .collect();
+    let const_parameter_values: HashMap<String, i128> = base_info
+        .parameter_names
+        .iter()
+        .zip(&base_info.const_parameter_types)
+        .filter_map(|(name, parameter_type)| {
+            parameter_type.as_ref()?;
+            let argument = substitution.get(name)?;
+            let TypeReferenceNode::Named(value) =
+                syntax.tables.type_references.type_reference(*argument)
+            else {
+                return None;
+            };
+            Some((name.clone(), value.as_str().parse().ok()?))
+        })
+        .collect();
+    let const_parameter_type_names: HashMap<String, String> = base_info
+        .parameter_names
+        .iter()
+        .zip(&base_info.const_parameter_types)
+        .filter_map(|(name, parameter_type)| {
+            let parameter_type = parameter_type.as_ref()?;
+            let TypeReferenceNode::Named(type_name) = syntax
+                .tables
+                .type_references
+                .type_reference(*parameter_type)
+            else {
+                return None;
+            };
+            Some((name.clone(), type_name.as_str().to_string()))
+        })
+        .collect();
+    let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
+        .iter()
+        .map(|(name, value)| {
+            let literal = IntegerLiteral::from_parts(
+                *value < 0,
+                IntegerRadix::Decimal,
+                value.unsigned_abs().to_string().as_str(),
+            )
+            .expect("a concrete const argument is a valid decimal integer literal");
+            (name.clone(), ExpressionNode::Integer(literal))
+        })
+        .collect();
+    // Structural matching selects Boolean indices without turning them
+    // into integer endpoints. Synthesis must retain that same value in
+    // constructor facts and attached bodies; leaving the binder symbolic
+    // would silently defer a false closed instantiation obligation.
+    let mut const_parameter_scalars = const_parameter_values
+        .iter()
+        .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
+        .collect::<HashMap<_, _>>();
+    for (name, parameter_type) in base_info
+        .parameter_names
+        .iter()
+        .zip(&base_info.const_parameter_types)
+    {
+        if parameter_type.is_none() {
+            continue;
+        }
+        let Some(argument) = substitution.get(name) else {
+            continue;
+        };
+        let TypeReferenceNode::Named(value) = syntax.type_references.type_reference(*argument)
+        else {
+            continue;
+        };
+        if let Some(value) =
+            crate::preparation::type_equations::normalized_boolean_argument(value.as_str())
+        {
+            const_parameter_scalars.insert(name.clone(), ConstScalarValue::Boolean(value));
+            const_expressions.insert(name.clone(), ExpressionNode::Boolean(value));
+        }
+    }
+
+    // A fact whose operands are all const-bound is an instantiation
+    // obligation, not a standing runtime invariant. Prove it now and
+    // omit it from the concrete record. Mixed facts retain their field
+    // operands and receive the same const substitution as members.
+    let snapshot = syntax.clone();
+    let fact_expression_watermark = (syntax.expressions.expression_count() as u32)
+        .checked_add(1)
+        .expect("expression arena index overflow");
+    let mut first_fact = Handle::invalid();
+    let mut fact_count = 0u32;
+    for (offset, fact) in snapshot
+        .tables
+        .items
+        .proof_facts(base_info.where_facts)
+        .iter()
+        .enumerate()
+    {
+        // A type equation was decided against this instance's complete
+        // argument tuple when the spelling was admitted; a verified
+        // equation is a discharged instantiation obligation.
+        if base_info
+            .type_equations
+            .iter()
+            .any(|equation| equation.fact_offset == offset)
+        {
+            continue;
+        }
+        let fact_warning_start = warnings.len();
+        let const_result = match fact {
+            ProofFact::Expression(expression) => evaluate_const_fact_expression(
+                &snapshot,
+                *expression,
+                const_values,
+                &const_parameter_scalars,
+                None,
+                warnings,
+            )
+            .map(|value| match value {
+                Some(ConstFactValue::Boolean(value)) => Some(value),
+                _ => None,
+            }),
+            ProofFact::Membership(membership) => evaluate_const_membership_fact(
+                &snapshot,
+                membership,
+                const_values,
+                &const_parameter_values,
+                &const_parameter_type_names,
+                selection,
+                warnings,
+            ),
+        }
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "const fact for generic instance `{}` is invalid: {reason}",
+                instance.synthetic_name
+            ))]
+        })?;
+        if let Some(value) = const_result {
+            if value {
+                continue;
+            }
+            return Err(vec![Diagnostic::error(format!(
+                "const fact for generic instance `{}` is false",
+                instance.synthetic_name
+            ))]);
+        }
+        warnings.truncate(fact_warning_start);
+        let source = Handle::from_parts(
+            base_info
+                .where_facts
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
+                .expect("proof fact source handle overflow"),
+            base_info.where_facts.start().generation(),
+        );
+        let handle = syntax.copy_proof_fact_from(&snapshot, source);
+        if fact_count == 0 {
+            first_fact = handle;
+        }
+        fact_count += 1;
+    }
+    let where_facts = HandleSpan::from_parts(first_fact, fact_count);
+
+    // Retain the authored generic application as structural evidence.
+    // The synthesized display name is diagnostic-only; downstream
+    // identity and substitution resolve this base and argument tuple.
+    let origin_arguments = syntax
+        .tables
+        .type_references
+        .insert_type_reference_handles(instance.argument_handles.iter().copied());
+    let generic_instance =
+        syntax
+            .tables
+            .type_references
+            .insert(syntax_trees::types::TypeReferenceNode::Generic {
+                base_name: base_info.origin_name.clone(),
+                lifetime_arguments: Vec::new(),
+                arguments: origin_arguments,
+            });
+
+    let members: Vec<DataMember> = syntax.tables.items.data_members(base_info.members).to_vec();
+    let properties = base_info.properties;
+    // CASE-CONSTRAINTS type-equality facts (`case ... where T == i32`)
+    // decide against the closed argument identities this instance was
+    // deduplicated on. Only `type` binders enter the map: `const`
+    // binders rewrite to literal arguments, and the remaining binder
+    // kinds are still refused upstream.
+    let type_identities: HashMap<String, ClosedArgumentIdentity> = {
+        let Item::Data(template) = snapshot.root_item(instance.template) else {
+            unreachable!("a discovered template is a data item");
+        };
+        snapshot
+            .tables
+            .items
+            .type_parameters(template.type_parameters)
+            .iter()
+            .zip(instance.argument_identity.iter())
+            .filter(|(parameter, _)| matches!(parameter.kind, TypeParameterKind::Type))
+            .map(|(parameter, identity)| (parameter.name.as_str().to_owned(), identity.clone()))
+            .collect()
+    };
+    let mut first: Handle<DataMember> = Handle::invalid();
+    let mut count = 0u32;
+    for member in members {
+        let substituted = substitute_member(
+            syntax,
+            &snapshot,
+            member,
+            &substitution,
+            &type_identities,
+            selection,
+            &instance.synthetic_name,
+            const_values,
+            &const_parameter_scalars,
+            warnings,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let handle = syntax.tables.items.append_data_member(substituted);
+        if count == 0 {
+            first = handle;
+        }
+        count += 1;
+    }
+    // Run the const-binder literal rewrite only after member
+    // substitution: a carried case `where` fact is copied inside the
+    // loop above, so its `const` mentions land in the same rewritten
+    // window as the data-level fact copies.
+    replace_const_expression_names_from(syntax, fact_expression_watermark, &const_expressions);
+    let declaration = syntax.push_root_item(Item::Data(DataDefinition {
+        // The closed instance is compiler-generated, but its mandatory
+        // derivation origin is the exact authored generic declaration.
+        // Retain that span under the synthetic semantic spelling so
+        // package ownership never falls back to an unresolved name.
+        name: Identifier::new(
+            instance.synthetic_name.as_str(),
+            base_info.origin_name.source_span(),
+        ),
+        is_public: base_info.is_public,
+        supply_mode: base_info.supply_mode,
+        lifetime_parameters: base_info.lifetime_parameters.clone(),
+        type_parameters: HandleSpan::default(),
+        generic_instance: Some(generic_instance),
+        properties,
+        where_facts,
+        members: HandleSpan::from_parts(first, count),
+        quotient: None,
+    }));
+
+    let mut materialized = instance.clone();
+    materialized.declaration = declaration;
+    synthesized.push(materialized);
+
+    // CONTAINER instance: clone each attached machine with the type
+    // parameters substituted (Phase 2 slice 1). The clone copies from
+    // a SNAPSHOT of the tree (same-tree deep copies need a & source
+    // while appending into &mut tables), then a WATERMARK pass
+    // rewrites `Named(T)` nodes created by the copy -- only the
+    // clone's own subtree is younger than the watermark.
+    let Some(machine_items) = attached_machines.get(&instance.template) else {
+        return Ok(());
+    };
+    let snapshot = syntax.clone();
+    for &item_index in machine_items {
+        let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index) else {
+            continue;
+        };
+        let type_watermark = syntax.tables.type_references.node_count();
+        let expression_watermark = (syntax.expressions.expression_count() as u32)
+            .checked_add(1)
+            .expect("expression arena index overflow");
+        let Item::Machine(mut clone) =
+            syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
+        else {
+            continue;
+        };
+        // The clone is CONCRETE: attached to the synthetic record,
+        // its type parameters cleared, its `Named(T)` type nodes
+        // substituted with the instance arguments. The machine NAME
+        // is the FULL parsed path ("Box::stored"), so the attached
+        // segment is rewritten there too ("Box<i32>::stored") --
+        // machine identity keys on the composed name.
+        let method_tail = machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(machine.name.as_str())
+            .to_string();
+        clone.name = Identifier::new(
+            format!("{}::{}", instance.synthetic_name, method_tail),
+            machine.name.source_span(),
+        );
+        // An attachment may be authored outside the carrier's module.
+        // Reuse selected carrier lookup metadata in that source context;
+        // retaining only the span would lose an imported qualification.
+        clone.attached_data = Some(
+            closed_constructor_carrier(
+                &snapshot,
+                selection,
+                instance,
+                machine.attached_data.as_ref().expect("selected attachment"),
+                false,
+            )
+            .ok_or_else(|| {
+                vec![
+                    Diagnostic::error(
+                        "generic method lost its selected closed carrier lookup context",
+                    )
+                    .with_source_span(machine.name.source_span()),
+                ]
+            })?,
+        );
+        clone.generic_data_template = machine.name.clone();
+        clone.type_parameters = HandleSpan::default();
+        let runtime_captures = capture_machine_runtime_template_names(
+            syntax,
+            &clone,
+            type_watermark,
+            expression_watermark,
+        );
+        for (handle, name) in syntax
+            .tables
+            .type_references
+            .named_nodes_from(type_watermark)
+        {
+            // A value-bound name in a const argument must reach normal
+            // admission, not silently acquire the template's value.
+            // Ordinary type-binder substitution is unchanged.
+            if const_expressions.contains_key(&name)
+                && runtime_captures.captures_type_reference(handle)
+            {
+                continue;
+            }
+            if let Some(argument) = substitution.get(&name) {
+                let replacement = syntax
+                    .tables
+                    .type_references
+                    .type_reference(*argument)
+                    .clone();
+                syntax
+                    .tables
+                    .type_references
+                    .replace_type_reference(handle, replacement);
+                // Substitution of an already closed argument carries
+                // its application, just as ordinary syntax copying does.
+                let application = syntax.type_references.generic_application_origin(*argument);
+                if application.is_valid() {
+                    syntax
+                        .type_references
+                        .retain_generic_application_origin(handle, application);
+                }
+            }
+        }
+        for (handle, element_type, name) in syntax
+            .tables
+            .type_references
+            .const_parameter_array_nodes_from(type_watermark)
+        {
+            let Some(length) = substitution.get(&name).and_then(|argument| {
+                match syntax.tables.type_references.type_reference(*argument) {
+                    TypeReferenceNode::Named(value) => value.as_str().parse::<usize>().ok(),
+                    _ => None,
+                }
+            }) else {
+                continue;
+            };
+            syntax.tables.type_references.replace_type_reference(
+                handle,
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                },
+            );
+        }
+        replace_machine_const_expression_names_from(
+            syntax,
+            expression_watermark,
+            &const_expressions,
+            &runtime_captures,
+        );
+        syntax.push_root_item(Item::Machine(clone));
+    }
     Ok(())
 }
