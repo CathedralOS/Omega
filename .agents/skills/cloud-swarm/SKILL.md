@@ -89,6 +89,17 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    "commits":[<sha>...],"gate":"<commands + counts>","witness":"<evidence>",
    "notes":"<smallest next same-domain residual>","remaining_legs":[...]}`.
 
+6. **A landed or stale leg never ends your turn.** When your pushed lane
+   merges — under your SHAs or swarm-merge-renamed ones — or a leg
+   resolves as already-on-main, post the verdict and immediately start
+   the next named item on your chain (queue notes, TASKS.md, or the
+   `remaining_legs` you just reported). Do NOT end your turn
+   "standing by for the next link" — waiting on a dispatch is not a
+   blocker. `blocked` is reserved for genuine stops: a claims conflict,
+   missing api surface, or a decision only the coordinator/user can
+   make. The coordinator's drain sees a parked worker and re-dispatches,
+   but every parked hour is a wasted slot — chain legs autonomously.
+
 And ALWAYS pass `notify_on_response=true` on every
 `devin_session_interact message` dispatch — it is one-shot (consumed on that
 settle), so re-arm it on every subsequent leg. Session auto-sleep ~30min is
