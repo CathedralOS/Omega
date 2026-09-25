@@ -7,11 +7,15 @@
 // carriage contested its stale sibling instead of resolving it.
 data Pair { left: u32 [0..=5]; }
 
-machine walk(remaining: u32 [0..=5])
+machine walk(remaining: u32)
 terminates by remaining in 0..=5;
--> u32 {
+-> u32
+requires remaining <= 5
+{
     transition { _ -> s(Pair { left: remaining }, remaining) }
-    state s(pair: Pair, copy: u32 [0..=5]) {
+    state s(pair: Pair, copy: u32)
+    requires copy <= 5
+    {
         transition pair.left > 0 {
             true -> s(Pair { left: pair.left - 1 }, copy)
             false -> pair.left

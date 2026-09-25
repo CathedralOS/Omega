@@ -123,8 +123,16 @@ the complete product bar; focused successes below do not establish that baseline
   (`runtime_exact_guarded_shift_count_exit`,
   `runtime_exclusive_range_constraint_exit`,
   `runtime_shift_count_proven_range_exit`). Parameter and result ranges in
-  20 further pass fixtures now use `requires`/`ensures`. The rest keep
-  brackets. Build-time evaluation refuses an authored `requires`: its
+  53 further pass fixtures now use `requires`/`ensures`. The rest keep
+  brackets. A `mut` parameter's bracket is enforced on every store, while
+  `requires` binds only the arrival value; converting one must re-prove
+  each read after a write (`rank_range_mutable_bounded_endpoint`). The
+  eighteen termination fixtures that Rust tests `include_str!` and patch
+  (`rank_ranges/field_relations.rs` and siblings) need those patches
+  rewritten with them. The relational state-edge judgment does not read a
+  named state's arrival `requires` (`rank_range_declared_step_copies`,
+  `rank_range_call_declared_step_copy`), and a machine `ensures` cannot
+  read a state's result (`ranked_callee_projected_receiver_compile`). Build-time evaluation refuses an authored `requires`: its
   `closure_validation.rs` has no checked invocation proof before checking.
   That blocks the plan-laid layout, wire-policy and interrupt-table
   `evaluate` machines and `runtime_const_measured_recursion_exit`.

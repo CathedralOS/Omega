@@ -11,16 +11,20 @@ data Main {
     entries: [u64; 8];
 }
 
-machine Main::main(&mut self, hold: Holder, cap: u64 [4..=8]) -> u64
-requires hold.bag.len >= cap;
+machine Main::main(&mut self, hold: Holder, cap: u64) -> u64
+requires
+    4 <= cap && cap <= 8;
+    hold.bag.len >= cap;
 {
     transition {
         _ -> self.outer(3, cap, hold)
     }
 }
 
-machine Main::outer(&mut self, remaining: u64 [0..=4], cap: u64 [4..=8], hold: Holder)
-requires hold.bag.len >= cap;
+machine Main::outer(&mut self, remaining: u64, cap: u64, hold: Holder)
+requires
+    remaining <= 4 && 4 <= cap && cap <= 8;
+    hold.bag.len >= cap;
 terminates by remaining in 0..=hold.bag.len;
 -> u64 {
     transition remaining > 0 {
@@ -29,8 +33,10 @@ terminates by remaining in 0..=hold.bag.len;
     }
 }
 
-machine Main::inner(&mut self, n: u64 [0..=4], cap: u64 [4..=8], wrap: Holder)
-requires wrap.bag.len >= cap;
+machine Main::inner(&mut self, n: u64, cap: u64, wrap: Holder)
+requires
+    n <= 4 && 4 <= cap && cap <= 8;
+    wrap.bag.len >= cap;
 terminates by n in 0..=wrap.bag.len;
 -> u64 {
     transition n > 0 {

@@ -280,7 +280,7 @@ impl Interval {
     /// Tightest interval contained in both (`[max(lows), min(highs)]`, an
     /// unbounded end deferring to the other). Used to intersect a guard bound
     /// with a place's type range.
-    pub(super) fn intersect(self, other: Self) -> Self {
+    pub(crate) fn intersect(self, other: Self) -> Self {
         Self {
             low: match (self.low, other.low) {
                 (Some(a), Some(b)) => Some(a.max(b)),
