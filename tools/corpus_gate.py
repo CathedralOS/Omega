@@ -439,9 +439,17 @@ def main() -> int:
     counts = {}
     for record in records:
         counts[record["status"]] = counts.get(record["status"], 0) + 1
+    # Two different conditions, reported apart. A fail fixture that rejected
+    # without its fragment rejected for the WRONG reason; one that checked did
+    # not reject at all, which for the fail tier usually means its expectation
+    # names a stage this targetless route never reaches.
+    wrong_reason = sum(1 for r in records if r["expected_satisfied"] is False)
+    not_rejected = sum(
+        1 for r in records if r["tier"] == "fail" and r["status"] == "checked"
+    )
     summary = (f"{len(records)} fixtures ({counts}), "
-               f"expected_satisfied=false on "
-               f"{sum(1 for r in records if r['expected_satisfied'] is False)}")
+               f"{wrong_reason} rejected without their expected fragment, "
+               f"{not_rejected} fail fixtures did not reject")
 
     if not structural_moves and not perf_moves:
         print(f"corpus_gate: clean — {summary}")

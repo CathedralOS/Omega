@@ -1555,8 +1555,8 @@
   "fixture": "fail/boundary/entry_typed_params_unmarked",
   "tier": "fail",
   "status": "checked",
-  "millis": 64,
-  "expected_satisfied": false,
+  "millis": 71,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -1623,8 +1623,8 @@
   "fixture": "fail/build/hosted_program_entry_visible_parameter",
   "tier": "fail",
   "status": "checked",
-  "millis": 47,
-  "expected_satisfied": false,
+  "millis": 75,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -1653,8 +1653,8 @@
   "fixture": "fail/build/program_entry_returns_value",
   "tier": "fail",
   "status": "checked",
-  "millis": 56,
-  "expected_satisfied": false,
+  "millis": 65,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -1682,32 +1682,32 @@
   "fixture": "fail/build/uefi_program_entry_local_physical_contract",
   "tier": "fail",
   "status": "checked",
-  "millis": 851,
-  "expected_satisfied": false,
+  "millis": 717,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "fail/build/uefi_program_entry_missing_storage_roots",
   "tier": "fail",
   "status": "checked",
-  "millis": 59,
-  "expected_satisfied": false,
+  "millis": 72,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "fail/build/uefi_program_entry_unqualified_image",
   "tier": "fail",
   "status": "checked",
-  "millis": 183,
-  "expected_satisfied": false,
+  "millis": 203,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "fail/build/uefi_program_entry_wrong_calling_policy",
   "tier": "fail",
   "status": "checked",
-  "millis": 895,
-  "expected_satisfied": false,
+  "millis": 737,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -1735,7 +1735,7 @@
   "tier": "fail",
   "status": "checked",
   "millis": 76,
-  "expected_satisfied": false,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -1893,8 +1893,8 @@
   "fixture": "fail/calls/param_receiver_method_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 2387,
-  "expected_satisfied": false,
+  "millis": 1658,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -2041,16 +2041,16 @@
   "fixture": "fail/calls/value_call_effectful_arm_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 52,
-  "expected_satisfied": false,
+  "millis": 84,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "fail/calls/value_call_param_effect_arm_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 71,
-  "expected_satisfied": false,
+  "millis": 70,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -2271,8 +2271,8 @@
   "fixture": "fail/collections/deep_nested_runtime_indexed_write_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 60,
-  "expected_satisfied": false,
+  "millis": 67,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -3672,8 +3672,8 @@
   "fixture": "fail/data/fixed_array_too_large",
   "tier": "fail",
   "status": "checked",
-  "millis": 13,
-  "expected_satisfied": false,
+  "millis": 9,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -3982,8 +3982,8 @@
   "fixture": "fail/data/zero_length_non_scalar_array_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 9,
-  "expected_satisfied": false,
+  "millis": 11,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -6886,8 +6886,8 @@
   "fixture": "fail/host/terminal_host_call_value",
   "tier": "fail",
   "status": "checked",
-  "millis": 183,
-  "expected_satisfied": false,
+  "millis": 275,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -8030,8 +8030,8 @@
   "fixture": "fail/ports/asm_port_in_unsettled",
   "tier": "fail",
   "status": "checked",
-  "millis": 53,
-  "expected_satisfied": false,
+  "millis": 65,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -8485,8 +8485,8 @@
   "fixture": "fail/proofs/mathematical_declaration_lowering_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 53,
-  "expected_satisfied": false,
+  "millis": 58,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {
@@ -12211,8 +12211,8 @@
   "fixture": "fail/traits/runtime_dyn_varying_field_rejected",
   "tier": "fail",
   "status": "checked",
-  "millis": 76,
-  "expected_satisfied": false,
+  "millis": 66,
+  "expected_satisfied": null,
   "diagnostics": []
  },
  {

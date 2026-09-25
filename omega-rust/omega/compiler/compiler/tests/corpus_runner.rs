@@ -114,11 +114,26 @@ fn check_fail_fixture(root_path: &Path) -> Result<(), Vec<diagnostics::Diagnosti
     compile_to_checked(request).map(|_| ())
 }
 
+/// Whether the fixture's expected fragments all appear in the diagnostics it
+/// produced, or `None` when the question does not arise.
+///
+/// It does not arise for a fixture with no `expected.txt`, and it does not
+/// arise for one that produced NO diagnostics: this route compiles targetless
+/// through check and checked-compile, so an expectation naming a later stage
+/// -- "native artifact target lowering failed", "requires a selected Fused
+/// provider", a layout size overflow -- has nothing here to match and is not
+/// unsatisfied, merely unevaluated. Answering `false` for those conflated them
+/// with a fixture that rejected for the WRONG reason, which is the condition
+/// this field exists to report. A fail-tier fixture that stops rejecting is
+/// still visible: its `status` moves to `checked` against the golden.
 fn expected_fragment_satisfied(
     fixture_dir: &Path,
     errors: &[diagnostics::Diagnostic],
 ) -> Option<bool> {
     let expected = fs::read_to_string(fixture_dir.join("expected.txt")).ok()?;
+    if errors.is_empty() {
+        return None;
+    }
     let rendered: Vec<String> = errors.iter().map(|error| error.message.clone()).collect();
     Some(
         expected
