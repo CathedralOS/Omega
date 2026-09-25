@@ -32,6 +32,7 @@ use super::{
 use crate::monomorphization::{
     CallSelection, CalleeState, Candidate, collect_statement_expression_trees, const_arguments,
 };
+use std::collections::HashSet;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ExplicitArgumentCapacity {
@@ -199,7 +200,11 @@ pub(super) fn collect_call_selections(
     contract_expressions: &[ExpressionHandle],
 ) -> Vec<CallSelection> {
     let mut selections = Vec::new();
-    let mut covered_expressions = Vec::new();
+    // Membership lists only answer `contains` inside per-expression loops;
+    // keep them as sets so each query is O(1) rather than a rescan.
+    let contract_expressions: HashSet<ExpressionHandle> =
+        contract_expressions.iter().copied().collect();
+    let mut covered_expressions = HashSet::new();
 
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -245,7 +250,7 @@ pub(super) fn collect_call_selections(
                             && typed_trees::operator::resolve_named_expression_call(program, call)
                                 .is_none()
                         {
-                            covered_expressions.push(local.initial_value);
+                            covered_expressions.insert(local.initial_value);
                             if let Some(selection) = selection_for_call(
                                 program,
                                 machine,
@@ -274,7 +279,7 @@ pub(super) fn collect_call_selections(
                             && typed_trees::operator::resolve_named_expression_call(program, call)
                                 .is_none()
                         {
-                            covered_expressions.push(*expression);
+                            covered_expressions.insert(*expression);
                             if let Some(selection) = selection_for_call(
                                 program,
                                 machine,
@@ -356,6 +361,7 @@ pub(super) fn collect_call_selections(
                 {
                     continue;
                 }
+
                 let ExpressionNode::Call(call) = program.expression_table.expression(expression)
                 else {
                     continue;
@@ -363,7 +369,7 @@ pub(super) fn collect_call_selections(
                 if typed_trees::operator::resolve_named_expression_call(program, call).is_some() {
                     continue;
                 }
-                covered_expressions.push(expression);
+                covered_expressions.insert(expression);
                 if let Some(selection) = selection_for_call(
                     program,
                     machine,
@@ -399,6 +405,7 @@ pub(super) fn collect_call_selections(
             );
         }
     }
+    let initializer_recipes: HashSet<ExpressionHandle> = initializer_recipes.into_iter().collect();
 
     // Calls outside executable states have no caller argument context, but explicit
     // static-machine arguments still determine a complete tuple through the
