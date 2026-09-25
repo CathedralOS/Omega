@@ -42,7 +42,7 @@ SOURCE_READERS = {
 # tests/fixtures is executable test input. Architecture reads the optimizer rule
 # inventory; the compiler corpus audit below reads prose across the repository.
 DOCUMENTATION_FILES = {
-    "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
+    "AGENTS.md", "CONTRIBUTING.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
     "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
     "tools/rust_producer_omission.md", "tools/testing.md",

@@ -11,9 +11,10 @@ description: >-
 
 One invocation delivers a bounded compiler improvement through publication.
 A blocked task or paused strategy does not end an unrestricted invocation.
-Reassess the strategy or select independent actionable work under AGENTS.md.
+Reassess the strategy or select independent actionable work under CONTRIBUTING.md.
 Reconfirming a known blocker is verification-only, not a
-completed advance. Follow [AGENTS.md](../../../AGENTS.md) for repository
+completed advance. Follow [AGENTS.md](../../../AGENTS.md) and
+[CONTRIBUTING.md](../../../CONTRIBUTING.md) for repository
 ownership, validation, scope checkpoints, board hygiene, and publication.
 
 ## Choose the next customer outcome
@@ -31,7 +32,7 @@ choose from `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a n
 board. For unrestricted compiler work, prioritize immediate product closure over
 unrelated cleanup. Missing implementation, a red customer command, and cross-stage
 scope do not make a task unavailable. A paused helper strategy requires the
-AGENTS.md reassessment before resumption, not permanent exclusion of its customer.
+CONTRIBUTING.md reassessment before resumption, not permanent exclusion of its customer.
 When passing over an eligible priority, name the real decision, prerequisite, or
 active assignment preventing work. Check live assignments with
 `python tools/claims.py status` and coordinate overlapping paths before editing;
@@ -61,7 +62,7 @@ Keep the existing proof-obligation, active-assignment, and pause rules intact.
 
 Read the owning design and [completion plan](../../../wiki/drafts/reference/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
-Apply [scope checkpoints](../../../AGENTS.md#scope-checkpoints) using recent
+Apply [scope checkpoints](../../../CONTRIBUTING.md#scope-checkpoints) using recent
 milestones across invocations and delegated work. Required customer behavior and
 human-auditable proof closure justify work; a board item or passing helper alone
 does not. Compare simpler alternatives before adding machinery.
@@ -99,7 +100,7 @@ tier`, `structurally false`), `python tools/proof_advisor.py --omega
 classification — advisory only: it orders investigation, never discharges
 anything, and admission fences stay out of its scope by design.
 
-Apply [compositional lowering](../../../AGENTS.md#compositional-lowering) before
+Apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering) before
 turning that failure into another narrowly admitted source family. If supported
 operations fail only because of their surrounding arrangement, repair the shared
 sequencing or semantic join and retire the replaced recognizer. Carry the same
@@ -133,7 +134,7 @@ provider route. A single bounded change normally needs one agent; delegate only
 independent useful work that justifies its briefing and review cost.
 
 For an explicitly assigned discoverability/architecture change, apply
-[Discoverability architecture](../../../AGENTS.md#discoverability-architecture).
+[Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture).
 The customer outcome is a clearer route to a named operation, not a set of smaller
 files. Before editing, identify that operation, its crate entry, and the point
 where sequencing or ownership becomes hard to follow. Compare the route with
@@ -150,7 +151,7 @@ resolved; do not choose the next large file as an automatic continuation. This
 does not authorize unrelated architecture work during a compiler behavior task.
 
 Select checks from the affected behavior under
-[validation scope](../../../AGENTS.md#validation-scope). A bug fix needs a witnessed
+[validation scope](../../../tools/testing.md#validation-scope). A bug fix needs a witnessed
 regression. Read the harness before filtering: fixture-path filters and nextest
 test-name filters select different things. For e2e-visible changes — diagnostics,
 pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
@@ -199,8 +200,8 @@ evidence still belongs on the board and run history in the conversation.
 
 ## Delegate a bounded assignment
 
-Read [agent delegation](../../../AGENTS.md#agent-delegation) for current model
-routing and assignment requirements. Keep that policy in AGENTS.md. Give the worker
+Read [agent delegation](../../../CONTRIBUTING.md#agent-delegation) for current model
+routing and assignment requirements. Keep that policy in CONTRIBUTING.md. Give the worker
 its exact worktree/revision and canonical skill path, objective, design anchors,
 edit ownership, dependencies, acceptance, and escalation conditions. Refine the
 owning board only when it lacks context needed for the assignment.
@@ -304,7 +305,7 @@ Engineering difficulty alone is not an owner decision.
 
 For a blocker, name the attempted slice, missing contract or unavailable dependency,
 why existing mechanisms cannot deliver acceptance, and the next executable step.
-For a scope pause, cite the applicable AGENTS.md checkpoint, preserve useful work,
+For a scope pause, cite the applicable CONTRIBUTING.md checkpoint, preserve useful work,
 and record why that strategy cannot continue. Do not evade it by changing helpers
 or manufacturing an owner question. Actual language/architecture decisions follow
 `OWNER_QUESTIONS.md` and the ratified decision process; reference the dependency

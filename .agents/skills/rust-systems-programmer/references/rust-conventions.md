@@ -1,6 +1,6 @@
 # Rust coding and verification conventions
 
-Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repository conventions](../../../../AGENTS.md#repository-conventions); those contracts take precedence.
+Apply these preferences within [AGENTS.md](../../../../AGENTS.md) and its [repository conventions](../../../../CONTRIBUTING.md#repository-conventions); those contracts take precedence.
 
 ## Name the domain, not the mechanics
 
@@ -53,7 +53,7 @@ result publication explicit and covered by tests.
 Apply the same review at the crate root: a coordinator-named directory containing
 all domains can conceal the architecture even when its children are organized.
 Expose peer responsibilities and move shared work out of consumer-owned modules;
-follow the [canonical ownership rule](../../../../AGENTS.md#discoverability-architecture),
+follow the [canonical ownership rule](../../../../omega-rust/pipeline.md#discoverability-architecture),
 not a mechanical flattening or a directory tree copied from the call stack.
 
 Prefer explicit imports for project types; grouping related standard-library or external imports is fine. Follow local formatting, remove unused imports, and do not churn existing imports solely for style. Do not add empty `impl` blocks or pass-through helpers with no responsibility.

@@ -1,6 +1,6 @@
 //! Crate-root responsibility audit for the scoped crate families.
 //!
-//! AGENTS.md requires every program representation to keep one named root
+//! omega-rust/pipeline.md requires every program representation to keep one named root
 //! file beside `lib.rs`; the root defines the current program and leads into
 //! subordinate concept-owned areas. The same discoverability rule applies to
 //! domain roots generally: `lib.rs` wiring alone does not establish who owns

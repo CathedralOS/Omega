@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run the repository's documented full-baseline gates as one command.
 
-Every gate is the exact command named by AGENTS.md's "Full baseline" section;
+Every gate is the exact command named by tools/testing.md's "Full baseline" section;
 this runner adds nothing and skips nothing. It prefers `mbx` and falls back to
 Cargo, uses `cargo fmt` directly as documented, streams each gate's own output
 in order, and keeps going after a failure so the closing summary reports every
@@ -10,7 +10,7 @@ gate's verdict in one pass. `--plan` prints the resolved JSON without running.
 The run is checkout-local evidence: it neither caches results nor grants a
 landing reservation, and the summary records which host ran each gate for the
 platform-support matrix. Selection policy and the corpus filter belong to
-AGENTS.md; see tools/testing.md.
+tools/testing.md.
 """
 
 import argparse

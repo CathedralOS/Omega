@@ -49,12 +49,12 @@ the trial checkout under `.codex/worktrees/`.
 Stage the entire skill directory, including references, at
 `.agents/skills/advance` in the trial clone. Record a committed base before the
 worker starts. For a no-skill arm, remove only that skill and tell the worker not
-to load it through aliases or global discovery. Preserve the same AGENTS.md and
+to load it through aliases or global discovery. Preserve the same AGENTS.md and CONTRIBUTING.md and
 other skills. For before/after trials, use complete snapshots from the respective
 revisions, not one SKILL.md with mismatched references.
 
 Use the same prompt and acceptance in both arms; only paths and skill selection
-differ. Give each worker its own scratch directory. Follow AGENTS.md model routing.
+differ. Give each worker its own scratch directory. Follow CONTRIBUTING.md model routing.
 Do not launch simultaneous compiler builds on one host. Shared caches and cold
 builds confound timing; record their treatment before comparing elapsed time.
 
@@ -62,7 +62,7 @@ Capture the worker's revision, host, commands and exits, diff, customer result,
 publication state, remaining dependencies, and actual instruction paths. Compare
 commits against the recorded base, not the moving origin/main. Verify the claimed
 checks at the tested candidate before discarding anything. Full baseline work is
-an explicit experiment choice under AGENTS.md, not a routine grading prerequisite.
+an explicit experiment choice under tools/testing.md, not a routine grading prerequisite.
 
 Keep run evidence outside the skill's reusable instructions. Distinguish source
 review, structural validation, and executed behavior trials. Do not infer a timing
