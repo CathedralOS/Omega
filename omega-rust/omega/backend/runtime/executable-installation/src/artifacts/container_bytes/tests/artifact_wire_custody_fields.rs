@@ -104,6 +104,8 @@ pub enum ContainerWireRejection {
     Construction(&'static str),
     /// `encode_executable_container` refused the substituted artifact.
     Encoding(&'static str),
+    /// `decode_executable_container` refused the substituted wire bytes.
+    Decode(&'static str),
     /// `admit_validated_container` refused to bind the substituted
     /// container to the authentic evidence.
     Replay(&'static str),
@@ -147,9 +149,10 @@ impl ContainerWireRejection {
     /// The diagnostic fragment this verdict requires.
     pub const fn fragment(self) -> &'static str {
         match self {
-            Self::Construction(fragment) | Self::Encoding(fragment) | Self::Replay(fragment) => {
-                fragment
-            }
+            Self::Construction(fragment)
+            | Self::Encoding(fragment)
+            | Self::Decode(fragment)
+            | Self::Replay(fragment) => fragment,
         }
     }
 }
