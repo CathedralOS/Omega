@@ -235,20 +235,25 @@ fn reserved_cleanup_selected_by(
     program: &TypedTrees,
     selected_symbol: SymbolHandle,
 ) -> Option<&Machine> {
+    // At most one machine can ever match: the selected symbol is either the
+    // machine itself or one of its states — and a state's retained parent
+    // names its owning machine directly, so the whole-program machine scan
+    // collapses to a single candidate.
+    let machine_symbol = match program.symbols.get(selected_symbol).kind {
+        symbols::SymbolKind::Machine => selected_symbol,
+        symbols::SymbolKind::State => program.symbols.get(selected_symbol).parent,
+        _ => return None,
+    };
     program.machines().iter().find(|machine| {
         let owner = machine.attached_data_symbol;
-        machine.attached_data.is_some()
+        machine.symbol == machine_symbol
+            && machine.attached_data.is_some()
             && owner.is_valid()
             && machine.name.as_str().rsplit("::").next() == Some("drop")
             && program
                 .data_definitions()
                 .iter()
                 .any(|data| data.symbol == owner)
-            && (machine.symbol == selected_symbol
-                || program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|state| state.symbol == selected_symbol))
     })
 }
 

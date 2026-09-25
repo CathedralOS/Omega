@@ -78,9 +78,10 @@ pub(super) fn facts_contain_expression(
 ) -> bool {
     program.proof_facts.span_or_empty(facts).iter().any(|fact| {
         let mut nodes = Vec::new();
+        let mut seen = std::collections::HashSet::new();
         let mut collect = |root| {
             crate::value_custody::expression_types::collect_expression_nodes(
-                program, root, &mut nodes,
+                program, root, &mut nodes, &mut seen,
             )
         };
         match fact {

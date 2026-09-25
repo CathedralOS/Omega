@@ -77,7 +77,38 @@ pub(crate) fn type_requires_establishment(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    type_requires_establishment_inner(program, type_reference, &mut Vec::new())
+    type_requires_establishment_inner(
+        program,
+        type_reference,
+        &mut EstablishmentIndex::new(program),
+    )
+}
+
+/// One walk's working set: the name-indexed declaration table the inner
+/// walkers used to rescan per Named node, the active-path `seen` set, and the
+/// absolute answers already proven for completed definitions — a definition's
+/// result does not depend on the path that reached it, so it is memoized.
+struct EstablishmentIndex<'program> {
+    defs_by_name:
+        std::collections::HashMap<&'program str, &'program typed_trees::data::DataDefinition>,
+    seen: std::collections::HashSet<&'program str>,
+    computed: std::collections::HashMap<&'program str, bool>,
+}
+
+impl<'program> EstablishmentIndex<'program> {
+    fn new(program: &'program TypedTrees) -> Self {
+        let mut defs_by_name = std::collections::HashMap::new();
+        for definition in program.data_definitions() {
+            defs_by_name
+                .entry(definition.name.as_str())
+                .or_insert(definition);
+        }
+        Self {
+            defs_by_name,
+            seen: std::collections::HashSet::new(),
+            computed: std::collections::HashMap::new(),
+        }
+    }
 }
 
 fn validate_data_default_domain(
@@ -145,10 +176,10 @@ fn validate_data_default_domain(
     }
 }
 
-fn type_requires_establishment_inner(
-    program: &TypedTrees,
+fn type_requires_establishment_inner<'program>(
+    program: &'program TypedTrees,
     type_reference: TypeReferenceHandle,
-    seen: &mut Vec<String>,
+    index: &mut EstablishmentIndex<'program>,
 ) -> bool {
     if !type_reference.is_valid() {
         return false;
@@ -163,16 +194,17 @@ fn type_requires_establishment_inner(
     }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            type_requires_establishment_inner(program, *base_type, seen)
+            type_requires_establishment_inner(program, *base_type, index)
         }
         TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_requires_establishment_inner(program, *element_type, seen)
+            type_requires_establishment_inner(program, *element_type, index)
         }
-        TypeReferenceNode::Named { name, .. } => program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name.as_str() == name.as_str())
-            .is_some_and(|definition| data_requires_establishment_inner(program, definition, seen)),
+        TypeReferenceNode::Named { name, .. } => {
+            let definition = index.defs_by_name.get(name.as_str()).copied();
+            definition.is_some_and(|definition| {
+                data_requires_establishment_inner(program, definition, index)
+            })
+        }
         _ => false,
     }
 }
@@ -181,27 +213,30 @@ pub fn data_requires_establishment(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    data_requires_establishment_inner(program, definition, &mut Vec::new())
+    data_requires_establishment_inner(program, definition, &mut EstablishmentIndex::new(program))
 }
 
-fn data_requires_establishment_inner(
-    program: &TypedTrees,
-    definition: &typed_trees::data::DataDefinition,
-    seen: &mut Vec<String>,
+fn data_requires_establishment_inner<'program>(
+    program: &'program TypedTrees,
+    definition: &'program typed_trees::data::DataDefinition,
+    index: &mut EstablishmentIndex<'program>,
 ) -> bool {
     if definition.zero_gated {
         return true;
     }
-    let name = definition.name.as_str().to_owned();
-    if seen.contains(&name) {
+    let name = definition.name.as_str();
+    if index.seen.contains(name) {
         return false;
     }
-    seen.push(name.clone());
+    if let Some(answer) = index.computed.get(name) {
+        return *answer;
+    }
+    index.seen.insert(name);
 
     let members = program.data_members(definition);
     let common_gated = members.iter().any(|member| match member {
         DataMember::Field(field) => {
-            type_requires_establishment_inner(program, field.type_reference, seen)
+            type_requires_establishment_inner(program, field.type_reference, index)
         }
         DataMember::Variant(_) => false,
     });
@@ -212,14 +247,15 @@ fn data_requires_establishment_inner(
             DataMember::Field(_) => None,
         })
         .is_some_and(|variant| {
-            program
-                .data_payload_fields(variant)
-                .iter()
-                .any(|field| type_requires_establishment_inner(program, field.type_reference, seen))
+            program.data_payload_fields(variant).iter().any(|field| {
+                type_requires_establishment_inner(program, field.type_reference, index)
+            })
         });
 
-    seen.retain(|candidate| candidate != &name);
-    common_gated || zero_case_gated
+    index.seen.remove(name);
+    let result = common_gated || zero_case_gated;
+    index.computed.insert(name, result);
+    result
 }
 
 fn validate_payload_field_names(

@@ -4,6 +4,8 @@
 //! embedding neither executes that expression nor replaces it with mathematical
 //! arithmetic; proof normalization must preserve the source denotation.
 
+use std::collections::HashSet;
+
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use numerics::literals::LandedIntegerType;
@@ -43,24 +45,32 @@ pub(crate) fn validate_proof_embeddings(
             ));
         }
     }
-    // This is a transient set of full generational handles, not semantic
-    // identity. A linear arena-backed collection is sufficient for this gate.
+    // These are transient sets of full generational handles, not semantic
+    // identity. The vectors keep collection order; the hash sets keep
+    // membership checks off the quadratic path for program-scale forests.
     let mut proof_nodes = Vec::new();
     let mut runtime_nodes = Vec::new();
+    let mut proof_seen = HashSet::new();
+    let mut runtime_seen = HashSet::new();
     for (_, fact) in program.proof_facts.iter() {
         match fact {
             ProofFact::Expression(expression) => {
-                collect_expression_nodes(program, *expression, &mut proof_nodes);
+                collect_expression_nodes(program, *expression, &mut proof_nodes, &mut proof_seen);
             }
             ProofFact::Membership(membership) => {
-                collect_expression_nodes(program, membership.value, &mut proof_nodes);
+                collect_expression_nodes(
+                    program,
+                    membership.value,
+                    &mut proof_nodes,
+                    &mut proof_seen,
+                );
             }
             ProofFact::Proposition(application) => {
                 for argument in program
                     .expression_table
                     .expression_handles(application.arguments)
                 {
-                    collect_expression_nodes(program, *argument, &mut proof_nodes);
+                    collect_expression_nodes(program, *argument, &mut proof_nodes, &mut proof_seen);
                 }
             }
         }
@@ -69,14 +79,24 @@ pub(crate) fn validate_proof_embeddings(
         if let PropositionBody::Transparent { proposition } = &proposition.body {
             match proposition {
                 PropositionFormula::BooleanExpression(expression) => {
-                    collect_expression_nodes(program, *expression, &mut proof_nodes);
+                    collect_expression_nodes(
+                        program,
+                        *expression,
+                        &mut proof_nodes,
+                        &mut proof_seen,
+                    );
                 }
                 PropositionFormula::Application(application) => {
                     for argument in program
                         .expression_table
                         .expression_handles(application.arguments)
                     {
-                        collect_expression_nodes(program, *argument, &mut proof_nodes);
+                        collect_expression_nodes(
+                            program,
+                            *argument,
+                            &mut proof_nodes,
+                            &mut proof_seen,
+                        );
                     }
                 }
             }
@@ -86,7 +106,7 @@ pub(crate) fn validate_proof_embeddings(
         if classification.is_proof_machine(program, machine) {
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
-                    collect_statement_nodes(program, statement, &mut proof_nodes);
+                    collect_statement_nodes(program, statement, &mut proof_nodes, &mut proof_seen);
                 }
             }
         } else if let Some(expression) =
@@ -94,14 +114,24 @@ pub(crate) fn validate_proof_embeddings(
                 program, machine,
             )
         {
-            collect_expression_nodes(program, expression, &mut proof_nodes);
+            collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
         } else {
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let StatementNode::AssemblyFact(fact) = statement {
-                        collect_expression_nodes(program, fact.expression, &mut proof_nodes);
+                        collect_expression_nodes(
+                            program,
+                            fact.expression,
+                            &mut proof_nodes,
+                            &mut proof_seen,
+                        );
                     } else {
-                        collect_statement_nodes(program, statement, &mut runtime_nodes);
+                        collect_statement_nodes(
+                            program,
+                            statement,
+                            &mut runtime_nodes,
+                            &mut runtime_seen,
+                        );
                     }
                 }
             }
@@ -121,7 +151,7 @@ pub(crate) fn validate_proof_embeddings(
             diagnostics.push(Diagnostic::error(
                 "`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it",
             ));
-        } else if !proof_nodes.contains(&handle) || runtime_nodes.contains(&handle) {
+        } else if !proof_seen.contains(&handle) || runtime_seen.contains(&handle) {
             diagnostics.push(Diagnostic::error(
                 "compiler-owned `embed(value)` is proof-only and cannot be used in an executable value or statement",
             ));
@@ -218,6 +248,7 @@ pub(crate) fn machine_contains_integer_embedding(
     machine: &typed_trees::machine::Machine,
 ) -> bool {
     let mut nodes = Vec::new();
+    let mut seen = HashSet::new();
     for contract in program.machine_contracts(machine).iter().chain(
         program
             .machine_states(machine)
@@ -227,17 +258,17 @@ pub(crate) fn machine_contains_integer_embedding(
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             match fact {
                 ProofFact::Expression(expression) => {
-                    collect_expression_nodes(program, *expression, &mut nodes)
+                    collect_expression_nodes(program, *expression, &mut nodes, &mut seen)
                 }
                 ProofFact::Membership(membership) => {
-                    collect_expression_nodes(program, membership.value, &mut nodes)
+                    collect_expression_nodes(program, membership.value, &mut nodes, &mut seen)
                 }
                 ProofFact::Proposition(application) => {
                     for argument in program
                         .expression_table
                         .expression_handles(application.arguments)
                     {
-                        collect_expression_nodes(program, *argument, &mut nodes);
+                        collect_expression_nodes(program, *argument, &mut nodes, &mut seen);
                     }
                 }
             }
@@ -245,7 +276,7 @@ pub(crate) fn machine_contains_integer_embedding(
     }
     for state in program.machine_states(machine) {
         for statement in program.statement_table.statements(state.statement_nodes) {
-            collect_statement_nodes(program, statement, &mut nodes);
+            collect_statement_nodes(program, statement, &mut nodes, &mut seen);
         }
     }
     nodes.into_iter().any(|expression| {
@@ -460,39 +491,40 @@ fn collect_statement_nodes(
     program: &TypedTrees,
     statement: &StatementNode,
     nodes: &mut Vec<ExpressionHandle>,
+    seen: &mut HashSet<ExpressionHandle>,
 ) {
     match statement {
         StatementNode::RootBinding(_) => {}
         StatementNode::AssemblyFact(fact) => {
-            collect_expression_nodes(program, fact.expression, nodes)
+            collect_expression_nodes(program, fact.expression, nodes, seen)
         }
         StatementNode::Assignment(assignment) => {
-            collect_expression_nodes(program, assignment.target, nodes);
-            collect_expression_nodes(program, assignment.value, nodes);
+            collect_expression_nodes(program, assignment.target, nodes, seen);
+            collect_expression_nodes(program, assignment.value, nodes, seen);
         }
         StatementNode::Call(call) => {
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_expression_nodes(program, *argument, nodes);
+                collect_expression_nodes(program, *argument, nodes, seen);
             }
         }
         StatementNode::Expression(expression) => {
-            collect_expression_nodes(program, *expression, nodes)
+            collect_expression_nodes(program, *expression, nodes, seen)
         }
         StatementNode::LocalData(local) => {
-            collect_expression_nodes(program, local.initial_value, nodes)
+            collect_expression_nodes(program, local.initial_value, nodes, seen)
         }
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_nodes(program, guard, nodes);
+                collect_expression_nodes(program, guard, nodes, seen);
             }
             for target in [transition.target, transition.continuation] {
                 match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Value(expression) => {
-                        collect_expression_nodes(program, *expression, nodes)
+                        collect_expression_nodes(program, *expression, nodes, seen)
                     }
                     TransitionTargetNode::Named { arguments, .. } => {
                         for argument in program.expression_table.expression_handles(*arguments) {
-                            collect_expression_nodes(program, *argument, nodes);
+                            collect_expression_nodes(program, *argument, nodes, seen);
                         }
                     }
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}

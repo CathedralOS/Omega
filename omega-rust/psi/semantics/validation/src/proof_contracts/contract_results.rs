@@ -166,11 +166,12 @@ fn contract_occurrence_owner(
     for (callable, return_type, parameters, contracts) in machines.chain(requirements) {
         for contract in contracts {
             let mut nodes = Vec::new();
+            let mut seen = std::collections::HashSet::new();
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 match fact {
                     ProofFact::Expression(root) => {
                         crate::value_custody::expression_types::collect_expression_nodes(
-                            program, *root, &mut nodes,
+                            program, *root, &mut nodes, &mut seen,
                         );
                     }
                     ProofFact::Membership(membership) => {
@@ -178,6 +179,7 @@ fn contract_occurrence_owner(
                             program,
                             membership.value,
                             &mut nodes,
+                            &mut seen,
                         );
                     }
                     ProofFact::Proposition(application) => {
@@ -186,13 +188,13 @@ fn contract_occurrence_owner(
                             .expression_handles(application.arguments)
                         {
                             crate::value_custody::expression_types::collect_expression_nodes(
-                                program, *argument, &mut nodes,
+                                program, *argument, &mut nodes, &mut seen,
                             );
                         }
                     }
                 }
             }
-            if !nodes.contains(&expression) || !nodes.contains(&root) {
+            if !seen.contains(&expression) || !seen.contains(&root) {
                 continue;
             }
             // Spelling is only the reserved-form discriminator. The full
