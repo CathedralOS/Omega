@@ -17,7 +17,7 @@
 //! `data_reads.rs` validates data reads.
 
 mod assignment_windows;
-mod call_summaries;
+pub(crate) mod call_summaries;
 mod data_reads;
 mod place_queries;
 mod state_flow;
