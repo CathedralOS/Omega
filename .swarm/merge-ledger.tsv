@@ -187,3 +187,4 @@ fe92763306	leaf/machine-symbol-verdicts	machine_by_symbol per-program scan-verdi
 17c98718bc	capability-verdict-cache	bindings-verdict cache + def index in write_frames	2026-09-25T10:35:57Z
 a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index in captures	2026-09-25T10:49:16Z
 2026-09-25T11:04Z	46af6a009e	leaf/generic-origin-index	coordinator	index application() origin/def rosters by instance symbol; scanned fallback on malformed
+2026-09-25T11:08Z		leaf/borrow-state-index	coordinator	borrow.states bucketed by (machine,state); find_call_site_in_state reuses located owner
