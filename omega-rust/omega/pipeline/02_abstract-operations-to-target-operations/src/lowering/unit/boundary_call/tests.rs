@@ -1531,7 +1531,9 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
             id: bytes,
             identity: "bytes".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         },
         terminal_psi::StructuralTypeDeclaration {
@@ -1542,7 +1544,9 @@ fn normalized_foreign_borrowed_view_descriptors_admit_whole_place_and_stored_fie
                     field(
                         "slice",
                         terminal_psi::StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                         ),
                     ),
                     field(

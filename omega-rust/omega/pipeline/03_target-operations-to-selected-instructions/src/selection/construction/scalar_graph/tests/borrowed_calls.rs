@@ -53,7 +53,9 @@ pub(super) fn borrowed_call(target: target::NativeTarget) -> LegalizedScalarFunc
         structural_types: vec![StructuralTypeDeclaration {
             id: structural_type,
             identity: "bytes".into(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         }]
         .into(),
         parameters: vec![legalized_operations::LegalizedCallUnitParameter {

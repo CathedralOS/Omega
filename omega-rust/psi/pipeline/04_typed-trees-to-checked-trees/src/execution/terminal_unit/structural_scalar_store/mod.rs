@@ -310,7 +310,7 @@ fn plan_assignment(
         Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
             Some(Some(capacity))
         }
-        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
             if byte_stores::field_view_is_mutable(program, field.type_reference) =>
         {
             Some(None)

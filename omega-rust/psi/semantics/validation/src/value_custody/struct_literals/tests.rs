@@ -10,6 +10,64 @@ fn construction_diagnostics(source: &str) -> Vec<Diagnostic> {
 }
 
 #[test]
+fn a_where_bounded_construction_reads_requires_and_guarded_arithmetic() {
+    let source = "data Pair where left <= 5 { left: u32; }
+         machine make(value: u32) -> Pair requires value <= 5 { Pair { left: value } }
+         machine step(pair: Pair) -> Pair {
+             transition pair.left > 0 {
+                 true -> next(Pair { left: pair.left - 1 })
+                 false -> (pair)
+             }
+             state next(result: Pair) -> Pair { result }
+         }";
+    let unproved = |source: &str| {
+        construction_diagnostics(source).iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("literal cannot prove the default domain")
+        })
+    };
+    assert!(!unproved(source), "{:?}", construction_diagnostics(source));
+    // A wider clause, or a step that can climb past the ceiling, stays unproved.
+    assert!(unproved(
+        &source.replace("requires value <= 5", "requires value <= 6")
+    ));
+    assert!(unproved(&source.replace("pair.left - 1", "pair.left + 1")));
+}
+
+#[test]
+fn a_parameter_requires_bounds_a_ranged_field_construction() {
+    let source = "data Pair { left: u32 [0..=5]; }
+         machine make(value: u32) -> Pair requires value <= 5 { Pair { left: value } }
+         machine walk(value: u32) -> Pair {
+             transition { _ -> build(value) }
+             state build(copy: u32) -> Pair requires copy <= 5 { Pair { left: copy } }
+         }";
+    let diagnostics = construction_diagnostics(source);
+    assert!(
+        !diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot be proven within its declared range")),
+        "{diagnostics:?}"
+    );
+    // One past the field's ceiling, in either the machine or the state
+    // clause, leaves the construction unproved.
+    for widened in [
+        source.replace("requires value <= 5", "requires value <= 6"),
+        source.replace("requires copy <= 5", "requires copy <= 6"),
+    ] {
+        assert!(
+            construction_diagnostics(&widened)
+                .iter()
+                .any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot be proven within its declared range")),
+            "{widened}"
+        );
+    }
+}
+
+#[test]
 fn synthesized_payload_tags_are_not_constructor_values() {
     let mut program = crate::front_end::typed_program(
         "trait Equatable { machine equals(&self, rhs: &Self) -> bool; }

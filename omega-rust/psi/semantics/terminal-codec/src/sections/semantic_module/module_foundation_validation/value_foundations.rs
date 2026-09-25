@@ -213,7 +213,7 @@ pub(super) fn validate_establish_byte_sequence_literal(
     };
     if !matches!(
         declaration.shape,
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView)
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
     ) {
         return malformed("byte-sequence literal must use a borrowed byte-sequence type");
     }

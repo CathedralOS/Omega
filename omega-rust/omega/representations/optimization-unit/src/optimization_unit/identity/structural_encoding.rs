@@ -209,16 +209,22 @@ fn encode_retained_borrow_projection(
     encode_content_projection_expression(bytes, &projection.projection.expression);
 }
 
-fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
-    bytes.string(&custody.callable_identity);
-    encode_retained_borrow_place(bytes, &custody.source);
-    encode_retained_borrow_place(bytes, &custody.result);
-    bytes.u8(match custody.access {
+/// One access byte, shared by every identity that encodes one. The values
+/// start at 1 so a zero byte stays a decoder's unwritten-field signal.
+fn encode_structural_access(bytes: &mut CanonicalBytes, access: StructuralAccess) {
+    bytes.u8(match access {
         StructuralAccess::Owned => 1,
         StructuralAccess::SharedBorrow => 2,
         StructuralAccess::MutableBorrow => 3,
         StructuralAccess::WriteOnlyBorrow => 4,
     });
+}
+
+fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
+    bytes.string(&custody.callable_identity);
+    encode_retained_borrow_place(bytes, &custody.source);
+    encode_retained_borrow_place(bytes, &custody.result);
+    encode_structural_access(bytes, custody.access);
     bytes.u32(custody.callable_lifetime_parameter_count);
     bytes.u32(custody.callable_lifetime_parameter_ordinal);
     bytes.string(&custody.result_nominal_identity);
@@ -493,7 +499,18 @@ pub(super) fn encode_structural_field(
 
 pub(super) fn encode_byte_carrier(bytes: &mut CanonicalBytes, carrier: ByteSequenceCarrier) {
     match carrier {
-        ByteSequenceCarrier::BorrowedView => bytes.u8(1),
+        // The access distinguishes two carriers that were one identity before
+        // it existed, so it joins the encoded bytes rather than riding beside
+        // them.
+        // A zero access byte is the absent access a standalone view type
+        // carries; a field's access encodes as its own nonzero value.
+        ByteSequenceCarrier::BorrowedView { access } => {
+            bytes.u8(1);
+            match access {
+                Some(access) => encode_structural_access(bytes, access),
+                None => bytes.u8(0),
+            }
+        }
         ByteSequenceCarrier::BoundedOwned { capacity } => {
             bytes.u8(2);
             bytes.u64(capacity);

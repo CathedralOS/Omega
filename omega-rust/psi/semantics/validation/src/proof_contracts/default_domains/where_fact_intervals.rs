@@ -53,14 +53,25 @@ fn field_fact_interval(
         high: None,
     };
     let mut refined = false;
-    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        let typed_trees::domain::ProofFact::Expression(fact_expression) = fact else {
-            continue;
-        };
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(*fact_expression)
+    // A fact spelled `a && b` states both conjuncts, exactly as `a, b` does.
+    let mut conjuncts = program
+        .proof_facts
+        .span_or_empty(definition.where_facts)
+        .iter()
+        .filter_map(|fact| match fact {
+            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    while let Some(fact_expression) = conjuncts.pop() {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(fact_expression)
         else {
             continue;
         };
+        if binary.operator == BinaryOperator::And {
+            conjuncts.extend([binary.left, binary.right]);
+            continue;
+        }
         // R2 rung 3 slice 10 -- PRODUCT hypotheses (`count * stride <= len`,
         // ch12's canonical shape): when OUR field is one FACTOR of a
         // product bounded above, the field's upper bound is

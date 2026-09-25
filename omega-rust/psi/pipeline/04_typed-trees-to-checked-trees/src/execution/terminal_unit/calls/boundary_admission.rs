@@ -75,7 +75,7 @@ pub(crate) fn boundary_argument_presentation_is_admitted(
         ),
         (
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }),
-            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }),
         )
     )
 }

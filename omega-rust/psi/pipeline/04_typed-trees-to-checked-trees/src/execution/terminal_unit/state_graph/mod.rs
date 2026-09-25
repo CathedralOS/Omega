@@ -1400,8 +1400,11 @@ pub(super) fn build_traced(
                             )
                     );
                     if !borrowed_named_referent
-                        && byte_sequence_carrier(program, reference, &[])
-                            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+                        && !checked_trees::is_borrowed_view(byte_sequence_carrier(
+                            program,
+                            reference,
+                            &[],
+                        ))
                         && borrowed_slice_view_element(program, reference, &[]).is_none()
                     {
                         trace.phase(

@@ -21,7 +21,9 @@ fn zero_filled_receiver_byte_fields_require_owned_backing() {
         ByteSequenceCarrier::BoundedOwned { capacity: 0 },
         ByteSequenceCarrier::BoundedOwned { capacity: 3 },
         ByteSequenceCarrier::BoundedOwned { capacity: 9 },
-        ByteSequenceCarrier::BorrowedView,
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        },
     ] {
         let declarations = [
             StructuralTypeDeclaration {
@@ -198,7 +200,9 @@ fn nested_receiver_storage_follows_the_zero_tag_sum_case() {
             .unwrap(),
         ))],
         vec![field(StructuralFieldType::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ))],
         vec![StructuralFieldDeclaration {
             relevance: BindingRelevance::Erased,
@@ -316,7 +320,9 @@ fn nested_receiver_storage_checks_array_elements_and_mixed_common_fields() {
     // Elements that zero cannot establish reject through the same chain.
     for element_shape in [
         StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
         StructuralTypeShape::Record {
             fields: vec![field(StructuralFieldType::BoundedInteger(
                 BoundedIntegerType::new(

@@ -148,7 +148,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             .get(&structural_type)
                             .map(|declaration| &declaration.shape),
                         Some(StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         ))
                     )
                 };
@@ -159,7 +159,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     (
                         source_structural_type,
                         byte_sequence_shape(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
                             source_structural_type,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
@@ -199,7 +201,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             (
                                 parameter.structural_type,
                                 byte_sequence_shape(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                    },
                                     parameter.structural_type,
                                 )
                                 .map_err(|_| {
@@ -252,7 +256,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             .get(&parameter.structural_type)
                             .map(|declaration| &declaration.shape),
                         Some(StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         ))
                     );
                     if descriptor_formal {

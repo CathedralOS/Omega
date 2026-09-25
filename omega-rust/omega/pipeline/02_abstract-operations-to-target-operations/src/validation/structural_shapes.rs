@@ -299,7 +299,7 @@ pub(super) fn borrowed_view_field_offset(
     let mut active = BTreeSet::new();
     let (field_offset, carrier) =
         byte_sequence_field_geometry(root, path, declarations, &indexed, &mut cache, &mut active)?;
-    if carrier != ByteSequenceCarrier::BorrowedView {
+    if !matches!(carrier, ByteSequenceCarrier::BorrowedView { .. }) {
         return Err(InvalidStructuralShape);
     }
     // The two descriptor words must remain inside the root storage the
@@ -385,7 +385,7 @@ pub(super) fn boundary_formal_shape(
                 declaration.id == structural_type
                     && matches!(
                         declaration.shape,
-                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
                     )
             });
             if descriptor_formal {
@@ -441,7 +441,7 @@ fn classified_boundary_shape(
             classify_scalar_leaves(&leaves, referent, policy)?
         }
         StructuralTypeShape::PrimitiveScalar(_)
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => referent.class,
         _ => return Err(InvalidStructuralShape),
     };
@@ -484,7 +484,7 @@ fn collect_scalar_leaves(
             ));
         }
         StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => {
             let referent = shape(structural_type, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(referent.byte_size), false));
@@ -557,7 +557,7 @@ fn collect_field_leaves(
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(leaf.byte_size), false));
         }
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(leaf.byte_size), false));
         }
@@ -696,7 +696,7 @@ fn shape(
         // slot the lowering assigns rather than a pointer-sized payload.
         StructuralTypeShape::Reference { .. } => ValueShape::integer(0, 1),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
         StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
@@ -961,7 +961,7 @@ fn field_shape(
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
         StructuralFieldType::Structural(nested) => shape(*nested, declarations, cache, active),
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
             Ok(ValueShape::integer(16, 8))
         }
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {

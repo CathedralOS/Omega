@@ -624,7 +624,9 @@ fn ranked_countdown_with_borrowed_subslice_needs_ordinary_evidence() {
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type,
         identity: "test::BorrowedBytes".into(),
-        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let machine = &mut module.machines[0];
     machine

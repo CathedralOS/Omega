@@ -109,7 +109,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             // Borrowed view results carry no payload fields; the reference's
             // stored extent is their whole runtime shape.
             CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
             )
             | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
             // Primitive scalars returned above as `Scalar`. Other by-value
@@ -498,7 +498,7 @@ pub(in crate::execution::terminal_unit) fn view_result_operation(
     let return_type = state.return_type;
     let byte_view = matches!(
         crate::execution::terminal_unit::types::byte_sequence_carrier(program, return_type, &[],),
-        Some(CheckedByteSequenceCarrier::BorrowedView)
+        Some(CheckedByteSequenceCarrier::BorrowedView { .. })
     );
     if !byte_view
         && crate::execution::terminal_unit::types::borrowed_slice_view_element(

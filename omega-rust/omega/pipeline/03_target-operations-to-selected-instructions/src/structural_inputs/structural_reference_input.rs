@@ -550,11 +550,7 @@ pub(crate) fn bounded_byte_field_view(
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
         || !declarations.iter().any(|declaration| {
-            declaration.id == view_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
-                    )
+            declaration.id == view_type && declaration.shape.is_borrowed_byte_view()
         })
     {
         return None;
@@ -611,9 +607,9 @@ fn shape_inner(
         .find(|declaration| declaration.id == root)?;
     let result = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
-            Some(ValueShape::integer(16, 8))
-        }
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            ..
+        }) => Some(ValueShape::integer(16, 8)),
         // An element view rides the same borrowed descriptor pair: base
         // pointer plus extent, realized as one borrowed aggregate slot.
         StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
@@ -716,7 +712,7 @@ pub(crate) fn field_shape(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     capacity.checked_add(8)?
                 }
-                terminal_psi::ByteSequenceCarrier::BorrowedView => 16,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
             };
             Some(ValueShape::integer(u16::try_from(bytes).ok()?, 8))
         }

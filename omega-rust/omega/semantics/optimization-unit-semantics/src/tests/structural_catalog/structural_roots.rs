@@ -991,7 +991,9 @@ fn structural_returns_reject_non_source_roots_and_signature_drift() {
         id: id(4_716, StructuralTypeId::new),
         identity: "validation::return-source-literal".into(),
         shape: terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         ),
     };
     let literal = terminal_psi::StructuralPlaceDeclaration {

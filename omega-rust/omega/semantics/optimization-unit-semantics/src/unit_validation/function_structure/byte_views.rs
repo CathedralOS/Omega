@@ -178,7 +178,7 @@ pub(super) fn validate_byte_view_source(
         .is_some_and(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
             )
         })
         && function

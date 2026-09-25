@@ -71,7 +71,7 @@ pub(super) fn validate_declarations(
                             || matches!(
                                 row.shape,
                                 StructuralTypeShape::ByteSequence(
-                                    terminal_psi::ByteSequenceCarrier::BorrowedView
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                 ) | StructuralTypeShape::ElementView { .. }
                             )
                             || (declaration.access == StructuralAccess::SharedBorrow
@@ -173,7 +173,7 @@ pub(super) fn validate_successor(
                     && matches!(
                         row.shape,
                         StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         )
                     )
             });
@@ -364,7 +364,7 @@ pub(super) fn mutable_availability(
                     && matches!(
                         declaration.shape,
                         StructuralTypeShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView,
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                         ) | StructuralTypeShape::ElementView { .. }
                     )
             })

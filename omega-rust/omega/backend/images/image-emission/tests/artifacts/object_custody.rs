@@ -967,7 +967,9 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
                             id: StructuralTypeId::new(98).unwrap(),
                             identity: "test::FabricatedBytes".into(),
                             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                },
                             ),
                         },
                         bytes: vec![1, 2, 3],

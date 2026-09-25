@@ -1902,7 +1902,9 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
         .find(|field| field.identity == "before_bytes")
         .expect("interleaved bounded byte field")
         .field_type =
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        });
     assert!(
         terminal_verifier::verify_module(
             &bytes_as_borrowed,

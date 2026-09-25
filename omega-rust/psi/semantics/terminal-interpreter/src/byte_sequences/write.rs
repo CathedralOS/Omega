@@ -2,8 +2,7 @@
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, ValueId};
 use terminal_psi::{
-    ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralMultiplicity, StructuralTypeShape,
+    Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
@@ -59,7 +58,7 @@ impl TerminalExecution {
         let value = self.structural_values.get(&place).ok_or_else(invalid)?;
         if value.structural_type != parameter.structural_type
             || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                if declaration.shape == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView))
+                            if declaration.shape.is_borrowed_byte_view())
         {
             return Err(invalid());
         }

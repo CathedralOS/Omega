@@ -10,7 +10,6 @@ use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
 
 pub(super) fn establish(
     builder: &mut Builder<'_>,
@@ -26,8 +25,7 @@ pub(super) fn establish(
     };
     if row.result.is_some()
         || !matches!(destination.kind, StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
-        || structural_type.shape
-            != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        || !structural_type.shape.is_borrowed_byte_view()
         || builder
             .transport
             .pointers

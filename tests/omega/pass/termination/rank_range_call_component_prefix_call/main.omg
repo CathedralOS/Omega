@@ -12,8 +12,10 @@ machine Main::main(&mut self) -> u64 {
 machine Main::audit(&mut self, value: u64) {
 }
 
-machine Main::scan_a(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
-requires index <= limit;
+machine Main::scan_a(&mut self, index: u64, limit: u64)
+requires
+    index <= 4 && limit <= 4;
+    index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     self.audit(index);
@@ -23,8 +25,10 @@ terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
     }
 }
 
-machine Main::scan_b(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
-requires index <= limit;
+machine Main::scan_b(&mut self, index: u64, limit: u64)
+requires
+    index <= 4 && limit <= 4;
+    index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     transition index < limit {

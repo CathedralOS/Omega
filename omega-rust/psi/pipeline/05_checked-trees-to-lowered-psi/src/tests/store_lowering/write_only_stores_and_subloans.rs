@@ -52,7 +52,7 @@ fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
         .find(|declaration| {
             matches!(
                 declaration.shape,
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
             )
         })
         .expect("borrowed-view declaration");

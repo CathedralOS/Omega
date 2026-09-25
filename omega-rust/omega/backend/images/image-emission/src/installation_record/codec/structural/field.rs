@@ -62,7 +62,7 @@ pub(crate) fn encode_structural_field(
         StructuralFieldType::ByteSequence(carrier) => {
             bytes.push(6);
             bytes.push(match carrier {
-                ByteSequenceCarrier::BorrowedView => 1,
+                ByteSequenceCarrier::BorrowedView { .. } => 1,
                 ByteSequenceCarrier::BoundedOwned { .. } => 2,
             });
             bytes.push(0);
@@ -178,7 +178,9 @@ pub(crate) fn decode_structural_field(
                 return Err(InstallationError::NonzeroReservedField);
             }
             let carrier = match carrier_tag {
-                1 => ByteSequenceCarrier::BorrowedView,
+                1 => ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
                 2 => ByteSequenceCarrier::BoundedOwned {
                     capacity: reader.u64()?,
                 },

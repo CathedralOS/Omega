@@ -481,7 +481,9 @@ fn corrupted_array_declarations_result_type_and_returned_claims_reject() {
                     panic!("record element");
                 };
                 fields[0].field_type = StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 );
             }
             Drift::WrongResultType => {

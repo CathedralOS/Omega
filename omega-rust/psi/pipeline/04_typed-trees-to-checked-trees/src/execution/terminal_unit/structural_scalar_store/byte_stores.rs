@@ -36,8 +36,11 @@ pub(super) fn view_write(
         || plan.multiplicity != Multiplicity::Unrestricted
         || !plan.qualifications.is_empty()
         || plan.fused_service_erasure.is_some()
-        || byte_sequence_carrier(program, parameter.type_reference, &[])
-            != Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+        || !checked_trees::is_borrowed_view(byte_sequence_carrier(
+            program,
+            parameter.type_reference,
+            &[],
+        ))
     {
         return None;
     }

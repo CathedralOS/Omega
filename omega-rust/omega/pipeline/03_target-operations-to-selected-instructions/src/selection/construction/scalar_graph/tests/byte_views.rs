@@ -51,7 +51,9 @@ fn indexed_byte_read_replay_binds_dynamic_subject_and_proof() {
                 id: structural_type,
                 identity: "bytes".into(),
                 shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 ),
             }]
             .into(),
@@ -234,7 +236,9 @@ fn byte_view_length_uses_descriptor_read_and_rejects_changed_projection() {
                 id: structural_type,
                 identity: "bytes".into(),
                 shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    },
                 ),
             }]
             .into(),

@@ -219,7 +219,9 @@ fn block_parameter_argument(
             entry.id == declaration.structural_type
                 && entry.shape
                     == terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        },
                     )
         })
         || call

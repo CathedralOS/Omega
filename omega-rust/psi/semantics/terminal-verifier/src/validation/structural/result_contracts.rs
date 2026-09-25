@@ -141,7 +141,7 @@ pub(in crate::validation) fn borrowed_view_shape(
         Some(
             StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 )
                 | StructuralTypeShape::ElementView { .. }
         )

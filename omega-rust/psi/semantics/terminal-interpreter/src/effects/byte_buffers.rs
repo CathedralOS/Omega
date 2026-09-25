@@ -226,8 +226,7 @@ impl TerminalExecution {
                 .get(&parameter.structural_type)
                 .ok_or_else(invalid)?;
             if parameter.access == StructuralAccess::SharedBorrow
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                && declaration.shape.is_borrowed_byte_view()
                 && !argument.path.is_empty()
             {
                 if argument.access != StructuralAccess::SharedBorrow
@@ -243,8 +242,7 @@ impl TerminalExecution {
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
             } else if parameter.access == StructuralAccess::MutableBorrow
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                && declaration.shape.is_borrowed_byte_view()
             {
                 if argument.access != StructuralAccess::MutableBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted

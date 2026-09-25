@@ -219,7 +219,9 @@ fn execution() -> TerminalExecution {
                 StructuralTypeDeclaration {
                     id: structural_type(3),
                     identity: "view".into(),
-                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }),
                 },
             ),
         ]),

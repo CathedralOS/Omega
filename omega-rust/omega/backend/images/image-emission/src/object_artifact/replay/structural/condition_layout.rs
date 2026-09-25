@@ -331,7 +331,7 @@ fn replay_structural_field_shape(
         ) => Some(ValueShape::float(8)),
         terminal_psi::StructuralFieldType::ByteSequence(carrier) => {
             let byte_size = match carrier {
-                terminal_psi::ByteSequenceCarrier::BorrowedView => 16,
+                terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
                     capacity.checked_add(8)?.try_into().ok()?
                 }

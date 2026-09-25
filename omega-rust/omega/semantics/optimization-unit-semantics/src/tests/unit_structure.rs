@@ -387,7 +387,9 @@ fn trivial_affine_local_catalog_requires_dense_empty_record_declarations() {
     let mut nonempty_carrier = compressed_trivial_affine_return_unit();
     nonempty_carrier.structural_types.make_mut()[0].shape =
         terminal_psi::StructuralTypeShape::ByteSequence(
-            terminal_psi::ByteSequenceCarrier::BorrowedView,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
         );
     refresh_identity(&mut nonempty_carrier);
     assert_eq!(

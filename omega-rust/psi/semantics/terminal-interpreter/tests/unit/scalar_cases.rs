@@ -106,7 +106,9 @@ fn scalar_case_constructor_call_accepts_only_available_exact_borrowed_block_view
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type_id(2),
         identity: "Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let parameter = |place| StructuralParameterDeclaration {
         place: place_id(place),

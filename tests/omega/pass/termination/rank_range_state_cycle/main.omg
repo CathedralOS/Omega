@@ -5,20 +5,26 @@ machine Main::main() -> u32 {
     transition { _ -> self.walk(5, Payload { value: 7 }, 9) }
 }
 
-machine Main::walk(remaining: u32 [0..=5], payload: Payload, spare: u32)
+machine Main::walk(remaining: u32, payload: Payload, spare: u32)
 terminates by remaining in 0..=5;
--> u32 {
+-> u32
+requires remaining <= 5
+{
     transition remaining > 2 {
         true -> first(payload, remaining - 1, spare, spare)
         false -> second(remaining + 0, payload)
     }
-    state first(carried: Payload, pending: u32 [0..=5], first_spare: u32, second_spare: u32) {
+    state first(carried: Payload, pending: u32, first_spare: u32, second_spare: u32)
+    requires pending <= 5
+    {
         transition pending > 0 {
             true -> second(pending - 1, carried)
             false -> pending
         }
     }
-    state second(left: u32 [0..=5], saved: Payload) {
+    state second(left: u32, saved: Payload)
+    requires left <= 5
+    {
         transition left > 0 {
             true -> first(saved, left - 1, 0, 1)
             false -> left

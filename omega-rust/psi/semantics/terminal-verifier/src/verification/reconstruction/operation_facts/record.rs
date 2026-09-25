@@ -82,7 +82,7 @@ pub(super) fn append(
                 // A borrowed-view binding relocates a whole descriptor: there
                 // is no child record to project and no scalar equation to mint.
                 terminal_psi::StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView,
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
                 ) => {}
                 _ => return Err(ModuleError::RecordResultMismatch(operation.id)),
             }

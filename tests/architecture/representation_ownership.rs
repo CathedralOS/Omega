@@ -2353,9 +2353,10 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/08_selected-form-encoding-to-resolved-layout",
         "omega/pipeline/09_resolved-layout-to-resolved-layout",
     ];
-    // Compiler orchestration that feeds Terminal Psi across build evaluation
-    // (pipeline.md "Compiler orchestration before Omega"). These are checked
-    // as one connected compiler route but do not count as Omega pipeline crates.
+    // Transitional compiler orchestration outside the pipeline (pipeline.md
+    // "One driver, one pass, per-target realization"): checked as one connected
+    // compiler route, never counted as Omega pipeline crates, and dissolved by
+    // the board's pipeline route items.
     const COMPILER_ORCHESTRATION: &[(&str, &str)] = &[
         (
             "omega/compiler/source-assembly",

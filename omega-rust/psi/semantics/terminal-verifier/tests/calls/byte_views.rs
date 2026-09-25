@@ -16,7 +16,9 @@ fn module() -> TerminalModule {
     module.structural_types.push(StructuralTypeDeclaration {
         id: structural_type_id(1),
         identity: "test::Bytes".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
     });
     let caller = &mut module.machines[0];
     caller.structural_places.push(StructuralPlaceDeclaration {

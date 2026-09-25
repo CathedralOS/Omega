@@ -5,7 +5,7 @@ use legalized_operations::{
 };
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use target_operations::{TargetStructuralArgument, TargetStructuralArgumentSource};
-use terminal_psi::{ByteSequenceCarrier, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     transferred(source, place)
@@ -54,9 +54,7 @@ pub(super) fn view_type(
     declared_view_type(source, place).filter(|identity| {
         source.structural.as_ref().is_some_and(|signature| {
             signature.structural_types.iter().any(|declaration| {
-                declaration.id == *identity
-                    && declaration.shape
-                        == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                declaration.id == *identity && declaration.shape.is_borrowed_byte_view()
             })
         })
     })
@@ -202,8 +200,7 @@ pub(super) fn accepts(
                 || !signature.structural_places.contains(destination)
                 || !signature.structural_types.contains(structural_type)
                 || structural_type.id != target.structural_type
-                || structural_type.shape
-                    != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                || !structural_type.shape.is_borrowed_byte_view()
                 || !matches!(destination.kind, StructuralPlaceKind::ByteSequenceLiteral { structural_type: identity, .. } if identity == structural_type.id)
             {
                 return None;
@@ -227,8 +224,7 @@ pub(super) fn accepts(
                 })
                 || !signature.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && declaration.shape
-                            == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                        && declaration.shape.is_borrowed_byte_view()
                 })
             {
                 return None;

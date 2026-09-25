@@ -35,13 +35,25 @@ setup are not additional public program stages.
 | Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
 
-## Compiler orchestration before Omega
+## One driver, one pass, per-target realization
 
-The product compiler drives the Psi source stages through three orchestration
-crates outside Omega's pipeline,
-because build evaluation runs between them: a build machine can generate
-source after the base was resolved, so checking re-enters resolution and
-typing against the retained base.
+The product compiler is one driver that feeds each stage's output into the
+next. Psi's stages 00 through 07 run once per compilation and never observe a
+target: target-scoped machine bodies are data checked for every target, and
+the Build evaluates once into rows keyed by target
+([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
+Omega then realizes each target in the realization set from the same Terminal
+Psi and that target's rows: provider selection and installation in stage 00,
+then stages 01 through 09 and image emission. A consumer that needs only a
+prefix of the route, such as package review discovering bindings or a test
+checking a fixture, calls the same stage functions itself; there are no
+alternate entry points, mode flags, or preliminary passes.
+
+The current Rust implementation does not meet this yet. Three orchestration
+crates outside the pipeline drive the Psi stages, evaluate the Build per
+target, check twice (a preliminary pass before build evaluation and a settled
+pass after provider settlement), and settle providers on checked trees before
+Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
@@ -49,19 +61,11 @@ typing against the retained base.
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/checked-compilation/src/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/terminal-artifact/src/terminal_artifact.rs) |
 
-All three consume build-layer crates and are compiler preparation rather than
-Omega program stages. The layering test ranks them with the compiler that
-schedules them while they keep their explicit transformation contracts.
-The Terminal stage hands its program-entry artifact to `native-realization`,
-which owns the native product from there.
-
-[Terminal production](psi/compiler/terminal-production/README.md) sequences its
-Psi stages; [native realization](omega/compiler/native-realization/README.md)
-sequences the separately admitted native continuation. Selected passes execute
-at their explicit X-to-X phase. Empty and supported nonempty selections use the
-same downstream representation and publication route. No construction stage
-depends on a later optimizer; baseline layout construction and optional layout
-relaxation are separate transforms over the same current layout vocabulary.
+The [pipeline route items](../TASKS.md#pipeline-route) dissolve them: source
+loading becomes stage 00 input preparation, the Psi-owned work between stages
+moves inside stages 02 through 04, and provider settlement moves behind
+Terminal Psi. Until then the layering test ranks these crates with the
+compiler that schedules them.
 
 ## Placement and semantic ownership
 

@@ -68,8 +68,10 @@ fn inline_byte_field_capacity<'types>(
         || !expected.projected_qualifications.is_empty()
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+                )
         })
     {
         return None;

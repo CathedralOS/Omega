@@ -35,7 +35,9 @@ fn rejects_structural_call_path_type_multiplicity_and_qualification_corruption()
             id: alternate,
             identity: "validation::alternate-structural-call-argument".into(),
             shape: terminal_psi::StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView,
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                },
             ),
         });
     wrong_type.functions[1].structural_parameters[0].structural_type = alternate;

@@ -163,6 +163,12 @@ omega refresh-samples [samples-dir]
 Git pins. It does not refresh selectors or sandbox later program execution.
 `run` and `inspect-terminal` do not support this flag.
 
+`--target` names the realization target. The settled model realizes every
+provided target when it is absent and checks every target's bodies either way
+([multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation));
+today an absent `--target` checks target-neutrally and realizes the host, and
+the board's pipeline route items close that gap.
+
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
 normal invocations do not collect optional timing measurements.
@@ -226,7 +232,21 @@ python3 tools/corpus_gate.py --record             # re-pin the golden
 
 `--filter` matches the same comma-separated `tier/group/name` fragments as the
 canary filters (also `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
-deterministic hash slice for splitting the run across sessions. A subset diff
+deterministic hash slice for splitting the run across sessions.
+
+To measure what your own change moved, record a baseline once per base commit
+and diff against it, rather than running the corpus twice per measurement:
+
+```bash
+git stash && python3 tools/corpus_gate.py --baseline --record && git stash pop
+python3 tools/corpus_gate.py --baseline   # after every later edit
+```
+
+`--baseline` keys its file on `git rev-parse HEAD` under ignored
+`build/corpus_baselines/`. Use it when the checked-in golden disagrees with
+your checkout over another lane's in-flight movement, which is the usual case:
+a run against the shared golden cannot separate that drift from yours, and
+re-recording the shared golden would pin their regression as expected. A subset diff
 compares only the fixtures that ran against the same golden; a subset
 `--record` merges into it. The unfiltered corpus is scheduled-workload cost,
 not loop cost — keep it out of routine iteration. This gate does not replace
@@ -287,6 +307,13 @@ wrong place:
 
 Terminal Psi is the only portable boundary. `StateGraph` and `ControlFlowPlan`
 predate that cut and are **not** the public portable format.
+
+Targets are data, not control flow: Psi checks every target-scoped machine
+body in every compilation, the Build evaluates once into rows keyed by target,
+and `--target` narrows which targets Omega realizes, never what Psi checks. See
+[multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation);
+the board's [pipeline route](TASKS.md#pipeline-route) items close the current
+per-target implementation.
 
 ### Psi implementation and deferred human audit
 
@@ -362,7 +389,7 @@ not substitute for that orchestration.
 Use [main.rs](omega-rust/omega/src/main.rs) and
 [compiler.rs](omega-rust/omega/compiler/compiler/src/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
-shows shared preparation, per-target checks, product selection, and outcomes.
+shows shared preparation, product selection, per-target realization, and outcomes.
 Copy their visible orchestration principle, not their filenames or line counts.
 Representation and utility crates may start with their principal data structure
 and cohesive operations; do not invent an execution pipeline where none exists.

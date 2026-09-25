@@ -898,7 +898,9 @@ fn inline_byte_carrier_types(carrier: ByteSequenceCarrier) -> Vec<StructuralType
         StructuralTypeDeclaration {
             id: structural_type_id(1),
             identity: "example::ByteView".to_owned(),
-            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }),
         },
         StructuralTypeDeclaration {
             id: structural_type_id(2),
@@ -1103,7 +1105,9 @@ fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
         StructuralAccess::SharedBorrow,
     ] {
         let module = boundary_inline_byte_module(
-            ByteSequenceCarrier::BorrowedView,
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            },
             structural_type_id(2),
             byte_field_path(),
             access,
@@ -1119,7 +1123,9 @@ fn a_borrowed_view_field_cannot_supply_a_boundary_view_parameter() {
 #[test]
 fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
     let module = ordinary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView,
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        },
         structural_type_id(2),
         byte_field_path(),
     );
@@ -1129,7 +1135,9 @@ fn a_borrowed_view_field_cannot_supply_an_ordinary_view_parameter() {
 #[test]
 fn a_nested_borrowed_view_field_cannot_supply_a_view_parameter() {
     let boundary = boundary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView,
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        },
         structural_type_id(3),
         nested_byte_field_path(),
         StructuralAccess::MutableBorrow,
@@ -1137,7 +1145,9 @@ fn a_nested_borrowed_view_field_cannot_supply_a_view_parameter() {
     assert_eq!(encode_module(&boundary), path_custody_refusal());
 
     let ordinary = ordinary_inline_byte_module(
-        ByteSequenceCarrier::BorrowedView,
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        },
         structural_type_id(3),
         nested_byte_field_path(),
     );
