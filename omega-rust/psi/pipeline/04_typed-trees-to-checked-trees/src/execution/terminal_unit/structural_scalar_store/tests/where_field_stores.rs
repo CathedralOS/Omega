@@ -44,7 +44,11 @@ fn program(facts: &str) -> String {
 #[test]
 fn a_store_to_an_interval_where_field_is_admitted_with_its_bounds() {
     // Each admits the zero value, so the data is not zero-gated.
-    for facts in ["slot <= 8", "slot < 9 && spare <= 4", "0 <= slot, slot <= 8"] {
+    for facts in [
+        "slot <= 8",
+        "slot < 9 && spare <= 4",
+        "0 <= slot, slot <= 8",
+    ] {
         let (plan, checked) = plan(&program(facts));
         let plan = plan.unwrap_or_else(|| panic!("{facts}: store admitted"));
         assert!(
