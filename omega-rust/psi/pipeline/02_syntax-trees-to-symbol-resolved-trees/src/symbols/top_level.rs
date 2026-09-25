@@ -1,3 +1,39 @@
+//! Symbol assignment for top-level declarations.
+//!
+//! `assign_top_level_symbols` is the first assignment pass that
+//! `assign_symbols` and `assign_symbols_against_resolved_base` (in
+//! `symbols/mod.rs`) run after the symbol table is built. Declaration symbols
+//! are matched by position, not looked up by name: it walks the root's
+//! children in the order `symbol_table::build_symbol_table` inserted them,
+//! skips the builtin type and function symbols, and hands the remaining
+//! children to one step per declaration kind, in this order:
+//!
+//! 1. domains (`domains`), then data (`data`);
+//! 2. named conformances, done here: each takes its symbol, then
+//!    `assign_conformance_parameter_symbols` assigns every conformance's type
+//!    parameters and their signatures, and
+//!    `attach_conformance_parameter_scopes` gives the machines that realize a
+//!    closed conformance's inline and trait-default rows that conformance's
+//!    lifetime and type parameters;
+//! 3. machines, propositions, mathematical definitions, root operators,
+//!    measures and traits, each in its own child module;
+//! 4. wire schemas, done here.
+//!
+//! A declaration that already holds a valid symbol keeps it. Every step except
+//! wire schemas also assigns the declaration's own children (parameters,
+//! fields, states) by the same positional walk over that declaration's
+//! children, and several resolve the type references in those children's
+//! signatures. Machine and trait assignment return diagnostics, which this
+//! function returns.
+//!
+//! Shared by the child modules and the conformance step rather than steps of
+//! their own: `next_child_of_kind` takes
+//! the next child and returns the invalid handle when its kind is not the
+//! expected one; `assign_machine_parameter_signature_symbols` and
+//! `assign_proposition_parameter_signature_symbols` assign the parameter
+//! symbols and type references of machine-parameter and proposition-parameter
+//! signatures.
+
 mod data;
 mod domains;
 mod machines;

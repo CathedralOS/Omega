@@ -1,3 +1,21 @@
+//! Wire schemas: the schema declarations, and calls to the `encode` and
+//! `decode` machines the compiler synthesizes for each schema.
+//!
+//! Two entrances. `validate_wire_schemas` (`schema_validation`) runs once from
+//! `program_validation::validate`. For each schema it rejects a duplicate
+//! schema name and duplicate version names, checks field numbering, field
+//! types and nested version blocks in each version era and in the current
+//! body, checks each era against its successor, and rejects a schema that
+//! reaches itself through relevant current-era nested fields.
+//!
+//! `validate_wire_schema_call` runs from `machine_calls::calls::validate_call_node`
+//! before the call's receiver is checked as state storage. It returns `true`
+//! when it owns the call: the receiver names a wire schema, or an `encode` or
+//! `decode` receiver matches several schemas. For a schema receiver it
+//! dispatches `encode` to `encode_call` and `decode` to `decode_call`, and
+//! reports a retired or unknown codec name. `value_fields` holds the nested
+//! and repeated field checks both call validators share.
+
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 #[cfg(test)]

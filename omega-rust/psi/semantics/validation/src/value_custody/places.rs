@@ -1,3 +1,29 @@
+//! Places: what an assignment target, argument or projection names as
+//! storage, and the type its declaration gives that storage.
+//!
+//! `validate_assignment_target_handle` is the one check here. The
+//! assignment-statement validator in `program_validation::statements` runs it
+//! on each assignment target, and it reports the first of these that fails:
+//! the target must be a named place, a direct `self.<field>` must name a field
+//! of the attached data, a nested member path must name declared fields
+//! (`member_paths::first_unknown_nested_field`), and the root must be writable
+//! in this state, or, for a shared-receiver atomic operation, reachable.
+//!
+//! The rest of the module answers place queries that validators, checking and
+//! lowering read. `declared_place_type_raw` is the main one. After looking
+//! through a borrow it tries, in order: a machine's const or value parameter,
+//! a bare attached field, a case projection (`projected_members`), a `self`
+//! field (`exact_self_field`), a member expression through its receiver's
+//! declared type, a name path (`member_paths`), a constant array literal, a
+//! call result, and an indexed element (`declared_indexed_projection_type_raw`).
+//! It keeps reference and constraint shells; `declared_place_type` and
+//! `unwrapped_type_reference` remove them. The remaining children are queries
+//! of their own: `builtin_coordinates` (whether length, index and subslice
+//! selectors have their builtin meaning), `local_scalar_record_field` (a
+//! scalar read of a field of a local record), `parameter_scoped` (types rooted
+//! in an abstract signature's parameters) and `result_shape` (whether an
+//! expression's result is a reference). `owner_tests` is test-only.
+
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;

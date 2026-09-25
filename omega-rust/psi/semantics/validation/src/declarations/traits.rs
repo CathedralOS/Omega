@@ -1,3 +1,34 @@
+//! Traits: each trait's requirements, the conformance bounds that traits and
+//! generic machines declare, the conformances that machines and named
+//! conformance items claim, external `via` realizations, and local dynamic
+//! trait values.
+//!
+//! There is no single entrance; `program_validation::validate` calls these
+//! validators. Before its per-machine loop, in this order:
+//! `validate_trait_requirements` (`requirements`),
+//! `validate_trait_conformance_bounds` for each trait, `validate_conformances`
+//! for named data conformance items (`data_conformance`), and
+//! `collect_dynamic_conformance_selections` (`dynamic`). For each machine, in
+//! this order: `validate_generic_conformance_bounds`,
+//! `validate_machine_trait_conformances`, `validate_external_via_expression`
+//! for each conformance, and `validate_external_leaf_native_shapes` for an
+//! external leaf with one `via` binding. The bound, machine-conformance and
+//! external checks come from `conformance`.
+//!
+//! Other readers. Call validation in `machine_calls::calls` uses the generic
+//! bound queries from `conformance`, `arguments_for_declaring_trait` (also
+//! read by `proof_contracts::quotients`) and `dynamic_requirement_call_error`;
+//! `value_custody::recasts` reads the dynamic selections and
+//! `dynamic_trait_symbol`. The typed-to-checked stage and the checked
+//! compilation build continuation call `resolve_dynamic_call_targets`; the
+//! typed-to-checked stage also reads the dynamic selections and descriptor
+//! storages, `compose_forwarded_trait_arguments` and
+//! `generic_bound_operator_requirement`. Package review calls
+//! `revalidate_top_level_requirement_realization`.
+//!
+//! `trait_definition_by_symbol` is the trait lookup that the `conformance`,
+//! `data_conformance` and `requirements` children share.
+
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::trait_definition::TraitDefinition;

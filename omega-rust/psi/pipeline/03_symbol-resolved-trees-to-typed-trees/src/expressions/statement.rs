@@ -1,3 +1,21 @@
+//! Typing of one statement in a state body.
+//!
+//! `lower_statement_node` is called by `declarations::state` for each
+//! statement of a state. That caller handles proof-output binding statements
+//! itself, so they never reach this function. It dispatches on the statement
+//! kind:
+//!
+//! - root bindings, assembly facts (`requires`/`ensures`), assignments and
+//!   expression statements lower their expressions through `arguments`;
+//! - calls go to `calls`;
+//! - transitions go to `transitions`, with `closes_run` true when the next
+//!   statement is not a transition;
+//! - local data lowers its written type with
+//!   `lower_type_reference_handle_from_table`. An inferred local whose
+//!   declared type is the `Unit` sentinel, and whose initializer is not a
+//!   place marker, first asks `hoist_temp_type` for a type derived from its
+//!   initializer.
+
 mod arguments;
 mod calls;
 mod hoist_temp_type;

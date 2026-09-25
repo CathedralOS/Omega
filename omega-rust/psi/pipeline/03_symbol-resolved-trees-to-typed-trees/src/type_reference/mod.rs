@@ -1,3 +1,25 @@
+//! Typing of written type references.
+//!
+//! Two entries lower a resolved type reference into the typed type-reference
+//! table. `lower_type_reference_into_table` takes a `TypeReference` value and
+//! uses the `Lowerer`'s current exposure; declared types and signatures go
+//! through it, and `direct` implements it.
+//! `lower_type_reference_handle_from_table` takes a handle into the resolved
+//! type-reference table and always records a private implementation;
+//! statement lowering uses it, and `table` implements it. Both routes lower constraints through `constraints`, record authored
+//! declaration selections through `retain_type_reference_selection`, and
+//! retain arithmetic result types through `arithmetic_results`.
+//! `retain_static_path_selection` and `retain_path_selection` record the same
+//! selections for path spellings that are not type references.
+//!
+//! Two children run after the typed trees are complete, from
+//! `lowerer::finish` and the seeded continuation: `domain_constraints` binds
+//! and expands declared-domain constraints, and `generic_origins` supplies
+//! `validate_range_arguments`, which completes the range equality checks that
+//! structural type construction deferred for generic applications.
+//! `domain_aliases` expands transparent domain aliases for domain
+//! constraints, proof facts and domain membership expressions.
+
 pub(crate) mod domain_aliases;
 pub(crate) mod domain_constraints;
 

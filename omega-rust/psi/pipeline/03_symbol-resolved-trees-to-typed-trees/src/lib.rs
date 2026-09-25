@@ -25,7 +25,8 @@
 //! normalizes progress premises, rebuilds the typed trees, then runs the
 //! normalization passes the last three modules own over that rebuild: domain
 //! constraints, proof membership interning, qualification casts, fixed byte
-//! array literals, and range argument validation.
+//! array literals, and range argument validation. It ends by finalizing
+//! provider default calls (`declarations::provider_defaults`).
 //!
 //! `signatures` is not a step of its own. The entrance never calls it; it is
 //! the shared parameter, type-parameter and callable-interface vocabulary each

@@ -1,3 +1,36 @@
+//! Type references: whether a written type is well formed where it appears,
+//! and the declared ranges other stages read from a type.
+//!
+//! The check entrance is `validate_type_reference_handle_with_type_parameters`.
+//! Declaration validators call it with a `TypeReferenceOwner` that names where
+//! the type is written: data fields (`value_custody::data`), machine-owned
+//! data (`machine_calls::machine_data`), state parameters and returns
+//! (`declarations::state_signatures`), local data
+//! (`program_validation::statements`), operator parameters and returns
+//! (`declarations::operators`), trait parents
+//! (`declarations::traits::requirements`) and domain targets
+//! (`proof_contracts::domains`). `validate_static_type_argument` runs the same
+//! check on a static call's type argument for the typed-to-checked stage's
+//! monomorphization, and `validate_generic_instance_argument_bounds` checks a
+//! generated data instance's generic arguments for `value_custody::data`.
+//! The entrance first checks where a routed service carrier may appear and
+//! rejects a range constraint under a non-Exact domain, then walks the type:
+//! reference access and lifetimes, constraints (`constraint_validation`),
+//! fixed-array lengths and elements, slices, generic applications and their
+//! arguments (lengths and arguments through `generic_arguments`), dynamic
+//! trait values, and named types. `generic_arguments` also exports the exact
+//! const-argument checks that checking, package review and the terminal
+//! artifact call.
+//!
+//! The other children are queries. `integer_ranges` and `float_ranges` answer
+//! the closed range a declared type carries, for checking, lowering and proof.
+//! `open_index_expressions` binds each open index operator in a type
+//! constraint to the consuming machine's conformance bound
+//! (`normalize_open_index_expressions`, which the typed-to-checked stage runs)
+//! and checks indexed-domain arguments for `constraint_validation` and for
+//! casts. `type_references_match` and `type_reference_label` compare and
+//! display type references for other validators.
+
 mod constraint_validation;
 mod generic_arguments;
 mod open_index_expressions;

@@ -1,3 +1,23 @@
+//! Child symbols for each kind of top-level declaration.
+//!
+//! `build_symbol_table` and `extend_symbol_table` (in `symbol_table.rs`)
+//! insert one root symbol per declaration, then call the matching
+//! `insert_*_symbol_children` function to add that declaration's parameters,
+//! fields, states and other named children beneath it. Machine children are
+//! inserted later, by `insert_selected_machine_children`, once the data
+//! definition each machine attaches to has been selected.
+//!
+//! The child modules hold the insertion for builtin types, data, machines,
+//! mathematical definitions, domains and operators (both in `operators`),
+//! propositions and traits. This file holds the two small cases, measures and
+//! named conformances, and `insert_machine_parameter_signature_children`,
+//! which the conformance, data, machine and trait insertions use for
+//! machine-parameter signatures.
+//!
+//! `symbols::top_level` matches these children to declarations by position,
+//! walking them in the order they are inserted here, so the insertion order
+//! and the assignment order must agree.
+
 mod builtin;
 mod data;
 mod machines;

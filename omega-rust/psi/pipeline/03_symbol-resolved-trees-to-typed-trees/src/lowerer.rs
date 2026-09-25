@@ -1,3 +1,39 @@
+//! The typing entrance and the `Lowerer` state every typing module borrows.
+//!
+//! `lower_symbol_resolved_trees` turns one `SymbolResolvedTrees` into
+//! `TypedTrees`, or returns the first `Diagnostic`. Build-time evaluation
+//! calls it directly, and `seeded_continuation` wraps it to extend a retained
+//! typed base. It runs in this order:
+//!
+//! 1. Three checks that need case membership as a distinct node, before
+//!    lowering erases it: `==` against bare payload-bearing case names,
+//!    `Equatable` conformance prerequisites, and case-dispatch exhaustiveness.
+//! 2. Builds the `Lowerer`, copies the service reaches, semantic domains,
+//!    external bindings and authored declaration selections, types each
+//!    constant's declared type, and converts the evidence forwardings.
+//! 3. Types each declaration form in turn: data, domains, propositions,
+//!    mathematical definitions, machines (with a token-binding view when the
+//!    machine has one), measures, operators, traits, conformances, wire
+//!    schemas. Every form
+//!    except measures and conformances is lowered inside
+//!    `with_type_reference_exposure`, which sets whether the type selections
+//!    recorded for that declaration count as public interface or private
+//!    implementation.
+//! 4. `lower_const_initializer_evidence` lowers each constant's materialized
+//!    and authored initializers.
+//! 5. `Lowerer::finish` settles satisfied declarations, normalizes progress
+//!    premises, and rebuilds the typed trees, shifting each evidence
+//!    forwarding's statement index past the proof-output calls erased before
+//!    it. It then runs domain constraint normalization, proof membership
+//!    interning, qualification casts, fixed byte array literals, range
+//!    argument validation, and provider default finalization.
+//!
+//! Children: `name` converts resolved names to typed identifiers, `progress`
+//! holds `normalize_progress_premises`, and `seeded_continuation` is the
+//! append-only extension route. `declaration_exposure`,
+//! `exact_top_level_data_symbol` and `exact_field_symbol` are small helpers
+//! that declaration, expression and seeded-continuation code also read.
+
 use crate::declarations::data::lower_data_definition;
 use crate::declarations::domain::lower_domain_definition;
 use crate::declarations::machine::{lower_machine, lower_token_binding_view};
