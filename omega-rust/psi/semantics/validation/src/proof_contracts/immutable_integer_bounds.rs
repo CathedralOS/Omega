@@ -524,25 +524,23 @@ fn projected_integer_bound_field<'program>(
     // data definition, the same resolution `effective_member_symbol` uses.
     let (data, authored_matches_field) = match program.symbols.get(*type_symbol).kind {
         symbols::SymbolKind::Data => (
-            program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *type_symbol)?,
+            with_bound_field_index(program, |index| {
+                index.data_by_symbol.get(type_symbol).copied()
+            })
+            .map(|position| &program.data_definitions()[position])?,
             true,
         ),
         symbols::SymbolKind::Machine => {
-            let machine = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == *type_symbol)?;
+            let machine = with_bound_field_index(program, |index| {
+                index.machines_by_symbol.get(type_symbol).copied()
+            })
+            .map(|position| &program.machines()[position])?;
             let attached = machine.attached_data.as_deref()?;
             // Attached members resolve by name: the authored member symbol
             // is interned against the machine's spelling, not the field's.
             (
-                program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.name.as_str() == attached)?,
+                with_bound_field_index(program, |index| index.data_by_name.get(attached).copied())
+                    .map(|position| &program.data_definitions()[position])?,
                 false,
             )
         }
@@ -832,4 +830,89 @@ fn parameter_by_symbol<'program>(
     symbol: SymbolHandle,
 ) -> Option<&'program StateParameter> {
     lookup.parameter_entry(symbol).flatten()
+}
+
+/// One whole-program position index behind `projected_integer_bound_field`'s
+/// three linear scans: a projected receiver's declared type resolves to the
+/// data definition, machine, or machine-attached data naming it. Each call
+/// site otherwise re-walks the definition and machine tables per bound leaf.
+/// Positions keep the scans' first-match verdicts.
+struct BoundFieldIndex {
+    data_by_symbol: HashMap<SymbolHandle, usize>,
+    machines_by_symbol: HashMap<SymbolHandle, usize>,
+    data_by_name: HashMap<Box<str>, usize>,
+}
+
+fn bound_field_fingerprint(program: &TypedTrees) -> usize {
+    let definitions = program.data_definitions();
+    let machines = program.machines();
+    let mut fingerprint = (program as *const TypedTrees as usize)
+        ^ definitions.as_ptr() as usize
+        ^ (definitions.len() << 7)
+        ^ (machines.as_ptr() as usize)
+        ^ (machines.len() << 13);
+    for position in [
+        0usize,
+        definitions.len() / 2,
+        definitions.len().saturating_sub(1),
+    ] {
+        if let Some(definition) = definitions.get(position) {
+            fingerprint ^= (definition.symbol.arena_index() as usize)
+                .rotate_left(position as u32 + 1)
+                ^ (definition.name.as_str().as_ptr() as usize);
+        }
+    }
+    for position in [0usize, machines.len() / 2, machines.len().saturating_sub(1)] {
+        if let Some(machine) = machines.get(position) {
+            let attached = machine
+                .attached_data
+                .as_deref()
+                .map_or(0usize, |name| name.len() ^ (name.as_ptr() as usize));
+            fingerprint ^= (machine.symbol.arena_index() as usize).rotate_left(position as u32 + 3)
+                ^ attached.rotate_left(position as u32 + 5);
+        }
+    }
+    fingerprint
+}
+
+thread_local! {
+    static BOUND_FIELD_INDEX: std::cell::RefCell<
+        Option<(*const TypedTrees, usize, BoundFieldIndex)>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
+fn with_bound_field_index<R>(program: &TypedTrees, read: impl FnOnce(&BoundFieldIndex) -> R) -> R {
+    let fingerprint = bound_field_fingerprint(program);
+    BOUND_FIELD_INDEX.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        let stale = match slot.as_ref() {
+            Some((owner, seen, _)) => !std::ptr::eq(*owner, program) || *seen != fingerprint,
+            None => true,
+        };
+        if stale {
+            let mut index = BoundFieldIndex {
+                data_by_symbol: HashMap::new(),
+                machines_by_symbol: HashMap::new(),
+                data_by_name: HashMap::new(),
+            };
+            for (position, definition) in program.data_definitions().iter().enumerate() {
+                index
+                    .data_by_symbol
+                    .entry(definition.symbol)
+                    .or_insert(position);
+                index
+                    .data_by_name
+                    .entry(definition.name.as_str().into())
+                    .or_insert(position);
+            }
+            for (position, machine) in program.machines().iter().enumerate() {
+                index
+                    .machines_by_symbol
+                    .entry(machine.symbol)
+                    .or_insert(position);
+            }
+            *slot = Some((program, fingerprint, index));
+        }
+        read(&slot.as_ref().unwrap().2)
+    })
 }
