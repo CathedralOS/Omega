@@ -500,24 +500,14 @@ the complete product bar; focused successes below do not establish that baseline
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
 
-  A second frontier, measured at 9b0f5af98a on
-  `samples/cli/algorithms/binary_search_viz`: the omission is
-  `structural field store: pure source: scalar expression row` at state 5
-  (`mid_calc`) statement 0,
-  `self.mid = (min(max(self.lo, 0), 31) + min(max(self.hi, 0 - 1), 30)) / 2`.
-  At that coordinate NEITHER plan exists -- `scalar_computations.root_at` is
-  absent, so `authored_value` falls through to the pure path, and
-  `scalar_expressions.expression_at` and `bound_expression_at` are both absent
-  too, so it has nothing to bind. The computation would come from
-  `values/scalar/computations.rs::record_root`, whose `Member` target branch
-  does reach this store; its `self.expression(..)` returns None for that tree.
-
-  Not yet minimally reproduced. The same store written into a nine-line program
-  checks cleanly, so the refusal depends on surrounding context rather than on
-  the expression alone, and `record_root` returning None is NOT by itself the
-  omission -- it also returns early, without building, whenever a pure row
-  already covers the coordinate. Measure both plans at the coordinate, as
-  above, rather than instrumenting `record_root` alone.
+  `samples/cli/algorithms/binary_search_viz` no longer stops at a unit-plan
+  omission. Its `mid_calc` store needed a builtin `min`/`max` selection to
+  compose as an operand of arithmetic, which `integer_operand` declined because
+  a builtin has no entry state for the ordinary call route to find. It now
+  reaches provider selection instead: "selected ProgramEntry Binding field
+  `Main::clock` requires a selected Fused provider for boundary `Clock`". That
+  is the sample's next frontier and belongs to boundary provider selection, not
+  to terminal unit construction.
 
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under

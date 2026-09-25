@@ -65,9 +65,14 @@ impl Builder<'_, '_> {
         })
     }
 
+    /// `expected` is the carrier the caller will store this operand into, when
+    /// it knows one. It is evidence of last resort: every already-checked
+    /// operand keeps its own carrier, and the hint is consulted only where the
+    /// expression itself carries none anywhere -- see `integer_operands`.
     pub(super) fn integer_operand(
         &mut self,
         expression: ExpressionHandle,
+        expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
         if let Some(field) = self.local_scalar_record_field(expression) {
             if !is_integer(field.primitive_type) {
@@ -127,7 +132,7 @@ impl Builder<'_, '_> {
                 let mut boolean_coverage = [false; 2];
                 let mut contextual_results = Vec::new();
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                    if let Some(operand) = self.integer_operand(arm.value) {
+                    if let Some(operand) = self.integer_operand(arm.value, expected) {
                         domain = combine_arithmetic_domains(domain, operand.domain)?;
                         if let Some(primitive_type) = scalar_expression_type(&operand.value) {
                             if !is_integer(primitive_type)
@@ -170,6 +175,25 @@ impl Builder<'_, '_> {
                 })
             }
             ExpressionNode::Call(call) => {
+                // A builtin `min`/`max` selection is an ordinary integer
+                // computation, and `expression` already builds one at the top
+                // of an assignment. Without this arm a selection composes only
+                // as a whole assigned value: the moment it becomes an operand
+                // of arithmetic, the entry-state lookup below declines it,
+                // because a builtin function has no machine to find. A
+                // selection returns one of its operands unchanged and performs
+                // no arithmetic, so it carries no overflow policy of its own.
+                if let Some(primitive_type) = expected
+                    && let Some(computation) =
+                        self.integer_min_max(expression, &call, primitive_type)
+                {
+                    return Some(IntegerOperand {
+                        value: parameter(0, primitive_type),
+                        value_source: ExpressionHandle::invalid(),
+                        domain: ArithmeticDomain::Exact,
+                        computation,
+                    });
+                }
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
                 let (_, state) = crate::semantic::calls::find_machine_by_entry_state(
@@ -192,7 +216,7 @@ impl Builder<'_, '_> {
                 })
             }
             ExpressionNode::Binary(binary) if operator_is_builtin(self.operators, expression) => {
-                let (mut left, mut right) = self.integer_operands(&binary)?;
+                let (mut left, mut right) = self.integer_operands(&binary, expected)?;
                 let (value, domain) = construct_integer_binary(
                     binary.operator,
                     left.value,
@@ -232,7 +256,7 @@ impl Builder<'_, '_> {
                 if unary.operator == UnaryOperator::BitwiseNot
                     && operator_is_builtin(self.operators, expression) =>
             {
-                let operand = self.integer_operand(unary.operand)?;
+                let operand = self.integer_operand(unary.operand, expected)?;
                 let primitive_type = scalar_expression_type(&operand.value)?;
                 let (value, domain) =
                     construct_integer_bitwise_not(parameter(0, primitive_type), operand.domain)?;
@@ -276,7 +300,7 @@ impl Builder<'_, '_> {
                 // A typed result retains its own carrier before conversion.
                 // Only wholly anonymous result leaves receive the cast target;
                 // the match subject and selected evaluation remain computations.
-                let operand = self.integer_operand(cast.value).or_else(|| {
+                let operand = self.integer_operand(cast.value, None).or_else(|| {
                     let destination = self.program.primitive_type_reference(cast.target_type)?;
                     self.contextual_match_operand(cast.value, destination)
                 })?;
@@ -320,9 +344,10 @@ impl Builder<'_, '_> {
     fn integer_operands(
         &mut self,
         binary: &typed_trees::expression::TableBinaryExpression,
+        expected: Option<PrimitiveType>,
     ) -> Option<(IntegerOperand, IntegerOperand)> {
-        let mut left = self.integer_operand(binary.left);
-        let mut right = self.integer_operand(binary.right);
+        let mut left = self.integer_operand(binary.left, expected);
+        let mut right = self.integer_operand(binary.right, expected);
         // Computations are still visited in authored order. Only a wholly
         // anonymous subtree can be replaced by a landed value, so a call or
         // other already-typed computation is never discarded or reevaluated.
@@ -335,31 +360,28 @@ impl Builder<'_, '_> {
                     computation: CheckedScalarComputationHandle::invalid(),
                 })
         };
-        if let Some(destination) = right
-            .as_ref()
-            .and_then(|operand| scalar_expression_type(&operand.value))
+        let operand_type = |operand: &Option<IntegerOperand>| {
+            operand
+                .as_ref()
+                .and_then(|operand| scalar_expression_type(&operand.value))
+        };
+        if let Some(destination) = operand_type(&right)
             && let Some(operand) = land(binary.left, destination)
         {
             left = Some(operand);
         }
-        if let Some(destination) = left
-            .as_ref()
-            .and_then(|operand| scalar_expression_type(&operand.value))
+        if let Some(destination) = operand_type(&left)
             && let Some(operand) = land(binary.right, destination)
         {
             right = Some(operand);
         }
         if left.is_none()
-            && let Some(destination) = right
-                .as_ref()
-                .and_then(|operand| scalar_expression_type(&operand.value))
+            && let Some(destination) = operand_type(&right)
         {
             left = self.contextual_match_operand(binary.left, destination);
         }
         if right.is_none()
-            && let Some(destination) = left
-                .as_ref()
-                .and_then(|operand| scalar_expression_type(&operand.value))
+            && let Some(destination) = operand_type(&left)
         {
             right = self.contextual_match_operand(binary.right, destination);
         }
@@ -413,7 +435,9 @@ impl Builder<'_, '_> {
         source_expression: ExpressionHandle,
         binary: &typed_trees::expression::TableBinaryExpression,
     ) -> Option<CheckedScalarComputationHandle> {
-        let (mut left, mut right) = self.integer_operands(binary)?;
+        // A comparison's result is Boolean, so it offers its operands no
+        // carrier; the operands must still establish their own.
+        let (mut left, mut right) = self.integer_operands(binary, None)?;
         let comparison = construct_integer_comparison(binary.operator, left.value, right.value)?;
         let comparison = match comparison {
             CheckedBooleanExpression::Not(value) => *value,
