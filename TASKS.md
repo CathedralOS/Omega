@@ -4481,8 +4481,32 @@ syntax and other terminal services are not prerequisites.
      `evaluate_const_evaluable_machine_symbol_for_invocation`. An operator has
      none of these, and this is where the design work is.
 
-  Stages 1-3 are each a few lines and provably inert on the corpus; stage 4
-  needs the route decided. The interpreter already evaluates these operations
+  Stages 2 and 3 are each a few lines and provably inert on the corpus
+  (measured 751741736c: widening both gates to `SymbolKind::Operator`, with an
+  operator contributing a dependency and nothing to walk, leaves
+  `tools/corpus_gate.py --baseline` clean on 3303 fixtures). Stage 1 is NOT a
+  few lines, and stage 4 needs the route decided.
+
+  Stage 1 measured: binding `F32::square_root` in
+  `symbols/targets/calls.rs`'s Data-receiver branch does reach the operator and
+  advances the customer two stages, but it breaks
+  `build-time-evaluation .. ambiguous_named_operator_call_does_not_manufacture_early_identity`.
+  Two operators sharing one name collapse to ONE family symbol, so
+  `find_top_level_by_name_and_kinds_from_source` answers `Unique` and cannot
+  report the ambiguity; `resolve_call_target_symbol` receives only a
+  `SymbolTable` and a `MachineScope`, neither of which carries the operator
+  definitions that would separate a one-signature name from a family. Resolving
+  in the constant walk instead does not carry: `call_custody.rs` reads
+  `call.target_symbol` from the typed trees and rejects with "constant call
+  lost its exact authored target selection" because no authored selection
+  resolves to it.
+
+  So stage 1 is a choice between threading operator signature data into
+  `symbols/targets`, or running the constant initializer's dependency walk
+  after typed named-call selection, which already binds these names correctly
+  for bodies -- the ordering this row already identifies as the cause. Prefer
+  the second and measure it before widening stages 2 and 3, which are dead
+  without it. The interpreter already evaluates these operations
   inside a machine body, but keyed on the REWRITTEN intrinsic name
   (`float#fused_multiply_add_f32`) that provider dispatch installs, through
   `checked-interpreter .. execution/scalar_operations.rs`
