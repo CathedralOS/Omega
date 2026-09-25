@@ -44,31 +44,19 @@ pub(crate) fn linear_claim_frontier_uncached(
 ) -> Vec<ClaimFrontierClaim> {
     let mut claims = Vec::new();
     // Data definitions are only ever identified by their own symbol during
-    // the walk; index them once so each named-type expansion is O(1) instead
-    // of a whole-table scan per recursion level.
-    let data_definitions_by_symbol: std::collections::HashMap<SymbolHandle, usize> = program
-        .data_definitions()
-        .iter()
-        .enumerate()
-        .map(|(index, definition)| (definition.symbol, index))
-        .collect();
+    // the walk; the build-scope index shares the table so each missed type
+    // reference does not rebuild it.
+    let data_definitions_by_symbol =
+        crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_positions(
+            program,
+        );
     // Multiplicity answers below look up the same declaration and parameter
     // identities; `type_multiplicity` rescans both tables per named type, so
     // index the parameter table once the same way.
-    let parameters_by_symbol: std::collections::HashMap<
-        SymbolHandle,
-        (Multiplicity, typed_trees::data::TypeParameterKind),
-    > = program
-        .data_type_parameters
-        .iter()
-        .filter(|(_, parameter)| parameter.symbol.is_valid())
-        .map(|(_, parameter)| {
-            (
-                parameter.symbol,
-                (parameter.bounds.multiplicity, parameter.kind.clone()),
-            )
-        })
-        .collect();
+    let parameters_by_symbol =
+        crate::machine_calls::effect_inference::plan_scope::memoized_type_parameter_multiplicities(
+            program,
+        );
     append_linear_claim_frontier(
         program,
         type_reference,
