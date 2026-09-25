@@ -521,11 +521,14 @@ the complete product bar; focused successes below do not establish that baseline
   trait for it, exactly as the integer operand route did before 636633c144.
   `--target macos_arm64` fails identically, so this is not target filtering.
 
-  No corpus fixture pins that policy. The pure expression route covers these
-  stores in every small program -- a console call, an index guard, a loop body
-  and the min/max fold were each tried -- so `admits` is never consulted and a
-  candidate fixture passes with the policy reverted. Land the widening with the
-  call-source repair, where the sample itself is the witness.
+  No corpus fixture can pin that policy, and the reason is the route, not the
+  program. The sample reduces to a console call, a literal `[f64; 6]` fill,
+  `self.lo = self.nums[0]` and a `done` state -- no loop, no fold, no float
+  arithmetic -- and still stops there under `omega --check`. That
+  byte-identical source placed under `tests/omega/pass/float/` with the same
+  `build.omg` root bindings checks clean, so the corpus runner's compile route
+  never reaches `admits`. Use the sample command as this policy's acceptance
+  check; a corpus fixture passes with the policy reverted and pins nothing.
 
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
