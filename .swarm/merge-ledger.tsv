@@ -193,3 +193,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T11:33:01Z	251fd6fe10	leaf/projected-receiver-index	coordinator	stage-02: bucketed local/param/data-def/attached rosters behind call_target
 2026-09-25T11:44:26Z	1499b99936	leaf/service-reach-index	coordinator	validation: symbol-indexed service-reach inference + per-call target index
 2026-09-25T11:55:21Z	7a08356311	leaf/domain-symbol-index	coordinator	typed-trees: domain_by_symbol cached roster; 10 symbol scans indexed
+2026-09-25T12:00:36Z	82f8f73d50	leaf/domain-candidate-buckets	coordinator	stage-03: spelling-bucketed domain candidates + retained path via domain_by_symbol
