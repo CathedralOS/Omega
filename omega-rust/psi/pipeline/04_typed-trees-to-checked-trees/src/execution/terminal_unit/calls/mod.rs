@@ -20,6 +20,7 @@ mod scalar_argument_tests;
 mod service_forward;
 mod signatures;
 mod structural_arguments;
+mod trait_boundary_call;
 pub(in crate::execution) mod view_subslice;
 
 pub(crate) use affine_locals::{
