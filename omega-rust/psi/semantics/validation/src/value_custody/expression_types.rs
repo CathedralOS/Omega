@@ -458,58 +458,73 @@ fn hinted_named_value_type_reference(
     if !parent.is_valid() {
         return None;
     }
-    // Machine-owned data: the binder's parent is the machine itself.
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == parent)
-    {
-        return program
-            .machine_owned_data(machine)
-            .iter()
-            .find(|owned| matches_symbol(owned.symbol))
-            .map(|owned| owned.type_reference);
-    }
-    // Proposition parameters: the binder's parent is the proposition.
-    if let Some(proposition) = program
-        .propositions()
-        .iter()
-        .find(|proposition| proposition.symbol == parent)
-    {
-        return program
-            .proposition_parameters(proposition)
-            .iter()
-            .find(|parameter| matches_symbol(parameter.symbol))
-            .map(|parameter| parameter.type_reference);
-    }
-    // State binders: the binder's parent is a state whose own retained
-    // parent names its machine.
-    let grandparent = program.symbols.get(parent).parent;
-    if let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == grandparent)
-        && let Some(state) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == parent)
-    {
-        if let Some(parameter) = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| matches_symbol(parameter.symbol))
-        {
-            return Some(parameter.type_reference);
-        }
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            if let StatementNode::LocalData(local) = statement
-                && matches_symbol(local.symbol)
+    match program.symbols.get(parent).kind {
+        // Machine-owned data: the binder's parent is the machine itself.
+        symbols::SymbolKind::Machine => {
+            if let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == parent)
             {
-                return Some(local.type_reference);
+                return program
+                    .machine_owned_data(machine)
+                    .iter()
+                    .find(|owned| matches_symbol(owned.symbol))
+                    .map(|owned| owned.type_reference);
             }
+            None
         }
+        // Proposition parameters: the binder's parent is the proposition.
+        symbols::SymbolKind::Proposition => program
+            .propositions()
+            .iter()
+            .find(|proposition| proposition.symbol == parent)
+            .and_then(|proposition| {
+                program
+                    .proposition_parameters(proposition)
+                    .iter()
+                    .find(|parameter| matches_symbol(parameter.symbol))
+                    .map(|parameter| parameter.type_reference)
+            }),
+        // State binders: the binder's parent is a state whose own retained
+        // parent names its machine.
+        symbols::SymbolKind::State => {
+            let grandparent = program.symbols.get(parent).parent;
+            if program.symbols.get(grandparent).kind != symbols::SymbolKind::Machine {
+                return None;
+            }
+            let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == grandparent)
+            else {
+                return None;
+            };
+            let Some(state) = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == parent)
+            else {
+                return None;
+            };
+            if let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| matches_symbol(parameter.symbol))
+            {
+                return Some(parameter.type_reference);
+            }
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let StatementNode::LocalData(local) = statement
+                    && matches_symbol(local.symbol)
+                {
+                    return Some(local.type_reference);
+                }
+            }
+            None
+        }
+        _ => None,
     }
-    None
 }
 
 /// Mirror the backend layout classifier for an owned variable-fill text

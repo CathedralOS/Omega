@@ -31,12 +31,22 @@ pub fn linear_claim_frontier(
     type_reference: TypeReferenceHandle,
 ) -> Vec<ClaimFrontierClaim> {
     let mut claims = Vec::new();
+    // Data definitions are only ever identified by their own symbol during
+    // the walk; index them once so each named-type expansion is O(1) instead
+    // of a whole-table scan per recursion level.
+    let data_definitions_by_symbol: std::collections::HashMap<SymbolHandle, usize> = program
+        .data_definitions()
+        .iter()
+        .enumerate()
+        .map(|(index, definition)| (definition.symbol, index))
+        .collect();
     append_linear_claim_frontier(
         program,
         type_reference,
         &[],
         &[],
         &mut Vec::new(),
+        &data_definitions_by_symbol,
         &mut claims,
     );
     claims
@@ -48,6 +58,7 @@ fn append_linear_claim_frontier(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &[facts::PlaceSegment],
     visiting: &mut Vec<SymbolHandle>,
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if !type_reference.is_valid() {
@@ -66,6 +77,7 @@ fn append_linear_claim_frontier(
                 substitutions,
                 path,
                 visiting,
+                data_definitions_by_symbol,
                 claims,
             );
             return;
@@ -83,6 +95,7 @@ fn append_linear_claim_frontier(
                     substitutions,
                     &element_path,
                     visiting,
+                    data_definitions_by_symbol,
                     claims,
                 );
             }
@@ -104,6 +117,7 @@ fn append_linear_claim_frontier(
                     substitutions,
                     path,
                     visiting,
+                    data_definitions_by_symbol,
                     claims,
                 );
                 return;
@@ -119,7 +133,9 @@ fn append_linear_claim_frontier(
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { .. } => unreachable!("handled before multiplicity"),
         TypeReferenceNode::Named { symbol, name } => {
-            let Some(definition) = find_data_definition(program, *symbol, name.as_str()) else {
+            let Some(definition) =
+                find_data_definition(program, data_definitions_by_symbol, *symbol, name.as_str())
+            else {
                 return;
             };
             append_data_linear_claim_frontier(
@@ -128,6 +144,7 @@ fn append_linear_claim_frontier(
                 substitutions,
                 path,
                 visiting,
+                data_definitions_by_symbol,
                 claims,
             );
         }
@@ -137,8 +154,12 @@ fn append_linear_claim_frontier(
             arguments,
             ..
         } => {
-            let Some(definition) = find_data_definition(program, *base_symbol, base_name.as_str())
-            else {
+            let Some(definition) = find_data_definition(
+                program,
+                data_definitions_by_symbol,
+                *base_symbol,
+                base_name.as_str(),
+            ) else {
                 return;
             };
             let mut instantiated = substitutions.to_vec();
@@ -162,6 +183,7 @@ fn append_linear_claim_frontier(
                 &instantiated,
                 path,
                 visiting,
+                data_definitions_by_symbol,
                 claims,
             );
         }
@@ -183,6 +205,7 @@ fn append_data_linear_claim_frontier(
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     path: &[facts::PlaceSegment],
     visiting: &mut Vec<SymbolHandle>,
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if visiting.contains(&definition.symbol) {
@@ -202,6 +225,7 @@ fn append_data_linear_claim_frontier(
                     substitutions,
                     &field_path,
                     visiting,
+                    data_definitions_by_symbol,
                     claims,
                 );
             }
@@ -221,6 +245,7 @@ fn append_data_linear_claim_frontier(
                         substitutions,
                         &field_path,
                         visiting,
+                        data_definitions_by_symbol,
                         claims,
                     );
                 }
@@ -282,14 +307,14 @@ fn type_multiplicity_with_substitutions(
 /// for a resolved one.
 fn find_data_definition<'program>(
     program: &'program TypedTrees,
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
     symbol: SymbolHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
     if symbol.is_valid() {
-        return program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == symbol);
+        return data_definitions_by_symbol
+            .get(&symbol)
+            .map(|index| &program.data_definitions()[*index]);
     }
     program
         .data_definitions()

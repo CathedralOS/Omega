@@ -394,8 +394,11 @@ pub(super) fn binding_is_exclusively_exposed(
     symbol: SymbolHandle,
 ) -> bool {
     let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for root in statement_expression_roots(program, state) {
-        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
+        crate::value_custody::expression_types::collect_expression_nodes(
+            program, root, &mut nodes, &mut seen,
+        );
     }
     nodes
         .iter()
@@ -442,8 +445,11 @@ pub(super) fn binding_is_written(
         }
     }
     let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for root in statement_expression_roots(program, state) {
-        crate::value_custody::expression_types::collect_expression_nodes(program, root, &mut nodes);
+        crate::value_custody::expression_types::collect_expression_nodes(
+            program, root, &mut nodes, &mut seen,
+        );
     }
     nodes
         .iter()

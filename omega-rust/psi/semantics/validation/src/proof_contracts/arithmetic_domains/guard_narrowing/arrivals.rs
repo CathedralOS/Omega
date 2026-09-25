@@ -116,7 +116,7 @@ pub(super) fn seed_state_requirements(
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(condition) = fact
-                && condition_belongs_to_state(program, machine, state, *condition)
+                && condition_belongs_to_state(program, machine, state, *condition, frames)
                 && (is_entry
                     || machine_requires_survives(
                         program,
@@ -136,7 +136,7 @@ pub(super) fn seed_state_requirements(
         }
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             if let ProofFact::Expression(condition) = fact
-                && condition_belongs_to_state(program, machine, state, *condition)
+                && condition_belongs_to_state(program, machine, state, *condition, frames)
             {
                 seed_condition(environment, &mut required, *condition);
             }
@@ -183,6 +183,7 @@ fn condition_belongs_to_state(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
+    frames: Option<&CallFrameResolver>,
 ) -> bool {
     if literal_i64(program, expression).is_some() {
         return true;
@@ -233,18 +234,19 @@ fn condition_belongs_to_state(
                     expression,
                 )
                 .is_some())
-                && condition_belongs_to_state(program, machine, state, member.receiver)
+                && condition_belongs_to_state(program, machine, state, member.receiver, frames)
         }
         ExpressionNode::Binary(binary) => {
-            condition_belongs_to_state(program, machine, state, binary.left)
-                && condition_belongs_to_state(program, machine, state, binary.right)
+            condition_belongs_to_state(program, machine, state, binary.left, frames)
+                && condition_belongs_to_state(program, machine, state, binary.right, frames)
         }
         ExpressionNode::Unary(unary) => {
-            condition_belongs_to_state(program, machine, state, unary.operand)
+            condition_belongs_to_state(program, machine, state, unary.operand, frames)
         }
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
         ExpressionNode::Call(_) => {
-            ordered_values::operand(program, machine, state, expression).is_some()
+            ordered_values::operand_with_frames(program, machine, state, expression, frames)
+                .is_some()
         }
         _ => false,
     }
@@ -438,8 +440,13 @@ impl ArrivalWalk<'_, '_> {
                 bindings.push((path, parameter.name.as_str().to_owned()));
             }
             if !environment.ordered_values.is_empty()
-                && let Some(value) =
-                    ordered_values::operand(self.program, self.machine, source, *argument)
+                && let Some(value) = ordered_values::operand_with_frames(
+                    self.program,
+                    self.machine,
+                    source,
+                    *argument,
+                    self.frames,
+                )
             {
                 exact_bindings.push((value, ordered_values::Operand::parameter(parameter)));
             }

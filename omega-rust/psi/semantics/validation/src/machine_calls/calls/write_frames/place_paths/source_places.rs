@@ -168,68 +168,66 @@ fn source_owner(
     expression: ExpressionHandle,
 ) -> Option<(&Machine, &State)> {
     let declaration = program.symbols.get(root);
-    let mut owner = None;
-    for machine in program.machines() {
-        match declaration.kind {
-            SymbolKind::Parameter | SymbolKind::Local => {
-                for state in program.machine_states(machine) {
-                    if state.symbol != declaration.parent {
-                        continue;
-                    }
-                    let retained = match declaration.kind {
-                        SymbolKind::Parameter => program
-                            .state_parameters(state)
-                            .iter()
-                            .any(|parameter| parameter.symbol == root),
-                        SymbolKind::Local => program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .iter()
-                            .any(|statement| {
-                                matches!(statement, StatementNode::LocalData(local)
-                                    if local.symbol == root)
-                            }),
-                        _ => false,
-                    };
-                    if retained {
-                        if owner.is_some() {
-                            return None;
-                        }
-                        owner = Some((machine, state));
-                    }
-                }
-            }
-            SymbolKind::Machine | SymbolKind::Field => {
-                let owns_root = match declaration.kind {
-                    SymbolKind::Machine => machine.symbol == root,
-                    SymbolKind::Field => {
-                        declaration.parent == machine.symbol
-                            && crate::exact_attached_field(
-                                program,
-                                machine,
-                                root,
-                                program.symbols.name(root),
-                            )
-                            .is_some()
-                    }
-                    _ => false,
-                };
-                if owns_root {
-                    let (state, _, _) = caller_statement_owner(
-                        program,
-                        machine,
-                        CallerWriteSite::Expression(expression),
-                    )?;
-                    if owner.is_some() {
-                        return None;
-                    }
-                    owner = Some((machine, state));
-                }
-            }
-            _ => return None,
+    // The retained parent names the declaring container, so at most one
+    // machine can own `root`: a parameter/local lives under exactly one state
+    // of exactly one machine, and a machine field lives under its machine.
+    // The whole-program ownership scan collapses to that single candidate.
+    match declaration.kind {
+        SymbolKind::Parameter | SymbolKind::Local => {
+            let state_symbol = declaration.parent;
+            let machine_symbol = program.symbols.get(state_symbol).parent;
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)?;
+            let state = program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)?;
+            let retained = match declaration.kind {
+                SymbolKind::Parameter => program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.symbol == root),
+                _ => program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(|statement| {
+                        matches!(statement, StatementNode::LocalData(local)
+                            if local.symbol == root)
+                    }),
+            };
+            retained.then_some((machine, state))
         }
+        SymbolKind::Machine | SymbolKind::Field => {
+            let machine_symbol = match declaration.kind {
+                SymbolKind::Machine => root,
+                _ => declaration.parent,
+            };
+            let Some(machine) = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)
+            else {
+                return None;
+            };
+            let owns_root = match declaration.kind {
+                SymbolKind::Machine => true,
+                _ => {
+                    crate::exact_attached_field(program, machine, root, program.symbols.name(root))
+                        .is_some()
+                }
+            };
+            if !owns_root {
+                return None;
+            }
+            let (state, _, _) =
+                caller_statement_owner(program, machine, CallerWriteSite::Expression(expression))?;
+            Some((machine, state))
+        }
+        _ => None,
     }
-    owner
 }
 
 #[cfg(test)]
