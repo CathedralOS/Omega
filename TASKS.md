@@ -1487,7 +1487,7 @@ syntax and other terminal services are not prerequisites.
   independently checked evidence for generated codecs' `Derived` trust under
   [public codec agreement](wiki/spec/layouts/codecs.md#agreement-and-trust).
   The no-authored-policy route now exists, but
-  `checked-interpreter/src/interpreter/evaluator/wire_verification.rs`
+  `checked-interpreter/src/interpreter/evaluator/execution/wire_verification.rs`
   compares Floor/Ceiling members and malformed-input probes.
   `build-evaluation/src/admission/wire_protocol.rs` reports `Derived` when
   that probe's gaps are empty. Finite examples do not establish the general
@@ -1696,9 +1696,12 @@ syntax and other terminal services are not prerequisites.
     the four bound targets. Remaining stops the old refusal masked:
     `runtime_numeric_signed_conversion_surface_exit` reaches
     `narrow_i16_to_i8_exact`, whose sub-64-bit signed-to-signed
-    `IntegerExactCast` lies outside `exact_cast_has_native_carriers`
-    (`Selection(Legalization(SourceCustodyMismatch))` in
-    `03_target-operations-to-selected-instructions/.../nodes.rs`);
+    `IntegerExactCast` no longer lies outside `exact_cast_has_native_carriers`
+    -- that gate is now `scalar_shape` on both carriers plus
+    `can_exact_cast_to`, which asks only that both be `Fixed`, and
+    `scalar_graph_input/exact_cast_carrier_tests.rs` asserts
+    `(Signed, 16) -> (Signed, 8)` is admitted. Rerun the fixture for its
+    current stop rather than reusing the `SourceCustodyMismatch` attribution;
     `runtime_numeric_cross_signed_conversion_surface` stops at "direct scalar
     call has no matching checked crash-refinement row" (the `clamp` call
     inside the cross-signed saturating narrowings); `runtime_addr_field_exit`
@@ -4552,14 +4555,6 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `instantiated_methods_keep_each_package_use_authority`. Fixture/provider and
   name-collision repairs have since landed: reproduce before assigning more
   repair, retaining exact selection and package-use authority checks.
-  macw8b collateral: the package-name snake_case rule reddens
-  `compiler/compiler/tests` — 29 distinct hyphenated identities remain
-  (runtime_value_generics: 10 failures; no_selection_golden::rollback: 4).
-  Find them with `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
-  --include='*.rs' omega-rust/omega/compiler/compiler/tests/`. `-p compiler`
-  is excluded from `land_tight.sh`'s workspace check, so these stay red
-  without blocking anything.
-
   Package command fixtures: reproduce `fixture module path ends in ::fixture`
   in `named_workspace_install::cases`. Fix caller-specific child-test selection
   in `packages/manager/tests/support/named_workspace.rs` and exercise all four
@@ -4855,10 +4850,10 @@ but report the missing runtime leg explicitly; it does not close that host row.
   six went with them. Bisected: `04f74670ff5` first bad, parent `0f75a052f09`
   green.
 
-  The remainder of `runtime_value_generics` (10) is the package-name
-  snake_case migration, not a compiler gap: 29 hyphenated identities remain in
-  `compiler/compiler/tests`. That directory is claimed, so it is noted to its
-  holder rather than renamed here.
+  The package-name snake_case migration that `runtime_value_generics` waited on
+  is finished: `grep -rhoE '(package|application)\("[a-z0-9]+(-[a-z0-9]+)+"\)'
+  omega-rust/omega/compiler/compiler/tests/` now returns nothing. Reobserve that
+  target before attributing its failures again.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
@@ -4907,16 +4902,12 @@ release acceptance still requires complete coverage. Remaining reported failures
   sample gates above on Linux x86-64 and resolve remaining failures through
   their owning capability tasks.
 
-  One attributed defect blocks emitted execution. `9e20e91559` emits an
-  unconditional `DT_RELA` plus `DT_RELASZ=0` pair for the empty general
-  relocation table but never `DT_RELAENT` (tag 9, `sizeof(Elf64_Rela)` = 24),
-  and glibc dereferences `l_info[DT_RELAENT]` whenever `DT_RELA` is present,
-  so the image faults in `ld-linux-x86-64.so.2` before `_start`. Masking the
-  `DT_RELA` row in the emitted bytes makes the same image exit 70, which
-  isolates it. `ElfDynamicTag`
-  (`image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`) skips
-  from tag 8 to tag 10; emit the entry size beside the pair, or emit neither
-  when the table is empty. Verification needs a Linux host.
+  The `DT_RELAENT` defect that blocked emitted execution is repaired:
+  `ElfDynamicTag::GeneralRelocationEntrySize` is tag 9 and
+  `GeneralRelocationEntryByteCount` is emitted beside the `DT_RELA`/`DT_RELASZ`
+  pair in
+  `image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs`. The image
+  has not been run since, because verification needs a Linux host.
 
   **SAMPLE-CORPUS** owns current shared sample failures;
   **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns the canonical filesystem plan's
