@@ -26,8 +26,8 @@ mod symbolic_values;
 mod tests;
 mod where_fact_intervals;
 
-pub(crate) use where_fact_intervals::where_fact_interval;
 pub use where_fact_intervals::data_where_field_intervals;
+pub(crate) use where_fact_intervals::where_fact_interval;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
