@@ -249,6 +249,11 @@ pub fn lower_typed_trees(
     // specialization and call-identity rebinding above, so validation and
     // every executing consumer see the same call edge a named call would make.
     crate::operators::bind_token_bound_machine_calls(&mut program)?;
+    // The program is now frozen for checking: specialization and every
+    // call-identity rebinding above mutate it, so the plan memo scope can only
+    // open here — the first of the consumers below computes the program-pure
+    // operational and service-reach plans and the rest serve from them.
+    let _plan_scope = ::validation::enter_program_plan_scope();
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
     let validated = validate_typed_program(
         &program,
