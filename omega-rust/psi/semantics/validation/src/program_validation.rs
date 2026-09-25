@@ -244,6 +244,11 @@ fn validate(
     invocations::validate_invocation_contracts(program, &mut diagnostics);
 
     let call_frames = calls::CallFrameResolver::new(program);
+    // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
+    // cell serves every qualifying statement in this pass. The program
+    // handle travels with it: downstream scopes shorten their program
+    // borrow below what a fresh catalog could be built from.
+    let mut bound_lookup = (program, None);
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
@@ -531,6 +536,7 @@ fn validate(
                     direct_written,
                     &mut exact_integer_casts,
                     &mut boundary_operator_applications,
+                    &mut bound_lookup,
                     &mut diagnostics,
                 );
             }

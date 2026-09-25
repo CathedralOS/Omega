@@ -27,6 +27,9 @@ pub(crate) fn validate_checked_write_only_slice(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The whole-program bound catalog rebuilds eagerly otherwise; one lazy
+    // cell serves every qualifying statement in this pass.
+    let mut bound_lookup = None;
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut roots = program
@@ -116,7 +119,15 @@ pub(crate) fn validate_checked_write_only_slice(
             }
 
             for statement in program.statement_table.statements(state.statement_nodes) {
-                validate_statement(program, machine, state, statement, &roots, diagnostics);
+                validate_statement(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &roots,
+                    &mut bound_lookup,
+                    diagnostics,
+                );
             }
         }
     }
@@ -860,12 +871,15 @@ fn write_only_literal_indexed_record_field_assignment(
     })
 }
 
-fn validate_statement(
-    program: &TypedTrees,
+fn validate_statement<'p>(
+    program: &'p TypedTrees,
     machine_definition: &Machine,
     state_definition: &State,
     statement: &StatementNode,
     roots: &[WriteOnlyRoot],
+    bound_lookup: &mut Option<
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
+    >,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let machine = machine_definition.name.as_str();
@@ -921,6 +935,7 @@ fn validate_statement(
                 assignment.target,
                 assignment.value,
                 roots,
+                bound_lookup,
                 diagnostics,
             ) {
                 // The range-specific gate owns non-observation and RHS shape.
@@ -1074,13 +1089,16 @@ fn validate_statement(
 /// eligible common-field path ending in one, replaced by an array literal of
 /// exactly the same element width. Returns whether the target was such a range
 /// even when another checker owns its eventual rejection.
-fn validate_write_only_fixed_array_range_assignment(
-    program: &TypedTrees,
+fn validate_write_only_fixed_array_range_assignment<'p>(
+    program: &'p TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     value: ExpressionHandle,
     roots: &[WriteOnlyRoot],
+    bound_lookup: &mut Option<
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'p>,
+    >,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -1105,8 +1123,9 @@ fn validate_write_only_fixed_array_range_assignment(
     else {
         return false;
     };
-    let bound_lookup =
-        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
+    let bound_lookup = bound_lookup.get_or_insert_with(|| {
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program)
+    });
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return false;
     };
@@ -1125,11 +1144,11 @@ fn validate_write_only_fixed_array_range_assignment(
     }
 
     let start = if range.start.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
+        crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.start)
     } else {
         Some(0)
     };
-    let end = crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end)
+    let end = crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, range.end)
         .and_then(|end| {
             if range.end_inclusive {
                 end.checked_add(1)
