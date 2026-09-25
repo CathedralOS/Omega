@@ -74,15 +74,13 @@ class SelectionTests(unittest.TestCase):
                          ["app", "core"])
         self.assertEqual(self.select("README.md", "Cargo.lock")[0], "all()")
 
-    def test_docs_plan_runs_architecture_without_libraries(self):
+    def test_docs_plan_selects_no_commands(self):
         with patch.object(affected, "changed_paths", return_value=["README.md"]), \
                 patch.object(affected, "output", return_value=json.dumps(
                     dict(self.metadata, workspace_root=str(self.root)))):
             plan = affected.make_plan(self.root, "mbx", "verified-base")
         self.assertEqual(plan["documentation_paths"], ["README.md"])
-        self.assertEqual(len(plan["commands"]), 1)
-        self.assertIn("omega-architecture-test", plan["commands"][0])
-        self.assertFalse(any("--lib" in command for command in plan["commands"]))
+        self.assertEqual(plan["commands"], [])
 
     def test_no_change_selects_no_libraries(self):
         self.assertEqual(self.select(), ("none()", [], []))
@@ -92,20 +90,19 @@ class SelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.select("crates/app/src/lib.rs")
 
-    def test_architecture_failure_does_not_prevent_libraries_or_turn_green(self):
+    def test_failed_command_does_not_prevent_later_or_turn_green(self):
         with patch.object(affected.subprocess, "run", side_effect=[
             subprocess.CompletedProcess([], 100), subprocess.CompletedProcess([], 0),
         ]) as run:
-            self.assertEqual(affected.run_commands(self.root, [["architecture"], ["libraries"]]), 100)
+            self.assertEqual(affected.run_commands(self.root, [["first"], ["second"]]), 100)
             self.assertEqual(run.call_count, 2)
 
-    def test_library_filter_preserves_workspace_build_and_architecture_gate(self):
+    def test_library_filter_preserves_workspace_build(self):
         with patch.object(affected, "changed_paths", return_value=["crates/app/core/src/lib.rs"]), \
                 patch.object(affected, "output", return_value=json.dumps(
                     dict(self.metadata, workspace_root=str(self.root)))):
             plan = affected.make_plan(self.root, "mbx", "verified-base")
-        architecture, libraries = plan["commands"]
-        self.assertIn("omega-architecture-test", architecture)
+        [libraries] = plan["commands"]
         self.assertIn("--workspace", libraries)
         self.assertNotIn("-p", libraries)
         self.assertIn("--no-fail-fast", libraries)

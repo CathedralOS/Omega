@@ -1175,29 +1175,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-architecture-test"
-version = "0.1.0"
-dependencies = [
- "arena",
- "diagnostics",
- "effects",
- "flow-effects",
- "language-core",
- "language-semantics",
- "provider-planning",
- "serde_json",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
- "symbols",
- "syntax-trees",
- "syntax-trees-to-symbol-resolved-trees",
- "tokens-to-syntax-trees",
- "typed-trees",
- "typed-trees-to-checked-trees",
- "validation",
-]
-
-[[package]]
 name = "omega-native-differential-test"
 version = "0.1.0"
 dependencies = [

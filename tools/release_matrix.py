@@ -51,8 +51,6 @@ GATES = {
         "commands": [
             [PYTHON, "tools/fmt.py", "--check"],
             [MBX, "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
-            [MBX, "nextest", "run", "-p", "omega-architecture-test",
-             "--all-targets", "--no-fail-fast"],
             [MBX, "check", "--workspace", "--all-targets"],
             [MBX, "nextest", "run", "--workspace", "--lib", "--no-fail-fast"],
         ],

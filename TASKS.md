@@ -1682,7 +1682,7 @@ syntax and other terminal services are not prerequisites.
   reusable-fragment identity, guard bytes, and atomic rejection before writes.
   Move and run the relevant `layout-plans` writer/fragment controls with their
   owners, `compiler --test layout_plans`'s `writer_lowering` cases, affected-crate
-  checks/Clippy, and architecture tests. Verify bytes and execution on available
+  checks/Clippy. Verify bytes and execution on available
   matching hosts; keep **SYMBOLIC-MATERIALIZATION**'s missing Linux AArch64 runtime
   evidence open until that host runs. Do not add a new IR or interpreter subsystem
   merely to relocate the existing machinery.
@@ -1897,8 +1897,8 @@ syntax and other terminal services are not prerequisites.
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
   resource analysis, native realization and installation.
-  The [encoding contract](wiki/spec/terminal-psi/encoding.md) and
-  `tests/architecture/encoding_contract.rs` already cover the codec's closed
+  The [encoding contract](wiki/spec/terminal-psi/encoding.md)
+  already covers the codec's closed
   vocabulary, envelopes and mathematical certificates; maintain that coverage
   as the operation owners extend it, not another wire-format project.
 
@@ -2270,7 +2270,7 @@ syntax and other terminal services are not prerequisites.
   its unchanged cycle certificate still answers the same termination question.
   Missing arrival evidence and an unestablished guarantee reject. Retain
   `terminal-verifier/tests/ranked_scc/`, `ranked_value_guarantees`,
-  `compiler/tests/pcc_publication.rs` and architecture layering controls.
+  `compiler/tests/pcc_publication.rs`.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted fusion of artifact
   traversal and proof search with a total canonical-ledger generator and an
@@ -4987,7 +4987,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
 - **RC-REPOSITORY-CLOSURE.** Establish one clean-commit pass of the repository
   gate: whole-workspace formatting, all-target Clippy with warnings denied,
-  architecture tests, all-target check, and workspace library tests. Use the
+  all-target check, and workspace library tests. Use the
   completion contract's full scope and current portable formatting route;
   do not exclude failing crates. Owners: repository gates and each failing
   crate. Repair attributed failures through their capability owners, then

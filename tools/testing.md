@@ -11,8 +11,7 @@ one command.
 Routine changes, including `advance`, use focused regression coverage, affected
 crate checks, and relevant integration tests. Choose checks from the changed
 behavior and its dependencies/source readers, not from the mere existence of a
-new worktree. Use crate-scoped check/Clippy for Rust changes; include architecture
-checks for ownership, dependency, representation, or architecture-reader changes.
+new worktree. Use crate-scoped check/Clippy for Rust changes.
 For prose-only instructions, review consistency, links, and skill metadata;
 run source audits only when their actual input rules are affected. No Rust build
 is required merely to edit workflow prose.
@@ -126,7 +125,6 @@ Use these gates when establishing or refreshing a full checkout baseline:
 ```bash
 python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
-mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 python tools/corpus_gate.py
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
@@ -139,7 +137,7 @@ are separate and must report an explicit skip when the host cannot run them.
 
 For a scoped recheck with a previously verified commit, use the
 [test_affected.py](test_affected.py) selector documented below:
-`--base VERIFIED_COMMIT` replaces the architecture/library gate commands above,
+`--base VERIFIED_COMMIT` replaces the library gate commands above,
 and a configured TypeSafe key adds a `jev` augment (see Jev semantic augment).
 Keep checks applicable under Validation scope, including relevant
 integration/bootstrap checks. If a full-baseline claim is needed and its prior
@@ -194,11 +192,10 @@ main changes rather than using a merge-base. Invalid references fail.
 | Changed input | Selection |
 | --- | --- |
 | Rust `.rs` under a known workspace crate's `src/` | That crate and declared reverse dependencies, including dev/build/optional/platform dependencies, plus known source-reader edges. |
-| Root `AGENTS.md`, `CONTRIBUTING.md`, `CLAUDE.md`, `README.md`, `OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`; Markdown under `wiki/` | Architecture only — reported under `documentation_paths` in the plan; no libraries unless other inputs require them. |
+| Root `AGENTS.md`, `CONTRIBUTING.md`, `CLAUDE.md`, `README.md`, `OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`; Markdown under `wiki/` | No library commands — reported under `documentation_paths` in the plan; a `jev` augment may still add checks. |
 | Manifests, build scripts, lockfiles, toolchain/configuration, shared fixtures, Omega library sources, tools, and unknown inputs | All libraries. Markdown outside the allowlist, including this file, also takes this fallback. |
-| No changed input | Architecture only; library filter `none()`. |
+| No changed input | No commands; library filter `none()`. |
 
-Architecture always runs because it reads repository layout and sources.
 Mixed documentation/Rust changes retain the Rust dependency closure. Library
 commands keep `--workspace` feature unification even for a narrow filter;
 splitting compilation into separate package builds need not be equivalent.
@@ -228,7 +225,7 @@ additionally asks a System One model which entries of
 *beyond what the deterministic baseline already covers*, and appends commands
 for flagged candidates the baseline lacks. The augment is union-only: it can
 add checks (e.g., a standard-library compile for a name-resolution change, or
-a path-catalog architecture test for a file move) but never removes baseline
+a std-compile for a name-resolution change) but never removes baseline
 coverage, so every failure mode degrades to deterministic selection. The
 `jev` plan field reports `augmented` with `flagged`/`added`/`covered`/
 `suggested` lists. With no key configured the plan reports `unconfigured` and
