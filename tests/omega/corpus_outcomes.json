@@ -26471,6 +26471,14 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/structural/borrowed_byte_view_member_result",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 373,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/structural/case_payload_record_member_read",
   "tier": "pass",
   "status": "checked",
