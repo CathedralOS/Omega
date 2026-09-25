@@ -1,0 +1,25 @@
+{
+  "wave": "ccr1",
+  "max_acu_limit": 1,
+  "devin_mode": null,
+  "bypass_approval": true,
+  "resumable": false,
+  "tags": ["ccr1", "claude-code-remote"],
+  "owner_label_prefix": "claude-cloud",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "ccr1-component-publication",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/component-publication"
+      ],
+      "suggested_first_slice": "Migrate component-publication's hand-written one-field substitution matrices in `omega-rust/omega/backend/runtime/component-publication/src/tests.rs` (for example `external_stack_provision_rejects_every_one_field_substitution` and its boxed-closure loops) onto `mutation_matrix::custody_field_inventory!` plus `run_one_field_substitution_matrix`, preserving each family's independent checker and every existing rejection fragment. `omega-rust/omega/packages/topology/tests/custody_substitution.rs` with `custody_substitution/request_custody_fields.rs` is the worked shared-driver example; `tests/architecture/custody_mutation_matrix.rs` is the gate the migrated inventories must satisfy.",
+      "host_gates": [
+        "git ls-remote --exit-code origin refs/coordination/omega-claims/main"
+      ]
+    }
+  ]
+}
