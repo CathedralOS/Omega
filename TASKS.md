@@ -2781,6 +2781,24 @@ syntax and other terminal services are not prerequisites.
   still lower and verify; the pass-canary and run-test groups show no new
   failures.
 
+- **IMPLICIT-STORE-CONVERSION.** (new-scope) Validation admits a store whose
+  value has another integer type or arithmetic policy than its destination
+  when the value's range fits (`self.output = self.state & 255` with
+  `output: i32`, `state: u32 in Wrapping`;
+  `arithmetic_domains::assignments::check_narrowing_assignment`). The
+  [numeric values](wiki/spec/language/numeric_values.md) and
+  [domains](wiki/spec/language/domains.md#nominal-index-qualifications) specs
+  keep typed values at their types, make policy erasure explicit, and route
+  representable narrowing through `as`. Checked lowering then has no
+  `AssignmentValue` row (`scalar_lowering::lower_return_expression` requires
+  equal types), so native compilation stops at local construction
+  `structural field store: pure source: scalar expression row` with no
+  source diagnostic. Reject the store in validation with a diagnostic naming
+  the explicit `as`, and migrate the fixtures and samples that relied on it.
+  Acceptance: such a store fails checking with that diagnostic, and every pass
+  canary and sample that stores across integer types or policies spells the
+  cast.
+
 - **STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.** (new-scope) The Unit state graph
   now completes a primitive scalar result (`CheckedControlResultPlan::Scalar`,
   `ReturnScalar` with the ordinary binding or exit completion), and ordinary or

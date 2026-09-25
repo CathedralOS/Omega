@@ -913,34 +913,11 @@ fn report_cross_class_argument(
 /// (`let r = self.f(self.bool_field)`). The value-position path validates only
 /// type-parameter bounds, so the same cross-class hole the statement/transition
 /// paths had applies here. Unlike `validate_call_arguments_handles` there is no
-/// shape gate ahead of this, so it also covers literal arguments.
-fn validate_value_call_argument_classes(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: &State,
-    value_environment: &ValueEnvironment,
-    arguments: &[ExpressionHandle],
-    callee_machine: &Machine,
-    callee_state: &State,
-    executes: bool,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    validate_value_call_argument_classes_with_self_argument(
-        program,
-        current_machine,
-        current_state,
-        value_environment,
-        false,
-        arguments,
-        callee_machine,
-        callee_state,
-        executes,
-        diagnostics,
-    );
-}
-
+/// shape gate ahead of this, so it also covers literal arguments. A static
+/// attached call passes its receiver as an explicit argument
+/// (`self_is_argument`).
 #[allow(clippy::too_many_arguments)]
-fn validate_value_call_argument_classes_with_self_argument(
+fn validate_value_call_argument_classes(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,

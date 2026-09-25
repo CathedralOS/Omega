@@ -37,7 +37,7 @@ machine Main::main(&mut self) reaches Console {
     self.state = self.state ^ self.scratch;
 
     // Reduce the 32-bit draw to a process exit code via its low byte.
-    self.output = self.state & 255;
+    self.output = (self.state & 255) as i32;
 
     transition { _ -> emit() }
 

@@ -133,32 +133,38 @@ pub(super) fn validate(
                     result,
                     plan,
                 )?;
+            // Each runtime index must reference the selector's dominating
+            // definition — parameter, block parameter, or computed value —
+            // the same source the lowered operand already proved; custody
+            // compares value, integer type and stride, not the operand
+            // variant the producer dispatched.
             let expected_indices = expected_indices
                 .into_iter()
                 .map(|element| {
-                    let (parameter_index, parameter) = optimized
-                        .parameters
-                        .iter()
-                        .enumerate()
-                        .find(|(_, parameter)| parameter.value == element.index)
-                        .ok_or(LegalizationError::custody())?;
-                    let parameter_index =
-                        u32::try_from(parameter_index).map_err(|_| LegalizationError::custody())?;
-                    Ok::<_, LegalizationError>(target_operations::TargetStructuralRuntimeIndex {
-                        operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
-                            parameter_index,
-                            source_value: parameter.value,
-                            scalar_type: parameter.scalar_type,
-                        },
-                        stride: element.stride,
+                    let scalar_type = crate::legalization::runtime_indices::defined_type(
+                        optimized,
+                        element.index,
+                    )
+                    .filter(|scalar| {
+                        matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
+                            if integer.bits() <= 64)
                     })
+                    .ok_or(LegalizationError::custody())?;
+                    Ok::<_, LegalizationError>((element.index, scalar_type, element.stride))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if psi_operation != expected_operation
                 || source != expected_source
                 || path != expected_path
                 || *byte_offset != expected_offset
-                || *indices != expected_indices
+                || indices.len() != expected_indices.len()
+                || indices.iter().zip(&expected_indices).any(
+                    |(index, (value, scalar_type, stride))| {
+                        index.stride != *stride
+                            || index.operand.source_value() != *value
+                            || index.operand.scalar_type() != *scalar_type
+                    },
+                )
                 || *result_home
                     != scalar_graph_input::aggregate_results::result_home(
                         optimized,
