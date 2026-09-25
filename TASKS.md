@@ -508,6 +508,25 @@ the complete product bar; focused successes below do not establish that baseline
   is the sample's next frontier and belongs to boundary provider selection, not
   to terminal unit construction.
 
+  `samples/cli/arithmetic/sensor_min_max` measures the float source policy in
+  `structural_scalar_store/value.rs::admits`. A float store admits only an IEEE
+  literal, a parameter or a local, so `self.lo = self.nums[0]` and
+  `self.cur = self.nums[self.i]` are refused although neither read is a floating
+  operation and both are already admitted at an integer carrier. Widening it to
+  the two structural-read forms advances the sample from state 0 statement 7 to
+  state 2 statement 1, where `self.lo = min(self.lo, self.cur)` stops at
+  `statement sequence: assignment: call source result type`: a builtin `min`
+  leaves `call.target_symbol` as the builtin function, and
+  `flow::call_target_return_type` resolves no state, signature, asm intrinsic or
+  trait for it, exactly as the integer operand route did before 636633c144.
+  `--target macos_arm64` fails identically, so this is not target filtering.
+
+  No corpus fixture pins that policy. The pure expression route covers these
+  stores in every small program -- a console call, an index guard, a loop body
+  and the min/max fold were each tried -- so `admits` is never consulted and a
+  candidate fixture passes with the policy reverted. Land the widening with the
+  call-source repair, where the sample itself is the witness.
+
   Method that works, and one cause closed by it (cab36531c8f). The phase the
   message carries is the only pointer: grep it verbatim under
   `execution/terminal_unit/` -- it is a unique `trace.phase(..)` or `arm(..)`
