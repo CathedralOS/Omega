@@ -74,6 +74,10 @@ impl RangeFacts<'_> {
         }
         let transferable = self.preserved_expression_labels(program, machine, state, Some(&[]));
         let originals = self.expression_dependencies.clone();
+        // The bound index scans the whole program once; the candidate walk
+        // below asks for an identity per expression node per original, so it
+        // must live outside the loop rather than rebuild per original.
+        let bound_lookup = validation::ImmutableBoundLookup::new(program);
         for original in originals {
             if !transferable.contains(&original.label) {
                 continue;
@@ -106,10 +110,6 @@ impl RangeFacts<'_> {
             {
                 continue;
             }
-            // The bound index scans the whole program once; the candidate
-            // walk below asks for an identity per expression node, so build
-            // it once for the walk instead of inside each lookup.
-            let bound_lookup = validation::ImmutableBoundLookup::new(program);
             for (expression, node) in program.expression_table.iter_expressions() {
                 let ExpressionNode::Indexed(candidate) = node else {
                     continue;

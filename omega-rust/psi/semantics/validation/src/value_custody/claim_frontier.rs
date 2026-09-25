@@ -40,6 +40,23 @@ pub fn linear_claim_frontier(
         .enumerate()
         .map(|(index, definition)| (definition.symbol, index))
         .collect();
+    // Multiplicity answers below look up the same declaration and parameter
+    // identities; `type_multiplicity` rescans both tables per named type, so
+    // index the parameter table once the same way.
+    let parameters_by_symbol: std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    > = program
+        .data_type_parameters
+        .iter()
+        .filter(|(_, parameter)| parameter.symbol.is_valid())
+        .map(|(_, parameter)| {
+            (
+                parameter.symbol,
+                (parameter.bounds.multiplicity, parameter.kind.clone()),
+            )
+        })
+        .collect();
     append_linear_claim_frontier(
         program,
         type_reference,
@@ -47,6 +64,7 @@ pub fn linear_claim_frontier(
         &mut Vec::new(),
         &mut Vec::new(),
         &data_definitions_by_symbol,
+        &parameters_by_symbol,
         &mut claims,
     );
     claims
@@ -59,12 +77,22 @@ fn append_linear_claim_frontier(
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
+    parameters_by_symbol: &std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    >,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if !type_reference.is_valid() {
         return;
     }
-    let multiplicity = type_multiplicity_with_substitutions(program, type_reference, substitutions);
+    let multiplicity = type_multiplicity_with_substitutions(
+        program,
+        type_reference,
+        substitutions,
+        data_definitions_by_symbol,
+        parameters_by_symbol,
+    );
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Constrained { base_type, .. } => {
             if multiplicity == Multiplicity::Linear {
@@ -78,6 +106,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 data_definitions_by_symbol,
+                parameters_by_symbol,
                 claims,
             );
             return;
@@ -95,6 +124,7 @@ fn append_linear_claim_frontier(
                     path,
                     visiting,
                     data_definitions_by_symbol,
+                    parameters_by_symbol,
                     claims,
                 );
                 path.pop();
@@ -118,6 +148,7 @@ fn append_linear_claim_frontier(
                     path,
                     visiting,
                     data_definitions_by_symbol,
+                    parameters_by_symbol,
                     claims,
                 );
                 return;
@@ -145,6 +176,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 data_definitions_by_symbol,
+                parameters_by_symbol,
                 claims,
             );
         }
@@ -184,6 +216,7 @@ fn append_linear_claim_frontier(
                 path,
                 visiting,
                 data_definitions_by_symbol,
+                parameters_by_symbol,
                 claims,
             );
         }
@@ -206,6 +239,10 @@ fn append_data_linear_claim_frontier(
     path: &mut Vec<facts::PlaceSegment>,
     visiting: &mut Vec<SymbolHandle>,
     data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
+    parameters_by_symbol: &std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    >,
     claims: &mut Vec<ClaimFrontierClaim>,
 ) {
     if visiting.contains(&definition.symbol) {
@@ -225,6 +262,7 @@ fn append_data_linear_claim_frontier(
                     path,
                     visiting,
                     data_definitions_by_symbol,
+                    parameters_by_symbol,
                     claims,
                 );
                 path.pop();
@@ -244,6 +282,7 @@ fn append_data_linear_claim_frontier(
                         path,
                         visiting,
                         data_definitions_by_symbol,
+                        parameters_by_symbol,
                         claims,
                     );
                     path.pop();
@@ -276,17 +315,30 @@ fn type_multiplicity_with_substitutions(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
+    parameters_by_symbol: &std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    >,
 ) -> Multiplicity {
     if !type_reference.is_valid() {
         return Multiplicity::Affine;
     }
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_multiplicity_with_substitutions(program, *base_type, substitutions)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_multiplicity_with_substitutions(program, *element_type, substitutions)
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => type_multiplicity_with_substitutions(
+            program,
+            *base_type,
+            substitutions,
+            data_definitions_by_symbol,
+            parameters_by_symbol,
+        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => type_multiplicity_with_substitutions(
+            program,
+            *element_type,
+            substitutions,
+            data_definitions_by_symbol,
+            parameters_by_symbol,
+        ),
         TypeReferenceNode::Named { symbol, .. } => substitutions
             .iter()
             .rev()
@@ -294,10 +346,114 @@ fn type_multiplicity_with_substitutions(
                 (*parameter == *symbol && *replacement != type_reference).then_some(*replacement)
             })
             .map(|replacement| {
-                type_multiplicity_with_substitutions(program, replacement, substitutions)
+                type_multiplicity_with_substitutions(
+                    program,
+                    replacement,
+                    substitutions,
+                    data_definitions_by_symbol,
+                    parameters_by_symbol,
+                )
             })
-            .unwrap_or_else(|| program.type_multiplicity(type_reference)),
-        _ => program.type_multiplicity(type_reference),
+            .unwrap_or_else(|| {
+                frontier_type_multiplicity(
+                    program,
+                    data_definitions_by_symbol,
+                    parameters_by_symbol,
+                    type_reference,
+                )
+            }),
+        _ => frontier_type_multiplicity(
+            program,
+            data_definitions_by_symbol,
+            parameters_by_symbol,
+            type_reference,
+        ),
+    }
+}
+
+/// `TypedTrees::type_multiplicity` against the frontier's declaration and
+/// parameter indexes: the named and generic arms below reach the declaration
+/// through the symbol index instead of rescanning the definition table. The
+/// order keeps the representation's exact precedence — a resolved symbol hits
+/// the declaration index, a parameter symbol the parameter map, a spelled
+/// primitive name the builtin domain, and only then a name lookup — so every
+/// verdict is the same value the scanning version produced.
+fn frontier_type_multiplicity(
+    program: &TypedTrees,
+    data_definitions_by_symbol: &std::collections::HashMap<SymbolHandle, usize>,
+    parameters_by_symbol: &std::collections::HashMap<
+        SymbolHandle,
+        (Multiplicity, typed_trees::data::TypeParameterKind),
+    >,
+    type_reference: TypeReferenceHandle,
+) -> Multiplicity {
+    if !type_reference.is_valid() {
+        return Multiplicity::Affine;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { .. }
+        | TypeReferenceNode::ConstExpression(_)
+        | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
+        TypeReferenceNode::Constrained { base_type, .. } => frontier_type_multiplicity(
+            program,
+            data_definitions_by_symbol,
+            parameters_by_symbol,
+            *base_type,
+        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => frontier_type_multiplicity(
+            program,
+            data_definitions_by_symbol,
+            parameters_by_symbol,
+            *element_type,
+        ),
+        TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Slice { .. } => {
+            Multiplicity::Affine
+        }
+        TypeReferenceNode::Named { symbol, name } => {
+            if symbol.is_valid()
+                && let Some(index) = data_definitions_by_symbol.get(symbol)
+            {
+                return program.data_definitions()[*index].properties.multiplicity;
+            }
+            if symbol.is_valid()
+                && let Some((multiplicity, kind)) = parameters_by_symbol.get(symbol)
+            {
+                if *multiplicity == Multiplicity::Affine
+                    && matches!(kind, typed_trees::data::TypeParameterKind::Type)
+                    && let Some(receiver) =
+                        program.attached_receiver_parameter_multiplicity(*symbol)
+                {
+                    return receiver;
+                }
+                return *multiplicity;
+            }
+            if typed_trees::types::PrimitiveType::from_name(name.as_str()).is_some() {
+                return Multiplicity::Unrestricted;
+            }
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name.as_str())
+                .map(|definition| definition.properties.multiplicity)
+                .unwrap_or(Multiplicity::Affine)
+        }
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => {
+            if base_symbol.is_valid()
+                && let Some(index) = data_definitions_by_symbol.get(base_symbol)
+            {
+                return program.data_definitions()[*index].properties.multiplicity;
+            }
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == base_name.as_str())
+                .map(|definition| definition.properties.multiplicity)
+                .unwrap_or(Multiplicity::Affine)
+        }
     }
 }
 
