@@ -1,0 +1,52 @@
+{
+  "wave": "ccr2",
+  "max_acu_limit": 1,
+  "devin_mode": null,
+  "bypass_approval": true,
+  "resumable": false,
+  "tags": ["ccr2", "claude-code-remote"],
+  "owner_label_prefix": "claude-cloud",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "ccr2-codec-a",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/debug_map_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/debug_map_custody_fields.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/artifact_envelope_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/artifact_envelope_custody_fields.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/pcc_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/pcc_custody_fields.rs"
+      ],
+      "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
+    },
+    {
+      "name": "ccr2-codec-b",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/obligation_ledger_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/obligation_ledger_custody_fields.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/operation_crash_contract_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/operation_crash_contract_custody_fields.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/placed_view_input_custody.rs",
+        "omega-rust/psi/semantics/terminal-codec/tests/artifact/placed_view_input_custody_fields.rs"
+      ],
+      "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
+    },
+    {
+      "name": "ccr2-container-wire",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "host": "linux",
+      "owning_paths": [
+        "omega-rust/omega/backend/runtime/executable-installation/src/artifacts/container_bytes"
+      ],
+      "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "wave": "ccr1",
+  "host": "claude-code-remote",
+  "launch": "create_session, lane mode (session branch only)",
+  "drained_utc": "2026-09-25",
+  "landing": "coordinator, via https://github.com/CathedralOS/Omega/pull/6 (rebase merge)",
+  "rollup": {
+    "landed": 1,
+    "total_sessions": 1
+  },
+  "sessions": [
+    {
+      "name": "ccr1-component-publication",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "session_id": "session_01CyNyi2wifUG8wAvjcfk1MC",
+      "result": "landed",
+      "item_closed": false,
+      "commits": [
+        "93a3efaee1"
+      ],
+      "wall_minutes": 19,
+      "cost_usd": 3.32,
+      "notes": "Migrated component-publication's external stack provision matrices (lease 6 lanes, retained set 8 lanes); left installed_runnable_component as lifecycle joins. The worker appended Co-Authored-By and Claude-Session trailers despite AGENTS.md; the coordinator reworded the commit before landing. Cold build on the cloud host: clippy 58 s, crate test build about 6 min."
+    }
+  ],
+  "friction": [
+    "Launched with the Claude Code Remote create_session tool, not launch.py's Devin API: launch.py plan --skip-route-check validated each manifest and rendered its prompt, then the prompt was adapted for the Claude host (cargo instead of mbx, nextest from its GitHub release because get.nexte.st is blocked by the egress policy, crate-scoped gates on 4 cores).",
+    "A cloud session can push only its own session branch: the Git proxy answers HTTP 403 for refs/coordination/omega-claims/main, refs/coordination/omega-landing/main, main, and every branch deletion. Workers therefore ran lane-only, no claims were registered, and the coordinator landed verified lanes through GitHub pull requests (#6 rebase-merged the nine migrations, #7 squash-merged the board row) while tools/landing.py status reported an idle queue.",
+    "The coordinator cannot read child transcripts; verdicts came from each session's title, the get_session post-turn summary, and the pushed branch, which the coordinator re-verified before landing.",
+    "Worker and coordinator branches cannot be deleted from the cloud: claude/ccr1-component-publication, claude/ccr2-codec-a, claude/ccr2-codec-b, claude/ccr2-container-wire, and claude/gifted-lamport-0r0ixw need a maintainer delete; every commit on them is patch-equivalent to main.",
+    "The auto-mode classifier refused a worker prompt that granted push authority to main and the coordination refs, so the wave switched to lane mode."
+  ]
+}

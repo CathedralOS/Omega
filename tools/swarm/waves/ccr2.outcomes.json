@@ -1,0 +1,70 @@
+{
+  "wave": "ccr2",
+  "host": "claude-code-remote",
+  "launch": "create_session, lane mode (session branch only)",
+  "drained_utc": "2026-09-25",
+  "landing": "coordinator, via https://github.com/CathedralOS/Omega/pull/6 (rebase merge)",
+  "rollup": {
+    "landed": 3,
+    "total_sessions": 3
+  },
+  "sessions": [
+    {
+      "name": "ccr2-codec-a",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "session_id": "session_012YGdDw5eseSq7epMkiB7bW",
+      "result": "landed",
+      "item_closed": false,
+      "commits": [
+        "860bfb14c5",
+        "1640a6133a",
+        "994b97ed39"
+      ],
+      "wall_minutes": 15,
+      "cost_usd": 4.04,
+      "notes": "Terminal codec debug-map (39 lanes), artifact-envelope (32 + 11 lanes), and PCC sidecar (35 lanes) matrices."
+    },
+    {
+      "name": "ccr2-codec-b",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "session_id": "session_01NyvUYgmpYu3TisLSSQXpfw",
+      "result": "landed",
+      "item_closed": false,
+      "commits": [
+        "01673f2268",
+        "3237c81b04",
+        "48aef96e69"
+      ],
+      "wall_minutes": 15,
+      "cost_usd": 5.55,
+      "notes": "Terminal codec obligation-ledger (45 lanes), operation-crash-contract (81 lanes), and placed-view-input (43 lanes) matrices."
+    },
+    {
+      "name": "ccr2-container-wire",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "CUSTODY-MUTATION-COVERAGE",
+      "session_id": "session_01KnoTAF7u2cUdH5vdeUHtY2",
+      "result": "landed",
+      "item_closed": false,
+      "commits": [
+        "f514d4b624",
+        "f0f44549e5"
+      ],
+      "wall_minutes": 14,
+      "cost_usd": 3.47,
+      "notes": "Executable-installation container wire: artifact family 33 lanes, wire-byte family 52 lanes, equal to the former hand-written legs."
+    }
+  ],
+  "coordinator_verification": "All nine commits of ccr1 and ccr2 stacked on 9b0f5af98a: cargo fmt --check clean for component-publication, executable-installation and terminal-codec; cargo clippy on the three crates with -D warnings clean; component-publication and executable-installation 140 passed; terminal-codec --test suite artifact:: 77 passed; omega-architecture-test 613 passed. Main after #6 carries exactly that tree (4c80e9d3d0).",
+  "friction": [
+    "Launched with the Claude Code Remote create_session tool, not launch.py's Devin API: launch.py plan --skip-route-check validated each manifest and rendered its prompt, then the prompt was adapted for the Claude host (cargo instead of mbx, nextest from its GitHub release because get.nexte.st is blocked by the egress policy, crate-scoped gates on 4 cores).",
+    "A cloud session can push only its own session branch: the Git proxy answers HTTP 403 for refs/coordination/omega-claims/main, refs/coordination/omega-landing/main, main, and every branch deletion. Workers therefore ran lane-only, no claims were registered, and the coordinator landed verified lanes through GitHub pull requests (#6 rebase-merged the nine migrations, #7 squash-merged the board row) while tools/landing.py status reported an idle queue.",
+    "The coordinator cannot read child transcripts; verdicts came from each session's title, the get_session post-turn summary, and the pushed branch, which the coordinator re-verified before landing.",
+    "Worker and coordinator branches cannot be deleted from the cloud: claude/ccr1-component-publication, claude/ccr2-codec-a, claude/ccr2-codec-b, claude/ccr2-container-wire, and claude/gifted-lamport-0r0ixw need a maintainer delete; every commit on them is patch-equivalent to main.",
+    "Explicit prompt wording kept all eight ccr2 commits free of attribution trailers.",
+    "terminal-codec sets autotests = false; its artifact tests run through --test suite with -E 'test(/^artifact::/)'.",
+    "Jev stayed unavailable in the ccr2 sessions: api.typesafe.ai was blocked by the environment's network policy until it was widened after launch, and TYPESAFE_API_KEY was not present."
+  ]
+}
