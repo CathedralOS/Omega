@@ -165,6 +165,41 @@ pub(crate) struct CollectedStatementPrefix {
     pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
+/// One walk returning both the whole-body prefix and every statement's
+/// `Before`/`ReferenceBefore` context: `include_shared` selects the shared
+/// parameter-seeded `stored` exactly as `ReferenceResult` does, and entry i
+/// of the collected vector is what `Before(statement[i])` (or
+/// `ReferenceBefore`) returns for that boundary. A state's result arms share
+/// this walk instead of re-walking the prefix per arm.
+pub(crate) fn walk_state_write_prefix_collected(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
+    complete_state_summaries: &mut Vec<(SymbolHandle, Vec<String>)>,
+    include_shared: bool,
+) -> Option<(StateWritePrefix, Vec<Option<CollectedStatementPrefix>>)> {
+    inference.with_local_scope(|inference| {
+        let mut prefixes = Vec::new();
+        let prefix = walk_state_write_prefix_inner(
+            program,
+            machine,
+            state,
+            symbols,
+            inference,
+            complete_state_summaries,
+            if include_shared {
+                Some(StateWriteQuery::ReferenceResult)
+            } else {
+                None
+            },
+            Some(&mut prefixes),
+        )?;
+        Some((prefix, prefixes))
+    })
+}
+
 /// One non-shared prefix walk snapshotting the accumulator before every
 /// statement. Statements at or after an uncomputable point record `None`,
 /// matching the `Before` walk's `None` for those indices exactly.
