@@ -12,9 +12,10 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionLateBinding as LateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
-    BuildOperation,
+    BuildOperation, CompilerDerivedSelectionPartition,
 };
 use source::SourceSpan;
+use std::collections::HashMap;
 use symbol_resolved_trees::{
     SymbolResolvedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -382,56 +383,119 @@ fn finalize_authored_statement_call_selections(
         }
     }
 
+    // Every candidate otherwise rescans the entire selection table for its
+    // (span, exposure, kind, partition) bucket: candidates x selections.
+    // Selections record by append, so the index absorbs rows minted by
+    // earlier candidates in this loop as well.
+    let mut call_selection_index = statement_call_selection_index(program);
     for candidate in candidates {
-        let occurrence =
-            if let Some(occurrence) = existing_statement_call_occurrence(program, candidate)? {
-                occurrence
-            } else {
-                match candidate.target {
-                    CandidateTarget::Resolved(symbol) => program
-                        .record_resolved_authored_declaration_selection_in_partition(
-                            candidate.source_span,
-                            Exposure::PrivateImplementation,
-                            Kind::Call,
-                            candidate.compiler_partition,
-                            symbol,
-                        ),
-                    CandidateTarget::LateBound(binding) => program
-                        .record_late_bound_authored_declaration_selection_in_partition(
-                            candidate.source_span,
-                            Exposure::PrivateImplementation,
-                            Kind::Call,
-                            candidate.compiler_partition,
-                            binding,
-                        ),
-                }
-                .map_err(record_diagnostic)?
-            };
+        let occurrence = if let Some(occurrence) =
+            existing_statement_call_occurrence(program, candidate, &call_selection_index)?
+        {
+            occurrence
+        } else {
+            let occurrence = match candidate.target {
+                CandidateTarget::Resolved(symbol) => program
+                    .record_resolved_authored_declaration_selection_in_partition(
+                        candidate.source_span,
+                        Exposure::PrivateImplementation,
+                        Kind::Call,
+                        candidate.compiler_partition,
+                        symbol,
+                    ),
+                CandidateTarget::LateBound(binding) => program
+                    .record_late_bound_authored_declaration_selection_in_partition(
+                        candidate.source_span,
+                        Exposure::PrivateImplementation,
+                        Kind::Call,
+                        candidate.compiler_partition,
+                        binding,
+                    ),
+            }
+            .map_err(record_diagnostic)?;
+            index_latest_call_selection(program, &mut call_selection_index);
+            occurrence
+        };
         attach_statement_call_occurrence(program, candidate.site, occurrence)?;
     }
     Ok(())
 }
 
+type CallSelectionKey = (
+    usize,
+    usize,
+    usize,
+    Option<CompilerDerivedSelectionPartition>,
+);
+
+fn statement_call_selection_index(
+    program: &SymbolResolvedTrees,
+) -> HashMap<CallSelectionKey, Vec<usize>> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+
+    let mut index = HashMap::new();
+    for (row, selection) in program.authored_declaration_selections().iter().enumerate() {
+        if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call
+        {
+            continue;
+        }
+        let span = selection.source_span();
+        index
+            .entry((
+                span.source_id.0,
+                span.span.start,
+                span.span.end,
+                selection.compiler_partition(),
+            ))
+            .or_insert_with(Vec::new)
+            .push(row);
+    }
+    index
+}
+
+fn index_latest_call_selection(
+    program: &SymbolResolvedTrees,
+    index: &mut HashMap<CallSelectionKey, Vec<usize>>,
+) {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure as Exposure;
+
+    let Some(selection) = program.authored_declaration_selections().as_slice().last() else {
+        return;
+    };
+    if selection.exposure() != Exposure::PrivateImplementation || selection.kind() != Kind::Call {
+        return;
+    }
+    let span = selection.source_span();
+    index
+        .entry((
+            span.source_id.0,
+            span.span.start,
+            span.span.end,
+            selection.compiler_partition(),
+        ))
+        .or_insert_with(Vec::new)
+        .push(program.authored_declaration_selections().len() - 1);
+}
+
 fn existing_statement_call_occurrence(
     program: &SymbolResolvedTrees,
     candidate: AuthoredStatementCallCandidate,
+    index: &HashMap<CallSelectionKey, Vec<usize>>,
 ) -> Result<Option<AuthoredDeclarationSelectionOccurrenceId>, Diagnostic> {
-    use language_semantics::declaration_selection::{
-        AuthoredDeclarationSelectionExposure as Exposure,
-        AuthoredDeclarationSelectionTarget as Target,
-    };
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
 
+    let span = candidate.source_span;
+    let Some(rows) = index.get(&(
+        span.source_id.0,
+        span.span.start,
+        span.span.end,
+        candidate.compiler_partition,
+    )) else {
+        return Ok(None);
+    };
     let mut retained = None;
-    for selection in program
-        .authored_declaration_selections()
-        .iter()
-        .filter(|selection| {
-            selection.source_span() == candidate.source_span
-                && selection.exposure() == Exposure::PrivateImplementation
-                && selection.kind() == Kind::Call
-                && selection.compiler_partition() == candidate.compiler_partition
-        })
-    {
+    for &row in rows {
+        let selection = &program.authored_declaration_selections().as_slice()[row];
         let existing_target = match selection.target() {
             Target::Resolved(existing) => CandidateTarget::Resolved(existing.selected_symbol()),
             Target::LateBound(binding) => CandidateTarget::LateBound(binding),
