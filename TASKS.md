@@ -920,6 +920,24 @@ accepted contracts, not claims of implementation. Existing
 extend that route, not a second build language or plugin executor. Any semantic
 or trust amendment found here or later goes through [owner questions](OWNER_QUESTIONS.md).
 
+- **TYPED-TREES-OWNED-INDEXES.** (new-scope) The checked stage and
+  validation look declarations up by symbol through thread-local caches keyed
+  by a `TypedTrees` address. Each guesses freshness from arena lengths and a
+  few sampled handles or name pointers, and keeps one program per thread:
+  `values/scalar/structural_fields.rs` (`STRUCTURAL_ROSTERS`),
+  `lookup/symbols.rs` (`MACHINE_INDEX`), and the caches in
+  `facts/field_domain.rs`, `flow/transfers/scalar_values/calls.rs`,
+  `authored_selections/contexts.rs`, stage 03's `domain_constraints.rs` and
+  `generic_origins.rs`, typed-trees' `declarations/domain.rs`, stage 02's
+  `projected_receivers.rs`, and validation's `service_reach.rs` and
+  `write_frames/isolation.rs`. They exist because `TypedTrees` publishes its
+  declaration arenas as `pub` fields and owns no symbol index, so no mutation
+  point can invalidate one. `SymbolTable` (`root_names`) and
+  `ImmutableBoundLookup` now own theirs. Acceptance: `TypedTrees` mutates
+  declarations only through methods, owns the symbol-to-declaration indexes
+  those methods invalidate, and the address-keyed caches are deleted with no
+  loss on the CHECK-CLOSURE-ONCE timings.
+
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
   Product descriptions, visibility checks, and exact-symbol admission exist.
