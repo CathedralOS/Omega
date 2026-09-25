@@ -165,7 +165,16 @@ next settle actually wakes you.
 4. `git push origin HEAD:main`. A rejection means main moved under you —
    re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
    checkout and never carry a wedged tree forward.
-5. Append the ledger row (ISO-UTC, lane, sha, verdict summary, gate counts)
+5. Delete the landed lane: `git push origin --delete <lane>`. A lane is a
+   transport, not an archive — the merge commit is the durable record, and
+   merged lanes left on the remote pile up as stale refs (a 140-branch
+   census found 129 already-merged). Only skip deletion when the lane is a
+   checkpoint holding unmerged work the next leg still reads — say so in the
+   ledger row. Periodically audit stragglers:
+   `git ls-remote --heads origin 'leaf/*' | awk '{print $2, $1}' | sed 's|refs/heads/||'`
+   then `git merge-base --is-ancestor <sha> origin/main` per lane and
+   `--delete` the ancestors; never delete a lane that is not an ancestor.
+6. Append the ledger row (ISO-UTC, lane, sha, verdict summary, gate counts)
    to `.swarm/merge-ledger.tsv` or the wave outcomes file.
 
 **Never serialize a worker on a coordinator-side gate.** A merge gate,

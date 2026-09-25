@@ -66,7 +66,7 @@ pub(crate) use write_frames::machine_state_by_symbol;
 pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
-    state_reference_parameter_binding_is_stable,
+    operand_call_plans, state_reference_parameter_binding_is_stable,
 };
 pub(crate) use write_frames::{
     boundary_trait_signature, free_machine_entry_state, statement_value_expression_roots,

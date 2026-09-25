@@ -69,6 +69,7 @@ impl RangeFacts<'_> {
             return None;
         }
         let mut reads = Vec::new();
+        let mut bounds = None;
         if !collect_reads(
             program,
             machine,
@@ -79,6 +80,7 @@ impl RangeFacts<'_> {
             self.checked_operators,
             &mut reads,
             0,
+            &mut bounds,
         ) || reads.len() != 1
         {
             return None;
@@ -228,17 +230,21 @@ impl RangeFacts<'_> {
             machine,
             Some(state),
             expression,
-        ) && collect_reads(
-            program,
-            machine,
-            state,
-            self.statement_index,
-            expression,
-            self.checked_calls,
-            self.checked_operators,
-            &mut reads,
-            0,
-        );
+        ) && {
+            let mut bounds = None;
+            collect_reads(
+                program,
+                machine,
+                state,
+                self.statement_index,
+                expression,
+                self.checked_calls,
+                self.checked_operators,
+                &mut reads,
+                0,
+                &mut bounds,
+            )
+        };
         self.recorded_expressions
             .insert((expression, machine.symbol, state.symbol));
         self.expression_dependencies.push(ExpressionDependencies {

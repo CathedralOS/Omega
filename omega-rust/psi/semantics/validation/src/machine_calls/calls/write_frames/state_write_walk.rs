@@ -109,16 +109,16 @@ pub(crate) fn summarize_complete_state_written_paths(
         return Some(paths.clone());
     }
     if !named_state_transition_subgraph_is_acyclic(program, machine, state) {
-        let writes = summarize_state_written_paths_with_permuted_cycles(
+        // The solver already records every state it solves — including `state`
+        // — into `complete_state_summaries`.
+        return summarize_state_written_paths_with_permuted_cycles(
             program,
             machine,
             state,
             symbols,
             inference,
             complete_state_summaries,
-        )?;
-        complete_state_summaries.push((state.symbol, writes.clone()));
-        return Some(writes);
+        );
     }
     let prefix = walk_state_write_prefix(
         program,

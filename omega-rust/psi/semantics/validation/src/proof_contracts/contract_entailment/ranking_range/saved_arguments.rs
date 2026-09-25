@@ -169,8 +169,9 @@ fn exclusive_referent(program: &TypedTrees, mut reference: TypeReferenceHandle) 
 /// value, so the observation is withheld entirely rather than approximated.
 fn stable_references(program: &TypedTrees, state: &State, expression: ExpressionHandle) -> bool {
     let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     crate::value_custody::expression_types::collect_expression_nodes(
-        program, expression, &mut nodes,
+        program, expression, &mut nodes, &mut seen,
     );
     nodes.iter().all(|node| {
         let ExpressionNode::Name(path) = program.expression_table.expression(*node) else {
@@ -204,8 +205,9 @@ fn bind_local_lengths(
     engine: &mut Engine<'_>,
 ) {
     let mut nodes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     crate::value_custody::expression_types::collect_expression_nodes(
-        program, expression, &mut nodes,
+        program, expression, &mut nodes, &mut seen,
     );
     for node in nodes {
         let ExpressionNode::Member(member) = program.expression_table.expression(node) else {

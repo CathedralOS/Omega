@@ -43,8 +43,9 @@ pub use spellings::{
     resolve_spelling_for_operand_types, resolve_spelling_for_operands,
 };
 pub use trait_operators::{
-    SelectedTraitOperatorMeaning, selected_trait_operator_meanings,
-    trait_operator_matches_application, trait_operator_operand_signature,
+    SelectedTraitOperatorMeaning, selected_trait_operator_meaning_exists,
+    selected_trait_operator_meanings, trait_operator_matches_application,
+    trait_operator_operand_signature,
 };
 
 use arena::HandleSpan;

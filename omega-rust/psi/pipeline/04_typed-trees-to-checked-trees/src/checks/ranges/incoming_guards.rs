@@ -51,6 +51,10 @@ impl IncomingGuardIndex {
         program: &typed_trees::TypedTrees,
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Self {
+        // The bound index is immutable program data: build it once here
+        // rather than once per state, edge, and argument expression inside
+        // the walks.
+        let bound_lookup = validation::ImmutableBoundLookup::new(program);
         Self {
             machines: program
                 .machines()
@@ -62,6 +66,7 @@ impl IncomingGuardIndex {
                             program,
                             machine,
                             call_frames,
+                            &bound_lookup,
                         ),
                     )
                 })
@@ -189,6 +194,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Vec<IncomingGuard> {
     let mut edges: Vec<Edge> = Vec::new();
     // External invocation reaches entry without any transition guard, even
@@ -311,7 +317,8 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
                 )
             });
             immutable_argument_symbols = immutable_argument_symbols.and_then(|bindings| {
-                let replacements = direct_edge_immutable_argument_symbols(program, &edge)?;
+                let replacements =
+                    direct_edge_immutable_argument_symbols(program, &edge, bound_lookup)?;
                 Some(compose_immutable_argument_symbols(&bindings, &replacements))
             });
             for &(guard, negated) in &edge.guards {
@@ -374,7 +381,7 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
         }
         let per_edge: Vec<Vec<CarriedGuard>> = incoming
             .iter()
-            .map(|edge| edge_carried_facts(program, &walk_facts, &writes, edge))
+            .map(|edge| edge_carried_facts(program, &walk_facts, &writes, edge, bound_lookup))
             .collect();
         let Some((first, rest)) = per_edge.split_first() else {
             continue;
@@ -431,6 +438,7 @@ fn edge_carried_facts(
     walk_facts: &[IncomingGuard],
     writes: &[(SymbolHandle, StateWrites)],
     edge: &Edge,
+    bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Vec<CarriedGuard> {
     let (written, written_any): (Vec<String>, bool) = match state_field_writes(writes, edge.source)
     {
@@ -449,17 +457,22 @@ fn edge_carried_facts(
             parameter_argument_places: compose_carried_parameter_argument_places(
                 program, edge, fact,
             ),
-            immutable_argument_symbols: direct_edge_immutable_argument_symbols(program, edge)
-                .and_then(|direct| {
-                    Some(compose_immutable_argument_symbols(
-                        &direct,
-                        fact.immutable_argument_symbols.as_ref()?,
-                    ))
-                }),
+            immutable_argument_symbols: direct_edge_immutable_argument_symbols(
+                program,
+                edge,
+                bound_lookup,
+            )
+            .and_then(|direct| {
+                Some(compose_immutable_argument_symbols(
+                    &direct,
+                    fact.immutable_argument_symbols.as_ref()?,
+                ))
+            }),
         })
         .collect();
     let direct_parameter_argument_places = direct_edge_parameter_argument_places(program, edge);
-    let direct_immutable_argument_symbols = direct_edge_immutable_argument_symbols(program, edge);
+    let direct_immutable_argument_symbols =
+        direct_edge_immutable_argument_symbols(program, edge, bound_lookup);
     carried.extend(edge.guards.iter().map(|(guard, negated)| CarriedGuard {
         evaluation_state: edge.source,
         guard: *guard,
@@ -619,6 +632,7 @@ fn immutable_parameter_symbols(
 fn direct_edge_immutable_argument_symbols(
     program: &typed_trees::TypedTrees,
     edge: &Edge,
+    bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<ImmutableArgumentSymbols> {
     let target = crate::semantic::calls::find_state(program, edge.target)?;
     let mut bindings = immutable_parameter_symbols(program, target);
@@ -633,7 +647,7 @@ fn direct_edge_immutable_argument_symbols(
     let source = crate::semantic::calls::find_state(program, edge.source)?;
     for ((_, symbol), argument) in bindings.iter_mut().zip(arguments) {
         if symbol.is_valid() {
-            *symbol = immutable_argument_symbol(program, source, *argument)
+            *symbol = immutable_argument_symbol(program, source, *argument, bound_lookup)
                 .unwrap_or_else(SymbolHandle::invalid);
         }
     }
@@ -673,6 +687,7 @@ fn immutable_argument_symbol(
     program: &typed_trees::TypedTrees,
     state: &State,
     expression: ExpressionHandle,
+    bound_lookup: &validation::ImmutableBoundLookup<'_>,
 ) -> Option<SymbolHandle> {
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
@@ -687,18 +702,18 @@ fn immutable_argument_symbol(
     {
         return None;
     }
-    // The bound index scans the whole program once; the cheap name and
-    // binding gates above reject most expressions before it is needed.
-    let bound_lookup = validation::ImmutableBoundLookup::new(program);
+    // The shared bound index is built once per index build; the cheap name
+    // and binding gates above still reject most expressions before it is
+    // consulted.
     let symbol = if let Some(normalized) =
-        validation::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)
+        validation::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
     {
         let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
             return None;
         };
         path.symbol
     } else {
-        validation::immutable_integer_bound_value_symbol(program, &bound_lookup, expression)?
+        validation::immutable_integer_bound_value_symbol(program, bound_lookup, expression)?
     };
     immutable_integer_binding(program, state, symbol).then_some(symbol)
 }

@@ -94,18 +94,14 @@ pub(crate) fn call_array_constructions(
         {
             continue;
         }
-        let mut owners = program.machines().iter().filter(|owner| {
-            program
-                .machine_states(owner)
-                .iter()
-                .any(|state| state.symbol == target.symbol)
-        });
-        let Some(owner) = owners.next() else {
+        // The state's retained parent names its owning machine; the
+        // whole-program owner walk was the same lookup at program scale.
+        let Some((owner, _)) =
+            crate::semantic::calls::find_state_with_machine(program, target.symbol)
+        else {
             continue;
         };
-        if owners.next().is_some()
-            || owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        {
+        if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
         let parameters = program.state_parameters(target);
