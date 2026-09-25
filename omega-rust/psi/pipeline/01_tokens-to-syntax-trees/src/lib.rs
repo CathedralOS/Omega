@@ -6,8 +6,7 @@
 //! `input::token_cursor::Input` and hands each top-level item to
 //! `declarations::parse_declaration`, publishing the roots into the caller's
 //! `SyntaxTrees`. [`parse_syntax_trees`] and [`parse_syntax_trees_with_id`]
-//! are the same route with the arena created for you, and
-//! [`parse_syntax_trees_into_with_id`] is `parse` under its long name.
+//! are the same route with the arena created for you.
 //!
 //! The grammar modules below are not stages and run in no fixed order: this is
 //! recursive descent, so each one calls the ones nested inside it, for as long
@@ -47,10 +46,8 @@ mod type_syntax;
 mod diagnostics;
 mod input;
 
-// The entrance, under the four names its callers use.
-pub use parser::{
-    parse, parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
-};
+// The entrance, and the two forms that create the arena for the caller.
+pub use parser::{parse, parse_syntax_trees, parse_syntax_trees_with_id};
 
 // The failure every one of those names can return.
 pub use diagnostics::parse_error::ParseError;

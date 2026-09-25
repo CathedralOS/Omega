@@ -6,7 +6,6 @@ use std::sync::Arc;
 use symbol_resolved_trees::{SymbolResolvedTrees, expression::ExpressionNode};
 use symbols::SymbolKind;
 use syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = SourceMap::default();
@@ -21,8 +20,7 @@ fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagn
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize case selection");
-        parse_syntax_trees_into_with_id(&mut syntax, source, &tokens)
-            .expect("parse case selection");
+        tokens_to_syntax_trees::parse(&mut syntax, source, &tokens).expect("parse case selection");
     }
     crate::resolve(ResolutionRequest {
         syntax: &syntax,

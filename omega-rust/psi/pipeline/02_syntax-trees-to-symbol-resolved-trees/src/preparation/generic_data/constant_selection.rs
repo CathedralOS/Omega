@@ -978,12 +978,8 @@ mod tests {
             let tokens = Lexer::new(text)
                 .tokenize()
                 .expect("tokenize constant headers");
-            tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-                &mut syntax,
-                *source_id,
-                &tokens,
-            )
-            .expect("parse constant headers");
+            tokens_to_syntax_trees::parse(&mut syntax, *source_id, &tokens)
+                .expect("parse constant headers");
         }
         syntax
     }

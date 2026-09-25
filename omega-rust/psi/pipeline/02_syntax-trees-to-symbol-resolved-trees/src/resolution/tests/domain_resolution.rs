@@ -1349,8 +1349,7 @@ fn signature_free_route_still_rejects_a_contested_same_package_leaf() {
             )
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-            .expect("parse");
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).expect("parse");
     }
     let diagnostics = resolve(ResolutionRequest {
         syntax: &syntax,

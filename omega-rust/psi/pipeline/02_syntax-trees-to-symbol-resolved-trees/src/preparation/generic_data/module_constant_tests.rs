@@ -18,7 +18,6 @@ use syntax_trees::item::Item;
 use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceHandle;
 use syntax_trees::types::TypeReferenceNode;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn parse_sources(root: &str, module: &str, module_first: bool) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
@@ -30,7 +29,7 @@ fn parse_sources(root: &str, module: &str, module_first: bool) -> SyntaxTrees {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize module constants");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
             .expect("parse module constants");
     }
     syntax
@@ -471,7 +470,7 @@ fn parse_multiple_sources(sources: &[&str]) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::new(SourceId::default());
     for (index, source) in sources.iter().enumerate() {
         let tokens = Lexer::new(source).tokenize().expect("tokenize sources");
-        parse_syntax_trees_into_with_id(&mut syntax, SourceId(index + 1), &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, SourceId(index + 1), &tokens)
             .expect("parse sources");
     }
     syntax

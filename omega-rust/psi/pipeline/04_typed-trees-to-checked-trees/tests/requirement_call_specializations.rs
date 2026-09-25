@@ -60,12 +60,7 @@ fn check_with_service(
     let user_tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-        &mut syntax,
-        user_source_id,
-        &user_tokens,
-    )
-    .expect("parse");
+    tokens_to_syntax_trees::parse(&mut syntax, user_source_id, &user_tokens).expect("parse");
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax: &syntax,

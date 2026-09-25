@@ -17,8 +17,7 @@ fn parse(sources: &[(SourceId, &str)]) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::default();
     for (source, text) in sources {
         let tokens = Lexer::new(text).tokenize().expect("tokenize initializers");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, *source, &tokens)
-            .expect("parse initializers");
+        tokens_to_syntax_trees::parse(&mut syntax, *source, &tokens).expect("parse initializers");
     }
     syntax
 }

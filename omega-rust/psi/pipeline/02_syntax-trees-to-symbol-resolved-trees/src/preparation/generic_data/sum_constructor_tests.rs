@@ -16,7 +16,6 @@ use syntax_trees::item::DataMember;
 use syntax_trees::item::Item;
 use syntax_trees::types::FixedArrayLength;
 use syntax_trees::types::TypeReferenceNode;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 #[test]
 fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
@@ -38,7 +37,7 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
         .source_id;
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new(source).tokenize().unwrap();
-    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).unwrap();
+    tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).unwrap();
     // Loaded source ownership is distinct from an authored logical module.
     // Requiring a made-up `library::Binding` path would leave both tuples open.
     let library = r#"
@@ -59,7 +58,7 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
             source::SourceOrigin::Toolchain,
         )
         .source_id;
-    parse_syntax_trees_into_with_id(
+    tokens_to_syntax_trees::parse(
         &mut syntax,
         library_id,
         &Lexer::new(library).tokenize().unwrap(),
@@ -151,7 +150,7 @@ fn imported_unnamespaced_sums_close_each_constructor_from_its_destination() {
 fn copied_nested_sum_context_uses_retained_application_not_generated_spelling() {
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new("data Choice<T> { case Empty; case Full(value: T); } data Holder { value: Choice<Choice<u64>>; }").tokenize().unwrap();
-    parse_syntax_trees_into_with_id(&mut syntax, SourceId(1), &tokens).unwrap();
+    tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), &tokens).unwrap();
     let mut syntax = normalize_generic_data(GenericDataRequest::new(syntax)).unwrap();
     let instances = syntax
         .root_item_handles()
@@ -234,7 +233,7 @@ fn attached_machine_substitution_retains_previously_closed_sum_argument() {
         data Holder { value: Outer<Choice<u64>>; }";
     let mut syntax = SyntaxTrees::new(SourceId::default());
     let tokens = Lexer::new(source).tokenize().unwrap();
-    parse_syntax_trees_into_with_id(&mut syntax, SourceId(1), &tokens).unwrap();
+    tokens_to_syntax_trees::parse(&mut syntax, SourceId(1), &tokens).unwrap();
     let syntax = normalize_generic_data(GenericDataRequest::new(syntax)).unwrap();
     let machine = syntax
         .root_items()

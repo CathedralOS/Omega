@@ -35,8 +35,6 @@ pub fn parse(
     Ok(root_items)
 }
 
-pub use parse as parse_syntax_trees_into_with_id;
-
 /// Creates a syntax arena for an anonymous source and parses its tokens.
 pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
     parse_syntax_trees_with_id(SourceId::default(), tokens)

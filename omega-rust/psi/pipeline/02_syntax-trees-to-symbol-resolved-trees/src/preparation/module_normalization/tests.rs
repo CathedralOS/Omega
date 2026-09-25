@@ -3,7 +3,6 @@
 use super::{Item, SyntaxTrees};
 use source::SourceId;
 use source_files_to_tokens::Lexer;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn parse(sources: &[&str]) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::default();
@@ -11,7 +10,7 @@ fn parse(sources: &[&str]) -> SyntaxTrees {
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize normalization control");
-        parse_syntax_trees_into_with_id(&mut syntax, SourceId(source_ordinal), &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, SourceId(source_ordinal), &tokens)
             .expect("parse normalization control");
     }
     syntax
@@ -700,7 +699,7 @@ fn same_leaf_generic_family_contests_the_non_generic_sibling() {
         .source_id;
     let mut syntax = SyntaxTrees::default();
     let tokens = Lexer::new(text).tokenize().expect("tokenize");
-    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse");
+    tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).expect("parse");
     let sources = Arc::new(map);
     let normalized = crate::preparation::generic_data::normalize_generic_data(
         crate::preparation::generic_data::GenericDataRequest {
@@ -793,7 +792,7 @@ fn same_leaf_generic_family_declines_constrained_argument_identity() {
         .source_id;
     let mut syntax = SyntaxTrees::default();
     let tokens = Lexer::new(text).tokenize().expect("tokenize");
-    parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse");
+    tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens).expect("parse");
     let sources = Arc::new(map);
     let normalized = crate::preparation::generic_data::normalize_generic_data(
         crate::preparation::generic_data::GenericDataRequest {

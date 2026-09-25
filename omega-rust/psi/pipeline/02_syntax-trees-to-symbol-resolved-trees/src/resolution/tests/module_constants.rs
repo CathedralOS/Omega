@@ -7,7 +7,6 @@ use syntax_trees::{
     identifier::Identifier,
     types::{ConstArgumentOrigin, TypeReferenceNode},
 };
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn domain_index_sources(sources: &[(SourceId, &str)]) -> SyntaxTrees {
     let mut syntax = SyntaxTrees::default();
@@ -15,8 +14,7 @@ fn domain_index_sources(sources: &[(SourceId, &str)]) -> SyntaxTrees {
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize domain indices");
-        parse_syntax_trees_into_with_id(&mut syntax, *source, &tokens)
-            .expect("parse domain indices");
+        tokens_to_syntax_trees::parse(&mut syntax, *source, &tokens).expect("parse domain indices");
     }
     syntax
 }
@@ -187,7 +185,7 @@ fn normalized(public: bool) -> SyntaxTrees {
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize constant index custody");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
             .expect("parse constant index custody");
     }
     crate::preparation::generic_data::normalize_generic_data(
@@ -261,7 +259,7 @@ fn synthetic_instance_exclusion_does_not_hide_independent_same_value_field_origi
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize independent constant occurrences");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
             .expect("parse independent constant occurrences");
     }
     let mut syntax = crate::preparation::generic_data::normalize_generic_data(
@@ -436,7 +434,7 @@ fn normalized_result_is_independent_of_each_selected_declaration_value() {
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize repeated selection");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source_id, &tokens)
             .expect("parse repeated selection");
     }
     let syntax = crate::preparation::generic_data::normalize_generic_data(

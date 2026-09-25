@@ -10,7 +10,6 @@ use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::statement::StatementNode;
 use symbols::SymbolKind;
 use syntax_trees::item::Item;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn resolve(sources: &[&str]) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     let mut syntax = SyntaxTrees::default();
@@ -18,7 +17,7 @@ fn resolve(sources: &[&str]) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize module constants");
-        parse_syntax_trees_into_with_id(&mut syntax, SourceId(ordinal), &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, SourceId(ordinal), &tokens)
             .expect("parse module constants");
     }
     crate::resolve(crate::ResolutionRequest::new(&syntax))
@@ -32,7 +31,7 @@ fn public_float_identity_rejects_payloadless_nan() {
             .tokenize()
             .expect("tokenize float constant");
         let mut syntax = SyntaxTrees::default();
-        parse_syntax_trees_into_with_id(&mut syntax, SourceId(0), &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, SourceId(0), &tokens)
             .expect("parse float constant");
         let Item::Const(definition) = syntax.root_items().next().expect("one declaration").clone()
         else {
@@ -362,7 +361,7 @@ fn module_constant_yields_to_parser_generated_inferred_local() {
     let tokens = Lexer::new("module combat; const DAMAGE: u64 = 7; machine inferred() -> u64 { let DAMAGE: u64 = 12; let observed: u64 = DAMAGE; observed }")
         .tokenize().expect("tokenize inferred-local control");
     let mut syntax = SyntaxTrees::default();
-    parse_syntax_trees_into_with_id(&mut syntax, SourceId(0), &tokens)
+    tokens_to_syntax_trees::parse(&mut syntax, SourceId(0), &tokens)
         .expect("parse inferred-local control");
     let machine = syntax
         .root_items()
@@ -809,7 +808,7 @@ fn resolve_seeded_with_base(
         .tokenize()
         .expect("tokenize retained constant");
     let mut syntax = SyntaxTrees::default();
-    parse_syntax_trees_into_with_id(&mut syntax, base_source, &tokens)
+    tokens_to_syntax_trees::parse(&mut syntax, base_source, &tokens)
         .expect("parse retained constant");
     let mut base = crate::resolve(crate::ResolutionRequest {
         syntax: &syntax,
@@ -825,7 +824,7 @@ fn resolve_seeded_with_base(
         .tokenize()
         .expect("tokenize constant extension");
     let mut syntax = SyntaxTrees::default();
-    parse_syntax_trees_into_with_id(&mut syntax, extension_source, &tokens)
+    tokens_to_syntax_trees::parse(&mut syntax, extension_source, &tokens)
         .expect("parse constant extension");
     crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
         base,

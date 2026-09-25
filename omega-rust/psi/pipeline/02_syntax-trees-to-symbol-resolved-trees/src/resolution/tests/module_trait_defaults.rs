@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use syntax_trees::SyntaxTrees;
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
 
 fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
     let mut sources = SourceMap::default();
@@ -20,7 +19,7 @@ fn resolve(texts: &[&str]) -> Result<SymbolResolvedTrees, Vec<diagnostics::Diagn
         let tokens = Lexer::new(text)
             .tokenize()
             .expect("tokenize module default selection");
-        parse_syntax_trees_into_with_id(&mut syntax, source, &tokens)
+        tokens_to_syntax_trees::parse(&mut syntax, source, &tokens)
             .expect("parse module default selection");
     }
     crate::resolve(ResolutionRequest {

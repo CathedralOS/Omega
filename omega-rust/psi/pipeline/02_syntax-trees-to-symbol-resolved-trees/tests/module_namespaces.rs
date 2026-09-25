@@ -7,7 +7,7 @@ use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::types::TypeReference;
 use syntax_trees::SyntaxTrees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
+use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
 #[test]
 fn declared_module_retains_namespace_for_local_references() {
@@ -130,7 +130,7 @@ fn lower_multi(sources: &[(&str, &str)]) -> SymbolResolvedTrees {
     for (name, text) in sources {
         let id = map.add(PathBuf::from(name), (*text).to_owned()).source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
-        parse_syntax_trees_into_with_id(&mut syntax, id, &tokens).expect("parse");
+        tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse");
     }
     resolve(ResolutionRequest {
         syntax: &syntax,
