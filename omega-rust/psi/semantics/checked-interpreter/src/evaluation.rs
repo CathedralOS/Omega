@@ -2,7 +2,7 @@
 
 use crate::{
     FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemGrantRootIdentity,
-    FilesystemOperationAttempt, filesystem_root_relative_path_is_canonical,
+    FilesystemOperationAttempt,
 };
 
 /// Versioned identity of the checked interpreter semantics used for
@@ -295,22 +295,6 @@ impl BuildIncludedSource {
             relative_path,
             filesystem_attempt_ordinal,
         }
-    }
-
-    /// Reconstruct one compiler-supplied handoff coordinate from canonical
-    /// retained data. This names a path and its ordering point only; it does
-    /// not assert that the file exists or belongs to a reconstructed tree.
-    pub fn from_coordinate(
-        root: FilesystemGrantRootIdentity,
-        relative_path: Vec<u8>,
-        filesystem_attempt_ordinal: usize,
-    ) -> Result<Self, String> {
-        if !filesystem_root_relative_path_is_canonical(&relative_path, false) {
-            return Err(
-                "included build source must use a canonical non-root relative path".to_owned(),
-            );
-        }
-        Ok(Self::new(root, relative_path, filesystem_attempt_ordinal))
     }
 
     pub const fn root(&self) -> FilesystemGrantRootIdentity {

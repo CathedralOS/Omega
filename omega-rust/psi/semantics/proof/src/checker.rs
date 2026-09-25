@@ -35,10 +35,7 @@ mod return_arrival;
 
 pub use certificate::{CertificateVerdict, guarded_transition_integer_verdict};
 pub use derivation_cache::{DerivationCacheReport, ProofDerivationCache};
-pub use integer_ranges::{
-    AssignmentRangeContext, proved_assignment_integer_range,
-    proved_assignment_integer_range_with_context,
-};
+pub use integer_ranges::{AssignmentRangeContext, proved_assignment_integer_range_with_context};
 pub use measurement::ProofPlanMeasurements;
 
 use crate::checker::bounded_checks::{
@@ -52,39 +49,6 @@ use diagnostics::Diagnostic;
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut measurements = ProofPlanMeasurements::default();
     check_proof_plan_inner(proof_plan, &mut measurements, None)
-}
-
-/// Check the proof plan while consulting `cache`: before a certificate
-/// route re-derives a covered bounded leg, derivations retained under the
-/// obligation's canonical semantic identity are re-decided through the
-/// admission kernel, and the certificates the kernel accepts this run are
-/// retained for later rechecks.
-///
-/// A hit is evidence, not authority — the kernel re-decides every retained
-/// candidate, so a corrupted entry counts as a rejection and the ordinary
-/// derivation still decides the leg. Reuse policy (within one compilation
-/// or across runs) belongs to whoever owns the cache.
-pub fn check_proof_plan_with_derivation_cache(
-    proof_plan: &ProofPlan<'_>,
-    cache: &mut ProofDerivationCache,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut measurements = ProofPlanMeasurements::default();
-    check_proof_plan_inner(proof_plan, &mut measurements, Some(cache))
-}
-
-/// Check the proof plan and record what the check ran in `measurements` —
-/// the obligation mix, the certificate route's verdict per covered leg, the
-/// emitted certificates' node counts, the run's wall-clock cost, and the
-/// kernel's receipt figures the accepted certificates carried.
-///
-/// `OMEGA_PROOF_MEASUREMENTS` prints the recorder's `key=value` line on
-/// stderr at the end of every run, whether the plan discharged or reported
-/// diagnostics — a measured rejection is still a measured run.
-pub fn check_proof_plan_with_measurements(
-    proof_plan: &ProofPlan,
-    measurements: &mut ProofPlanMeasurements,
-) -> Result<(), Vec<Diagnostic>> {
-    check_proof_plan_inner(proof_plan, measurements, None)
 }
 
 fn check_proof_plan_inner(

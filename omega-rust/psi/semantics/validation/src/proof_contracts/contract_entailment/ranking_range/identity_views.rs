@@ -286,42 +286,6 @@ fn computation_meaning(
     }
 }
 
-/// Resolve `view_path` (the witness's authored `Owner::Name` spelling) to a
-/// unique declared measure and admit it as the identity view of `subject` in
-/// `state`: the body must forward the exact parameter, the parameter, result
-/// and subject must share one unsigned carrier, and the subject's enforced
-/// bounds must fit inside every declared range refinement. A builtin path,
-/// a lexicographic measure, a field projection, or an uncovered domain is
-/// `None`; nothing here relabels the witness as `Nat::Descending`.
-pub fn declared_identity_view(
-    program: &TypedTrees,
-    state: &State,
-    subject: ExpressionHandle,
-    view_path: &str,
-) -> Option<DeclaredIdentityView> {
-    let path = view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
-    let measure = find_declared_measure(program, &path)?;
-    if measure.lexicographic {
-        return None;
-    }
-    let MeasureBodyShape::ParameterForward {
-        carrier,
-        constraints,
-    } = measure_body_shape(program, measure)?
-    else {
-        return None;
-    };
-    (identity_subject_matches(program, state, subject, carrier)
-        && measure_constraints_cover_subject(program, state, subject, &constraints))
-    .then_some(DeclaredIdentityView {
-        measure: measure.symbol,
-        carrier,
-    })
-}
-
 /// Classify only bodies whose projection is justified by resolved declarations.
 pub fn measure_body_shape(
     program: &TypedTrees,

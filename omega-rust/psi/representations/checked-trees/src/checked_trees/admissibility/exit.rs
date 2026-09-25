@@ -44,10 +44,6 @@ impl<'facts> ExitAcceptance<'facts> {
         constraints(&self.facts.flow, self.exit.entry_constraints)
     }
 
-    pub fn ensures_semantic_contexts(&self) -> &'facts [FlowSemanticContextRef] {
-        semantic_contexts(&self.facts.flow, self.exit.ensures_contexts)
-    }
-
     pub fn ensures_constraints(&self) -> &'facts [FlowConstraintRef] {
         constraints(&self.facts.flow, self.exit.ensures_constraints)
     }

@@ -322,10 +322,6 @@ impl TypeReferenceTable {
         self.insert(TypeReferenceNode::Named(name))
     }
 
-    pub fn insert_generated_named(&mut self, name: impl Into<String>) -> TypeReferenceHandle {
-        self.insert_named(Identifier::generated(name))
-    }
-
     pub fn insert_self_type(&mut self) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::SelfType)
     }

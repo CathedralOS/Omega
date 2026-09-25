@@ -28,18 +28,15 @@ pub use named_calls::{
     named_expression_call_candidates, named_statement_call_candidates, resolve_named_call,
     resolve_named_expression_call,
 };
-pub use operand_signatures::{
-    operator_contract_path, operator_operand_signature, operator_requires_clauses,
-};
+pub use operand_signatures::operator_operand_signature;
 pub use primitive_float::primitive_float_binary_semantics;
 pub use satisfied_operators::{
-    boundary_operator_requirement_identity, resolve_satisfied_boundary_operator,
-    resolve_satisfied_boundary_operator_for_conformance, resolve_satisfied_checked_operator,
-    resolve_satisfied_checked_operator_for_conformance,
+    boundary_operator_requirement_identity, resolve_satisfied_boundary_operator_for_conformance,
+    resolve_satisfied_checked_operator, resolve_satisfied_checked_operator_for_conformance,
     resolve_specialized_checked_operator_application,
 };
 pub use spellings::{
-    OperandType, candidates_for_spelling, has_builtin_spelled_expression_meaning, resolve_spelling,
+    OperandType, has_builtin_spelled_expression_meaning, resolve_spelling,
     resolve_spelling_for_operand_types, resolve_spelling_for_operands,
 };
 pub use trait_operators::{

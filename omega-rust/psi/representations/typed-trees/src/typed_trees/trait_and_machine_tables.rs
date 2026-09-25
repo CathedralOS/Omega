@@ -26,15 +26,6 @@ impl TypedTrees {
             .span_or_empty(self.roots.conformances)
     }
 
-    pub fn push_conformance_type_parameter(
-        &mut self,
-        conformance: &mut trait_definition::Conformance,
-        type_parameter: data::TypeParameter,
-    ) {
-        self.data_type_parameters
-            .append_to_span(&mut conformance.type_parameters, type_parameter);
-    }
-
     pub fn conformance_type_parameters(
         &self,
         conformance: &trait_definition::Conformance,

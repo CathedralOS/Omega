@@ -79,13 +79,6 @@ impl ExpressionTable {
         self.struct_fields.insert_many(fields)
     }
 
-    pub fn append_struct_field(
-        &mut self,
-        field: TableStructLiteralField,
-    ) -> Handle<TableStructLiteralField> {
-        self.struct_fields.append(field)
-    }
-
     pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
         self.identifier_path_members.append(member)
     }

@@ -95,27 +95,6 @@ impl<'a> CheckingRequest<'a> {
         self.opaque_property_receipts = receipts;
         self
     }
-
-    /// Exact joins from authored operator uses to the checked machines
-    /// selected to realize them; the Terminal plan lanes plan those uses as
-    /// calls to the realizations.
-    pub const fn with_selected_operator_applications(
-        mut self,
-        applications: &'a [crate::SelectedOperatorApplication],
-    ) -> Self {
-        self.selected_operator_applications = applications;
-        self
-    }
-
-    /// Compiler-intrinsic nearest IEEE FMA selections for attached Unit local
-    /// initializers.
-    pub const fn with_selected_ieee_float_fma_unit_applications(
-        mut self,
-        applications: &'a [crate::SelectedIeeeFloatFmaUnitApplication],
-    ) -> Self {
-        self.selected_ieee_float_fma_unit_applications = applications;
-        self
-    }
 }
 
 /// Check typed trees under one explicit request: the checkpoint mode plus

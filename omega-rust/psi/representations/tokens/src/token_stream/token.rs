@@ -16,20 +16,6 @@ impl<'source> Token<'source> {
         matches!(self.kind, TokenKind::Identifier)
     }
 
-    pub fn is_integer_literal(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
-        )
-    }
-
-    pub fn is_float_literal(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::NumericLiteral(NumericLiteralKind::Float(_))
-        )
-    }
-
     pub fn is_string_literal(&self) -> bool {
         matches!(self.kind, TokenKind::StringLiteral)
     }

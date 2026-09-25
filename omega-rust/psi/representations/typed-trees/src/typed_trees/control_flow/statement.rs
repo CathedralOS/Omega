@@ -145,20 +145,6 @@ impl StatementTable {
         self.outcome_proof_selectors.span_or_empty(span)
     }
 
-    pub fn copy_statement_nodes_from(
-        &mut self,
-        source: &StatementTable,
-        statements: HandleSpan<StatementNode>,
-    ) -> HandleSpan<StatementNode> {
-        let mut copied = HandleSpan::empty();
-
-        for statement in source.statements(statements) {
-            self.push_statement(&mut copied, statement.clone());
-        }
-
-        copied
-    }
-
     /// Deep-copy a statement span and every table-owned payload reachable
     /// from it. Symbols are deliberately preserved: callers that clone a
     /// lexical scope mint fresh symbols first, then remap those identities in

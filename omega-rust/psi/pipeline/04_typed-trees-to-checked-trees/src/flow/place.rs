@@ -16,9 +16,9 @@ pub(crate) use canonicalization::{
 };
 pub(crate) use case_access::{place_case_has_value, place_cases_are_selected};
 pub(crate) use comparison::{
-    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
-    canonical_place_overlaps_segments, canonical_place_segments_equal,
-    canonical_place_segments_may_overlap, place_segment_has_unresolved_identity,
+    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
+    canonical_place_segments_equal, canonical_place_segments_may_overlap,
+    place_segment_has_unresolved_identity,
 };
 pub(crate) use contextual::contextual_canonical_place_from_expression;
 pub(crate) use literal_projection::{

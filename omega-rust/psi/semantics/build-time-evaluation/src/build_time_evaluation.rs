@@ -287,18 +287,6 @@ impl PreCheckEvaluation {
         )?;
         wire_plans::compute_wire_plans(typed, self.selection_authority, self.wire_schema_frontier)
     }
-
-    /// Consume the continuation for syntax appended to an already evaluated
-    /// typed checkpoint. Global pending const work remains detectable, while
-    /// wire-plan publication is restricted to extension-owned schemas.
-    pub fn evaluate_extension(
-        mut self,
-        typed: &mut typed_trees::TypedTrees,
-        wire_schema_frontier: usize,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        self.wire_schema_frontier = wire_schema_frontier;
-        self.evaluate(typed)
-    }
 }
 
 #[cfg(test)]

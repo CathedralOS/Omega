@@ -163,13 +163,13 @@ pub(crate) use ownership::{
 pub(crate) use place::{
     CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_from_semantic_place, canonical_place_from_symbol,
-    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_joined_segments,
-    canonical_place_overlaps_segments, canonical_place_segments_equal,
-    canonical_place_segments_may_overlap, effective_member_symbol, expression_place_type_reference,
-    expression_type_symbol, index_place_segment, literal_argument_access_places,
-    literal_value_path_is_inactive, literal_value_projections, normalize_attached_place_root,
-    place_case_has_value, place_cases_are_selected, place_segment_has_unresolved_identity,
-    push_field_place_segments, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
+    canonical_place_segments_equal, canonical_place_segments_may_overlap, effective_member_symbol,
+    expression_place_type_reference, expression_type_symbol, index_place_segment,
+    literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
+    normalize_attached_place_root, place_case_has_value, place_cases_are_selected,
+    place_segment_has_unresolved_identity, push_field_place_segments,
+    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

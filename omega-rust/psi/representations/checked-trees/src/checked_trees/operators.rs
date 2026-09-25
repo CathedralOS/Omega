@@ -813,34 +813,6 @@ impl CheckedOperatorFacts {
             .unwrap_or_default()
     }
 
-    pub fn provider_plan_report_fingerprint_for_expression_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> Option<u64> {
-        self.expression_use_in_origin(expression, origin)
-            .map(|operator_use| operator_use.provider_plan_report_fingerprint)
-            .or_else(|| {
-                self.named_expression_use_in_origin(expression, origin)
-                    .map(|operator_use| operator_use.provider_plan_report_fingerprint)
-            })
-            .filter(|identity| *identity != 0)
-    }
-
-    pub fn provider_plan_commitment_for_expression_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> Option<CheckedProviderPlanCommitment> {
-        self.expression_use_in_origin(expression, origin)
-            .map(|operator_use| operator_use.provider_plan_commitment)
-            .or_else(|| {
-                self.named_expression_use_in_origin(expression, origin)
-                    .map(|operator_use| operator_use.provider_plan_commitment)
-            })
-            .filter(|commitment| !commitment.is_empty())
-    }
-
     pub fn missing_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
         self.uses_with_status(CheckedOperatorResolutionStatus::Missing)
     }

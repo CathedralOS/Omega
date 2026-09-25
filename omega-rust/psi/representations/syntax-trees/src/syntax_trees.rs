@@ -63,16 +63,6 @@ impl SyntaxTrees {
         }
     }
 
-    pub fn from_root_items(source_id: SourceId, items: impl IntoIterator<Item = Item>) -> Self {
-        let mut syntax_trees = Self::new(source_id);
-
-        for item in items {
-            syntax_trees.push_root_item(item);
-        }
-
-        syntax_trees
-    }
-
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
         let handle = self.insert_item(item);
         self.roots.items.append(handle);
@@ -100,12 +90,6 @@ impl SyntaxTrees {
         handle: MathematicalDefinitionHandle,
     ) -> &MathematicalDefinition {
         self.items.mathematical_definition(handle)
-    }
-
-    pub fn root_mathematical_definitions(&self) -> impl Iterator<Item = &MathematicalDefinition> {
-        self.root_mathematical_definition_handles()
-            .iter()
-            .map(|handle| self.root_mathematical_definition(*handle))
     }
 
     pub fn root_item_handles(&self) -> &[ItemHandle] {
