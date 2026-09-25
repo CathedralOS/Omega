@@ -194,13 +194,45 @@ fn proves_domain_membership_for_structurally_equal_places() {
 
 #[test]
 fn expression_places_resolve_attached_data_members() {
-    let machine_symbol = SymbolHandle::from_arena_index(50);
-    let self_symbol = SymbolHandle::from_arena_index(51);
-    let player_field_symbol = SymbolHandle::from_arena_index(52);
-    let player_type_symbol = SymbolHandle::from_arena_index(53);
-    let main_data_symbol = SymbolHandle::from_arena_index(54);
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    // Place typing walks each symbol's retained parent, so the fixture's
+    // parameter, state and machine are real table entries in that chain.
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let top_level: Vec<_> = SymbolTableBuilder::child_handles(symbols.insert_children(
+        root,
+        [
+            (SymbolKind::Data, SymbolNameRef::Static("Player")),
+            (SymbolKind::Data, SymbolNameRef::Static("Main")),
+            (SymbolKind::Machine, SymbolNameRef::Static("Main::main")),
+        ],
+    ))
+    .collect();
+    let (player_type_symbol, main_data_symbol, machine_symbol) =
+        (top_level[0], top_level[1], top_level[2]);
+    let player_field_symbol = symbols
+        .insert_children(
+            main_data_symbol,
+            [(SymbolKind::Field, SymbolNameRef::Static("player"))],
+        )
+        .start();
+    let state_symbol = symbols
+        .insert_children(
+            machine_symbol,
+            [(SymbolKind::State, SymbolNameRef::Static("main"))],
+        )
+        .start();
+    let self_symbol = symbols
+        .insert_children(
+            state_symbol,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("self"))],
+        )
+        .start();
 
-    let mut program = TypedTrees::default();
+    let mut program = TypedTrees {
+        symbols: symbols.finish(),
+        ..TypedTrees::default()
+    };
     program.push_data_definition(typed_trees::data::DataDefinition {
         symbol: player_type_symbol,
         name: Identifier::generated("Player"),
@@ -273,7 +305,7 @@ fn expression_places_resolve_attached_data_members() {
         states: HandleSpan::empty(),
     };
     let mut state = typed_trees::state::State {
-        symbol: SymbolHandle::from_arena_index(55),
+        symbol: state_symbol,
         name: Identifier::generated("main"),
         parameters: HandleSpan::empty(),
         return_type: TypeReferenceHandle::invalid(),
