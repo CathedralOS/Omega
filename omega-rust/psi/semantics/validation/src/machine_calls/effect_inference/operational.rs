@@ -72,9 +72,16 @@ struct DirectCallOperational {
 }
 
 pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
+    DIRECT_OPERATIONAL_MEMO.with(|cell| {
+        *cell.borrow_mut() = Some(std::collections::HashMap::new());
+    });
     let mut machines = build_machine_work(program);
     propagate_operational_may(&mut machines);
-    build_plan(program, machines)
+    let plan = build_plan(program, machines);
+    DIRECT_OPERATIONAL_MEMO.with(|cell| {
+        *cell.borrow_mut() = None;
+    });
+    plan
 }
 
 fn build_machine_work(program: &TypedTrees) -> Vec<MachineWork> {
@@ -486,6 +493,17 @@ fn machine_symbol_for_state(program: &TypedTrees, state_symbol: SymbolHandle) ->
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
+thread_local! {
+    /// A signature symbol's operational verdict is a pure property of the
+    /// program: every call site would otherwise pay the same
+    /// machine-parameter and trait scan. Scoped to a single
+    /// `infer_operational_may` build so a slightly-mutated successor program
+    /// can never inherit the previous program's verdicts.
+    static DIRECT_OPERATIONAL_MEMO: std::cell::RefCell<
+        Option<std::collections::HashMap<SymbolHandle, DirectCallOperational>>,
+    > = const { std::cell::RefCell::new(None) };
+}
+
 fn direct_operational_for_signature_symbol(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -493,7 +511,29 @@ fn direct_operational_for_signature_symbol(
     if !symbol.is_valid() {
         return DirectCallOperational::default();
     }
+    if let Some(hit) = DIRECT_OPERATIONAL_MEMO.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|memo| memo.get(&symbol))
+            .copied()
+    }) {
+        return hit;
+    }
+    let value = direct_operational_for_signature_symbol_uncached(program, symbol);
+    DIRECT_OPERATIONAL_MEMO.with(|cell| {
+        if let Ok(mut slot) = cell.try_borrow_mut()
+            && let Some(memo) = &mut *slot
+        {
+            memo.insert(symbol, value);
+        }
+    });
+    value
+}
 
+fn direct_operational_for_signature_symbol_uncached(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> DirectCallOperational {
     if let Some((_, signature)) = program.machine_parameter_signature(symbol) {
         return signature_operational(program, signature);
     }
