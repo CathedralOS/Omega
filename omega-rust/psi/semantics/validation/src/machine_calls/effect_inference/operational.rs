@@ -72,6 +72,10 @@ struct DirectCallOperational {
 }
 
 pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
+    super::plan_scope::memoized_operational_plan(program)
+}
+
+pub(crate) fn infer_operational_may_uncached(program: &TypedTrees) -> OperationalPlan {
     DIRECT_OPERATIONAL_MEMO.with(|cell| {
         *cell.borrow_mut() = Some(symbols::SymbolKeyMap::default());
     });

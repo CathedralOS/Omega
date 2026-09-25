@@ -122,10 +122,10 @@ pub use declarations::traits::{
     revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
-    declared_machine_invocations, declared_signature_invocations,
-    fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
-    infer_operational_may, infer_service_reaches, infer_synchronous_invocations,
-    invocation_target_label,
+    ProgramPlanScopeGuard, declared_machine_invocations, declared_signature_invocations,
+    enter_program_plan_scope, fixed_installation_boundary_service_reach,
+    has_self_forwarded_boundary_parameter, infer_operational_may, infer_service_reaches,
+    infer_synchronous_invocations, invocation_target_label,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
