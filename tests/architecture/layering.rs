@@ -2947,7 +2947,8 @@ fn retained_native_product_enters_only_terminal_realization() {
     assert!(
         driver.contains("source.assemble(&child)?")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
-            && driver.contains("prepare_native_product(target.into_native_product_request(), checked)")
+            && driver
+                .contains("prepare_native_product(target.into_native_product_request(), checked)")
             && driver.contains("native_inputs.realize(terminal)?")
             && native.contains("NativeCompilationWithCheckedReceipt::new(checked, report)"),
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
