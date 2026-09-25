@@ -197,3 +197,4 @@ a33887adcb	frontier-multiplicity-index	indexed multiplicity + shared bound index
 2026-09-25T12:30:09Z	f64ce5dfe2	leaf/result-identity-type-memo	coordinator	z5 return-type-keyed memo, Stage05 -16.3s
 2026-09-25T12:30:09Z	756f8803d3	leaf/ordered-statement-call-literals	coordinator	z5 call-literal regression pins
 2026-09-25T12:45:28Z	9f57479705	leaf/structural-lookup-rosters	coordinator	per-program structural field lookup rosters (9-way index)
+2026-09-25T12:56:33Z	01285e7ce9	leaf/bound-field-resolution-index	coordinator	projected bound-field type resolution position roster
