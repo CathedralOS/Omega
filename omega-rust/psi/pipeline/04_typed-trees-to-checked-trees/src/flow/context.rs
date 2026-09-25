@@ -99,6 +99,20 @@ pub(super) struct FlowBuildContext<'plans> {
             )>,
         >,
     >,
+    /// The type-driven half of `call_result_qualification_identities`:
+    /// owned-field and constraint domain rows keyed by return type, shared
+    /// across every target returning that type so each distinct result type
+    /// pays the scan once rather than each distinct target.
+    pub(super) result_identity_domain_rows: HashMap<
+        typed_trees::types::TypeReferenceHandle,
+        Rc<
+            Vec<(
+                Vec<facts::PlaceSegment>,
+                SymbolHandle,
+                language_semantics::SemanticDomainId,
+            )>,
+        >,
+    >,
     /// Out-parameter `ensures <parameter> in D` rows per callable: the same
     /// program-pure contract collection as `call_result_identities`.
     pub(super) call_parameter_identities: HashMap<
@@ -247,6 +261,7 @@ impl<'plans> FlowBuildContext<'plans> {
             call_target_parameters: HashMap::new(),
             call_target_returns: HashMap::new(),
             call_result_identities: HashMap::new(),
+            result_identity_domain_rows: HashMap::new(),
             call_parameter_identities: HashMap::new(),
             referent_type_paths: HashMap::new(),
             machine_field_rows: HashMap::new(),
