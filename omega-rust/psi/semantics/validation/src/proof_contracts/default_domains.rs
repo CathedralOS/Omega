@@ -41,7 +41,7 @@ use crate::proof_contracts::default_domains::assignment_windows::preserve_proven
 use crate::proof_contracts::default_domains::assignment_windows::refuse_open_windows;
 use crate::proof_contracts::default_domains::data_reads::attached_value_established;
 use crate::proof_contracts::default_domains::data_reads::scan_statement_reads;
-use call_summaries::{collect_call_summaries, machine_symbol_for_state};
+use call_summaries::{StateToMachine, collect_call_summaries, state_to_machine_index};
 use place_queries::{
     is_self_rooted, transition_evaluated_expressions, write_target_index_expressions,
 };
@@ -124,6 +124,12 @@ fn analyze_default_domain_writes(
     // Building it per fixpoint visit repeated the whole-program symbol scan
     // hundreds of times for larger programs without changing any result.
     let call_frames = crate::machine_calls::calls::CallFrameResolver::new(program);
+    // Every call site resolves its target machine through this index; the
+    // program is frozen for the pass so one build covers all lookups.
+    let state_to_machine = state_to_machine_index(program);
+    // Summary-construction walks join no nested summaries (conservative);
+    // the empty map is shared so it is not rebuilt per walk.
+    let no_summaries = symbols::SymbolKeyMap::default();
 
     // R2 rung 3 slice 11 (+ multi-state extension): per-machine
     // establishment SUMMARIES -- the self places a callee DEFINITELY
@@ -136,7 +142,8 @@ fn analyze_default_domain_writes(
     // places the callee can return from); a dispatch state's own exit is
     // not a return point. No terminal states (a cyclic graph) summarizes
     // as nothing -- conservative.
-    let mut summaries: Vec<(symbols::SymbolHandle, Vec<String>)> = Vec::new();
+    let mut summaries: symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<String>> =
+        symbols::SymbolKeyMap::default();
     let mut throwaway = Vec::new();
     let mut throwaway_crash_sites = Vec::new();
     for machine in program.machines() {
@@ -155,7 +162,8 @@ fn analyze_default_domain_writes(
                         &[],
                         &[],
                         &[],
-                        &[],
+                        &no_summaries,
+                        &state_to_machine,
                         false,
                         true,
                         &mut throwaway,
@@ -182,7 +190,8 @@ fn analyze_default_domain_writes(
                             &entry[index],
                             &[],
                             &[],
-                            &[],
+                            &no_summaries,
+                            &state_to_machine,
                             false,
                             true,
                             &mut throwaway,
@@ -248,7 +257,7 @@ fn analyze_default_domain_writes(
             .filter(|spelling| is_self_rooted(spelling))
             .collect();
         if !self_rooted.is_empty() {
-            summaries.push((machine.symbol, self_rooted));
+            summaries.insert(machine.symbol, self_rooted);
         }
     }
 
@@ -303,6 +312,7 @@ fn analyze_default_domain_writes(
                         entry_valuations[index].as_deref().unwrap_or(&[]),
                         &entry_windows[index],
                         &summaries,
+                        &state_to_machine,
                         born_zero(index),
                         is_terminal(index),
                         &mut throwaway,
@@ -407,6 +417,7 @@ fn analyze_default_domain_writes(
                 entry_valuations[index].as_deref().unwrap_or(&[]),
                 &entry_windows[index],
                 &summaries,
+                &state_to_machine,
                 born_zero(index),
                 is_terminal(index),
                 diagnostics,
@@ -461,7 +472,8 @@ fn walk_state(
     entry_established: &[String],
     entry_valuations: &[PlaceValuation],
     entry_windows: &[InvariantWindow],
-    summaries: &[(symbols::SymbolHandle, Vec<String>)],
+    summaries: &symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<String>>,
+    state_to_machine: &StateToMachine,
     born_zero: bool,
     exit_is_terminal: bool,
     diagnostics: &mut Vec<Diagnostic>,
@@ -521,11 +533,18 @@ fn walk_state(
                     collect_call_summaries(
                         program,
                         assignment.value,
+                        state_to_machine,
                         summaries,
                         &mut call_established,
                     );
                     for index in &index_expressions {
-                        collect_call_summaries(program, *index, summaries, &mut call_established);
+                        collect_call_summaries(
+                            program,
+                            *index,
+                            state_to_machine,
+                            summaries,
+                            &mut call_established,
+                        );
                     }
                 }
                 handle_assignment(
@@ -577,11 +596,11 @@ fn walk_state(
                 // Slice 11: the callee's establishment summary joins
                 // (call.target_symbol is the target STATE's symbol; resolve
                 // to its owning machine).
-                let target_machine = machine_symbol_for_state(program, call.target_symbol);
-                if let Some((_, established)) = summaries
-                    .iter()
-                    .find(|(symbol, _)| *symbol == target_machine)
-                {
+                let target_machine = state_to_machine
+                    .get(&call.target_symbol)
+                    .copied()
+                    .unwrap_or_else(symbols::SymbolHandle::invalid);
+                if let Some(established) = summaries.get(&target_machine) {
                     call_established.extend(established.iter().cloned());
                 }
             }
@@ -591,7 +610,13 @@ fn walk_state(
                     preserve_proven_establishment(&tracked, &mut call_established);
                     tracked.clear();
                     poisoned_all = true;
-                    collect_call_summaries(program, *expression, summaries, &mut call_established);
+                    collect_call_summaries(
+                        program,
+                        *expression,
+                        state_to_machine,
+                        summaries,
+                        &mut call_established,
+                    );
                 }
             }
             StatementNode::LocalData(local) => {
@@ -605,6 +630,7 @@ fn walk_state(
                     collect_call_summaries(
                         program,
                         local.initial_value,
+                        state_to_machine,
                         summaries,
                         &mut call_established,
                     );
@@ -659,6 +685,7 @@ fn walk_state(
                         collect_call_summaries(
                             program,
                             *expression,
+                            state_to_machine,
                             summaries,
                             &mut call_established,
                         );
