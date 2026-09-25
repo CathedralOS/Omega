@@ -8,9 +8,10 @@ use super::super::super::super::super::{
 };
 use super::super::super::super::{
     Block, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    Terminator, ValueDeclaration, allocate_dense, direct_expression_contains_short_circuit,
-    edge_id, emit_direct_expression, lookup_claim_id, place_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types,
+    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, edge_id, emit_direct_expression, lookup_claim_id,
+    place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -21,8 +22,11 @@ use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
+use crate::expression_preparation::bindings::structural_fields::{
+    EstablishedCasePayload, NestedEstablishedCasePayload,
+};
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
+use crate::terminal_identities::value_id;
 
 impl StateGraphEmission<'_, '_> {
     /// Emit the state at `position` in authored order.
@@ -698,12 +702,121 @@ impl StateGraphEmission<'_, '_> {
                 evaluation.current
             };
             let mut edge_evaluation = evaluation.branch(staged, operation_start);
+            let mut edge_values = values.to_vec();
+            let mut nested_rows = Vec::new();
+            if stage {
+                // A read below a case payload's record member in this edge's
+                // scalar arguments mints the member leaf copy and its scalar
+                // field read in the staged block, which the selecting case
+                // edge dominates, then the read binds at the value's
+                // namespace position.
+                for transfer in &edge.scalar_arguments {
+                    if !matches!(
+                        transfer.source,
+                        checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+                    ) {
+                        continue;
+                    }
+                    let argument = scalars::successor_value(checked, state, edge, transfer)?;
+                    let Some(expression) = argument.as_pure() else {
+                        continue;
+                    };
+                    let mut reads = Vec::new();
+                    scalars::nested_case_payload_reads(expression, &mut reads);
+                    for (parameter_position, case_identity, member_identity, leaf_identity) in reads
+                    {
+                        let Some(payload) = crate::expression_preparation::bindings::structural_fields::plan_case_payload_leaf(
+                            &edge_evaluation.structural_fields,
+                            parameter_position,
+                            case_identity,
+                            member_identity,
+                            leaf_identity,
+                        ) else {
+                            continue;
+                        };
+                        if nested_rows
+                            .iter()
+                            .any(|row: &NestedEstablishedCasePayload| {
+                                row.source == payload.source
+                                    && row.case == payload.case
+                                    && row.member == payload.member
+                                    && row.field == payload.field
+                            })
+                        {
+                            continue;
+                        }
+                        let value = ValueDeclaration {
+                            qualifications: Default::default(),
+                            id: value_id(allocate_dense(&mut next_value)?),
+                            scalar_type: payload.scalar_type,
+                        };
+                        let position = edge_values.len();
+                        edge_values.push(value);
+                        let source = edge_evaluation.current_structural_place(payload.source);
+                        let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                        let producer = operations.allocate();
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id: producer,
+                            result: OperationResult::Structural(
+                                terminal_psi::StructuralOperationResult {
+                                    qualification_establishments: Vec::new(),
+                                    place: destination,
+                                    structural_type: payload.member_type,
+                                    multiplicity: StructuralMultiplicity::Unrestricted,
+                                    qualifications: Vec::new(),
+                                    projected_qualifications: Vec::new(),
+                                    claims: Vec::new(),
+                                },
+                            ),
+                            kind: OperationKind::StructuralCaseLeafCopy {
+                                source,
+                                path: vec![
+                                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                                        payload.case,
+                                    ),
+                                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                                        payload.member,
+                                    ),
+                                ],
+                            },
+                        });
+                        self.structural_places.push(StructuralPlaceDeclaration {
+                            id: destination,
+                            kind: StructuralPlaceKind::OperationResult {
+                                producer,
+                                structural_type: payload.member_type,
+                            },
+                        });
+                        let leaf_producer = operations.allocate();
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id: leaf_producer,
+                            result: OperationResult::Scalar(value),
+                            kind: OperationKind::IntegerStructuralField {
+                                source: destination,
+                                path: Vec::new(),
+                                field: payload.field,
+                            },
+                        });
+                        nested_rows.push(NestedEstablishedCasePayload {
+                            source: payload.source,
+                            case: payload.case,
+                            member: payload.member,
+                            field: payload.field,
+                            position,
+                        });
+                    }
+                }
+            }
             crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
                 &mut edge_evaluation.structural_fields,
                 established,
+                &nested_rows,
             );
             edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
-            let mut edge_values = values.to_vec();
             let mut arguments = Vec::new();
             let mut structural_arguments = Vec::new();
             let target_state = &plan.states[target];

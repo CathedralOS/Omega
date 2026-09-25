@@ -255,6 +255,8 @@ impl TerminalExecution {
                         | OperationKind::MoveStructuralField { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
+                        | OperationKind::StructuralLeafCopy { .. }
+                        | OperationKind::StructuralCaseLeafCopy { .. }
                 )
             })
             .filter_map(|operation| operation.result.structural())
