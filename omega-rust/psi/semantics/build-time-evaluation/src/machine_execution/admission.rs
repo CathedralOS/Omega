@@ -398,6 +398,11 @@ impl BuildTimeAdmissionPlan {
             })
             .collect::<Result<Vec<_>, _>>()?;
         self.require_closed_static_applications(program, machine.symbol)?;
+        // Premises past an unconditional entry are proved at their own
+        // source sites, whatever this invocation's arguments.
+        let discharge_authored_requires = discharge_authored_requires
+            || (self.closure_includes_authored_requires(program, machine)
+                && concrete_invocation::argument_independent_closure_discharges(program, machine));
         let closure_violation = checked_closure_violation(
             &self.call_edges,
             program,

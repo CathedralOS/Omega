@@ -259,10 +259,16 @@ the complete product bar; focused successes below do not establish that baseline
   rewritten with them. The relational state-edge judgment does not read a
   named state's arrival `requires` (`rank_range_declared_step_copies`,
   `rank_range_call_declared_step_copy`), and a machine `ensures` cannot
-  read a state's result (`ranked_callee_projected_receiver_compile`). Build-time evaluation refuses an authored `requires`: its
-  `closure_validation.rs` has no checked invocation proof before checking.
-  That blocks the plan-laid layout, wire-policy and interrupt-table
-  `evaluate` machines and `runtime_const_measured_recursion_exit`.
+  read a state's result (`ranked_callee_projected_receiver_compile`).
+  Build-time evaluation admits a callee's or later state's `requires` once
+  the program's preliminary checked lowering is clean, so the wire and
+  plan-laid `evaluate` policies state `fuel` that way. A policy body with
+  another unproved obligation keeps the fence:
+  `runtime_plan_laid_erased_field_exit` indexes by `self.index` across
+  states, and `wire_policy_plan_disagrees` drops `Wrapping` implicitly.
+  `runtime_const_measured_recursion_exit`'s `acc <= 5050` is not
+  inductive (`acc + n` at its recursive call), so it needs a relational
+  bound, not a rewrite.
   The call-requirement prover binds
   parameters but not an immutable local bounded only by its guard
   (`runtime_dispatch_binary_call_argument_exit`), a guarded field read
