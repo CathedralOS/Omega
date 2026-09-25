@@ -224,6 +224,7 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::BooleanStructuralField { .. }
         | O::IntegerStructuralField { .. }
         | O::Jump { .. }
@@ -474,6 +475,7 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::ByteSequenceSubslice { source, .. }
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
+        | O::StructuralByteSequenceFieldRead { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::IntegerStructuralField { source, .. }
         | O::StructuralCase { source, .. } => {

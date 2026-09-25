@@ -83,6 +83,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ElementViewRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }

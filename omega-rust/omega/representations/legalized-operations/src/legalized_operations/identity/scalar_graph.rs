@@ -248,6 +248,21 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+                    source,
+                    field,
+                    index,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(90);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    for identity in [field.get(), index.get(), length.get(), obligation.get()] {
+                        bytes.extend_from_slice(&identity.to_le_bytes());
+                    }
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength {
                     source,
                     field,

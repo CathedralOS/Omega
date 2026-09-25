@@ -196,6 +196,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::ElementViewRead { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }

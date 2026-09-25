@@ -78,6 +78,7 @@ pub(crate) fn expected_provenance(
         | O::ElementViewRead { psi_operation, .. }
         | O::ElementViewSubslice { psi_operation, .. }
         | O::StructuralByteSequenceFieldLength { psi_operation, .. }
+        | O::StructuralByteSequenceFieldRead { psi_operation, .. }
         | O::IntegerStructuralField { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }

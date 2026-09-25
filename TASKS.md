@@ -1599,23 +1599,6 @@ syntax and other terminal services are not prerequisites.
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
 
-- **BYTE-FIELD-ELEMENT-READ-NATIVE.** (new-scope) Lower Terminal
-  `StructuralByteSequenceFieldRead`, one byte of a bounded `[u8; N] in <domain>`
-  field checked against that field's live length, through the Omega pipeline.
-  terminal-psi-to-abstract-operations `routing.rs` refuses it with
-  `UnsupportedStructuralByteSequenceFieldRead`; cli__text__caesar_cipher,
-  text__parse_number, text__format_number, text__hex_dump,
-  collections__run_length_encode, collections__inventory_lookup,
-  interpreters__calculator and probes__direction_command stop there. Mirror
-  `StructuralByteSequenceFieldLength` (the result) and
-  `StructuralByteSequenceFieldByteStore` (index, length and obligation) through
-  the abstract, target, legalized and selected operations and emission; the
-  read loads the byte at the field's data offset plus the index.
-
-  Acceptance: those samples compile natively and reach their documented exits
-  in `samples_with_documented_exit_run_correctly`; a read whose length operand
-  is not the same field's current length observation rejects.
-
 - **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
   guards, call arguments and nested expressions. Reuse their checked admission
   and whole-place source reads, preserving borrow-polarity rejection. The

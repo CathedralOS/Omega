@@ -111,6 +111,18 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Read one live field byte through the exact field's current length
+    /// observation and the bounds obligation `index < length`.
+    StructuralByteSequenceFieldRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Observe live length metadata of the exact bounded-owned byte field.
     StructuralByteSequenceFieldLength {
         psi_operation: OperationId,
@@ -844,6 +856,7 @@ impl AbstractOperation {
             | Self::StructuralByteSequenceFieldByteStore { path, .. }
             | Self::StructuralByteSequenceFieldStore { path, .. }
             | Self::StructuralByteSequenceFieldLength { path, .. }
+            | Self::StructuralByteSequenceFieldRead { path, .. }
             | Self::MoveStructuralField { path, .. }
             | Self::StructuralLeafCopy { path, .. } => vec![path.as_slice()],
             Self::StoreStructuralField { path, value, .. } => {
@@ -897,6 +910,7 @@ impl AbstractOperation {
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldRead { psi_operation, .. }
             | Self::StructuralScalarFieldStore { psi_operation, .. }
             | Self::MoveStructuralField { psi_operation, .. }
             | Self::StoreStructuralField { psi_operation, .. }

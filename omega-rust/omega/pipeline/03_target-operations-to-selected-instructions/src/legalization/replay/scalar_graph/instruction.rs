@@ -620,6 +620,12 @@ pub(super) fn validate(
             actual, node, optimized, plan, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { .. },
+            AbstractOperation::StructuralByteSequenceFieldRead { .. },
+        ) => storage_instructions::validate_structural_byte_sequence_field_read(
+            actual, node, optimized, plan, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. },
             AbstractOperation::StructuralByteSequenceFieldStore { .. },
         ) => storage_instructions::validate_structural_byte_sequence_field_store(

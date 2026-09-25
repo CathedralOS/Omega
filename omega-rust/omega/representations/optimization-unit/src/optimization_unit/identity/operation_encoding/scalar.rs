@@ -85,6 +85,26 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*length);
             bytes.id(*obligation);
         }
+        O::StructuralByteSequenceFieldRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+            index,
+            length,
+            obligation,
+        } => {
+            bytes.u8(89);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
+            bytes.id(*field);
+            bytes.id(*index);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::StructuralByteSequenceFieldLength {
             psi_operation,
             result,

@@ -120,6 +120,16 @@ pub enum TargetUnitOperation {
         value_home: TargetStructuralHomeRequirement,
         byte_offset: u32,
     },
+    /// Read one inline byte under the exact current field-length observation.
+    StructuralByteSequenceFieldRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralArgument,
+        field: StructuralFieldId,
+        index: TargetUnitScalarArgumentSource,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
         psi_operation: OperationId,

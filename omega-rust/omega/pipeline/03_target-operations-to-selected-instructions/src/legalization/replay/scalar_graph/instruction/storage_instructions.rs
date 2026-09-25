@@ -386,6 +386,57 @@ pub(super) fn validate_structural_byte_sequence_field_byte_store(
     Ok(())
 }
 
+pub(super) fn validate_structural_byte_sequence_field_read(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
+            source,
+            field,
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::StructuralByteSequenceFieldRead {
+            field: expected_field,
+            index: expected_index,
+            length: expected_length,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_structural_byte_sequence_field_read")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    if Some(source.clone())
+        != scalar_graph_input::structural_fields::byte_read(
+            optimized,
+            &node.operation,
+            &plan.structural_types,
+        )
+        || field != expected_field
+        || index != expected_index
+        || length != expected_length
+        || obligation != expected_obligation
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_byte_sequence_field_store(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,

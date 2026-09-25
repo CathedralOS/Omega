@@ -69,6 +69,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

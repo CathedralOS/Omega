@@ -5,11 +5,17 @@ use std::path::{Path, PathBuf};
 #[path = "exact_native_coverage/fixture_constants.rs"]
 mod fixture_constants;
 
-// 803 -> 804. `d90befa3e59` added the rooted fixture
-// `collections/runtime_vec_u32_growth_exit` with exactly one dedicated
-// exact-status test (`runtime_vec_u32_growth_exit_canary_runs`) without moving
-// this pin.
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 804;
+// 804 -> 808. Since `d90befa3e59` the rooted roster gained
+// `arithmetic/qualified_case_value`, `calls/runtime_guard_call_vs_call_exit`,
+// `calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit`,
+// `collections/runtime_signed_element_offset_read_exit`,
+// `expressions/token_bound_machine_operand_selection` and
+// `targets/sibling_bodies_checked`, and lost `arithmetic/bare_name_scopes` and
+// `memory/repr_native_stable_layout`, without moving this pin (807). The
+// rooted fixture `text/runtime_bounded_byte_field_read_exit` adds one owner
+// with exactly one dedicated exact-status test
+// (`runtime_bounded_byte_field_read_exit_canary_runs`).
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 808;
 pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
 // 35 -> 14. Twenty-one `targets/` owners compiled a bare `boundary machine
 // Main::main` with ABI arguments or results as the native entry. Build roots

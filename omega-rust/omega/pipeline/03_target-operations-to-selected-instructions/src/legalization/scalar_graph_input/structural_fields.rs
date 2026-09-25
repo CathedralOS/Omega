@@ -57,6 +57,80 @@ pub(in crate::legalization) fn replacement(
     })
 }
 
+/// The borrowed parameter a bounded byte field's length or byte observation
+/// reads through: any borrow of an unqualified, non-linear parameter that no
+/// entry claim holds.
+fn readable_byte_field_parameter(
+    function: &PsiOptimizationFunction,
+    source: semantic_vocabulary::PlaceId,
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)?;
+    (matches!(
+        parameter.access,
+        terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+    ) && parameter.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        && parameter.qualifications.is_empty()
+        && parameter.projected_qualifications.is_empty()
+        && function
+            .entry_claim_declarations
+            .iter()
+            .all(|claim| claim.input != source)
+        && function
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != source))
+    .then_some(parameter)
+}
+
+/// The bounded byte field one indexed byte read observes, as the structural
+/// argument selection reconstructs its storage from.
+pub(in crate::legalization) fn byte_read(
+    function: &PsiOptimizationFunction,
+    operation: &AbstractOperation,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<terminal_psi::StructuralArgument> {
+    let AbstractOperation::StructuralByteSequenceFieldRead {
+        result,
+        source,
+        path,
+        field,
+        ..
+    } = operation
+    else {
+        return None;
+    };
+    let parameter = readable_byte_field_parameter(function, *source)?;
+    // A write-only borrow may observe the live length but not the bytes.
+    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+        || result.scalar_type
+            != ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .ok()?,
+            )
+    {
+        return None;
+    }
+    crate::structural_inputs::structural_reference_input::byte_field_storage(
+        parameter.structural_type,
+        path,
+        *field,
+        types,
+    )?;
+    Some(terminal_psi::StructuralArgument {
+        place: *source,
+        access: parameter.access,
+        path: path.clone(),
+    })
+}
+
 pub(in crate::legalization) fn read(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
@@ -75,29 +149,7 @@ pub(in crate::legalization) fn read(
         field,
     } = operation
     {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == *source)?;
-        if !matches!(
-            parameter.access,
-            terminal_psi::StructuralAccess::SharedBorrow
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || function
-                .entry_claim_declarations
-                .iter()
-                .any(|claim| claim.input == *source)
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == *source)
-        {
-            return None;
-        }
+        let parameter = readable_byte_field_parameter(function, *source)?;
         crate::structural_inputs::structural_reference_input::byte_field_length(
             parameter.structural_type,
             path,

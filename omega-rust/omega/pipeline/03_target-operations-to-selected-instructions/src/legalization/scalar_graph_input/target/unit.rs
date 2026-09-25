@@ -226,6 +226,54 @@ pub(super) fn validate_operation(
                 .iter()
                 .any(|(identity, actual)| identity == expected_value && actual == value) => {}
         (
+            TargetUnitOperation::StructuralByteSequenceFieldRead {
+                psi_operation,
+                result,
+                source,
+                field,
+                index,
+                length,
+                obligation,
+            },
+            AbstractOperation::StructuralByteSequenceFieldRead {
+                psi_operation: expected_operation,
+                result: expected_result,
+                field: expected_field,
+                index: expected_index,
+                length: expected_length,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            if psi_operation != expected_operation
+                || result != expected_result
+                || field != expected_field
+                || length != expected_length
+                || obligation != expected_obligation
+                || Some(source.clone())
+                    != super::super::structural_fields::byte_read(
+                        optimized,
+                        abstracted,
+                        &plan.structural_types,
+                    )
+                || !sources
+                    .iter()
+                    .any(|(identity, actual)| identity == expected_index && actual == index)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((
+                result.value,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: super::super::scalar_shape(result.scalar_type)
+                        .ok_or(LegalizationError::custody())?,
+                }),
+            ));
+        }
+        (
             TargetUnitOperation::StructuralByteSequenceFieldStore {
                 psi_operation,
                 destination,

@@ -120,6 +120,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::ElementViewLength { source, .. }
         | O::ElementViewRead { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
+        | O::StructuralByteSequenceFieldRead { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {
             places.insert(*source);

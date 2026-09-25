@@ -74,6 +74,11 @@ fn definition(operation: &TargetUnitOperation) -> Option<(ValueId, Source)> {
             result,
             ..
         }
+        | TargetUnitOperation::StructuralByteSequenceFieldRead {
+            psi_operation,
+            result,
+            ..
+        }
         | TargetUnitOperation::StructuralCaseMembership {
             psi_operation,
             result,

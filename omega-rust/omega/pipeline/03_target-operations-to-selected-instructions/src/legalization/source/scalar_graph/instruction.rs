@@ -228,6 +228,11 @@ pub(super) fn project(
                 node, optimized, unit,
             )?
         }
+        AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
+            storage_instructions::project_structural_byte_sequence_field_read(
+                node, optimized, unit,
+            )?
+        }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_store(
                 node, optimized, unit,

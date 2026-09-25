@@ -51,6 +51,82 @@ pub(super) fn native_shape(scalar: ScalarType) -> Option<ValueShape> {
     }
 }
 
+fn unsigned(function: &AbstractFunction, bits: u16) -> Result<ScalarType, LoweringError> {
+    Ok(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, bits)
+            .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
+    ))
+}
+
+/// The bounded byte field `path`/`field` beneath a readable borrowed
+/// parameter, as the structural argument its observations keep. Neither a
+/// length nor a byte read establishes a borrowed view or other authority.
+fn readable_byte_field(
+    function: &AbstractFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    source: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Result<terminal_psi::StructuralArgument, LoweringError> {
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .ok_or_else(unsupported)?;
+    if !matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
+    ) || parameter.multiplicity == StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        || function
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == source)
+    {
+        return Err(unsupported());
+    }
+    let carrier = if path.is_empty() {
+        parameter.structural_type
+    } else {
+        crate::lowering::structural_layout::resolve_structural_projection_path(
+            parameter.structural_type,
+            path,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+        .0
+    };
+    let StructuralTypeShape::Record { fields } =
+        &types.get(&carrier).ok_or_else(unsupported)?.shape
+    else {
+        return Err(unsupported());
+    };
+    let mut matching = fields.iter().filter(|candidate| candidate.id == field);
+    let selected = matching.next().ok_or_else(unsupported)?;
+    if matching.next().is_some()
+        || selected.relevance.is_erased()
+        || !matches!(
+            selected.field_type,
+            StructuralFieldType::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        )
+    {
+        return Err(unsupported());
+    }
+    Ok(terminal_psi::StructuralArgument {
+        place: source,
+        access: parameter.access,
+        path: path.to_vec(),
+    })
+}
+
 pub(super) fn retain_result(
     operation: OperationId,
     result: abstract_operations::AbstractResult,
@@ -96,67 +172,10 @@ pub(super) fn lower(
             path,
             field,
         } => {
-            let parameter = function
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *source)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if !matches!(
-                parameter.access,
-                StructuralAccess::SharedBorrow
-                    | StructuralAccess::MutableBorrow
-                    | StructuralAccess::WriteOnlyBorrow
-            ) || parameter.multiplicity == StructuralMultiplicity::Linear
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || result.scalar_type
-                    != ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
-                            LoweringError::unsupported_control_flow(function.machine)
-                        })?,
-                    )
-                || !terminal_psi::is_bounded_structural_scalar_store_path(path)
-                || function
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == *source)
-            {
+            if result.scalar_type != unsigned(function, 64)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let carrier = if path.is_empty() {
-                parameter.structural_type
-            } else {
-                crate::lowering::structural_layout::resolve_structural_projection_path(
-                    parameter.structural_type,
-                    path,
-                    types,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )?
-                .0
-            };
-            let StructuralTypeShape::Record { fields } = &types
-                .get(&carrier)
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
-                .shape
-            else {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            };
-            let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
-            let selected = matching
-                .next()
-                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-            if matching.next().is_some()
-                || selected.relevance.is_erased()
-                || !matches!(
-                    selected.field_type,
-                    StructuralFieldType::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
-                )
-            {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let source = readable_byte_field(function, types, *source, path, *field)?;
             // Metadata keeps the original parameter and static projection. It
             // does not establish a borrowed view or grant byte-content access.
             retain_result(*psi_operation, *result, live)?;
@@ -165,12 +184,58 @@ pub(super) fn lower(
                 TargetUnitOperation::StructuralByteSequenceFieldLength {
                     psi_operation: *psi_operation,
                     result: *result,
-                    source: terminal_psi::StructuralArgument {
-                        place: *source,
-                        access: parameter.access,
-                        path: path.clone(),
-                    },
+                    source,
                     field: *field,
+                },
+            )
+        }
+        AbstractOperation::StructuralByteSequenceFieldRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+            index,
+            length,
+            obligation,
+        } => {
+            let argument = readable_byte_field(function, types, *source, path, *field)?;
+            // Content needs a shared or mutable borrow; a write-only borrow
+            // may observe the live length but not the bytes. The index is
+            // bounded by this same field's live length: the length operand
+            // must be that exact field's observation.
+            if argument.access == StructuralAccess::WriteOnlyBorrow
+                || result.scalar_type != unsigned(function, 8)?
+                || !function.operations.iter().any(|operation| matches!(operation,
+                    AbstractOperation::StructuralByteSequenceFieldLength { source: measured, path: measured_path, field: measured_field, result: measured_result, .. }
+                    if measured == source && measured_path == path && measured_field == field && measured_result.value == *length))
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            let index_value = *live
+                .integers
+                .get(index)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let length_value = live
+                .integers
+                .get(length)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            if ScalarType::Integer(index_value.scalar_type()) != unsigned(function, 64)?
+                || ScalarType::Integer(length_value.scalar_type()) != unsigned(function, 64)?
+            {
+                return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            retain_result(*psi_operation, *result, live)?;
+            (
+                *psi_operation,
+                TargetUnitOperation::StructuralByteSequenceFieldRead {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: argument,
+                    field: *field,
+                    index: index_value.into_target_source(*index),
+                    length: *length,
+                    obligation: *obligation,
                 },
             )
         }

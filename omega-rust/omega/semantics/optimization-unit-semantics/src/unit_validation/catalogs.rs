@@ -144,6 +144,13 @@ fn validate_structural_field_range_authority(
                 length,
                 obligation,
                 ..
+            }
+            | O::StructuralByteSequenceFieldRead {
+                psi_operation,
+                index,
+                length,
+                obligation,
+                ..
             } => {
                 use semantic_vocabulary::{IntegerSign, IntegerType, Proposition, ScalarTerm};
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;

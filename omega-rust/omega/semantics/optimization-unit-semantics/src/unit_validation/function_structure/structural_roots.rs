@@ -92,6 +92,12 @@ pub(crate) fn validate_structural_root_operations(
                     path,
                     field,
                     ..
+                }
+                | O::StructuralByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    ..
                 } => {
                     let valid = function.structural_parameters.iter().find(|parameter| parameter.place == *source)
                         .is_some_and(|parameter| {

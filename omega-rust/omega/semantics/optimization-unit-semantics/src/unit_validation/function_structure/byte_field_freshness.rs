@@ -19,24 +19,42 @@ pub(super) fn validate(
 ) -> Result<(), OptimizationUnitValidationError> {
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
-            let O::StructuralByteSequenceFieldByteStore {
-                destination,
-                path,
-                field,
-                length,
-                ..
-            } = &node.operation
-            else {
-                continue;
+            // A byte store and a byte read both bound their index by the
+            // field's live length, so both need that exact observation current.
+            let (destination, path, field, length, reads) = match &node.operation {
+                O::StructuralByteSequenceFieldByteStore {
+                    destination,
+                    path,
+                    field,
+                    length,
+                    ..
+                } => (destination, path, field, length, false),
+                O::StructuralByteSequenceFieldRead {
+                    source,
+                    path,
+                    field,
+                    length,
+                    ..
+                } => (source, path, field, length, true),
+                _ => continue,
             };
-            let invalid = OptimizationUnitValidationError::InvalidByteSequenceWrite {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_position).map_err(|_| {
-                    OptimizationUnitValidationError::StructuralCatalogMismatch {
-                        machine: Some(function.machine),
-                    }
-                })?,
+            let node = u32::try_from(node_position).map_err(|_| {
+                OptimizationUnitValidationError::StructuralCatalogMismatch {
+                    machine: Some(function.machine),
+                }
+            })?;
+            let invalid = if reads {
+                OptimizationUnitValidationError::InvalidByteSequenceRead {
+                    machine: function.machine,
+                    block: block.id,
+                    node,
+                }
+            } else {
+                OptimizationUnitValidationError::InvalidByteSequenceWrite {
+                    machine: function.machine,
+                    block: block.id,
+                    node,
+                }
             };
             let exact_path = field_path(function, types, *destination, path, *field)
                 .ok_or_else(|| invalid.clone())?;
@@ -140,6 +158,7 @@ fn changes_length(
         // stores preserve length even when they replace the measured field's contents.
         O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralByteSequenceFieldLength { .. }
+        | O::StructuralByteSequenceFieldRead { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceRead { .. }
