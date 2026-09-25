@@ -3,6 +3,8 @@
 
 #[path = "calls/boundary_crashes.rs"]
 mod boundary_crashes;
+#[path = "calls/boundary_requires.rs"]
+mod boundary_requires;
 #[path = "calls/byte_views.rs"]
 mod byte_views;
 #[path = "calls/call_publication_and_boundary_arguments.rs"]
@@ -57,6 +59,7 @@ fn boundary_call_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
             id: boundary_id(1),
@@ -122,6 +125,7 @@ fn boundary_call_module() -> TerminalModule {
                         id: operation_id(2),
                         result: OperationResult::Unit,
                         kind: OperationKind::BoundaryCall {
+                            requirement_obligations: Vec::new(),
                             boundary: boundary_id(1),
                             arguments: vec![value_id(1)],
                             structural_arguments: Vec::new(),

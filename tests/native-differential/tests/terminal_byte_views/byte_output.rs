@@ -38,6 +38,7 @@ fn byte_output_module() -> TerminalModule {
     let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let boundary = BoundaryMachineId::new(1).unwrap();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "Console::write_byte(i32)->Unit".into(),
@@ -68,6 +69,7 @@ fn byte_output_module() -> TerminalModule {
         id: OperationId::new(7).unwrap(),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary,
             arguments: vec![value],
             structural_arguments: Vec::new(),

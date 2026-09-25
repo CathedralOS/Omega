@@ -295,6 +295,7 @@ mod machine_bounds {
             id: id(operation_id),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: id(boundary),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

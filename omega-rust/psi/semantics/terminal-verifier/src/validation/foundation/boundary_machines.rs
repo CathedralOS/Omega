@@ -2,8 +2,8 @@
 //! parameters, requirements and results.
 
 use super::super::{
-    BTreeMap, BTreeSet, BoundaryMachineResult, ModuleError, ServiceId, StructuralDomainId,
-    StructuralTypeId, TerminalModule,
+    BTreeMap, BTreeSet, BoundaryMachineDeclaration, BoundaryMachineResult, ModuleError,
+    PropositionContext, ServiceId, StructuralDomainId, StructuralTypeId, TerminalModule,
 };
 use super::{
     ServiceCeilingOwner, StructuralSignatureOwner, validate_attachment,
@@ -50,6 +50,7 @@ pub(super) fn validate_boundary_machines(
             return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
         }
         super::super::crash::validate_boundary_crash_routes(boundary)?;
+        validate_boundary_scalar_requires(boundary)?;
         validate_attachment(boundary.id, boundary.attachment, types)?;
         validate_structural_signature(
             &boundary.structural_parameters,
@@ -111,6 +112,37 @@ pub(super) fn validate_boundary_machines(
             return Err(ModuleError::NonCanonicalBoundaryRequirements(boundary.id));
         }
         validate_program_local_root_introductions(boundary, types, domains)?;
+    }
+    Ok(())
+}
+
+/// A boundary's scalar `requires` rows are propositions over its
+/// declaration-local scalar formals only, the crash routes' telescope. Every
+/// call instantiates them at its own actuals, so a row may not name a
+/// structural place, an opaque or float term, or any caller or provider value.
+fn validate_boundary_scalar_requires(
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<(), ModuleError> {
+    if boundary.scalar_requires.is_empty() {
+        return Ok(());
+    }
+    let context = PropositionContext::from_value_types(
+        boundary
+            .scalar_contract_parameters()
+            .ok_or(ModuleError::InvalidBoundaryCrashParameters(boundary.id))?
+            .iter()
+            .map(|parameter| (parameter.id, parameter.scalar_type)),
+    )
+    .map_err(ModuleError::MalformedProposition)?;
+    for proposition in &boundary.scalar_requires {
+        if !proposition.visit_value_ids(|_| {}) {
+            return Err(ModuleError::UnsupportedBoundaryRequiresProposition(
+                boundary.id,
+            ));
+        }
+        context
+            .validate(proposition)
+            .map_err(ModuleError::MalformedProposition)?;
     }
     Ok(())
 }

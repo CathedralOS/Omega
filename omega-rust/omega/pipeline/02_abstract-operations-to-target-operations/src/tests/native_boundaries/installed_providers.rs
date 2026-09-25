@@ -119,6 +119,7 @@ fn installed_provider_plan() -> (
         }]
         .into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "ProgramEntry::enter".into(),
@@ -271,6 +272,7 @@ fn installed_scalar_provider_plan() -> (
         entry: caller,
         structural_types: Vec::new().into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Ping::ping_value".into(),

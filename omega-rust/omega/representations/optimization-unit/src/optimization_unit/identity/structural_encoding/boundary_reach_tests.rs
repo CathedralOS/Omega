@@ -3,6 +3,7 @@ use super::{BoundaryMachineDeclaration, CanonicalBytes, encode_boundary_machine,
 fn boundary_identity_binds_fixed_reach_and_formal_order() {
     let service = semantic_vocabulary::ServiceId::new(1).unwrap();
     let mut boundary = BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
         identity: "Installer::step".into(),
         attachment: None,

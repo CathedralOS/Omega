@@ -81,15 +81,20 @@ mod boundary_calls;
 mod calls;
 pub(super) use calls::CallInputs;
 
-/// One lowered boundary declaration a call can name: its checked source, the
-/// published boundary identity, its structural formals and its dense scalar
-/// parameter types.
-pub(crate) type BoundaryParameters = (
-    symbols::SymbolHandle,
-    BoundaryMachineId,
-    Vec<StructuralParameterDeclaration>,
-    Vec<ScalarType>,
-);
+/// One lowered boundary declaration a call can name.
+#[derive(Debug, Clone)]
+pub(crate) struct BoundaryParameters {
+    /// The checked boundary machine calls name.
+    pub(crate) source: symbols::SymbolHandle,
+    /// The published boundary identity.
+    pub(crate) id: BoundaryMachineId,
+    pub(crate) structural: Vec<StructuralParameterDeclaration>,
+    /// Dense scalar parameter types, in the declaration's scalar lane.
+    pub(crate) scalar: Vec<ScalarType>,
+    /// The declaration's `scalar_requires` rows; each call owes one
+    /// obligation per row.
+    pub(crate) requirement_count: usize,
+}
 
 /// The per-state environment one operation emits into. Each route builds a
 /// frame per operation; the frame only borrows, so the route keeps ownership

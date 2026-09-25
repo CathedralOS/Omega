@@ -10,6 +10,7 @@ pub(super) fn produced_partial_module() -> TerminalModule {
     let mut module = partial_affine_field_module();
     let root_type = module.machines[0].structural_parameters[0].structural_type;
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_id(1),
@@ -52,6 +53,7 @@ pub(super) fn produced_partial_module() -> TerminalModule {
                 claims: Vec::new(),
             }),
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(1),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

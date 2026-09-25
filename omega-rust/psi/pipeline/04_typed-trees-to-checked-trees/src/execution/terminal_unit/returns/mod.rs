@@ -311,7 +311,12 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
         .iter()
         .filter(|machine| machine.supply_mode.is_boundary_declaration())
         .filter_map(|machine| build_boundary_machine(program, facts, &mut shapes, machine))
-        .filter(|boundary| boundary.result.scalar().is_some())
+        // This wrapper emits its inner boundary call without discharging the
+        // callee's scalar requires, so a boundary that has any stays on the
+        // attached-Unit route, which owes one obligation per row.
+        .filter(|boundary| {
+            boundary.result.scalar().is_some() && boundary.scalar_requires.is_empty()
+        })
         .collect::<Vec<_>>();
     boundary_machines.extend(
         build_static_boundary_requirements(program, facts, &mut shapes)

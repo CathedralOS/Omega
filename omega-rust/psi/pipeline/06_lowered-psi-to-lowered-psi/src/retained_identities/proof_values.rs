@@ -299,6 +299,7 @@ mod tests {
         for kind in [
             O::BooleanConstant { value: true },
             O::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: BoundaryMachineId::new(1).unwrap(),
                 arguments: Vec::new(),
                 structural_arguments: Vec::new(),

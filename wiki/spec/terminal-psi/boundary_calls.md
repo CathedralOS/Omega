@@ -85,9 +85,24 @@ establish it again.
 
 This requirement is not a proposition term or conclusion and creates no
 `ObligationId`. Boundary calls have no positional proof-obligation vector for
-these requirements. Ordinary calls' `requires` propositions retain their own
-proof-obligation lane. Encoding a structural qualification as a trivially true
+these requirements. Encoding a structural qualification as a trivially true
 proposition cannot substitute for the carried identity.
+
+## Scalar requires
+
+A requirement's scalar `requires` clauses, and its integer parameter ranges,
+are part of the contract the declaration retains. They are propositions in the
+crash routes' declaration-local scalar-formal namespace, in canonical order,
+naming no structural place or caller value. Each `BoundaryCall` carries one
+`ObligationId` per row at the same index, as an ordinary call's `requires`
+lane does. Verification instantiates the row at that call's scalar actuals and
+proves it from the caller's facts before the call. A clause that is wholly
+structural membership stays a structural domain requirement and has no row.
+
+Selecting a provider does not remove or weaken these obligations. A checked
+candidate may be installed for the call only when its own requirements follow
+from the declaration's rows. Scalar `ensures` are not yet retained on the
+declaration, so callers cannot rely on them in Terminal verification.
 
 A proof condition may constrain a permitted use but cannot replace a domain's
 sealed introduction or routed provenance. Qualification transfer must preserve

@@ -568,6 +568,7 @@ fn custody_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Console::publish".into(),
@@ -737,6 +738,7 @@ fn custody_module() -> TerminalModule {
                                 claims: Vec::new(),
                             }),
                             kind: OperationKind::BoundaryCall {
+                                requirement_obligations: Vec::new(),
                                 boundary,
                                 arguments: vec![flag, byte],
                                 structural_arguments: vec![

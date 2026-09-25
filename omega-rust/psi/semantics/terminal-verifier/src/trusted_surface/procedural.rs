@@ -301,7 +301,7 @@ rows! {
         "a boundary call's declared suspension plan and external contract",
         "the boundary requires obligations and ensured effects composed through the fixed byte view of the suspension semantics",
         &["composition:call-instantiation", "formation:suspension-call-plan"],
-        &[tv!( "validation/suspension_call_plan.rs"), ts!( "call_composition/fixed_byte_view.rs"), ts!( "static_path.rs")]
+        &[tv!( "validation/suspension_call_plan.rs"), tv!( "verification/call_composition.rs"), ts!( "call_composition/fixed_byte_view.rs"), ts!( "static_path.rs")]
     );
     COMP_IMPORTED_ENSURES => (
         "composition:imported-ensures-trust",

@@ -255,7 +255,12 @@ pub(super) fn register_custody_operation(
         }
         return Ok(true);
     }
-    if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+    if let OperationKind::BoundaryCall {
+        boundary,
+        requirement_obligations,
+        ..
+    } = &operation.kind
+    {
         let boundary = module
             .boundary_machines
             .iter()
@@ -264,6 +269,22 @@ pub(super) fn register_custody_operation(
                 operation: operation.id,
                 boundary: *boundary,
             })?;
+        // One obligation per declared scalar `requires` row, exactly as an
+        // ordinary call owes one per callee contract row.
+        if requirement_obligations.len() != boundary.scalar_requires.len() {
+            return Err(ModuleError::CallRequirementArityMismatch {
+                operation: operation.id,
+                expected: boundary.scalar_requires.len(),
+                actual: requirement_obligations.len(),
+            });
+        }
+        for obligation in requirement_obligations {
+            insert_unique(
+                &mut registry.obligations,
+                *obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         let actual = match &operation.result {
             OperationResult::Unit => Some(BoundaryMachineResult::Unit),
             OperationResult::Scalar(result) => {

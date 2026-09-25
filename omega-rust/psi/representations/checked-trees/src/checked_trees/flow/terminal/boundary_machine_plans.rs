@@ -69,6 +69,11 @@ pub struct CheckedBoundaryMachinePlan {
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,
+    /// The contract's scalar `requires` predicates in checked order: each
+    /// authored clause that is not wholly structural membership, then the
+    /// scalar parameter ranges. `Parameter` positions index
+    /// `scalar_parameters`. Callers owe one obligation per lowered row.
+    pub scalar_requires: Vec<crate::ClosedScalarContractValue>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,
     pub contract_service_reach: ServiceReachPlan,

@@ -78,6 +78,7 @@ fn unused_provider_attachment_fixture() -> TerminalModule {
     });
     module.machines[0].attachment = Some(structural_type_id(1));
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_machine_id(1),
@@ -113,6 +114,7 @@ fn provider_boundary_call() -> Operation {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_machine_id(1),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -634,6 +636,7 @@ fn structural_effect_fixture() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
             id: boundary_machine_id(1),
@@ -797,6 +800,7 @@ fn structural_effect_fixture() -> TerminalModule {
                             id: operation_id(3),
                             result: OperationResult::Unit,
                             kind: OperationKind::BoundaryCall {
+                                requirement_obligations: Vec::new(),
                                 boundary: boundary_machine_id(1),
                                 arguments: Vec::new(),
                                 structural_arguments: vec![StructuralArgument {

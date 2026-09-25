@@ -43,6 +43,7 @@ fn fixture() -> TerminalModule {
         },
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary,
@@ -92,6 +93,7 @@ fn fixture() -> TerminalModule {
                     claims: Vec::new(),
                 }),
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary,
                     arguments: Vec::new(),
                     structural_arguments: Vec::new(),

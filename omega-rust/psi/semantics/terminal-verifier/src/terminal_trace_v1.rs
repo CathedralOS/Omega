@@ -679,6 +679,7 @@ mod tests {
     #[test]
     fn external_event_operations_have_explicit_observable_classifications() {
         let boundary = OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: id(1, BoundaryMachineId::new),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -742,6 +743,7 @@ mod tests {
         }];
         module.root_service_reach.concrete = vec![service];
         module.boundary_machines = vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
             id: boundary,
@@ -844,6 +846,7 @@ mod tests {
                     scalar_type: u8_type,
                 }),
                 kind: OperationKind::BoundaryCall {
+                    requirement_obligations: Vec::new(),
                     boundary,
                     arguments: vec![argument, id(2, ValueId::new)],
                     structural_arguments: vec![

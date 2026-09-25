@@ -352,6 +352,7 @@ pub(crate) fn scalar_boundary_call_unit() -> PsiOptimizationUnit {
         entry: machine,
         structural_types: Vec::new().into(),
         boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "validation::scalar-boundary".into(),

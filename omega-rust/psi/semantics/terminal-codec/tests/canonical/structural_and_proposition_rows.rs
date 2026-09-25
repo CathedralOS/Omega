@@ -969,6 +969,7 @@ fn boundary_inline_byte_module(
     let mut module = unit_fixture();
     module.structural_types = inline_byte_carrier_types(carrier);
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary_machine_id(1),
@@ -1006,6 +1007,7 @@ fn boundary_inline_byte_module(
         id: operation_id(901),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_machine_id(1),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

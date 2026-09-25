@@ -101,6 +101,7 @@ fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceil
             .unwrap();
     let service = id(1, ServiceId::new);
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: id(1, BoundaryMachineId::new),
         identity: "Installer::step".into(),
         attachment: None,
@@ -378,18 +379,18 @@ fn canonical_operation_identity_bytes_are_stable() {
     assert_eq!(
         scalar.identity.bytes(),
         [
-            78, 186, 164, 14, 68, 247, 42, 212, 251, 248, 177, 42, 231, 242, 210, 163, 170, 255,
-            237, 73, 101, 139, 33, 3, 205, 96, 91, 239, 255, 241, 250, 112,
+            195, 39, 221, 44, 208, 182, 71, 126, 149, 102, 175, 231, 252, 99, 66, 159, 32, 137,
+            188, 46, 119, 215, 164, 23, 6, 154, 90, 250, 94, 239, 118, 10,
         ],
-        "identity binds vocabulary 108 and unit schema 30",
+        "identity binds vocabulary 109 and unit schema 30",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            174, 35, 61, 4, 81, 173, 120, 183, 96, 65, 190, 28, 97, 68, 132, 95, 147, 181, 113,
-            226, 180, 107, 105, 153, 27, 82, 149, 217, 216, 178, 126, 60,
+            85, 229, 213, 13, 56, 99, 168, 135, 192, 2, 133, 212, 162, 220, 94, 245, 236, 79, 221,
+            233, 168, 178, 24, 78, 15, 179, 126, 223, 103, 43, 65, 35,
         ],
-        "identity binds vocabulary 108 and unit schema 30 alongside unchanged storage and return tags",
+        "identity binds vocabulary 109 and unit schema 30 alongside unchanged storage and return tags",
     );
 }
 
@@ -550,6 +551,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     mutations.push(("root installation service reach", unit));
     let mut unit = baseline.clone();
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,
         identity: "identity-test-boundary".into(),

@@ -386,6 +386,7 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
     parameter.place = id(100, PlaceId::new);
     let boundary = id(1, BoundaryMachineId::new);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
         id: boundary,
@@ -409,6 +410,7 @@ fn boundary_view_call(module: &mut TerminalModule, source: u64) -> Operation {
         id: id(40, OperationId::new),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary,
             arguments: vec![id(20, ValueId::new)],
             structural_arguments: vec![view_argument(source)],

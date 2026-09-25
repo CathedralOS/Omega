@@ -161,6 +161,7 @@ fn projected_structural_provider_module() -> TerminalModule {
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(1),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {
@@ -180,6 +181,7 @@ fn projected_structural_provider_module() -> TerminalModule {
             id: operation_id(2),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(1),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

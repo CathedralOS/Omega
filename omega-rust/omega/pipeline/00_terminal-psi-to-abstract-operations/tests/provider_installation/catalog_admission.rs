@@ -439,6 +439,7 @@ fn provider_catalog_union_rejects_a_candidate_that_reenters_its_boundary() {
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

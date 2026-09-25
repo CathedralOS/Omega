@@ -47,6 +47,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: "Console::write_byte(u8,bool)->Unit".into(),
@@ -107,6 +108,7 @@ fn preserves_scalar_boundary_arguments_and_closed_result_roles() {
                     id: operation,
                     result: OperationResult::Unit,
                     kind: OperationKind::BoundaryCall {
+                        requirement_obligations: Vec::new(),
                         boundary,
                         arguments: vec![byte.id, boolean.id],
                         structural_arguments: Vec::new(),

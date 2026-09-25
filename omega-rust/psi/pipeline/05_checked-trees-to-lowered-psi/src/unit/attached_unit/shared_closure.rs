@@ -1,9 +1,7 @@
 //! Joint catalog and identity ownership for Unit bodies beneath external control.
 
-use super::super::{
-    BoundaryMachineId, MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration,
-};
-use super::{LoweredPsi, ScalarType, SemanticDomainId, StructuralDomainId, StructuralTypeId};
+use super::super::{MachineId, ServiceId, ServiceReachId};
+use super::{LoweredPsi, SemanticDomainId, StructuralDomainId, StructuralTypeId};
 /// Additional roots already selected from the external caller's authored body.
 /// They join ordinary body discovery before any semantic identity is assigned.
 #[derive(Clone, Copy)]
@@ -23,12 +21,7 @@ pub(crate) struct SharedUnitClosure {
     pub(crate) type_ids: Vec<(String, StructuralTypeId)>,
     pub(crate) domain_ids: Vec<(SemanticDomainId, StructuralDomainId)>,
     pub(crate) service_ids: Vec<(ServiceReachId, ServiceId)>,
-    pub(crate) boundary_parameters: Vec<(
-        symbols::SymbolHandle,
-        BoundaryMachineId,
-        Vec<StructuralParameterDeclaration>,
-        Vec<ScalarType>,
-    )>,
+    pub(crate) boundary_parameters: Vec<super::operation_frame::BoundaryParameters>,
     /// Every emitted Unit body's allocated signature, so a Unit graph the
     /// external caller emits later calls those bodies exactly as they call
     /// each other.

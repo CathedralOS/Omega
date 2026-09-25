@@ -46,6 +46,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
             entry: machine,
             structural_types: vec![declaration.clone()].into(),
             boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+                scalar_requires: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 id: boundary,
                 identity: "validation::byte-literal-boundary".into(),
@@ -172,6 +173,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
             ]
             .into(),
             boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+                scalar_requires: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 id: boundary,
                 identity: "validation::consume-qualified-field".into(),

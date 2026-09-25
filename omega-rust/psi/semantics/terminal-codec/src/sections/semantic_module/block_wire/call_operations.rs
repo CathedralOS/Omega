@@ -502,6 +502,7 @@ pub(super) fn encode_boundary_call(
     arguments: Vec<ValueId>,
     structural_arguments: Vec<StructuralArgument>,
     completion_receipts: Vec<CompletionReceipt>,
+    requirement_obligations: Vec<ObligationId>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::BOUNDARY_CALL);
     writer.id(boundary);
@@ -515,7 +516,7 @@ pub(super) fn encode_boundary_call(
         writer.id(settlement.claim);
         writer.u32(settlement.argument_index);
     }
-    Ok(())
+    encode_obligation_ids(writer, &requirement_obligations)
 }
 
 pub(super) fn decode_boundary_call(reader: &mut Reader<'_>) -> Result<OperationKind, CodecError> {
@@ -529,6 +530,7 @@ pub(super) fn decode_boundary_call(reader: &mut Reader<'_>) -> Result<OperationK
                 argument_index: reader.u32()?,
             })
         })?,
+        requirement_obligations: decode_ids(reader, "ObligationId")?,
     })
 }
 

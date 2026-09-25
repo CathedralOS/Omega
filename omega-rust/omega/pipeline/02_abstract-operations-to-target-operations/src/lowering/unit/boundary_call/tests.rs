@@ -58,6 +58,7 @@ fn declaration(
     scalar_parameters: Vec<ScalarType>,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; scalar_parameters.len()],
         fixed_service_reach: Vec::new(),
         id: boundary,

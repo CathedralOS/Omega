@@ -245,6 +245,7 @@ fn artifact_and_receiver() -> (CanonicalTerminalArtifact, PccReceiverPolicy) {
         parents: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: boundary,
         identity: dependency.requirement_identity.clone(),
         attachment: None,
@@ -266,6 +267,7 @@ fn artifact_and_receiver() -> (CanonicalTerminalArtifact, PccReceiverPolicy) {
         suspension_crossing: None,
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

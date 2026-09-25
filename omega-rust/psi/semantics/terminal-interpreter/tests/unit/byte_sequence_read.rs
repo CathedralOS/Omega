@@ -42,6 +42,7 @@ pub(super) fn emit_byte(ordinal: u64, value: u64) -> Operation {
         id: operation_id(ordinal),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(1),
             arguments: vec![value_id(value)],
             structural_arguments: Vec::new(),

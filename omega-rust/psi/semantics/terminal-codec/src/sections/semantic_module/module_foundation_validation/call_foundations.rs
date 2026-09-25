@@ -342,7 +342,7 @@ pub(super) fn validate_boundary_call(
         arguments,
         structural_arguments,
         completion_receipts,
-        ..
+        requirement_obligations,
     } = &operation.kind
     else {
         unreachable!("dispatched validate_boundary_call")
@@ -380,6 +380,9 @@ pub(super) fn validate_boundary_call(
     }
     if structural_arguments.len() != boundary.structural_parameters.len() {
         return malformed("boundary call has the wrong structural arity");
+    }
+    if requirement_obligations.len() != boundary.scalar_requires.len() {
+        return malformed("boundary call has the wrong requirement obligation arity");
     }
     validate_structural_arguments(
         module,

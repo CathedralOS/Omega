@@ -27,6 +27,7 @@ fn routes(value: u64) -> Vec<CrashRouteBucket> {
 fn boundary_fixture() -> TerminalModule {
     let mut module = fixture();
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_machine_id(1),
         identity: "test::guarded_boundary".into(),
@@ -75,6 +76,7 @@ fn boundary_fixture() -> TerminalModule {
             id: operation_id(1),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_machine_id(1),
                 arguments: vec![value_id(3), value_id(2)],
                 structural_arguments: Vec::new(),

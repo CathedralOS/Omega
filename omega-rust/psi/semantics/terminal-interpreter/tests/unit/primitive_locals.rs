@@ -155,6 +155,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
     let mut parameter = module.machines[1].structural_parameters[0].clone();
     parameter.place = place_id(700);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(700),
         identity: "test::observe_primitive_loan".into(),
@@ -175,6 +176,7 @@ fn observe_local_identities(module: &TerminalModule) -> Vec<u64> {
         id: operation_id(700),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(700),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

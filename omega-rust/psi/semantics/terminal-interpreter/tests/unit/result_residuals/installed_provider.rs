@@ -31,6 +31,7 @@ fn module(nested: bool) -> TerminalModule {
     let mut boundary_parameter = parameter.clone();
     boundary_parameter.place = place_id(6);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(1),
         identity: "test::forward".into(),
@@ -78,6 +79,7 @@ fn module(nested: bool) -> TerminalModule {
             },
         });
     module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        requirement_obligations: Vec::new(),
         boundary: boundary_id(1),
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
@@ -248,6 +250,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     let mut module = module(false);
     let parameter = module.machines[1].structural_parameters[0].clone();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "test::observe_leaf".into(),
@@ -268,6 +271,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
         id: operation_id(3),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -505,6 +509,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
     let mut mint_parameter = module.boundary_machines[0].structural_parameters[0].clone();
     mint_parameter.place = super::place_id(20);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(2),
         identity: "test::mint".into(),
@@ -528,6 +533,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
     unregister_parameter.multiplicity = StructuralMultiplicity::Linear;
     unregister_parameter.qualifications = vec![live];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(3),
         identity: "test::unregister".into(),
@@ -582,6 +588,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
             }],
         }),
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(2),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {
@@ -618,6 +625,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
         id: operation_id(1),
         result: OperationResult::Unit,
         kind: OperationKind::BoundaryCall {
+            requirement_obligations: Vec::new(),
             boundary: boundary_id(3),
             arguments: Vec::new(),
             structural_arguments: vec![StructuralArgument {

@@ -37,6 +37,7 @@ pub(super) fn borrowed_boundary_module(access: StructuralAccess) -> TerminalModu
             id: operation_id(ordinal),
             result: OperationResult::Unit,
             kind: OperationKind::BoundaryCall {
+                requirement_obligations: Vec::new(),
                 boundary: boundary_id(1),
                 arguments: Vec::new(),
                 structural_arguments: vec![StructuralArgument {

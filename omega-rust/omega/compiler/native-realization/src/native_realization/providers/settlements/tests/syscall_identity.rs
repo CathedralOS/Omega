@@ -22,6 +22,7 @@ fn abstract_plan() -> abstract_operations::AbstractOperationPlan {
         entry: machine,
         structural_types: Vec::new().into(),
         boundary_machines: vec![terminal_psi::BoundaryMachineDeclaration {
+            scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
             identity: REQUIREMENT.into(),

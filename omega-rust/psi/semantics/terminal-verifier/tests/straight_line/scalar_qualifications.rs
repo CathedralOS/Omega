@@ -337,6 +337,7 @@ fn routed_issuer(module: &mut TerminalModule) -> MachineId {
         },
     ];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).unwrap(),
         identity: "test::observe".into(),
         attachment: None,

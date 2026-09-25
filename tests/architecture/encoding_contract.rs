@@ -1883,15 +1883,15 @@ fn vocabulary_marker_matches_semantic_vocabulary() {
         .collect::<Vec<_>>()
         .join(" ");
     assert!(
-        spec.contains("vocabulary marker 108"),
-        "module envelope must name vocabulary marker 108"
+        spec.contains("vocabulary marker 109"),
+        "module envelope must name vocabulary marker 109"
     );
     let source = read_workspace_file(
         "omega-rust/psi/representations/terminal-psi/src/terminal_module/identity/vocabulary.rs",
     );
     assert!(
-        function_body(&source, "get").contains("108"),
-        "VocabularyMarker::get no longer returns 108"
+        function_body(&source, "get").contains("109"),
+        "VocabularyMarker::get no longer returns 109"
     );
 }
 

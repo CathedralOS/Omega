@@ -8,12 +8,15 @@
 // external-binding rows; native realization joins them by that same
 // requirement identity and delivers the foreign results through the
 // requirements' result places. The interpreter has no provider for authored
-// bindings and fails closed on the requirement calls.
+// bindings and fails closed on the requirement calls. `absolute` publishes
+// its foreign precondition as an ordinary scalar `requires`; the requirement
+// declaration retains it in Terminal Psi and every call owes its obligation.
 use omega::language::core::external_binding;
 
 pub data ForeignMath {}
 
-pub boundary requirement ForeignMath::absolute(value: i32) -> i32;
+pub boundary requirement ForeignMath::absolute(value: i32) -> i32
+requires value > -2147483648;
 pub boundary requirement ForeignMath::exit_with(code: i32);
 
 data ForeignMathProvider {}

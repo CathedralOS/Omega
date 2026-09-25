@@ -296,6 +296,7 @@ fn boundary_fixture(mut module: TerminalModule) -> TerminalModule {
     module.boundary_machines.push(boundary);
     module.machines.pop();
     module.machines[0].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        requirement_obligations: Vec::new(),
         boundary: boundary_id(1),
         arguments: Vec::new(),
         structural_arguments,
