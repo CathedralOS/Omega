@@ -1,10 +1,15 @@
 //! Executable container byte tests.
 
 mod artifact_wire_custody_fields;
+mod wire_byte_custody_fields;
 
 use artifact_wire_custody_fields::{
     ArtifactSeed, ArtifactWireFieldForTest, ContainerWireRejection, artifact_wire_custody_outcome,
     artifact_wire_vocabulary, classify_container_wire_rejection, substitute_artifact_wire_for_test,
+};
+use wire_byte_custody_fields::{
+    ContainerWireByteFieldForTest, container_wire_byte_custody_outcome,
+    container_wire_byte_vocabulary, substitute_container_wire_byte_for_test,
 };
 
 use crate::artifacts::Artifact;
@@ -30,10 +35,10 @@ use crate::artifacts::container_bytes::record_layouts::relocation_layout;
 use crate::artifacts::container_bytes::record_layouts::section_layout;
 use crate::artifacts::container_bytes::{
     ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES, OMEGA_EXECUTABLE_CONTAINER_MAGIC,
-    OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES, PLACEMENT_RECORD_BYTES,
-    RELOCATION_COUNT_BYTES, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES, SECTION_FOOTPRINT,
-    SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS,
-    encode_executable_container, encode_executable_container_v1_compatibility,
+    OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES, PLACEMENT_RECORD_BYTES, SECTION_CODE,
+    SECTION_CONTRACTS, SECTION_ENTRIES, SECTION_FOOTPRINT, SECTION_INFORMATIONAL,
+    SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS, encode_executable_container,
+    encode_executable_container_v1_compatibility,
     non_authoritative_informational_section_fingerprint,
 };
 use crate::authority_digests::AdmissionReceiptId;
@@ -569,28 +574,6 @@ fn semantic_byte_drift_reaches_normalized_content_check() {
     assert!(error.0.contains("content fingerprint"));
 }
 
-fn section_record(index: usize) -> usize {
-    OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
-        + index * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize
-}
-
-fn section_offset(bytes: &[u8], index: usize) -> usize {
-    let record = section_record(index);
-    u64::from_le_bytes(bytes[record + 16..record + 24].try_into().unwrap()) as usize
-}
-
-fn write_u16(bytes: &mut [u8], offset: usize, value: u16) {
-    bytes[offset..offset + 2].copy_from_slice(&value.to_le_bytes());
-}
-
-fn write_u32(bytes: &mut [u8], offset: usize, value: u32) {
-    bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
-}
-
-fn write_u64(bytes: &mut [u8], offset: usize, value: u64) {
-    bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
-}
-
 #[test]
 fn executable_container_wire_rejects_every_one_field_substitution() {
     let artifact = strong_artifact();
@@ -689,271 +672,27 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
 
     // Every wire field the canonical encoder derives must reject a raw
     // substitution at decode: the codec is hostile-input, so no byte axis may
-    // be carried silently.
-    let rejects_decode = |mutated: &[u8], needle: &str| {
-        let error = decode_executable_container(mutated, limits())
-            .expect_err("wire substitution must reject");
-        assert!(
-            error.0.contains(needle),
-            "unexpected decode rejection for `{needle}`: {}",
-            error.0
-        );
-    };
-
-    // Header fields.
-    let mut changed = encoded.clone();
-    changed[0] ^= 1;
-    rejects_decode(&changed, "invalid magic");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, 8, 0x9999);
-    rejects_decode(&changed, "unsupported Omega executable container marker");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, 10, 32);
-    rejects_decode(&changed, "is not canonical 64");
-
-    let mut changed = encoded.clone();
-    changed[12] = 9;
-    rejects_decode(&changed, "unknown executable-container architecture 9");
-
-    let mut changed = encoded.clone();
-    changed[13] = 1;
-    rejects_decode(&changed, "reserved0");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, 14, 0);
-    rejects_decode(&changed, "has 0 sections");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, 14, 17);
-    rejects_decode(&changed, "has 17 sections");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 16, 128);
-    rejects_decode(&changed, "is not canonical");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 24, encoded.len() as u64 + 1);
-    rejects_decode(&changed, "declares");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 32, 0);
-    rejects_decode(&changed, "normalized artifact identity cannot be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 40, 0);
-    rejects_decode(&changed, "fingerprint cannot be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 48, 1);
-    rejects_decode(&changed, "reserved1");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, 56, 1);
-    rejects_decode(&changed, "reserved2");
-
-    // Section-record fields: flags, reserved, and the per-kind identity rule.
-    let code_record = section_record(0);
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, code_record + 2, 0);
-    rejects_decode(&changed, "must be required");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, code_record + 2, 3);
-    rejects_decode(&changed, "unknown flags");
-
-    let mut changed = encoded.clone();
-    write_u32(&mut changed, code_record + 4, 1);
-    rejects_decode(&changed, "must be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, code_record + 8, 1);
-    rejects_decode(&changed, "must use zero wire identity");
-
-    let relocation_record = section_record(1);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_record + 8, 0);
-    rejects_decode(&changed, "requires a nonzero normalized identity");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_record + 8, 99);
-    rejects_decode(&changed, "content fingerprint");
-
-    let contracts_record = section_record(2);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, contracts_record + 8, 99);
-    rejects_decode(&changed, "payload identity");
-
-    let placement_record = section_record(4);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_record + 8, 99);
-    rejects_decode(&changed, "payload identity");
-
-    let proof_record = section_record(6);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, proof_record + 8, 1);
-    rejects_decode(&changed, "must use zero wire identity");
-
-    let authority_record = section_record(7);
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, authority_record + 2, 0);
-    rejects_decode(
-        &changed,
-        "container-v2 authority commitments must be required",
-    );
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, authority_record + 8, 1);
-    rejects_decode(&changed, "must use zero wire identity");
-
-    // A v2 container remarkered as v1 still cannot smuggle its authority
-    // section through the compatibility reader.
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, 8, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER);
-    rejects_decode(
-        &changed,
-        "container-v1 cannot carry a v2 authority-commitment section",
-    );
-
-    // A code-payload byte substitution decodes into different semantics, so
-    // the canonical content-fingerprint join rejects it before artifact
-    // construction ever runs.
-    let mut changed = encoded.clone();
-    changed[section_offset(&encoded, 0)] ^= 1;
-    rejects_decode(&changed, "content fingerprint");
-
-    // Placement-record fields.
-    let placement_offset = section_offset(&encoded, 4);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset, 99);
-    rejects_decode(&changed, "payload identity");
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 8] = 2;
-    rejects_decode(&changed, "placement range presence flag 2 is not boolean");
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 9] = 9;
-    rejects_decode(&changed, "unknown placement phase 9");
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 10] = 0;
-    rejects_decode(&changed, "machine regime identity must be zero when absent");
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 10] = 2;
-    rejects_decode(&changed, "machine regime presence flag 2 is not boolean");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 40, 0);
-    rejects_decode(
-        &changed,
-        "machine regime identity cannot be zero when present",
-    );
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 11] = 0;
-    rejects_decode(
-        &changed,
-        "installation scope identity must be zero when absent",
-    );
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 11] = 2;
-    rejects_decode(
-        &changed,
-        "installation scope presence flag 2 is not boolean",
-    );
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 48, 0);
-    rejects_decode(
-        &changed,
-        "installation scope identity cannot be zero when present",
-    );
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 16, 1);
-    rejects_decode(&changed, "placement range values must be zero when absent");
-
-    let mut changed = encoded.clone();
-    changed[placement_offset + 8] = 1;
-    write_u64(&mut changed, placement_offset + 16, 0x2000);
-    write_u64(&mut changed, placement_offset + 24, 0x1000);
-    rejects_decode(&changed, "placement range is invalid");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 32, 0);
-    rejects_decode(&changed, "placement alignment must be nonzero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 32, 8);
-    rejects_decode(&changed, "content fingerprint");
-
-    let mut changed = encoded.clone();
-    write_u32(&mut changed, placement_offset + 12, 1);
-    rejects_decode(&changed, "placement reserved field must be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, placement_offset + 56, 1);
-    rejects_decode(&changed, "placement reserved field must be zero");
-
-    // Relocation count and record fields.
-    let relocation_offset = section_offset(&encoded, 1);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_offset, 0);
-    rejects_decode(&changed, "does not match 0 canonical records");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_offset, 17);
-    rejects_decode(&changed, "exceeding configured bound");
-
-    let relocation_payload = relocation_offset + RELOCATION_COUNT_BYTES as usize;
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, relocation_payload, 9);
-    rejects_decode(&changed, "unknown artifact relocation kind 9");
-
-    let mut changed = encoded.clone();
-    write_u16(&mut changed, relocation_payload + 2, 9);
-    rejects_decode(&changed, "unknown artifact relocation target kind 9");
-
-    let mut changed = encoded.clone();
-    write_u32(&mut changed, relocation_payload + 4, 1);
-    rejects_decode(&changed, "relocation reserved");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_payload + 16, 0);
-    rejects_decode(&changed, "normalized entry stub identity cannot be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, relocation_payload + 24, 1);
-    rejects_decode(&changed, "content fingerprint");
-
-    // Entry-record fields: a raw payload substitution decodes into different
-    // semantics, so the canonical content-fingerprint join rejects it before
-    // artifact construction ever runs.
-    let entry_offset = section_offset(&encoded, 5);
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, entry_offset, 0);
-    rejects_decode(&changed, "normalized entry stub identity cannot be zero");
-
-    let mut changed = encoded.clone();
-    write_u64(&mut changed, entry_offset + 8, 24);
-    rejects_decode(&changed, "content fingerprint");
-
-    // The authority-commitment section binds four strong digests: a zero
-    // digest is not representable, and a short section cannot keep canonical
-    // tiling without also retiring the declared length.
-    let authority_offset = section_offset(&encoded, 7);
-    let mut changed = encoded.clone();
-    changed[authority_offset..authority_offset + 32].fill(0);
-    rejects_decode(&changed, "authority commitments cannot be zero");
-
-    let mut changed = encoded.clone();
-    changed.truncate(authority_offset + 64);
-    write_u64(&mut changed, authority_record + 24, 64);
-    let total_length = changed.len() as u64;
-    write_u64(&mut changed, 24, total_length);
-    rejects_decode(&changed, "must contain exactly 128 bytes");
+    // be carried silently. The family's independent checker is the canonical
+    // decoder alone.
+    let mut donor = ArtifactSeed::from(&artifact);
+    donor.identity = ArtifactId::from_normalized_identity(2).expect("artifact identity");
+    let donor = encode_executable_container(&donor.into_artifact(), &proof, limits())
+        .expect("foreign container encodes");
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "executable container wire bytes",
+        fields: ContainerWireByteFieldForTest::INVENTORY,
+        honest: &|| encoded.clone(),
+        donor,
+        custody: &|bytes: &Vec<u8>| bytes.clone(),
+        substitute: &substitute_container_wire_byte_for_test,
+        check: &|bytes: &Vec<u8>| match decode_executable_container(bytes, limits()) {
+            Ok(_) => Ok(bytes.clone()),
+            Err(error) => Err(classify_container_wire_rejection(
+                &error,
+                container_wire_byte_vocabulary(),
+            )),
+        },
+        outcome: &container_wire_byte_custody_outcome,
+        joined_replay: None,
+    });
 }
