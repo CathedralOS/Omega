@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 /// One coherent final typed frontend and its evaluated build selection.
-pub(super) struct BuiltCheckedProgram {
+pub(crate) struct BuiltCheckedProgram {
     pub(super) typed: typed_trees::TypedTrees,
     pub(super) selected_target_machine_declarations:
         build_evaluation::target_machines::SelectedTargetMachineDeclarations,
@@ -30,7 +30,7 @@ pub(super) struct BuiltCheckedProgram {
 }
 
 /// Source custody spanning the pre-build admission and generated extension.
-pub(super) struct BuildSourceCustody {
+pub(crate) struct BuildSourceCustody {
     pub(super) source_file_count: usize,
     pub(super) build_execution_profile: Option<target::TargetProfile>,
     pub(super) generated_source_custody:
@@ -40,7 +40,7 @@ pub(super) struct BuildSourceCustody {
         Option<package_compilation::PackageSourceConsumptionCommitment>,
 }
 
-pub(super) fn evaluate_build_and_continue(
+pub(crate) fn evaluate_build_and_continue(
     root_path: &Path,
     child: CheckedChildExecution<'_>,
     mut source_file_count: usize,
@@ -95,7 +95,7 @@ pub(super) fn evaluate_build_and_continue(
         build_execution_profile,
         build_dir,
         filesystem_sponsor,
-        build_snapshot,
+        build_snapshot.as_ref(),
     )?;
     let admitted_build = build_evaluation::admit_build_program(
         frontend.typed(),

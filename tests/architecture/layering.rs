@@ -2944,11 +2944,8 @@ fn retained_native_product_enters_only_terminal_realization() {
     let request_path = root.join("omega-rust/omega/compiler/src/compiler/request.rs");
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
-    let compact_driver = driver.split_whitespace().collect::<String>();
     assert!(
-        compact_driver.contains(
-            "source?.check(&options.root_path,options.target_name.as_deref(),options.build_dir(),target.package_inputs(),&target.configuration.optimization_rollback,target.configuration.build_snapshot.as_ref(),)?"
-        )
+        driver.contains("source.assemble(&child)?")
             && driver.contains("RequestedCompileProduct::NativeArtifact =>")
             && driver.contains("prepare_native_product(target.into_native_product_request(), checked)")
             && driver.contains("native_inputs.realize(terminal)?")
@@ -2956,7 +2953,7 @@ fn retained_native_product_enters_only_terminal_realization() {
         "NativeArtifact must stop the canonical driver at native realization while retaining its exact checked/native invocation join"
     );
     assert_eq!(
-        driver.matches("source?.check(").count(),
+        driver.matches("check_selected_execution(").count(),
         1,
         "production products must share one checked-Psi frontend"
     );

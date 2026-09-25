@@ -54,7 +54,7 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
-    pub(super) fn seal(
+    pub(crate) fn seal(
         execution: CheckedExecution,
         sources: BuildSourceCustody,
         package_inputs: Option<&PackageCompilationInputs>,

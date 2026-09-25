@@ -13,7 +13,7 @@ use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct CheckedExecution {
+pub(crate) struct CheckedExecution {
     pub(super) settled: SelectedExecutionSettlementSurface,
     pub(super) const_evaluation: const_evaluation::SelectedConstEvaluation,
     pub(super) subsystem: u16,
@@ -69,7 +69,7 @@ pub(super) struct CheckedExecution {
     pub(super) accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]>,
 }
 
-pub(super) fn check_selected_execution(
+pub(crate) fn check_selected_execution(
     built: BuiltCheckedProgram,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
