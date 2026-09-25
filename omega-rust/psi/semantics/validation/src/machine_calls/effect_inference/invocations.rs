@@ -745,11 +745,7 @@ fn data_definition_by_symbol<'program>(
     program: &'program TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    crate::machine_calls::effect_inference::plan_scope::memoized_data_definition_lookup(
-        program, symbol,
-    )
-    .first_position()
-    .and_then(|position| program.data_definitions().get(position as usize))
+    crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, symbol)
 }
 
 fn collect_expression_call(
@@ -966,10 +962,10 @@ fn origin_for_symbol(
         return boundary_service_for_type(program, owned.type_reference)
             .map(InvocationTarget::Service);
     }
-    let attached = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == machine.attached_data_symbol);
+    let attached = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        machine.attached_data_symbol,
+    );
     attached
         .and_then(|definition| {
             program

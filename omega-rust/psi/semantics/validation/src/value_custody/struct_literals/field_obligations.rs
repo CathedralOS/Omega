@@ -79,10 +79,11 @@ pub(super) fn enforce_construction_field_obligations(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
-    let Some(data_definition) = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == literal.type_symbol)
+    let Some(data_definition) =
+        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program,
+            literal.type_symbol,
+        )
     else {
         return;
     };

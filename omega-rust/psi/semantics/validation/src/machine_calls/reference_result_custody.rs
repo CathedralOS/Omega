@@ -49,10 +49,10 @@ fn reference_origin_expansion_is_bounded(
             }
             _ => return Some(()),
         };
-        if let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == symbol)
+        if let Some(data) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, symbol,
+            )
         {
             for member in program.data_members(data) {
                 if let typed_trees::data::DataMember::Field(field) = member {
@@ -96,10 +96,9 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         if seen.contains(symbol) {
             return None;
         }
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
+        let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )?;
         if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
             || program.type_multiplicity(reference) != Multiplicity::Affine
             || !program.data_type_parameters(data).is_empty()
@@ -428,10 +427,9 @@ fn formal_record_sources(
             } if arguments.count() == 0 => base_symbol,
             _ => return None,
         };
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
+        let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )?;
         for member in program.data_members(data) {
             let typed_trees::data::DataMember::Field(field) = member else {
                 return None;
@@ -481,10 +479,9 @@ fn record_construction_sources(
     if literal.type_symbol != *symbol || literal.case_symbol.is_some() {
         return None;
     }
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)?;
+    let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, *symbol,
+    )?;
     let initializers = program.expression_table.struct_fields(literal.fields);
     let fields = program.data_members(data);
     if initializers.len() != fields.len() {
@@ -608,10 +605,10 @@ pub fn local_record_loans(
             else {
                 return None;
             };
-            let data = program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == *symbol)?;
+            let data =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *symbol,
+                )?;
             let field = program
                 .data_members(data)
                 .iter()
@@ -928,10 +925,9 @@ pub(crate) fn declared_field_path<'a>(
         else {
             return None;
         };
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
+        let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )?;
         let field = crate::value_custody::places::exact_data_member_field(
             program,
             data,
@@ -1343,10 +1339,9 @@ pub fn source_leaf(
         else {
             return None;
         };
-        let data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *symbol)?;
+        let data = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )?;
         let member_symbol = member.member_symbol;
         let field = program
             .data_members(data)

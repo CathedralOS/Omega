@@ -390,10 +390,8 @@ fn structural_place_type(
                         .or_else(|| {
                             (at_root && self_data.is_valid())
                                 .then(|| {
-                                    program
-                                        .data_definitions()
-                                        .iter()
-                                        .find(|data| data.symbol == self_data)
+
+                                        crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, self_data)
                                 })
                                 .flatten()
                         })
@@ -431,10 +429,8 @@ fn structural_place_type(
                 let data = direct_data
                     .or_else(|| {
                         through_attached_self.then_some(()).and_then(|()| {
-                            program
-                                .data_definitions()
-                                .iter()
-                                .find(|data| data.symbol == self_data)
+
+                                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, self_data)
                         })
                     })
                     .ok_or_else(|| {

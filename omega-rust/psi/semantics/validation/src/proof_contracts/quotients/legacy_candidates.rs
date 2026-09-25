@@ -82,10 +82,10 @@ pub(crate) fn legacy_attached_quotient_call_candidate<'program>(
 ) -> Option<LegacyQuotientCallCandidate<'program>> {
     let quotient = quotient_for_type(program, receiver_type)?;
     let carrier_symbol = base_data_symbol(program, quotient.quotient.as_ref()?.carrier)?;
-    let carrier = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == carrier_symbol)?;
+    let carrier = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        carrier_symbol,
+    )?;
     let operation = program.machines().iter().find(|machine| {
         machine
             .attached_data

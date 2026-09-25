@@ -41,7 +41,7 @@ fn proof_nat_type(
                         Some(source::SourceOrigin::User) => false,
                         None => !program.symbols.has_source_metadata(),
                     }
-                    && program.data_definitions().iter().find(|data| data.symbol == *symbol)
+                    && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, *symbol)
                         .is_some_and(|data| {
                             use typed_trees::data::DataMember;
                             let members = program.data_members(data);

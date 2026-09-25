@@ -407,10 +407,10 @@ fn indexed_carrier_parameter_matches(
     else {
         return None;
     };
-    let carrier = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == *carrier_symbol)?;
+    let carrier = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        *carrier_symbol,
+    )?;
     let carrier_telescope = program.data_type_parameters(carrier);
     if carrier_telescope.is_empty() {
         return None;

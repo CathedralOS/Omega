@@ -390,11 +390,10 @@ fn validate_direct_projection(
         );
         return None;
     }
-    let Some(data) = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == data_symbol)
-    else {
+    let Some(data) = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program,
+        data_symbol,
+    ) else {
         reject("the result is not one nominal plain record", diagnostics);
         return None;
     };

@@ -15,10 +15,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
         }
         data_symbols.push(plan.data_symbol);
 
-        let Some(data) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == plan.data_symbol)
+        let Some(data) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                plan.data_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact synthesized data identity",
@@ -41,10 +42,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             continue;
         }
 
-        let Some(schema) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == plan.schema_symbol)
+        let Some(schema) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                plan.schema_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact source schema identity",
@@ -105,10 +107,11 @@ pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnos
             continue;
         }
 
-        let Some(policy) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == plan.policy_symbol)
+        let Some(policy) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program,
+                plan.policy_symbol,
+            )
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "plan-laid value type `{}` no longer names its exact nominal policy identity",

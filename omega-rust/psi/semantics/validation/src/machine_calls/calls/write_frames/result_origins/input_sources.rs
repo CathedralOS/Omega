@@ -49,10 +49,11 @@ pub(super) fn instantiate_source(
     }
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
         let origins = if parameter.is_self {
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == callee_machine.attached_data_symbol)?;
+            let definition =
+                crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program,
+                    callee_machine.attached_data_symbol,
+                )?;
             if !super::super::isolation::data_definition_has_only_owned_storage(program, definition)
             {
                 return None;

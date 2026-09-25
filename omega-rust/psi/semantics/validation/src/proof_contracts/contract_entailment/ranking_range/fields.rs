@@ -816,10 +816,10 @@ pub(super) fn record_referent(
         return None;
     };
     (symbol.is_valid()
-        && program
-            .data_definitions()
-            .iter()
-            .any(|data| data.symbol == *symbol))
+        && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+            program, *symbol,
+        )
+        .is_some())
     .then_some((*symbol, borrowed))
 }
 
@@ -975,10 +975,10 @@ pub(super) fn collect_record_paths(
         if paths.len() >= 2 || depth >= 16 {
             return;
         }
-        let Some(declaration) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner)
+        let Some(declaration) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, owner,
+            )
         else {
             return;
         };
@@ -1051,10 +1051,10 @@ pub(super) fn collect_leaf_paths(
         if paths.len() >= 2 || depth >= 16 {
             return;
         }
-        let Some(declaration) = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == owner)
+        let Some(declaration) =
+            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                program, owner,
+            )
         else {
             return;
         };
@@ -1069,10 +1069,10 @@ pub(super) fn collect_leaf_paths(
             } else if let TypeReferenceNode::Named { symbol: next, .. } = program
                 .type_reference_table
                 .type_reference(unwrap_constraint_shells(program, field.type_reference))
-                && program
-                    .data_definitions()
-                    .iter()
-                    .any(|data| data.symbol == *next)
+                && crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+                    program, *next,
+                )
+                .is_some()
                 && !visiting.contains(next)
             {
                 // A reference boundary or a scalar leaf ends the descent,

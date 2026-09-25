@@ -54,10 +54,8 @@ pub(super) fn has_immutable_inputs(
                 // resolution above still refuses every reference boundary.
                 if program.symbols.builtin_type_atom(*symbol).is_none() {
                     return symbol.is_valid()
-                        && program
-                            .data_definitions()
-                            .iter()
-                            .any(|definition| definition.symbol == *symbol);
+                        &&
+                            crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(program, *symbol).is_some();
                 }
                 program.arithmetic_domain_for_type_reference(handle) == ArithmeticDomain::Exact
                     && matches!(

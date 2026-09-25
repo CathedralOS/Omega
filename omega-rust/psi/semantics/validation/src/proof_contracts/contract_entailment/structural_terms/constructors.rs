@@ -294,10 +294,9 @@ fn zero_term(
     if !symbol.is_valid() || active.contains(&symbol) {
         return None;
     }
-    let definition = program
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == symbol)?;
+    let definition = crate::machine_calls::effect_inference::plan_scope::data_definition_by_symbol(
+        program, symbol,
+    )?;
     if crate::value_custody::data::data_requires_establishment(program, definition) {
         return None;
     }
