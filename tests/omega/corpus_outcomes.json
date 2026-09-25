@@ -26489,6 +26489,14 @@
   "diagnostics": []
  },
  {
+  "fixture": "pass/structural/case_field_member_store",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 21046,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
   "fixture": "pass/structural/case_payload_record_member_read",
   "tier": "pass",
   "status": "checked",

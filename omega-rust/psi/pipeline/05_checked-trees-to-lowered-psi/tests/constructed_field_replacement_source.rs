@@ -246,12 +246,109 @@ fn a_whole_copy_parameter_replaces_a_structural_field() {
     )));
 }
 
+/// `self.sum = source.sum` over `[copy]` payload-free sums below a
+/// shared-borrowed parameter: the member leaf is copied out of the loan, the
+/// receiver's field is reseated through the window pair, and the displaced
+/// leaf needs no disposal.
+#[test]
+fn a_member_case_copy_replaces_the_receiver_case_field() {
+    let kinds = case_replacement_kinds(
+        "data Sum [copy] { case A; case B; }
+        data Holder [copy] { sum: Sum; }
+        machine Holder::clone_sum(&mut self, source: &Holder) {
+            self.sum = source.sum;
+        }",
+        "Holder::clone_sum",
+    );
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StructuralLeafCopy { path, .. }
+            if path == &[terminal_psi::StructuralPathSegment::Field("sum".into())]
+    )));
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::MoveStructuralField { .. }
+    )));
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StoreStructuralField { .. }
+    )));
+}
+
+/// The same member read below an owned parameter: custody of the carrier is
+/// owned, the member leaf is still copied rather than moved.
+#[test]
+fn a_member_case_copy_beneath_an_owned_parameter() {
+    let kinds = case_replacement_kinds(
+        "data Sum [copy] { case A; case B; }
+        data Holder [copy] { sum: Sum; }
+        machine Holder::adopt_sum(&mut self, source: Holder) {
+            self.sum = source.sum;
+        }",
+        "Holder::adopt_sum",
+    );
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StructuralLeafCopy { path, .. }
+            if path == &[terminal_psi::StructuralPathSegment::Field("sum".into())]
+    )));
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StoreStructuralField { .. }
+    )));
+}
+
+/// A whole owned `[copy]` sum parameter is the degenerate member store: the
+/// value path is empty and the field is reseated through the same window
+/// pair.
+#[test]
+fn a_whole_sum_parameter_replaces_the_receiver_case_field() {
+    let kinds = case_replacement_kinds(
+        "data Sum [copy] { case A; case B; }
+        data Holder [copy] { sum: Sum; }
+        machine Holder::set_sum(&mut self, value: Sum) {
+            self.sum = value;
+        }",
+        "Holder::set_sum",
+    );
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StructuralLeafCopy { path, .. } if path.is_empty()
+    )));
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StoreStructuralField { .. }
+    )));
+}
+
+/// A non-`[copy]` sum field cannot mint the plan: the member store declines
+/// at checking, before any lowered operation could exist.
+#[test]
+fn a_linear_sum_member_store_still_declines() {
+    let diagnostics = crate::front_end::checked_program_result(
+        "data Sum { case A; case B; }
+        data Holder { sum: Sum; }
+        machine Holder::clone_sum(&mut self, source: &Holder) {
+            self.sum = source.sum;
+        }",
+    );
+    assert!(
+        diagnostics.is_err(),
+        "a linear sum member store must keep declining"
+    );
+}
+
 /// Produce and independently verify `Main::main`, returning its operations.
 fn copy_replacement_kinds(source: &str) -> Vec<terminal_psi::OperationKind> {
+    case_replacement_kinds(source, "Main::main")
+}
+
+/// Produce and independently verify `machine`, returning its operations.
+fn case_replacement_kinds(source: &str, machine: &'static str) -> Vec<terminal_psi::OperationKind> {
     let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
-        TerminalMachineSelection::Name("Main::main"),
+        TerminalMachineSelection::Name(machine),
     )
     .produce(TerminalProductionCustody::artifact_only(
         &mut TerminalProductionTimings::default(),
