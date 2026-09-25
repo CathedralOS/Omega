@@ -672,6 +672,15 @@ pub(super) fn lower_structural_parameter_field(
         // continues into a record field (`maps[1].value`) instead resolves its
         // scalar leaf through primitive_type_reference below.
         validation::unrestricted_builtin_primitive(program, type_reference)?;
+        // A bounded byte field (`[u8; N] in Utf8`) has a live length, so even
+        // a literal index is a bounds-checked byte read, not a projection.
+        if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+            && let Some((_, _, collection_type)) =
+                structural_parameter_place(program, parameters, indexed.collection)
+            && validation::bounded_byte_buffer_capacity(program, collection_type).is_some()
+        {
+            return None;
+        }
     }
     let primitive_type = program.primitive_type_reference(type_reference)?;
     if primitive_type == PrimitiveType::Bool {
