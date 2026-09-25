@@ -11,6 +11,7 @@
 //! it stores, and `builtin` the seeded builtin symbols.
 
 mod builtin;
+mod fast_map;
 mod symbol;
 mod table;
 
@@ -18,6 +19,7 @@ pub use builtin::{
     BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, builtin_function_symbols,
     builtin_type_member_symbols, builtin_type_symbols,
 };
+pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
 pub use symbol::kind::SymbolKind;
 pub use symbol::name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use symbol::path::SymbolPath;

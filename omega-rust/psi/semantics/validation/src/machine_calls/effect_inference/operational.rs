@@ -73,7 +73,7 @@ struct DirectCallOperational {
 
 pub fn infer_operational_may(program: &TypedTrees) -> OperationalPlan {
     DIRECT_OPERATIONAL_MEMO.with(|cell| {
-        *cell.borrow_mut() = Some(std::collections::HashMap::new());
+        *cell.borrow_mut() = Some(symbols::SymbolKeyMap::default());
     });
     let mut machines = build_machine_work(program);
     propagate_operational_may(&mut machines);
@@ -500,7 +500,7 @@ thread_local! {
     /// `infer_operational_may` build so a slightly-mutated successor program
     /// can never inherit the previous program's verdicts.
     static DIRECT_OPERATIONAL_MEMO: std::cell::RefCell<
-        Option<std::collections::HashMap<SymbolHandle, DirectCallOperational>>,
+        Option<symbols::SymbolKeyMap<SymbolHandle, DirectCallOperational>>,
     > = const { std::cell::RefCell::new(None) };
 }
 

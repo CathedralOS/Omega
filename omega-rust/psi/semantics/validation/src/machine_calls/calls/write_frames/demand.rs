@@ -24,9 +24,9 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, summarize_state_written_paths,
 };
 use facts::NormalizedWriteFrame;
-use std::collections::HashMap;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -313,22 +313,22 @@ impl<'program> CallFrameResolver<'program> {
         diagnostics.is_empty().then_some(Self {
             program,
             symbols,
-            statement_calls: Mutex::new(HashMap::new()),
-            binding_replacements: Mutex::new(HashMap::new()),
-            local_reference_origins: Mutex::new(HashMap::new()),
-            stable_expression_bindings: Mutex::new(HashMap::new()),
-            stable_call_bindings: Mutex::new(HashMap::new()),
-            caller_isolated_proof_values: Mutex::new(HashMap::new()),
-            write_origin_requirements: Mutex::new(HashMap::new()),
-            assignment_targets: Mutex::new(HashMap::new()),
-            assignment_frames: Mutex::new(HashMap::new()),
-            local_write_origins: Mutex::new(HashMap::new()),
-            state_write_collections: Mutex::new(HashMap::new()),
-            state_write_shared_collections: Mutex::new(HashMap::new()),
-            expression_frames: Mutex::new(HashMap::new()),
-            statement_value_frames: Mutex::new(HashMap::new()),
-            inferred_state_frames: Mutex::new(HashMap::new()),
-            inferred_machine_frames: Mutex::new(HashMap::new()),
+            statement_calls: Mutex::new(HashMap::default()),
+            binding_replacements: Mutex::new(HashMap::default()),
+            local_reference_origins: Mutex::new(HashMap::default()),
+            stable_expression_bindings: Mutex::new(HashMap::default()),
+            stable_call_bindings: Mutex::new(HashMap::default()),
+            caller_isolated_proof_values: Mutex::new(HashMap::default()),
+            write_origin_requirements: Mutex::new(HashMap::default()),
+            assignment_targets: Mutex::new(HashMap::default()),
+            assignment_frames: Mutex::new(HashMap::default()),
+            local_write_origins: Mutex::new(HashMap::default()),
+            state_write_collections: Mutex::new(HashMap::default()),
+            state_write_shared_collections: Mutex::new(HashMap::default()),
+            expression_frames: Mutex::new(HashMap::default()),
+            statement_value_frames: Mutex::new(HashMap::default()),
+            inferred_state_frames: Mutex::new(HashMap::default()),
+            inferred_machine_frames: Mutex::new(HashMap::default()),
             complete_state_summaries: Mutex::new(Vec::new()),
             call_plans: Mutex::new(None),
         })
