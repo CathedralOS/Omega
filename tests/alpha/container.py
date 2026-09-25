@@ -468,7 +468,7 @@ def main(argv):
     except ContainerError as error:
         print(f"container FAIL {args.container}: {error}", file=sys.stderr)
         return 1
-    print(f"container ✓ {args.container}: valid {args.format}; {summary}")
+    print(f"container OK {args.container}: valid {args.format}; {summary}")
     return 0
 
 
