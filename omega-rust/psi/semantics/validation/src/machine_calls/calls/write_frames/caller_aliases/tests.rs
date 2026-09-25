@@ -18,7 +18,8 @@ fn replayed_assignment_paths(
         return None;
     };
     let site = CallerWriteSite::Statement(statement);
-    let evidence = caller_aliases_at_site(program, machine, symbols, site)?;
+    let collections = std::sync::Mutex::new(std::collections::HashMap::new());
+    let evidence = caller_aliases_at_site(program, machine, symbols, site, &collections)?;
     let (aliases, stored) = (evidence.aliases, evidence.stored);
     let target = if aliases.is_empty()
         && stored.is_empty()
@@ -47,7 +48,7 @@ fn replayed_assignment_paths(
     match target {
         AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
         AssignmentWriteTarget::Storage { paths } => {
-            close_caller_aliases(program, machine, symbols, site, paths)
+            close_caller_aliases(program, machine, symbols, site, paths, &collections)
         }
     }
 }
@@ -107,7 +108,7 @@ fn assignment_query_reuses_one_prefix_for_target_and_closure() {
         actual,
         Some(vec!["pair.left".to_owned(), "selected".to_owned()])
     );
-    assert_eq!(previous, 3);
+    assert_eq!(previous, 2);
     assert_eq!(current, 1);
 }
 
